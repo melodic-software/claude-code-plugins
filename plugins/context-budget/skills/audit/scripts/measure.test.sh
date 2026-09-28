@@ -318,6 +318,9 @@ if (mode === 'skillsig' && key === 'AlphaTool+BetaTool') {
   lines.push('', '### Skills', '', '| Skill | Source | Tokens |', '|---|---|---|',
     '| drift-skill | User | 100 |');
 }
+// A deny run can raise a disclosure the baseline does not. The attribution
+// record must keep it (#3356 H3).
+if (key) lines.push('', `Caveat: deny-run disclosure for ${key}`);
 process.stdout.write(lines.join('\n') + '\n');
 EOF
 case "$(uname -s)" in
@@ -419,6 +422,12 @@ if attr control "$actl" --tools AlphaTool,BetaTool --verify-additivity; then
     "plan-mode EnterPlanMode is known-uncovered" "EnterPlanMode omitted from knownUncovered"
   assert_eq "$(jsonget "$actl" 'JSON.stringify(j.knownUncovered.notes).includes("MCP")')" "true" \
     "interactive-only MCP servers are noted as a class" "MCP class note missing"
+  assert_eq "$(jsonget "$actl" 'j.caveats.filter((c)=>c.startsWith("cli-parse mode")).length')" "1" \
+    "shared cli-parse caveat is kept once" "baseline caveat duplicated or dropped"
+  assert_eq "$(jsonget "$actl" 'j.caveats.includes("deny-run disclosure for AlphaTool")')" "true" \
+    "a per-tool deny run's caveat reaches the attribution record" "deny-run caveat discarded"
+  assert_eq "$(jsonget "$actl" 'j.caveats.includes("deny-run disclosure for AlphaTool+BetaTool")')" "true" \
+    "the combined deny run's caveat reaches the attribution record" "combined-run caveat discarded"
 else
   fail "attribute --verify-additivity (control scenario) exited nonzero"
 fi

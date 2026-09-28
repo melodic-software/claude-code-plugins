@@ -24,15 +24,18 @@ instead).
 
 | Claim the skill relies on | Source |
 |---|---|
-| A bare tool name in a deny rule removes the tool's definition from the request; a scoped rule (`Bash(rm *)`) is a runtime guard whose schema still ships | [Agent SDK permissions: allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
+| A bare tool name in a deny rule removes the tool's definition from the request, except `EndConversation`; a scoped rule (`Bash(rm *)`) is a runtime guard whose schema still ships | [Permissions: tool-name rules](https://code.claude.com/docs/en/permissions), [Agent SDK permissions: allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
 | Deferred tool loading controls what enters the context window, not what is sent. The full schema still goes out in the request | [Tool search: deferred tool loading](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading) |
 | `--disallowedTools` exists as a per-invocation CLI flag; there is **no** `disallowedTools` settings key. Persistent config uses `permissions.deny` | [CLI reference: flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings](https://code.claude.com/docs/en/settings) |
 | The Agent SDK exposes structured context usage over the control protocol (`getContextUsage()`) | [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) |
 
-Every row above is verified 2026-09-06 against Claude Code 2.1.263, by reading the cited page and
-matching the claim to its text. Recheck a row when its page stops carrying the statement, or when
-a release note names deny rules, deferred tool loading, the `--disallowedTools` flag, or the Agent
-SDK control protocol.
+The bare-name row was re-read on 2026-09-28 against
+[permissions](https://code.claude.com/docs/en/permissions). The page now says: "Bare-name removal
+applies to every tool except `EndConversation`: a deny rule can't remove it while any other tool
+remains, and an ask rule never prompts for it." The other rows in the table stay as verified
+2026-09-06 against Claude Code 2.1.263. Recheck a row when its page stops carrying the statement,
+or when a release note names deny rules, the `EndConversation` exception, deferred tool loading,
+the `--disallowedTools` flag, or the Agent SDK control protocol.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine
@@ -94,7 +97,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   bucket). In **sdk** mode the two attributed buckets are recorded as an explicit `0` when the
   SDK omits them (numbers are exact and the vocabulary is known), so a combined deny yields a
   real delta; a `caveats[]` entry names every synthesized zero so a raw `snapshot`/`ledger`
-  consumer can tell a reported 0 from a filled-in omission. A bucket absent from *both* runs is
+  consumer can tell a reported 0 from a filled-in omission. The attribution record's `caveats`
+  are the baseline's caveats merged with every deny run and, when it ran, the combined
+  additivity run, in that order, with duplicates dropped. A deny run's disclosure is not
+  discarded. A bucket absent from *both* runs is
   outside that binary's category vocabulary and simply contributes nothing.
 - `context-budget.ledger/1` is one before/after: `lever`, `emittedConfig`, `before`/`after`
   summaries, `delta` per category, `totalDelta`, `comparability` (`ok`, `systemToolsComparable`

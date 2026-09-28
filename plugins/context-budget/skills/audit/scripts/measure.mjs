@@ -325,7 +325,24 @@ function parseContextMarkdown(text) {
     }
   }
 
-  return { categories, model, skillRows, agents, precision: anyRounded ? 'display-rounded' : 'exact' };
+  // Optional `Caveat:` lines are not part of /context's table. The hermetic
+  // fake binary uses them so a deny run can carry a disclosure the baseline
+  // does not. A real /context render has none, and unknown lines elsewhere
+  // stay ignored.
+  const caveats = [];
+  for (const line of lines) {
+    const match = /^Caveat:\s+(.+)$/.exec(line);
+    if (match) caveats.push(match[1].trim());
+  }
+
+  return {
+    categories,
+    model,
+    skillRows,
+    agents,
+    precision: anyRounded ? 'display-rounded' : 'exact',
+    caveats,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +491,7 @@ function cliSnapshot({ bin, deny, label }) {
     caveats: [
       'cli-parse mode: values are display-rounded, not exact integers',
       'headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior',
+      ...(parsed.caveats || []),
     ],
   };
 }
@@ -724,9 +742,11 @@ async function runAttribute(args) {
   }
   if (!tools.length) usageError('--tools resolved to an empty list');
 
+  const measured = [baseline];
   const perTool = [];
   for (const tool of tools) {
     const run = await takeSnapshot({ ...args, deny: tool, label: `deny:${tool}` });
+    measured.push(run);
     const cmp = compareSnapshots(baseline, run, { lever: `deny:${tool}` });
     const { saved, comparable, reasons } = systemBucketSaving(cmp);
     perTool.push({
@@ -748,6 +768,7 @@ async function runAttribute(args) {
     const savers = perTool.filter((t) => t.comparable && t.savedTokens > 0).map((t) => t.tool);
     if (savers.length >= 2) {
       const combined = await takeSnapshot({ ...args, deny: savers.join(','), label: 'deny:combined' });
+      measured.push(combined);
       const cmp = compareSnapshots(baseline, combined, { lever: `deny:${savers.join('+')}` });
       // Denying every saver at once can empty a bucket out of the combined
       // snapshot; its delta is then null and the combined saving is
@@ -786,8 +807,24 @@ async function runAttribute(args) {
       [...tools, ...(baseline.tools || [])],
       loadInteractiveOnly(),
     ),
-    caveats: baseline.caveats,
+    // Baseline-only caveats dropped every deny run's disclosures, including the
+    // synthesized-zero note sdk mode writes when it fills an omitted bucket.
+    caveats: mergeCaveats(measured),
   };
+}
+
+function mergeCaveats(snapshots) {
+  const seen = new Set();
+  const merged = [];
+  for (const snap of snapshots) {
+    const list = Array.isArray(snap?.caveats) ? snap.caveats : [];
+    for (const caveat of list) {
+      if (typeof caveat !== 'string' || caveat.length === 0 || seen.has(caveat)) continue;
+      seen.add(caveat);
+      merged.push(caveat);
+    }
+  }
+  return merged;
 }
 
 // ---------------------------------------------------------------------------

@@ -47,7 +47,9 @@ mode; the displayed fraction in cli-parse mode).
 6. **Routes.** The catalogue's route-outs (`/doctor` for usage-based removal, which the operator
    runs; memory files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
-   engine could not measure and why. An audit that hit rung 3 reports the structured error's
+   engine could not measure and why. The attribution record already merges the baseline with
+   each deny run and the combined additivity run, so a deny-run disclosure is in that list and
+   is reported, not dropped. An audit that hit rung 3 reports the structured error's
    remediation here and stops claiming numbers it does not have.
 
 ## Rules

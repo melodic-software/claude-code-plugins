@@ -5,6 +5,24 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.36] - 2026-09-28
+
+### Fixed
+
+- **Attribution keeps deny-run caveats**
+  ([#3356](https://github.com/melodic-software/claude-code-plugins/issues/3356)).
+  `attribute` used to publish only the baseline snapshot's `caveats`, so a disclosure raised
+  by a deny run, including sdk mode's synthesized-zero note, never reached the record. The
+  record now merges caveats from the baseline, each deny run, and the combined additivity run,
+  dropping duplicates and keeping first-seen order.
+
+### Changed
+
+- **Bare-name deny cites the `EndConversation` exception.** The permissions page now says
+  bare-name removal applies to every tool except `EndConversation` (a deny cannot remove it
+  while any other tool remains, and an ask rule never prompts for it). `engine.md`, the
+  `deny-bare-tool` lever, and the audit skill say so. Re-read 2026-09-28.
+
 ## [0.6.35] - 2026-09-28
 
 ### Changed

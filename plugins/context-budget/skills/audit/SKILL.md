@@ -179,8 +179,9 @@ otherwise use the payload's share of the measured window.
 
 ## Reading the numbers honestly
 
-- **A scoped deny saves nothing.** Only a bare tool name removes a schema from the request; a
-  scoped rule is a runtime guard whose schema still ships. Citations in
+- **A scoped deny saves nothing.** A bare tool name removes a schema from the request, except
+  `EndConversation`, which the permissions page exempts while any other tool remains. A scoped
+  rule is a runtime guard whose schema still ships. The dated record is in
   [`reference/engine.md`](reference/engine.md).
 - **A deferred tool is out of the context window but still in every request.** Do not present the
   deferred bucket as already-saved weight.

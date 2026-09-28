@@ -25,7 +25,7 @@
     {
       "id": "deny-bare-tool",
       "title": "Bare tool name in permissions.deny (or --disallowedTools per invocation)",
-      "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships.",
+      "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships. EndConversation is the documented exception: a bare-name deny cannot remove it while any other tool remains.",
       "category": "removes-weight",
       "categoryBasis": "Documented in request terms and reproduced by this plugin's own differencing engine. The two attributed buckets compose differently: deferred-side deltas add, so a basket's deferred saving is the sum of its members, while prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix saving. attribute --verify-additivity reports its verdict per bucket.",
       "conditions": null,
@@ -37,15 +37,17 @@
       "caveats": [
         "There is no `disallowedTools` settings key; emitting one writes a silently ignored key. Persistent config is permissions.deny only.",
         "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor).",
-        "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny."
+        "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny.",
+        "EndConversation is exempt from bare-name removal while any other tool remains, and an ask rule never prompts for it. Do not price a deny of EndConversation as a schema removal."
       ],
       "citations": [
+        "https://code.claude.com/docs/en/permissions",
         "https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules",
         "https://code.claude.com/docs/en/settings",
         "https://code.claude.com/docs/en/cli-reference#cli-flags"
       ],
-      "verified": "2026-08-17",
-      "recheckTrigger": "The permissions page stops describing whole-tool deny in request/schema-removal terms, or a measured bare-name deny stops moving the System tools buckets."
+      "verified": "2026-09-28",
+      "recheckTrigger": "The permissions page drops the EndConversation exception, stops describing whole-tool deny in request/schema-removal terms, or a measured bare-name deny of a tool other than EndConversation stops moving the System tools buckets."
     },
     {
       "id": "deny-scoped-rule",
