@@ -72,9 +72,8 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    - **load-bearing premises**, the conclusions the rest of the work now
      depends on;
    - **recommendations**. Each option, verdict, default, or next step put to
-     the user and not yet settled, verified against the grounding bar in
-     `docs/conventions/recommendation-basis/README.md` in the marketplace
-     repository (affected code and blast radius, plus current consensus).
+     the user and not yet settled, verified against the contract in
+     [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
    The typing makes the inventory auditable: each item carries its type, and
    step 5's ledger has exactly one row per item. Do not spot-check one, and do
    not silently drop an item as "obvious", an obvious item is a `verified`

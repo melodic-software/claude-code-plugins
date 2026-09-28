@@ -16,7 +16,12 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   grounded', and 're-check what you recommended'.
 - `do-your-research-deep` inventories recommendations as a fifth item type, one ledger row each.
 - The shared loop's Report step re-states a pending recommendation the audit changed as old →
-  new → why, per the new `docs/conventions/recommendation-basis/` convention.
+  new → why.
+- `context/recommendation-basis.md` states the recommendation-basis contract once for this
+  plugin's skills: the grounding bar, the `Basis:` values `verified` and `judgment` (never
+  `judgment` on a consequential recommendation), withholding an unsettled consequential one as an
+  open question, and the old → new → why re-statement.
+- `do-your-research` names `/discipline:do-your-research-deep` in a `## Next` section.
 
 ## [0.14.9] - 2026-09-26
 

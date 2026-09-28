@@ -108,13 +108,15 @@ the suspected source of bias, re-derive in a fresh-context subagent.
 
 Every recommendation the session has put to the user and the user has not
 yet settled is audited too, whether it is an option, verdict, default, or
-next step. Ground each one against the grounding bar in
-`docs/conventions/recommendation-basis/README.md` in the marketplace
-repository: the affected code and its consumers or blast radius through
+next step. Apply the contract in
+[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
+ground the affected code and its consumers or blast radius through
 `/discovery:explore`, and current consensus through `/discovery:research`,
 when the `discovery` plugin is installed; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
-or unchanged with why, carrying its `Basis:` label. This runs inside the
+or unchanged with why, carrying its `Basis:` label; a consequential one that
+stays unsettled is withheld as an open question, never labeled `judgment`.
+This runs inside the
 loop's audit and correct-forward steps, so it is not a step delta.
 
 ## Escalating to a verification fan-out
@@ -133,6 +135,13 @@ at a configurable depth, and reports a per-item ledger.
   fits those.
 - **Does not fabricate a citation or a violation.** An honest "nothing to
   correct" or "this stays unverified" is the right output when true.
+
+## Next
+
+/discipline:do-your-research-deep [tiered|full]
+
+When many load-bearing claims or recommendations need provable coverage,
+the fan-out tier verifies each one as a ledger row.
 
 ## Gotchas
 

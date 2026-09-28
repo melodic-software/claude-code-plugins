@@ -8,6 +8,7 @@
 - [Basis label](#basis-label)
 - [Re-emitting a changed recommendation](#re-emitting-a-changed-recommendation)
 - [Routing](#routing)
+- [Plugin-shipped copies](#plugin-shipped-copies)
 - [Enforceability](#enforceability)
 - [Adopters](#adopters)
 - [Versioning](#versioning)
@@ -27,8 +28,8 @@ This doc owns the bar a recommendation clears, the label it carries, and the sha
 re-statement. It does not own:
 
 - **What makes a source authoritative.** The source-tier, corroboration, and recency vocabulary is
-  defined once in `/discipline:do-your-research`, section "An authoritative source is a bar with
-  three dimensions" ([`SKILL.md`](../../../plugins/discipline/skills/do-your-research/SKILL.md)),
+  defined once in `/discipline:do-your-research`, section `"An authoritative source" is a bar with
+  three dimensions` ([`SKILL.md`](../../../plugins/discipline/skills/do-your-research/SKILL.md)),
   which in turn defers to the contract `/discovery:research` states. This doc uses those terms and
   does not redefine them.
 - **Durable records of upstream-derived facts.** A recommendation written into a committed file as
@@ -66,7 +67,8 @@ Each recommendation carries a visible `Basis:` label with one of two values:
 - **verified**, followed by what verified it: a `file:line`, a tool output, or a URL fetched this
   session. Recall and a summary of an unread source do not qualify.
 - **`judgment`**, for a recommendation resting on reasoning without that grounding. Allowed only
-  for a recommendation that is not consequential.
+  for a recommendation that is not consequential; see [Routing](#routing) for a consequential one
+  that cannot be settled.
 
 Example: `Basis: verified, .github/workflows/ci.yml:42 and https://docs.github.com/... (fetched
 this session)`, or `Basis: judgment`.
@@ -89,7 +91,17 @@ narrowly" in
 When a quick read will not settle the bar, ground through `/discovery:explore` for the local side
 (affected code, consumers, blast radius) and `/discovery:research` for the external side
 (consensus, recency, dissent), when the `discovery` plugin is installed. Without it, do the same
-reads and fetches inline and label anything left unsettled `judgment`.
+reads and fetches inline. A non-consequential recommendation left unsettled is labeled `judgment`;
+a consequential one is withheld and surfaced as an open question that names the evidence that
+would settle it.
+
+## Plugin-shipped copies
+
+A shipped plugin cannot resolve a relative pointer into this repository's `docs/`, because only
+the plugin's own directory is installed. A plugin that applies this contract states its essentials
+(the grounding bar, the consequential threshold, the `Basis:` values, the withhold rule, and the
+re-emit shape) in its own shipped text, once, and links here by absolute URL. The `discipline`
+plugin does so in `plugins/discipline/context/recommendation-basis.md`.
 
 ## Enforceability
 
@@ -113,6 +125,7 @@ Conforming with this contract's 1.0.0:
 
 | Surface | What a reader can rely on |
 |---|---|
+| `discipline` shipped contract (`plugins/discipline/context/recommendation-basis.md`) | The essentials of this contract, stated once for the plugin's skills. |
 | `discipline` loop, step 4 "Report" (`plugins/discipline/context/re-anchor-audit-correct.md`) | A corrector whose audit changed a pending recommendation re-states it old → new → why. |
 | `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why. |
 | `/discipline:do-your-research-deep` | Recommendations are an inventory type with one ledger row each. |

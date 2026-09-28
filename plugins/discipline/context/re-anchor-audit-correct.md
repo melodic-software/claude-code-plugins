@@ -66,9 +66,7 @@ Run these in order. Skip a step only when its input is genuinely absent
 4. **Report.** One short list: what was corrected, what remains open, and
    an honest "clean" where the audit found nothing. When the audit changed
    a recommendation the user still has pending, re-state it as old → new →
-   why, per the re-emit shape in
-   `docs/conventions/recommendation-basis/README.md` in the marketplace
-   repository.
+   why, per [`recommendation-basis.md`](recommendation-basis.md).
 
 ## Declared step deltas
 

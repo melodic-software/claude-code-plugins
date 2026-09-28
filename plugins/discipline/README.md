@@ -80,7 +80,7 @@ authoritative source, frame the problem before the solution, never act on
 ambiguity, and treat training-data recall as unverified. Audits recent
 turns for unbacked claims and skipped verification, then corrects forward.
 Pending recommendations are audited too: each is grounded per the
-[recommendation-basis convention](../../docs/conventions/recommendation-basis/README.md)
+[recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md)
 and reported old → new → why, or unchanged with why.
 
 ```shell
