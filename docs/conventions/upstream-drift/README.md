@@ -282,6 +282,22 @@ real defect a stored hash would have flagged, or a fleet audit completes without
 stamped claim in its scope, at which point a hash store becomes its own designed issue, not an
 inline addition here.
 
+### Recorded decision: no persistent refresh-on-change cache
+
+**Option A (taken), 2026-09-28.** A claude-config upstream-doc fetcher, when it ships, carries a
+per-run manifest only. It does not grow a persistent hash store keyed by page URL. #3567 (the
+placeholder for that store) stays closed not-planned. Option B (add the cache in #4655, amend this
+section, reopen #3567) is declined: the deferral's own trigger has not fired, and a conditional GET
+cannot save the download (`ETag` still absent).
+
+- **Claim:** no persistent refresh-on-change cache for official docs pages; #3567 stays closed;
+  a future fetcher is per-run only.
+- **Basis:** this section's deferral (1.6.3 adjacent near-miss did not fire the trigger);
+  #3567 closed 2026-09-27 not-planned; #4655 options A/B.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** the deferral trigger above fires, or official `.md` endpoints start
+  serving an `ETag` or a stable per-page `Last-Modified`.
+
 ## Enforceability
 
 Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:

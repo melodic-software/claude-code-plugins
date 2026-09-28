@@ -4,6 +4,13 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [1.6.4] - 2026-09-28
+
+Recorded Option A on the persistent-cache question (#4655): no refresh-on-change
+hash store, #3567 stays closed not-planned. Docs-only; the deferral's verdict
+does not change and its trigger has NOT fired. The in-plugin fetcher extraction
+(one script, two claude-config callers, per-run manifest) remains scoped work.
+
 ## [1.6.3] - 2026-09-01
 
 Recorded near-miss evidence ADJACENT to the content-hashing deferral; docs-only, the deferral's

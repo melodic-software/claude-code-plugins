@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **No persistent upstream-doc cache ([#4655](https://github.com/melodic-software/claude-code-plugins/issues/4655)).**
+  Option A: a future fetcher is per-run only. #3567 stays closed not-planned.
+  Recorded in `docs/conventions/upstream-drift` 1.6.4. The in-plugin extraction
+  (`audit-engine.sh` and `check-doc-citations.sh` through one script, per-run
+  manifest, no cache) remains scoped work, not this release.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed
