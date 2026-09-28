@@ -114,14 +114,60 @@ assert_absent 'no monorepo-path pointer to the agent definitions' \
 #    (#2269 F9). Three sites carried a POSIX-only `mkdir -p … && touch …`;
 #    `touch` is not a PowerShell command and `-p` is a parameter error there.
 # ---------------------------------------------------------------------------
-baseline_files="$(surface | xargs grep -lE 'mkdir -p' 2>/dev/null | sed 's|^'"$PLUGIN_ROOT"'/||' | sort)"
-if [[ "$baseline_files" == "reference/parent-contract.md" ]]; then
-  pass 'the pre-dispatch baseline command has exactly one home'
+#    research/SKILL.md carries a second copy so a research parent can dispatch
+#    without reading the contract (#4233); section 3b holds the two equal.
+# ---------------------------------------------------------------------------
+baseline_files="$(surface | xargs grep -lE 'mkdir -p' 2>/dev/null | sed 's|^'"$PLUGIN_ROOT"'/||' | sort | tr '\n' ' ')"
+if [[ "$baseline_files" == "reference/parent-contract.md skills/research/SKILL.md " ]]; then
+  pass 'the pre-dispatch baseline command lives only in the contract and the research hub'
 else
-  fail "the pre-dispatch baseline command has exactly one home — found in: $(printf '%s' "$baseline_files" | tr '\n' ' ')"
+  fail "the pre-dispatch baseline command lives only in the contract and the research hub — found in: $baseline_files"
 fi
 assert_present 'the baseline home states a PowerShell form' \
   'reference/parent-contract.md' 'New-Item'
+
+# ---------------------------------------------------------------------------
+# 3b. The research hub's envelope and baseline copies match the contract (#4233)
+#
+# Comments and blank lines are dropped before comparing: the contract's block
+# carries explore and trace-intent notes the research copy has no use for. The
+# hub's one block is the contract's shared block followed by its research block.
+# The
+# contract's `<explore|research|trace-intent>` baseline name is read as
+# `research`.
+# ---------------------------------------------------------------------------
+# fenced_blocks <file> <fence language> <start heading> [<n>]
+# The nth (default first) fenced block of that language between the heading and
+# the next `## ` heading, comments and blank lines dropped.
+fenced_blocks() {
+  awk -v lang="$2" -v start="$3" -v want="${4:-1}" '
+    $0 == start { inside = 1; next }
+    inside && /^## / { exit }
+    inside && $0 == "```" lang { seen++; fence = (seen == want); next }
+    fence && $0 == "```" { exit }
+    fence { sub(/[[:space:]]+#.*$/, ""); if ($0 !~ /^#/ && $0 != "") print }
+  ' "$1"
+}
+contract="$PLUGIN_ROOT/reference/parent-contract.md"
+hub="$PLUGIN_ROOT/skills/research/SKILL.md"
+want_envelope="$(fenced_blocks "$contract" text '## The pre-dispatch envelope'; fenced_blocks "$contract" text '## The pre-dispatch envelope' 2)"
+got_envelope="$(fenced_blocks "$hub" text '## Routing. Dispatch by default')"
+if [[ -n "$want_envelope" && "$want_envelope" == "$got_envelope" ]]; then
+  pass 'the research hub envelope matches the contract envelope'
+else
+  fail 'the research hub envelope matches the contract envelope'
+  diff <(printf '%s\n' "$want_envelope") <(printf '%s\n' "$got_envelope") | sed 's/^/       /' >&2
+fi
+for lang in bash powershell; do
+  want="$(fenced_blocks "$contract" "$lang" '## The pre-dispatch baseline' | sed 's/<explore|research|trace-intent>/research/g')"
+  got="$(fenced_blocks "$hub" "$lang" '## Routing. Dispatch by default')"
+  if [[ -n "$want" && "$want" == "$got" ]]; then
+    pass "the research hub $lang baseline matches the contract"
+  else
+    fail "the research hub $lang baseline matches the contract"
+    diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") | sed 's/^/       /' >&2
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # 4. Truncation and the recovery ladders prescribe ONE outcome (#2272)
@@ -174,8 +220,23 @@ assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
 # and states the un-run case — including that inline is not an escape hatch
 # for it, and that criterion 11 may not be hand-graded.
 # ---------------------------------------------------------------------------
-assert_absent 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT}' \
-  'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}'
+#
+# setup/SKILL.md is exempt from the first check: its `apply` step 4 renders the
+# gate rules an operator adds to user settings (#4233), and the skill body is
+# where ${CLAUDE_PLUGIN_ROOT} is substituted, so what lands in settings is the
+# absolute root.
+# ---------------------------------------------------------------------------
+root_rules="$(surface | grep -v '/skills/setup/SKILL.md$' | xargs grep -nEI 'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}' 2>/dev/null)"
+if [[ -z "$root_rules" ]]; then
+  pass 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT} outside the setup rule list'
+else
+  fail 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT} outside the setup rule list'
+  printf '%s\n' "$root_rules" | sed 's|^'"$PLUGIN_ROOT"'/|       |' >&2
+fi
+assert_present 'setup renders the gate allow rules from the substituted root' \
+  'skills/setup/SKILL.md' '^   Bash\("\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-dispatch-artifact\.sh" \*\)$'
+assert_absent 'no gate allow rule wildcards the version segment' \
+  'discovery/\*/scripts/check-'
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
 if [[ -z "$frontmatter_grants" ]]; then
   pass 'neither skill declares allowed-tools (the un-run case is stated instead)'
