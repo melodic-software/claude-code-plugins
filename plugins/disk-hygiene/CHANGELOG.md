@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5] - 2026-09-28
+
+### Changed
+
+- **Consumer protection globs accept an absolute path and `{glob, reason}` objects** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). A relative glob still matches a path relative to the scan target. A glob that starts with `/` or a drive letter matches the absolute path, so a standing overlay can protect a tree regardless of which parent is scanned. Object entries store an optional `reason`; matching uses the `glob` field. Scan, preview, verify, and apply share one matcher.
+
+### Fixed
+
+- **Test wrappers convert the suite path with `cygpath -m` when that tool exists** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Under Git Bash a native Windows Python treated an MSYS path as a dotted module name (`ValueError: Empty module name`). `test_wrapper::python_file_to` in `scripts/test-wrapper-lib.sh` is the conversion; `hygiene.test.sh`, `guard_launch_monitor.test.sh`, `engine_context.test.sh`, `kill_switch_probe.test.sh`, and `python3_alias_probe.test.sh` use it.
+
 ## [0.26.4] - 2026-09-28
 
 ### Fixed

@@ -27,6 +27,11 @@
 #     empty when neither does. Presence is not the floor check: the caller runs
 #     the program above to decide.
 
+#   test_wrapper::python_file_to <var> <path>
+#     Sets <var> to <path>, converted with `cygpath -m` when that tool exists so
+#     a native Windows Python can open a Git Bash path. Leaves <path> unchanged
+#     when cygpath is absent or fails.
+
 test_wrapper::floor_to() {
   local -n _test_wrapper_floor="$1"
   _test_wrapper_floor="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$2")"
@@ -47,5 +52,16 @@ test_wrapper::interpreter_to() {
       return 0
     fi
   done
+  return 0
+}
+
+test_wrapper::python_file_to() {
+  local -n _test_wrapper_file="$1"
+  local _test_wrapper_src="$2" _test_wrapper_converted
+  _test_wrapper_file="$_test_wrapper_src"
+  if command -v cygpath >/dev/null 2>&1; then
+    _test_wrapper_converted="$(cygpath -m -- "$_test_wrapper_src" 2>/dev/null)" || return 0
+    [[ -n "$_test_wrapper_converted" ]] && _test_wrapper_file="$_test_wrapper_converted"
+  fi
   return 0
 }

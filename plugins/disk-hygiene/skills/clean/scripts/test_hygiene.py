@@ -286,6 +286,64 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
+        # Relative `tree/**` matches only when the scan target is the parent.
+        # An absolute glob matches the file under `tree` even when `tree` itself
+        # is the scan target.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            tree = root / "tree"
+            tree.mkdir(parents=True)
+            (tree / "a.tmp").write_text("hold", encoding="utf-8")
+            (tree / "other.txt").write_text("keep", encoding="utf-8")
+            abs_glob = tree.resolve().as_posix() + "/**"
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [
+                            {"glob": abs_glob, "reason": "counsel hold"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            policy = hygiene.load_policy(policy_path)
+            self.assertEqual(
+                [{"glob": abs_glob, "reason": "counsel hold"}],
+                policy["additional_protected_path_globs"],
+            )
+            snapshot = hygiene.scan_tree(tree.resolve(), policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "consumer-protected-path",
+                entries["a.tmp"]["protected_reasons"],
+            )
+            self.assertEqual(
+                [abs_glob],
+                hygiene.snapshot_protection_globs(snapshot),
+            )
+
+    def test_policy_rejects_malformed_protection_glob_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [{"reason": "no glob"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "protection globs"):
+                hygiene.load_policy(policy_path)
+
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
         managed["owner"] = "fixture-manager"
