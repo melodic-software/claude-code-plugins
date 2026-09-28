@@ -99,6 +99,10 @@
 #   `index=<path> sidecars=<n> missing=<m> freshness=<newer|stale|unchecked>
 #    pointer=<matches|mismatch|unchecked> status=<usable|unusable>`
 #   (one line; wrapped here only for the comment width)
+#   On exit 0 a second line follows: `verification=<value>`, the index
+#   frontmatter's `verification:` value, or `unrecorded` when it has none.
+#   `pending` there means the sibling verifier has not run or its verdict
+#   was never written back. It never changes the exit status.
 # On a failure the specific reason is named on stderr.
 
 set -uo pipefail
@@ -414,5 +418,28 @@ if [[ "$unusable" -ne 0 ]]; then
   exit 1
 fi
 
+# The index frontmatter's `verification:` value, or `unrecorded`. Informational:
+# it never changes the exit status. It is printed so a parent that stops at this
+# gate still sees an artifact whose sibling verifier has not run yet.
+verification="$(awk '
+  BEGIN { bom = "\357\273\277" }
+  { sub(/\r+$/, "") }
+  NR == 1 {
+    if (index($0, bom) == 1) $0 = substr($0, length(bom) + 1)
+    if ($0 != "---") exit
+    next
+  }
+  $0 == "---" || $0 == "..." { exit }
+  /^verification:/ {
+    v = $0
+    sub(/^verification:[ \t]*/, "", v)
+    sub(/[ \t]+$/, "", v)
+    if (v ~ /^".*"$/ || v ~ /^\047.*\047$/) v = substr(v, 2, length(v) - 2)
+    print v
+    exit
+  }
+' "$index")"
+
 verdict "$index" "$count" "$missing" usable
+printf 'verification=%s\n' "${verification:-unrecorded}"
 exit 0

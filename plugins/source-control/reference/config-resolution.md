@@ -68,15 +68,23 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   - A leading UTF-8 BOM and CRLF line endings are accepted, and so are trailing whitespace and a
     closing `#` sequence on the heading (`## branch_issue_pattern ##`). Headings inside fenced
     blocks are ignored.
-  - A **near-miss heading** stops resolution: an H2 outside a fence whose text contains
-    `branch_issue_pattern` in any case but is not the exact heading (`## branch_issue_pattern:`,
-    `## Branch_Issue_Pattern`, `## branch_issue_pattern (ERE)`). The script prints a note and no
-    issue number, and exits 1. It does not fall back to a lower layer, the userConfig, or the
-    default, because any of those could close the wrong issue. A higher-precedence layer that
-    already supplied a valid pattern wins, since the lower layer is never read.
-  - A layer is reported and skipped, and resolution continues with the next source, when the
-    section's first value line is a heading or an HTML comment (`<!--`), its fence is empty or
-    unterminated, or its pattern fails validation.
+  - A layer whose section exists but yields no usable pattern **stops resolution**. The script
+    prints a note containing `resolution stopped` and no issue number, and exits 1. It does not
+    fall back to a lower layer, the userConfig, or the default, because any of those could close
+    the wrong issue; the no-number path already exists and `create` relays the note. A
+    higher-precedence layer that already supplied a valid pattern wins, since the lower layer is
+    never read. The stop reasons:
+    - a **near-miss heading**: an H2 outside a fence whose text contains `branch_issue_pattern` in
+      any case but is not the exact heading (`## branch_issue_pattern:`, `## Branch_Issue_Pattern`,
+      `## branch_issue_pattern (ERE)`);
+    - a section with no value before the next H2 or the end of the file;
+    - a first value line that is a heading or an HTML comment (`<!--`);
+    - an empty or unterminated fence;
+    - a pattern that fails validation.
+
+    This diverges from the config-cascade rule to degrade soft on a malformed layer, and this repo's
+    `config-cascade` convention records it as a declared deviation. A userConfig value that fails
+    validation is still reported and ignored, so the default applies.
 
   A pattern passes validation when it compiles as an ERE and keeps within these limits, which are
   checked before it is compiled: at most 200 characters, every `{m}`, `{m,}`, or `{m,n}` bound at

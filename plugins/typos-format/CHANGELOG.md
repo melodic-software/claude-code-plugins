@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.69] - 2026-09-28
+
+### Documentation
+
+- README "Why the row stays synchronous" records the decision not to run the report-only row with `async: true` ([#4677](https://github.com/melodic-software/claude-code-plugins/issues/4677)). The hooks reference (re-fetched 2026-09-28) delivers an async hook's output on the next conversation turn, not alongside the tool result, and in an idle session only after the next user message. It kills a still-running async hook at `claude -p` teardown, enforces no `timeout` on one, and shows neither of its fields to the user. Report-only findings already use `additionalContext` alone, so the user-visible loss would be the once-per-session missing-`typos` notice, and the agent would get the last edit's finding after it had moved on. Kept synchronous at 472 to 649 ms per edit on Windows and about 30 ms on Linux. No behavior change.
+
 ## [0.6.67] - 2026-09-27
 
 ### Changed
