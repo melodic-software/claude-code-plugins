@@ -1,0 +1,462 @@
+{
+  "method": "listing-overlap",
+  "generated_at": "2026-09-28T04:09:46Z",
+  "skills": [
+    {
+      "skill": "mcp-tools:audit",
+      "plugin": "mcp-tools",
+      "method": "listing-overlap",
+      "listing_file": "/tmp/wt-3526/plugins/mcp-tools/skills/audit/SKILL.md",
+      "splits": {
+        "train": {
+          "n": 12,
+          "n_positive": 6,
+          "n_negative": 6,
+          "trigger_hits": 6,
+          "false_triggers": 0,
+          "trigger_rate": 1,
+          "false_trigger_rate": 0
+        },
+        "validation": {
+          "n": 8,
+          "n_positive": 4,
+          "n_negative": 4,
+          "trigger_hits": 4,
+          "false_triggers": 1,
+          "trigger_rate": 1,
+          "false_trigger_rate": 0.25
+        }
+      },
+      "cases": [
+        {
+          "id": "pos-train-01",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 34,
+          "winner": "mcp-tools:audit",
+          "request": "audit MCP tools"
+        },
+        {
+          "id": "pos-train-02",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 38,
+          "winner": "mcp-tools:audit",
+          "request": "check MCP tool descriptions before I ship the server"
+        },
+        {
+          "id": "pos-train-03",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 37,
+          "winner": "mcp-tools:audit",
+          "request": "review MCP server quality of our tool definitions"
+        },
+        {
+          "id": "pos-train-04",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 19,
+          "winner": "mcp-tools:audit",
+          "request": "readOnlyHint missing on a read-only tool"
+        },
+        {
+          "id": "pos-train-05",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 34,
+          "winner": "mcp-tools:audit",
+          "request": "parameter descriptions missing in the MCP tools"
+        },
+        {
+          "id": "pos-train-06",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 26,
+          "winner": "mcp-tools:audit",
+          "request": "check the _meta annotations on these tools"
+        },
+        {
+          "id": "pos-val-01",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 22,
+          "winner": "mcp-tools:audit",
+          "request": "are my server instructions too long"
+        },
+        {
+          "id": "pos-val-02",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 33,
+          "winner": "mcp-tools:audit",
+          "request": "mcp audit of tool definitions in this repo"
+        },
+        {
+          "id": "pos-val-03",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 37,
+          "winner": "mcp-tools:audit",
+          "request": "tool annotations on the MCP server I am authoring"
+        },
+        {
+          "id": "pos-val-04",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 31,
+          "winner": "mcp-tools:audit",
+          "request": "maxResultSizeChars on our MCP tools"
+        },
+        {
+          "id": "neg-train-01",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 20,
+          "winner": "mcp-tools:audit-posture",
+          "request": "is it safe to run my MCP servers"
+        },
+        {
+          "id": "neg-train-02",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 12,
+          "winner": "mcp-tools:audit-posture",
+          "request": "floating MCP versions in my config"
+        },
+        {
+          "id": "neg-train-03",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 17,
+          "winner": "mcp-tools:audit-posture",
+          "request": "npx @latest MCP server on this machine"
+        },
+        {
+          "id": "neg-train-04",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 20,
+          "winner": "mcp-tools:audit-posture",
+          "request": "MCP server inventory of what Claude Code will launch"
+        },
+        {
+          "id": "neg-train-05",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 17,
+          "winner": "mcp-tools:audit-posture",
+          "request": "unpinned MCP server in user settings"
+        },
+        {
+          "id": "neg-train-06",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 28,
+          "winner": "mcp-tools:audit-posture",
+          "request": "mcp posture of configured servers, not tool design"
+        },
+        {
+          "id": "neg-val-01",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 19,
+          "winner": "mcp-tools:audit-posture",
+          "request": "which MCP servers run on my host"
+        },
+        {
+          "id": "neg-val-02",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 21,
+          "winner": "mcp-tools:audit-posture",
+          "request": "mcp supply chain of the servers I have configured"
+        },
+        {
+          "id": "neg-val-03",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 2,
+          "winner": "mcp-tools:audit",
+          "request": "check this SKILL.md before publishing"
+        },
+        {
+          "id": "neg-val-04",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 0,
+          "winner": "mcp-tools:audit-posture",
+          "request": "what permissions are actually in effect"
+        }
+      ]
+    },
+    {
+      "skill": "skill-quality:check",
+      "plugin": "skill-quality",
+      "method": "listing-overlap",
+      "listing_file": "/tmp/wt-3526/plugins/skill-quality/skills/check/SKILL.md",
+      "splits": {
+        "train": {
+          "n": 12,
+          "n_positive": 6,
+          "n_negative": 6,
+          "trigger_hits": 6,
+          "false_triggers": 4,
+          "trigger_rate": 1,
+          "false_trigger_rate": 0.6666666666666666
+        },
+        "validation": {
+          "n": 8,
+          "n_positive": 4,
+          "n_negative": 4,
+          "trigger_hits": 4,
+          "false_triggers": 2,
+          "trigger_rate": 1,
+          "false_trigger_rate": 0.5
+        }
+      },
+      "cases": [
+        {
+          "id": "pos-train-01",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 30,
+          "winner": "skill-quality:check",
+          "request": "check this skill before I publish it"
+        },
+        {
+          "id": "pos-train-02",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 27,
+          "winner": "skill-quality:check",
+          "request": "is this SKILL.md valid"
+        },
+        {
+          "id": "pos-train-03",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 29,
+          "winner": "skill-quality:check",
+          "request": "lint my skill frontmatter"
+        },
+        {
+          "id": "pos-train-04",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 35,
+          "winner": "skill-quality:check",
+          "request": "validate skill quality on plugins/foo/skills/bar"
+        },
+        {
+          "id": "pos-train-05",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 31,
+          "winner": "skill-quality:check",
+          "request": "check skill before publishing"
+        },
+        {
+          "id": "pos-train-06",
+          "split": "train",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 38,
+          "winner": "skill-quality:check",
+          "request": "validate evals.json for my new skill"
+        },
+        {
+          "id": "pos-val-01",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 32,
+          "winner": "skill-quality:check",
+          "request": "is the skill listing overflowing"
+        },
+        {
+          "id": "pos-val-02",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 25,
+          "winner": "skill-quality:check",
+          "request": "shared listing budget across every plugin"
+        },
+        {
+          "id": "pos-val-03",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 31,
+          "winner": "skill-quality:check",
+          "request": "validate skill frontmatter before I ship"
+        },
+        {
+          "id": "pos-val-04",
+          "split": "validation",
+          "expect_trigger": true,
+          "predicted": true,
+          "correct": true,
+          "target_score": 19,
+          "winner": "skill-quality:check",
+          "request": "run the skill-quality contract gate on this skill"
+        },
+        {
+          "id": "neg-train-01",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 16,
+          "winner": "skill-quality:check",
+          "request": "write me a brand-new skill for parsing CSV files"
+        },
+        {
+          "id": "neg-train-02",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 15,
+          "winner": "skill-quality:check",
+          "request": "how should I structure a SKILL.md with several reference topics"
+        },
+        {
+          "id": "neg-train-03",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 16,
+          "winner": "playbooks:skill-authoring",
+          "request": "create a skill from Anthropic's authoring playbook"
+        },
+        {
+          "id": "neg-train-04",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 1,
+          "winner": "skill-quality:check",
+          "request": "what permissions are actually in effect on this machine"
+        },
+        {
+          "id": "neg-train-05",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 3,
+          "winner": "skill-quality:check",
+          "request": "audit MCP tool descriptions against the spec"
+        },
+        {
+          "id": "neg-train-06",
+          "split": "train",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 0,
+          "winner": "none",
+          "request": "babysit this pull request until it merges"
+        },
+        {
+          "id": "neg-val-01",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 18,
+          "winner": "playbooks:skill-authoring",
+          "request": "skill best practices for writing a description"
+        },
+        {
+          "id": "neg-val-02",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 19,
+          "winner": "skill-quality:check",
+          "request": "configure where this repo's skills live for skill-quality"
+        },
+        {
+          "id": "neg-val-03",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": true,
+          "correct": false,
+          "target_score": 17,
+          "winner": "skill-quality:check",
+          "request": "show unused skills in this session and why they starve"
+        },
+        {
+          "id": "neg-val-04",
+          "split": "validation",
+          "expect_trigger": false,
+          "predicted": false,
+          "correct": true,
+          "target_score": 15,
+          "winner": "playbooks:skill-authoring",
+          "request": "how to write SKILL.md progressive disclosure"
+        }
+      ]
+    }
+  ]
+}
