@@ -86,6 +86,34 @@
         "Reads an existing brief.md on a re-run instead of re-asking",
         "Does not require /planning:interview; that offer is presence-gated and optional"
       ]
+    },
+    {
+      "id": 8,
+      "name": "vague-brief-states-defaults-in-one-line",
+      "prompt": "make me a character",
+      "expected_output": "Fires /pixel-art:sprite. The request names no subject, size, palette, or done criteria. States the defaults it will use in one line and writes brief.md before the first render. Offers /planning:interview only when the planning plugin is installed; the in-skill brief still proceeds. Does not ask a list of questions.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Invokes the sprite skill",
+        "States defaulted size, palette, and view in one line",
+        "Writes brief.md before the first render",
+        "Does not interrogate with a list of questions",
+        "Offers /planning:interview only when that plugin is installed"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "pico-8-icon-uses-the-engine-grid",
+      "prompt": "pixel-art icon of a key for a PICO-8 cart",
+      "expected_output": "Fires /pixel-art:sprite. Reads engine-layouts.md and uses the PICO-8 sprite grid (8x8 on a 128x128 sheet, columns 16, the pico-8 palette) rather than an arbitrary size.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Invokes the sprite skill",
+        "Uses the PICO-8 8x8 sprite size from engine-layouts.md",
+        "Uses the bundled pico-8 palette"
+      ]
     }
   ]
 }

@@ -39,36 +39,38 @@ skip that feature, continue with the documented reduced result.
 
 - Adds: layers, slices, real Aseprite JSON (`from`/`to` tags, `layers`, `slices`, `properties`,
   `zIndex`), packed sheets, `.aseprite` source files a human can open and edit.
-- Verified: `--sheet`, `--data`, `--sheet-type`, `--format json-hash|json-array`,
-  `--split-layers|--split-tags|--split-slices`, `--tag`, `--filename-format`
-  ([CLI docs](https://www.aseprite.org/docs/cli/); as-of 2026-09-23; recheck trigger: an Aseprite
-  release past v1.3.18.6 whose notes touch CLI export).
-- Unverified: `--batch` (headless run) and `--script <file.lua>` (Lua scripting to build a sprite
-  from the spec) are unverified; see [CLI docs](https://www.aseprite.org/docs/cli/) and
-  [scripting docs](https://www.aseprite.org/docs/scripting/) before use.
-- Detect: `aseprite --version` succeeds (unverified flag; same URL).
-- Cost and license: paid, not open source under its own EULA (unverified; see
-  [aseprite.org](https://www.aseprite.org/)). Do not quote a price.
+- Verified: `--batch` (`-b`, do not start the UI), `--script <filename>` (run a Lua script),
+  `--version` (print the version and exit), `--sheet`, `--data`, `--sheet-type`,
+  `--format json-hash|json-array`, `--split-layers|--split-tags|--split-slices`, `--tag`,
+  `--filename-format`. Claim: those flags. Basis:
+  [CLI docs](https://www.aseprite.org/docs/cli/). As of 2026-09-28. Recheck when that page drops
+  one of them.
+- Detect: `aseprite --version` succeeds (same record).
+- Cost and license: paid download under the Aseprite EULA, which replaced GPLv2 in August 2016 and
+  forbids redistributing compiled builds; source can still be compiled for personal use, and art
+  made with it can be sold. Claim: that license shape. Basis:
+  [Aseprite FAQ, Licensing & Commercial](https://www.aseprite.org/faq/). As of 2026-09-28.
+  Recheck when that section stops saying the EULA replaced the GPL. Do not copy the FAQ's pledge
+  amount into a reply.
 - Contract: build the sprite from the spec (script or import of the native `sheet.png`), export
   with `--sheet sheet.png --data sheet.json --format json-hash`, then render `preview.png` and GIFs
   natively from the same spec. Document that its `sheet.json` is the real Aseprite shape.
 
 ## PixelLab (API / MCP)
 
-- Adds: model-generated pixel art from text or a reference image, including rotations and
-  animation frames (unverified; see [pixellab.ai](https://www.pixellab.ai/)).
-- Detect: a PixelLab MCP server listed in the session's tools, or an API key the user configured.
-  Endpoint names, MCP server name, and auth scheme: unverified (same URL).
-- Cost and license: paid tiers and output-license terms unverified (same URL). Confirm before use.
-- Contract: treat output as raw pixels. Run the image-model pipeline below, then render natively.
+- Adds: nothing this file states. Rotations, animation frames, endpoint names, the MCP server
+  name, auth, prices, and the output license are not claimed here (judgment). Open the vendor page
+  the user names and confirm each of those before any call.
+- Detect: only a server or key the user has already configured. Do not invent an endpoint.
+- Contract: treat whatever comes back as raw pixels. Run the image-model pipeline below, then
+  render natively.
 
 ## Retro Diffusion (API / MCP)
 
-- Adds: pixel-art image generation with palette and size controls (unverified; see
-  [retrodiffusion.ai](https://www.retrodiffusion.ai/)).
-- Detect: a Retro Diffusion MCP server in the session's tools, or a configured API key. Endpoints,
-  MCP availability, and auth: unverified (same URL).
-- Cost and license: credit pricing and output license unverified (same URL). Confirm before use.
+- Adds: nothing this file states. Palette controls, size controls, endpoints, MCP availability,
+  auth, credit prices, and the output license are not claimed here (judgment). Open the vendor
+  page the user names and confirm each of those before any call.
+- Detect: only a server or key the user has already configured. Do not invent an endpoint.
 - Contract: image-model pipeline below, then native render.
 
 ## General image models
