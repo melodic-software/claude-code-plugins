@@ -102,7 +102,7 @@ G1.2, G1.4, G4.1, G2.1 to G2.3, G3.1 to G3.3, or the fallback row.
 | Claim | Ours | Verdict |
 |---|---|---|
 | Opus 5.5 is the current Opus; `opus` resolves to it | New `plugins/playbooks/reference/model-adaptation/opus-5-5.md`; live docs (official-docs, plugin-philosophy, loop-lane README) updated | ADOPT |
-| Opus 5 and Opus 4.8 chapters | Kept: per model-config, flagged Fable 5.1, Fable 5, and Opus 5.5 requests re-run on Opus 5 (biology) or Opus 4.8 (cybersecurity). Each chapter states this at its top | KEEP, TRACK #4349 |
+| Opus 5 and Opus 4.8 chapters | Kept: per model-config (re-fetched 2026-09-28), flagged Fable 5.1, Fable 5, and Opus 5.5 requests re-run on Opus 5 (biology) or Opus 4.8 (cybersecurity). Each chapter states this at its top with Claim/Basis/As of/Recheck. #4349 closed as park-until-trigger | KEEP, parked #4349 |
 
 ## Decisions and follow-ups
 
@@ -118,5 +118,7 @@ Filed:
 - #4346 regenerate the fable-5 doctrine for Fable 5.1.
 - #4347 Sonnet 5.5 adaptation chapter, on release.
 - #4348 Haiku 5.5 adaptation chapter, on release.
-- #4349 retire the Opus 5 and Opus 4.8 chapters once they stop being fallback targets.
+- #4349 retire the Opus 5 and Opus 4.8 chapters once they stop being fallback targets
+  (parked 2026-09-28: trigger has not fired; recheck when model-config "Automatic
+  model fallback" no longer names them).
 - #4351 three skill descriptions over the 1024-codepoint limit (already on `main`).
