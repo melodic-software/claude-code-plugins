@@ -79,6 +79,7 @@ REGISTRY=(
   "check-fixture-git-isolation.sh|-|-|-"
   "check-fleet-audit-doc-grammar.sh|-|-|-"
   "check-fleet-finding-test-coverage.sh|-|-|-"
+  "check-guardrails-ps-differential.sh|jq|-|-"
   "check-hook-exec-form.sh|jq|-|hook_exec_form"
   "check-hook-slow-shapes.sh|jq|-|hook_slow_shapes"
   "check-hook-userconfig-argv.sh|jq|-|hook_userconfig_argv"

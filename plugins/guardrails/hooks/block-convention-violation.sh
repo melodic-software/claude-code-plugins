@@ -617,8 +617,12 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # would hand the herestring-comment-char shape straight through: a `#` on a
   # confirmed here-string opener line means the lines the reduction dropped as
   # body may be live commands, and a commit form among them would never be seen.
-  # Refused here rather than deferred, with no allow-list consulted.
-  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+  # Refused here rather than deferred, with no allow-list consulted. Keyed on the
+  # FLAG, not on the trigger name: the classifier reports herestring-comment-char
+  # only when no other trigger fired, so a flagged command whose first trigger was
+  # another construct (a `{`, say) reported that trigger and was deferred.
+  if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+    PS_SINK_TRIGGER="herestring-comment-char"
     ps::print_unparsable_block_message
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
     exit 2

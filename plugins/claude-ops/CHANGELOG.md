@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.9] - 2026-09-27
+
+### Changed
+
+- **`audit-skill-visibility` re-verifies the `skillOverrides` exemption and routes inert
+  entries.** The exemption is re-stamped against the skills page and Claude Code 2.1.283 on
+  2026-09-27, with a recheck trigger on a release note saying plugin skills honor
+  `skillOverrides`. The skill now says an entry naming a plugin skill never takes effect and that
+  `claude-config:audit`, when installed, reports those entries (#4654).
+
 ## [0.62.7] - 2026-09-27
 
 ### Changed

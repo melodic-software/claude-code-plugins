@@ -1,5 +1,19 @@
 # Changelog: session-flow plugin
 
+## [0.38.3] - 2026-09-27
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eleven of the 13 listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: restated scope, detection
+  ladders, and exclusion lists. `check-listing-budget.sh plugins/session-flow/skills` goes from
+  9,302 to 6,123 characters, under the 8,000 default. Two sibling-routing quotes move out:
+  `reconcile` now names keep-going and orient by skill rather than quoting their phrases, and
+  `workflow` no longer quotes show-options' own triggers. No skill is renamed or merged, and
+  invocation modes are unchanged. `show-options` leaves
+  `scripts/skill-description-cap-baseline.txt`, since it is now under the 1,024-codepoint cap.
+
 ## [0.38.2] - 2026-09-27
 
 ### Fixed
