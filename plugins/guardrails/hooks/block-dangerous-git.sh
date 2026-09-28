@@ -34,7 +34,7 @@
 # remaining visible commands — it does not fail-open the whole compound line.
 #
 # The no-token family (`herestring-comment-char`, `herestring-opener-untrusted`,
-# `herestring-comment-span`, `bare-cr`) is deliberately absent from that list and
+# `herestring-comment-span`, `herestring-orphan-closer`, `bare-cr`) is deliberately absent from that list and
 # has no token at all; see the sink loop below.
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an

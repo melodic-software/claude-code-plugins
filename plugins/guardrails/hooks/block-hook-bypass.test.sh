@@ -1130,6 +1130,18 @@ run_pwsh "PS: a bare CR hiding Set-Content (blocked)" \
   $'Write-Output hi\rSet-Content f.txt x' 2
 run_pwsh "PS: CRLF canonical verbatim here-string with no write (allowed)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output @'" "hello" "'@")" 0
+run_pwsh "PS #4683 shape 2: Set-Content behind backslash-escaped quote opener (blocked)" \
+  "$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "Set-Content f.txt x" '"@')" 2
+run_pwsh "PS #4683 table bare CR hiding Set-Content (blocked)" \
+  "$(printf 'Write-Output x\rSet-Content f.txt x')" 2
+run_pwsh "PS #4683 A2: Set-Content behind apostrophe-straddle opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 N1: Set-Content behind quote-then-opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 B1: Set-Content behind backtick opener (blocked)" \
+  "$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 S5: Set-Content behind block-comment opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "Set-Content f.txt x" "'@")" 2
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.

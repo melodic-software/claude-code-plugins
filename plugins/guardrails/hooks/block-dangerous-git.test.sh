@@ -1835,6 +1835,50 @@ assert_contains "PS hs: opener-untrusted says the shape has no allow token" \
   "$(pwsh_stderr "$ps_hs_backslash_prefix" || true)" \
   "This sink shape has NO allow token"
 
+# Exact payloads from the #4683 table. Class-level refusals must catch each
+# phantom opener / bare CR that hid git on main (rc 0), and the CRLF canonical
+# commit here-string must stay allowed. Shapes 1, 3, 4 and 5 were withdrawn as
+# distinct bypasses: their literal-git and parse-clean variants stay blocked.
+ps_4683_shape9="$(printf '%s\n%s\n%s' "Write-Host {x} # @'" "git push --force" "'@")"
+ps_4683_shape2="$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "git push --force" '"@')"
+ps_4683_bare_cr="$(printf 'Write-Output x\rgit push --force')"
+ps_4683_a1="$(printf '%s\n%s\n%s' "Write-Output \"a\\'b'\" c\" @\"" "git push --force" '"@')"
+ps_4683_a2="$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "git push --force" "'@")"
+ps_4683_n1="$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "git push --force" "'@")"
+ps_4683_b1="$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; git push --force" "'@")"
+ps_4683_s5="$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "git push --force" "'@")"
+ps_4683_n2="$(printf '%s\n%s\n%s\n%s' "Write-Output \"it's\" @'" "it's" "'@" "git push --force")"
+run_pwsh "PS #4683 shape 9: commented opener behind grouping (blocked)" "$ps_4683_shape9" 2
+run_pwsh "PS #4683 shape 2: backslash-escaped quote before opener (blocked)" "$ps_4683_shape2" 2
+run_pwsh "PS #4683 table bare CR hiding git push --force (blocked)" "$ps_4683_bare_cr" 2
+run_pwsh "PS #4683 A1: mixed quotes and backslash before opener (blocked)" "$ps_4683_a1" 2
+run_pwsh "PS #4683 A2: apostrophe-straddle before a verbatim opener (blocked)" "$ps_4683_a2" 2
+run_pwsh "PS #4683 N1: quote-then-opener on one line (blocked)" "$ps_4683_n1" 2
+run_pwsh "PS #4683 B1: backtick before opener (blocked)" "$ps_4683_b1" 2
+run_pwsh "PS #4683 S5: block comment opened before a verbatim opener (blocked)" "$ps_4683_s5" 2
+run_pwsh "PS #4683 N2: unconfirmed opener plus orphan closer (blocked)" "$ps_4683_n2" 2
+run_pwsh "PS #4683 shape 1/4 literal git call-op (blocked)" "& 'git' push --force" 2
+run_pwsh "PS #4683 shape 1/4 literal git.exe (blocked)" "git.exe push --force" 2
+run_pwsh "PS #4683 shape 3/5 parse-clean force push (blocked)" "git push --force" 2
+run_pwsh "PS #4683 shape 3/5 parse-clean reset --hard (blocked)" "git reset --hard" 2
+run_pwsh "PS #4683 the removed orphan-closer token string does not open N2" \
+  "$ps_4683_n2" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-orphan-closer
+pin_sink_trigger "classify: #4683 shape 2 names herestring-opener-untrusted" \
+  "$ps_4683_shape2" "herestring-opener-untrusted"
+pin_sink_trigger "classify: #4683 S5 names herestring-comment-span" \
+  "$ps_4683_s5" "herestring-comment-span"
+pin_sink_trigger "classify: #4683 N2 names herestring-orphan-closer" \
+  "$ps_4683_n2" "herestring-orphan-closer"
+pin_sink_trigger "classify: #4683 table bare CR names bare-cr" \
+  "$ps_4683_bare_cr" "bare-cr"
+assert_contains "PS #4683 N2 names the orphan closer in the refusal" \
+  "$(pwsh_stderr "$ps_4683_n2" || true)" \
+  "closer ('@ or \"@) at column zero"
+assert_contains "PS #4683 N2 says the shape has no allow token" \
+  "$(pwsh_stderr "$ps_4683_n2" || true)" \
+  "This sink shape has NO allow token"
+
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
 # so the read-only allowlist admits it and these stay allowed. Pinned so a later
