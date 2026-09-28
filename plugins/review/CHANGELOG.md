@@ -3,6 +3,50 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0] - 2026-09-28
+
+### Security
+
+- **Pull-request explainers go through a checked-in escape helper (#3605).**
+  `/review:pr-explainer` writes the markdown record first (risk map, file-by-file
+  tour, where to focus) and offers a self-contained HTML page. The page is built
+  only by `skills/pr-explainer/scripts/build-explainer.mjs`, which escapes every
+  interpolated field with the synced `lib/html-escape.mjs` and stamps a generator
+  marker. `validateRenderedPage` flags a page assembled without that helper,
+  including a hand-written page and a forged marker. The markdown record stays
+  the deliverable. Adversarial diff text (markup, quotes, handler attributes)
+  renders as text.
+
+## [0.32.1] - 2026-09-28
+
+### Fixed
+
+- **The stub-home fence covers an NFC versus NFD spelling on a normalization-insensitive volume** ([#3934](https://github.com/melodic-software/claude-code-plugins/issues/3934)).
+  `fold_path` still folds case, not canonical equivalence. On APFS that gap is a real directory:
+  the Apple File System Guide FAQ says a normalization variant of a filename cannot be created in
+  the same directory, and TN1150 says HFS Plus stores names fully decomposed. An absent tail is
+  now put in Unicode NFC before the fold, and only after a same-device probe shows the volume
+  treats U+00E9 and `e` + U+0301 as one name. ext4 and NTFS fail that probe, so two directories
+  that differ only by canonical form still write. When the existing ancestor cannot be written,
+  only an `apfs` or `hfs` type takes the NFC step. The probe directory is removed before the
+  fence returns. `emit-stubs.test.sh` case 31 follows the volume the runner actually has, and
+  `--check-normalization-fold` asserts the string property on a byte-exact host, including under
+  `LC_ALL=C`.
+
+## [0.32.0] - 2026-09-28
+
+### Changed
+
+- **The two CI lanes route against their native namesakes in the description (part of #4053).**
+  `code-review` gains "When the bundled code-review skill resolves in your session, prefer it for
+  a session-driven review of the current diff or a named PR; this skill for the CI lane a
+  reusable workflow runs on one PR." `security-review` gains the same shape for the plugin-backed
+  built-in `security-review` command, preferred for a one-off security pass over the current
+  branch. The rules: the clause is presence-gated on the model's own listing (`resolves in your
+  session`) and never asserts that the native surface is there; it names the provenance class and
+  splits the job; no body section and no `allowed-tools` change. Both store rows now record
+  `baked.description_phrase: true`. The Boundary sections are unchanged.
+
 ## [0.31.2] - 2026-09-28
 
 ### Security

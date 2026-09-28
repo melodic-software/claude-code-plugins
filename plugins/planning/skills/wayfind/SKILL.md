@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a shared decision map on the work-item tracker, then work its frontier one decision at a time, routing each resolved decision to the right skill until the map graduates to a Brief / PRD / PLAN. Use when a task is too big to hold at once AND parts are still too fuzzy to phrase as sharp tickets ('this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'); skip when the work is already a set of sharp, answerable tickets (use /planning:interview or /work-items) or small enough to just do."
+description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Already sharp tickets: /planning:interview or /work-items."
 argument-hint: "[chart|work] [topic] (e.g., /planning:wayfind chart <topic>, /planning:wayfind work)"
 user-invocable: true
 disable-model-invocation: false

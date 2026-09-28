@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.75] - 2026-09-28
+
+### Changed
+
+- **`zone-crossing-inject` reads an oversize envelope's ids without jq when they precede the nested batch**
+  ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
+  The unchanged-input skip already exits through builtins once it has a session id. A payload over 64KiB used to start `jq` to get that id even when the snapshot had not moved. The hook now cuts a leading scalar object and parses it with the builtin parser. Ids after `tool_calls` still use the here-string `jq`. A rewritten snapshot still resolves, and crossing output is unchanged.
+
+## [0.7.74] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.7.73] - 2026-09-27
 
 ### Changed

@@ -63,7 +63,11 @@ Deepening review rendered as self-contained HTML in the ephemeral tier: one file
   <body>
     <main>
       <header>...</header>
-      <section id="candidates">...</section>
+      <section id="candidates">
+        <section class="band" id="band-strong"><h2>Strong</h2>...</section>
+        <section class="band" id="band-explore"><h2>Worth exploring</h2>...</section>
+        <section class="band" id="band-speculative"><h2>Speculative</h2>...</section>
+      </section>
       <section id="top-recommendation">...</section>
     </main>
   </body>
@@ -73,6 +77,10 @@ Deepening review rendered as self-contained HTML in the ephemeral tier: one file
 ## Header
 
 Repo name, date, compact legend: solid box = module, dashed line = seam, red arrow = leakage, thick dark box = deep module. No intro paragraph. Go straight into candidates.
+
+## Badge bands
+
+Cards sit in one band per recommendation badge, in badge order: `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every candidate count, with no cap, no pagination, and no `<details>` or other collapse around a band or a card: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
 
 ## Candidate card
 

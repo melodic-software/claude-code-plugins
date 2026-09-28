@@ -604,6 +604,7 @@ git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 discovery-symlink-skip|UNKNOWN/LOW|no|no|Path skipped; the rest of the fleet was audited
+ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -648,6 +649,8 @@ FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
+LS_REMOTE_ATTEMPTS=0
+LS_REMOTE_FAILURES=0
 # Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
@@ -788,6 +791,16 @@ FLEET_WT_LINKED=0
 FLEET_WT_CONFORMING=0
 FLEET_WT_NONCONFORMING=0
 FLEET_WT_TOOL_OWNED=0
+FALLBACK_WORKTREE_ROOT=""
+FALLBACK_WORKTREE_ROOT_ORIGIN=""
+FALLBACK_WORKTREE_ROOT_SOURCE="unset"
+# Distinct roots that linked worktrees were classified against, with repository counts, for the
+# fleet summary. Keys are physical path_key spellings so symlink aliases collapse.
+FLEET_WT_ROOT_KEYS=()
+FLEET_WT_ROOT_LABELS=()
+FLEET_WT_ROOT_REPOS=()
+FLEET_WT_UNCONFIGURED=0
+FLEET_REPOS_ROOT_UNSET=0
 PLUGINCONFIGS_JQ_MISSING=false
 PLUGINCONFIGS_SETTINGS_PATH=""
 
@@ -838,6 +851,20 @@ under_configured_root() {
   wt_key="$(path_key "$(physical_path "$1")")"
   root_key="$(path_key "$(physical_path "$CONFIGURED_WORKTREE_ROOT")")"
   [[ "$wt_key" == "$root_key" || "$wt_key" == "$root_key"/* ]]
+}
+
+record_fleet_worktree_root() {
+  local root="$1" key i
+  key="$(path_key "$(physical_path "$root")")"
+  for ((i = 0; i < ${#FLEET_WT_ROOT_KEYS[@]}; i++)); do
+    if [[ "${FLEET_WT_ROOT_KEYS[$i]}" == "$key" ]]; then
+      FLEET_WT_ROOT_REPOS[i]=$((FLEET_WT_ROOT_REPOS[i] + 1))
+      return 0
+    fi
+  done
+  FLEET_WT_ROOT_KEYS+=("$key")
+  FLEET_WT_ROOT_LABELS+=("$root")
+  FLEET_WT_ROOT_REPOS+=(1)
 }
 
 # --- Classifiers ------------------------------------------------------------
@@ -1010,6 +1037,7 @@ classify_worktrees() {
   # placement only.
   if ((repo_wt_linked > 0)); then
     if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
+      record_fleet_worktree_root "$CONFIGURED_WORKTREE_ROOT"
       print_field 'Worktree conformance' \
         "$repo_wt_conforming conforming, $repo_wt_nonconforming outside/wrong-layout, $repo_wt_tool_owned tool-owned of $repo_wt_linked linked (root $CONFIGURED_WORKTREE_ROOT)"
       # Emit even when every linked worktree conforms: the fleet headline this check exists for.
@@ -1017,6 +1045,7 @@ classify_worktrees() {
         "$repo_wt_nonconforming of $repo_wt_linked linked worktrees are outside the configured root or wrong layout ($repo_wt_conforming conforming, $repo_wt_tool_owned tool-owned); root $CONFIGURED_WORKTREE_ROOT from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
         "Migrate non-conforming worktrees with /source-control:worktree create at the configured root"
     else
+      FLEET_WT_UNCONFIGURED=$((FLEET_WT_UNCONFIGURED + repo_wt_linked))
       print_field 'Worktree placement' \
         "$repo_wt_linked linked; no configured worktree root — locations: $placement_paths"
       emit_finding worktree-root-unconfigured "$canonical" \
@@ -1633,25 +1662,57 @@ try_read_source_control_worktree_root() {
   return 0
 }
 
-resolve_configured_worktree_root() {
-  local probe
+# Root for a repository whose own config sets no worktreeroot.path: the project directory's key,
+# else source-control worktree_root. Another target's key is never borrowed; it may come from that
+# repository's own includeIf.
+resolve_fallback_worktree_root() {
   CONFIGURED_WORKTREE_ROOT=""
   CONFIGURED_WORKTREE_ROOT_ORIGIN=""
   CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
-  # Fleet-wide single root: first TARGET whose worktreeroot.path
-  # resolves wins (discovery order). Per-repository includeIf roots that
-  # intentionally differ are not modeled — the header and every conformance
-  # finding name that one root. Prefer a machine-global pluginConfigs /
-  # CLAUDE_PLUGIN_OPTION value when repositories disagree.
-  for probe in "${TARGETS[@]:-}"; do
-    [[ -n "$probe" ]] || continue
-    try_read_worktree_root "$probe" && return 0
-  done
   if [[ -n "$PROJECT_DIR" ]]; then
     try_read_worktree_root "$PROJECT_DIR" && return 0
   fi
   try_read_source_control_worktree_root && return 0
   return 1
+}
+
+# Header root: the first TARGET whose worktreeroot.path resolves (discovery order), else the
+# fallback. Conformance does not use it; analyze_repo resolves each canonical checkout's own root.
+resolve_configured_worktree_root() {
+  local probe
+  if resolve_fallback_worktree_root; then
+    FALLBACK_WORKTREE_ROOT="$CONFIGURED_WORKTREE_ROOT"
+    FALLBACK_WORKTREE_ROOT_ORIGIN="$CONFIGURED_WORKTREE_ROOT_ORIGIN"
+    FALLBACK_WORKTREE_ROOT_SOURCE="$CONFIGURED_WORKTREE_ROOT_SOURCE"
+  fi
+  for probe in "${TARGETS[@]:-}"; do
+    [[ -n "$probe" ]] || continue
+    try_read_worktree_root "$probe" && return 0
+  done
+  CONFIGURED_WORKTREE_ROOT="$FALLBACK_WORKTREE_ROOT"
+  CONFIGURED_WORKTREE_ROOT_ORIGIN="$FALLBACK_WORKTREE_ROOT_ORIGIN"
+  CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
+  [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]
+}
+
+# Sets the CONFIGURED_WORKTREE_ROOT trio for one canonical checkout. `git -C <canonical> config`
+# honors includeIf, so a per-repository override wins over the global key the way git itself
+# resolves it; with no key of its own the repository uses the fallback, never another target's
+# root. A resolved root that differs from the header root is recorded for the fleet summary.
+resolve_repo_worktree_root() {
+  local canonical="$1"
+  if ! try_read_worktree_root "$canonical"; then
+    CONFIGURED_WORKTREE_ROOT="$FALLBACK_WORKTREE_ROOT"
+    CONFIGURED_WORKTREE_ROOT_ORIGIN="$FALLBACK_WORKTREE_ROOT_ORIGIN"
+    CONFIGURED_WORKTREE_ROOT_SOURCE="$FALLBACK_WORKTREE_ROOT_SOURCE"
+  fi
+  if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]] &&
+    { [[ -z "$FLEET_WORKTREE_ROOT" ]] ||
+      [[ "$(path_key "$(physical_path "$CONFIGURED_WORKTREE_ROOT")")" != "$(path_key "$(physical_path "$FLEET_WORKTREE_ROOT")")" ]]; }; then
+    [[ -n "$PER_REPOSITORY_WORKTREE_ROOTS" ]] && PER_REPOSITORY_WORKTREE_ROOTS+="; "
+    PER_REPOSITORY_WORKTREE_ROOTS+="$canonical uses $CONFIGURED_WORKTREE_ROOT (origin $CONFIGURED_WORKTREE_ROOT_ORIGIN)"
+  fi
+  [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]
 }
 
 # directory_has_non_git_entries <dir>: true when <dir> still looks like a former non-bare
@@ -2034,6 +2095,10 @@ fi
 # Resolve the worktree convention root once for the fleet. Never invent a default: unset stays
 # unset and the report describes placement without asserting conformance.
 resolve_configured_worktree_root || true
+# Header root, kept so a repository whose own root differs can be named in the fleet summary.
+# Classification does not read it back: each repository uses its own key or the fallback.
+FLEET_WORKTREE_ROOT="$CONFIGURED_WORKTREE_ROOT"
+PER_REPOSITORY_WORKTREE_ROOTS=""
 
 GH_READY=false
 if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github.com >/dev/null 2>&1; then
@@ -2573,6 +2638,10 @@ analyze_repo() {
     WT_COMMON_DIR+=("$wt_common")
   done
 
+  # Dynamic scope: classify_worktrees reads this repository's root through the shadowed trio, and
+  # the fleet-level header value is untouched once analyze_repo returns.
+  local CONFIGURED_WORKTREE_ROOT="" CONFIGURED_WORKTREE_ROOT_ORIGIN="" CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
+  resolve_repo_worktree_root "$canonical" || FLEET_REPOS_ROOT_UNSET=$((FLEET_REPOS_ROOT_UNSET + 1))
   classify_worktrees
 
   default_branch="$expected_default"
@@ -2808,8 +2877,12 @@ analyze_repo() {
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
         live_status=0
+        LS_REMOTE_ATTEMPTS=$((LS_REMOTE_ATTEMPTS + 1))
         live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
+        if [[ "$live_status" -ne 0 ]]; then
+          LS_REMOTE_FAILURES=$((LS_REMOTE_FAILURES + 1))
+        fi
         live_oid=""
         if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
           live_oid="${live_out%%[[:space:]]*}"
@@ -2853,7 +2926,7 @@ if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
     printf '; origin: '
     display_value "$CONFIGURED_WORKTREE_ROOT_ORIGIN"
   fi
-  printf ')\n'
+  printf '; each repository is classified against its own resolved root)\n'
 else
   printf 'Worktree root: unset (no worktreeroot.path git key and no source-control worktree_root; placement reported without asserting a convention)\n'
 fi
@@ -2978,19 +3051,58 @@ done
 # Fleet-level worktree-root conformance headline (#2606). Emitted even when every other finding is
 # empty — "N of M outside the configured root" is the signal this fleet lacked. Buffered before the
 # human rollup so kind counts and --detail include these findings.
-if [[ "$PLUGINCONFIGS_JQ_MISSING" == "true" ]]; then
+if [[ "$PLUGINCONFIGS_JQ_MISSING" == "true" ]] &&
+  [[ -z "$CONFIGURED_WORKTREE_ROOT" || "$FLEET_REPOS_ROOT_UNSET" -gt 0 ]]; then
   emit_finding worktree-root-pluginconfigs-unreadable "fleet" \
     "settings file $PLUGINCONFIGS_SETTINGS_PATH may declare source-control worktree_root, but jq is not installed so the pluginConfigs fallback could not be read (worktreeroot.path was also unset)" \
     "Install jq on PATH, or set worktreeroot.path via git config / includeIf"
 fi
-if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
+per_repository_roots_note=""
+[[ -n "$PER_REPOSITORY_WORKTREE_ROOTS" ]] &&
+  per_repository_roots_note="; classified against their own resolved root: $PER_REPOSITORY_WORKTREE_ROOTS"
+if [[ ${#FLEET_WT_ROOT_KEYS[@]} -gt 1 ]]; then
+  fleet_root_groups=""
+  for ((root_i = 0; root_i < ${#FLEET_WT_ROOT_KEYS[@]}; root_i++)); do
+    [[ -n "$fleet_root_groups" ]] && fleet_root_groups+=", "
+    root_repo_word="repositories"
+    [[ "${FLEET_WT_ROOT_REPOS[$root_i]}" -eq 1 ]] && root_repo_word="repository"
+    fleet_root_groups+="${FLEET_WT_ROOT_LABELS[$root_i]} (${FLEET_WT_ROOT_REPOS[$root_i]} $root_repo_word)"
+  done
+  fleet_unconfigured_note=""
+  ((FLEET_WT_UNCONFIGURED > 0)) &&
+    fleet_unconfigured_note="; $FLEET_WT_UNCONFIGURED in repositories with no configured root"
   emit_finding worktree-root-conformance-summary "fleet" \
-    "$FLEET_WT_NONCONFORMING of $FLEET_WT_LINKED linked worktrees are outside the configured root or wrong layout ($FLEET_WT_CONFORMING conforming, $FLEET_WT_TOOL_OWNED tool-owned); root $CONFIGURED_WORKTREE_ROOT from $CONFIGURED_WORKTREE_ROOT_SOURCE, origin $CONFIGURED_WORKTREE_ROOT_ORIGIN" \
+    "$FLEET_WT_NONCONFORMING of $FLEET_WT_LINKED linked worktrees are outside their repository's configured root or wrong layout ($FLEET_WT_CONFORMING conforming, $FLEET_WT_TOOL_OWNED tool-owned$fleet_unconfigured_note); each repository classified against its own resolved worktreeroot.path (includeIf honored): $fleet_root_groups$per_repository_roots_note" \
+    "Use /source-control:worktree create at each repository's own configured root; tool-owned entries are exempt"
+elif [[ ${#FLEET_WT_ROOT_KEYS[@]} -eq 1 || -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
+  fleet_summary_root="$CONFIGURED_WORKTREE_ROOT"
+  fleet_summary_source="$CONFIGURED_WORKTREE_ROOT_SOURCE"
+  fleet_summary_origin="$CONFIGURED_WORKTREE_ROOT_ORIGIN"
+  if [[ ${#FLEET_WT_ROOT_KEYS[@]} -eq 1 &&
+    "${FLEET_WT_ROOT_KEYS[0]}" != "$(path_key "$(physical_path "$CONFIGURED_WORKTREE_ROOT")")" ]]; then
+    fleet_summary_root="${FLEET_WT_ROOT_LABELS[0]}"
+    fleet_summary_source="per-repository worktreeroot.path"
+    fleet_summary_origin="see the per-repository worktree-root-conformance finding"
+  fi
+  fleet_unconfigured_note=""
+  ((FLEET_WT_UNCONFIGURED > 0)) &&
+    fleet_unconfigured_note="; $FLEET_WT_UNCONFIGURED in repositories with no configured root"
+  emit_finding worktree-root-conformance-summary "fleet" \
+    "$FLEET_WT_NONCONFORMING of $FLEET_WT_LINKED linked worktrees are outside the configured root or wrong layout ($FLEET_WT_CONFORMING conforming, $FLEET_WT_TOOL_OWNED tool-owned$fleet_unconfigured_note); root $fleet_summary_root from $fleet_summary_source, origin $fleet_summary_origin$per_repository_roots_note" \
     "Use /source-control:worktree create at the configured root; tool-owned entries are exempt"
 else
   emit_finding worktree-root-unconfigured "fleet" \
-    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset) — placement reported without asserting a convention" \
+    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset). Placement reported without asserting a convention$per_repository_roots_note" \
     "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
+fi
+
+# When every attempted ls-remote failed, N MEDIUM merged-remote-branch findings are one
+# transport/binding problem, not N independent stale heads (#4211). Empty ls-remote (head
+# already gone) is a successful probe and does not count as a failure.
+if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
+  emit_finding ls-remote-fleet-unavailable "fleet" \
+    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings stay MEDIUM cached observations" \
+    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun. The per-repository MEDIUM findings are not independent live-probe failures"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------

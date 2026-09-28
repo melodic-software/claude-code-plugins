@@ -6,6 +6,22 @@ processes inherit **Claude Code's own environment** (hooks reference), not the i
 shell's profile, so an nvm-provisioned global install the Bash tool can see is invisible to
 every `command -v` probe here (#2732; precedent #811).
 
+**Dispatch completeness is a prerequisite of this checklist.** If no `PostToolUse` hook
+completes, these probes never run and files land unformatted with no skip notice. That is a
+host or harness dispatch failure, not a PATH miss.
+
+**Claim:** "no `PostToolUse` hook completes" is not a general property of Claude Code 2.1.x.
+Linux 2.1.258 completes the two-line probe and a real `typos-format` `PostToolUse` with a full
+plugin fleet. Remaining diagnosis is the reporting Windows host (`claude --debug` on the
+Reproduction probe) and/or a second Windows host. Do not raise in-repo `PostToolUse` timeouts
+while no hook on the reporting host completes: that change is unfalsifiable. **Basis:**
+[#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549) (last known good
+`2026-08-12T09:07:17Z` on the reporting machine; every `PostToolUse` dispatch there ends
+`hook_cancelled` with zero `hook_success`); triage probe 2026-09-06 on a different Linux
+install at 2.1.258, isolated `CLAUDE_CONFIG_DIR` and real `~/.claude`, both `pre-` and `post-`
+lines present. **As of:** 2026-09-28. **Recheck:** the reporting Windows host's
+`claude --debug` probe log, or a second Windows host running the same two-line probe.
+
 This document is the fleet checklist. Per-hook notices must:
 
 1. Say the skip is for **this edit** (the probe re-runs; only the notice latches).
