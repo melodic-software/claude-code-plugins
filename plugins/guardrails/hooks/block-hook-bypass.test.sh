@@ -1110,6 +1110,10 @@ run_pwsh "PS: & \$sh bound only inside a script block (blocked — #4234)" \
   "if (\$x) { \$sh=${Q}bash.exe${Q} }; & \$sh f x" 2
 run_pwsh "PS: & \$sh called before its binding (blocked — #4234)" \
   "& \$sh f x; \$sh=${Q}bash.exe${Q}" 2
+run_pwsh "PS: & \$sh rebound by a multiple assignment (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; \$sh,\$y=${Q}Set-Content${Q},1; & \$sh f x" 2
+run_pwsh "PS: & \$sh rebound through parentheses (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; (\$sh)=${Q}sc${Q}; & \$sh f x" 2
 run_pwsh "PS: & \$sh rebound by foreach (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; foreach (\$sh in \$ws) { & \$sh f x }" 2
 run_pwsh "PS: & \$sh rebound by sv (blocked — #4234)" \

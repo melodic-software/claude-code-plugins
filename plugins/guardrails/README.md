@@ -242,7 +242,8 @@ out of scope until such a signal exists.
   judged as that literal: `$sh='C:/Program Files/Git/bin/bash.exe'; & $sh x.sh
   record dir` is allowed exactly as `& 'C:/Program Files/Git/bin/bash.exe' x.sh
   record dir` is. The binding counts only as a whole top-level statement before
-  the call, the only assignment to that variable in the command, in a command
+  the call, the only assignment to that variable in the command, with no other
+  reference to the variable after it but `& $var` call sites, in a command
   with no comment, dot-source, splat, `*-Variable` cmdlet or alias,
   `-OutVariable`-style parameter, function, or `param` block that could rebind
   it; a literal naming a writer (`'Set-Content'`, a path ending in `tee.exe`)
