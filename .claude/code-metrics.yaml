@@ -16,3 +16,10 @@ scope:
   # collapses their rows to one per function with a replica count instead of
   # counting each copy, and a clone across the copies is an exclusion, not debt.
   registries: [scripts/cross-plugin-source-registry.txt]
+  # A whole-tree duplication audit still lists per-suite shell test scaffolding
+  # (the pass/fail helpers, counters, and result footer that lib/*.test.sh and
+  # plugins/**/*.test.sh each define) as its largest surviving classes. Those
+  # rows are expected: docs/conventions/shell-test-helpers/README.md keeps the
+  # helpers per file on purpose, and no sync script declares them, so the
+  # registry above carries no cluster line for them and the audit cannot
+  # exclude them. Decided in #4125; reopen through that convention, not here.
