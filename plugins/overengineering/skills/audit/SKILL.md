@@ -18,7 +18,9 @@ Medium, first hit wins.
 3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
 4. **Shipped default.** The findings artifact and the terminal summary. Offer the HTML view. Emit it when a rung above selects `file` or `artifact`.
 
-A later realign pass re-reads the findings artifact.
+A later realign pass re-reads the findings artifact. An emitted HTML view is an ephemeral temp file, not a second findings artifact.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

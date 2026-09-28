@@ -7,7 +7,7 @@ All notable changes to the `machine-health` plugin are documented here. Format f
 
 ### Changed
 
-- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). The markdown health report stays the deliverable. The procedure does not ask and does not also write HTML. A `file` or `artifact` rung emits the view. Page chrome is this plugin's copy of `reference/html-chrome.html`.
 
 ## [0.14.2] - 2026-09-28
 

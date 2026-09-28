@@ -21,6 +21,8 @@ Medium, first hit wins.
 4. **Shipped default.** The markdown report. Offer the HTML dashboard when the scope is `week` or larger. Emit it when a rung above selects `file` or `artifact`.
 
 The markdown report is the record.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

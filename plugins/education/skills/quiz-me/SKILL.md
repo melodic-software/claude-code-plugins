@@ -16,9 +16,11 @@ Medium, first hit wins.
 1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
 2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
 3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
-4. **Shipped default.** Write the markdown report, the record a later recall reads, and offer the HTML quiz view. Emit the page when a rung above selects `file` or `artifact`, including an explicit request for an HTML report.
+4. **Shipped default.** A user-initiated invocation writes the HTML report. That request is the acceptance. A model-initiated policy hit offers and waits. `terminal` writes the markdown fallback. The retained report is what a later recall reads.
 
 Recall re-reads the retained report. The HTML page is the view.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Purpose
 
 Verify that the **human** absorbed a completed change, the object under test is the

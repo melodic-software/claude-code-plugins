@@ -16,6 +16,8 @@ Medium, first hit wins.
 4. **Shipped default.** Markdown. `--format` is rung 1. `file` or `artifact` selects HTML when the build tree is installed.
 
 Markdown is the record. HTML and PPTX are views.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Variables
 
 Arguments: `$ARGUMENTS`

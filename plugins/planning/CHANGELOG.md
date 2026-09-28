@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). `interview` keeps `${user_config.surface}`: `page` starts the local page, and the shipped default stays inline prose. `prd`, `design`, `plan`, and `brainstorm` do not gain a new HTML document. A question round uses the interview page when that ladder selects one.
 
 ## [0.45.3] - 2026-09-28
 

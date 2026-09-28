@@ -21,6 +21,8 @@ Medium, first hit wins.
 4. **Shipped default.** The terminal app. `file` or `artifact` selects the HTML demo shell.
 
 The person driving the prototype is the next consumer. The answer note stays markdown.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

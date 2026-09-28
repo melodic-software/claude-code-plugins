@@ -19,6 +19,8 @@ Medium, first hit wins.
 4. **Shipped default.** The markdown table, and offer the HTML view. Emit the page when a rung above selects `file` or `artifact`.
 
 Markdown stays the tracked record.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Variables
 
 Arguments: `$ARGUMENTS`

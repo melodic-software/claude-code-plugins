@@ -50,6 +50,14 @@ else
     plugins/playbooks/reference/repo-sweep-plan-page.html
     plugins/visualization/reference/html-chrome.html
     plugins/adhd/reference/html-chrome.html
+    plugins/ai-briefing/reference/html-chrome.html
+    plugins/architecture/reference/html-chrome.html
+    plugins/claude-ops/reference/html-chrome.html
+    plugins/education/reference/html-chrome.html
+    plugins/event-storming/reference/html-chrome.html
+    plugins/machine-health/reference/html-chrome.html
+    plugins/overengineering/reference/html-chrome.html
+    plugins/prototype/reference/html-chrome.html
     plugins/visualization/reference/html-loop-closure.html
   )
 fi

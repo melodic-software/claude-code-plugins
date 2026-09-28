@@ -1,0 +1,147 @@
+<!doctype html>
+<!--
+  html-chrome.html: the marketplace's design-token and chrome reference for
+  rendered HTML views (the rendered-views convention's one sanctioned shared
+  piece). Skills that emit a person-facing HTML view take their palette, type
+  stacks, spacing, and accessibility floor from this page; open it in a browser
+  to see every token rendered.
+
+  Provenance: token values are derived from the "Unreasonable Effectiveness of
+  HTML" example gallery pages (Copyright 2026 Anthropic PBC, published under
+  Apache-2.0 SPDX headers); the official anthropics/html-effectiveness template
+  repo mirrors the same templates under MIT with no per-file headers. This
+  derived file is distributed under this repository's MIT license with that
+  attribution.
+
+  Accessibility floor: PROVISIONAL. The floor below (contrast pairings, focus
+  visibility, color-scheme and reduced-motion behavior) ships as wave-1 baseline
+  and is revisited cross-genre when the design-system vertical runs; the
+  rendered-views convention doc owns the revision trigger.
+
+  Sharing contract: this is the canonical copy. A second plugin adopting it
+  copies the file byte-identical to the same path within its own plugin root
+  (reference/html-chrome.html) and registers the cluster in
+  scripts/cross-plugin-source-registry.txt; the drift checker rejects a
+  registration while only one plugin carries it.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendered-views chrome reference</title>
+<style>
+  :root {
+    --ivory: #FAF9F5;
+    --slate: #141413;
+    --clay: #D97757;
+    --oat: #E3DACC;
+    --olive: #788C5D;
+    --white: #FFFFFF;
+    --gray-100: #F0EEE6;
+    --gray-300: #D1CFC5;
+    --gray-500: #87867F;
+    --gray-700: #3D3D3A;
+    --serif: ui-serif, Georgia, serif;
+    --sans: system-ui, -apple-system, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --clay-deep: #A0512E;
+    --clay-soft: #E89B7E;
+    --radius-panel: 12px;
+    --radius-row: 8px;
+    --border: 1.5px solid var(--gray-300);
+    --bg: var(--ivory);
+    --fg: var(--slate);
+    --panel: var(--white);
+    --muted: var(--gray-500);
+    --link: var(--clay-deep);
+    --focus: var(--clay-deep);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--slate);
+      --fg: var(--ivory);
+      --panel: var(--gray-700);
+      --muted: var(--gray-300);
+      --border: 1.5px solid var(--gray-500);
+      --link: var(--clay-soft);
+      --focus: var(--clay-soft);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+  html { color-scheme: light dark; }
+  body {
+    margin: 0 auto; max-width: 860px; padding: 2rem 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55;
+  }
+  h1, h2 { font-family: var(--serif); font-weight: 600; }
+  h1 { font-size: 1.7rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.2rem; border-bottom: var(--border); padding-bottom: .3rem; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  .panel {
+    background: var(--panel); border: var(--border);
+    border-radius: var(--radius-panel); padding: 1rem 1.25rem; margin: 1rem 0;
+  }
+  .swatches { display: flex; flex-wrap: wrap; gap: .75rem; }
+  .swatch { flex: 1 1 120px; border: var(--border); border-radius: var(--radius-row); overflow: hidden; }
+  .swatch .chip { height: 52px; }
+  .swatch .label { padding: .35rem .6rem; font-family: var(--mono); font-size: .78rem; }
+  code, .mono { font-family: var(--mono); font-size: .9em; }
+  a { color: var(--link); }
+  a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: .45rem .5rem; vertical-align: top; }
+  th { font-family: var(--sans); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Rendered-views chrome reference</h1>
+<p class="lead">Tokens, type, and the accessibility floor for this marketplace's person-facing HTML views. Self-contained: no external links, scripts, fonts, or images.</p>
+
+<h2>Palette</h2>
+<div class="panel">
+  <div class="swatches">
+    <div class="swatch"><div class="chip" style="background:#FAF9F5"></div><div class="label">--ivory #FAF9F5</div></div>
+    <div class="swatch"><div class="chip" style="background:#141413"></div><div class="label">--slate #141413</div></div>
+    <div class="swatch"><div class="chip" style="background:#D97757"></div><div class="label">--clay #D97757</div></div>
+    <div class="swatch"><div class="chip" style="background:#E3DACC"></div><div class="label">--oat #E3DACC</div></div>
+    <div class="swatch"><div class="chip" style="background:#788C5D"></div><div class="label">--olive #788C5D</div></div>
+    <div class="swatch"><div class="chip" style="background:#F0EEE6"></div><div class="label">--gray-100 #F0EEE6</div></div>
+    <div class="swatch"><div class="chip" style="background:#D1CFC5"></div><div class="label">--gray-300 #D1CFC5</div></div>
+    <div class="swatch"><div class="chip" style="background:#87867F"></div><div class="label">--gray-500 #87867F</div></div>
+    <div class="swatch"><div class="chip" style="background:#3D3D3A"></div><div class="label">--gray-700 #3D3D3A</div></div>
+  </div>
+</div>
+
+<h2>Type and chrome</h2>
+<div class="panel">
+  <p style="font-family:var(--serif)">Serif for headings: <code>--serif</code> (ui-serif, Georgia).</p>
+  <p style="font-family:var(--sans)">Sans for body: <code>--sans</code> (system-ui).</p>
+  <p style="font-family:var(--mono)">Mono for code and labels: <code>--mono</code> (ui-monospace).</p>
+  <p>Borders are <code>1.5px solid</code>; panels round at <code>--radius-panel</code> (12px), rows at <code>--radius-row</code> (8px).</p>
+</div>
+
+<h2>Accessibility floor (provisional)</h2>
+<div class="panel">
+  <table>
+    <tr><th>Rule</th><th>Token or mechanism</th></tr>
+    <tr><td>Body text contrast</td><td><code>--slate</code> on <code>--ivory</code> (and the inverse in dark scheme); <code>--gray-500</code> only for secondary text at 1rem or larger</td></tr>
+    <tr><td>Link and accent text contrast</td><td>Text never wears <code>--clay</code> directly (2.96:1 on <code>--ivory</code>, below the 4.5:1 floor): links use <code>--link</code>, the clay-derived <code>--clay-deep</code> in light scheme (5.37:1 on <code>--ivory</code>) and <code>--clay-soft</code> in dark (4.89:1 on <code>--gray-700</code>)</td></tr>
+    <tr><td>Accent is never the only signal</td><td><code>--clay</code> and <code>--olive</code> stay decorative: they accompany a text label or shape change, never carry meaning alone</td></tr>
+    <tr><td>Focus visibility</td><td><code>:focus-visible</code> gets a 3px <code>--focus</code> outline with 2px offset, at or above the 3:1 non-text floor in both schemes (styled above)</td></tr>
+    <tr><td>Color scheme</td><td><code>color-scheme: light dark</code> plus the <code>prefers-color-scheme</code> token flip above</td></tr>
+    <tr><td>Motion</td><td><code>prefers-reduced-motion: reduce</code> disables animations and transitions wholesale</td></tr>
+    <tr><td>Keyboard reach</td><td>Every interactive control is a native element or carries a tabindex and key handler</td></tr>
+  </table>
+</div>
+
+<h2>Self-containment</h2>
+<div class="panel">
+  <p>A rendered view ships as one file: inline CSS and JS only, no external requests, assets as data URIs when unavoidable. Escape any interpolated content; the rendered-views convention owns the escaping baseline.</p>
+</div>
+</body>
+</html>

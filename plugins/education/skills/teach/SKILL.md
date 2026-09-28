@@ -19,6 +19,8 @@ Medium, first hit wins.
 4. **Shipped default.** `lesson.html` when the host can render it, otherwise `lesson.md`. `terminal` forces `lesson.md`.
 
 The learner is the next consumer of the lesson. `reference.md` stays the durable record.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Purpose
 
 Teach a user interactively across multiple sessions. Not by lecturing, but by coaching through the Knowledge-Skills-Wisdom progression grounded in the user's real goals. Maintains persistent learning state so each session builds on prior understanding.

@@ -19,6 +19,8 @@ Medium, first hit wins.
 4. **Shipped default.** Write the candidate artifact. Offer the HTML view. Emit the page only when a rung above selects `file` or `artifact`.
 
 A later planning pass re-reads the candidate artifact. The page is a view of that record.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

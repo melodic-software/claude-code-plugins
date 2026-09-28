@@ -21,6 +21,8 @@ Medium, first hit wins.
 4. **Shipped default.** When the HTML mockup substrate is selected: a local HTML file. `artifact` publishes only when that surface exists.
 
 The person comparing variants is the next consumer. The winning-variant note stays markdown.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

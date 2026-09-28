@@ -7,7 +7,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 ### Changed
 
-- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). `improve` offers the HTML report and always writes the markdown candidate artifact. `actions/deepening.md` writes the page only when the ladder emits it. Page chrome is this plugin's copy of `reference/html-chrome.html`.
 
 ## [0.12.1] - 2026-09-28
 

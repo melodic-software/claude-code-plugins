@@ -15,9 +15,11 @@ Medium, first hit wins.
 1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
 2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
 3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
-4. **Shipped default.** The markdown report, and offer the HTML view. Emit the page only when a rung above selects `file` or `artifact`.
+4. **Shipped default.** The markdown report. Do not ask. This skill never prompts. Emit the HTML view only when a rung above selects `file` or `artifact`.
 
 A later fix pass re-reads the markdown report.
+
+When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 ## Overview
 
 This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Trend adjusts severity upward only: a worsening metric or a repeat across runs can raise WARN to CRIT, and nothing lowers a reading later. A first run has no history, so every finding in it is a single, unmoderated reading. A custom check from the catalog overlay is capped at WARN until it has reported clean in 3 runs.
@@ -85,7 +87,7 @@ Routing table:
 5. **Receive the structured result.** Run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay); anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
 6. **Render the markdown report** from `reference/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 
-   When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch). The markdown `.md` report stays the durable record.
+   The markdown `.md` report stays the durable record. Do not also write an HTML view in this step. The rendered-view ladder decides that page, and this procedure does not ask.
 7. **Update state.** Write `<StateBase>/state/latest.json`. Append one compact line to `<StateBase>/state/history.jsonl`, the trend source of truth.
 8. **Verify and summarize.** Confirm the report exists. Print CRIT/WARN counts + report path to session output. A clean run may still include `UNKNOWN` findings. Call those out too.
 

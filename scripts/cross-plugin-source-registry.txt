@@ -132,7 +132,7 @@ lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 skills/audit/CLAUDE.md
 
 # No dedicated sync script. Canonical copy:
-# plugins/visualization/reference/html-chrome.html. adhd:clarify is the
-# second adopter (#3603); copy that file byte-identical to fix a drift
-# failure. This script's own --check is the gate.
+# plugins/visualization/reference/html-chrome.html. The #3603 adopters copy
+# it byte-identical. Copy that file to fix a drift failure. This script's
+# own --check is the gate.
 reference/html-chrome.html

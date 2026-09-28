@@ -8,8 +8,10 @@ rule, genre rubric, or cascade keys.
 
 - **The grandfathered emitters are on the cascade ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)).
   Each surface takes argument, then `userConfig.medium`, then the rendered-views
-  cascade, then its own shipped default. A dual-audience report offers the page
-  and keeps the markdown record unless a rung selects a view. No boundary-rule,
+  cascade, then its own shipped default. A dual-audience report keeps the markdown
+  record unless a rung selects a view. HTML emitters cite their own
+  byte-identical `reference/html-chrome.html`. `planning:interview` also keeps
+  its `surface` dial: the shipped default stays inline prose. No boundary-rule,
   genre, or cascade-key change. The interactive userConfig smoke stays #3604.
 
 ## `adhd:clarify` ladder slice, 2026-09-28
