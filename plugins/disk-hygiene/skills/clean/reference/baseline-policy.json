@@ -125,14 +125,6 @@
       "pattern": "temp_git_*",
       "confidence_ceiling": "medium",
       "reason": "AI-agent Git scratch/staging directory leaked outside a worktree; confirm no session or clone still references it"
-    },
-    {
-      "id": "pulumi-writability-probe",
-      "os": ["all"],
-      "kind": "name_glob",
-      "pattern": ".pulumi-write-test-*",
-      "confidence_ceiling": "medium",
-      "reason": "Pulumi orphaned writability probe; a completed or crashed run leaves it behind, but verify no engine process is active"
     }
   ]
 }

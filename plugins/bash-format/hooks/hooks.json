@@ -7,16 +7,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"
+            ],
             "if": "Edit(*.sh)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."
           },
           {
             "type": "command",
-            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"
+            ],
             "if": "Edit(*.bash)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."
