@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.4] - 2026-09-28
+## [0.51.5] - 2026-09-28
 
 ### Added
 
@@ -15,6 +15,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   there as the contract the persist unit satisfies; until those crosswalk rows exist they stay
   declined `no-severity-crosswalk-row`. Phase D names the identity contract on the findings
   table. No scanner, emit, or lane-runs change.
+
+## [0.51.4] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15:** point shared-surface *ownership* questions at the rejected-concept
+  ledger entry for #3568 (`docs/out-of-scope/shared-surface-instruction-governance.md`). I15 still
+  detects conflicting pairs only; `conflict-criteria.md` 1.6.1.
 
 ## [0.51.3] - 2026-09-28
 
