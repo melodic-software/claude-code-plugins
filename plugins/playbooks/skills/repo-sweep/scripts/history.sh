@@ -39,6 +39,7 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
     /^<!-- repo-sweep:begin / { inb = 1; next }
     /^<!-- repo-sweep:end -->/ { inb = 0; next }
     inb && /^- \[[xX]\] / {
+      if ($0 ~ /, not applicable:/) next
       n = split(substr($0, index($0, ": ") + 2), t, /, */)
       for (i = 1; i <= n; i++) if (t[i] ~ /^[^ @]+@[^ @]+$/) print t[i]
     }' >"$tmp/last"
