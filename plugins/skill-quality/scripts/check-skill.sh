@@ -685,7 +685,7 @@ else
   desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
   case "$desc_value" in
   \"* | \'*) ;;
-  \|* | \>*) ;;
+  \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
   *:[[:space:]]*)
     err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
     ;;
