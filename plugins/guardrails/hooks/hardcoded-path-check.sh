@@ -88,11 +88,12 @@ hook::require_jq "PreToolUse" "guardrails-hardcoded-path-check" "$INPUT"
 # below in the shell. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
 # case did — hook::require_jq above has already made the degraded state visible
-# once per session.
+# once per session. NotebookEdit's target is `notebook_path`, appended last so
+# the indices the MCP lane reads do not move.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
-  '.tool_input.path' || exit 0
+  '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
 # text across the byte, so a clean scan would not reflect the bytes carried. One
@@ -298,7 +299,10 @@ if ((IS_MCP)); then
   exit 0
 fi
 
+# NotebookEdit sends its target as notebook_path; file_path is read only when
+# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
+[[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
 
 # Normalize path separators for cross-platform case matching.

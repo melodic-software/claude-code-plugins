@@ -13,6 +13,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   longer says the write lands at a scope that does not load. The advice is unchanged.
   It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
 
+## [0.38.2] - 2026-09-27
+
+### Fixed
+
+- **`hardcoded-path-check` now scans `NotebookEdit` cell source.** It read the target from `tool_input.file_path`, which `NotebookEdit` never sends (it sends `notebook_path`), so every `NotebookEdit` passed unscanned. The notebook path now gets the same project scope, allowlist, and gitignore exemption as a `Write`; `file_path` is read only when `notebook_path` is empty. The dispatcher primes `notebook_path` for this guard. The shared test helper's `NotebookEdit` payload now builds the real `notebook_path` shape, and the two PostToolUse cases that fed it to guards whose rows never match `NotebookEdit` are removed.
+
 ## [0.38.1] - 2026-09-27
 
 ### Fixed
