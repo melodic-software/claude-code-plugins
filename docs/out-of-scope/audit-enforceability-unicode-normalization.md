@@ -28,7 +28,7 @@ reports two directories.
 On APFS and HFS+ they are one directory. When the ancestor does not yet exist, the `-ef` arm
 cannot settle identity (nothing on disk). Stubs can then land inside `--scan-dir` at exit 0.
 
-This is defence in depth, not a live corruption of the fix pass: a stub declares
+This is defense in depth, not a live corruption of the fix pass: a stub declares
 `type: enforceability-stub` and the fix pass admits only `type: review-findings`. It is
 unreachable through the skill's own home composition (both homes from the same charset-sanitized
 slug). It is reachable when a consumer supplies the two homes independently (rungs 2–4).
