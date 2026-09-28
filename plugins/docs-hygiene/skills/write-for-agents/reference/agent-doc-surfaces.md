@@ -48,6 +48,19 @@ Load-semantics facts that change how you write:
 - These surfaces are context, not enforcement, so a rule that must be mechanically guaranteed
   belongs in a hook or permission policy, not prose.
 
+## CLI prompt appends
+
+These are invocation flags, not memory files. **Claim:** three flags append instruction text beyond
+`--append-system-prompt`. `--append-system-prompt-file` loads a file and appends it to the default
+system prompt, and the cli-reference cell does not restrict it to `-p`.
+`--append-subagent-system-prompt` and `--append-subagent-system-prompt-file` append to every
+subagent system prompt except a fork, only in non-interactive `-p` mode; the file form requires
+Claude Code v2.1.261 or later and cannot be combined with the text form; the text form requires
+v2.1.205 or later. **Basis:**
+[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows.
+**As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
+whether the two subagent flags combine, or leaves the table.
+
 ## Other-ecosystem analogues
 
 For repos whose docs serve multiple agent harnesses. Names and auto-read semantics only;
