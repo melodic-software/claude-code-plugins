@@ -444,10 +444,10 @@ condition suppressed and on what ground; and a one-line `OPINION` discovery note
 
 End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
-subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
-re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
-(same plugin); route there when the operator wants the experiment run rather than described.
+subsection. An editorial cut (removal would not change behavior, or the content is derivable)
+may be applied from this report. A consequential deletion, a rule that governs a situation and
+is outside the exception register, is applicable only when the commit cites a closed
+`/claude-config:unhobble watch` (qualifying sessions met, zero attributed rows).
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
@@ -460,8 +460,7 @@ plainly that nothing has been applied.
 
 ## Next
 
-- A proposed diff is accepted and the delete-and-watch loop is the next question:
-  `/claude-config:unhobble`.
+- An editorial cut is applied from the report; a consequential cut cites a closed watch: `/claude-config:unhobble watch`.
 - A finding lands on the memory layer: `/claude-memory:audit`.
 - Posture guidance is absent rather than wrong: `/claude-config:audit-prompting-postures`.
 

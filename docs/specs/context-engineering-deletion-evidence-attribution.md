@@ -86,8 +86,14 @@ degrades honestly (an expired watch resolves nothing) where a shortcut would deg
 
 ## Adoption
 
-Not yet wired into a skill. The mechanism is recorded here so the sign-off's consequential tier has
-a specification to point at; wiring it into `claude-config:unhobble` (as a deletion mode alongside
-the re-add gate, sharing the ledger grammar) is tracked separately. Until that lands, the
-consequential tier remains unclearable in practice, which is the honest state and is preferable to
-a tier that clears itself on absent evidence.
+Wired. `claude-config:unhobble` `watch` is the deletion direction of the re-add gate, and the
+re-add gate stays the only grammar: a ledger row, same-cause aggregation, and a commit that cites
+the rows. `claude-config:audit-instructions` treats an editorial cut as applicable on its normal
+criteria, holds a protected class, and treats a consequential deletion as applicable only when the
+removing commit cites a closed watch whose qualifying-session count is met and whose attributed
+row count is zero. That citation is what clears the consequential tier. Silence does not.
+
+The signed-off contract lived at `docs/topics/context-engineering-integration/PLAN.md` and was
+pruned before merge. This file is the durable record. The grammar is not re-filed under
+`docs/topics/`: `scripts/check-contract-slice-prune.sh --check-diff` fails a pull request that
+leaves a path there, and that slice is pruned before merge, which would drop the record.

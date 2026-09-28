@@ -53,7 +53,7 @@ over another is style.
 | Consumer | How it uses the register |
 |---|---|
 | `claude-config:audit-instructions` | Deletion-class criteria (I1, I4, I5) hold back a candidate matching a protected class and report the hold rather than proposing the cut |
-| `claude-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it. A protected rule is never left deleted on the evidence of "no stumble was observed" |
+| `claude-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it. A protected rule is never left deleted on the evidence of "no stumble was observed", and it never enters a deletion watch. A consequential rule outside the register is deletable only when a closed watch has zero attributed rows |
 | `instruction-placement:*` | Unchanged. It owns the classes and the relocation verdict; this register is the deletion counterpart and defers to it on class membership |
 
 A consumer that reads this register names it in its own criteria text. A register nothing consumes

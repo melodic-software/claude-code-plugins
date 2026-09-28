@@ -1,6 +1,6 @@
 ---
 description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
-argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
+argument-hint: "[phase]: snapshot|bare|observe|readd|watch|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -209,6 +209,9 @@ rows after real work is a licensed permanent deletion.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
+   This gate is the evidence grammar, and only the grammar: a row is one ledger line, rows that
+   share an underlying cause count as one, and the commit that acts cites the rows. The deletion
+   watch uses this grammar and does not define a second one.
 2. For a root instruction file being restored whole,
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
@@ -241,6 +244,34 @@ rows after real work is a licensed permanent deletion.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
    repo's normal PR flow.
+
+## Deletion watch
+
+`watch` is the deletion direction of the re-add grammar above. It does not add a row shape, a
+second ledger, or a second gate. Use it for one consequential rule: a rule that governs a
+situation and does not match the instruction exception register. An editorial candidate (removal
+would not change behavior, the content is derivable, or it restates the obvious) does not enter
+a watch; `audit-instructions` clears that tier on its normal criteria. A protected-class rule
+never enters a watch. Name the class and stop.
+
+Before any removal, record the watch in `stumbles.md`, above the ledger table: the rule, quoted,
+and the surface it lives on; the governed situation, stated as where its absence would show; the
+window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
+duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
+
+Attribute a stumble by that governed situation. Same-cause aggregation is the re-add gate's rule.
+Co-absence is not attribution. When several rules were removed together, a stumble attaches to
+one rule only when exactly one removed rule governs the situation. When two do, the row attaches
+to the group and those deletions are reverted together.
+
+A watch that never accumulates qualifying sessions expires unresolved. Report that. It is not
+evidence the rule can go.
+
+The deletion is warranted when the qualifying-session count is met and the attributed row count,
+after same-cause aggregation, is zero. The removing commit cites the watch the way a restoring
+commit cites its ledger rows. Present the removal and wait for confirmation. A closed watch with
+zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
+is not clear, and silence is not a warrant.
 
 ## Cadence wiring (optional)
 
