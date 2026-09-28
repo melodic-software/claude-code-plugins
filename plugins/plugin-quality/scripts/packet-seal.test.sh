@@ -163,6 +163,7 @@ has "CHANGED audit-notes.md" "the rewrite was not laundered into a fresh digest"
 packet="$(fresh_packet)"
 run 0 "record before acknowledging" record "$packet"
 original="$(cat "$packet/packet.sha256")"
+cp "$packet/audit-notes.md" "$WORK/audit-notes.orig"
 printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
 printf 'a later note\n' >"$packet/audit-notes-2.md"
 run 0 "acknowledge records a generation without replacing the original" record --acknowledge-divergence "$packet"
@@ -185,6 +186,14 @@ else
 fi
 run 1 "verify still reports the original divergence after acknowledge" verify "$packet"
 has "CHANGED audit-notes.md" "acknowledge did not launder the original seal"
+cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
+run 1 "record refuses once a generation exists, even with the bytes restored" record "$packet"
+has "acknowledged divergence" "the refusal names the acknowledged divergence"
+if [[ "$(cat "$packet/packet.sha256")" == "$original" ]]; then
+  pass "packet.sha256 survives a restore-then-record attempt"
+else
+  fail "a restore-then-record laundered packet.sha256"
+fi
 clean="$(fresh_packet)"
 run 0 "record a clean packet" record "$clean"
 run 2 "acknowledge refuses a packet that still matches" record --acknowledge-divergence "$clean"

@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   still refuses, and the error now says the original manifest stays permanently
   unsealable so later notes remain UNSEALED. The generation is a forward record,
   not a laundered seal. `verify` still reports CHANGED against `packet.sha256`.
+  Once a generation exists, an ordinary `record` is refused even if the altered
+  bytes are restored, so the acknowledged divergence cannot be laundered.
 - **`packet-prune.sh` retains `item*.md`, not only `item.md` (#3357).** A second
   owner's `item-<owner>.md` in the same packet is a deliverable.
 

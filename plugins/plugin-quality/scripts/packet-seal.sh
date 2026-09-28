@@ -174,6 +174,13 @@ if [[ "$action" == record ]]; then
   # altered bytes, converting a detectable rewrite into a clean bill of health —
   # the one outcome that makes this tool worse than useless. So an existing
   # manifest is verified first, and a changed entry stops the reseal.
+  # An acknowledged divergence is permanent: once a generation manifest exists,
+  # an ordinary reseal is refused even if the altered bytes were restored.
+  if [[ "$acknowledge" -eq 0 ]] && compgen -G "$packet/packet.sha256.[0-9]*" >/dev/null; then
+    echo "error: this packet has an acknowledged divergence (packet.sha256.N exists) — refusing to reseal packet.sha256" >&2
+    echo "       use record --acknowledge-divergence to write a new generation." >&2
+    exit 1
+  fi
   if [[ -f "$manifest" ]]; then
     relaundered=0
     while IFS= read -r line; do
