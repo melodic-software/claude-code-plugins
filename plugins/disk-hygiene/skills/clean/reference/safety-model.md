@@ -34,8 +34,11 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 - target containment; an OS-managed root (per `system_roots()`: the OS drive holding an existing
   Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
   a recursive walk target, while `--root-children` may address that same root only as a listing of
-  immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
-  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  immediate non-OS child entries (regular files and directories) with explicit `--root-child`
+  selection (never a whole-root
+  walk); `--root-children` is also valid on a non-OS directory (a user home), where only
+  directories are admitted, so approved immediate children can be re-inventoried into one snapshot
+  without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
@@ -115,6 +118,16 @@ Windows and macOS execution stays declined by design. A descriptor-anchored Wind
 be a large new trust surface, while the manual lane's per-item revalidation rules and the
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
+
+**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
+execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
+question, not this trigger firing. **Basis:** the trigger quoted from the
+[#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
+affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
+near-miss recurrence), reopen as a design issue with full security review." No post-#1109
+near-miss recurrence is on the record in this checkout; #3855 remains the open related
+design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
+manual lane, or #3855 closing with a per-primitive design.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
@@ -561,13 +574,13 @@ subtree.
 The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
-the three coverage terms, `empty_directory_count`, both byte totals, `errors`, `policy_sources`
+the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`
 and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
 of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
 flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
 suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
-`empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
+`empty_directory_count` and `empty_file_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.
 
@@ -575,7 +588,8 @@ Root-children mode's quiet note is its own. That mode's default note carries a c
 qualification the ordinary one has no reason to: the volume root itself and every skipped
 OS-owned, hidden, system or reparse entry were never walked, so the inventory is partial by
 construction. Nothing else on stdout encodes that. The skipped entries are recorded as
-`root_children_skipped` in the snapshot alone, and `truncated_paths` does not stand in for them,
+`root_children_skipped` in the snapshot as the full list (stdout carries the same field grouped by
+reason with counts), and `truncated_paths` does not stand in for them,
 so a quiet note that dropped the qualification would be dropping a fact rather than a duplicate.
 The quiet root-children note therefore keeps the coverage sentence and drops only the rollup
 prose.

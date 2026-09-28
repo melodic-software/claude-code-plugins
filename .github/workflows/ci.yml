@@ -154,7 +154,7 @@ jobs:
       run_shell: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
-      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
     steps:
       - name: Check out
@@ -362,14 +362,26 @@ jobs:
           # exclusion, so the exemption lives on the caller.
           exclude: plugins/*/skills/*/vendor/**
 
+      # scan-mode git in ci-workflows (through v0.29.1) passes --log-opts=--all,
+      # which walks every ref in the clone. checkout-with-base unshallows, so a
+      # finding on one branch fails this step on every other branch (#3599).
+      # gitleaks-action Scan() scopes pull_request and push to
+      # --no-merges --first-parent <base>^..<head>, and a same-ref push to -1
+      # (src/gitleaks.js, read 2026-09-28). This step uses that range. The pin
+      # below is the composite's gitleaks 8.30.1 asset, verified by SHA-256.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
-        with:
-          config: .gitleaks.toml
-          scan-mode: git
-          redact: true
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: bash scripts/gitleaks-scoped-scan.sh
 
       - name: Check editorconfig conformance
         id: editorconfig
@@ -718,14 +730,19 @@ jobs:
       # Every `uses: ./.github/actions/checkout-with-base` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
       # audit to recommend GitHub's `$/...` form over the workspace-relative
-      # `./...` form, and its auto-fix rewrites all seven call sites. The
-      # rewrite cannot be taken yet: actionlint (pinned by SHA in the
+      # `./...` form, and its auto-fix rewrites the call sites. The rewrite
+      # cannot be taken yet (#4130): actionlint (pinned by SHA in the
       # melodic-software/ci-workflows action this lane also runs) rejects
       # `$/.github/actions/checkout-with-base` as "invalid format because ref
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
       # understands the syntax.
+      # Claim: keep the self-repository ignores; do not rewrite to `$/` until
+      # actionlint parses it. Basis: actionlint v1.7.12 (2026-03-30) is still
+      # latest; the pin is ci-workflows actionlint@4610c31e (v0.27.1). As of:
+      # 2026-09-28. Recheck: an actionlint release accepts `uses: $/...` and
+      # the ci-workflows action is repinned to a version that carries it.
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -757,6 +774,27 @@ jobs:
         id: detector_findings_crosswalk
         continue-on-error: true
         run: scripts/check-detector-findings-crosswalk.sh --check
+
+      # Emit call sites are read from `shfmt --to-json`. v3.12.0 drops a call
+      # after `#` following a command substitution; v3.13.0 is the first
+      # release that keeps it, and this step installs the same v3.14.1 pin and
+      # SHA-256 as .claude/cloud-bootstrap.sh. The release publishes no
+      # sha256sums asset, so the hash is of that exact linux_amd64 binary.
+      # A missing or older binary is exit 2, so this job cannot skip the tool.
+      - name: Install pinned shfmt
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shfmt --version
+          test "$(shfmt --version)" = "$SHFMT_VERSION"
 
       # Both directions of the detector/eval check-id crosswalk: every id a
       # detector emits must be named by an eval case, and every id an eval case
@@ -1282,6 +1320,9 @@ jobs:
       - name: Test the changed-skill gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changed-skills.test.sh
+      - name: Gate every skill on description/verb-contract polarity (check 25)
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1633,11 +1674,27 @@ jobs:
           rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate
       # step below: a validate-infra problem (e.g. the CLI needing auth) can
-      # never mask a real contract-test failure. shfmt is optional in both
-      # environments, so shfmt-gated cases skip rather than fail. Node, Python,
+      # never mask a real contract-test failure. The eval-coverage gate reads
+      # `shfmt --to-json` and exits 2 when shfmt is missing, so this job
+      # installs the same v3.14.1 pin as lint-2. Node, Python,
       # ShellCheck, Biome, and Ruff are declared here so hosted and local runs
       # exercise the same contract suites instead of inheriting different image
       # tool inventories.
+      - name: Install pinned shfmt
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shfmt --version
+          test "$(shfmt --version)" = "$SHFMT_VERSION"
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
@@ -1712,6 +1769,11 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
+            # The shell corpus is sharded above. The outside-Node packages are
+            # a fixed pair, so one leg runs them once on the push path (#3703).
+            if [ "$LEG" = 3 ]; then
+              scripts/run-outside-node-suites.sh
+            fi
             exit 0
           fi
           err="$RUNNER_TEMP/affected-tests.err"
@@ -1729,23 +1791,18 @@ jobs:
               # with the pinned pytest: it collects unittest.TestCase suites as
               # well as pytest-style ones, and each of these files puts its own
               # module directory on sys.path, so no per-suite runner has to be
-              # guessed. Anything left is named in a warning and counted in the
-              # run summary rather than reported as executed: the Node suites
-              # outside the four sub-projects and the Pester suites have no
-              # runner on EITHER path (run-plugin-tests.sh is shell-only too),
-              # so failing here would red pull requests for a gap push shares.
-              # #3703 closes it; the gate ledger's coverage-not-carried row
-              # records it.
+              # guessed. Node suites outside the four sub-projects run through
+              # each package's own npm test. Pester is the test-windows lane.
+              # Eval fixtures are excluded. #3703.
               notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
-              echo "::warning::The affected-suite selector declined to run: $(printf '%s' "$notrun" | tr '\n' ' ')"
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
               rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
               if [ -n "$py" ]; then
                 printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
               fi
               if [ -n "$rest" ]; then
-                echo "::warning::No step in this workflow executes these selected suites (#3703): $(printf '%s' "$rest" | tr '\n' ' ')"
-                printf 'affected-tests: %s selected suite(s) had no runner in this workflow\n' "$(printf '%s\n' "$rest" | grep -c . || true)" >> "$GITHUB_STEP_SUMMARY"
+                printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"
+                scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
               fi
               ;;
             1)
@@ -1780,6 +1837,11 @@ jobs:
         run: |
           [ "$LEG" = 2 ] || exit 0
           bash scripts/affected-tests.test.sh
+      - name: Run outside-node suite runner tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 2 ] || exit 0
+          bash scripts/run-outside-node-suites.test.sh
       # The html-assets gate needs the root npm ci from this job (its linter is
       # the exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
       # asset must lint clean and be registered in the gate's manifest, per the
@@ -2046,6 +2108,29 @@ jobs:
             exit 0
           fi
           scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
+
+      - name: Verify html-escape copies match the canonical helper
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-html-escape.sh --check
+      - name: Run html-escape tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/html-escape.test.sh
+          bash scripts/sync-html-escape.test.sh
+      - name: Verify adopting plugins bumped when the escape helper changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
@@ -2400,5 +2485,15 @@ jobs:
           # 210 s (run 33993232104), so the 240 s a 5-minute job allows would
           # have gone red on the very case the wait exists for, a bot that
           # force-pushes and edits in the same second.
+          #
+          # STALE FAILURE DURING A RE-RUN (#4670). The composite ends the wait
+          # as soon as `ci-lanes` is success, failure, or error. It does not
+          # tell a full-run re-run apart from a contract-only sibling, so a
+          # body edit while a failed full run is being re-run can read the old
+          # failure at once and go red. That wait-loop fix belongs in
+          # ci-workflows (the pin below), then every `uses:` SHA here moves
+          # together. Until then: when `ci-lanes` on this SHA is already
+          # success, re-run the red contract-only `ci` run; do not empty-commit.
+          # When `ci-lanes` is failure or missing, re-run the full workflow.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}

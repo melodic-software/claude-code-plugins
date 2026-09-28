@@ -26,6 +26,19 @@
         "Never prescribes `claude plugin uninstall` as the way to reconfigure, and gives the reason: uninstalling drops the whole stored pluginConfigs entry",
         "Does not edit settings or persist the environment override"
       ]
+    },
+    {
+      "id": 3,
+      "name": "missing-conventional-root-is-a-failed-check",
+      "prompt": "/skill-quality:setup \u2014 skills should be at .claude/skills, but that directory is not in this checkout.",
+      "expected_output": "Reports the failed verification instead of claiming success or creating .claude/skills. Writes no settings for the conventional default.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not claim success for a missing .claude/skills directory",
+        "Does not create the directory as a setup side effect",
+        "Writes no settings for the conventional default"
+      ]
     }
   ]
 }

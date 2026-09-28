@@ -65,9 +65,11 @@ Filled instance for the repository in use as of 2026-07-25.
   clause.
 - Open lane issues: #1288–#1295.
 - Lane telemetry sinks (exact title match; excluded from triage frontier):
-  `Lane telemetry: work-loop` → **#3177**.
+  `Lane telemetry: work-loop` → **#3177**;
+  `Lane telemetry: babysit-loop` → **#3742**;
+  `Lane telemetry: attend-queue` → **#3739**.
   Launch config may pin a different issue via `lanes[].telemetry.issue`; when unset, resolve by
-  this default for this repository.
+  these defaults for this repository.
 
 ### Tier is not the rung
 
@@ -203,6 +205,11 @@ machines; neither on the attended box.
 > or override names a model
 > (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
 > 2026-09-27).
+> Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
+> <https://code.claude.com/docs/en/env-vars> and
+> <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
+> As of: 2026-09-28. Recheck: that env-vars row stops ignoring definition and
+> per-spawn `model` values.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes

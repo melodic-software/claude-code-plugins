@@ -3,6 +3,39 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **Check 1 accepts skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). A present value must be `inherit`, a model alias or id, or that id with one `[1m]` suffix. Any other value fails. The field stays optional. Auto mode keeping the session model when the named model is unsupported is recorded on the check skill, not linted a second time.
+
+## [0.24.8] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.24.7] - 2026-09-28
+
+### Fixed
+
+- **`check`: a plain `description` containing `": "` fails, and a present `compatibility` must be 1-500 characters** ([#3612](https://github.com/melodic-software/claude-code-plugins/issues/3612)).
+  Check 1 already required a `description` and a kebab-case `name` (the name pattern rejects consecutive hyphens, a leading hyphen, and a trailing hyphen). It did not catch the authoring bug where an unquoted colon-space in `description` is a YAML mapping indicator, so the frontmatter does not parse. The skills reference says that when the YAML between the markers does not parse, the skill still loads with no fields set (`https://code.claude.com/docs/en/skills#frontmatter-reference`, read 2026-09-28). A quoted scalar or a block scalar may contain the indicator. `compatibility` stays optional: the Agent Skills spec says most skills do not need it and limits a present value to 1-500 characters (`https://agentskills.io/specification`, read 2026-09-28), and Claude Code accepts the field without acting on it. A fleet scan of `plugins/**/SKILL.md` found no unquoted description colon-space and no `compatibility` field. Vendored `SKILL.md` files whose `name` differs from a `vendor/` or `cli/` directory are upstream bytes; check 8 requires those bytes to match `HEAD`, so they are not renamed here.
+
+### Recorded
+
+- **Compaction does not drop every skill body.** The same skills reference says auto-compaction re-attaches the most recent invocation of each skill after the summary, keeping the first 5,000 tokens of each, with a combined budget of 25,000 tokens, and that older skills can be dropped entirely when many were invoked. That is runtime behavior, not a `SKILL.md` defect, so the checker does not try to enforce it.
+- **`.agents/skills/` is not a discovery root this marketplace will add.** The Agent Skills spec defines the skill directory and `SKILL.md`. The Claude Code skills reference documents plugin `skills/`, `.claude/skills/`, and the other Claude Code locations. Neither document names `.agents/skills/`. Discovery stays on the roots those documents name.
+- **Frontmatter is the loader's metadata, and the markdown after it is the instruction body.** The skills reference says the frontmatter tells Claude when to use the skill and the markdown content is what Claude follows. It does not say the frontmatter block is removed from the activated prompt. No checker change follows from that silence.
+
+## [0.24.6] - 2026-09-28
+
+### Changed
+
+- **`check`: Check 25 is a FAIL (#4586).** The fleet corpus is green under the verb-contract gate;
+  mismatches now fail `check-skill.sh` and a new `scripts/check-all-skills-verb-contract.sh` CI
+  step scans every marketplace skill so changed-file scoping cannot hide drift on main.
+
 ## [0.24.5] - 2026-09-27
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-description: "Pick the repetition lever (/goal, /loop, routines, /schedule, a workflow, a Stop hook, a one-shot prompt), then draft a paste-ready /goal condition checked against the character limit in the live docs. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
+description: "Pick the repetition lever (/goal, /loop, routines and /schedule, a workflow, a Stop hook, or a one-shot prompt) and, when /goal fits, draft a transcript-demonstrable completion condition, checked against the documented limit by a deterministic counter. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
 argument-hint: "[intent]"
 user-invocable: true
 disable-model-invocation: false
