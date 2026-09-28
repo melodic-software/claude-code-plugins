@@ -37,7 +37,7 @@ Topic: <the resolved topic>
 Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
-Budget: <the depth this session authorized>
+Budget: <low|medium|full>, optionally followed by words on the depth this session authorized
 Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
 Capability flags: nested spawning <available|unavailable>
 Source breadth: <low|medium|high|xhigh|max>
