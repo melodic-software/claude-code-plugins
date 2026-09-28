@@ -39,6 +39,9 @@ skill's reference file.
 | 23 | Skills-directory plugins | `.claude-plugin/plugin.json` inside a skill folder | Loads as plugin `<name>@skills-dir` |
 | 24 | Hook-carried instruction text | settings/plugin/frontmatter hooks; `prompt`/`agent` types; `additionalContext` returns | On lifecycle events; `additionalContext` capped 10,000 chars |
 | 25 | `--append-system-prompt` | CLI flag | Per invocation, appended to system prompt |
+| 26 | `--append-system-prompt-file` | CLI flag | Per invocation; file contents appended to system prompt (cli-reference, verified 2026-09-28) |
+| 27 | `--append-subagent-system-prompt` | CLI flag | `-p` only; appends to every subagent system prompt except forked; v2.1.205+ (cli-reference, verified 2026-09-28) |
+| 28 | `--append-subagent-system-prompt-file` | CLI flag | `-p` only; file form of row 27; cannot combine with the text form; v2.1.261+ (cli-reference, verified 2026-09-28; #4027) |
 
 Cross-cutting semantics the skill should teach: scope load order managed → user → project →
 local; nested CLAUDE.md and path-scoped rules do NOT survive `/compact` re-injection; block HTML

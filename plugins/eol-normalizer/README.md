@@ -113,6 +113,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `eol_normalizer_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED` | Normalize a written file's line endings to its .gitattributes eol value |
+| `eol_normalizer_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not normalized, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
 ### How to set these
 

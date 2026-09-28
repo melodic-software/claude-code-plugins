@@ -131,7 +131,7 @@
 #  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
 #  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
 #      elsewhere)
-#  25. Description/verb-contract polarity: read-only vs mutate (WARN;
+#  25. Description/verb-contract polarity: read-only vs mutate (FAIL;
 #      description lead vs Naming verb vs body; #2896)
 #  26. Long spoke files carry a table of contents: a reference|references|context
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
@@ -673,6 +673,38 @@ else
       warn "skill name '$EFFECTIVE_NAME' contains the word '$reserved_word', which a Skills API upload rejects ('anthropic' and 'claude' are reserved there; Claude Code loads it and ships bundled skills carrying the word); rename the $name_source if the skill will ever be uploaded"
     fi
   done
+
+  # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
+  # A quoted scalar or a block scalar may contain it. Claude Code's skills
+  # reference: when the YAML between the markers does not parse, the skill
+  # still loads with no fields set
+  # (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  desc_header="$(grep -E '^description:' <<<"$FRONTMATTER" | head -n 1 || true)"
+  desc_value="${desc_header#description:}"
+  desc_value="${desc_value#"${desc_value%%[![:space:]]*}"}"
+  desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
+  case "$desc_value" in
+  \"* | \'*) ;;
+  \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
+  *:[[:space:]]*)
+    err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+    ;;
+  *) ;;
+  esac
+
+  # compatibility is optional. The Agent Skills spec says most skills do not
+  # need the field and, when it is present, it is 1-500 characters
+  # (https://agentskills.io/specification). Claude Code accepts it and does not
+  # act on it (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # Absence is success.
+  if grep -qE '^compatibility:[[:space:]]*' <<<"$FRONTMATTER"; then
+    RAW_COMPAT="$(skill_frontmatter::field compatibility <<<"$FRONTMATTER")"
+    CUR_COMPAT="$(skill_frontmatter::strip_quotes "$RAW_COMPAT")"
+    COMPAT_LEN="$(skill_frontmatter::codepoint_len "$CUR_COMPAT")"
+    if ((COMPAT_LEN < 1 || COMPAT_LEN > 500)); then
+      err "compatibility is $COMPAT_LEN characters (Agent Skills spec requires 1-500 when the field is present); omit it when the skill has no environment requirement"
+    fi
+  fi
 fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
@@ -1931,7 +1963,7 @@ else
   note "invocation mode: model-invoked (fleet default)"
 fi
 
-# --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
+# --- Check 25: description/verb-contract polarity (FAIL) --------------------
 # plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
@@ -1946,10 +1978,9 @@ fi
 #     never-mutates claim;
 #   - "remediation" as a noun and a negated "or rewrites" list are not
 #     mutate-advertising.
-# Advisory only: a static scan cannot judge whether an audit skill should
-# gain a --fix path (out of scope) or whether a name should change (no
-# rename campaign). A WARN is a factual-consistency candidate to
-# hand-verify, not a mandate to rewrite the fleet.
+# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
+# factual defect in the listing surface being routed on. Hand-verify before
+# exempting; --fix in the description is the compliant override shape.
 # Fenced code blocks are ignored in the body so a literal example cannot
 # satisfy or trip the body limbs.
 
@@ -2038,7 +2069,7 @@ elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
 fi
 
 if [[ -n "$VC_HIT" ]]; then
-  warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+  err "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
 else
   note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
 fi

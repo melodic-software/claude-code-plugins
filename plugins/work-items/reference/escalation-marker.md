@@ -41,4 +41,6 @@ and no consumer admits, dispatches, or merges on it. The marker `kind` stays `es
 write identity, never from marker text alone.
 
 Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
-item plus marker comment is the escalation of record when the record write fails.
+item plus marker comment is the escalation of record when the record write fails (including when a
+background-job harness blocks Write to the shared checkout before `EnterWorktree`;
+[#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).

@@ -55,15 +55,11 @@ opt-in required.
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
   though the hook passes it explicitly, with no advisory noise.
-- **Gitignored paths are still scanned.** typos honors `.gitignore` when it
-  walks a directory, but this hook names the edited file explicitly, and
-  `--force-exclude` covers only typos' own excludes. An edit under `.work/`,
-  `.venv/` or `node_modules/` therefore pays a full scan and reports findings
-  (or, in write mode, applies corrections) even though git ignores the path (reproduced with typos-cli 1.42.1,
-  2026-09-27). To skip such a path, list it in `[files] extend-exclude`
-  ([typos reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#filesextend-exclude)).
-  The hook does not ask `git check-ignore` itself, because that would add a
-  process to every edit.
+- **Gitignored paths are out of scope.** A file the repository gitignores is
+  neither reported nor rewritten, matching hook-precision rule 6. Set
+  `typos_format_lint_gitignored` to `true` to act on gitignored files too. A
+  tracked file that matches an ignore pattern stays in scope. typos' own
+  `[files] extend-exclude` still applies downstream when the hook does run.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
@@ -171,12 +167,13 @@ config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
 
-Two `userConfig` options tune the hook itself:
+Three `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
+| `typos_format_lint_gitignored` | `false` | Set `true` to report (and, in write mode, rewrite) a file the repository gitignores. Off by default. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
 install command:
@@ -197,6 +194,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on) |
 | `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
+| `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
 ### How to set these
 

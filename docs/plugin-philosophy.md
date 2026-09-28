@@ -655,6 +655,45 @@ custom channel. Where both exist they converge to one idempotent state. The `set
 the `setup`-skill requirement above; these native idioms may complement the headless dimension, and
 never replace it.
 
+### Install subactions and refusal
+
+The `apply` verb stays closed. A write that installs something is an optional subaction of `apply`,
+never a new verb and never implied by bare `apply`. Subaction **names** stay locally informative;
+the fleet does not converge onto one spelling (#3574).
+
+Three sanctioned name shapes, picked by what the write actually installs:
+
+| Shape | When | Live examples |
+|---|---|---|
+| Tool-named | the write installs one named tool through the consumer's existing package manager | `install-ruff`, `install-biome` |
+| Class-named | the write provisions a dependency class or a CLI, not one tool name | `install-deps`, `install-build-deps`, `install-cli`, `install-lint` |
+| Object-named | the write installs a named hook or file | `install-commit-msg`, `install-pre-commit-content` |
+
+A new install subaction picks one of those three. It does not invent a fourth grammar, and it does
+not rename a sibling to match.
+
+**Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
+rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
+gap; name the reason from this list. Two reasons may appear together.
+
+1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
+2. The only install command is unpinned (`@latest`), so it is not idempotent.
+3. The tool has no per-repo dependency-manager path (cargo/Homebrew/a pre-built binary, not a
+   lockfile).
+
+`go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
+refusals. They stay; they are not defects against a missing subaction.
+
+- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal uses
+  the three-reason template; the fleet is not renamed onto one spelling.
+- **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
+  `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
+  `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
+  `install-hint` and `install-browser` are not setup subactions.
+- **As of:** 2026-09-28.
+- **Recheck:** a setup skill grows a fourth name shape, or a maintainer converges the fleet onto
+  one spelling.
+
 ## Prerequisites and failure behavior
 
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
@@ -1008,7 +1047,11 @@ default (`opus[1m]`, an alias): `opus` resolves to Opus 5.5 on the Anthropic API
 ([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
 models overview says to "start with … for most workloads", while Fable 5.1 is among "the most
 capable models in Claude Code", suited to tasks larger than a single sitting rather than to harder
-verdicts at ordinary length. Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
+verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in a Claude apps
+gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
+id
+([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
+verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
 unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
@@ -1190,8 +1233,42 @@ name is not the same underlying value across models):
   consumer must clear rather than a silent cost. The same section independently corroborates the
   no-op corollary above: a change resolving to the level already in effect "skips the dialog and
   keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-10; recheck trigger: a Claude Code release changes the effort-change
-  confirmation flow, or that section is reworded).
+  verified 2026-08-10). Re-read 2026-09-28: on most models that dialog sentence still
+  holds, and each effort level has its own cache. On Opus 5.5 and Fable 5.1, with an API key or a
+  Claude subscription, changing effort keeps the cache and Claude Code applies the new level
+  without asking. The exception does not apply on Amazon Bedrock, Google Cloud's Agent Platform,
+  or a Claude apps gateway, when `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` is set, or when the
+  organization has a HIPAA configuration. Before v2.1.260, Fable 5.1 invalidated the cache too
+  ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
+  fetched 2026-09-28, 45,082 bytes; recheck trigger: that section drops the Opus 5.5 / Fable 5.1
+  exception or changes which providers it excludes).
+
+**Pinned `effort: high` agents (recorded decision, #4253).** Option A: keep the pins. Document
+the operator cost. Do not unpark a funded sweep that drops or lowers them.
+
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers. There is no per-invocation `effort` on Agent-tool
+  dispatch, so a frontmatter pin is the only supported way to hold the lane, and the only
+  supported way to lower it is to edit the definition. That is the operator cost: the cheapest
+  lever (lower effort) is unavailable on those workers without a source change. Keep the pins.
+  A funded sweep that drops or lowers some of them, or exposes a `userConfig` effort key, stays
+  parked.
+- **Basis:** The eleven defs on origin/main (2026-09-28): `implementation` `implementer` and
+  `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`; `review`
+  `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
+  `ecosystem-specialist`, and `security-reviewer`. The Agent-tool gap in this section
+  ("a generic Agent-tool dispatch carries no effort control"). Upstream: lowering effort beat
+  an architecture change, and `low` is named for simpler subagent tasks
+  ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Issue
+  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253). Also pinned
+  `high`, outside the filed eleven: `plugin-quality` `auditor`, `songwriting` `object-writer`.
+  Not in the eleven: `discovery` `research-verifier` and `planning` `plan-reviewer` pin
+  `medium`.
+- **As of:** 2026-09-28.
+- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer funds a
+  sweep that drops or lowers a named pin, or a plugin ships a `userConfig` effort key that
+  actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,

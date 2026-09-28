@@ -1,5 +1,5 @@
 ---
-description: "Identify and rank optimization targets by EVIDENCE QUALITY rather than by suspicion, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts targets from the current session's own pain, a named path or component, a telemetry store, or an open-ended 'what is slow here'. Ranks each candidate by how well its cost is actually attributed, names the drift-immune counter that would settle it, and refuses to rank an unmeasured candidate above a measured one however plausible its mechanism. Use when: choosing what to optimize, locating a bottleneck, or judging whether a suspected target is worth the work: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Entry point for the measurement-first optimization workflow; hands off to /performance:goal. Skip when the target is already chosen and measured (go straight to /performance:goal), or when a specific failure needs root-causing rather than a candidate ranking (that is debugging)."
+description: "Identify and rank optimization targets by evidence quality, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts session pain, a named path, telemetry, or open-ended 'what is slow here'. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Hands off to /performance:goal. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
 user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>] (e.g. /performance:target plugins/disk-hygiene/hooks)"
 disable-model-invocation: false
@@ -86,6 +86,10 @@ A ranked table, highest evidence tier first:
 | Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |
 |---|---|---|---|---|---|
 
+Add a **Growing state** column when the candidate reads state whose size grows with use (transcripts,
+logs, histories, accumulating caches): `yes — /performance:goal will require scaling arms` or `no`.
+When `yes`, name what grows and the smallest realistic span of sizes to measure (not a single point).
+
 Then one line naming the recommended target and the tier it rests on. If that tier is E3 or E4, the
 recommendation is to instrument, not to optimize.
 
@@ -119,3 +123,5 @@ candidate must say so.
   layers before believing size.
 - **A target with no drift-immune counter is a harder target**, not an equal one. Say so here rather
   than discovering it in `/performance:snapshot` when a wall-clock claim gets refused.
+- **Growing-state reads need a scaling arm in the goal.** Flag them in the table so
+  `/performance:goal` does not settle on one transcript size while production grows without bound.
