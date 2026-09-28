@@ -87,6 +87,33 @@ capture env -u PERF_HARNESS_LEDGER_DIR -u XDG_CACHE_HOME -u HOME \
   bash -c "source '$SCRIPT_DIR/harness-lib.sh'; harness_ledger_path k"
 assert_eq "no writable ledger location is refused, not skipped" "2" "$RUN_RC"
 
+# --- harness_require_python ---
+# A stub named python3 that exits like a missing interpreter stands FIRST on
+# PATH, the shape a WindowsApps alias or a WSL launcher takes on a mixed host.
+# The harness must skip it by name and pin the next candidate by absolute path.
+REAL_PYTHON="$(type -P python3 || type -P python)"
+STUB_DIR="$WORK/stub-python"
+REAL_DIR="$WORK/real-python"
+mkdir -p "$STUB_DIR" "$REAL_DIR"
+printf '#!/bin/sh\nexit 127\n' >"$STUB_DIR/python3"
+chmod +x "$STUB_DIR/python3"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_PYTHON" >"$REAL_DIR/python"
+chmod +x "$REAL_DIR/python"
+# Only the stub and wrapper directories are on PATH, so no system python can
+# answer for either case; bash itself is invoked by absolute path.
+BASH_BIN="$(type -P bash)"
+
+capture env PATH="$STUB_DIR:$REAL_DIR" "$BASH_BIN" -c \
+  "source '$SCRIPT_DIR/harness-lib.sh'; harness_require_python; printf 'PICKED=%s\n' \"\$HARNESS_PYTHON\""
+assert_eq "a non-running python3 ahead on PATH does not stop the run" "0" "$RUN_RC"
+assert_contains "the stub is named, not silently used" "python3 resolves to $STUB_DIR/python3" "$RUN_OUT"
+assert_contains "the interpreter is pinned by absolute path, not bare name" "PICKED=$REAL_DIR/python" "$RUN_OUT"
+
+capture env PATH="$STUB_DIR" "$BASH_BIN" -c \
+  "source '$SCRIPT_DIR/harness-lib.sh'; harness_require_python"
+assert_eq "only a non-running python on PATH is refused, not skipped" "2" "$RUN_RC"
+assert_contains "the refusal says no candidate runs" "no python3 or python on PATH runs" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: harness-lib preconditions"
 exit 0
