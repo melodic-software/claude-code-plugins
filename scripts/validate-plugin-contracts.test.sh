@@ -1257,7 +1257,6 @@ write_arg_body() {
 }
 
 # --- 8c. Unescaped $N in a skill that admits arguments (#3543). -------------
-ARG_N='unescaped \$'
 ARG_DOC='skill-authoring/SKILL.md'
 
 reset_fixture
