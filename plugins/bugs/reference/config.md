@@ -20,7 +20,9 @@ Resolution anchors at the repo root, never at the CWD: `${CLAUDE_PROJECT_DIR}` w
 `git rev-parse --show-toplevel`. Every layer that exists is read and merged;
 reading one layer and stopping is not resolution. A malformed layer degrades soft: surface the error,
 name the layer, resolve as if that layer were absent. Unknown keys are inert. Whenever the effective
-config is surfaced to a human, report which layer supplied each value.
+config is surfaced to a human, report which layer supplied each value. `/bugs:scan` and `/bugs:write`
+also concatenate each layer's `## Gotchas` section (see below) via
+`scripts/concat-gotchas.sh`.
 
 ## Merge semantics
 
@@ -48,8 +50,9 @@ them. It is therefore not a recognized key, and a layer that sets it is reported
 
 ## File format
 
-Markdown with a fenced YAML block (human-readable, shell-greppable). Prose outside the block is the
-consumer's own commentary and is not parsed.
+Markdown with a fenced YAML block (human-readable, shell-greppable). Prose outside the block is
+the consumer's own commentary, except a `## Gotchas` section which `/bugs:scan` and `/bugs:write`
+concatenate as the local cascade tier.
 
 ### Consumer `## Gotchas` (cascade tier, #3547)
 

@@ -7,6 +7,13 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Consumer gotchas reader wiring, 2026-09-28
+
+- **`bugs` concatenates consumer `## Gotchas` at skill load (#3547).** `/bugs:scan` and
+  `/bugs:write` pre-compute `scripts/concat-gotchas.sh` over the three cascade layers. The
+  participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
+  `contract_version` bump: plugin reader, not a contract rule change.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
