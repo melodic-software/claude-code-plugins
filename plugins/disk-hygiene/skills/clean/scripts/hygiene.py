@@ -24,8 +24,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import batch_recycle  # noqa: E402  (sibling module; manual-lane recycle)
