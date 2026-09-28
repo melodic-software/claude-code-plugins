@@ -5,6 +5,10 @@ AI-adoption-ladder contract set: it ships the tool-agnostic contracts an adoptin
 its own repositories, tools, and policies, plus a guided-setup skill that discovers the org's
 state and records that binding.
 
+**Out of scope:** signed agent-run artifact attestation (SLSA-style proof of which prompts and
+skills produced a commit); see
+[`docs/out-of-scope/agent-run-artifact-attestation.md`](../../docs/out-of-scope/agent-run-artifact-attestation.md).
+
 ## Shipped capability (0.7.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
