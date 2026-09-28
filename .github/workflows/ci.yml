@@ -510,8 +510,6 @@ jobs:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/ci.yml
-            .github/workflows/claude-review.yml
-            .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-plugin-release.yml
             .github/workflows/silent-revert-canary.yml
             .github/workflows/test-windows.yml
@@ -877,6 +875,19 @@ jobs:
         id: hook_exec_form
         continue-on-error: true
         run: scripts/check-hook-exec-form.sh
+
+      # Windows exec form spawns a real .exe with an args array and no shell.
+      # The static half rejects a script, shim, or bare bash used as `command`.
+      # The spawn half is a reported skip on this Linux lane; that skip does
+      # not authorize converting .sh rows. The Windows lane runs the spawn
+      # (#3686, anthropics/claude-code#90495). Self-test first.
+      - name: Test the Windows exec-form probe
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-exec-form-windows-probe.test.sh
+      - name: Probe exec-form rows for a real Windows executable
+        id: exec_form_windows_probe
+        continue-on-error: true
+        run: scripts/check-exec-form-windows-probe.sh
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
@@ -1521,6 +1532,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
             hook-slow-shapes=${{ steps.hook_slow_shapes.outcome }}
             hooks-description=${{ steps.hooks_description.outcome }}
@@ -1947,6 +1959,28 @@ jobs:
             exit 0
           fi
           scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
+
+      - name: Verify plugin copies match the exec-form bash launcher
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-exec-bash.sh --check
+      - name: Test the exec-form bash launcher resolver
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node --test lib/exec-bash.resolver.test.mjs
+      - name: Verify carrying plugins bumped when the launcher changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-exec-bash.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify plugin copies match the shared parser
         if: needs.changes.outputs.run_tests == 'true'
