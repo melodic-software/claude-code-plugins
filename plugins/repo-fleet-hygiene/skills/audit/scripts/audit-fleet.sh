@@ -47,9 +47,12 @@ than read from the environment, which does not carry it. An empty value means
 
 --skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
 discovery skip list rather than appending to it. With neither supplied, discovery
-skips node_modules, vendor, and .venv. Supplying any --skip or fleet.skip entry
-replaces that set entirely — to extend, pass those three defaults plus your names;
-to shrink (e.g. reach a repo under vendor/), omit the names you want walked. CLI
+skips node_modules, vendor, .venv, and the package-manager cache trees .pnpm-store,
+.yarn, .npm, .cargo, .rustup, .gradle, .m2, .nuget, __pycache__, and .tox.
+Supplying any --skip or fleet.skip entry replaces that set entirely; to shrink
+(e.g. reach a repo under vendor/), omit the names you want walked.
+--extend-skip NAME (repeatable) and config fleet.skipAppend (repeatable) ADD to
+whichever list is in effect, so extending the defaults needs no restating. CLI
 and config entries compose additively with each other the same way other scope
 inputs do. Values must be bare directory names (no empty value, no path separator).
 . , .. , and .git stay skipped unconditionally even when an explicit list omits
@@ -237,7 +240,7 @@ git_probe_allowed() {
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
       [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ||
-        "$6" == "fleet.skip" ]]
+        "$6" == "fleet.skip" || "$6" == "fleet.skipAppend" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -600,7 +603,7 @@ current-branch-unavailable|UNKNOWN|no|no|Stop local branch classification; the c
 git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
-discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
+discovery-symlink-skip|UNKNOWN/LOW|no|no|Path skipped; the rest of the fleet was audited
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -1143,6 +1146,12 @@ REPO_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
 SKIP_NAMES=()
+SKIP_APPEND_NAMES=()
+# Package-manager cache trees: they never hold an operator's repository, and pnpm and uv lay
+# junctions and bare .git markers inside them (#4220). Skipped by default, and a symlink skip
+# inside one is a LOW disclosure rather than an evidence gap.
+PACKAGE_CACHE_DIR_NAMES=(node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2
+  .nuget __pycache__ .tox)
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
@@ -1204,6 +1213,12 @@ while [[ $# -gt 0 ]]; do
     SKIP_NAMES+=("$2")
     shift 2
     ;;
+  --extend-skip)
+    [[ $# -ge 2 ]] || fail "--extend-skip requires a bare directory name"
+    validate_skip_name "$2" "--extend-skip"
+    SKIP_APPEND_NAMES+=("$2")
+    shift 2
+    ;;
   --max-depth)
     [[ $# -ge 2 ]] || fail "--max-depth requires an integer"
     MAX_DEPTH="$2"
@@ -1254,7 +1269,8 @@ done
 # artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
   if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
-    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || -n "$MAX_DEPTH" ||
+    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || ${#SKIP_APPEND_NAMES[@]} -gt 0 ||
+    -n "$MAX_DEPTH" ||
     -n "$PROJECT_DIR_ARG" || "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
     fail "--apply-plan cannot be combined with audit discovery flags"
   fi
@@ -1438,21 +1454,40 @@ fi
 
 # Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
 # appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
-# config compose additively with each other like other scope inputs; with neither supplied, keep
-# today's three-name default. . , .. , and .git stay skipped unconditionally even when an explicit
-# list omits them (#2826).
+# config compose additively with each other like other scope inputs; with neither supplied, use
+# vendor plus the package-cache names. --extend-skip / fleet.skipAppend add to whichever list is in
+# effect (#4220). . , .. , and .git stay skipped unconditionally even when an explicit list omits
+# them (#2826).
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
     # `skip =` line that git-config returns as an empty string. Do not silently drop them:
-    # an empty-only list would otherwise restore the three defaults and quietly omit vendor/.
+    # an empty-only list would otherwise restore the defaults and quietly omit vendor/.
     validate_skip_name "$value" "fleet.skip"
     SKIP_NAMES+=("$value")
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
+  while IFS= read -r -d '' value; do
+    validate_skip_name "$value" "fleet.skipAppend"
+    SKIP_APPEND_NAMES+=("$value")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skipAppend 2>/dev/null || true)
 fi
 if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  SKIP_NAMES=(node_modules vendor .venv)
+  SKIP_NAMES=(vendor "${PACKAGE_CACHE_DIR_NAMES[@]}")
 fi
+[[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
+
+# Whether a skipped link sits in (or is) a package-cache tree: any path component names one.
+in_package_cache_tree() {
+  local path="$1" part cache
+  local -a parts
+  IFS='/' read -r -a parts <<<"${path//\\//}"
+  for part in "${parts[@]}"; do
+    for cache in "${PACKAGE_CACHE_DIR_NAMES[@]}"; do
+      [[ "$part" == "$cache" ]] && return 0
+    done
+  done
+  return 1
+}
 
 should_skip_dir_name() {
   local name="$1" skip
@@ -2889,11 +2924,20 @@ for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); 
 done
 
 # Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
+# A link inside a package-cache tree is a disclosure, not an evidence gap, so it is LOW and does not
+# move the fleet verdict to BLOCKED (#4220); any other skipped link stays UNKNOWN.
 for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
   printf '\n'
-  emit_finding discovery-symlink-skip "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}" \
-    "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
-    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
+  symlink_path="${DISCOVERY_SYMLINK_PATHS[$symlink_index]}"
+  if in_package_cache_tree "$symlink_path"; then
+    emit_finding_as LOW - discovery-symlink-skip "$symlink_path" \
+      "symlinked intermediate directory skipped inside a package-cache tree (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
+      "No action required; package-cache trees do not hold repositories"
+  else
+    emit_finding_as UNKNOWN - discovery-symlink-skip "$symlink_path" \
+      "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
+      "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
+  fi
 done
 
 # Bare repositories that still have working-tree content or linked worktrees (#2602). Reported

@@ -63,8 +63,9 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
   partial producer failure discards every record, emits `UNKNOWN`, and does not increment the audited
   repository count.
 - Filesystem discovery is bounded and does not follow symbolic links. Skipped intermediate
-  symlink (or Windows junction) directories are disclosed as `UNKNOWN` `discovery-symlink-skip`
-  findings and counted on the discovery-skips header line; the walk never descends through them.
+  symlink (or Windows junction) directories are disclosed as `discovery-symlink-skip` findings
+  (`UNKNOWN`, or `LOW` inside a package-manager cache tree) and counted on the discovery-skips
+  header line; the walk never descends through them.
 - A 404 cannot be used to claim deletion/transfer because GitHub intentionally uses 404 for
   access-sensitive cases; it remains `UNKNOWN`.
 - A same-named branch in another repository cannot inherit PR status because every PR query includes

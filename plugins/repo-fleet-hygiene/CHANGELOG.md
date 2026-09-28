@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-28
+
+### Added
+
+- `audit --extend-skip <name>` and the config key `fleet.skipAppend` add discovery skip names to
+  whichever list is in effect (the defaults, or an explicit `--skip` / `fleet.skip` list). Adding
+  one name no longer means restating the defaults. `setup` documents and writes `skipAppend`.
+
+### Changed
+
+- The default discovery skip list now covers the package-manager cache trees `.pnpm-store`,
+  `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`, `.nuget`, `__pycache__`, and `.tox`,
+  alongside `node_modules`, `vendor`, and `.venv`. None of them holds a repository, and a plain
+  `audit D:` on a dev drive no longer needs hand-found skips.
+- A `discovery-symlink-skip` whose path runs through one of those cache directories is `LOW` with
+  "No action required" instead of `UNKNOWN`, so a pnpm-store junction alone no longer turns the
+  fleet verdict `BLOCKED (evidence gap)`. The same link anywhere else stays `UNKNOWN`.
+
 ## [0.23.37] - 2026-09-28
 
 ### Fixed
