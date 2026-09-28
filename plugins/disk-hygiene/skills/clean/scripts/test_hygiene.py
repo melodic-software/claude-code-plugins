@@ -11687,6 +11687,58 @@ class ManagedStateLaneTests(unittest.TestCase):
                 managed_preview["approval_token"],
             )
 
+    def test_preview_cli_lane_managed_issues_the_managed_apply_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            cache = root / "AppData" / "Local" / "Docker" / "cache.bin"
+            cache.parent.mkdir(parents=True)
+            cache.write_text("state", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            managed = candidate("AppData/Local/Docker")
+            managed["owner"] = "Docker Desktop"
+            managed["native_gc_evidence"] = {
+                "command": hygiene.owner_registry.render_argvs(
+                    [
+                        ["docker", "image", "prune", "-f"],
+                        ["docker", "builder", "prune", "-f"],
+                    ]
+                ),
+                "result": "eligible",
+            }
+            plan = {"version": 1, "tier": "high", "candidates": [managed]}
+            snapshot_path = Path(temporary) / "snapshot.json"
+            plan_path = Path(temporary) / "plan.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+            def run_preview(*extra: str) -> dict[str, object]:
+                output = io.StringIO()
+                with (
+                    mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                    mock.patch.object(
+                        hygiene.owner_registry, "tool_present", return_value=True
+                    ),
+                    redirect_stdout(output),
+                ):
+                    hygiene.main(
+                        [
+                            "preview",
+                            "--snapshot",
+                            str(snapshot_path),
+                            "--plan",
+                            str(plan_path),
+                            *extra,
+                        ]
+                    )
+                return json.loads(output.getvalue())
+
+            engine = run_preview()
+            managed_preview = run_preview("--lane", "managed")
+        self.assertIsNone(engine["approval_token"])
+        self.assertEqual(
+            hygiene.approval_token(snapshot, plan), managed_preview["approval_token"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

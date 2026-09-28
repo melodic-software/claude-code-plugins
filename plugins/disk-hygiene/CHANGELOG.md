@@ -17,8 +17,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   container with no registry row is a `coverage-gap`, not clean and not
   removable. `managed-apply` runs only the registry's destructive argv, and only
   through `gate_exact_tier_approval`, the same tier-and-exact-list gate `apply`
-  uses. The engine deletion lane is unchanged: managed candidates stay
-  `native-managed-report-only`.
+  uses; `preview --lane managed` issues its approval token. The engine deletion
+  lane is unchanged: managed candidates stay `native-managed-report-only`.
 
 ## [0.28.9] - 2026-09-28
 

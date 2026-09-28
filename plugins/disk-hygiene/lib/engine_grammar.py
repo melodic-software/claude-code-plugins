@@ -253,6 +253,12 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         (
             Flag("--snapshot", required=True, example="snapshot.json"),
             Flag("--plan", required=True, example="plan.json"),
+            Flag(
+                "--lane",
+                choices=frozenset({"engine", "managed"}),
+                example="managed",
+                help="managed previews the plan for managed-apply (default: engine)",
+            ),
             _data_root_flag(),
         ),
     ),

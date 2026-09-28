@@ -4378,7 +4378,10 @@ def main(argv: list[str] | None = None) -> int:
             write_json(Path(args.output), report)
             return emit(report, 0)
         plan = load_json(Path(args.plan))
-        lane = "managed" if args.command == "managed-apply" else "engine"
+        if args.command == "preview":
+            lane = args.lane or "engine"
+        else:
+            lane = "managed" if args.command == "managed-apply" else "engine"
         checked = preview(snapshot, plan, lane=lane)
         if args.command == "preview":
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
