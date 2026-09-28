@@ -124,14 +124,31 @@ skill the guard's absolute Python and authorized `--data-root`, resolved by the 
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
 guard still judges every call.
 
-**Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves Python
-through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
+**Windows `python3` gotcha, and what the guard does when no Python resolves.** Every hook resolves
+Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
-skill-scoped belt included. When no interpreter resolves anywhere on the ladder, the guard fails
-open: a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny` decision
-([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither, and Claude
-Code treats the non-blocking result as approval, so the destructive Bash/PowerShell command proceeds
-ungated. The Stop detector emits a `systemMessage` in that case so the blind spot is visible.
+skill-scoped belt included. A PreToolUse hook blocks a tool call only with exit code 2 or a `deny`
+decision, and one that exits 0 with nothing to say reads as approval
+([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run used to look exactly
+like one that ran and allowed. Since 0.26.0 (#3861) the launcher answers for the guard when the
+ladder is exhausted, on the call itself, the same way the guard's watchdog answers "could not
+decide":
+
+| Surface | No interpreter resolves |
+|---|---|
+| `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
+| Skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
+| Plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
+| Plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
+
+The last row is the one fail-open left, and it is deliberate. Those are the commands the guard would
+have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
+missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
+stop work (and deny outright under `-p`) on a host whose only fault is having no Python. The
+residual is an engine reached without its file name appearing in the payload, the identity class the
+guard itself documents. The Stop detector stays as the end-of-turn backstop and repeats a summary of
+the same report.
+
 `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
 or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
 or `py -3` is a **WARN**, not a FAIL: every guard launches there, and the residual is only that a
@@ -344,9 +361,10 @@ measurements below carry the conditions they were taken under.
   run-to-run noise on that host (52–58 ms both before and after, the sign of the difference
   changing between repetitions), which is why the syscall census rather than a duration is the
   figure cited here.
-  On a machine where no Python 3 interpreter resolves at all the gate fails
-  open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
-  visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
+  On a machine where no Python 3 interpreter resolves at all, the gate denies every command naming
+  the engine and lets the rest through with a once-per-session notice, and the `Stop` detector
+  repeats that as a `systemMessage` (#1110, #1504, #3861; the table under the Windows `python3`
+  gotcha states each surface). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
   registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
   platform managed-settings.json. The added trust surface is that settings-file *read*, bounded to a
@@ -382,8 +400,8 @@ measurements below carry the conditions they were taken under.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this does **not** change is the guard's no-interpreter behavior, the launcher still
-  exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  path. What this did **not** change was the guard's no-interpreter behavior, which 0.26.0 (#3861)
+  later made fail-closed for the belt: it now denies every call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout

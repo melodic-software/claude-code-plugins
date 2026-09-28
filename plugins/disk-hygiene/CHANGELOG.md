@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-09-28
+
+### Changed
+
+- **A guard that could not run no longer looks like a guard that ran and allowed**
+  ([#3861](https://github.com/melodic-software/claude-code-plugins/issues/3861)). When no Python 3
+  resolves on the launcher's ladder, every guard row exited 0 with no output, which Claude Code
+  reads as approval, and only the Stop detector reported it, after the fact. The launcher now answers
+  on the call itself, following the guard watchdog's "could not decide" rule. The skill belt denies
+  every call (exit 2). The plugin-level gate denies any payload naming `hygiene.py` or carrying
+  nothing. The `/disk-hygiene:clean` expansion is blocked, so the belt never loads.
+- **One fail-open is kept, on purpose, and it is announced.** Commands on the plugin-level gate
+  that name no engine script proceed unchecked, with a `systemMessage` and `additionalContext`
+  notice once per session. The guard would have deferred on those commands. An `ask`, which the
+  watchdog uses for a transient stall, would prompt on every `PowerShell(*& $*)` call on a host
+  that has no Python. The README tabulates each surface. The Stop detector stays as the
+  end-of-turn backstop, and its message now summarizes what the calls reported.
+
 ## [0.25.0] - 2026-09-28
 
 ### Added
