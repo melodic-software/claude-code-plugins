@@ -60,14 +60,19 @@ where the doc says none occurs, or an identity check the doc's two tests do not 
 | Rung | Route | What it yields |
 |---|---|---|
 | 1, primary | Fetch the raw-markdown channel: append `.md` to the page URL, save to a file, search the file locally | Verbatim bytes, no summarizer, no truncation |
+| 1b, publisher source | When rung 1's `.md` channel 404s, read the file from the **publisher's own source repository** on the branch or tag the published site deploys from (for example `raw.githubusercontent.com/<org>/<repo>/<deploy-ref>/…`) | Verbatim bytes from first-party source control; no summarizer |
 | 2, primary degraded | The `.md` channel through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only when the read shows the page arrived whole |
 | 3, mirror | A verbatim third-party mirror, with the freshness step below | Verbatim text, one rung below a primary read, and the finding says so |
 
 Rung 1 is the default. The raw-markdown channel is per-page, not universal: a channel that
 resolves for one page can 404 for another, so verify it for the page you are reading and drop a
-rung when it does not resolve. Record which rung produced the body in the finding's
-`source.route` field, because a mirror-based confirmation is weaker evidence than a primary one
-and the human report should be able to say so.
+rung when it does not resolve. **Rung 1b is still first-party:** corroborate identity by naming the
+publisher repository, the deploy ref you used, and that the path matches the published page's slug
+or documented source path; record `source.route` as `publisher-source`. Do not treat a random fork or
+an unlabeled default branch as rung 1b without that check.
+
+Record which rung produced the body in the finding's `source.route` field, because a mirror-based
+confirmation is weaker evidence than a primary one and the human report should be able to say so.
 
 **A mirror read is admissible only when it is verbatim and its currency is corroborated against
 the page's own content**, never against the mirror's self-reported sync time, which is a claim
