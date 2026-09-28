@@ -2330,7 +2330,7 @@ ps::resolve_literal_call_targets_to() {
   local __rl_s="$2" __rl_n __rl_i __rl_ch __rl_inq="" __rl_depth=0 __rl_stmt=1
   local __rl_re_assign __rl_name __rl_lit __rl_base __rl_end __rl_re __rl_head __rl_tail
   local __rl_out __rl_pre __rl_prev __rl_count __rl_probe
-  local -a __rl_names=() __rl_lits=() __rl_ends=()
+  local -a __rl_names=() __rl_literals=() __rl_ends=()
   local LC_ALL=C
   ps::_chomp_to "$1" "$__rl_s"
   [[ "$__rl_s" == *'$'* && "$__rl_s" == *'&'* ]] || return 0
@@ -2370,7 +2370,7 @@ ps::resolve_literal_call_targets_to() {
     '$')
       if ((__rl_depth == 0 && __rl_stmt)) && [[ "${__rl_s:__rl_i}" =~ $__rl_re_assign ]]; then
         __rl_names+=("${BASH_REMATCH[1]}")
-        __rl_lits+=("${BASH_REMATCH[2]}")
+        __rl_literals+=("${BASH_REMATCH[2]}")
         __rl_ends+=($((__rl_i + ${#BASH_REMATCH[0]})))
       fi
       __rl_stmt=0
@@ -2384,7 +2384,7 @@ ps::resolve_literal_call_targets_to() {
   __rl_out="$__rl_s"
   for __rl_i in "${!__rl_names[@]}"; do
     __rl_name="${__rl_names[__rl_i]}"
-    __rl_lit="${__rl_lits[__rl_i]}"
+    __rl_lit="${__rl_literals[__rl_i]}"
     __rl_end="${__rl_ends[__rl_i]}"
     [[ -n "$__rl_lit" ]] || continue
     case "$__rl_name" in
