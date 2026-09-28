@@ -155,6 +155,16 @@ hooks and settings pages treat as forcing a prompt in `auto` and `bypassPermissi
 surfacing, and leave `dontAsk` first when the operator needs the confirm prompt. Engine
 invocations from PowerShell stay hard-denied.
 
+Words inside quoted strings are data, so a commit message, issue body, or search term that says
+"move", "rm", or names `hygiene.py` neither prompts nor denies. That holds for single-quoted
+strings, `@'...'@` here-strings, and double-quoted strings or `@"..."@` here-strings with no
+`$(...)`. A literal whose whole text is a path to the engine still counts as the engine. The
+command is read raw, as if nothing were quoted, when the quoting is ambiguous (an unterminated
+quote, a `#` comment, `--%`, or a curly quote) or when something outside the strings could run one:
+an interpreter or shell, `iex`, `&`, `.`, `-c`/`-Command`, `Start-Process`, an alias or function
+definition, or git's `alias.*`/`--exec`. If such a command prompts or is denied only for its
+text, pass the text from a file instead: `gh ... --body-file <file>`, `git commit -F <file>`.
+
 ## Hook registration outlives the cleanup
 
 Claude Code registers a skill's frontmatter hooks when the

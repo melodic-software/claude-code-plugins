@@ -8761,6 +8761,102 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_mutation_words_in_quoted_data_defer(self) -> None:
+        """A mutation word inside a commit message or search term is data (#4226)."""
+        for command in (
+            'git log --oneline --grep "move"',
+            'gh issue list --search "rename flag"',
+            'git commit -m "del stale entry"',
+            'Write-Output "rm is a word"',
+            'Get-ChildItem | Where-Object { $_.Name -match "rd" }',
+            'gh issue comment 3347 --body "the move to a batched lane"',
+            "git commit -m 'move the rm step' -m \"it's an erase\"",
+            'git commit -m "route a -> b"',
+            "gh issue create --title t --body @'\nRemove-Item stays, rm goes\n'@",
+            'git -C D:/repo commit -m "del stale entry"',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+        self.assertIsNone(self.run_guard_powershell('git commit -m "del stale entry"'))
+
+    def test_powershell_quoted_mutation_that_can_run_still_prompts(self) -> None:
+        """Masking stops where a literal can execute or name the command.
+
+        A ``$(...)`` subexpression runs inside double quotes, and a string
+        evaluator, shell, call operator, or alias outside the literals can turn
+        its body into code, so each of these keeps the raw reading. So do an
+        unterminated literal, a comment whose apostrophe would pair with a real
+        quote, the stop-parsing token, and a non-ASCII quote PowerShell accepts.
+        """
+        for command in (
+            '"$(Remove-Item x)"',
+            'git commit -m "note $(rm x)"',
+            'echo @"\n$(rm x)\n"@',
+            "Remove-Item x",
+            "Move-Item a b",
+            "Rename-Item a b",
+            "Remove-Item 'x'",
+            "iex 'Remove-Item x'",
+            'Invoke-Expression "rm x"',
+            "pwsh -c 'rm x'",
+            "powershell -Command 'Remove-Item x'",
+            'cmd /c "del x"',
+            "bash -c 'rm -rf x'",
+            "Start-Process pwsh -ArgumentList '-c','rm x'",
+            "[scriptblock]::Create('rm x').Invoke()",
+            "& 'Remove-Item' x",
+            "$c = 'Remove-Item'; & $c x",
+            ". 'Remove-Item' x",
+            "Set-Alias z 'Remove-Item'; z x",
+            "git -c 'alias.x=!rm -rf y' x",
+            "gh alias set z 'rm x' --shell",
+            "git rebase --exec 'rm x' main",
+            "echo 'unterminated; rm x",
+            "# don't\nRemove-Item x; echo 'y'",
+            "git --% it's | Remove-Item x; echo 'y'",
+            "echo \u2018a\u2019; Remove-Item x",
+            "echo 'it''s'; rm x",
+            'Write-Output "`""; rm x',
+            "echo @'\nx\n'@\nRemove-Item y",
+            "'a' > out.txt",
+        ):
+            verdict = guard.powershell_decision(command, True)
+            self.assertIsNotNone(verdict, command)
+            assert verdict is not None
+            self.assertEqual("ask", verdict[0], command)
+
+    def test_powershell_prose_naming_the_engine_is_not_an_invocation(self) -> None:
+        """An issue body that names the engine is data, not a call (#4218).
+
+        A literal whose whole body is an engine path stays readable, since it
+        can be the script argument, and an interpreter or evaluator anywhere in
+        the command keeps every literal readable.
+        """
+        script = str(SCRIPT_DIR / "hygiene.py")
+        for command in (
+            'gh issue create --title t --body @"\nRunning python hygiene.py scan '
+            'was denied.\nkill_switch_probe.py too.\n"@',
+            "gh issue create --title t --body @'\npython hygiene.py scan\n'@",
+            "gh issue comment 1 --body 'python hygiene.py scan is denied'",
+            'git commit -m "guard: python hygiene.py apply stays on Bash"',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+            self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+        for command in (
+            "python 'hygiene.py' scan",
+            f"python '{script}' scan",
+            f'& "{self.python_command()}" "{script}" scan --target t --output s',
+            "pwsh -c 'python hygiene.py apply'",
+            'cmd /c "python hygiene.py apply"',
+            "Start-Process python -ArgumentList 'hygiene.py apply'",
+            f"$s = '{script}'; python $s apply",
+            f"git log -- '{script}'",
+        ):
+            self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"), command)
+            verdict = guard.powershell_decision(command, True)
+            self.assertIsNotNone(verdict, command)
+            assert verdict is not None
+            self.assertEqual("deny", verdict[0], command)
+
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
         for command in (

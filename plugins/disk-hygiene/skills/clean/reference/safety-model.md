@@ -437,7 +437,10 @@ preview/approval-token containment). The model additionally reads the `disk_hygi
 the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
-deletion authority.
+deletion authority. The lane reads the body of an inert quoted literal as data, for both the engine
+gate and the mutation-spelling scan. It reads the whole command raw when anything outside the literals
+could evaluate one. That evaluator list is enumerated, not complete (see
+[the PowerShell guard lane](unsupported-platform-handoff.md#the-powershell-guard-lane)).
 
 **Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean

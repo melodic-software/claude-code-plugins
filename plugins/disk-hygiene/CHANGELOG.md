@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Fixed
+
+- **The PowerShell lane reads quoted strings as data** ([#4218](https://github.com/melodic-software/claude-code-plugins/issues/4218), [#4226](https://github.com/melodic-software/claude-code-plugins/issues/4226)). A `gh issue create` here-string that named `hygiene.py` was hard-denied as an engine invocation, and `git commit -m "del stale entry"`, `git log --grep "move"`, `Write-Output "rm is a word"` and similar support commands asked for confirmation. The lane now blanks the body of each inert literal before both the engine gate and the mutation-spelling, redirect, `.Delete`, module-qualified, and robocopy scans. Inert literals are single-quoted strings, `@'...'@` here-strings, and double-quoted strings or here-strings without `$(...)`. A literal whose whole text is an engine path is kept, because it can be the script argument. Every literal is read raw when the quoting is ambiguous (unterminated, a `#` comment, `--%`, a curly quote) or when something outside the literals can evaluate one: an interpreter or shell, `iex`, `&`, dot-sourcing, `-c`/`-Command`, `Start-Process`, alias or function definition, or git's `alias.*`/`--exec`. That list is enumerated, not complete, and the handoff reference names the `--body-file` / `-F` fallback. `"$(Remove-Item x)"`, `iex 'rm x'`, `pwsh -c 'rm x'`, and bare `Remove-Item`/`Move-Item`/`Rename-Item` still ask, and `python 'hygiene.py' scan` still denies.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

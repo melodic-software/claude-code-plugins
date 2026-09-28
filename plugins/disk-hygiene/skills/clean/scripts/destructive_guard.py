@@ -48,6 +48,7 @@ import re
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -767,6 +768,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
 
     allow_backslash = tool_name == "PowerShell"
+    if allow_backslash:
+        # A literal whose whole body names the engine (a path, a linked alias)
+        # can be the script argument, so it stays readable; prose that merely
+        # mentions the name is data (#4218).
+        command = _powershell_mask_inert_literals(
+            command,
+            keep=lambda body: (
+                _carries_marker(body.strip()) or _same_file_as_bundled(body.strip())
+            ),
+        )
     marker_candidates = _marker_tokens(command)
     if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
@@ -1506,6 +1517,150 @@ def is_exact_readonly_supporting_command(command: str) -> bool:
     return True
 
 
+# PowerShell reads ‘ ’ ‚ ‛ as single quotes, “ ” „ as double quotes, and – — ―
+# as a parameter dash. A command carrying any of them is not masked at all, so
+# the quote reader below never has to know those equivalences.
+_POWERSHELL_NONASCII_SYNTAX = frozenset(
+    "\u2018\u2019\u201a\u201b\u201c\u201d\u201e\u2013\u2014\u2015"
+)
+_POWERSHELL_HERE_STRING_HEADER = re.compile(r"[ \t]*\r?\n")
+_POWERSHELL_HERE_STRING_CLOSE = {
+    "'": re.compile(r"(?m)^'@"),
+    '"': re.compile(r'(?m)^"@'),
+}
+# Outside-literal spellings that can turn a quoted literal into code or into a
+# command name: interpreters and shells, string evaluators, the call and
+# dot-source operators, alias and function definition, scheduled or spawned
+# processes, and flags that hand a string to an evaluator (`-c`, `-Command`,
+# `/c`, git's `--exec` and `alias.*`). When any of them appears, no literal is
+# masked and the command is read raw, exactly as before masking existed.
+#
+# ENUMERATED, NOT COMPLETE: a program not named here that executes a string
+# argument (`git bisect run '<cmd>'`, say) reads as data. This is a belt; the
+# engine's containment and the per-tier approval are the authority.
+_POWERSHELL_STRING_EVALUATOR = re.compile(
+    r"(?i)(?<![\w-])(?:"
+    r"iex|invoke-expression|icm|invoke-command|ii|invoke-item"
+    r"|start|saps|start-process|start-job|sajb|start-threadjob"
+    r"|sal|set-alias|nal|new-alias|ni|new-item|si|set-item|gcm|get-command"
+    r"|add-type|invoke-wmimethod|iwmi|invoke-cimmethod|wmic|schtasks|runas"
+    r"|register-scheduledtask|register-scheduledjob|new-scheduledtaskaction"
+    r"|powershell|pwsh|cmd|bash|sh|zsh|dash|wsl|python[\w.]*|py|pyw|uv|uvx|pipx"
+    r"|node|deno|bun|perl|ruby|php|xargs|foreach|filter-branch|alias"
+    r"|scriptblock|newscriptblock|addscript|invokescript|executioncontext"
+    r")(?:\.exe)?(?![\w-])"
+    r"|(?<![\w-])(?:(?-i:-c)|-command|-encodedcommand|-enc|-ec|-exec|-x)(?![\w-])"
+    r"|(?<![\w-])--exec(?![\w-])"
+    r"|(?<![\w/])/[ck](?![\w])"
+    r"|::\s*create\b|\.\s*invoke(?:async)?\s*\(|function:"
+    r"|(?<![>&])&(?!&)"
+    r"|(?m:(?:^|[;|{(])\s*\.(?=[\s'\"$(]))"
+)
+
+
+def _powershell_inert_literal_spans(command: str) -> list[tuple[int, int]] | None:
+    """Body spans of the quoted literals in ``command`` that cannot run code.
+
+    Single-quoted strings and ``@'...'@`` here-strings never interpolate. A
+    double-quoted string or ``@"..."@`` here-string expands ``$name`` to a
+    value but runs code only through ``$(...)``, so one carrying ``$(`` is not
+    read at all. Returns None whenever the reading is not certain: a ``$(``
+    inside double quotes, an unterminated literal, a here-string opener without
+    its newline, a ``#`` or ``<#`` comment (whose apostrophes would pair with
+    real quotes), or the ``--%`` stop-parsing token (after which quotes are not
+    PowerShell's). The caller then reads the command raw.
+    """
+    if _POWERSHELL_NONASCII_SYNTAX.intersection(command):
+        return None
+    spans: list[tuple[int, int]] = []
+    index = 0
+    length = len(command)
+    while index < length:
+        char = command[index]
+        if char == "`":
+            index += 2
+            continue
+        if char == "#" or command.startswith("--%", index):
+            return None
+        if char == "@" and command[index + 1 : index + 2] in {"'", '"'}:
+            quote = command[index + 1]
+            header = _POWERSHELL_HERE_STRING_HEADER.match(command, index + 2)
+            if header is None:
+                return None
+            close = _POWERSHELL_HERE_STRING_CLOSE[quote].search(command, header.end())
+            if close is None:
+                return None
+            if quote == '"' and "$(" in command[header.end() : close.start()]:
+                return None
+            spans.append((header.end(), close.start()))
+            index = close.end()
+            continue
+        if char == "'":
+            cursor = index + 1
+            while True:
+                end = command.find("'", cursor)
+                if end < 0:
+                    return None
+                if command[end + 1 : end + 2] == "'":
+                    cursor = end + 2
+                    continue
+                break
+            spans.append((index + 1, end))
+            index = end + 1
+            continue
+        if char == '"':
+            cursor = index + 1
+            while cursor < length:
+                inner = command[cursor]
+                if inner == "`":
+                    cursor += 2
+                    continue
+                if inner == '"':
+                    if command[cursor + 1 : cursor + 2] == '"':
+                        cursor += 2
+                        continue
+                    break
+                if command.startswith("$(", cursor):
+                    return None
+                cursor += 1
+            if cursor >= length:
+                return None
+            spans.append((index + 1, cursor))
+            index = cursor + 1
+            continue
+        index += 1
+    return spans
+
+
+def _powershell_mask_inert_literals(
+    command: str, keep: Callable[[str], bool] | None = None
+) -> str:
+    """``command`` with the body of each inert quoted literal blanked to spaces.
+
+    A word inside a commit message, an issue body, or a search term is data, so
+    neither the engine gate nor the mutation-word scan should read it (#4218,
+    #4226). Positions and delimiters are preserved; only literal bodies change.
+    A body for which ``keep`` returns True stays readable. The command comes
+    back unchanged when the quoting is not read with certainty or when anything
+    outside the literals could evaluate one (``_POWERSHELL_STRING_EVALUATOR``).
+    """
+    spans = _powershell_inert_literal_spans(command)
+    if not spans:
+        return command
+    chars = list(command)
+    for start, end in spans:
+        if keep is not None and keep(command[start:end]):
+            continue
+        chars[start:end] = " " * (end - start)
+    masked = "".join(chars)
+    outside = masked
+    for start, end in spans:
+        outside = outside[:start] + " " * (end - start) + outside[end:]
+    if _POWERSHELL_STRING_EVALUATOR.search(outside):
+        return command
+    return masked
+
+
 _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
     r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
@@ -1703,7 +1858,11 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
         return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
-    match = _POWERSHELL_MUTATION_WORDS.search(command)
+    # Literal bodies are data here; the VisualBasic, COM verb and New-Item
+    # rules above and below read the raw text because their evidence sits in a
+    # literal or behind an evaluator word.
+    unquoted = _powershell_mask_inert_literals(command)
+    match = _POWERSHELL_MUTATION_WORDS.search(unquoted)
     if match:
         return _powershell_mutation_verdict(
             enabled,
@@ -1715,24 +1874,24 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
     if _POWERSHELL_OUTPUT_REDIRECT.search(
-        command
-    ) or _POWERSHELL_APPEND_REDIRECT.search(command):
+        unquoted
+    ) or _POWERSHELL_APPEND_REDIRECT.search(unquoted):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
         )
-    if _POWERSHELL_DOTNET_DELETE.search(command):
+    if _POWERSHELL_DOTNET_DELETE.search(unquoted):
         return _powershell_mutation_verdict(
             enabled, "disk-hygiene flagged a .NET Delete call."
         )
-    qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
+    qualified = _POWERSHELL_QUALIFIED_DELETE.search(unquoted)
     if qualified:
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
         )
-    if _POWERSHELL_ROBOCOPY_PURGE.search(command):
+    if _POWERSHELL_ROBOCOPY_PURGE.search(unquoted):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged a robocopy mirror/purge/move invocation "
