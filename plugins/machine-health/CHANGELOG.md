@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4] - 2026-09-28
+
+### Changed
+
+- **audit:** Windows lib modules that start a native tool (`nvidia-smi`, `pnputil`, the
+  `winget` CLI fallback) call `Invoke-NativeCommand` with one string per argv entry (#3423). A
+  tool missing from PATH returns `source: absent` and a non-zero exit returns `NonZero`; callers
+  keep the fallbacks they already had. CheckResult is unchanged.
+
 ## [0.14.3] - 2026-09-28
 
 ### Changed
