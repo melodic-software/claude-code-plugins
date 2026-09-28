@@ -295,6 +295,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   case $? in
   2)
+    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+      PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
+    fi
     ps::print_unparsable_block_message
     # The trigger rides along in the form token: five distinct shapes reach this
     # sink, and one collapsed token cannot show which of them is over-blocking.

@@ -91,6 +91,13 @@ CONFIG_DIR=""
 hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" biome_config_here topmost ||
   emit_skipped
 
+# A file the repository gitignores is neither rewritten nor reported unless
+# biome_format_lint_gitignored is set: a rewrite there has no `git checkout`
+# to undo it. Biome skips an ignored path itself only when the consumer's
+# config enables vcs.useIgnoreFile, which is off by default.
+hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
+  emit_skipped
+
 # Resolve the Biome binary from the repo's own install (node_modules/.bin/biome,
 # walking up from the file) or PATH — never `npx`, which would download Biome on
 # a per-edit hook. Absent -> skip (the repo opted into config but Biome is not

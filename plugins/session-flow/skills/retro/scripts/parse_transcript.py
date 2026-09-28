@@ -33,9 +33,11 @@ Output:
           "chain_coverage": {
             "requested": N,   # session-ids this run was asked to parse
             "found": N,       # of those, how many had a transcript
-            "available": N,   # transcripts present in <base> (null if unreadable); with
-                              # --chain-from, only the found chain plus the other
-                              # transcripts that mention the handoff topic
+            "available": N,   # the chain: `requested`, plus under --chain-from the
+                              # other transcripts that mention the handoff topic
+                              # (null when <base> is unreadable under --chain-from)
+            "project_transcripts": N,  # every transcript in <base>, a diagnostic
+                              # never used as the denominator (null if unreadable)
             "topic": "<slug>",# the topic that scoped `available` (--chain-from only)
             "ratio": 0.0-1.0, # found / available; omitted when available is 0/null
           },
@@ -602,15 +604,17 @@ HANDOFF_TOPIC_RE = re.compile(r"-handoff-(.+)\.md$")
 
 def _scan_project(
     base_path: Path, session_ids: list[str], topic: str | None
-) -> tuple[int | None, list[dict[str, Any]]]:
-    """One pass over <base>/*.jsonl for the coverage denominator and fork candidates.
+) -> tuple[int, int | None, list[dict[str, Any]]]:
+    """One pass over <base>/*.jsonl: (unrequested transcripts that mention
+    `topic`, every transcript in the directory or None when it is unreadable,
+    fork candidates).
 
     A fork copies its parent's records, uuids included, into a new transcript that
     no handoff points at, so uuid overlap is the only link back to the chain."""
     try:
         paths = sorted(p for p in base_path.glob("*.jsonl") if p.is_file())
     except OSError:
-        return None, []
+        return 0, None, []
     requested = set(session_ids)
     chained: dict[str, set[str]] = {}
     others: list[Path] = []
@@ -623,7 +627,7 @@ def _scan_project(
             chained[path.stem] = set(UUID_RE.findall(text))
         else:
             others.append(path)
-    available = len(chained) if topic else len(paths)
+    mentions = 0
     forks: list[dict[str, Any]] = []
     for path in others:
         # ponytail: whole-file read per transcript; stream lines if project dirs outgrow memory
@@ -632,7 +636,7 @@ def _scan_project(
         except OSError:
             continue  # vanished or unreadable: coverage evidence, not a reason to fail
         if topic and topic in text:
-            available += 1
+            mentions += 1
         uuids = set(UUID_RE.findall(text))
         shares = {sid: n for sid, own in chained.items() if (n := len(uuids & own))}
         if shares:
@@ -644,7 +648,7 @@ def _scan_project(
                 }
             )
     forks.sort(key=lambda f: (-f["shared_records"], f["id"]))
-    return available, forks
+    return mentions, len(paths), forks
 
 
 def build_multi_session_output(
@@ -703,21 +707,31 @@ def build_multi_session_output(
             tagged["session_id"] = sid
             agg_subagents.append(tagged)
 
-    # A chain walk that stopped early looks like a short chain. `available` is
-    # coverage evidence for a reader, not a filter; an unreadable base directory
-    # degrades it to null rather than failing the parse.
-    available, fork_candidates = _scan_project(base_path, session_ids, topic)
+    # The denominator is the chain: the sessions requested (the walk, under
+    # --chain-from), plus under --chain-from the other transcripts that mention
+    # the handoff topic, which are the sessions a walk that stopped early did
+    # not reach. Every transcript in the project directory is NOT the chain: a
+    # $HOME-launched project slug holds every session ever run on the machine,
+    # so that count is reported apart as `project_transcripts`. An unreadable
+    # base directory leaves the topic count unknown, so `available` is null then.
+    mentions, project_transcripts, fork_candidates = _scan_project(
+        base_path, session_ids, topic
+    )
+    available: int | None = len(session_ids) + mentions
+    if topic and project_transcripts is None:
+        available = None
     chain_coverage: dict[str, Any] = {
         "requested": len(session_ids),
         "found": transcripts_present,
         "available": available,
+        "project_transcripts": project_transcripts,
     }
     if topic:
         chain_coverage["topic"] = topic
     coverage_note = ""
     if available:
         chain_coverage["ratio"] = round(transcripts_present / available, 3)
-        scope = f"mentioning '{topic}'" if topic else "present for this project"
+        scope = f"in the chain or mentioning '{topic}'" if topic else "in the chain"
         coverage_note = (
             f", covering {transcripts_present} of {available} transcript(s) {scope}"
         )

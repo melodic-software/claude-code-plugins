@@ -702,6 +702,8 @@ def render_visual(v, d):
     if not isinstance(content, str):
         content = json.dumps(content, indent=2, ensure_ascii=False)
     if fmt in ("svg", "html"):
+        if fmt == "html" and SCRIPT_TAG.search(content):
+            head += "<p class=muted>This visual needs JavaScript, which the report does not run.</p>"
         return (
             head
             + f'<iframe sandbox="" title="{esc(v.get("title") or v.get("id"))}" srcdoc="{esc(content)}"></iframe>'
@@ -785,6 +787,7 @@ pre{white-space:pre-wrap;background:#f4f5f8;padding:8px}.muted{color:#667}.withd
 """
 # No network source: the srcdoc iframes inherit this policy, so a visual cannot load remote content.
 REPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
+SCRIPT_TAG = re.compile(r"<script\b", re.IGNORECASE)
 
 
 def export_report(d):

@@ -159,6 +159,32 @@ console.log(problems.length ? problems.join("\n") : "CLEAN");
 report_clean "$routeout" \
   "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
 
+outputout="$(node -e '
+const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const problems = [];
+const bash = (cat.levers ?? []).find((l) => l.id === "bash-output-max-chars");
+const task = (cat.levers ?? []).find((l) => l.id === "task-output-max-chars");
+if (!bash) problems.push("missing bash-output-max-chars");
+else {
+  if (bash.posture !== "disclose-only") problems.push("bash-output-max-chars posture");
+  if (!(bash.citations ?? []).some((c) => c.includes("settings-reference#bashoutputmaxchars"))) {
+    problems.push("bash-output-max-chars citation");
+  }
+  if (bash.category !== "works-but-saves-nothing-here") problems.push("bash-output-max-chars category");
+}
+if (!task) problems.push("missing task-output-max-chars");
+else {
+  if (task.emittedConfig !== null) problems.push("task-output-max-chars must not emit a removed key");
+  if (!/removed/i.test(task.mechanism || "")) problems.push("task-output-max-chars mechanism must say removed");
+  if (!(task.citations ?? []).some((c) => c.includes("settings-reference#taskoutputmaxchars"))) {
+    problems.push("task-output-max-chars citation");
+  }
+}
+console.log(problems.length ? problems.join("\n") : "CLEAN");
+' "$CATALOGUE")"
+report_clean "$outputout" \
+  "bashOutputMaxChars is disclose-only; taskOutputMaxChars is the removed key"
+
 echo
 echo "passed: $PASS, failed: $FAIL"
 [[ $FAIL -eq 0 ]] || exit 1

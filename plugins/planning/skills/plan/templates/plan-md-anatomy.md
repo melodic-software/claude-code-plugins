@@ -33,6 +33,8 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 
 ## Handoff to implementation
 
+Approval: <attended: approved by <who> on <date>; unattended: standing mandate <which>, granted by <who> in <where>, review surface <e.g. the PR>>
+
 ### User-approval gates
 <actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
 

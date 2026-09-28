@@ -19,6 +19,7 @@ subagent by default**, so the reading stays out of the main conversation;
 |---|---|---|
 | `discovery:explorer` | `/discovery:explore` | Runs the six dimensions in a fresh context, loads path-scoped project rules explicitly, writes the artifact set, returns a bounded summary and a file pointer. |
 | `discovery:researcher` | `/discovery:research`, `/discovery:research-deep` | Runs the full research discipline in a fresh context, writes the artifact set and coverage ledger, returns a file pointer plus a verification request. |
+| `discovery:research-verifier` | `/discovery:research`, `/discovery:research-deep` | Read-only. Grades a research artifact's verifier-owned outcome-gate rows in a fresh context and returns the `verification:` line the parent writes into `RESEARCH.md`. |
 | `discovery:intent-tracer` | `/discovery:trace-intent` | Investigates the resolvable evidence categories in a fresh context, grades each claim on the intent-evidence tier, writes the artifact set, and returns a file pointer plus a verification request. |
 
 The three artifact-persisting skills (`/discovery:explore`, `/discovery:research`,

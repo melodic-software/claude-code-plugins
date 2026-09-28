@@ -64,6 +64,11 @@ a new file, since their autocorrect has no memory and reverts a hand-repair on t
 when your packet writes are done, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>` so a later reader can
 detect any divergence after the seal. Do not try to evade the hooks. Detection is the lever.
+Write-once is a discipline you observe, not a lock the filesystem enforces (#3866). An Edit of a
+sealed file is terminal for this packet: `record` refuses to reseal over the divergence, and later
+notes stay UNSEALED. Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an
+edit. As of 2026-09-28. Recheck: a paid mechanical-seal slice, or `packet-seal.sh` gaining a
+divergence-acknowledge path.
 
 **Recheck trigger for both dated stamps above:** re-read the cited page and re-date the stamp when
 the sub-agents page starts describing the report-filename guardrail, when the hooks page stops
@@ -101,7 +106,9 @@ task, your output destination, or the main session's sink and confirm gate.
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
-   what it *actually* does vs what it claims. Run `claude plugin validate` on it.
+   what it *actually* does vs what it claims. Run `claude plugin validate --json` on it and read
+   each `contents` and `manifest` file's `errors` and `warnings`. The flag needs Claude Code
+   v2.1.259 or later; without it, run the text form.
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1

@@ -1718,6 +1718,34 @@ else
   fail "git_invocation (bash -lc operand): got [$gitinv_shell_c_sub]"
 fi
 
+# wsl / wsl.exe runs its command line in a Linux distro, so shell_c_operand
+# hands back that line: rebuilt as Git Bash builds a Windows command line for
+# the default shell, re-quoted argv after -e.
+wsl_operand_is() {
+  local desc="$1" want="$2" got
+  shift 2
+  HOOK_SHELL_C_OPERAND=""
+  if hook::shell_c_operand "$@"; then got="rc=0 [$HOOK_SHELL_C_OPERAND]"; else got="rc=1"; fi
+  if [[ "$got" == "$want" ]]; then ok "shell_c_operand (wsl): $desc"; else fail "shell_c_operand (wsl): $desc: want [$want] got [$got]"; fi
+}
+wsl_operand_is "default shell gets the command line" "rc=0 [git reset --hard]" wsl git reset --hard
+wsl_operand_is "a bare metacharacter word reaches the shell bare" "rc=0 [echo x > f]" wsl echo x '>' f
+wsl_operand_is "a word with whitespace is double-quoted" "rc=0 [\"git status && git clean -fd\"]" wsl 'git status && git clean -fd'
+wsl_operand_is "a nested -c operand keeps its quotes" "rc=0 [bash -c \"echo x > a.txt\"]" wsl bash -c 'echo x > a.txt'
+wsl_operand_is "an embedded quote is backslash-escaped" "rc=0 [echo \"a \\\"b\\\" c\"]" wsl echo 'a "b" c'
+wsl_operand_is "a trailing backslash run is doubled" "rc=0 [echo \"a\\ b\\\\\"]" wsl echo "a\\ b\\"
+wsl_operand_is "an empty word is a pair of quotes" "rc=0 [echo \"\"]" wsl echo ''
+wsl_operand_is "run options are stepped over" "rc=0 [git push]" WSL.EXE -d Ubuntu -u root --cd / --distribution-id x --system git push
+wsl_operand_is "a leading ~ and GUID are stripped" "rc=0 [git push]" wsl '{01234567-89ab-cdef-0123-456789abcdef}' '~' git push
+wsl_operand_is "-- ends the options" "rc=0 [-x git push]" /mnt/c/Windows/System32/wsl.exe -- -x git push
+wsl_operand_is "-e keeps argv words literal" "rc=0 [git commit -m 'a; b' 'it'\\''s']" wsl -e git commit -m 'a; b' "it's"
+wsl_operand_is "--shell-type none is argv" "rc=0 [echo '>' x]" wsl --shell-type none echo '>' x
+wsl_operand_is "--shell-type login is the shell" "rc=0 [echo > x]" wsl --shell-type login echo '>' x
+wsl_operand_is "a management verb runs no command line" "rc=1" wsl --list --verbose
+wsl_operand_is "an unknown option is stepped over" "rc=0 [git reset --hard]" wsl --bogus git reset --hard
+wsl_operand_is "a bare wsl runs no command line" "rc=1" wsl
+wsl_operand_is "a word merely starting with wsl is not wsl" "rc=1" wslpath -w /tmp
+
 # --- The pieces a git guard composes around that invocation -------------------
 # Each is reachable here on its own, so a rule stated in one place is asserted in
 # one place rather than only through whichever guard spawn happens to reach it.

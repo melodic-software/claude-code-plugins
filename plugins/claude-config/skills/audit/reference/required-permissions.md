@@ -177,6 +177,18 @@ the `git push` ask-gates protect nothing, documents the exemption in its own rul
 checks for such a documented exemption before flagging an absent pattern. Undocumented absence is
 still a finding.
 
+A declared unattended-push lane is a documented exemption for the `ask-rules` family **only**, never
+for `destructive-bash-deny` or `sensitive-file-deny`. An ask rule prompts even in auto mode, and
+`dontAsk` auto-denies every call that would otherwise prompt
+([permissions](https://code.claude.com/docs/en/permissions)), so the `git push` ask-gates stall or
+break a lane that pushes on its own. The signal the engine recognizes is `babysit_loop_merge`
+resolving above `human-only` in the team-tracked `.claude/source-control.md`: an explicit
+`c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane (`babysit_loop_*`) keys with no
+merge key, which resolves to the `c2-mechanical` baseline. Only the team-tracked layer counts,
+because merge-rung raises bind from that layer alone (source-control's `config-resolution.md`).
+With the signal present, the push ask rows are `info` and name the signal. Every push ask row, with
+or without it, states that the rule blocks unattended lanes.
+
 **2. A documented project hook convention.** See "Interaction with hook-based gates" below: where the
 project's own documented conventions say a safety hook escalates the operation, audit the pattern
 against those conventions rather than flagging its absence.
