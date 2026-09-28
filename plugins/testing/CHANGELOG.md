@@ -9,6 +9,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 - **Eval floor:** `plan, diagnose, run-e2e, write` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
 
+## [0.9.3] - 2026-09-28
+
+### Changed
+
+- **run-e2e:** compose the bundled `run` skill via a Native step section and description routing phrase ([#4052](https://github.com/melodic-software/claude-code-plugins/issues/4052)). Store `integration` / parity tooling waits on #4049.
+
 ## [0.9.2] - 2026-09-21
 
 ### Changed

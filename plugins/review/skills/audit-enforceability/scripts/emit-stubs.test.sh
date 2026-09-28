@@ -742,6 +742,93 @@ assert_eq "case 29: a home with a dot segment still exits 4" "4" "$?"
 assert_eq "case 29: a dot segment does not strand the parent level" "0" \
   "$(path_exists "$RB4/a")"
 
+# --- Case 31: NFC versus NFD of one directory --------------------------------
+#
+# The pair the case fold does not cover. U+00E9 (NFC) and e + U+0301 (NFD)
+# are one directory on a normalization-insensitive volume and two directories
+# on NTFS and ext4. The absent-tail arm must refuse on the former, at the same
+# exit 3 an existing directory gets, and must still write on the latter.
+# A runner whose filesystem accepts neither spelling skips, and the reason
+# names that property, the same way case 16 does. The string fold itself is
+# asserted by --check-normalization-fold, including under LC_ALL=C, because
+# this host may be byte-exact and then never executes the refusal arm.
+bash "$EMIT" --check-normalization-fold >/dev/null 2>&1
+assert_eq "case 31: NFC and NFD fold together only when the volume is normalizing" "0" "$?"
+env LC_ALL=C bash "$EMIT" --check-normalization-fold >/dev/null 2>&1
+assert_eq "case 31: the same fold holds under LC_ALL=C" "0" "$?"
+
+NORM31="$TEST_TMPDIR/norm31"
+mkdir -p "$NORM31"
+NFC_ACUTE=$'\xc3\xa9'
+NFD_ACUTE=$'e\xcc\x81'
+NFC_NAME="r${NFC_ACUTE}views"
+NFD_NAME="r${NFD_ACUTE}views"
+norm31_kind=""
+if mkdir -- "$NORM31/probe-$NFC_NAME" 2>/dev/null && [[ -d "$NORM31/probe-$NFC_NAME" ]]; then
+  if mkdir -- "$NORM31/probe-$NFD_NAME" 2>/dev/null; then
+    if [[ "$NORM31/probe-$NFC_NAME" -ef "$NORM31/probe-$NFD_NAME" ]]; then
+      norm31_kind="normalizing"
+    else
+      norm31_kind="byte-exact"
+    fi
+  elif [[ -d "$NORM31/probe-$NFD_NAME" && "$NORM31/probe-$NFC_NAME" -ef "$NORM31/probe-$NFD_NAME" ]]; then
+    norm31_kind="normalizing"
+  else
+    norm31_kind="unreadable"
+  fi
+  rmdir -- "$NORM31/probe-$NFD_NAME" 2>/dev/null || true
+  rmdir -- "$NORM31/probe-$NFC_NAME" 2>/dev/null || true
+else
+  norm31_kind="no-nonascii"
+fi
+
+if [[ "$norm31_kind" == "no-nonascii" ]]; then
+  skip_case "case 31: this filesystem does not accept a non-ASCII path segment, so an NFC versus NFD pair cannot be created here"
+elif [[ "$norm31_kind" == "unreadable" ]]; then
+  skip_case "case 31: the NFD spelling could not be created and is not the NFC directory, so the volume's normalization property is unknown"
+elif [[ "$norm31_kind" == "normalizing" ]]; then
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+    --out "$NORM31/$NFD_NAME/feat-x" --scan-dir "$NORM31/$NFC_NAME/feat-x" \
+    --memory-root "$NORM31" >/dev/null 2>&1
+  assert_eq "case 31: a normalizing volume refuses an absent NFC versus NFD pair" "3" "$?"
+  assert_eq "case 31: the NFD stub home was never created" "0" \
+    "$(path_exists "$NORM31/$NFD_NAME")"
+  assert_eq "case 31: the NFC scan directory was never created" "0" \
+    "$(path_exists "$NORM31/$NFC_NAME")"
+  norm31_left=0
+  for f in "$NORM31"/*; do
+    [[ -e "$f" ]] && norm31_left=$((norm31_left + 1))
+  done
+  assert_eq "case 31: the refused run left nothing under the root" "0" "$norm31_left"
+else
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+    --out "$NORM31/$NFD_NAME/feat-x" --scan-dir "$NORM31/$NFC_NAME/feat-x" \
+    --memory-root "$NORM31" >/dev/null 2>&1
+  assert_eq "case 31: a byte-exact volume writes an absent NFC versus NFD pair" "0" "$?"
+  assert_eq "case 31: the NFD home received stubs" "7" "$(count_files "$NORM31/$NFD_NAME/feat-x")"
+  assert_eq "case 31: the NFC scan directory was never created" "0" \
+    "$(path_exists "$NORM31/$NFC_NAME")"
+  # Existing siblings the NFC step would collapse on a normalizing volume
+  # must still be two directories here. Pre-create both, then write into the
+  # NFD sibling while the NFC directory is the scan dir.
+  NORM31B="$TEST_TMPDIR/norm31-existing"
+  mkdir -p -- "$NORM31B/$NFC_NAME/feat-x" "$NORM31B/$NFD_NAME"
+  if [[ -d "$NORM31B/$NFC_NAME/feat-x" && -d "$NORM31B/$NFD_NAME" ]] &&
+    ! [[ "$NORM31B/$NFC_NAME" -ef "$NORM31B/$NFD_NAME" ]]; then
+    cp "$FINDINGS" "$NORM31B/$NFC_NAME/feat-x/review-findings.md"
+    bash "$EMIT" --findings "$NORM31B/$NFC_NAME/feat-x/review-findings.md" \
+      --classes "$CLASSES" --out "$NORM31B/$NFD_NAME/feat-x/stubs" \
+      --scan-dir "$NORM31B/$NFC_NAME/feat-x" >/dev/null 2>&1
+    assert_eq "case 31: existing NFC and NFD siblings on a byte-exact volume still write" "0" "$?"
+    assert_eq "case 31: the NFD sibling received stubs" "7" \
+      "$(count_files "$NORM31B/$NFD_NAME/feat-x/stubs")"
+    assert_eq "case 31: nothing landed in the NFC scan directory" "0" \
+      "$(count_files "$NORM31B/$NFC_NAME/feat-x/stubs")"
+  else
+    skip_case "case 31: this filesystem does not keep an NFC directory and an NFD directory as distinct siblings"
+  fi
+fi
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"

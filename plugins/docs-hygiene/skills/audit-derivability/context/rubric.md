@@ -46,6 +46,7 @@ lives:
 | Code, config, schema, build files, tests, directory layout | Yes | "The service listens on port 8080" (a config value) |
 | Metadata the tooling exposes (git history, manifests, lockfiles) | Yes, with effort | "This module depends on X" (a manifest) |
 | Another tracked markdown document | No: this is duplication, not derivability | route to `/docs-hygiene:extract-ssot` |
+| Agent routing index, where to look, not what to do | Yes (targets are readable on demand) | `convert-to-pointer (already satisfied)` when the body is pointers only; not actionable |
 | Nowhere else, so the document is the only record | No: owned fact | "We chose X over Y because Acme's rate limit…" |
 
 A document is *fully* derivable only when every substantive claim sits in the
@@ -154,7 +155,10 @@ and the fix is a fresh set of eyes: a context that never saw the document.
    frontmatter is a different mechanism and starts blank, with no access to the
    conversation.
 2. Give it the questions the document answers, or ask it to produce the
-   document's key conclusions, using **only** native repository exploration.
+   document's key conclusions, using **only** native repository exploration. For a routing-only
+   doc (pointers to other files), do **not** ask the fresh agent the doc's own trigger question
+   (e.g. "what does this file tell you to read?"); ask for the substantive conclusions the
+   downstream targets own.
 3. Compare its output to the document:
    - **Converged** (it reproduced the conclusions from the code): derivable, so
      the `delete`/`pointer` verdict holds.
@@ -176,6 +180,7 @@ anchor is worse than the doc it replaces.
 | Document | Factors | Verdict |
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
+| A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1); cheap for an agent to re-derive | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
 | An empty root `CLAUDE.md` whose `git log` shows it was deliberately emptied as an instruction-baseline reset, with the decision recorded in the commit | The emptiness IS a recorded decision (Factor 4 "decisions" class), so check `git log` before grading an empty/near-empty file | `keep-owns-facts`, not `delete` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |

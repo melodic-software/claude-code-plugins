@@ -718,14 +718,19 @@ jobs:
       # Every `uses: ./.github/actions/checkout-with-base` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
       # audit to recommend GitHub's `$/...` form over the workspace-relative
-      # `./...` form, and its auto-fix rewrites all seven call sites. The
-      # rewrite cannot be taken yet: actionlint (pinned by SHA in the
+      # `./...` form, and its auto-fix rewrites the call sites. The rewrite
+      # cannot be taken yet (#4130): actionlint (pinned by SHA in the
       # melodic-software/ci-workflows action this lane also runs) rejects
       # `$/.github/actions/checkout-with-base` as "invalid format because ref
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
       # understands the syntax.
+      # Claim: keep the self-repository ignores; do not rewrite to `$/` until
+      # actionlint parses it. Basis: actionlint v1.7.12 (2026-03-30) is still
+      # latest; the pin is ci-workflows actionlint@4610c31e (v0.27.1). As of:
+      # 2026-09-28. Recheck: an actionlint release accepts `uses: $/...` and
+      # the ci-workflows action is repinned to a version that carries it.
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -757,6 +762,27 @@ jobs:
         id: detector_findings_crosswalk
         continue-on-error: true
         run: scripts/check-detector-findings-crosswalk.sh --check
+
+      # Emit call sites are read from `shfmt --to-json`. v3.12.0 drops a call
+      # after `#` following a command substitution; v3.13.0 is the first
+      # release that keeps it, and this step installs the same v3.14.1 pin and
+      # SHA-256 as .claude/cloud-bootstrap.sh. The release publishes no
+      # sha256sums asset, so the hash is of that exact linux_amd64 binary.
+      # A missing or older binary is exit 2, so this job cannot skip the tool.
+      - name: Install pinned shfmt
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shfmt --version
+          test "$(shfmt --version)" = "$SHFMT_VERSION"
 
       # Both directions of the detector/eval check-id crosswalk: every id a
       # detector emits must be named by an eval case, and every id an eval case
@@ -1282,6 +1308,9 @@ jobs:
       - name: Test the changed-skill gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changed-skills.test.sh
+      - name: Gate every skill on description/verb-contract polarity (check 25)
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1633,11 +1662,27 @@ jobs:
           rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate
       # step below: a validate-infra problem (e.g. the CLI needing auth) can
-      # never mask a real contract-test failure. shfmt is optional in both
-      # environments, so shfmt-gated cases skip rather than fail. Node, Python,
+      # never mask a real contract-test failure. The eval-coverage gate reads
+      # `shfmt --to-json` and exits 2 when shfmt is missing, so this job
+      # installs the same v3.14.1 pin as lint-2. Node, Python,
       # ShellCheck, Biome, and Ruff are declared here so hosted and local runs
       # exercise the same contract suites instead of inheriting different image
       # tool inventories.
+      - name: Install pinned shfmt
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shfmt --version
+          test "$(shfmt --version)" = "$SHFMT_VERSION"
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
@@ -2047,6 +2092,29 @@ jobs:
           fi
           scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
 
+      - name: Verify html-escape copies match the canonical helper
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-html-escape.sh --check
+      - name: Run html-escape tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/html-escape.test.sh
+          bash scripts/sync-html-escape.test.sh
+      - name: Verify adopting plugins bumped when the escape helper changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
+
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
@@ -2400,5 +2468,15 @@ jobs:
           # 210 s (run 33993232104), so the 240 s a 5-minute job allows would
           # have gone red on the very case the wait exists for, a bot that
           # force-pushes and edits in the same second.
+          #
+          # STALE FAILURE DURING A RE-RUN (#4670). The composite ends the wait
+          # as soon as `ci-lanes` is success, failure, or error. It does not
+          # tell a full-run re-run apart from a contract-only sibling, so a
+          # body edit while a failed full run is being re-run can read the old
+          # failure at once and go red. That wait-loop fix belongs in
+          # ci-workflows (the pin below), then every `uses:` SHA here moves
+          # together. Until then: when `ci-lanes` on this SHA is already
+          # success, re-run the red contract-only `ci` run; do not empty-commit.
+          # When `ci-lanes` is failure or missing, re-run the full workflow.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}
