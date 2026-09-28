@@ -485,7 +485,7 @@ expect_both 'substitution through taskset blocks' 2 --command 'echo "$(taskset 1
 expect_both 'env -S through taskset blocks' 2 --command "env -S 'taskset 1 rm -rf /'"
 # chrt takes a priority only when the word is all digits; otherwise the word
 # is the command. `chrt -r rm` is an invocation chrt itself rejects (rr needs a
-# priority), refused anyway because underblocking is the costlier mistake.
+# priority), refused by decision (#4681, section 4c).
 expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
 expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
 expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
@@ -537,9 +537,9 @@ expect_both 'nsenter -t1 -m rm -rf / blocks' 2 --command 'nsenter -t1 -m rm -rf 
 expect_both 'numactl -i all rm -rf / blocks' 2 --command 'numactl -i all rm -rf /'
 expect_both 'numactl --interleave=all rm -rf / blocks' 2 --command 'numactl --interleave=all rm -rf /'
 expect_both 'numactl --cpunodebind 0 rm -rf / blocks' 2 --command 'numactl --cpunodebind 0 rm -rf /'
-# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host rather
-# than the host root, and is refused anyway: a known overblock, kept on the
-# refusal side.
+# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host (and
+# anything bind-mounted in it) rather than the host root, and is refused by
+# decision (#4681, section 4c).
 expect_both 'chroot / rm -rf / blocks' 2 --command 'chroot / rm -rf /'
 expect_both 'chroot /mnt rm -rf / blocks (known overblock)' 2 --command 'chroot /mnt rm -rf /'
 expect_both 'chroot --userspec bob:bob /mnt rm -rf / blocks' 2 --command 'chroot --userspec bob:bob /mnt rm -rf /'
@@ -1524,6 +1524,34 @@ expect_both 'launcher: sg root -c rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --com
 expect_both 'launcher: setpriv --reuid=0 rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --command 'setpriv --reuid=0 rm -rf /etc'
 expect_both 'launcher: sg - root -c rm -rf ./build from a cwd is not followed' 0 "${RDT_CWD[@]}" \
   --command "sg - root -c 'rm -rf ./build'"
+
+# --- 4c. Launcher lines refused by decision (#4681) --------------------------
+# The guard header records why each stays refused: chrt rejects a non-digit
+# word after a realtime policy (and runs it under -o / -b / -i / -d / -e from
+# util-linux 2.42), runuser rejects a permuted `-rf` unless POSIXLY_CORRECT is
+# inherited, and chroot's `/` is host `<dir>` plus whatever is bind-mounted in
+# it. Pinned so loosening any of them is a deliberate change to this table.
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decided: $rdt_cmd" "$rdt_want" --command "$rdt_cmd"
+  expect_both "decided: $rdt_cmd, with cwd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+2|chrt -r rm -rf /
+2|chrt --rr rm -rf /
+2|chrt -f rm -rf /
+2|chrt rm -rf /
+2|chrt -o rm -rf /
+2|chrt -b rm -rf /*
+2|runuser -u bob rm -rf /
+2|runuser -u bob rm -rf /*
+2|POSIXLY_CORRECT=1 runuser -u bob rm -rf /
+2|chroot /mnt rm -rf /
+2|chroot /mnt rm -rf /*
+2|chroot /mnt rm -rf --no-preserve-root /
+0|chrt -r 5 ls /
+0|runuser -u bob -- ls /
+0|chroot /mnt ls /
+EOF
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0
