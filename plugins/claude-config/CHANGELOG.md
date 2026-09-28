@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.21] - 2026-09-28
+
+### Added
+
+- **`audit` deferred derivation index** ([#4514](https://github.com/melodic-software/claude-code-plugins/issues/4514)):
+  `reference/deferred-derivation-criteria.md` tracks open D1–D8 engine work; `audit-checklist.md`
+  links to it.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed

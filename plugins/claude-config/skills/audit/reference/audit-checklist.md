@@ -6,6 +6,9 @@ Every Phase 2 category has a table here. What *governs* a category, the reasonin
 table row cannot carry, lives alongside it in
 [context/validation-categories.md](../context/validation-categories.md).
 
+Engine checks not yet derived from docs or the binary are tracked in
+[deferred-derivation-criteria.md](deferred-derivation-criteria.md) ([#4514](https://github.com/melodic-software/claude-code-plugins/issues/4514)).
+
 ## A. Schema & Structure
 
 | Check | Severity | How to verify |
