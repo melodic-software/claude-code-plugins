@@ -15,15 +15,15 @@ shell.
 
 | Issue | Branch | Commit | What it ships |
 | --- | --- | --- | --- |
-| [#3537](https://github.com/melodic-software/claude-code-plugins/issues/3537) | `cursor/3537-ts-lsp-launcher-37e9` | `15846b70ec2e8f18ca9b4dd9ccbf77306a29dab0` | `plugins/typescript-lsp`: `node` plus `lib/cli.mjs`, with `cmd.exe /d /s /c` only if that entry is missing |
-| [#3536](https://github.com/melodic-software/claude-code-plugins/issues/3536) | `cursor/3536-csharp-lsp-windows-37e9` | `e461c3f72ee9bab1315f36d62cb4cf549e09abf8` | `plugins/csharp-lsp`: native `csharp-ls` apphost, `DOTNET_ROOT` set from the `dotnet` host |
-| [#3539](https://github.com/melodic-software/claude-code-plugins/issues/3539) | `cursor/3539-gopls-native-probe-37e9` | `8926ee2ec881ee74d435797fe3ff9c79d06dd649` | `plugins/gopls-lsp`: `command` is `gopls`, plus `scripts/probe-gopls.mjs` |
+| [#3537](https://github.com/melodic-software/claude-code-plugins/issues/3537) | `cursor/3537-ts-lsp-launcher-37e9` | `80e358bbf46d02ce8bfd78bb1a410c380df2d738` | `plugins/typescript-lsp`: `node` plus `lib/cli.mjs`, with `cmd.exe /d /s /c` only if that entry is missing |
+| [#3536](https://github.com/melodic-software/claude-code-plugins/issues/3536) | `cursor/3536-csharp-lsp-windows-37e9` | `5341ca5580588859c99c4676533b5fa064967162` | `plugins/csharp-lsp`: native `csharp-ls` apphost, `DOTNET_ROOT` set from the `dotnet` host |
+| [#3539](https://github.com/melodic-software/claude-code-plugins/issues/3539) | `cursor/3539-gopls-native-probe-37e9` | `c94596aeb35ccb06737cd49328cca8fd68ea2f0a` | `plugins/gopls-lsp`: `command` is `gopls`, plus `scripts/probe-gopls.mjs` |
 
 [#3538](https://github.com/melodic-software/claude-code-plugins/issues/3538)
 (Python) is already closed. Pyright stays the uv native executable. This page
 does not reopen it.
 
-The commits above were cut from `origin/main` `ec232d017`. Each child README
+The commits above are rebased on `origin/main` `019ec38f7`. Each child README
 holds the four-part record for its server choice and spawn plan.
 
 ## Still open
