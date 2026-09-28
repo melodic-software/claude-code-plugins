@@ -590,6 +590,42 @@ else
   done
 fi
 
+# --- Gitignored path (#4671): left alone by default ---------------------------
+# A CRLF file under `eol=lf` would be normalized; under an ignored directory it
+# is not, unless eol_normalizer_lint_gitignored is set. A TRACKED file matching
+# an ignore pattern stays in scope: it is part of the reviewable artifact.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '*.sh eol=lf\n' >"$REPO_IGN/.gitattributes"
+printf '.work/\n*.gen.sh\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'echo a\r\necho b\r\n' >"$REPO_IGN/.work/scratch.sh"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.sh")
+if [[ "$(cr_count "$REPO_IGN/.work/scratch.sh")" == "2" ]]; then
+  ok "gitignored: CRLF file left untouched"
+else
+  fail "gitignored: file was normalized ($(cr_count "$REPO_IGN/.work/scratch.sh") CRs left)"
+fi
+if [[ -z "$OUT" ]]; then ok "gitignored: no disclosure"; else fail "gitignored: disclosed: $OUT"; fi
+run_hook_env "$REPO_IGN/.work/scratch.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED=true >/dev/null
+if [[ "$(cr_count "$REPO_IGN/.work/scratch.sh")" == "0" ]]; then
+  ok "gitignored + eol_normalizer_lint_gitignored=true: file normalized"
+else
+  fail "gitignored + opt-in: file not normalized"
+fi
+printf 'echo a\r\n' >"$REPO_IGN/tracked.gen.sh"
+git -C "$REPO_IGN" add -f tracked.gen.sh .gitattributes .gitignore
+git -C "$REPO_IGN" commit -q -m init
+printf 'echo a\r\necho b\r\n' >"$REPO_IGN/tracked.gen.sh"
+run_hook "$REPO_IGN/tracked.gen.sh" >/dev/null
+if [[ "$(cr_count "$REPO_IGN/tracked.gen.sh")" == "0" ]]; then
+  ok "tracked file matching an ignore pattern: still normalized"
+else
+  fail "tracked file matching an ignore pattern: left unnormalized"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

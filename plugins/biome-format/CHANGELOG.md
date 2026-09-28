@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-09-28
+
+### Changed
+
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now neither formatted nor reported by Biome, because a rewrite of an ignored file has no `git checkout` to undo it. Set the new `biome_format_lint_gitignored` option to `true` to act on gitignored files again. A tracked file that matches an ignore pattern stays in scope, and any failure to decide (git absent, no repository, a `check-ignore` error) acts as before. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`, which follows `markdown-format`'s gate: it consults the index and clears an inherited `GIT_DIR`/`GIT_WORK_TREE`. Biome skips an ignored path itself only when the consumer's config enables `vcs.useIgnoreFile`, which is off by default.
+
 ## [0.6.58] - 2026-09-27
 
 ### Changed
