@@ -287,11 +287,11 @@ DATA_ROOT_OVERRIDE: str | None = None
 
 
 def state_output_path(path: Path) -> Path:
-    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+    # Never read CLAUDE_PLUGIN_DATA here: a repository settings.json env block can
+    # set it, so only the --data-root the guard validated may place state.
+    data_value = DATA_ROOT_OVERRIDE
     if not data_value:
-        raise HygieneError(
-            "a generated-state root is required: pass --data-root or set CLAUDE_PLUGIN_DATA"
-        )
+        raise HygieneError("a generated-state root is required: pass --data-root")
     data_root = Path(data_value).expanduser().resolve(strict=False)
     path = path.expanduser().resolve(strict=False)
     if is_within(path, PLUGIN_ROOT):
