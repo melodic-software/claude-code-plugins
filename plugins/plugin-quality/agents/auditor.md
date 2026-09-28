@@ -64,6 +64,11 @@ a new file, since their autocorrect has no memory and reverts a hand-repair on t
 when your packet writes are done, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>` so a later reader can
 detect any divergence after the seal. Do not try to evade the hooks. Detection is the lever.
+Write-once is a discipline you observe, not a lock the filesystem enforces (#3866). An Edit of a
+sealed file is terminal for this packet: `record` refuses to reseal over the divergence, and later
+notes stay UNSEALED. Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an
+edit. As of 2026-09-28. Recheck: a paid mechanical-seal slice, or `packet-seal.sh` gaining a
+divergence-acknowledge path.
 
 **Recheck trigger for both dated stamps above:** re-read the cited page and re-date the stamp when
 the sub-agents page starts describing the report-filename guardrail, when the hooks page stops
