@@ -279,6 +279,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
 | [`/repo-fleet-hygiene:apply`](../plugins/repo-fleet-hygiene/skills/apply/SKILL.md) | `repo-fleet-hygiene` | weekly | Execute a fleet action plan behind one confirmation gate |
 | [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Discover a repository fleet and coordinate read-only evidence handoffs |
+| [`/repo-fleet-hygiene:sync`](../plugins/repo-fleet-hygiene/skills/sync/SKILL.md) | `repo-fleet-hygiene` | weekly | Fast-forward canonical checkouts to the remote default branch |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
 | [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated and untriaged items to resolution in one view |

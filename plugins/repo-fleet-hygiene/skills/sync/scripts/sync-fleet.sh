@@ -114,6 +114,7 @@ EOF
     case "$kind" in
     repo) REPOS+=("$value") ;;
     root) ROOTS+=("$value") ;;
+    *) ;;
     esac
   done <"$fallback"
   rm -f "$fallback"
@@ -126,6 +127,7 @@ discover_root() {
     base="$(dirname "$gitdir")"
     case "$base" in
     */node_modules/* | */vendor/* | */.venv/*) continue ;;
+    *) ;;
     esac
     REPOS+=("$base")
   done < <(find "$root" -maxdepth 5 \( -name node_modules -o -name vendor -o -name .venv \) -prune -o -name .git -print 2>/dev/null)
@@ -169,6 +171,7 @@ for repo in "${REPOS[@]}"; do
   [[ -n "$canonical" ]] || canonical="$repo"
   case " $seen " in
   *" $canonical "*) continue ;;
+  *) ;;
   esac
   seen="$seen $canonical"
   if ! git -C "$canonical" status --porcelain >/dev/null 2>&1; then
@@ -308,6 +311,9 @@ for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
       continue
     fi
     printf 'applied\t%s\tpark-dirty-default\t%s\n' "$repo" "$wt"
+    ;;
+  *)
+    printf 'skipped\t%s\tunknown-action\n' "$repo"
     ;;
   esac
 done

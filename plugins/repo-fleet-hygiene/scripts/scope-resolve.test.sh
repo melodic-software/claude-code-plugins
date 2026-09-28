@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scope-resolve.sh
@@ -33,7 +34,6 @@ else
   fail "named path wins" "$out"
 fi
 
-printf '#!/bin/sh\nprintf %%s\\n "$1"\n' >"$TMP/ghq"
 # ghq root prints the root. The stub ignores args and prints one root.
 cat >"$TMP/ghq" <<EOF
 #!/bin/sh

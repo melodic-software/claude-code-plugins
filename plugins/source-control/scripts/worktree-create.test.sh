@@ -1198,7 +1198,7 @@ assert_exit "existing branch worktree succeeds" 0 "$?"
 assert_eq "existing branch worktree is on feature" "feature" \
   "$(git -C "$out" branch --show-current)"
 assert_file_exists "existing branch worktree has the commit" "$out/README.md"
-bad=$(bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" 2>"$errfile")
+bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" >/dev/null 2>"$errfile"
 assert_exit "missing existing branch is a usage error" 2 "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1
