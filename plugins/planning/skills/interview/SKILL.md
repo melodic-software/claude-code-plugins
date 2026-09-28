@@ -371,7 +371,7 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 
 **General (non-engineering) sessions** persist a shared-understanding summary, the decisions reached and their rationale, to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and handoff discipline below still applies, with the summary standing in for the Brief.
 
-**Engineering sessions** write the Brief section into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the memory slice under `contract_tier: local`), a contract document committed on the task branch as it locks — **except `scope` action**, which never writes `PLAN.md` (see below). The rest of this step, everything below, is the Brief machinery and is engineering-only.
+**Engineering sessions** write the Brief section into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the memory slice under `contract_tier: local`), a contract document committed on the task branch as it locks, **except `scope` action**, which never writes `PLAN.md` (see below). The rest of this step, everything below, is the Brief machinery and is engineering-only.
 
 **`scope` action (ad hoc, no Brief).** When the action is `scope`, do **not** create or edit
 `PLAN.md` in the contract slice. After the Step 3 register gate passes, emit a **`Scope decisions:`**
@@ -380,7 +380,7 @@ ledger in the memory slice as the durable record. The caller owns where those de
 example a repo-sweep step commit). Skip the Step 4 `--brief` cross-check and skip `/planning:plan`
 handoff. `contract_tier: local` behavior without writing a Brief file.
 
-**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
+**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves, except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
