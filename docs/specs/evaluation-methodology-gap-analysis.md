@@ -1,7 +1,7 @@
 # Fleet eval corpus vs Agent Skills evaluation pipeline
 
-This document records a gap analysis of the marketplace fleet's `evals/evals.json` corpus (280 skill-level files as of
-2026-09-28) against the pipeline described in Anthropic's [evaluating
+This document records a gap analysis of the marketplace fleet's `evals/evals.json` corpus (284 skill-level files on
+2026-09-28; the corpus grows, so treat the count as a dated snapshot, not a pinned value) against the pipeline described in Anthropic's [evaluating
 skills](https://agentskills.io/skill-creation/evaluating-skills) guidance and the `skill-creator`
 reference on `claude-plugins-official`.
 
