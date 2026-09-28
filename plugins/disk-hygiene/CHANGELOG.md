@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.0] - 2026-09-28
+## [0.27.0] - 2026-09-28
 
 ### Added
 
@@ -12,6 +12,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   per-entry inventory, no inventory entry cap, and `rollup_precision` marking exact vs partial output.
 - **Fan-out worker brief** at `skills/clean/reference/fan-out-worker-brief.md` (Bash contract, scan
   templates, evidence-only rules).
+
+## [0.26.0] - 2026-09-28
 
 ### Changed
 

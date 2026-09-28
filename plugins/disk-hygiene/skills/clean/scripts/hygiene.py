@@ -1598,17 +1598,21 @@ def scan_tree(
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
                     walked = True
-                    if path.name.casefold() in VCS_NAMES:
+                    if not sizes_only and path.name.casefold() in VCS_NAMES:
                         subtotal: int | None = None
                         walked = False
                         truncated.append(relative)
                         unwalked_reasons[relative] = "vcs-boundary"
-                    elif protections:
+                    elif not sizes_only and protections:
                         subtotal = None
                         walked = False
                         truncated.append(relative)
                         unwalked_reasons[relative] = "protected"
-                    elif max_depth is not None and depth >= max_depth:
+                    elif (
+                        not sizes_only
+                        and max_depth is not None
+                        and depth >= max_depth
+                    ):
                         # A depth cut is the one truncation reason emptiness can
                         # answer. One cheap first-child probe (no recursion, no
                         # count) decides it: an empty directory has no
@@ -1679,7 +1683,7 @@ def scan_tree(
     repositories = sorted(set(repositories))
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
-    reclaimable = reclaimable_local_bytes(entries) if not sizes_only else 0
+    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2797,6 +2801,8 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     snapshot target is the volume root, but the inventory only covers explicitly
     selected immediate children — never a recursive walk of the root itself.
     """
+    if snapshot.get("inventory_mode") == "sizes-only":
+        raise HygieneError("sizes-only snapshot is not eligible for disposition")
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
         or snapshot.get("engine") != "disk-hygiene-python-1"
