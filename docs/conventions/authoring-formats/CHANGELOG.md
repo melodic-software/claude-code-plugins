@@ -8,9 +8,10 @@ and no version bump, per the upstream-drift contract's four-part-record rule.
 
 ## [1.0.3] - 2026-09-28
 
-Clarification. `diagram_dialect.system` is also read by `/architecture:map-containers` for the
-as-built container view. The key is still unset by default, and mermaid is still refused. When
-the key is unset, that skill writes its fact report and no C4 view file.
+Clarification. `/architecture:map-containers` does not read `diagram_dialect.system`. The as-built
+container view reuses architecture's `landscape_dialect` (`structurizr` or `mermaid`, default
+`mermaid`). This key stays the opt-in design view `/planning:design` emits, and mermaid stays
+refused here.
 
 ## [1.0.2] - 2026-09-08
 

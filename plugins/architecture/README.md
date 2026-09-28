@@ -79,11 +79,13 @@ inside your enterprise boundary.
 
 ## What runs
 
-`/architecture:map-containers` charts one repository's deployables and the stores they bind.
-Output kind comes from the project SDK, `OutputType`, `AzureFunctionsVersion`, or a Dockerfile
-image. A directory name is not evidence, and source is not read. A library referenced by a
-deployable is contained in that container. Two deployables that name the same store host are one
-shared-infrastructure edge, and the edge cites both config keys.
+`/architecture:map-containers` charts the deployables in one repository and the stores they bind.
+Kind comes from the project output, a host builder on an entry-point project, a Dockerfile, or a
+process manifest. A directory name does not decide it. Libraries shipped inside one deployable are
+contained modules, not extra containers. Two deployables that name the same broker produce one
+shared-infrastructure edge that cites both config keys. Credentials are stripped before the record
+is written. The picture reuses `landscape_dialect`: mermaid `C4Container`, or a Structurizr
+container view.
 
 ## Record a decision
 
@@ -116,18 +118,19 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map containers",
+"what actually runs", "container diagram".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). `map-containers` uses the same `architecture_dir` and reads `diagram_dialect.system` for the C4 diagram file. The contract lives in [`reference/config.md`](reference/config.md).
+`map-landscape` and `map-containers` read two keys from a topic doc at your
+repository's convention home, `<home>/architecture/README.md`: `architecture_dir`
+(repo-relative, no default) and `landscape_dialect` (`structurizr` or `mermaid`,
+default `mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
-at setup rather than choosing a directory for you.
+`architecture_dir` declared and none confirmed, `map-landscape` and
+`map-containers` stop and point at setup rather than choosing a directory for you.
 
 ## Persistence
 
@@ -144,7 +147,7 @@ either way.
 This plugin has no `userConfig`. It adapts to your project through your
 project's own context: its glossary (if any), its architecture decision records,
 and its work-artifact convention. There is nothing to hand-edit in the plugin.
-The two `map-landscape` keys are consumer-side, not plugin-side; see Consumer
+The two architecture keys are consumer-side, not plugin-side; see Consumer
 configuration above.
 
 ## Install

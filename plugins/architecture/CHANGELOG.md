@@ -7,14 +7,18 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 ### Added
 
-- **`/architecture:map-containers` charts deployables and the stores they bind (#4644).**
-  Output kind comes from the committed project SDK, `OutputType`, `AzureFunctionsVersion`,
-  or a Dockerfile image. A directory name is not an output kind. A library referenced by a
-  deployable is a contained module. A shared-infrastructure edge exists only when two
-  deployables' committed configuration names the same store host, and the edge cites both
-  keys. Credentials are removed before write. The collector reads git HEAD only.
-  `diagram_dialect.system` (`likec4` or `c4-plantuml`) chooses the C4 view; unset writes the
-  fact report and no view file. Mermaid is not a value of that key.
+- `map-containers` writes `containers.json` (schema_version 1, one object per line) for the
+  deployables in one repository and the stores they bind, then renders a C4 container diagram.
+  Deployable kind comes from the project SDK, `OutputType`, host-builder usage on an entry-point
+  project, a Dockerfile, or a process manifest. A directory name does not. Libraries reached by
+  project references are contained modules of one deployable, not extra containers. When
+  `dependency-graph.json` is passed, those project edges are the only containment. Two deployables
+  that name the same broker host produce one `shared-infrastructure` edge that cites both config
+  keys. Credentials are removed by `lib/redact-connection.sh` before anything is written.
+  `technology` is a runtime, framework, or image, or the literal `unknown`. Mermaid writes
+  `containers.md` (`C4Container`). Structurizr writes `containers.dsl` (a container view). The
+  skill reads `landscape_dialect` and does not add a dialect key. `render-containers.sh` exits 1
+  on a reformatted record and writes nothing.
 
 ## [0.12.1] - 2026-09-28
 

@@ -4,51 +4,35 @@
     {
       "id": 1,
       "name": "output-kind-ignores-directory-names",
-      "prompt": "/architecture:map-containers\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a Microsoft.NET.Sdk.Web project whose directory is named Worker, a Microsoft.NET.Sdk.Worker project whose directory is named Api, and a class library whose directory is named Services. No containers.json exists yet.",
-      "expected_output": "Runs collect-containers.sh against git HEAD, writes containers.json, and renders. The web SDK project is output_kind web, the worker SDK project is output_kind worker, and the class library is not a container.",
+      "prompt": "/architecture:map-containers\n\nThe convention home resolves and landscape_dialect is mermaid. The repository has a Microsoft.NET.Sdk.Web project in a directory named Worker, a Microsoft.NET.Sdk.Worker project in a directory named Api, an OutputType Exe in a directory named Web, and a class library in a directory named Services. No dependency-graph.json exists.",
+      "expected_output": "Runs collect-containers.sh and render-containers.sh. The web SDK is kind web, the worker SDK is kind worker, the exe is kind cli, and the class library is not a container. Renders containers.md with a C4Container diagram.",
       "expectations": [
-        "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-containers.sh rather than classifying projects by hand",
-        "Does not treat the directory name Worker, Api, or Services as the output kind",
-        "A Microsoft.NET.Sdk.Web project is output_kind web",
-        "A class library is not a deployable",
-        "Writes containers.json before rendering, and does not invent nodes the script omitted"
+        "Does not classify a project from its directory name",
+        "Passes --dialect mermaid from landscape_dialect and does not read diagram_dialect.system",
+        "Omits --graph because dependency-graph.json is absent, and the record says containment is project-references",
+        "Closes with the fixed report: artifacts, focal, deployables, stores, modules, shared, dialect, technology, containment source, thin result, redaction"
       ]
     },
     {
       "id": 2,
       "name": "modular-monolith-is-one-container",
-      "prompt": "/architecture:map-containers\n\narchitecture_dir is docs/architecture. One web SDK project references two class libraries through ProjectReference. The libraries' directories are named Billing and Domain.",
-      "expected_output": "One deployable. Billing and Domain are contained modules, not containers. The diagram names them as containment.",
+      "prompt": "/architecture:map-containers\n\nThe convention home resolves. One web SDK project references a class library, and that library references a second class library. The library source contains WebApplication.CreateBuilder and a string that looks like a secret.",
+      "expected_output": "One deployable. Both libraries are contained modules. The diagram draws one Container. The secret string is absent. The host-builder call inside the library does not create a second deployable.",
       "expectations": [
-        "Emits one deployable for the web SDK project",
-        "Records each ProjectReference library as a module of that deployable",
-        "Does not draw the libraries as containers",
-        "Does not read host-builder calls in source as evidence of another deployable"
+        "Renders one container whose summary names both modules",
+        "Does not copy source text into the record",
+        "Does not draw the libraries as containers"
       ]
     },
     {
       "id": 3,
       "name": "shared-broker-cites-both-keys-and-redacts",
-      "prompt": "/architecture:map-containers\n\nTwo deployables each have a committed appsettings.json whose Broker value is the same sb:// host. One file also has a connection string with Password= and AccountKey=. An untracked appsettings.Local.json names a different host.",
-      "expected_output": "A shared-infrastructure edge cites both committed config keys. No password, account key, or untracked host appears in the record, the render, or stdout.",
+      "prompt": "/architecture:map-containers\n\nTwo deployables each set Messaging.Broker to sb://orders.servicebus.windows.net/. One connection string contains a password and an account key. An untracked appsettings file names a different host.",
+      "expected_output": "One shared-infrastructure edge whose evidence cites both config keys. The password, account key, and untracked host are absent. The database host remains. Every node has a technology field.",
       "expectations": [
-        "The shared-infrastructure edge evidence names both appsettings files and the Broker key",
-        "Does not add an edge only because the two projects share a repository",
-        "Password, AccountKey, and token material are absent from every written file and from stdout",
-        "The untracked appsettings.Local.json is not read",
-        "A store whose runtime was not cited carries technology unknown"
-      ]
-    },
-    {
-      "id": 4,
-      "name": "unset-dialect-writes-no-c4-view",
-      "prompt": "/architecture:map-containers\n\ndiagram_dialect.system is unset. architecture_dir is docs/architecture. This is a non-interactive run.",
-      "expected_output": "Writes containers.json and containers.md. Does not write a C4 view file. Does not pass mermaid.",
-      "expectations": [
-        "Passes --dialect unset, or omits a C4 dialect, because diagram_dialect.system is unset",
-        "Does not pass mermaid; that value is refused",
-        "Writes the fact report and no containers.puml or containers.likec4",
-        "Stops and points at /architecture:setup when architecture_dir is undeclared and --out was not passed"
+        "Uses redact-connection and does not store the raw config value",
+        "Does not read the untracked file",
+        "Does not treat co-location in the repository as an edge by itself"
       ]
     }
   ]

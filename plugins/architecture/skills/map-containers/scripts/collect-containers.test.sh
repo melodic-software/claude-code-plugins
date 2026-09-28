@@ -2,6 +2,8 @@
 # Tests for collect-containers.sh and render-containers.sh.
 set -uo pipefail
 
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECT="$SCRIPT_DIR/collect-containers.sh"
 RENDER="$SCRIPT_DIR/render-containers.sh"
@@ -41,14 +43,15 @@ assert_equals() {
 commit_repo() {
   local dir="$1"
   git -C "$dir" init -q
+  git -C "$dir" config user.email "fixture@example.invalid"
+  git -C "$dir" config user.name "Fixture"
+  git -C "$dir" config commit.gpgsign false
   git -C "$dir" add -A
-  GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com \
-    GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com \
-    git -C "$dir" commit -q -m fixture
+  git -C "$dir" commit -q -m fixture
 }
 
 node_line() {
-  awk -v id="$2" 'index($0, id) && $0 ~ /\{"id":/ { print; exit }' "$1"
+  awk -v id="$2" 'index($0, "\"" id "\"") && $0 ~ /\{"id":/ { print; exit }' "$1"
 }
 
 field() {
@@ -76,10 +79,12 @@ field() {
   ' <<<"$1"
 }
 
-# --- output kind comes from the project file, not the directory ------------
+help_out="$(bash "$COLLECT" --help)"
+assert_equals "usage: --help exits 0" "$?" "0"
+assert_contains "usage: names schema_version" "$help_out" "schema_version"
 
 REPO="$TEST_TMPDIR/roles"
-mkdir -p "$REPO/src/Worker" "$REPO/src/Api" "$REPO/src/Web" "$REPO/src/Services" "$REPO/src/WebJobs" "$REPO/deploy/Worker"
+mkdir -p "$REPO/src/Worker" "$REPO/src/Api" "$REPO/src/Web" "$REPO/src/Services" "$REPO/src/WebJobs" "$REPO/deploy/Worker" "$REPO/src/HostExe"
 cat >"$REPO/src/Worker/WebHost.csproj" <<'EOF'
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
@@ -118,33 +123,50 @@ cat >"$REPO/src/WebJobs/Jobs.csproj" <<'EOF'
   </PropertyGroup>
 </Project>
 EOF
+cat >"$REPO/src/HostExe/HostExe.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>
+EOF
+cat >"$REPO/src/HostExe/Program.cs" <<'EOF'
+var builder = WebApplication.CreateBuilder(args);
+builder.MapGet("/health", () => "ok");
+EOF
 cat >"$REPO/deploy/Worker/Dockerfile" <<'EOF'
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 COPY app /app
 EOF
+printf 'COPY app /app\n' >"$REPO/deploy/tick.Dockerfile"
 commit_repo "$REPO"
 OUT="$TEST_TMPDIR/roles-out"
 mkdir -p "$OUT"
 bash "$COLLECT" --repo "$REPO" --out "$OUT/containers.json" --generated-on 2026-09-28 >"$OUT/collect.out"
+assert_equals "roles: collect exits 0" "$?" "0"
 REC="$OUT/containers.json"
 web_line="$(node_line "$REC" 'src/Worker/WebHost.csproj')"
-assert_equals "web sdk in a Worker directory is output_kind web" "$(field "$web_line" output_kind)" "web"
+assert_equals "web sdk in a Worker directory is kind web" "$(field "$web_line" kind)" "web"
 assert_equals "web sdk name is the project file" "$(field "$web_line" name)" "WebHost"
 assert_contains "web sdk technology cites the framework" "$(field "$web_line" technology)" "net8.0"
 worker_line="$(node_line "$REC" 'src/Api/JobWorker.csproj')"
-assert_equals "worker sdk in an Api directory is output_kind worker" "$(field "$worker_line" output_kind)" "worker"
+assert_equals "worker sdk in an Api directory is kind worker" "$(field "$worker_line" kind)" "worker"
 cli_line="$(node_line "$REC" 'src/Web/Tool.csproj')"
-assert_equals "exe in a Web directory is output_kind cli" "$(field "$cli_line" output_kind)" "cli"
+assert_equals "exe in a Web directory is kind cli" "$(field "$cli_line" kind)" "cli"
 fn_line="$(node_line "$REC" 'src/WebJobs/Jobs.csproj')"
-assert_equals "AzureFunctionsVersion wins over OutputType Exe" "$(field "$fn_line" output_kind)" "function"
+assert_equals "AzureFunctionsVersion is kind function" "$(field "$fn_line" kind)" "function"
+host_line="$(node_line "$REC" 'src/HostExe/HostExe.csproj')"
+assert_equals "host builder on an exe is kind api" "$(field "$host_line" kind)" "api"
+assert_contains "host builder is cited" "$(field "$host_line" evidence)" "WebApplication.CreateBuilder"
 lib_hit="$(node_line "$REC" 'src/Services/Library.csproj' || true)"
 assert_equals "library in a Services directory is not a container" "$lib_hit" ""
 docker_line="$(node_line "$REC" 'deploy/Worker/Dockerfile')"
-assert_equals "aspnet image in a Worker directory is api, not worker" "$(field "$docker_line" output_kind)" "api"
+assert_equals "aspnet image in a Worker directory is api" "$(field "$docker_line" kind)" "api"
+tick_line="$(node_line "$REC" 'deploy/tick.Dockerfile')"
+assert_equals "dockerfile with no FROM is technology unknown" "$(field "$tick_line" technology)" "unknown"
 roles_shared="$(grep -c 'shared-infrastructure' "$REC" || true)"
 assert_equals "same repository is not an edge" "$roles_shared" "0"
-
-# --- modular monolith: one deployable, libraries contained ------------------
 
 MONO="$TEST_TMPDIR/mono"
 mkdir -p "$MONO/src/Host" "$MONO/src/Billing" "$MONO/src/Domain"
@@ -177,21 +199,24 @@ commit_repo "$MONO"
 MOUT="$TEST_TMPDIR/mono-out"
 mkdir -p "$MOUT"
 bash "$COLLECT" --repo "$MONO" --out "$MOUT/containers.json" --generated-on 2026-09-28 >"$MOUT/collect.out"
-bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect c4-plantuml >"$MOUT/render.out"
-mono_text="$(cat "$MOUT/containers.json" "$MOUT/containers.md" "$MOUT/containers.puml" "$MOUT/collect.out" "$MOUT/render.out")"
-assert_contains "host is one deployable" "$mono_text" '"kind":"deployable"'
-deployables="$(grep -c '"kind":"deployable"' "$MOUT/containers.json" || true)"
-assert_equals "monolith is one deployable" "$deployables" "1"
+assert_equals "mono: collect exits 0" "$?" "0"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect mermaid >"$MOUT/render.out"
+assert_equals "mono: mermaid render exits 0" "$?" "0"
+mono_text="$(cat "$MOUT/containers.json" "$MOUT/containers.md" "$MOUT/collect.out" "$MOUT/render.out")"
+deployables="$(grep -c '"kind":"web"' "$MOUT/containers.json" || true)"
+assert_equals "monolith is one web deployable" "$deployables" "1"
 assert_contains "billing is a contained module" "$mono_text" '"path":"src/Billing/Billing.csproj"'
 assert_contains "domain is contained transitively" "$mono_text" '"path":"src/Domain/Domain.csproj"'
 assert_not_contains "source secret is not cited" "$mono_text" "SOURCE_ONLY_SECRET"
-assert_not_contains "host builder usage is not a deployable" "$mono_text" "WebApplication"
+assert_not_contains "library host-builder text is not a second deployable" "$mono_text" '"id":"src/Billing/Billing.csproj"'
 assert_contains "diagram names contained modules" "$mono_text" "Contains: Billing, Domain"
-container_elems="$(grep -c 'Container(' "$MOUT/containers.puml" || true)"
+container_elems="$(grep -c 'Container(' "$MOUT/containers.md" || true)"
 assert_equals "diagram draws one container" "$container_elems" "1"
 assert_contains "summary counts modules" "$(cat "$MOUT/render.out")" "modules=2"
-
-# --- shared broker cites both config keys; credentials stay out -------------
+assert_contains "mermaid dialect is C4Container" "$mono_text" "C4Container"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect structurizr >"$MOUT/struct.out"
+assert_equals "mono: structurizr render exits 0" "$?" "0"
+assert_contains "structurizr is a container view" "$(cat "$MOUT/containers.dsl")" "container sys"
 
 BUS="$TEST_TMPDIR/bus"
 mkdir -p "$BUS/src/Api" "$BUS/src/Worker"
@@ -221,17 +246,17 @@ cat >"$BUS/src/Worker/appsettings.json" <<'EOF'
 }
 EOF
 commit_repo "$BUS"
-cat >"$BUS/src/Api/appsettings.Local.json" <<'EOF'
-{ "Messaging": { "Broker": "sb://UNTRACKED_SECRET_VALUE.servicebus.windows.net/" } }
-EOF
+printf '%s\n' '{ "Messaging": { "Broker": "sb://UNTRACKED_SECRET_VALUE.servicebus.windows.net/" } }' >"$BUS/src/Api/appsettings.Local.json"
 BOUT="$TEST_TMPDIR/bus-out"
 mkdir -p "$BOUT"
 bash "$COLLECT" --repo "$BUS" --out "$BOUT/containers.json" --generated-on 2026-09-28 >"$BOUT/collect.out" 2>"$BOUT/collect.err"
-bash "$RENDER" --record "$BOUT/containers.json" --out "$BOUT" --dialect likec4 >"$BOUT/render.out" 2>"$BOUT/render.err"
-bus_text="$(cat "$BOUT/containers.json" "$BOUT/containers.md" "$BOUT/containers.likec4" "$BOUT/collect.out" "$BOUT/collect.err" "$BOUT/render.out" "$BOUT/render.err")"
+assert_equals "bus: collect exits 0" "$?" "0"
+bash "$RENDER" --record "$BOUT/containers.json" --out "$BOUT" --dialect mermaid >"$BOUT/render.out" 2>"$BOUT/render.err"
+assert_equals "bus: render exits 0" "$?" "0"
+bus_text="$(cat "$BOUT/containers.json" "$BOUT/containers.md" "$BOUT/collect.out" "$BOUT/collect.err" "$BOUT/render.out" "$BOUT/render.err")"
 assert_contains "shared-infrastructure edge exists" "$bus_text" '"kind":"shared-infrastructure"'
-assert_contains "edge cites the api config" "$bus_text" "src/Api/appsettings.json: Broker"
-assert_contains "edge cites the worker config" "$bus_text" "src/Worker/appsettings.json: Broker"
+assert_contains "edge cites the api config" "$bus_text" "src/Api/appsettings.json: Messaging.Broker"
+assert_contains "edge cites the worker config" "$bus_text" "src/Worker/appsettings.json: Messaging.Broker"
 assert_not_contains "password is redacted" "$bus_text" "super-secret-password"
 assert_not_contains "account key is redacted" "$bus_text" "abcDEF123secretkey"
 assert_not_contains "api token is redacted" "$bus_text" "sk-live-abc123secret"
@@ -240,30 +265,22 @@ assert_not_contains "untracked secret is not cited" "$bus_text" "UNTRACKED_SECRE
 assert_contains "database host remains citable" "$bus_text" "orders.database.windows.net"
 missing_tech="$(awk '/\{"id":/ && $0 !~ /"technology":/ { c++ } END { print c+0 }' "$BOUT/containers.json")"
 assert_equals "every node has a technology field" "$missing_tech" "0"
-unknown_tech="$(grep -c '"technology":"unknown"' "$BOUT/containers.json" || true)"
-if [[ "$unknown_tech" -ge 1 ]]; then
-  pass "a node with no runtime is the literal unknown"
-else
-  fail "a node with no runtime is the literal unknown" "count=$unknown_tech text=$(cat "$BOUT/containers.json")"
-fi
-
-# --- a reformatted record writes nothing ------------------------------------
 
 cat >"$TEST_TMPDIR/bad-record.json" <<'EOF'
 {
   "schema_version": 1,
   "subject": "x",
   "generated_on": "2026-09-28",
-  "dependencies": "absent",
-  "node_threshold": 24,
-  "system_filter": "",
-  "nodes": [
+  "focal": "x",
+  "containment": "project-references",
+  "containers": [
     {
       "id": "a",
       "name": "a",
-      "kind": "deployable",
-      "output_kind": "web",
+      "kind": "web",
       "technology": "unknown",
+      "store_kind": "",
+      "summary": "",
       "evidence": "a"
     }
   ],
@@ -275,20 +292,67 @@ mkdir -p "$TEST_TMPDIR/bad-render"
 set +e
 bash "$RENDER" --record "$TEST_TMPDIR/bad-record.json" --out "$TEST_TMPDIR/bad-render" >"$TEST_TMPDIR/bad-render.out" 2>"$TEST_TMPDIR/bad-render.err"
 rend_rc=$?
-set -e
+set +e
 assert_equals "renderer rejects a reformatted record" "$rend_rc" "1"
-if [[ -f "$TEST_TMPDIR/bad-render/containers.md" ]]; then
+if [[ -e "$TEST_TMPDIR/bad-render/containers.md" ]]; then
   fail "renderer writes nothing on a bad record" "containers.md exists"
 else
   pass "renderer writes nothing on a bad record"
 fi
 
 set +e
-bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect mermaid >"$MOUT/mermaid.out" 2>"$MOUT/mermaid.err"
-mermaid_rc=$?
-set -e
-assert_equals "mermaid is refused" "$mermaid_rc" "2"
-assert_contains "mermaid refusal names the key" "$(cat "$MOUT/mermaid.err")" "diagram_dialect.system"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect likec4 >"$MOUT/like.out" 2>"$MOUT/like.err"
+like_rc=$?
+set +e
+assert_equals "likec4 is not this dialect" "$like_rc" "2"
+assert_contains "refusal names landscape_dialect" "$(cat "$MOUT/like.err")" "landscape_dialect"
+
+GRAPH="$TEST_TMPDIR/graph-repo"
+mkdir -p "$GRAPH/src/Host" "$GRAPH/src/OnlyGraph" "$GRAPH/src/FromFile"
+cat >"$GRAPH/src/Host/Host.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FromFile\FromFile.csproj" />
+  </ItemGroup>
+</Project>
+EOF
+cat >"$GRAPH/src/OnlyGraph/OnlyGraph.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+cat >"$GRAPH/src/FromFile/FromFile.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+commit_repo "$GRAPH"
+cat >"$TEST_TMPDIR/graph.json" <<'EOF'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "subject": "graph-repo",
+  "ecosystem": "dotnet",
+  "unknown_reason": "",
+  "unshipped": "",
+  "node_threshold": 24,
+  "nodes": [
+    {"id":"src/Host/Host.csproj","name":"Host","path":"src/Host/Host.csproj","ecosystem":"dotnet","kind":"project"}
+  ],
+  "edges": [
+    {"from":"src/Host/Host.csproj","to":"src/OnlyGraph/OnlyGraph.csproj","kind":"project","evidence":"graph: Host to OnlyGraph"}
+  ]
+}
+EOF
+GOUT="$TEST_TMPDIR/graph-out"
+mkdir -p "$GOUT"
+bash "$COLLECT" --repo "$GRAPH" --graph "$TEST_TMPDIR/graph.json" --out "$GOUT/containers.json" --generated-on 2026-09-28 >"$GOUT/collect.out"
+assert_equals "graph: collect exits 0" "$?" "0"
+gtext="$(cat "$GOUT/containers.json")"
+assert_contains "graph supplies the contained module" "$gtext" '"path":"src/OnlyGraph/OnlyGraph.csproj"'
+assert_not_contains "file reference is not used when the graph is present" "$gtext" "src/FromFile/FromFile.csproj"
+assert_contains "containment source is the graph" "$gtext" '"containment": "dependency-graph.json"'
 
 printf 'cases=%s failed=%s\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
