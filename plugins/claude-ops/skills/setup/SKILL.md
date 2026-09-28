@@ -156,8 +156,11 @@ The options live in Claude Code's native config surface, which setup must not ha
   uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting
   every option in the README's Options reference (the audit toggles included) to its manifest
   default. `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
-  run from that project's directory for a `project`/`local` scope, or the write lands at a scope
-  that does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  run from that project's directory for a `project`/`local` scope, or the rerun adds a second
+  install record at the scope passed and enables the plugin there; the value itself always lands in
+  user settings. A rejected `--config` value prints a warning and still exits 0, so read the
+  command's output rather than its exit code. This skill never writes user settings or
+  `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**: the rendered `${user_config.*}` is injected at skill load and each
   hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a
   same-session `check` still reports the OLD value; report the observed effective value, never an
