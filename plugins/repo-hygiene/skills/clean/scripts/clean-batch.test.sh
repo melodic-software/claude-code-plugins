@@ -403,11 +403,16 @@ chmod 644 "$UNREAD_LIST" 2>/dev/null || true
 
 # --- preflight once, and a progress line on stderr ---
 PROG_REPO="$(mkrepo prog)"
+# A fresh build inside the target repo must reach RECENT_BUILD even when the
+# batch runs from outside every target (the ghq fleet case).
+mkdir -p "$PROG_REPO/obj"
+: >"$PROG_REPO/obj/project.assets.json"
 rc=0
-out="$(bash "$BATCH" --tier caches --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
+out="$(cd / && bash "$BATCH" --tier caches --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 err="$(bash "$BATCH" --tier caches --repo "$PROG_REPO" 2>&1 >/dev/null)" || true
 assert_exit "caches dry-run still exits 0 with preflight" 0 "$rc"
-assert_contains "caches dry-run prints preflight scope once" "$out" "PreflightScope: invoking-directory"
+assert_contains "caches dry-run prints preflight scope once" "$out" "PreflightScope: batch-repositories"
+assert_contains "preflight scans the target repo, not the cwd" "$out" "RECENT_BUILD: $PROG_REPO/obj/project.assets.json"
 assert_contains "caches dry-run prints preflight facts" "$out" "RUNTIME_PROCS:"
 preflight_hits="$(grep -c 'PreflightScope:' <<<"$out" || true)"
 assert_exit "preflight runs once, not per repo" 1 "$preflight_hits"

@@ -233,6 +233,12 @@ for cmd in \
   "bash scripts/remove-path.sh --apply /d/repos/foo" \
   "bash \"scripts/remove-path.sh\" --apply /d/repos/foo" \
   "bash scripts/remove-path.sh '--apply' /d/repos/foo" \
+  "bash scripts/clean-caches.sh --apply; echo done" \
+  "bash scripts/clean-caches.sh --apply;true" \
+  "bash scripts/git-prune.sh --apply&&echo done" \
+  "(bash scripts/remove-path.sh --apply /d/repos/foo)" \
+  "bash scripts/clean-build.sh --apply&" \
+  "git worktree remove --force;true" \
   "bash scripts/git-tree-reset.sh --apply" \
   "bash scripts/git-tree-reset-batch.sh --apply" \
   "bash scripts/clean-caches.sh --apply --manifest /tmp/m" \

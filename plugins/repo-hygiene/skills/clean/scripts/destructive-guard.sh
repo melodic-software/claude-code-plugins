@@ -61,7 +61,7 @@ fi
 is_destructive() {
   local cmd="$1"
   local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+)*'
-  local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)'
+  local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([^[:alnum:]_-]|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
     grep -qE "$force_re" <<<"$cmd"; then
@@ -74,8 +74,8 @@ is_destructive() {
   # Basename plus --apply, so a path prefix and a dry-run do not both fire.
   # git-tree-reset-batch is its own alternative: git-tree-reset.sh does not
   # match the batch script, because `.sh` has to follow the name.
-  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([[:space:]"'\'']|$)' <<<"$cmd" &&
-    grep -qE '(^|[[:space:]"'\''])--apply([[:space:]"'\'']|$)' <<<"$cmd"; then
+  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([^[:alnum:]_.-]|$)' <<<"$cmd" &&
+    grep -qE '(^|[^[:alnum:]_-])--apply([^[:alnum:]_-]|$)' <<<"$cmd"; then
     return 0
   fi
   if grep -qE "git[[:space:]]+${gopt}worktree[[:space:]]+remove[[:space:]]" <<<"$cmd" &&

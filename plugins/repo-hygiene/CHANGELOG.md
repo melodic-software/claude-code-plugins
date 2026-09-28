@@ -16,8 +16,9 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   still lift the block after the confirmation gate. `git branch -D`/`-d` and
   `git push --delete` stay out of the net (#3852).
 - **`clean-batch.sh` runs `preflight.sh` once before a caches/build/all dry-run
-  and prints `Progress:` on stderr (#3346).** The git-only tier does not run
-  preflight. Apply does not run it again. Progress is `N/M <path>` on dry-run
+  and prints `Progress:` on stderr (#3346).** `preflight.sh` takes optional
+  roots, and the batch passes its target repositories, so `RECENT_BUILD` covers
+  them wherever the batch runs from. The git-only tier does not run preflight. Apply does not run it again. Progress is `N/M <path>` on dry-run
   and `apply N <path>` on apply.
 
 ## [0.10.54] - 2026-09-28

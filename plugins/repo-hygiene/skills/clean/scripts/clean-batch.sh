@@ -421,17 +421,15 @@ BLOCKED=0
 printf 'Fleet Clean (dry-run)\n'
 printf 'Tier: %s\n' "$TIER"
 printf 'Repos: %s\n' "$REPOS"
-# One preflight for the invoking directory, not once per repo. The facts are
-# host-global (processes, IDE) plus recent builds under the cwd. The git-only
-# tier does not delete caches or build output, so it does not pay this walk.
-# Apply does not run it again: the dry-run output is what the confirmation
-# gate reads.
-if tier_has_manifest; then
-  if preflight_out="$(bash "$SCRIPT_DIR/preflight.sh" 2>&1)"; then
-    printf 'PreflightScope: invoking-directory\n'
+# One preflight run, not once per repo: host-global facts (processes, IDE) plus
+# recent builds under every batch repository. The git-only tier does not delete
+# caches or build output, so it does not pay this walk. Apply does not run it
+# again: the dry-run output is what the confirmation gate reads.
+if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
+  printf 'PreflightScope: batch-repositories\n'
+  if preflight_out="$(bash "$SCRIPT_DIR/preflight.sh" "${BATCH_TOPS[@]}" 2>&1)"; then
     printf '%s\n' "$preflight_out"
   else
-    printf 'PreflightScope: invoking-directory\n'
     printf 'PreflightError: preflight.sh exited non-zero\n'
   fi
 fi
