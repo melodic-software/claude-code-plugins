@@ -7,6 +7,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Managed-state lane (parked)](#managed-state-lane-parked)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -596,6 +597,22 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+## Managed-state lane (parked)
+
+There is no bundled owner-registry lane beside the engine. The engine still deletes only unmanaged
+residue and still never deletes managed state. A managed path stays a report-only native-command
+handoff. The owner's dry-run and destructive commands are not offered from a shipped registry, and
+they do not share the engine's tier-and-exact-list approval ceremony.
+
+**Claim:** do not add a gated managed-state lane with a bundled owner registry until funded; the
+engine lane stays unmanaged-only, and managed paths stay report-only. **Basis:** #4006
+(`work-class: structural`, `needs-human`). The skill already requires reporting the documented
+native command and refusing to add the path to an engine plan. This file already records managed
+state as engine-ineligible because the engine cannot independently authenticate the owning product's
+state or cleanup contract. Option A parks until funded rather than shipping the registry unpaid.
+**As of:** 2026-09-28. **Recheck:** a maintainer funds the owner-registry lane as its own issue, or
+unparks #4006.
 
 ## Outcome vocabulary
 

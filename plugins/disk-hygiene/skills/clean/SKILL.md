@@ -335,7 +335,9 @@ mix tiers:
 
 For managed state, report the documented native command and its current dry-run result, but do not add
 the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
-non-overlapping, and never globs.
+non-overlapping, and never globs. A bundled owner-registry managed-state lane is parked until
+funded (#4006 Option A). The recorded decision lives in
+[the safety model](reference/safety-model.md#managed-state-lane-parked).
 
 ## 5. Preview, then ask
 

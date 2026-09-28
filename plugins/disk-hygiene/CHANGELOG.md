@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.5] - 2026-09-28
+
+### Changed
+
+- **Gated managed-state lane with a bundled owner registry stays parked until funded**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)). Option A:
+  the engine still refuses managed state and still reports native commands only. Do not ship an
+  owner registry or a parallel approval ceremony. Serializes after #4227 (0.27.4), #4224 (0.27.3),
+  #3856 (0.27.2), and #3855 (0.27.1).
+
 ## [0.27.0] - 2026-09-28
 
 ### Added
