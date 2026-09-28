@@ -140,7 +140,7 @@ cr_detect_shapes() {
 
   # plan-reference (tier 1): references a work plan / session / changeset, not the code.
   if [[ "$lc" =~ (per[[:space:]]the[[:space:]]plan|as[[:space:]]planned|replaces[[:space:]]the[[:space:]]old) ]] ||
-    [[ "$lc" =~ in[[:space:]]this[[:space:]](pr|change|refactor|commit|session) ]] ||
+    [[ "$lc" =~ in[[:space:]]this[[:space:]](pr|change|refactor|commit|session)([^[:alnum:]]|$) ]] ||
     [[ "$lc" =~ (task|plan|phase|step)[[:space:]]#?[0-9]+[[:space:]]+(of|in)[[:space:]]the[[:space:]]plan ]]; then
     printf '%s\n' 'plan-reference'
     found=1
@@ -157,7 +157,7 @@ cr_detect_shapes() {
   # origin-note (tier 1): the comment names where the block came from or when it was
   # added. The cue must open the comment or a clause, be whole words, and carry an origin
   # VERB, so a description ("bytes copied from the buffer") or a bare date is not a finding;
-  # provenance:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
+  # attribution:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
   # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
   # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
@@ -171,7 +171,7 @@ cr_detect_shapes() {
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
-    if [[ "$lc" =~ (pull[[:space:]]request|see[[:space:]](pr|mr|issue)|pr[[:space:]]#?[0-9]|from[[:space:]]branch|in[[:space:]]this[[:space:]]session) ]] ||
+    if [[ "$lc" =~ (see[[:space:]]+(pr|mr|issue)|(^|[^[:alnum:]])(pr|issue|mr)[[:space:]]*#?[0-9]|github\.com/[^[:space:]]+/(pull|issues)/[0-9]+|[a-z0-9_.-]+/[a-z0-9_.-]+#[0-9]+|from[[:space:]]+branch|from[[:space:]]+(the[[:space:]]+)?[a-z0-9][a-z0-9._/-]*[[:space:]]+branch|in[[:space:]]this[[:space:]]session) ]] ||
       [[ "$lc" =~ (ticket|issue|jira|linear)([[:space:]]#?[a-z0-9]*-?[0-9]|-[0-9]) ]]; then
       printf '%s\n' 'ticket-pr-residue'
       found=1

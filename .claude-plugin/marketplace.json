@@ -653,9 +653,9 @@
       ]
     },
     {
-      "name": "provenance",
-      "displayName": "Provenance",
-      "source": "./plugins/provenance",
+      "name": "attribution",
+      "displayName": "Attribution",
+      "source": "./plugins/attribution",
       "category": "quality",
       "tags": [
         "provenance",
@@ -668,6 +668,17 @@
         "prose",
         "audit",
         "skill"
+      ]
+    },
+    {
+      "name": "provenance",
+      "source": "./plugins/provenance",
+      "description": "Deprecated: renamed to attribution. Install attribution@melodic-software; this shim only points at /attribution:audit and /attribution:setup and is removed in a later release.",
+      "category": "quality",
+      "tags": [
+        "deprecated",
+        "provenance",
+        "attribution"
       ]
     },
     {

@@ -154,6 +154,35 @@
         "Does not hardcode or assume any particular CI vendor's environment variable name",
         "Writes the artifact normally once an identity is established, rather than declining as it would with none"
       ]
+    },
+    {
+      "id": 12,
+      "name": "unattended-delegated-run-checkpoints-through-the-rename-route",
+      "prompt": "/overengineering:audit repo-hooks vcs-hooks unattended — you are a dispatched subagent, and this harness refuses a subagent write to a report-shaped filename such as findings.md.",
+      "expected_output": "After resolving the branch identity and the artifact home and emitting the read-only opening line, the run probes the write path before walking any layer: it writes a neutral file in the artifact directory with the file-write tool, renames it to a second neutral name there, and deletes it, never touching the contract filename. The probe succeeds, so the walk starts. Because the run is unattended it writes every artifact revision to a neutral filename and renames it to the contract filename from the first write on, without first trying the report-shaped name. After repo-hooks is judged it re-reads the artifact from disk, merges, and writes it through that route with scope naming only repo-hooks; after vcs-hooks it does the same with scope naming both. It never writes the artifact with a shell content-write, and it does not hold the findings for one write at the end.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Probes the write path (neutral write, rename to another neutral name, delete) after the home is resolved and before the first layer is walked",
+        "Never renames the probe onto the contract filename and leaves no probe file behind",
+        "Uses the neutral-filename-then-rename route from the first artifact write, without first attempting the report-shaped filename",
+        "Writes a checkpoint through that route after each completed layer, re-reading and merging first, with scope naming only the layers completed so far",
+        "Never uses a shell content-write for the artifact"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "out-of-repo-findings-rollup-per-owner-in-the-report",
+      "prompt": "/overengineering:audit — this is a 37-file repo. Walk everything; I need the report, not a filter.",
+      "expected_output": "Walks every settings scope the harness merges, including user and machine, and writes one artifact row per plugin hook manifest as before. The inline report lists in-repo findings first, in full. Out-of-repo findings (user-scope plugin hook manifests owned upstream, ~/.claude/settings.json, machine-scope settings) collapse to one summary row per owner: count, verdict mix, and a pointer at the artifact rows. Finding ids in the artifact are identical to a run without the rollup. It does not add a custody=repo argument and does not skip out-of-repo layers.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Renders in-repo findings before any out-of-repo content in the inline report",
+        "Gives each out-of-repo owner at most one row in the report (count, verdict mix, pointer to artifact rows)",
+        "Leaves the findings artifact rows and finding ids unchanged",
+        "Does not skip out-of-repo layers and does not introduce a custody-scope argument"
+      ]
     }
   ]
 }

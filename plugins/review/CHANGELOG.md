@@ -3,6 +3,119 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1] - 2026-09-28
+
+### Changed
+
+- No additional behavior. The `code-reviewer` description and turn-budget section already shipped in 0.30.5, and `tools` stays without `Skill` as #4747 set it. This number stays strictly above main's 0.33.0 after the merge.
+
+## [0.33.0] - 2026-09-28
+
+### Security
+
+- **Pull-request explainers go through a checked-in escape helper (#3605).**
+  `/review:pr-explainer` writes the markdown record first (risk map, file-by-file
+  tour, where to focus) and offers a self-contained HTML page. The page is built
+  only by `skills/pr-explainer/scripts/build-explainer.mjs`, which escapes every
+  interpolated field with the synced `lib/html-escape.mjs` and stamps a generator
+  marker. `validateRenderedPage` flags a page assembled without that helper,
+  including a hand-written page and a forged marker. The markdown record stays
+  the deliverable. Adversarial diff text (markup, quotes, handler attributes)
+  renders as text.
+
+## [0.32.1] - 2026-09-28
+
+### Fixed
+
+- **The stub-home fence covers an NFC versus NFD spelling on a normalization-insensitive volume** ([#3934](https://github.com/melodic-software/claude-code-plugins/issues/3934)).
+  `fold_path` still folds case, not canonical equivalence. On APFS that gap is a real directory:
+  the Apple File System Guide FAQ says a normalization variant of a filename cannot be created in
+  the same directory, and TN1150 says HFS Plus stores names fully decomposed. An absent tail is
+  now put in Unicode NFC before the fold, and only after a same-device probe shows the volume
+  treats U+00E9 and `e` + U+0301 as one name. ext4 and NTFS fail that probe, so two directories
+  that differ only by canonical form still write. When the existing ancestor cannot be written,
+  only an `apfs` or `hfs` type takes the NFC step. The probe directory is removed before the
+  fence returns. `emit-stubs.test.sh` case 31 follows the volume the runner actually has, and
+  `--check-normalization-fold` asserts the string property on a byte-exact host, including under
+  `LC_ALL=C`.
+
+## [0.32.0] - 2026-09-28
+
+### Changed
+
+- **The two CI lanes route against their native namesakes in the description (part of #4053).**
+  `code-review` gains "When the bundled code-review skill resolves in your session, prefer it for
+  a session-driven review of the current diff or a named PR; this skill for the CI lane a
+  reusable workflow runs on one PR." `security-review` gains the same shape for the plugin-backed
+  built-in `security-review` command, preferred for a one-off security pass over the current
+  branch. The rules: the clause is presence-gated on the model's own listing (`resolves in your
+  session`) and never asserts that the native surface is there; it names the provenance class and
+  splits the job; no body section and no `allowed-tools` change. Both store rows now record
+  `baked.description_phrase: true`. The Boundary sections are unchanged.
+
+## [0.31.2] - 2026-09-28
+
+### Security
+
+- **"Six read-only agents" now says what is enforced.** None of the six lists `Write` or `Edit`,
+  but `memory: local` makes the harness enable both for memory management with no scope to the
+  memory directory, and `permissionMode` is ignored for plugin subagents. The manifest and README
+  now say "read-only over the reviewed code", and the README states both limits with a dated
+  basis: the `memory` field does nothing when auto memory is off, and the memory-directory
+  restriction is the agents' convention rather than a tool boundary.
+- **Reviewed content is data.** Each agent carries the untrusted-content framing for what it reads,
+  meaning the change set, `REVIEW.md`, rules files, cited documents, logs and tool output: an
+  embedded instruction is reported as a finding and widens nothing. `code-reviewer`,
+  `security-reviewer` and `architecture-guardian` scope "project conventions override this
+  baseline" to review criteria.
+
+### Removed
+
+- The unused `Skill` grant from all six agents' `tools` ([#4263](https://github.com/melodic-software/claude-code-plugins/issues/4263)).
+
+## [0.31.1] - 2026-09-27
+
+### Fixed
+
+- **A reviewer no longer reviews an empty diff when it cannot find a base.** The change-set block in `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` ended its merge-base chain in `|| echo HEAD`. With no `origin` remote, or in a shallow clone (the `actions/checkout` default) whose history shares no ancestor with the base, the chain resolved to `HEAD` and `git diff HEAD` printed nothing on a clean branch, which read as a clean review of an unreviewed change. The block now prints `UNRESOLVED-BASE` with whether the clone is shallow, lists only uncommitted changes under it, and the agent names the base as unresolved and declines to grade when nothing is listed. `fanout`'s run-everything script placeholder is `'<UNRESOLVED>'` instead of `'HEAD'`, so a missed substitution fails the leaf's `git diff` instead of reviewing nothing. The `fanout` and `quality-gate` base ladders no longer end in `HEAD`.
+
+## [0.31.0] - 2026-09-27
+
+### Changed
+
+- **The confidence rank order puts an absent score last: `high` > `medium` > `low` > `unscored`.**
+  `context/severity.md` ranked `unscored` above `low` and told emitters to "emit `high` or omit the
+  field", while the `code-reviewer` agent and fanout's coverage clause told every reviewer to label
+  each finding high, medium, or low. A reviewer that honestly labeled an uncertain finding `low` saw
+  it ranked below one nobody scored. With the new order, "label every finding" is the one rule, and
+  fanout's ranking and cross-surface MAX merge, which both read the order from `severity.md`, now
+  keep a `low` label above a missing one.
+- **`code-reviewer` keeps its `Confidence:` field inside a caller-supplied finding shape.** When the
+  dispatching prompt dictates its own layout (for example `path:line: severity: problem. fix.`),
+  the agent uses that layout and still carries a confidence value per finding. The agent body now
+  cites the severity baseline for the rank order instead of restating it.
+
+## [0.30.8] - 2026-09-27
+
+### Changed
+
+- `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
+
+## [0.30.7] - 2026-09-27
+
+### Changed
+
+- `audit-enforceability`'s crosswalk maps the renamed producer: the rule-id rows and the family
+  row use `attribution/audit/` in place of `provenance/audit/`, and the owner column and
+  verification record name the `attribution:audit` detector, matching the ids the renamed plugin
+  now emits.
+
+## [0.30.6] - 2026-09-27
+
+### Fixed
+
+- The `code-reviewer` agent defers an assertion whose two sides are the same expression to `testing:audit`'s `cant-fail-scan.sh` only when that scan's output for the change set is in its context and reports the assertion. Otherwise it reports the finding itself and says the scan did not run, so a repo without the `testing` plugin, or a review where the audit was not invoked, still gets the finding. Fanout's dedup stage merges the duplicate when both report it.
+
 ## [0.30.5] - 2026-09-27
 
 ### Changed

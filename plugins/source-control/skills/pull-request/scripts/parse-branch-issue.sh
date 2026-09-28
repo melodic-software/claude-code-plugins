@@ -30,14 +30,17 @@
 #      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
 #      note on stderr.
 #   3. The built-in default.
-# A layer whose first value line is a heading or an HTML comment, whose fence
-# is empty or unterminated, or whose pattern breaks a limit (see
-# usable_pattern) is reported on stderr and skipped; a userConfig value that
-# breaks a limit is reported and ignored. A layer holding a near-miss H2 (one
-# whose text contains `branch_issue_pattern` but is not the exact heading, e.g.
-# `## branch_issue_pattern:`) stops resolution: the script prints nothing and
-# exits 1, so a lower source never supplies the wrong issue number. Notes name
-# the source and the reason, never the pattern text.
+# A layer whose section exists but yields no usable pattern stops resolution:
+# the script prints nothing and exits 1, so a lower layer, the userConfig, or
+# the default never supplies an issue number the author did not intend. That
+# covers a near-miss H2 (one whose text contains `branch_issue_pattern` but is
+# not the exact heading, e.g. `## branch_issue_pattern:`), a section with no
+# value, a first value line that is a heading or an HTML comment, an empty or
+# unterminated fence, and a pattern that breaks a limit (see usable_pattern).
+# A higher layer that already supplied a valid pattern still wins, since the
+# lower layer is never read. A userConfig value that breaks a limit is
+# reported and ignored, so the default applies. Notes name the source and the
+# reason, never the pattern text.
 # Prints the captured issue id on stdout and exits 0 on match.
 # Exits 1 with no stdout if the branch does not match.
 set -uo pipefail
@@ -57,17 +60,19 @@ fi
 # repo-controlled value is not echoed into the caller's context.
 note() { echo "parse-branch-issue: $*" >&2; }
 
+STOP="resolution stopped, no issue id emitted"
+
 FENCE_OPEN='^(```+|~~~+)'
 FENCE_CLOSE='^(```+|~~~+)$'
 
 # Print the value of the `## branch_issue_pattern` section of file $1: its first
 # non-blank line, surrounding whitespace and backticks stripped, or, when that
 # line opens a code fence, the first non-blank line inside the fence. Headings
-# inside fenced blocks are ignored. Prints nothing when the file or the section
-# is absent. Returns 1 (with a note, nothing printed) when the layer must be
-# skipped: an empty or unterminated fence, or a first value line that is a
-# heading or an HTML comment. Returns 3 (with a note) on a near-miss H2 anywhere
-# outside a fence, which stops resolution.
+# inside fenced blocks are ignored. Prints nothing and returns 0 when the file
+# or the section is absent. Returns 1 (with a note, nothing printed) when the
+# section exists but yields no value, which stops resolution: a near-miss H2
+# anywhere outside a fence, a section with no value, an empty or unterminated
+# fence, or a first value line that is a heading or an HTML comment.
 section_value() {
   local file="$1" line state=0 fence="" value="" first=1
   # state: 0 before the section, 1 inside it awaiting the value, 2 done.
@@ -84,7 +89,7 @@ section_value() {
       if [[ "$line" =~ $FENCE_CLOSE && "${line:0:1}" == "${fence:0:1}" && ${#line} -ge ${#fence} ]]; then
         if [[ "$state" -eq 1 ]]; then
           if [[ -z "$value" ]]; then
-            note "${file}: ## ${KEY} holds an empty code fence; layer skipped"
+            note "${file}: ## ${KEY} holds an empty code fence; ${STOP}"
             return 1
           fi
           state=2
@@ -99,10 +104,11 @@ section_value() {
       if [[ "$line" =~ ^##[[:space:]]+${KEY}([[:space:]]+#+)?$ ]]; then
         [[ "$state" -eq 0 ]] && state=1
       elif [[ "${line,,}" == *"$KEY"* ]]; then
-        note "${file}: near-miss heading for ## ${KEY}; resolution stopped, no issue id emitted"
-        return 3
+        note "${file}: near-miss heading for ## ${KEY}; ${STOP}"
+        return 1
       elif [[ "$state" -eq 1 ]]; then
-        state=2
+        note "${file}: ## ${KEY} holds no value; ${STOP}"
+        return 1
       fi
       continue
     fi
@@ -112,20 +118,28 @@ section_value() {
     fi
     [[ "$state" -eq 1 && -n "$line" ]] || continue
     if [[ "$line" =~ ^#{1,6}([[:space:]]|$) ]]; then
-      note "${file}: ## ${KEY} starts with a heading, not a pattern; layer skipped"
+      note "${file}: ## ${KEY} starts with a heading, not a pattern; ${STOP}"
       return 1
     fi
     if [[ "$line" == '<!--'* ]]; then
-      note "${file}: ## ${KEY} starts with an HTML comment, not a pattern; layer skipped"
+      note "${file}: ## ${KEY} starts with an HTML comment, not a pattern; ${STOP}"
       return 1
     fi
     while [[ "$line" == \`* ]]; do line="${line#\`}"; done
     while [[ "$line" == *\` ]]; do line="${line%\`}"; done
+    if [[ -z "$line" ]]; then
+      note "${file}: ## ${KEY} holds no value; ${STOP}"
+      return 1
+    fi
     value="$line"
     state=2
   done <"$file"
-  if [[ -n "$fence" && "$state" -eq 1 ]]; then
-    note "${file}: ## ${KEY} holds an unterminated code fence; layer skipped"
+  if [[ "$state" -eq 1 ]]; then
+    if [[ -n "$fence" ]]; then
+      note "${file}: ## ${KEY} holds an unterminated code fence; ${STOP}"
+    else
+      note "${file}: ## ${KEY} holds no value; ${STOP}"
+    fi
     return 1
   fi
   [[ -z "$value" ]] || printf '%s\n' "$value"
@@ -204,22 +218,23 @@ pattern_limit() {
 
 # True when pattern $2 from source $1 is usable: it keeps within the limits
 # pattern_limit checks, holds no backreference, and compiles as an ERE (bash's
-# =~ returns 2 on a bad pattern). Otherwise reports the source and the reason.
+# =~ returns 2 on a bad pattern). Otherwise reports the source, the reason,
+# and outcome $3.
 usable_pattern() {
-  local src="$1" value="$2" rc limit
+  local src="$1" value="$2" outcome="$3" rc limit
   limit="$(pattern_limit "$value")"
   if [[ -n "$limit" ]]; then
-    note "${src}: ${KEY} ${limit}; skipped"
+    note "${src}: ${KEY} ${limit}; ${outcome}"
     return 1
   fi
   if [[ "$value" =~ \\[1-9] ]]; then
-    note "${src}: ${KEY} uses a backreference, which is not allowed; skipped"
+    note "${src}: ${KEY} uses a backreference, which is not allowed; ${outcome}"
     return 1
   fi
   { [[ "" =~ $value ]]; } 2>/dev/null
   rc=$?
   if [[ "$rc" -eq 2 ]]; then
-    note "${src}: ${KEY} is an invalid ERE; skipped"
+    note "${src}: ${KEY} is an invalid ERE; ${outcome}"
     return 1
   fi
   return 0
@@ -234,15 +249,11 @@ LAYERS+=("${HOME:-}/.claude/source-control.md")
 
 PATTERN="" SOURCE=""
 for layer in "${LAYERS[@]}"; do
-  value="$(section_value "$layer")"
-  # A near-miss heading stops resolution rather than letting a lower source
-  # supply a number the author did not intend.
-  [[ $? -eq 3 ]] && exit 1
+  value="$(section_value "$layer")" || exit 1
   [[ -n "$value" ]] || continue
-  if usable_pattern "$layer" "$value"; then
-    PATTERN="$value" SOURCE="$layer"
-    break
-  fi
+  usable_pattern "$layer" "$value" "$STOP" || exit 1
+  PATTERN="$value" SOURCE="$layer"
+  break
 done
 
 if [[ -z "$PATTERN" ]]; then
@@ -252,7 +263,7 @@ if [[ -z "$PATTERN" ]]; then
   # shellcheck disable=SC2016  # matching the literal placeholder text, not expanding it
   [[ "$LEGACY" == *'${user_config'* ]] && LEGACY=""
   [[ -n "$LEGACY" ]] || LEGACY="${CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN:-}"
-  if [[ -n "$LEGACY" ]] && usable_pattern userConfig "$LEGACY"; then
+  if [[ -n "$LEGACY" ]] && usable_pattern userConfig "$LEGACY" "ignored, default applies"; then
     PATTERN="$LEGACY" SOURCE="userConfig"
     note "the ${KEY} userConfig is deprecated; set a \`## ${KEY}\` section in .claude/source-control.md instead."
   fi

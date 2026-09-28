@@ -3,7 +3,18 @@ description: "Verify the biome-format hook's runtime prerequisites and configura
 argument-hint: "check | apply [install-biome]"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -23,8 +34,9 @@ install described below. All are non-interactive. Never prompt when the action i
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh`) is the single source of
 truth for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -34,7 +46,7 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
-2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of formatting.
 3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-local install walk (the `node_modules/.bin` path it tests, walking up from the
@@ -72,7 +84,8 @@ not the `node_modules/.bin` shim the hook resolves; install `@biomejs/biome` on 
 switch the linker. `node-modules`/`pnpm`, or Yarn Classic (which has no such setting and
 always materializes `node_modules`) → install. The verify-after-remediation rule below is
 the backstop when an install still yields no usable shim. After ANY remediation, re-run the
-relevant `check` probe and report its actual result. Never claim resolved on the install
+relevant `check` probe live via Bash (a pre-computed row predates the remediation) and report
+its actual result. Never claim resolved on the install
 command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;

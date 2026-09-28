@@ -253,6 +253,24 @@ assert_contains "schema: and says which version it wanted" "$bad" "schema_versio
 bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/absent.json" 2>&1)"
 assert_equals "schema: an unreadable record exits 1" "$?" "1"
 
+# A valid JSON record in another layout recovers no object line; comparing it
+# would report every repository and edge as added.
+tr -d '\n' <"$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/compact.json"
+awk '
+  /^[[:space:]]*[{]"name":/ { sub(/[{]"name":/, "{\n      \"name\":"); print; next }
+  { print }
+' "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/pretty.json"
+for shape in compact pretty; do
+  bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/$shape.json" 2>&1)"
+  assert_equals "layout: a $shape record exits 1" "$?" "1"
+  assert_contains "layout: and names the layout problem ($shape)" "$bad" "one-object-per-line layout"
+  assert_not_contains "layout: with no added line ($shape)" "$bad" "added"
+  assert_not_contains "layout: nor a removed line ($shape)" "$bad" "removed"
+done
+bash "$SCRIPT" "$repo" >"$TEST_TMPDIR/fresh.json"
+out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/fresh.json")"
+assert_equals "layout: the collector's own layout still compares clean" "$?" "0"
+
 # --- Case group 10: the subject owner is recorded ---------------------------
 #
 # Whether a checkout is internal turns on who owns it, not on someone having it

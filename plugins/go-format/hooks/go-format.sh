@@ -127,6 +127,12 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
 done <"$FILE"
 [[ $GENERATED -eq 1 ]] && emit_skipped
 
+# A file the repository gitignores is neither rewritten nor reported unless
+# go_format_lint_gitignored is set: a rewrite there has no `git checkout` to
+# undo it.
+hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
+  emit_skipped
+
 # Resolve the goimports binary from PATH — never downloaded. `command -v` is a
 # builtin, and the exec below looks the name up on PATH itself, so nothing here
 # needs the resolved path.

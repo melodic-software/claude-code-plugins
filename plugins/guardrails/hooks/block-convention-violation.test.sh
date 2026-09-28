@@ -158,6 +158,16 @@ run "PS: a commented here-string opener is refused here, not deferred (blocked)"
   $'Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
 run "PS: the @\047 spelling of the commented opener (blocked)" "$r" \
   $'Write-Output x # @\'\ngit commit -m x\n\'@ fine\'' 2 PowerShell
+# Keyed on the flag, not on the trigger name (#4682). The classifier names
+# herestring-comment-char only when no other trigger fired, so a `{` or an `iex`
+# on the same command reported its own trigger and this guard deferred.
+run "PS: a commented opener behind a {} construct is refused (blocked)" "$r" \
+  $'Write-Output {x} # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+run "PS: a commented opener behind an iex is refused (blocked)" "$r" \
+  $'iex a; Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+# ACCEPTED OVER-BLOCK: git-free text is refused too once the flag is up.
+run "PS: a commented opener behind a {} with no git in it (blocked, accepted over-block)" "$r" \
+  $'Write-Output {x} # @"\nhello\n"@' 2 PowerShell
 # ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" "$r" \
   $'Write-Output "#1" @"\nhello\n"@' 2 PowerShell
@@ -167,6 +177,18 @@ run "PS: a here-string body containing a # (allowed)" "$r" \
   $'Write-Output @\'\nrelease # 1\n\'@' 0 PowerShell
 run "PS: conforming here-string subject with a trailing comment (allowed)" "$r" \
   "$PS_GOOD # ok" 0 PowerShell
+
+# --- #4683: opener-untrusted / comment-span / bare-cr (FLAG-keyed, not deferred)
+run "PS: a quote on a confirmed opener prefix is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output "x" @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a backslash on a confirmed opener prefix is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output C:\\x @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a <# earlier than a confirmed opener is refused here, not deferred (blocked)" "$r" \
+  $'<# hi\nWrite-Output @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a bare CR is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output hi\rgit commit -m x' 2 PowerShell
+run "PS: CRLF canonical conforming here-string (allowed)" "$r" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "ABC-123: subject" "'@ | git commit -F -")" 0 PowerShell
 
 # --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
 r="$(newrepo "$TICKET")"

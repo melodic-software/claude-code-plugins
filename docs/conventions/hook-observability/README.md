@@ -40,7 +40,9 @@ telemetry..."`), not a generic `"Running hook..."`.
 
 ### 2. `systemMessage`: user-visible, scoped by who can act on the content
 
-An exit-0 JSON output field (`hookSpecificOutput` sibling), 10,000-character cap (an overflow to a
+A JSON output field (`hookSpecificOutput` sibling) that Claude Code reads on every exit code, exit 2
+included ("Claude Code still reads any valid JSON output on stdout", hooks reference, Exit code 2,
+fetched 2026-09-27), 10,000-character cap (an overflow to a
 file, not a truncation; see [Output caps](#output-caps-stated-by-the-reference)), shown to the
 user immediately. Composed via `hook::emit_channels` / `hook::emit_skip_notice`
 (`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document. Claude Code parses a
@@ -54,9 +56,9 @@ file, `jq`) causes the hook to silently no-op instead of performing its check. D
 
 This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"**. The
 label names *this* visible-skip rule and nothing more, and this section is its authoritative
-definition. (The `dim-N` numbers are an informal fleet-conformance shorthand, for example dim-8 =
-the uniform setup-skill wave and dim-11 = seam phrasing, with no central registry defining the numbering;
-giving the whole scheme a documented home is a separate follow-up, tracked outside this doc.)
+definition. (The `dim-N` numbers are conformance dimension ids, for example dim-8 = the uniform
+setup-skill wave and dim-11 = seam phrasing; [the conformance registry](../../conformance-dimensions.md)
+defines the numbering.)
 
 **Also required: a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
@@ -81,8 +83,10 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 
 - **Exit-2 blocking paths.** A `PreToolUse` hook that blocks a tool call via exit code 2 is
-  already user-visible through Claude Code's own permission-denial UI. An additional
-  `systemMessage` on top of a block would be redundant, not more observable.
+  already user-visible through Claude Code's own permission-denial UI, and Claude reads its stderr
+  as the denial reason. Repeating the block reason on `systemMessage` would be redundant, not more
+  observable. The field is not discarded on a block (see above), so a blocking hook may still carry
+  one, but only for content that meets the carve-out below, never for the reason itself.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
   for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
   is the correct channel for agent-actionable content, not a gap. This is the case the
@@ -223,6 +227,14 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 ## What this convention is not
 
+- **Not a diagnosis of host-level `PostToolUse` dispatch failure.** When every matching
+  `PostToolUse` ends `hook_cancelled` and no formatter runs, the three surfaces above never
+  emit. That case is recorded in [`docs/formatter-path-probes.md`](../../formatter-path-probes.md)
+  against
+  [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549): not a general
+  2.1.x product regression (Linux 2.1.258 completes), remaining probe is Windows-host
+  `claude --debug`. This convention does not grow a timeout or a substitute channel for a hook
+  that never ran.
 - **Not a new telemetry schema.** The envelope shape is `hook-telemetry`'s concern; this doc only
   states the adoption requirement.
 - **Not a blanket "add systemMessage everywhere" rule.** Scoped narrowly to the
@@ -286,10 +298,15 @@ Fleet audits check, per wired producer hook:
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
-  presence. Not mechanically gated, but reviewed per hook. As of this writing `context-guard`'s
-  `zone-crossing-inject.sh` is the only site in the fleet admitted this way; every other call site
-  is a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the
-  three conditions rather than to follow the precedent.
+  presence. Not mechanically gated, but reviewed per hook. As of this writing two sites in the
+  fleet are admitted this way: `context-guard`'s `zone-crossing-inject.sh`, and `guardrails`'
+  `block-hook-bypass.sh` operator-lever notice (#4679). That notice lists switches only the operator
+  may flip (condition 1); stderr separately carries the verdict and the agent's remedy, names an
+  operator option only as the operator's to set, and never says the operator has seen anything
+  (condition 2 and the delivery rule); and it fires once
+  per session and agent, with the latch's renewal declined (condition 3). Every other call site is
+  a prerequisite skip or a content-mutation notice, so a third one is a signal to re-read the three
+  conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
   reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.

@@ -17,11 +17,17 @@ This repo already has one sanctioned way to share source across plugins: a canon
 worked example.
 
 That mechanism exists for clusters that are meant to stay **byte-identical**. The assert-helper copies
-below are not that: they are already three genuinely different shapes, not one library that drifted.
+below are not that: they are three genuinely different *assertion-primitive* shapes (`ok`/`bad`,
+`pass`/`fail`, vendored-seam), not one library that drifted. The telemetry-sink pair
+`make_sink` / `wait_for_sink` is a different fact: one helper family that drifted, recorded
+below as sanctioned copy. Do not hoist it unpaid.
 
 - **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters, plus `make_sink`/`wait_for_sink` for
   hook telemetry): [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
   [`claude-ops/hooks/claude-ops-test-helpers.sh`](../../../plugins/claude-ops/hooks/claude-ops-test-helpers.sh).
+  Fourteen other suites still define `make_sink` inline (formatter family, `actionlint`,
+  `desktop-notification`, `context-guard`, `autonomy`, and `lib/hook-utils.test.sh`). Those
+  copies are sanctioned; see [make_sink copies](#make_sink-copies-sanctioned-until-a-plugin-local-helper).
 - **Skill-script shape** (`pass`/`fail`, `FAILED`/`CASE_NUM` counters, file-existence assertions):
   [`source-control/scripts/test-helpers.sh`](../../../plugins/source-control/scripts/test-helpers.sh),
   and `/repo-hygiene:clean`'s bundled test-helper copy, named rather than linked because it sits
@@ -64,6 +70,28 @@ A shared usage/exit helper would need to either flatten these distinct contracts
 denominator or grow branching per caller. Neither is simpler than each script documenting its own
 `Exit:` line, which every script here already does at its own usage banner.
 
+## make_sink copies (sanctioned until a plugin-local helper)
+
+Option A: park a repo-wide hoist. Declare the remaining inline copies sanctioned. Do not rewrite
+the formatter fleet unpaid.
+
+- **Claim:** `make_sink` / `wait_for_sink` is one helper family that drifted. A repo-wide
+  hoist into `lib/` plus `sync-*.sh`, or a rewrite of the fourteen inline suites onto a new
+  shared file, is unpaid and parked. The copies stay. When a plugin family grows enough pain,
+  it adds a *plugin-local* `*-test-helpers.sh`, the pattern `guardrails` and `claude-ops`
+  already followed. `ok` / `fail` counters stay duplicated.
+- **Basis:** Issue [#3412](https://github.com/melodic-software/claude-code-plugins/issues/3412)
+  and the 2026-09-05 triage comment (34 suites reference `make_sink`; 14 still define it
+  inline; two plugin-local helpers already exist). Re-measured 2026-09-28: 16 `make_sink()`
+  definitions (14 inline + `guardrails-test-helpers.sh` + `claude-ops-test-helpers.sh`).
+  `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change
+  the per-plugin rule. Fourteen suites is not a tiny rewrite.
+- **As of:** 2026-09-28.
+- **Recheck:** a maintainer funds a plugin-local helper for the formatter family, the
+  remaining inline definitions drop to a handful that a single-plugin PR can absorb, or
+  `guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` become byte-identical (the
+  vendoring trigger already in [Deferred, not rejected](#deferred-not-rejected)).
+
 ## Deferred, not rejected
 
 `guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` are the one pair above that already
@@ -78,3 +106,9 @@ precedented move, revisited then rather than spread across all five plugins now.
 Each copy site above carries a one-line pointer back to this doc. A new plugin adding its own
 `*.test.sh` assertion helper is not required to register anything here. Duplication of this shape is
 the accepted default, not an opt-in.
+
+A whole-tree `/code-metrics:audit-duplication --all` run with this repo's registry reports these
+helpers, counters, and result footers as its largest surviving clone classes, because no sync
+script declares them and a registry cluster line has to mirror one. Those rows are this decision
+made visible, not debt to fix; [`.claude/code-metrics.yaml`](../../../.claude/code-metrics.yaml)
+carries the same note beside the registry setting.

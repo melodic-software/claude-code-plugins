@@ -14,7 +14,7 @@ Severity and confidence come from the shared vocabulary
 project's own when it defines one. **This mode adds no grading scale of its own**: not a proof
 level, not an evidence rung, not a confidence variant. The two existing axes carry every finding.
 
-**Dispatch policy:** the producing main thread MUST NOT run the steps below inline. The thread that
+**Dispatch policy:** the producing main thread must not run the steps below inline. The thread that
 wrote the change is the worst judge of what the change reaches, for the same reason `self` mode
 refuses an inline checklist. Its model of "what this touches" is the one it already had while
 writing, so an inline pass re-derives the author's own blast-radius assumption and confirms it.

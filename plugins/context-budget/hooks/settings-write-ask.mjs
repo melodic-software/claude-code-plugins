@@ -5,14 +5,15 @@
 //
 // This is a CHECKPOINT, NOT A GUARANTEE — documented as such in the audit
 // skill: a PermissionRequest hook can still allow the call, and
-// disableAllHooks removes non-managed hooks. Empirically (v2.1.232, headless
-// -p mode, Linux): the ask fires and blocks the call even under
-// bypassPermissions, surfacing to the model as a tool error carrying the
-// permissionDecisionReason — headless "ask" degrades to block-with-reason
-// since nothing can prompt. Interactive bypassPermissions behavior remains
-// unmeasured; do not extrapolate. The checkpoint's value is that the
-// ordinary auto-mode path cannot rewrite settings silently while this
-// plugin is enabled.
+// disableAllHooks removes non-managed hooks. Empirically (headless -p, Linux,
+// Claude Code 2.1.263, re-read 2026-09-06): the ask fires and blocks in a
+// headless run that skips permissions, under default, auto, and
+// bypassPermissions, surfacing as a tool error carrying the
+// permissionDecisionReason. Headless "ask" degrades to block-with-reason
+// since nothing can prompt. Interactive behavior remains unmeasured; do not
+// extrapolate. The checkpoint's value is that a matched file-editing tool
+// cannot rewrite a settings file silently while this plugin is enabled.
+// A shell write is outside that claim.
 //
 // Fail-open: on any internal error or unrecognized payload, exit 0 with no
 // output — a broken checkpoint must not block unrelated writes. Kill switch:
@@ -21,7 +22,10 @@
 // Scope: settings.json / settings.local.json under a .claude directory (any
 // depth — project or user-global), plus managed-settings.json. Nothing else
 // matches, by design (hook-precision: false positives erode trust in the
-// prompt).
+// prompt). The matcher sees file-editing tool calls only: a settings write
+// through Bash/PowerShell, or one rendered into place by another program,
+// never reaches this script, and the hook is deliberately not widened to the
+// shell lane (#3864; README "Hook" records the decision).
 
 let raw = '';
 process.stdin.on('data', (d) => { raw += d; });

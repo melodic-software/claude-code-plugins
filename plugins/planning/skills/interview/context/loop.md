@@ -68,6 +68,25 @@ Run rounds until the stop condition is met. Each round:
 5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7"); a hedged reply is not an accept-shorthand (see "Hedged flag")
 6. **Recompute the tree.** What subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check:** when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes, since a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+8. **Frontier empty: sweep.** In `me` and `auto` with a register, run the assumption sweep before Step 3 ([`assumption-sweep.md`](assumption-sweep.md)); an `open` row it adds starts another round
+
+### Constraint ledger
+
+The ledger's `## Constraint ledger` section sits above `## Open-question register` in `interview-checklist.md`. One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously:
+
+```text
+- C1 | confirmed | V1 ships without SSO | user, round 1
+- C2 | inherited | no new runtime dependencies | docs/topics/exports/PLAN.md Brief
+```
+
+- **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
+- **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
+- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
+- **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
+
+### Composed artifacts and historical evidence
+
+Rules: SKILL.md Step 2 "Composed artifacts are candidates", "Label evidence by when it was true", and "What, not how: the mechanism tripwire". A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out.
 
 ### Where a round may fire
 
@@ -124,7 +143,7 @@ When the surface resolves to `page`, or the user asks for it, the frontier rende
 
 - **Delivery:** `ensure-running`, then `add-round` with the whole frontier; the register's `open` rows are written in the same step.
 - **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), the alternatives numbered, each commitment as its own unchecked row, and the constraint probe as the round's closing note, sent with `note-reply` (no `--seq`) so it lands in Notes to Claude, or as a Claude thread line on the round's first question.
-- **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`.
+- **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`, and so is a decision this session records or revises in the ledger.
 - **Degrade:** when the page cannot start (a missing prerequisite, a port that cannot bind, a remote host the browser cannot reach), render the read-only decision table below, same columns and grounding, and say in one line which prerequisite failed.
 
 The read-only decision table (the degrade):
@@ -173,6 +192,8 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 ```
 
 Tick on resolve. Surface the open set periodically (every few questions, or on request), not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
+
+**Commitment rows written after later ids exist.** When a commitment row is registered after rows with higher ids already exist (the page degrading to the terminal, a sweep item that turns out to be a part), it takes the next free `Q<N>` and names its headline in the question field: `- Q14 | open | round 4 | (part of Q5) token scope for the review step |`. For a late row, "numbered after their headline" in "Commitment rows" means the next free id, naming the headline, never an id squeezed in beside the headline, which would duplicate or gap the register and halt the gate.
 
 ### Incremental persistence + branch-out
 

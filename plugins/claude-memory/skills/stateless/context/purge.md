@@ -3,9 +3,13 @@
 Delete the auto-memory files for the current repo. This is irreversible. Never delete before
 the confirmation gate in Step 3.
 
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory. The
+stateless SKILL.md renders its absolute path; put it in place of the placeholder before running a
+command.
+
 For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set.
 In Step 1, the candidates are EVERY per-project store from
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/enumerate-all-projects.sh"` (plus any
+`bash "<skill-dir>/scripts/enumerate-all-projects.sh"` (plus any
 `autoMemoryDirectory` overrides found in the scopes readable from here), not just the current
 project's. Step 2 captures ONE combined manifest across all candidate dirs (the loop already
 takes a list). Step 3 raises ONE combined gate that states the machine-wide total file count

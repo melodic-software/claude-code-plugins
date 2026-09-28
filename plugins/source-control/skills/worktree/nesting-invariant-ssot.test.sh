@@ -131,14 +131,63 @@ else
   fail "expiry version arm matches N.N.N shape" "N.N.N" "${expiry_version:-empty}"
 fi
 
+# An expired stamp is acceptable only when the owner says so. The marker is the
+# honest state between an arm firing and an authenticated re-probe landing.
+EXPIRED_MARKER="**Stamp status: expired, pending re-probe.**"
+stamp_marked_expired=false
+[[ "$owner_text" == *"$EXPIRED_MARKER"* ]] && stamp_marked_expired=true
+
+# nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0
+# when installed is at or past the expiry version.
+nesting_invariant_version_passed() {
+  local -a e i
+  local n
+  IFS=. read -r -a e <<<"$1"
+  IFS=. read -r -a i <<<"$2"
+  for n in 0 1 2; do
+    ((10#${i[n]:-0} > 10#${e[n]:-0})) && return 0
+    ((10#${i[n]:-0} < 10#${e[n]:-0})) && return 1
+  done
+  return 0
+}
+
+# Version arm: enforce against the installed CLI when one is present. CI may
+# have none; NESTING_INVARIANT_INSTALLED_VERSION overrides the probe.
+installed_version="${NESTING_INVARIANT_INSTALLED_VERSION:-}"
+if [[ -z "$installed_version" ]] && command -v claude >/dev/null 2>&1; then
+  installed_version="$(claude --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+fi
+if [[ -n "$expiry_version" && -n "$installed_version" ]]; then
+  if ! nesting_invariant_version_passed "$expiry_version" "$installed_version"; then
+    pass "nesting-invariant stamp version arm is still fresh (installed $installed_version < $expiry_version)"
+  elif $stamp_marked_expired; then
+    pass "installed $installed_version is past the $expiry_version arm and the owner is marked expired"
+  else
+    fail "installed Claude Code is past the version arm but the owner is not marked expired" \
+      "before $expiry_version, or '$EXPIRED_MARKER' in the owner" \
+      "installed=$installed_version — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
+  fi
+fi
+
+if nesting_invariant_version_passed "2.1.244" "2.1.278" &&
+  nesting_invariant_version_passed "2.1.244" "2.1.244" &&
+  ! nesting_invariant_version_passed "2.1.244" "2.1.99" &&
+  ! nesting_invariant_version_passed "2.1.244" "2.1.243"; then
+  pass "expiry version comparison orders releases numerically"
+else
+  fail "expiry version comparison orders releases numerically" "numeric order" "lexical or broken"
+fi
+
 # Date arm: enforce. Inject today so the red path is exercised in-suite.
 if [[ -n "$expiry_date" ]]; then
   today="$(date -u +%Y-%m-%d)"
-  if nesting_invariant_expiry_date_passed "$expiry_date" "$today"; then
+  if ! nesting_invariant_expiry_date_passed "$expiry_date" "$today"; then
+    pass "nesting-invariant stamp date arm is still fresh (today=$today < $expiry_date)"
+  elif $stamp_marked_expired; then
+    pass "today ($today) is past the $expiry_date arm and the owner is marked expired"
+  else
     fail "nesting-invariant stamp date arm is still fresh (today < $expiry_date)" \
       "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
-  else
-    pass "nesting-invariant stamp date arm is still fresh (today=$today < $expiry_date)"
   fi
 
   # Red path: a synthetic post-expiry "today" must be detected. A comparison

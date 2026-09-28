@@ -834,8 +834,8 @@ Four-step task. Each step appends one line to `notes.md` and commits it:
 def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
     fixture = Path(tempfile.mkdtemp(prefix=f"ccp-hop-{run}-", dir=str(work_dir)))
     (fixture / ".work" / "handoffs").mkdir(parents=True, exist_ok=True)
-    # Pre-created: the skill's self-ignore guard appends through a shell
-    # redirect, which a guardrails-equipped child cannot run.
+    # Pre-created so the hop under test is the handoff itself, not the
+    # self-ignore guard's first write.
     (fixture / ".work" / ".gitignore").write_text("*\n", encoding="utf-8", newline="\n")
     (fixture / "README.md").write_text(TASK_README, encoding="utf-8", newline="\n")
     if pad_tokens > 0:

@@ -4,6 +4,11 @@ Report the effective auto-memory posture for the current repo. Change nothing.
 For `status all` (machine-wide), do Steps 1–3 for the current project as usual, then add
 the machine-wide table in Step 3b.
 
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory: the
+stateless skill's directory, even when the audit skill sent you here. The stateless SKILL.md
+renders its absolute path; when that skill did not load, take it from the path you read this file
+at. Put it in place of the placeholder before running a command.
+
 ## Step 1: Read the snapshot
 
 The SKILL.md snapshot already ran `scope-report.sh`, which lists each settings scope file
@@ -12,7 +17,7 @@ The SKILL.md snapshot already ran `scope-report.sh`, which lists each settings s
 `MEMORY.md` line count and topic-file count. If the snapshot is missing, run:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/scope-report.sh"
+bash "<skill-dir>/scripts/scope-report.sh"
 ```
 
 ## Step 2: Read the setting values from each present scope
@@ -47,7 +52,7 @@ you cannot inspect it, don't assume it is empty.
 Enumerate every per-project store on this machine:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/enumerate-all-projects.sh"
+bash "<skill-dir>/scripts/enumerate-all-projects.sh"
 ```
 
 One line per `<config root>/projects/*/memory` dir with MEMORY.md line count and topic-file

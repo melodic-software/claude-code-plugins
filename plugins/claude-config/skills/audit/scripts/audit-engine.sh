@@ -7,7 +7,8 @@
 # and the placement rules around it (B), MCP server shape (C), hook path, timeout
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
 # and drift (E), the secret scan and env-vars documentation status (F), the
-# skill-listing measurement from an existing debug log (G), model and effort
+# skill-listing measurement from an existing debug log and the skillOverrides
+# entries that cannot take effect (G), model and effort
 # values (H), and deep-link registration (I). Each decided row is emitted once,
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
@@ -385,6 +386,13 @@ probe_scope project "$SETTINGS"
 probe_scope local "$LOCAL"
 probe_scope mcp "$MCP"
 [[ -n "$USER_SETTINGS" ]] && probe_scope user "$USER_SETTINGS"
+# The user dir's settings.local.json is no audited scope, but category G reads
+# its skillOverrides whatever the project root, so the read is listed here. In
+# a home-rooted run it is the local scope, already listed (file identity, since
+# the two roots can be spelled differently on Windows).
+if [[ -n "$USER_DIR" ]] && ! [[ -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
+  probe_scope user-local "$USER_DIR/settings.local.json"
+fi
 
 if [[ "${SCOPE_STATE[project]}" == "absent" ]]; then
   echo "ERROR: no project settings at $SETTINGS" >&2
@@ -1125,6 +1133,46 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   done <<<"$entries"
 done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
 
+# --- Declared unattended-push lane (narrowing 1, ask-rules family only) ------
+# A permissions.ask rule prompts even in auto mode and is auto-denied under
+# dontAsk, so recommending the git push ask-gates to a repo that runs an
+# unattended lane would stall or break that lane's own pushes. The signal is
+# babysit_loop_merge resolving above human-only in the team-tracked
+# .claude/source-control.md: raises bind from that layer only
+# (source-control's config-resolution.md), and a file that adopts loop-lane
+# keys without the merge key resolves to the c2-mechanical baseline.
+UNATTENDED_LANE=""
+SC_TEAM="$PROJECT_ROOT/.claude/source-control.md"
+if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
+  IFS=$'\t' read -r lane_adopted lane_rung < <(awk '
+    {
+      sub(/\r$/, "")
+    }
+    /^## / {
+      inkey = ($0 ~ /^## babysit_loop_merge[ \t]*$/)
+      if ($0 ~ /^## babysit_loop_/) adopted = 1
+      next
+    }
+    inkey && NF && val == "" {
+      val = $0
+      gsub(/^[ \t`]+|[ \t`]+$/, "", val)
+    }
+    END { printf "%s\t%s\n", adopted ? 1 : 0, val }
+  ' "$SC_TEAM")
+  lane_source="babysit_loop_merge: $lane_rung"
+  if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
+    lane_rung="c2-mechanical"
+    lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
+  fi
+  case "$lane_rung" in
+  c2-mechanical | c3-autonomous | full-autonomy)
+    UNATTENDED_LANE="$lane_source in the team-tracked .claude/source-control.md declares an unattended-push lane"
+    ;;
+  *) ;;
+  esac
+fi
+ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under dontAsk, so it blocks an unattended lane's pushes"
+
 # --- Category B: permissions -------------------------------------------------
 
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
@@ -1150,15 +1198,23 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
       row B "baseline-$fam" ok none "$SURF_SETTINGS" "present-pattern:$pat" "$target carries $pat" -
       continue
     fi
+    lane_note=""
+    if [[ "$fam" == "ask-rules" ]]; then
+      lane_note="; $ASK_BLOCKS_LANES"
+      if [[ -n "$UNATTENDED_LANE" ]]; then
+        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; narrowing 1 applies: $UNATTENDED_LANE$lane_note" "/permissions/$target"
+        continue
+      fi
+    fi
     if [[ -n "${COVERED_BY[$pat]:-}" ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
         row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it" "/permissions/$target"
       else
-        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON" "/permissions/$target"
+        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON$lane_note" "/permissions/$target"
       fi
       continue
     fi
-    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check" "/permissions/$target"
+    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check$lane_note" "/permissions/$target"
   done
   # Broad allow entries and the completeness rows, both informational.
   while IFS= read -r a; do
@@ -1649,6 +1705,93 @@ if [[ -n "$DEBUG_LOG" ]]; then
   fi
 else
   row G listing-budget skip none "settings" "listing-not-measured" "no debug log found (--debug-log, CLAUDE_CODE_DEBUG_LOGS_DIR, or <user dir>/debug/*.txt); measure with /doctor interactively or a --debug relaunch, never report clean" -
+fi
+
+# --- Category G: skillOverrides entries that cannot take effect ------------------
+#
+# skills: "Plugin skills are not affected by `skillOverrides`." A key whose
+# prefix before the first colon names a plugin this machine knows (the
+# installed registry, or any enabledPlugins key in a scope, false included) is
+# inert. Any other colon key may be a nested directory-qualified skill
+# (apps/web:deploy) or a claude.ai-synced one (anthropic-skills:), which the
+# docs do not settle, so it is not decided. Keys only: an override value from a
+# local file never reaches a row.
+
+G_PLUGINS="$(
+  {
+    [[ -n "$INSTALLED_JSON" && -f "$INSTALLED_JSON" ]] &&
+      tr -d '\r' <"$INSTALLED_JSON" | ejq -c '.plugins | if type == "object" then keys else [] end'
+    for gf in "$USER_OK:$USER_SETTINGS" "$PROJECT_OK:$SETTINGS" "$LOCAL_OK:$LOCAL"; do
+      [[ "${gf%%:*}" == "1" ]] && tr -d '\r' <"${gf#*:}" | ejq -c '.enabledPlugins | if type == "object" then keys else [] end'
+    done
+  } | ejq -c -s 'add // [] | map(select(type == "string") | sub("@[^@]*$"; "") | {key: ., value: true}) | from_entries'
+)"
+[[ -n "$G_PLUGINS" ]] || G_PLUGINS='{}'
+
+# One file under two labels (a home-rooted run, where .claude/settings.json is
+# the user settings file) is scanned once, under the first label: user.
+G_SCANNED=()
+g_overrides() {
+  # g_overrides <ok> <file> <surface>
+  local ok="$1" file="$2" surface="$3" seen kind ptr key prefix
+  [[ "$ok" -eq 1 ]] || return 0
+  for seen in "${G_SCANNED[@]}"; do
+    [[ "$file" -ef "$seen" ]] && return 0
+  done
+  G_SCANNED+=("$file")
+  # Tab-separated fields, each escaped by @tsv so a key with a tab or newline
+  # stays one row; the possibly empty prefix is last so no field shifts.
+  while IFS=$'\t' read -r kind ptr key prefix; do
+    [[ -n "$kind" ]] || continue
+    if [[ "$kind" == "plugin" ]]; then
+      row G skill-override-plugin finding warning "$surface" "skill-override-plugin:$key" \
+        "skillOverrides key $key names plugin $prefix, and plugin skills are not affected by skillOverrides (skills: \"Plugin skills are not affected by \`skillOverrides\`\"; settings-reference: \"Overrides don't apply to plugin skills, which you manage through \`/plugin\`\"), so this entry never takes effect. The reachable levers are enabledPlugins or /plugin for the whole plugin, or disable-model-invocation in the skill's frontmatter, which is the plugin author's to set" \
+        "$ptr"
+    else
+      row G skill-override-plugin skip none "$surface" "skill-override-plugin:$key" \
+        "skillOverrides key $key has a colon but $prefix names no plugin in the installed registry or any enabledPlugins key; it may be a nested directory-qualified skill (apps/web:deploy) or a claude.ai-synced skill (anthropic-skills:), and the docs do not settle whether an override reaches it; not decided" -
+    fi
+  done < <(tr -d '\r' <"$file" | ejq -r --argjson P "$G_PLUGINS" '
+    .skillOverrides | if type == "object" then keys_unsorted[] else empty end
+    | select(contains(":")) | . as $k | (split(":") | .[0]) as $p
+    | [(if $P | has($p) then "plugin" else "unresolved" end),
+       ("/skillOverrides/" + ($k | gsub("~"; "~0") | gsub("/"; "~1"))), $k, $p] | @tsv')
+}
+g_overrides "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
+g_overrides "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
+g_overrides "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
+
+# The user dir's settings.local.json is the project-local file of a session
+# started in the home directory only (settings: Project local is
+# `.claude/settings.local.json`, "You, in this one project only"), so overrides
+# there reach no other project. Read whatever the project root, as the
+# user-local scope; when it is the local scope instead, category A already
+# reported it unreadable or invalid.
+G_UL_STATE="${SCOPE_STATE[user-local]:-}"
+if [[ -z "$G_UL_STATE" && -n "$USER_DIR" && -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
+  G_UL_STATE=local
+fi
+if [[ -n "$G_UL_STATE" && "$G_UL_STATE" != absent ]]; then
+  G_UL="$USER_DIR/settings.local.json"
+  g_ul_ok=0
+  g_ul_report=1
+  if [[ "$G_UL_STATE" == local ]]; then
+    g_ul_ok=$LOCAL_OK
+    g_ul_report=0
+  elif [[ "$G_UL_STATE" == ok ]]; then
+    g_ul_ok=1
+  fi
+  if [[ $g_ul_ok -eq 1 ]]; then
+    g_ul_n="$(tr -d '\r' <"$G_UL" | ejq -r '.skillOverrides | if type == "object" then length else 0 end')"
+    if [[ "${g_ul_n:-0}" =~ ^[0-9]+$ && "${g_ul_n:-0}" -gt 0 ]]; then
+      row G skill-override-home-local finding info "user:settings.local.json" "skill-override-home-local" \
+        "the user dir's settings.local.json holds skillOverrides entries ($g_ul_n). It is the project-local settings file for sessions started in the home directory only (settings: Project local is .claude/settings.local.json, \"You, in this one project only\"; User is ~/.claude/settings.json), so these entries do not reach sessions in other projects. A user-wide override belongs in settings.json. The /skills menu saves here from a home-rooted session, so this may be intended" \
+        /skillOverrides
+    fi
+  elif [[ $g_ul_report -eq 1 ]]; then
+    row G skill-override-home-local not-inspectable none "user:settings.local.json" "skill-override-home-local" \
+      "the user dir's settings.local.json is present but unreadable or not valid JSON; whether it holds skillOverrides entries is not decided" -
+  fi
 fi
 
 # --- Category H: model and effort values -----------------------------------------

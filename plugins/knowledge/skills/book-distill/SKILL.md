@@ -1,5 +1,5 @@
 ---
-description: "Distill a technical book (PDF or EPUB) into concept-organized skill reference files via a structured multi-session pipeline. Use when: 'distill this book', 'book to skill', 'PDF to skill', 'EPUB to skill', 'read this book for me', 'extract knowledge from this book', 'book distillation', 'turn this book into a skill', 'extract from PDF'; or when user provides a PDF/EPUB path and asks to create or extend a skill from it. Produces author-attributed reference files (60-160 lines each), named by concept not chapter, with routing table updates to the target skill's SKILL.md. Handles multi-author merges and Phase 3 shared-file consolidation. Not for ad-hoc book summaries. Output is structured developer-facing context files the target skill routes at query time."
+description: "Distill a technical book (PDF or EPUB) into concept-organized skill reference files. Use when: 'distill this book', 'book to skill', 'PDF to skill', 'EPUB to skill', 'read this book for me', 'extract knowledge from this book', 'book distillation', 'turn this book into a skill', 'extract from PDF', or the user provides a PDF/EPUB path. Output is structured developer-facing context, not an ad-hoc summary. Docs pages go to /knowledge:docpage-digest."
 argument-hint: "[path to PDF/EPUB] [target skill name]"
 user-invocable: true
 disable-model-invocation: false
@@ -68,7 +68,7 @@ This is the core loop. Repeat for every chapter in the file plan.
 
 This is the single most important rule in the entire process:
 
-> **Read ONE chapter. Write its file IMMEDIATELY. Then read the next chapter.**
+> Read one chapter. Write its file immediately. Then read the next chapter.
 
 Never read multiple chapters before writing. Reading the entire book before writing produces one mediocre file from a full book's worth of context. The interleaved approach produces focused, high-quality files because each chapter is fresh when writing.
 

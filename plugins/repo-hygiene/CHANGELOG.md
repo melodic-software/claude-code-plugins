@@ -3,6 +3,25 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.51] - 2026-09-28
+
+### Changed
+
+- **`clean` destructive guard: branch and remote-branch deletion stay out of
+  scope (#3852).** The net still does not match `git branch -D`/`-d` or
+  `git push --delete`. That is the settled coverage, not an open defect. Local
+  deletion remains `git-branch-delete.sh` after the confirmation gate. Recorded
+  in the guard header, the skill frontmatter and body, and the README.
+
+## [0.10.50] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `ghq` at load time.** The `command -v ghq` check runs as pre-computed context, so
+  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
+  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
+  still probes live. `git` stays a body probe.
+
 ## [0.10.49] - 2026-09-27
 
 ### Fixed
