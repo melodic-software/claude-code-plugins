@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.74] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`): the remaining words joined for the default shell, or re-quoted argv after `-e`, `--exec` or `--shell-type none`, with wsl's `-d`, `-u`, `--cd`, `--distribution-id` and `--shell-type` operands stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.7.73] - 2026-09-27
 
 ### Changed

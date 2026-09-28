@@ -3287,6 +3287,10 @@ hook::env_s_split() {
 # (`sudo bash -c …`) are NOT resolved here — a documented residual of the
 # static-matcher posture. A shell invoked on a script file (no -c) never
 # matches: file contents cannot be inspected statically.
+#
+# `wsl` / `wsl.exe` at the command position is read the same way: it runs its
+# command line inside a Linux distribution, so that command line is the operand
+# (hook::wsl_operand).
 # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
 hook::shell_c_operand() {
   local -a w=("$@")
@@ -3296,6 +3300,13 @@ hook::shell_c_operand() {
   ((i < n)) || return 1
   b="${w[i]##*/}"
   b="${b##*\\}"
+  # wsl.exe is reachable by that name from Git Bash and from inside a distro
+  # (interop, through a case-insensitive /mnt/c), so it is folded on every OS.
+  t="${b,,}"
+  if [[ "${t%.exe}" == wsl ]]; then
+    hook::wsl_operand "${w[@]:i+1}"
+    return
+  fi
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32)
     b="${b,,}"
@@ -3329,6 +3340,62 @@ hook::shell_c_operand() {
   ((has_c)) || return 1
   ((i < n)) || return 1
   HOOK_SHELL_C_OPERAND="${w[i]}"
+  return 0
+}
+
+# The command line a `wsl` / `wsl.exe` invocation runs, as one shell string in
+# HOOK_SHELL_C_OPERAND, from the words after the wsl word. Grammar from the
+# `wsl.exe --help` text (MessageWslUsage in microsoft/WSL
+# localization/strings/en-US/Resources.resw): `wsl.exe [Argument] [Options...]
+# [CommandLine]`. Without `-e`/`--exec`, the command line goes to the distro's
+# default shell, so the remaining words joined by spaces are what that shell
+# parses. `-e`/`--exec` and `--shell-type none` run the words as argv with no
+# shell; a word that carries a shell metacharacter is single-quoted so the
+# re-parse keeps it one literal word. `--` passes the rest as-is. `--cd`,
+# `-d`/`--distribution`, `--distribution-id`, `-u`/`--user` and `--shell-type`
+# take an operand. Any other option (the `--list`/`--install`/`--shutdown`
+# management verbs, `--system`) is stepped over alone: a word left behind a
+# management verb is re-parsed as a command line, which can only over-read.
+# Returns 1 when no command line remains.
+# shellcheck disable=SC2034  # result global is consumed by the sourcing guard
+hook::wsl_operand() {
+  local -a w=("$@")
+  local n=${#w[@]} i=0 exec_mode=0 out="" wd
+  while ((i < n)); do
+    case "${w[i]}" in
+    --)
+      ((i++))
+      break
+      ;;
+    -e | --exec)
+      exec_mode=1
+      ((i++))
+      break
+      ;;
+    --shell-type)
+      [[ "${w[i + 1]-}" == none ]] && exec_mode=1
+      ((i += 2))
+      ;;
+    --cd | -d | --distribution | --distribution-id | -u | --user) ((i += 2)) ;;
+    -*) ((i++)) ;;
+    *) break ;;
+    esac
+  done
+  ((i < n)) || return 1
+  if ((exec_mode)); then
+    local safe='^[][A-Za-z0-9_./:=+,@%~*?^-]+$'
+    for wd in "${w[@]:i}"; do
+      if [[ "$wd" =~ $safe ]]; then
+        out+="$wd "
+      else
+        out+="'${wd//\'/\'\\\'\'}' "
+      fi
+    done
+    HOOK_SHELL_C_OPERAND="${out% }"
+  else
+    local IFS=' '
+    HOOK_SHELL_C_OPERAND="${w[*]:i}"
+  fi
   return 0
 }
 

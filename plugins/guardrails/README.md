@@ -117,6 +117,21 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.8**). It runs its
+  command line inside a Linux distribution, so every guard that re-parses a
+  `sh -c` operand (`block-no-verify`, `block-dangerous-git`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-root-delete-target`) re-parses that command line too: `wsl git reset
+  --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
+  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) are stepped
+  over. Without `-e` / `--exec` the remaining words are joined into one line for
+  the distro's default shell, which over-reads a quoted `;` or `>` that the
+  shell would keep literal. With `-e` each word stays one argv word. On the
+  PowerShell tool `wsl` is a launcher, so it reaches the fail-closed sink with
+  `Start-Process`, `pwsh` and `cmd`. Not covered: `block-windows-drive-tmp` and
+  `block-exported-msys-pathconv` do not re-parse a `-c` operand at all, and
+  `block-root-delete-target` judges a relative target from the payload `cwd`,
+  not from `wsl --cd`.
 - **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
   often filed together; only one is a live bypass (#2151 item A, inherited
   `--git-dir`/`--work-tree` in a `!` alias body). The other two are

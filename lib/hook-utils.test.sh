@@ -1718,6 +1718,26 @@ else
   fail "git_invocation (bash -lc operand): got [$gitinv_shell_c_sub]"
 fi
 
+# wsl / wsl.exe runs its command line in a Linux distro, so shell_c_operand
+# hands back that line: joined for the default shell, re-quoted argv after -e.
+wsl_operand_is() {
+  local desc="$1" want="$2" got
+  shift 2
+  HOOK_SHELL_C_OPERAND=""
+  if hook::shell_c_operand "$@"; then got="rc=0 [$HOOK_SHELL_C_OPERAND]"; else got="rc=1"; fi
+  if [[ "$got" == "$want" ]]; then ok "shell_c_operand (wsl): $desc"; else fail "shell_c_operand (wsl): $desc: want [$want] got [$got]"; fi
+}
+wsl_operand_is "default shell joins the command line" "rc=0 [git reset --hard]" wsl git reset --hard
+wsl_operand_is "a quoted word is part of the line" "rc=0 [git status && git clean -fd]" wsl 'git status && git clean -fd'
+wsl_operand_is "run options are stepped over" "rc=0 [git push]" WSL.EXE -d Ubuntu -u root --cd / --distribution-id x git push
+wsl_operand_is "-- ends the options" "rc=0 [-x git push]" /mnt/c/Windows/System32/wsl.exe -- -x git push
+wsl_operand_is "-e keeps argv words literal" "rc=0 [git commit -m 'a; b' 'it'\\''s']" wsl -e git commit -m 'a; b' "it's"
+wsl_operand_is "--shell-type none is argv" "rc=0 [echo '>' x]" wsl --shell-type none echo '>' x
+wsl_operand_is "--shell-type login is the shell" "rc=0 [echo > x]" wsl --shell-type login echo '>' x
+wsl_operand_is "a management verb alone leaves no command line" "rc=1" wsl --list --verbose
+wsl_operand_is "a bare wsl runs no command line" "rc=1" wsl
+wsl_operand_is "a word merely starting with wsl is not wsl" "rc=1" wslpath -w /tmp
+
 # --- The pieces a git guard composes around that invocation -------------------
 # Each is reachable here on its own, so a rule stated in one place is asserted in
 # one place rather than only through whichever guard spawn happens to reach it.

@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.61] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`): the remaining words joined for the default shell, or re-quoted argv after `-e`, `--exec` or `--shell-type none`, with wsl's `-d`, `-u`, `--cd`, `--distribution-id` and `--shell-type` operands stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.7.60] - 2026-09-27
 
 ### Changed
