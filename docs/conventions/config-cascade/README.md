@@ -321,6 +321,53 @@ surface, or amend this contract) is a separate human-gated decision.
 
 - none currently.
 
+## Semantics at a glance
+
+Who wins and which merge form each surface uses, so an operator does not have to re-learn the
+Implementers row from scratch. The engines stay separate (#3575): this table is an index, not a
+unification. The Implementers row remains the contract for path, layers, and conformance.
+
+| Surface | Who wins | Merge form |
+|---|---|---|
+| `source-control` | later layer; team on the merge-rung; fail-closed on a bad `branch_issue_pattern` | per-key |
+| `toolchain` / `ecosystem-commands` | later layer | per-key |
+| `codebase-health` | later layer | concatenate |
+| `bugs` | later layer | lanes concatenate; `filing_posture` nearest-wins |
+| `github` | team on write-posture keys; later layer otherwise | per-key (`routing.yaml`); concatenate (`conventions.md`) |
+| `autonomy` | later layer except security axes | declared |
+| `standards` | team on conflict (policy-floor) | add/tighten |
+| `disk-hygiene` | team over user-global; `--policy` replaces both | additive standing layers |
+| `ai-briefing` | team only | no overlay |
+| `code-tidying` | team only; residual wholesale if no `## Merge semantics` | per-section when declared |
+| `code-metrics` | later layer | per-key |
+| `topic-docs` | team only | single-layer |
+| `repo-fleet-hygiene` | `--config` then team then user-global | whole-file, no per-key |
+| `work-items` | overlay on the allowlist; schedule is team-only | per-key overlay |
+| `ai-slop` | later layer | per-key (lists replace) |
+| `docs-hygiene` | later layer; team on named policy-floor keys | per-key |
+| `rendered-views` | later layer | per-key |
+| `testing` (`run-e2e`) | later layer | per-key |
+| `plugin-quality` | team via pointer line | convention doc |
+| `architecture` | team via pointer line | convention doc |
+| `claude-config` (`audit-pass`) | team on conflict (policy-floor) | per-key |
+| `authoring-formats` | team via pointer line | convention doc |
+| `instruction-placement` | team on conflict (policy-floor) | per-key |
+| `overengineering` | team on conflict for protected keys | per-key |
+| `songwriting` | team only; not a cascade | first-match templates |
+
+A generated table off the Implementers rows, and a one-line "who wins" in each setup `check`, stay
+out of this change. Either would unify presentation without unifying engines; file that as its own
+slice if an operator still cannot find the row.
+
+- **Claim:** per-surface cascade semantics stay; this index plus the Implementers pointer is the
+  operator-facing summary; engines are not unified.
+- **Basis:** #3575. The Implementers table already declared each variant. Standard later-wins,
+  policy-floor inversion, `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
+  whole-file ladder are the four classes the issue named.
+- **As of:** 2026-09-28.
+- **Recheck:** a new surface lands without a glance row, or a maintainer funds a generated table
+  or a per-setup `check` line.
+
 ## Implementers
 
 Conformance is tracked, not assumed. A surface is listed here whether or not it conforms. The gap is
