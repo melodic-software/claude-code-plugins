@@ -9,6 +9,8 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 ## Deviations and Implementers table, 2026-09-28
 
+- **`code-metrics` `.claude/code-metrics.yaml` (#3847).** The table gains the surface the plugin already ships: all three layers, per-key override, keys owned by `plugins/code-metrics/reference/config.md`. No contract rule change, so no version bump.
+
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
   gains the surface's divergence from rule 4 (degrade soft on a malformed layer): a layer whose
   `## branch_issue_pattern` section exists but yields no usable pattern stops resolution with no
