@@ -132,6 +132,10 @@ base)
     esac
   done
   ;;
+*)
+  printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
+  gate_entry::finish 2
+  ;;
 esac
 
 violations=0

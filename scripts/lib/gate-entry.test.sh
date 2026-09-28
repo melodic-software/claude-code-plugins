@@ -2,6 +2,8 @@
 # Entry-protocol tests. The subshell cases run in a child bash: a fatal inside
 # this process would take the suite down with it, which is the property under
 # test.
+#
+# shellcheck disable=SC2016  # child programs stay single-quoted so this shell does not expand $1 before bash -c
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

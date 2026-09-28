@@ -153,6 +153,10 @@ base)
     files+=("$f")
   done
   ;;
+*)
+  printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
+  gate_entry::finish 2
+  ;;
 esac
 
 if ((${#files[@]} == 0)); then
