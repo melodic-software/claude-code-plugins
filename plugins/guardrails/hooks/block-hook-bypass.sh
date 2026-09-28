@@ -968,9 +968,14 @@ scratch_target_exempt() {
   fi
   # A target the strict normalizer refuses has one more chance, and only at the
   # temp default: an 8.3 short-name spelling, confirmed through the resolver.
+  # A decline keeps the strict refusal, so the block still names an
+  # unnormalized target instead of omitting the reason line.
   if ! _norm_path "$abs"; then
-    _bbh_short_temp_exempt "$abs"
-    return
+    if _bbh_short_temp_exempt "$abs"; then
+      return 0
+    fi
+    _BBH_SCRATCH_REFUSAL=unnormalized
+    return 1
   fi
   if [[ -z "$_NORM_PATH" ]]; then
     _BBH_SCRATCH_REFUSAL=unnormalized

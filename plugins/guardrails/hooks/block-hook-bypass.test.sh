@@ -2131,9 +2131,15 @@ else
     chmod +x "$S83_SHIM/$S83_BIN"
   done
   : >"$S83_LOG"
+  run_cwd "8.3 sim: a plain target outside temp blocks" \
+    "echo hello > /srv/plain/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  S83_BASE=$(<"$S83_LOG")
+  : >"$S83_LOG"
   run_cwd "8.3 sim: a ~ target outside every temp spelling blocks" \
     "echo hello > /srv/progra~1/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
-  assert_eq "8.3 sim: that miss spawned no resolver" "" "$(<"$S83_LOG")"
+  # The block message names the temp tree, which resolves the temp candidates
+  # once. The short-name miss must not add a resolver of its own.
+  assert_eq "8.3 sim: that miss spawned no resolver" "$S83_BASE" "$(<"$S83_LOG")"
   : >"$S83_LOG"
   run_cwd "8.3 sim: shim run of the allowed short-name target" \
     "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
