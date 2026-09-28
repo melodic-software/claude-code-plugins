@@ -1529,6 +1529,7 @@ expect_both 'PS Get-Process allowed' 0 \
   --tool PowerShell --command 'Get-Process'
 
 # Outside-tree, with a payload cwd, same classes as Bash.
+# portability-ok: Windows path string in a test fixture, not a regex/sed construct
 expect_both 'PS Remove-Item -Recurse C:\Windows blocks with cwd' 2 \
   --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse C:\Windows'
 expect_both 'PS Remove-Item -Recurse ./build allowed with cwd' 0 \
