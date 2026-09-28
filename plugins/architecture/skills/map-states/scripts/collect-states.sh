@@ -277,7 +277,7 @@ BEGIN {
     while ((getline raw < path) > 0) {
       if (raw ~ /createMachine[[:space:]]*\(/) seen = 1
       if (index(raw, "StateMachine<") > 0) seen = 2
-      if (raw ~ /\.status[[:space:]]*=/ || raw ~ /\.Status[[:space:]]*=/ || raw ~ /[Ss]tatus[[:space:]]*=[[:space:]]*[\047"]/) adhoc = 1
+      if (raw ~ /\.status[[:space:]]*=/ || raw ~ /\.Status[[:space:]]*=/ || raw ~ /status[[:space:]]*=[[:space:]]*[\047"]/ || raw ~ /Status[[:space:]]*=[[:space:]]*[\047"]/) adhoc = 1
     }
     close(path)
     if (seen == 1) { parse_xstate(path, rel); if (failed) exit }

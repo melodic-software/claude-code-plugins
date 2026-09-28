@@ -92,7 +92,6 @@ key's mermaid default should change and whether `/architecture:map-landscape`'s 
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
-
 ## State diagrams
 
 `/architecture:map-states` writes `states.json` and `states.md` into `architecture_dir`. The picture

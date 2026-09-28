@@ -104,7 +104,7 @@ BEGIN { out = ENVIRON["OUT"]; entity = ENVIRON["ENTITY"] }
 /"confidence"[[:space:]]*:/ { conf = jstr($0, "confidence") }
 /^[[:space:]]*\{"id":/ { if (jstr($0, "id") == entity) { initial = jstr($0, "initial"); library = jstr($0, "library"); evidence = jstr($0, "evidence") } }
 /^[[:space:]]*\{"state":/ { if (jstr($0, "entity") == entity) { ns++; sname[ns] = jstr($0, "name"); sfinal[ns] = jstr($0, "final") } }
-/^[[:space:]]*\{"from":/ { if (jstr($0, "entity") == entity) { nt++; tfrom[nt] = jstr($0, "from"); tto[nt] = jstr($0, "to"); ttrig[nt] = jstr($0, "trigger"); tguard[nt] = jstr($0, "guard") } }
+/^[[:space:]]*\{"from":/ { if (jstr($0, "entity") == entity) { nt++; tfrom[nt] = jstr($0, "from"); tdest[nt] = jstr($0, "to"); ttrig[nt] = jstr($0, "trigger"); tguard[nt] = jstr($0, "guard") } }
 /^[[:space:]]*\{"kind":/ { if (jstr($0, "entity") == entity) { nf++; fkind[nf] = jstr($0, "kind"); fstate[nf] = jstr($0, "state"); fdet[nf] = jstr($0, "detail") } }
 END {
   emit("# States")
@@ -119,7 +119,7 @@ END {
   for (i = 1; i <= nt; i++) {
     label = ttrig[i]
     if (tguard[i] != "") label = label " [" tguard[i] "]"
-    emit("  " tfrom[i] " --> " tto[i] ": " label)
+    emit("  " tfrom[i] " --> " tdest[i] ": " label)
   }
   for (i = 1; i <= ns; i++) if (sfinal[i] == "yes") emit("  " sname[i] " --> [*]")
   emit("```")

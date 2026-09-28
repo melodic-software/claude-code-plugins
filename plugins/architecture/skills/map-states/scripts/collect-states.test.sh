@@ -80,7 +80,11 @@ rc=$?
 set -e
 assert_equals "ad hoc render exits 3" "$rc" "3"
 assert_contains "ad hoc render names the reason" "$msg" "ad-hoc"
-[[ ! -f "$out/fresh/states.md" ]] && pass "ad hoc writes no diagram" || fail "ad hoc wrote a diagram" "present"
+if [[ ! -f "$out/fresh/states.md" ]]; then
+  pass "ad hoc writes no diagram"
+else
+  fail "ad hoc wrote a diagram" "present"
+fi
 
 flat="$out/flat.json"
 tr '\n' ' ' <"$out/states.json" >"$flat"
@@ -91,7 +95,11 @@ rc=$?
 set -e
 assert_equals "flat exits 1" "$rc" "1"
 assert_contains "flat names layout" "$msg" "one-object-per-line"
-[[ ! -f "$out/flatdir/states.md" ]] && pass "flat writes nothing" || fail "flat wrote a diagram" "present"
+if [[ ! -f "$out/flatdir/states.md" ]]; then
+  pass "flat writes nothing"
+else
+  fail "flat wrote a diagram" "present"
+fi
 
 xs="$TEST_TMPDIR/xstate"
 init_repo "$xs"
@@ -147,7 +155,11 @@ imsg="$(bash "$RENDER" --record "$out/invoke.json" --out "$out/invdir" 2>&1)"
 irc=$?
 set -e
 assert_equals "invoke draws nothing" "$irc" "3"
-[[ ! -f "$out/invdir/states.md" ]] && pass "invoke writes no diagram" || fail "invoke wrote a diagram" "present"
+if [[ ! -f "$out/invdir/states.md" ]]; then
+  pass "invoke writes no diagram"
+else
+  fail "invoke wrote a diagram" "present"
+fi
 assert_contains "invoke names the reason" "$imsg" "unsupported-syntax"
 
 printf 'failed=%s\n' "$FAILED"
