@@ -1,5 +1,21 @@
 # `/claude-ops:observability` data sources: JSONL + ccusage query catalog
 
+## Contents
+
+- [Setup: common variables](#setup-common-variables)
+- [1. ccusage: token + cost](#1-ccusage-token--cost)
+- [2. Hook event log: latency outliers](#2-hook-event-log-latency-outliers)
+- [2.5 Per-session report (`session` and `session:<id>` scopes)](#25-per-session-report-session-and-sessionid-scopes)
+- [2.6 Toggles and retention in effect](#26-toggles-and-retention-in-effect)
+- [3. Tool call decisions: which calls were denied, and why](#3-tool-call-decisions-which-calls-were-denied-and-why)
+- [4. Recurring tool-call patterns](#4-recurring-tool-call-patterns)
+- [4.5 Hallucination-guard catches (`cli-flag-verify` violations)](#45-hallucination-guard-catches-cli-flag-verify-violations)
+- [5. Drift candidates (rules-vs-code mismatches)](#5-drift-candidates-rules-vs-code-mismatches)
+- [6. Calibration signal: dismissed observations](#6-calibration-signal-dismissed-observations)
+- [7. Git + GH activity (context for severity)](#7-git--gh-activity-context-for-severity)
+- [Performance](#performance)
+- [Cross-references](#cross-references)
+
 jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL store
 (DuckDB) and Aspire: [read-routing.md](read-routing.md) + [otel-queries.md](otel-queries.md).
 

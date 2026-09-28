@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-09-28
+
+### Changed
+
+- **Long reference spoke opens with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `audit` `context/surface-walk.md` is over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on it. No content moved.
+
 ## [0.4.16] - 2026-09-28
 
 ### Changed

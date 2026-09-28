@@ -1,5 +1,18 @@
 # Known Claude Code performance issues and fixes
 
+## Contents
+
+- [Version regressions fixed in 2.1.2xx (suspect 2)](#version-regressions-fixed-in-212xx-suspect-2)
+- [Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)](#accumulated-state-mechanisms-confirmed-at-source-level-v21228-suspect-1)
+- [The "nuke ~/.claude" folk remedy: evidence status](#the-nuke-claude-folk-remedy-evidence-status)
+- [Fan-out layer mechanisms (suspect 4)](#fan-out-layer-mechanisms-suspect-4)
+- [The host-level floor: a kernel Token-object leak (suspect 5, Windows)](#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
+- [Tested and cleared (record the negatives)](#tested-and-cleared-record-the-negatives)
+- [Measurement method](#measurement-method)
+- [Surface scope: CLI versus desktop](#surface-scope-cli-versus-desktop)
+- [Reference links](#reference-links)
+- [Windows-specific amplifiers](#windows-specific-amplifiers)
+
 Distilled evidence base for the four-suspect model this skill's report is read against.
 Compiled 2026-08-12 from the upstream issue tracker, release notes, and a source-level analysis
 of Claude Code v2.1.228. Per the upstream-drift convention: re-verify a row against the linked

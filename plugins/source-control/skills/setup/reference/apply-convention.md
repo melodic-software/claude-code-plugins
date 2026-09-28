@@ -7,26 +7,28 @@ post-write verification, and the effective-merge report. Loaded from [SKILL.md](
 
 ## Contents
 
-This reference carries one heading break in the body:
-[Neutral convention SSOT](#neutral-convention-ssot-convention_source) at the end. Everything
-above it is the linear `apply` interview, walked as bolded numbered steps (0 through 7) rather
-than headings. Find a step directly with:
+- [Target layer and non-interactive writes](#target-layer-and-non-interactive-writes): `layer=`,
+  the non-interactive `subject_pattern=` write, and the `branch_issue_pattern=` write (alone or
+  combined)
+- [The interactive interview](#the-interactive-interview), walked as bolded numbered steps rather
+  than headings:
+  - Step 0, anchor at the repo root
+  - Step 1, read the current config first
+  - Step 2, infer before asking
+  - Step 3, interview, one decision at a time
+  - Step 4, settle the remaining fields
+  - Step 5, write the config
+  - Step 6, verify the write, per layer
+  - Step 7, report the new effective merge
+- [Neutral convention SSOT (`convention_source`)](#neutral-convention-ssot-convention_source)
+
+Find a step directly with:
 
 ```shell
 grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
 ```
 
-- Layer selection (`layer=`), the non-interactive `subject_pattern=` write, and the
-  `branch_issue_pattern=` write (alone or combined): immediately below, before the interview starts
-- Step 0, anchor at the repo root
-- Step 1, read the current config first
-- Step 2, infer before asking
-- Step 3, interview, one decision at a time
-- Step 4, settle the remaining fields
-- Step 5, write the config
-- Step 6, verify the write, per layer
-- Step 7, report the new effective merge
-- [Neutral convention SSOT (`convention_source`)](#neutral-convention-ssot-convention_source)
+## Target layer and non-interactive writes
 
 **Pick the target layer first.** `layer=` selects it; `team` is the default when the argument is
 absent, since a convention is a team artifact until someone says otherwise.
@@ -107,6 +109,8 @@ file.
   A higher layer that also sets the key wins over the one just written, so read the result against
   step 7's effective merge. Then run step 6 (verify the write for the layer) and
   step 7 (report the effective merge), as for any other write.
+
+## The interactive interview
 
 With no argument in an interactive session, run the interview:
 

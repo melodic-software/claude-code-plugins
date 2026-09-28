@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.3] - 2026-09-28
+
+### Changed
+
+- **Long reference spoke opens with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `research` `context/dispatch.md` is over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on it. No content moved.
+
 ## [0.25.2] - 2026-09-28
 
 ### Changed

@@ -3,16 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.7] - 2026-09-28
+
+### Changed
+
+- **`setup`'s `reference/apply-convention.md` opens with a table of contents that links its sections** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). The 460-line spoke had a Contents block with one in-page link, because the `apply` interview is walked as bolded numbered steps rather than headings. Two H2 headings now open the target-layer and non-interactive-write block and the interactive interview. The steps stay a numbered list, and the Contents block links all three sections. Anthropic's skill-authoring best practices ask for a table of contents at the top of a long reference file so a partial read still shows its scope, and `skill-quality:check` check 26 no longer warns on it.
+
 ## [0.62.6] - 2026-09-28
 
 ### Changed
 
-- **Worktree isolation is four checks, and unattended prompts have a flag**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
-  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
-  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
-  mode and its classifier.
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
 
 ## [0.62.5] - 2026-09-28
 
