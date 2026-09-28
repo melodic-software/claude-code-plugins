@@ -10,7 +10,7 @@ per session). Feeds the scope statement and reference table of `docs-hygiene:wri
 official docs fetched during the run; re-verify against current docs when adapting into the
 skill's reference file.
 
-## Part 1. Claude Code surfaces (25, official-docs-verified)
+## Part 1. Claude Code surfaces (28, official-docs-verified)
 
 | # | Surface | Path pattern | When it loads |
 |---|---------|-------------|---------------|
@@ -39,6 +39,9 @@ skill's reference file.
 | 23 | Skills-directory plugins | `.claude-plugin/plugin.json` inside a skill folder | Loads as plugin `<name>@skills-dir` |
 | 24 | Hook-carried instruction text | settings/plugin/frontmatter hooks; `prompt`/`agent` types; `additionalContext` returns | On lifecycle events; `additionalContext` capped 10,000 chars |
 | 25 | `--append-system-prompt` | CLI flag | Per invocation, appended to system prompt |
+| 26 | `--append-system-prompt-file` | CLI flag | `-p` only. Appends the file's text to the system prompt. Claim: the flag exists and is headless-only. Basis: Claude Code changelog through 2.1.263, decision [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027). As of: 2026-09-28. Recheck: the CLI reference drops the flag or stops limiting it to `-p` |
+| 27 | `--append-subagent-system-prompt` | CLI flag | `-p` only. Appends text to a subagent's system prompt. Same claim, basis, as-of, and recheck as row 26 |
+| 28 | `--append-subagent-system-prompt-file` | CLI flag | `-p` only. Appends the file's text to a subagent's system prompt. Same claim, basis, as-of, and recheck as row 26 |
 
 Cross-cutting semantics the skill should teach: scope load order managed → user → project →
 local; nested CLAUDE.md and path-scoped rules do NOT survive `/compact` re-injection; block HTML
