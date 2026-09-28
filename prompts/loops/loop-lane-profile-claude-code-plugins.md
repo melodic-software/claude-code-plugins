@@ -204,6 +204,11 @@ machines; neither on the attended box.
 > or override names a model
 > (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
 > 2026-09-27).
+> Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
+> <https://code.claude.com/docs/en/env-vars> and
+> <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
+> As of: 2026-09-28. Recheck: that env-vars row stops ignoring definition and
+> per-spawn `model` values.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
