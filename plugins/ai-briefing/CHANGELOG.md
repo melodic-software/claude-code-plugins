@@ -3,6 +3,15 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.43] - 2026-09-28
+
+### Changed
+
+- **`emit-slides-data.js` keeps calling `main()` at import (#3421).** Importing
+  the emitter still runs the CLI. A main-module guard plus argv-driven tests is
+  unpaid. Recorded in `skills/generate/reference/build-pipeline.md`. Six
+  `knowledge` course-digest CLIs are the rest of the same park.
+
 ## [0.7.42] - 2026-09-27
 
 ### Changed

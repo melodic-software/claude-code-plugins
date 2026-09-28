@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.7] - 2026-09-28
+
+### Changed
+
+- **Course-digest Node CLIs keep calling `main()` at import (#3421).** Six
+  extraction entrypoints stay unreachable from tests. `video-digest` already
+  ships `isMainModule`; applying that guard plus argv-driven CLI tests here is
+  unpaid. Recorded in `skills/course-digest/reference/cli-entrypoints.md`.
+  `ai-briefing` `emit-slides-data.js` is the seventh entrypoint and is parked
+  there.
+
 ## [0.14.6] - 2026-09-28
 
 ### Changed

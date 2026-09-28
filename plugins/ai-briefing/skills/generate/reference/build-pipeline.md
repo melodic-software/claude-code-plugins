@@ -14,6 +14,7 @@
 - [validate.js gates](#validatejs-gates)
 - [Drift / recheck triggers](#drift--recheck-triggers)
 - [Slide/HTML/PDF generation detail](#slidehtmlpdf-generation-detail)
+- [`emit-slides-data.js` calls `main()` at import (#3421)](#emit-slides-datajs-calls-main-at-import-3421)
 
 Canonical pipeline for `--format slides|html` reproducing the deck (brand tokens in `output/build/brand.js`). Lives at `output/build/` under the skill.
 
@@ -341,3 +342,32 @@ If the in-tree pipeline cannot run and no PPTX-generation skill is installed eit
 **Canonical pipeline:** `output/build/build-pdf.js`. Playwright headless chromium prints `?print=1` HTML to Letter landscape, 0-margin, one slide per page. Run after `build-html.js`.
 
 **Fallback paths** (when in-tree unavailable): see `slide-generation.md` "PDF fallback paths".
+
+## `emit-slides-data.js` calls `main()` at import (#3421)
+
+Recorded park for
+[#3421](https://github.com/melodic-software/claude-code-plugins/issues/3421).
+The six course-digest CLIs in `knowledge` are parked in that plugin's
+`skills/course-digest/reference/cli-entrypoints.md`.
+
+**Park. Do not hoist.** `emit-slides-data.js` keeps calling `main()` at import.
+
+- **Option A (taken):** no unpaid hoist. Importing the emitter still runs
+  `main()`. `lib/window.js` stays a pass-through extraction. Guarding the
+  entrypoint and adding argv-driven CLI tests is unpaid.
+- **Option B (declined):** `import.meta.url` main-module check (or equivalent)
+  so import is side-effect-free, plus usage, argument-validation, and artifact
+  tests driven through argv.
+
+**Claim:** `output/build/emit-slides-data.js` calls `main()` at import, so
+nothing defined in it can be exercised from a test without launching the CLI.
+A main-module guard plus CLI-level tests is unpaid.
+**Basis:** origin/main as of this record. The file ends with
+`main().catch((e) => { console.error(e); process.exit(1); });`. 1e919f91a
+(#3398) moved `formatWindow` into `lib/window.js` because the emitter itself
+was unreachable. `knowledge` `video-digest` already ships `isMainModule`; this
+plugin does not.
+**As of:** 2026-09-28.
+**Recheck:** a maintainer funds a main-module guard on `emit-slides-data.js`
+plus at least a usage-branch test, an argument-validation exit-code test, and
+an output-artifact assertion driven through argv.
