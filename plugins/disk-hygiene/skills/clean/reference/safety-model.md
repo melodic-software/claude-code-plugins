@@ -180,6 +180,11 @@ verdict still expires immediately.
 | `drifted` | Identity, kind, or the captured descendant set changed since the snapshot | Keep; the approval no longer describes what is on disk, so rescan |
 | `contested` | Protection, VCS state, a live handle, elevation, or unverifiable state | Keep; the reasons list names each contest, so resolve and re-verify |
 
+The `clear` row's "never one batch for all" is the standing default (#4224 Option A): do not batch
+`handoff-verify` then recycle, fold tier approval into the hook `ask`, or add `handoff-apply`,
+until the owner funds that seam. The recorded decision lives in
+[unsupported-platform-handoff.md](unsupported-platform-handoff.md).
+
 Fail-closed mapping: every unverifiable condition (handle tool missing or timing out, unreadable
 state, truncated coverage) lands in `contested`, never `clear`. A `clear` verdict authorizes
 nothing by itself. It reports that revalidation found no change and no contest at that instant;

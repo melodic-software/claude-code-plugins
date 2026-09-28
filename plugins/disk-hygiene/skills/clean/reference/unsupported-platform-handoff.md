@@ -108,6 +108,15 @@ engine plan:
    next); reserve the `--paths` file form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
 
+   That one-path rule is the standing default, not a gap waiting on a cheaper ceremony.
+   **Claim:** do not batch `handoff-verify` then recycle, do not fold tier approval into the
+   hook `ask`, and do not add `handoff-apply`; verify-one-delete-one stays until the owner
+   funds a batch seam. **Basis:** #4224 is work-class structural (changes this rule and the
+   safety-model `clear` row); within-batch aging grows with walk time, which is why this
+   paragraph exists. Option A defers that seam. **As of:** 2026-09-28. **Recheck:** the owner
+   funds a batch seam with a stated aging cap, or #4007 / #1116 reopens a Windows apply lane
+   under security review.
+
    When settled removals empty inventoried directories, `handoff-verify` names those containers
    in the same round under `emptied_containers`, deepest first. They are not in the approved
    list, so each still needs its own approval and is removable only after every path beneath it

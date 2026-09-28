@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3] - 2026-09-28
+
+### Changed
+
+- **Batch verify-and-recycle stays parked; verify-one-delete-one remains the rule**
+  ([#4224](https://github.com/melodic-software/claude-code-plugins/issues/4224)). Option A:
+  defer a multi-path `handoff-verify` then recycle, folding tier approval into the hook `ask`,
+  and engine `handoff-apply`, until the owner funds that batch seam. Within-batch aging is why
+  the current rule exists. Serializes after #3855 (0.27.1) and #3856 (0.27.2).
+
 ## [0.27.0] - 2026-09-28
 
 ### Added
