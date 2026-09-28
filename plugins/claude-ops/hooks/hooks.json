@@ -190,7 +190,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/hook-failure-audit.sh",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/hook-failure-audit.sh",
             "shell": "bash",
             "timeout": 10,
             "statusMessage": "Checking for unsurfaced hook failures..."

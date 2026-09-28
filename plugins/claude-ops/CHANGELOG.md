@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.18] - 2026-09-28
+
+### Changed
+
+- **The Stop `hook-failure-audit` row replaces its shell instead of forking bash** ([#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373)). The command is `exec bash`. A warm Stop, cursor already written, went from 5 process creations and execs to 4 under `scripts/hook-census.sh` (bash 5.2.21, dash as `sh`, strace 6.8, two runs). The remaining child is `tail`, which reads the bytes past the cursor so the scan does not grow with the transcript. Verdicts are unchanged. The host Token leak ([#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372)) is recorded as `true_impossible` in `docs/conventions/hook-budget`: a kernel token this repository cannot free. Fewer child-creating processes is the reduction that is still in reach.
+
 ## [0.62.17] - 2026-09-28
 
 ### Changed

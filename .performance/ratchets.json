@@ -69,6 +69,27 @@
       "field": "spawns",
       "ceiling": 6,
       "goal": "The same PostToolUse verify bundle spends at most this many process creations and execs on an Edit of a .sh file: cli-flag-verify scans it, and skill-reference-verify and stale-path-verify leave at their *.md check. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions."
+    },
+    {
+      "name": "claude-ops-stop-hook-failure-audit-spawns",
+      "command": "bash scripts/hook-census.sh claude-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --transcript-bytes 2000000",
+      "field": "spawns",
+      "ceiling": 4,
+      "goal": "A warm Stop of hook-failure-audit, after the cursor exists, spends at most this many process creations and execs. The shell replaces itself with bash (exec), and the one child is tail reading the bytes past the cursor. Was 5 when the command forked bash. Measured twice on this host with bash 5.2.21, dash as sh, strace 6.8; the ratchet step prints the current versions. #4373."
+    },
+    {
+      "name": "disk-hygiene-stop-guard-launch-monitor-skip-spawns",
+      "command": "bash scripts/hook-census.sh disk-hygiene Stop guard_launch_monitor.py '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --setup 'mkdir -p \"$CLAUDE_PLUGIN_DATA/guard-launch-monitor\"'",
+      "field": "spawns",
+      "ceiling": 2,
+      "goal": "A Stop whose guard-launch marker directory exists and holds no marker for the session spends at most this many process creations and execs: the shell execs bash and bash starts nothing. Was 3 when the command forked bash. The monitor still runs when a marker is present. Measured twice on this host with bash 5.2.21, dash as sh, strace 6.8. #4373."
+    },
+    {
+      "name": "autonomy-stop-lane-stop-gate-spawns",
+      "command": "bash scripts/hook-census.sh autonomy Stop lane-stop-gate.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\",\"stop_hook_active\":false}'",
+      "field": "spawns",
+      "ceiling": 2,
+      "goal": "An unarmed lane-stop gate spends at most this many process creations and execs: the shell execs bash, and the pre-filter exits before jq. Was 3 when the command forked bash. Measured twice on this host with bash 5.2.21, dash as sh, strace 6.8. #4373."
     }
   ]
 }

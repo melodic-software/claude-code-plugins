@@ -446,12 +446,16 @@ for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py;
   assert_contains "hooks.json command for $hook_name invokes the launcher" \
     "run-python-hook.sh" "$command_line"
 
-  # `bash` runs the launcher directly, so no `env` process runs for the
-  # shebang. Every row is checked, not just the first.
-  assert_eq "every hooks.json row for $hook_name starts with bash" "0" \
+  # `bash` or `exec bash` runs the launcher directly, so no `env` process runs
+  # for the shebang. `exec` replaces the hook shell instead of forking bash.
+  # Every row is checked, not just the first.
+  assert_eq "every hooks.json row for $hook_name starts with bash or exec bash" "0" \
     "$(jq --arg target "$hook_name" '[.hooks[][].hooks[] |
       select(.command | contains($target)) |
-      select(.command | startswith("bash \"${CLAUDE_PLUGIN_ROOT}\"/") | not)] | length' "$HOOKS_JSON")"
+      select(
+        (.command | startswith("bash \"${CLAUDE_PLUGIN_ROOT}\"/")) or
+        (.command | startswith("exec bash \"${CLAUDE_PLUGIN_ROOT}\"/"))
+        | not)] | length' "$HOOKS_JSON")"
 
   # Shell form only: `args` present would switch Claude Code to exec form, where
   # `command` is a bare PATH lookup and `shell` is ignored.

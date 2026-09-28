@@ -117,3 +117,15 @@ recorded in the hook-performance program's DEVIATIONS log.
 3. **Interpreter choice is a budget decision.** Every always-on hook pays its interpreter's startup
    on every fire. On the Windows reference host `python3 -c pass` measured about 160 ms against
    80 ms for `bash -c :`, so a Python hook costs about 2 S before its first statement.
+
+## Host Token leak (#4372)
+
+**Claim.** The Windows kernel Token leak in [#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372) is `true_impossible` to close from this repository. Each process that creates a child can leave one dead primary token until reboot. A hook, a statusline, or a Bash-tool script here cannot release that token.
+
+**Basis.** [#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372) records the cause as `win32kfull!CForegroundLaunch::_CheckAllowForeground` ([bentoner/windows-token-leak](https://github.com/bentoner/windows-token-leak)). Microsoft has no acknowledgement or fix through build 26200.9550 (KB5124010, 2026-09-22). On melo-lap-001, leaked tokens equal the number of child-creating processes (N=300 per row): `bash -c true` leaked 0, one external leaked about 1, five externals leaked about 6. Which binary it is does not matter. The issue states the leak is not Claude Code and not this configuration.
+
+**As of.** 2026-09-28.
+
+**Recheck trigger.** A Windows build later than 26200.9550 changes the per-spawn rate, or Microsoft acknowledges the defect.
+
+**What this repository still reduces.** One child-creating process is one token while the leak is armed. The three Stop rows that run on every stop forked `bash` under `sh -c`. Their commands now `exec bash`, so that fork is gone and the script is unchanged. `scripts/hook-census.sh` on Linux (bash 5.2.21, dash as `sh`, strace 6.8), two runs each: warm `hook-failure-audit` 5 to 4 spawns (the remaining child is `tail`, which reads only the bytes past the cursor); disk-hygiene Stop with a marker directory and no marker 3 to 2, and that path creates no child; unarmed `lane-stop-gate` 3 to 2, and that path creates no child. Those ceilings are in `.performance/ratchets.json`. The k × S targets in [#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) stay with `/performance:goal`. The OTEL Stop re-check named on that issue waits until after 2026-10-01.

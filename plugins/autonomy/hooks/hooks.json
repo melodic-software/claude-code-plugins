@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh\"",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh\"",
             "shell": "bash",
             "timeout": 15,
             "statusMessage": "Checking lane-stop gate..."

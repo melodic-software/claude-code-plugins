@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2] - 2026-09-28
+
+### Changed
+
+- **The Stop guard-launch monitor replaces its shell instead of forking bash** ([#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373)). The command is `exec bash`. When a marker directory exists and this session has no `.launched` file, the monitor still exits before Python, and the fire went from 3 process creations and execs to 2 under `scripts/hook-census.sh` (bash 5.2.21, dash as `sh`, strace 6.8, two runs). That path creates no child. A session that did launch the guard still runs the monitor. The host Token leak ([#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372)) is a kernel defect this repository cannot close; the fork this row used to pay is one it no longer pays.
+
 ## [0.28.1] - 2026-09-28
 
 ### Changed

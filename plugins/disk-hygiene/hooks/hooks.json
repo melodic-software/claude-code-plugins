@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --skip-unless-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --skip-unless-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "shell": "bash",
             "timeout": 20,
             "statusMessage": "Checking for silent destructive-guard failures..."
