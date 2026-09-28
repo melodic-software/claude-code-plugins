@@ -1133,6 +1133,46 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   done <<<"$entries"
 done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
 
+# --- Declared unattended-push lane (narrowing 1, ask-rules family only) ------
+# A permissions.ask rule prompts even in auto mode and is auto-denied under
+# dontAsk, so recommending the git push ask-gates to a repo that runs an
+# unattended lane would stall or break that lane's own pushes. The signal is
+# babysit_loop_merge resolving above human-only in the team-tracked
+# .claude/source-control.md: raises bind from that layer only
+# (source-control's config-resolution.md), and a file that adopts loop-lane
+# keys without the merge key resolves to the c2-mechanical baseline.
+UNATTENDED_LANE=""
+SC_TEAM="$PROJECT_ROOT/.claude/source-control.md"
+if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
+  IFS=$'\t' read -r lane_adopted lane_rung < <(awk '
+    {
+      sub(/\r$/, "")
+    }
+    /^## / {
+      inkey = ($0 ~ /^## babysit_loop_merge[ \t]*$/)
+      if ($0 ~ /^## babysit_loop_/) adopted = 1
+      next
+    }
+    inkey && NF && val == "" {
+      val = $0
+      gsub(/^[ \t`]+|[ \t`]+$/, "", val)
+    }
+    END { printf "%s\t%s\n", adopted ? 1 : 0, val }
+  ' "$SC_TEAM")
+  lane_source="babysit_loop_merge: $lane_rung"
+  if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
+    lane_rung="c2-mechanical"
+    lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
+  fi
+  case "$lane_rung" in
+  c2-mechanical | c3-autonomous | full-autonomy)
+    UNATTENDED_LANE="$lane_source in the team-tracked .claude/source-control.md declares an unattended-push lane"
+    ;;
+  *) ;;
+  esac
+fi
+ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under dontAsk, so it blocks an unattended lane's pushes"
+
 # --- Category B: permissions -------------------------------------------------
 
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
@@ -1158,15 +1198,23 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
       row B "baseline-$fam" ok none "$SURF_SETTINGS" "present-pattern:$pat" "$target carries $pat" -
       continue
     fi
+    lane_note=""
+    if [[ "$fam" == "ask-rules" ]]; then
+      lane_note="; $ASK_BLOCKS_LANES"
+      if [[ -n "$UNATTENDED_LANE" ]]; then
+        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; narrowing 1 applies: $UNATTENDED_LANE$lane_note" "/permissions/$target"
+        continue
+      fi
+    fi
     if [[ -n "${COVERED_BY[$pat]:-}" ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
         row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it" "/permissions/$target"
       else
-        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON" "/permissions/$target"
+        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON$lane_note" "/permissions/$target"
       fi
       continue
     fi
-    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check" "/permissions/$target"
+    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check$lane_note" "/permissions/$target"
   done
   # Broad allow entries and the completeness rows, both informational.
   while IFS= read -r a; do
