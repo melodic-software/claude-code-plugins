@@ -103,7 +103,7 @@ EOF
 
 A hooks module cannot reach `node:fs`; `$.fs.write` is the only channel that leaves evidence. An
 agent running this inside this repository will find the `guardrails` plugin refusing shell
-file-writes — create the three files with the editor or the Write tool instead, same content.
+file-writes, so create the three files with the editor or the Write tool instead, same content.
 
 Two standing mechanics: `--debug-file` **appends**, so use a fresh filename per run; and
 `go-no-go-probe` is the grep anchor, appearing in every engine line as `go-no-go-probe@inline`.
@@ -119,11 +119,11 @@ curl -sS -o "$P/out/mods-readme.md" -w 'http=%{http_code} bytes=%{size_download}
 ```
 
 Expected today: `http=200 bytes=6347`. Anything else and criteria 4 and 5 are both reading an error
-page or a moved file — settle it with the sha pin under criterion 5 before reading either count.
+page or a moved file; settle it with the sha pin under criterion 5 before reading either count.
 
 ## The five criteria
 
-### Criterion 1 — a test mod loads with the variable unset
+### Criterion 1: a test mod loads with the variable unset
 
 The only criterion that answers the question a consumer faces. The variable is an override (`??`)
 over a rollout gate whose default is `false`, so "it works when I set the variable" says nothing
@@ -147,7 +147,7 @@ plugins, and in the debug file:
 **Met when:** `$P/markers/loaded.txt` exists **and** the debug file carries
 `hooks module go-no-go-probe@inline loaded (worker, environment 1, tier user); events: session.start`.
 
-Always run the positive control before trusting a negative — the same command with
+Always run the positive control before trusting a negative: the same command with
 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` and a fresh debug file. Recorded 2026-09-19: the marker is
 written and the load line appears, with `plugin.register: … admitted` and `session.start settled in
 16.0ms`. If the control fails too, the probe is broken and neither arm means anything.
@@ -156,16 +156,16 @@ Risks:
 
 - **One machine and one account cannot show a segmented rollout.** A fail proves the gate is off for
   *this* account on *this* build. A local fail is decisive against go; a local pass is the weakest
-  possible evidence for it — confirm on a second account before flipping the verdict.
+  possible evidence for it, so confirm on a second account before flipping the verdict.
 - The source clause is the real control. `from the default (a cold GrowthBook cache, no payload yet)`
   means the server was never consulted: run a plain `claude -p ok` first, or run the arm twice, or a
   rollout that has in fact flipped still reads as off. `from a local override` means the variable
   leaked in; `from GrowthBook` or `from the disk cache` means the flag was genuinely consulted. Where
-  GrowthBook is off entirely — a third-party model provider, or telemetry opted out — the gate falls
+  GrowthBook is off entirely (a third-party model provider, or telemetry opted out), the gate falls
   to `false` and only the variable can enable it, so criterion 1 can never pass on such a machine and
   a fail there says nothing about upstream.
 
-### Criterion 2 — the official documentation mentions the feature
+### Criterion 2: the official documentation mentions the feature
 
 ```sh
 curl -sS -o "$P/out/llms-full.txt" -w 'http=%{http_code} bytes=%{size_download}\n' \
@@ -178,20 +178,20 @@ curl -sS https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG
 
 Expected today: `http=200 bytes=9590632`, then `0`, `67`, `0`. The corpus is all 197 English pages;
 the changelog is 7,158 lines from `## 2.1.278` down to `## 0.2.21`, and a word-bounded
-`grep -icwE "mods?"` over it also returns `0`. `67` is the live control — `plugin-dir` is a
+`grep -icwE "mods?"` over it also returns `0`. `67` is the live control: `plugin-dir` is a
 documented flag, so a non-zero control proves the sweep reached real text.
 
 **Met when:** either sweep returns a non-zero count while the control is still non-zero (recorded
 baseline `67`; a materially lower control means re-read the corpus before trusting either arm).
 
 Risks: always grep `llms-full.txt`, never the curated `llms.txt`, which greps clean against a
-documented feature. This is a **first-mention detector only** — `/diff` and AGENTS.md are documented
+documented feature. This is a **first-mention detector only**: `/diff` and AGENTS.md are documented
 features whose implementations are mods and whose documentation never names the mechanism, so
 silence is compatible with full availability; the criterion exists because a first mention is the
 strongest single signal that the surface left early access. A control of 0 means the fetch failed or
 the format changed: inconclusive, neither pass nor fail.
 
-### Criterion 3 — issue #92533 is closed
+### Criterion 3: issue #92533 is closed
 
 ```sh
 gh issue view 92533 -R anthropics/claude-code --json state,stateReason,closedAt
@@ -202,16 +202,16 @@ Expected today: `{"closedAt":null,"state":"OPEN","stateReason":""}`.
 **Met when:** `state` is `CLOSED` **and** the local reproduction in
 [experiments.md](experiments.md) (E2) no longer reproduces. Both halves are required, because
 **closed does not prove fixed**: a `stateReason` of `not_planned` closes without a fix, and a
-`completed` close can be against macOS — where the issue was filed — while Windows still breaks. Run
+`completed` close can be against macOS, where the issue was filed, while Windows still breaks. Run
 E2 against a throwaway git repository, never a real one.
 
 Risks: the hazard is a green `gh` line with no reproduction run. An unauthenticated `gh` returns an
-error, not a state; treat it as inconclusive. And the defect is not opt-in for consumers — because
+error, not a state; treat it as inconclusive. And the defect is not opt-in for consumers, because
 the variable only overrides the rollout gate, a plugin shipping a `tool.call` hook on Bash could
 break worktree isolation for someone who never set it, should the gate flip. That is why this gates
 go and not merely guard conversion.
 
-### Criterion 4 — official documentation states throw and timeout semantics
+### Criterion 4: official documentation states throw and timeout semantics
 
 ```sh
 grep -icE 'HookBudget|fail-open|fails open|hook that throws' "$P/out/llms-full.txt"   # docs site
@@ -230,12 +230,12 @@ State on 2026-09-19 is three things and must be recorded as three:
 
 - **Observed behavior is fail-open, twice over.** A hook that throws with no `.catch` is skipped and
   the chain beneath answers, indistinguishable from a chain in which nothing failed. A hook that
-  overruns the 10 s `HookBudget` is cut — measured live at 10,249.9 ms — and `next(e)` runs on its
+  overruns the 10 s `HookBudget` is cut (measured live at 10,249.9 ms), and `next(e)` runs on its
   behalf, so core runs and the tool executes. The only witness either time is an `[ERROR]` line in
   `--debug-file`. `on(...).catch(($, e, next) => ({ deny: … }))` converts either failure into a
   refusal within a 1,000 ms grace; without it a mod-based guard is strictly weaker than the classic
   command hook it would replace, since a classic hook exiting with code 2 blocks.
-- **The generated `.d.ts` JSDoc already states the mechanism** — the per-event doc and
+- **The generated `.d.ts` JSDoc already states the mechanism**: the per-event doc and
   `Registration.catch` both say it. So "documented nowhere" is wrong and "documented only inside the
   early-access tree" is right; those declarations are generated by `/plugin-types` and are themselves
   covered by the warning criterion 5 tracks.
@@ -247,7 +247,7 @@ State on 2026-09-19 is three things and must be recorded as three:
   [research-security-and-semantics.md](research-2026-09-19/research-security-and-semantics.md).
 
 **Met when:** Anthropic's official documentation on `code.claude.com` states the throw and timeout
-semantics **and** the engine's default on an uncaught throw is settled upstream — not when the
+semantics **and** the engine's default on an uncaught throw is settled upstream, not when the
 generated `.d.ts` JSDoc mentions them, which it already does.
 
 Risks: a `.d.ts` hit is a **false positive** for this criterion, as is a bare hit on the word
@@ -256,7 +256,7 @@ Claude Apps Gateway spend-limit pages, which on 2026-09-19 is all 5 hits and non
 hooks. Read every hit's surrounding sentence, never decide from the count, and check both halves of
 the bar.
 
-### Criterion 5 — the early-access warning is gone from `mods/README.md`
+### Criterion 5: the early-access warning is gone from `mods/README.md`
 
 Reuses the `mods/README.md` fetched under ["Fetch the upstream README"](#fetch-the-upstream-readme).
 
@@ -278,14 +278,14 @@ notice.
 ```
 
 A line-oriented `grep 'may change between releases without notice'` returns **0** against a file that
-plainly contains it. Taken at face value that reads as "warning gone" — a false positive for go on
+plainly contains it. Taken at face value that reads as "warning gone", a false positive for go on
 the criterion that most directly tracks early-access status. Always flatten first, always check the
 control.
 
 Risks: a 404, a rename, or a moved `mods/` tree also returns 0. Settle it with
 `gh api 'repos/anthropics/claude-code/commits?path=mods' --jq '.[0].sha'`; pin `92ec78f2`. An
 unchanged sha means the 0 is genuinely about the sentence. A different sha invalidates the
-source-based claims in the frozen snapshot — diff against
+source-based claims in the frozen snapshot, so diff against
 `https://github.com/anthropics/claude-code/blob/92ec78f2/mods/README.md` and re-read what changed.
 A reworded but equivalent warning also returns 0 and is a genuine false positive: read the file's
 last paragraph, do not only count.
@@ -306,15 +306,15 @@ only**. About a minute. Owned by whoever bumps the pin.
 
    Pin-time: `2.1.278 (Claude Code)`; npm `latest` published 2026-09-19T01:48:59Z; release
    `v2.1.278` published 2026-09-19T03:10:40Z. The installed `claude` and the pin being bumped are not
-   necessarily the same version — record both.
+   necessarily the same version, so record both.
 2. Build the test mod, or reuse `$P` from an earlier run in the same session.
 3. Criterion 1, unset arm plus the positive control.
 4. Criterion 2, the documentation greps and the changelog grep.
 5. Criterion 3, the `gh` query only. E2 is not part of the quick check; a state change is what
    escalates.
 
-All three unchanged: record the run, nothing else to do. Any one changed: do the full run — criteria
-4 and 5 here, then every experiment and open probe in [experiments.md](experiments.md) — and update
+All three unchanged: record the run, nothing else to do. Any one changed: do the full run (criteria
+4 and 5 here, then every experiment and open probe in [experiments.md](experiments.md)) and update
 the Defer row in [docs/plugin-philosophy.md](../../plugin-philosophy.md). A changed criterion 1, 2 or
 3 is never a go on its own, because go needs all five.
 
@@ -323,7 +323,7 @@ the Defer row in [docs/plugin-philosophy.md](../../plugin-philosophy.md). A chan
 Record the run whatever the outcome. A no-go that is not written down gets re-derived from scratch.
 
 - **[docs/plugin-philosophy.md](../../plugin-philosophy.md)**, the mods row: update the `Verified`
-  date every run, and the row's basis if the *reason* for the verdict moved — criterion 1 starting to
+  date every run, and the row's basis if the *reason* for the verdict moved: criterion 1 starting to
   pass while criterion 3 still fails changes the stated reason without changing the verdict.
 - **[ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md)**: leave it alone
   while the verdict holds. If the verdict flips, its status changes and a superseding record carries
@@ -333,10 +333,10 @@ Record the run whatever the outcome. A no-go that is not written down gets re-de
   row for any external URL a rerun newly relies on, and a refreshed `Fetched` column for rows it
   re-fetched.
 
-**A flip to go does not lift the three guard-conversion conditions in ADR 0035 — it reopens them.**
+**A flip to go does not lift the three guard-conversion conditions in ADR 0035; it reopens them.**
 A go verdict says a consumer who installs one of this repository's plugins gets a working mod without
 setting an undocumented variable, which is a distribution question. The three conditions ask whether
-a *guard* — a hook whose whole job is to refuse — is as strong as the classic command hook it
+a *guard*, a hook whose whole job is to refuse, is as strong as the classic command hook it
 replaces, and a guard written as a mod is fail-open on throw and on overrun unless it attaches
 `.catch(() => ({ deny }))`. Evaluate them on their own evidence. Two structural misfits survive a go
 verdict and are in no criterion: a mod cannot take per-repository configuration, because a project's

@@ -38,6 +38,15 @@ ABORTED = TOOL_OUTPUT / "mypy-any-exprs-aborted.txt"
 # their parent directory: a dotted module, a bare stem under a hyphenated
 # directory (the walk stops there), and a plain top-level module.
 MODULES = TOOL_OUTPUT / "mypy-any-exprs-modules.txt"
+# A real mypy 1.19.1 table over `a-dir/mod.py` and `ok/other.py`: the run the
+# adapter makes once it holds out `b-dir/mod.py`, which derives the same bare
+# `mod` as `a-dir/mod.py` because the walk stops at a hyphenated directory.
+COLLISION = TOOL_OUTPUT / "mypy-any-exprs-collision.txt"
+# mypy 1.19.1's stdout for that pair when both are passed (exit 2, before
+# analysis), first line only.
+DUPLICATE_LINE = (
+    'b-dir/mod.py: error: Duplicate module named "mod" (also at "a-dir/mod.py")'
+)
 STUB_ERROR = (
     'pkg-x/b.py:1: error: Library stubs not installed for "yaml"  [import-untyped]'
 )
@@ -58,6 +67,7 @@ def make_stub(
     stderr_line: str = "",
     argv_log: Path | None = None,
     reject_explicit_bases: bool = False,
+    refuse: tuple[str, str] | None = None,
 ) -> None:
     """Write a `mypy` stub that replays the capture into the report directory.
 
@@ -66,7 +76,9 @@ def make_stub(
     adapter passes. With `reject_explicit_bases` the stub answers a run
     carrying `--explicit-package-bases` the way mypy does when the config
     turns namespace packages off: the usage error on stderr and exit 2,
-    before any report is written.
+    before any report is written. With `refuse=(path, line)` a run given
+    `path` prints `line` to stdout and exits 2 before writing a report, the
+    way mypy stops on a duplicate module name.
     """
     copy = (
         f'cp "{capture}" "$dir/any-exprs.txt"\n'
@@ -86,9 +98,23 @@ def make_stub(
         if reject_explicit_bases
         else ""
     )
+    duplicate = (
+        'for arg in "$@"; do\n'
+        f'  if [[ "$arg" == "{refuse[0]}" ]]; then\n'
+        f"    printf '%s\\n' '{refuse[1]}'\n"
+        "    exit 2\n"
+        "  fi\n"
+        "done\n"
+        if refuse is not None
+        else ""
+    )
     write_stub(
         directory / "mypy",
-        version_gate("mypy 1.19.1 (compiled: yes)") + log + reject + 'dir=""\nprev=""\n'
+        version_gate("mypy 1.19.1 (compiled: yes)")
+        + log
+        + reject
+        + duplicate
+        + 'dir=""\nprev=""\n'
         'for arg in "$@"; do\n'
         '  [[ "$prev" == "--any-exprs-report" ]] && dir="$arg"\n'
         '  prev="$arg"\n'
@@ -444,6 +470,137 @@ class MypyReportCollectTests(unittest.TestCase):
                 argv.index("--any-exprs-report", argv.index("--any-exprs-report") + 1),
             )
 
+    def test_same_named_files_under_hyphenated_dirs_are_a_partial_not_unavailable(
+        self,
+    ) -> None:
+        # `a-dir/mod.py` and `b-dir/mod.py` both derive `mod`. The second is
+        # held out before mypy runs (the stub would refuse it with mypy's
+        # duplicate-module exit 2), every other file is measured, and the
+        # partial-reason file names the one that was not.
+        with tempfile.TemporaryDirectory() as tmp:
+            argv_log = Path(tmp) / "argv"
+            note = Path(tmp) / "partial"
+            make_stub(
+                Path(tmp),
+                capture=COLLISION,
+                argv_log=argv_log,
+                refuse=("b-dir/mod.py", DUPLICATE_LINE),
+            )
+            result = run_adapter(
+                SCRIPT,
+                "mypy",
+                "collect",
+                "python",
+                "type_coverage",
+                "a-dir/mod.py",
+                "b-dir/mod.py",
+                "ok/other.py",
+                path_prefix=Path(tmp),
+                cwd=Path(tmp),
+                env_extra={"CODE_METRICS_PARTIAL_REASON_FILE": str(note)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = rows_of(result)
+            self.assertEqual(
+                [(r["file"], tuple(r["values"].values())) for r in rows],
+                [
+                    (None, (1, 9, 88.89)),
+                    ("a-dir/mod.py", (0, 4, 100.0)),
+                    ("ok/other.py", (1, 5, 80.0)),
+                ],
+            )
+            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(
+                note.read_text(encoding="utf-8"),
+                "1 of 3 scope file(s) not measured: mypy derives the same module "
+                'name as an earlier scope file for b-dir/mod.py (as "mod")\n',
+            )
+            argv = argv_log.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(argv.count("--any-exprs-report"), 1)
+            self.assertNotIn("b-dir/mod.py", argv)
+
+    def test_a_duplicate_only_mypys_own_naming_gives_is_held_out_from_its_message(
+        self,
+    ) -> None:
+        # With namespace packages off, `pkg/mod.py` and `other/mod.py` are both
+        # `mod` to mypy although their paths derive `pkg.mod` and `other.mod`,
+        # so nothing is held out up front. mypy's duplicate message names the
+        # file it refused; that file is held out and the run repeats.
+        with tempfile.TemporaryDirectory() as tmp:
+            argv_log = Path(tmp) / "argv"
+            make_stub(
+                Path(tmp),
+                capture=COLLISION,
+                argv_log=argv_log,
+                reject_explicit_bases=True,
+                refuse=(
+                    "other/mod.py",
+                    'other/mod.py: error: Duplicate module named "mod" '
+                    '(also at "pkg/mod.py")',
+                ),
+            )
+            result = run(
+                "collect",
+                "python",
+                "type_coverage",
+                "pkg/mod.py",
+                "other/mod.py",
+                "ok/other.py",
+                path_prefix=Path(tmp),
+                cwd=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                [r["file"] for r in rows_of(result)],
+                [None, "pkg/mod.py", "ok/other.py"],
+            )
+            self.assertIn(
+                "not measured: mypy derives the same module name as an earlier "
+                'scope file for other/mod.py (as "mod")',
+                result.stderr,
+            )
+            argv = argv_log.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(argv.count("--any-exprs-report"), 3)
+
+    @unittest.skipUnless(shutil.which("mypy"), "the real mypy is not on PATH")
+    def test_the_real_mypy_measures_around_a_hyphenated_directory_collision(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, text in (
+                ("a-dir/mod.py", "def f(x: int) -> int:\n    return x + 1\n"),
+                ("b-dir/mod.py", "def g(y):\n    return y\n"),
+                (
+                    "ok/other.py",
+                    "import json\n\ndef h(s: str) -> object:\n"
+                    "    return json.loads(s)\n",
+                ),
+            ):
+                path = Path(tmp) / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            note = Path(tmp) / "partial"
+            result = run_adapter(
+                SCRIPT,
+                "mypy",
+                "collect",
+                "python",
+                "type_coverage",
+                "a-dir/mod.py",
+                "b-dir/mod.py",
+                "ok/other.py",
+                real_path=True,
+                cwd=Path(tmp),
+                env_extra={"CODE_METRICS_PARTIAL_REASON_FILE": str(note)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = rows_of(result)
+            self.assertEqual(
+                [r["file"] for r in rows], [None, "a-dir/mod.py", "ok/other.py"]
+            )
+            self.assertGreater(rows[0]["values"]["expressions_total"], 0)
+            self.assertIn("b-dir/mod.py", note.read_text(encoding="utf-8"))
+
     def test_a_usage_error_that_is_not_the_pairing_rule_is_still_exit_4(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(
@@ -576,6 +733,39 @@ class MypyReportModuleNameTests(unittest.TestCase):
             outside.touch()
             base = os.path.normcase(os.path.realpath(Path(tmp) / "base"))
             self.assertEqual(module.module_name(str(outside), base), "mod")
+
+
+class MypyReportCollisionTests(unittest.TestCase):
+    def test_the_first_file_of_each_derived_name_is_kept_in_scope_order(self) -> None:
+        module = load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = os.getcwd()
+            os.chdir(tmp)
+            try:
+                scope, held_out = module.split_collisions(
+                    [
+                        "b-dir/mod.py",
+                        "a-dir/mod.py",
+                        "pkg/mod.py",
+                        "c-dir/mod.py",
+                        "b-dir/mod.py",
+                    ]
+                )
+            finally:
+                os.chdir(cwd)
+        # A repeated path is the same file, not a collision.
+        self.assertEqual(scope, ["b-dir/mod.py", "pkg/mod.py", "b-dir/mod.py"])
+        self.assertEqual(held_out, [("a-dir/mod.py", "mod"), ("c-dir/mod.py", "mod")])
+
+    def test_mypys_duplicate_line_names_the_refused_scope_file(self) -> None:
+        module = load_module()
+        scope = ["a-dir/mod.py", "b-dir/mod.py"]
+        self.assertEqual(
+            module._refused_duplicate(DUPLICATE_LINE + "\n", scope),
+            ("b-dir/mod.py", "mod"),
+        )
+        self.assertIsNone(module._refused_duplicate(DUPLICATE_LINE, ["a-dir/mod.py"]))
+        self.assertIsNone(module._refused_duplicate("mypy: error: bad flag", scope))
 
 
 class MypyReportErrorNoteTests(unittest.TestCase):

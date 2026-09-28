@@ -34,6 +34,10 @@ questions Phase 1 asks:
 Apply the **deletion test** to anything suspected shallow: would deleting it *concentrate*
 complexity (the signal, earning its keep) or merely *move* it (a pass-through)?
 
+When judging whether an area is tested, a suite that skips because a required tool is missing is
+not a pass, and a stub standing in for the tool is not the tool. Report such an area as unverified,
+never as covered.
+
 ## 3. Dependency categories
 
 The agent classifies each candidate's dependencies per [dependencies.md](dependencies.md) as

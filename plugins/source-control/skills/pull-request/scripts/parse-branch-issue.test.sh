@@ -149,21 +149,42 @@ layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
 run_cfg "local overlay beats team and user-global" "a/5/77-x-9" "" - "5" 0 empty
 
+# A layer whose section exists but yields no usable pattern stops resolution:
+# no stdout, exit 1, and a note naming the layer and `stopped`, even when a
+# lower layer, the userConfig, or the default would match.
+STOPPED='resolution stopped, no issue id emitted'
+
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '(['
-run_cfg "invalid local layer reported and skipped, team applies" \
-  "feat/12-add-widget-1234" "" - "1234" 0 'source-control\.local\.md'
+run_cfg "invalid local layer stops resolution, team never applies" \
+  "feat/12-add-widget-1234" "" - "" 1 "source-control\.local\.md.*invalid ERE.*${STOPPED}"
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" '(['
+run_cfg "valid local layer wins before an invalid team layer is read" \
+  "feat/12-add-widget-1234" "" - "1234" 0 empty
 
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" '(['
-run_cfg "invalid only layer skipped, falls through to userConfig with note" \
-  "alice.b/1234-fix" '^[^/]+/([0-9]+)-' - "1234" 0 "$DEPRECATION"
+run_cfg "invalid only layer stops resolution, never reaches the userConfig" \
+  "alice.b/1234-fix" '^[^/]+/([0-9]+)-' - "" 1 "invalid ERE.*${STOPPED}" 'deprecated'
 
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" '(['
-run_cfg "invalid only layer skipped, falls through to built-in default" \
-  "feat/42-x" "" - "42" 0 'invalid'
+run_cfg "invalid only layer stops resolution, never reaches the userConfig env var" \
+  "alice.b/1234-fix" "" '^[^/]+/([0-9]+)-' "" 1 "invalid ERE.*${STOPPED}" 'deprecated'
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '(['
+run_cfg "invalid only layer stops resolution, never reaches the built-in default" \
+  "feat/42-x" "" - "" 1 "invalid ERE.*${STOPPED}"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '(['
+run_cfg "invalid user-global layer stops resolution, never reaches the default" \
+  "feat/42-x" "" - "" 1 "home\.[^ ]*/\.claude/source-control\.md.*${STOPPED}"
 
 new_case
 # shellcheck disable=SC2016  # the placeholder is a literal test input, not an expansion
@@ -188,14 +209,14 @@ run_cfg "fenced value with an info string resolves" "feat/12-add-widget-1234" ""
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n```\n\n```\n'
-run_cfg "empty fence reported with its path and skipped" \
-  "feat/12-add-widget-1234" "" - "1234" 0 'repo\.[^ ]*/\.claude/source-control\.md.*empty'
+run_cfg "empty fence stops resolution, note names its path" \
+  "feat/12-add-widget-1234" "" - "" 1 "repo\.[^ ]*/\.claude/source-control\.md.*empty.*${STOPPED}"
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n```\n'
-run_cfg "unterminated fence reported with its path and skipped" \
-  "feat/12-add-widget-1234" "" - "1234" 0 'repo\.[^ ]*/\.claude/source-control\.md.*unterminated'
+run_cfg "unterminated fence stops resolution, note names its path" \
+  "feat/12-add-widget-1234" "" - "" 1 "repo\.[^ ]*/\.claude/source-control\.md.*unterminated.*${STOPPED}"
 
 new_case
 layer_raw "${CASE_REPO}/.claude/source-control.md" \
@@ -220,18 +241,22 @@ run_cfg "non-numeric userConfig capture: no output, note names userConfig" \
 # Backreferences are rejected.
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" '^([a-z]+)/\1([0-9]+)'
-run_cfg "backreference layer rejected, default applies" \
-  "feat/42-x" "" - "42" 0 'source-control\.md.*backreference' '\1'
+run_cfg "backreference layer stops resolution, never the default" \
+  "feat/42-x" "" - "" 1 "source-control\.md.*backreference.*${STOPPED}" '\1'
 
 new_case
 run_cfg "backreference userConfig ignored, default applies" \
-  "feat/42-x" '^([a-z]+)/\1([0-9]+)' - "42" 0 'userConfig.*backreference'
+  "feat/42-x" '^([a-z]+)/\1([0-9]+)' - "42" 0 'userConfig.*backreference.*ignored'
+
+new_case
+run_cfg "invalid-ERE userConfig env var ignored, default applies" \
+  "feat/42-x" "" '([' "42" 0 'userConfig.*invalid ERE.*ignored' 'stopped'
 
 # Notes never echo the raw repo-file value.
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" 'ZQXMARK(['
 run_cfg "invalid-ERE note omits the raw pattern" \
-  "feat/42-x" "" - "42" 0 'source-control\.md' 'ZQXMARK'
+  "feat/42-x" "" - "" 1 'source-control\.md.*stopped' 'ZQXMARK'
 
 # Section parsing. The branch `feat/12-widget-34` makes a wrong source visible:
 # the intended trailing-number pattern gives 34, the built-in default gives 12.
@@ -272,43 +297,74 @@ run_cfg "near-miss heading inside a fence is ignored" "$WN" "" - "34" 0 empty
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n### note\n`^feat/([0-9]+)-`\n'
-run_cfg "heading as the first value line: layer skipped with a note" \
-  "$WN" "" - "34" 0 'source-control\.md.*heading.*skipped'
+run_cfg "heading as the first value line stops resolution over a valid user-global layer" \
+  "$WN" "" - "" 1 "source-control\.md.*heading.*${STOPPED}"
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n<!-- first number -->\n`^feat/([0-9]+)-`\n'
-run_cfg "HTML comment as the first value line: layer skipped with a note" \
-  "$WN" "" - "34" 0 'source-control\.md.*comment.*skipped'
+run_cfg "HTML comment as the first value line stops resolution over a valid user-global layer" \
+  "$WN" "" - "" 1 "source-control\.md.*comment.*${STOPPED}"
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n<!-- first number -->\n'
+run_cfg "HTML comment first line alone: no output, never the default 12" \
+  "$WN" "" - "" 1 "source-control\.md.*comment.*${STOPPED}"
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n```\n^feat/([0-9]+)-\n'
-run_cfg "unterminated fence with content: layer skipped with a note" \
-  "$WN" "" - "34" 0 'source-control\.md.*unterminated'
+run_cfg "unterminated fence with content stops resolution" \
+  "$WN" "" - "" 1 "source-control\.md.*unterminated.*${STOPPED}"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n## trailer_policy\n\nnone\n'
+run_cfg "section with no value before the next heading stops resolution" \
+  "$WN" "" - "" 1 "source-control\.md.*no value.*${STOPPED}"
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n'
+run_cfg "section with no value at end of file stops resolution, never the default" \
+  "$WN" "" - "" 1 "source-control\.md.*no value.*${STOPPED}"
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n``\n'
+run_cfg "value of only backticks stops resolution, never the default" \
+  "$WN" "" - "" 1 "source-control\.md.*no value.*${STOPPED}"
 
 # Pattern limits, checked before the pattern is compiled or matched. Each
-# rejected layer falls through to the user-global `-([0-9]+)$` (34).
+# rejected layer stops resolution; the user-global `-([0-9]+)$` (34) and the
+# default (12) must both stay unreached.
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.md" "^feat/([0-9]+)-|$(printf 'z%.0s' {1..190})"
-run_cfg "pattern over 200 characters rejected" "$WN" "" - "34" 0 'source-control\.md.*too long' 'zzzzzzzz'
+run_cfg "pattern over 200 characters stops resolution" \
+  "$WN" "" - "" 1 "source-control\.md.*too long.*${STOPPED}" 'zzzzzzzz'
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.md" '^feat/x{0,17}([0-9]+)-'
-run_cfg "repetition bound over 16 rejected" "$WN" "" - "34" 0 'source-control\.md.*repetition bound' 'x{0,17}'
+run_cfg "repetition bound over 16 stops resolution" \
+  "$WN" "" - "" 1 "source-control\.md.*repetition bound.*${STOPPED}" 'x{0,17}'
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.md" '^feat/((1+)+)[0-9]*-'
-run_cfg "quantifier on a group holding a quantifier rejected" "$WN" "" - "34" 0 'source-control\.md.*nested quantifier' '(1+)+'
+run_cfg "quantifier on a group holding a quantifier stops resolution" \
+  "$WN" "" - "" 1 "source-control\.md.*nested quantifier.*${STOPPED}" '(1+)+'
 
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/((x{0,255}){0,255})([0-9]+)-'
-run_cfg "large nested bounded repetition rejected before it is compiled" \
-  "$WN" "" - "34" 0 'source-control\.md.*repetition bound' 'x{0,255}'
+run_cfg "large nested bounded repetition stops resolution before it is compiled" \
+  "$WN" "" - "" 1 "source-control\.md.*repetition bound.*${STOPPED}" 'x{0,255}'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" '^feat/([0-9]+)-\1'
+run_cfg "backreference team layer stops resolution over a valid user-global layer" \
+  "$WN" "" - "" 1 "source-control\.md.*backreference.*${STOPPED}" '\1'
 
 new_case
 run_cfg "nested-quantifier userConfig ignored, default applies" \

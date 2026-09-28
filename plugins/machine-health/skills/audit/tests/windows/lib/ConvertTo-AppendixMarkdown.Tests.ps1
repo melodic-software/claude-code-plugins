@@ -90,4 +90,47 @@ Describe 'ConvertTo-AppendixMarkdown' -Tag 'lib' {
         $md = ConvertTo-AppendixMarkdown -CheckResults @($check)
         $md | Should -Match 'No inventories'
     }
+
+    It 'renders the KEV matches that justify a winget-upgrades finding' {
+        $check = [pscustomobject]@{
+            id     = 'winget-upgrades'
+            detail = [pscustomobject]@{
+                upgrades    = @()
+                kev_matches = @(
+                    [pscustomobject]@{
+                        upgrade_id  = 'Google.Chrome'
+                        upgrade     = 'Google Chrome (Google.Chrome) 153.0 -> 154.0'
+                        cve_id      = 'CVE-2020-16017'
+                        vendor      = 'Google'
+                        product     = 'Chrome'
+                        match_basis = 'name-only'
+                    }
+                )
+            }
+        }
+        $md = ConvertTo-AppendixMarkdown -CheckResults @($check)
+        $md | Should -Match 'CISA KEV matches \(1\)'
+        $md | Should -Match '\| `Google\.Chrome` \| CVE-2020-16017 \| Google / Chrome \| name-only \|'
+    }
+
+    It 'renders the CodeIntegrity events that justify a drivers finding, pipes escaped' {
+        $check = [pscustomobject]@{
+            id     = 'drivers'
+            detail = [pscustomobject]@{
+                code_integrity_event_count = 12
+                code_integrity_events      = @(
+                    [pscustomobject]@{
+                        provider_name = 'Microsoft-Windows-CodeIntegrity'
+                        id            = 3004
+                        time_created  = [datetime]'2026-09-20T10:00:00'
+                        message       = "file x.sys | hash`r`nmissing"
+                    }
+                )
+            }
+        }
+        $md = ConvertTo-AppendixMarkdown -CheckResults @($check)
+        $md | Should -Match 'CodeIntegrity events \(1 of 12\)'
+        $md | Should -Match '\| 3004 \| file x\.sys \\\| hash missing \|'
+        $md | Should -Not -Match 'oldest drivers'
+    }
 }

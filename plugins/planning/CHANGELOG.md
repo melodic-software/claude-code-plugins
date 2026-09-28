@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.44.10] - 2026-09-28
+## [0.44.11] - 2026-09-28
 
 ### Added
 
@@ -17,6 +17,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
   get a one-line pointer instead of a re-printed round; and the rest of the frontier did not wait
   for the lookup. `interview-defenses.test.sh` updates the roster digest and pins the new case
   beside case 12.
+
+## [0.44.10] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (part of #4657).** Eight of the 12
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: step lists, artifact names,
+  mode details, and restated scope. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 5,454 characters. `interview` stays at 969: its whole frontmatter is digest-pinned by
+  `tests/interview-defenses.test.sh`, and recomputing that pin is left to an attended change. No
+  skill is renamed or merged, and invocation modes are unchanged.
 
 ## [0.44.9] - 2026-09-28
 
