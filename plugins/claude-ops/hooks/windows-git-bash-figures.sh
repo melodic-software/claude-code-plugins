@@ -96,7 +96,9 @@ echo "FIGURE append_4kb_intact=${good}"
 : >"$work/first"
 : >"$work/second"
 order="$(ls -t "$work/first" "$work/second")"
+# portability-ok: GNU stat -c with a BSD stat -f fallback; the redirect between them hides the fallback from the co-location guard.
 first_mtime="$(stat -c %Y "$work/first" 2>/dev/null || stat -f %m "$work/first")"
+# portability-ok: GNU stat -c with a BSD stat -f fallback; the redirect between them hides the fallback from the co-location guard.
 second_mtime="$(stat -c %Y "$work/second" 2>/dev/null || stat -f %m "$work/second")"
 if [[ "$first_mtime" == "$second_mtime" ]]; then
   echo "FIGURE ls_t_same_second=tie mtime=${first_mtime} order=$(printf '%s' "$order" | tr '\n' ',')"
