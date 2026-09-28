@@ -3,18 +3,70 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.2] - 2026-09-28
+## [0.28.1] - 2026-09-28
 
 ### Changed
 
 - **`--root-children` admits regular files through the same ladder as directories**
   ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). This supersedes
-  #2588 criterion 2 ("the volume root's own files are never inventoried"). `not-a-directory` is
-  retired; non-regular types fall to `not-regular-file-or-directory`. A per-platform OS-owned file
+  #2588 criterion 2 ("the volume root's own files are never inventoried"). On an OS-managed
+  volume root, regular files are admitted and non-regular types fall to
+  `not-regular-file-or-directory`. On any other target, files stay `not-a-directory`. A per-platform OS-owned file
   name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
   `root_children_skipped` by reason with counts; `empty_file_count` sits beside
   `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
   current user's home as a separate target.
+
+## [0.28.0] - 2026-09-28
+
+### Added
+
+- **`scan --sizes-only` for exact subtree sizing**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). Full walk with no
+  per-entry inventory, no inventory entry cap, and `rollup_precision` marking exact vs partial output.
+- **Fan-out worker brief** at `skills/clean/reference/fan-out-worker-brief.md` (Bash contract, scan
+  templates, evidence-only rules).
+
+## [0.27.1] - 2026-09-28
+
+### Added
+
+- **`--root-children` inventories approved children of any target, not only an OS-managed volume
+  root** ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). A depth-1
+  home audit left every approved directory `truncated-not-inventoried`, and a deeper whole-home
+  walk hit the 250,000-entry cap. The same `--root-child` selection that already bounded an
+  OS-managed volume root now re-inventories those named immediate children into one snapshot,
+  paths relative to the original target. On a non-OS target, hidden directories (`.dotnet`,
+  `AppData`) stay selectable; the volume-root OS-owned / hidden / system ladder still applies
+  only at an OS-managed volume root. An OS-managed path that is not a volume root is still
+  refused.
+
+## [0.27.0] - 2026-09-28
+
+### Added
+
+- **`--root-children` on non-volume targets (home fan-out)**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
+  depth-1 home audit, re-run against the home path with `--root-children` and explicit
+  `--root-child` names to fully inventory approved top-level directories into one snapshot without
+  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
+## [0.26.4] - 2026-09-28
+
+### Fixed
+
+- **`guard_launch_monitor.py` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). A hard error in the Stop detector used to become a second `hook_non_blocking_error` with no hook text. `main` now catches `SystemExit` other than 0 and `BaseException`, writes one stderr line (`disk-hygiene guard-launch-monitor: did not run …; fail-open`), and returns 0. `SystemExit(0)` is re-raised so `raise SystemExit(main())` still works.
+
+## [0.26.3] - 2026-09-28
+
+### Changed
+
+- **Ranking signals stay a model instruction, not an engine primitive**
+  ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
+  provenance mandate (tier, location sensitivity, provenance strength over byte totals)
+  stays in the skill body. No coded ranker on the destructive surface. Operator park
+  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
+  #4669 (0.26.1) and #3857 (0.26.2).
 
 ## [0.26.0] - 2026-09-28
 

@@ -3,6 +3,24 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.16] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** All four listed skills ran
+  over 500, and `audit` and `realign` also breached the 1,024-codepoint spec maximum. Each now
+  leads with its use case, keeps its quoted trigger phrases, and names its nearest sibling.
+  What the bodies already carry is cut: layer enumerations, rollback-ladder detail, and
+  write-path mechanics. `check-listing-budget.sh plugins/overengineering/skills` goes from 4,342
+  to 1,731 characters. `audit` and `realign` leave `scripts/skill-description-cap-baseline.txt`.
+  No skill is renamed or merged.
+
+## [0.4.15] - 2026-09-28
+
+### Changed
+
+- **`audit` report groups out-of-repo findings by owner** ([#4596](https://github.com/melodic-software/claude-code-plugins/issues/4596)). The inline report lists in-repo findings first and in full, then one summary row per out-of-repo owner (count, verdict mix, pointer to the artifact). Finding ids and artifact rows are unchanged. #4597 already scoped the playbooks repo-sweep entry off the four org-level layers; a direct audit still walks every settings scope, so this is a report view, not a walk filter. Eval 13 covers the rollup.
+
 ## [0.4.14] - 2026-09-27
 
 ### Fixed
