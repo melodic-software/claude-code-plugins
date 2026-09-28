@@ -159,7 +159,8 @@ Every resolved target gets one packet under
 every later step. Read
 [`reference/evidence-packet.md`](reference/evidence-packet.md) before step 1 writes anything: it
 owns the directory layout and the file set, the `audit-notes.md` filename constraint and why
-`findings.md` is forbidden, and the write-once discipline that keeps a sibling `PostToolUse` hook
+`findings.md` is forbidden, and the write-once discipline (an agent rule with after-the-fact
+verify, not a filesystem lock: #3866) that keeps a sibling `PostToolUse` hook
 from rewriting evidence underneath the run. Getting any of the three wrong silently corrupts the
 audit rather than failing it.
 
@@ -352,8 +353,9 @@ the gate does not cover, because it produces no external effect; there is still 
 ## Recurring concerns. Apply every audit
 
 Walk `reference/recurring-concerns.md` before finalizing findings, the accumulated
-design-failure checklist (silent bypass surfaces, enforcement scope/tiers, SSOT/drift, coupling,
-cross-platform, escape hatches, observability).
+design-failure checklist (silent bypass surfaces, enforcement scope/tiers including a claimed
+property the producer can break, SSOT/drift, coupling, cross-platform, escape hatches,
+observability).
 
 ## Reference index. Load on demand
 

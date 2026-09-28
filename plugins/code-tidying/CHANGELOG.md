@@ -3,11 +3,63 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.5] - 2026-09-28
+## [0.23.11] - 2026-09-28
 
 ### Changed
 
 - **batch-simplify:** compose the bundled `simplify` skill via a Native step section; **tidy:** description routing phrase ([#4051](https://github.com/melodic-software/claude-code-plugins/issues/4051)). Store `integration` / parity tooling waits on #4049.
+
+## [0.23.10] - 2026-09-28
+
+### Fixed
+
+- **`batch-simplify` simplifier spawn ladder (#4529).** Prefer the marketplace `code-simplifier`
+  plugin's agent (`code-simplifier:code-simplifier`) over the legacy `pr-review-toolkit` name, with
+  `general-purpose` as the final fallback. Document model tier: refutation verifiers stay on the
+  parent session's model; simplifiers default to it unless a wide repo sweep documents otherwise.
+
+## [0.23.9] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** All five listed skills ran
+  over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: residue-shape examples, collector
+  lists, and restated skip lists. `check-listing-budget.sh plugins/code-tidying/skills` goes
+  from 3,900 to 2,121 characters. `setup` stays `disable-model-invocation: true`.
+  No skill is renamed or merged.
+
+## [0.23.8] - 2026-09-28
+
+### Changed
+
+- **Deferred standalone JS/TS dead-code scan** ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
+  Grep-lane fallback and knip-without-manifest remain parked; #4525 documents the no-`package.json`
+  gap. Version 0.23.7 serializes with other open code-tidying parks on the same base.
+
+## [0.23.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-comment-residue` ticket-pr cue (#4530).** Drop the bare `pull request` prose match; require
+  a concrete back-reference (PR/issue number, tracker key, repo#issue, GitHub URL, or `from …
+  branch`). Tighten the `in this commit` plan-reference cue with a word boundary so `committed`
+  does not false-positive.
+
+## [0.23.6] - 2026-09-28
+
+### Changed
+
+- `audit-dead-code` names coverage gaps and offers to file an issue or research/install a detector
+  with consent; the read-only default is unchanged (#4524).
+
+## [0.23.5] - 2026-09-28
+
+### Fixed
+
+- `audit-dead-code` docs now match the grep lane (shell and PowerShell only, not other symbol
+  languages) across SKILL.md, `plugin.json`, and README; orphaned-file coverage stays TS/JS-only
+  with an explicit no-`package.json` gotcha (#4525).
 
 ## [0.23.4] - 2026-09-27
 

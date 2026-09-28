@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.1] - 2026-09-28
+
+### Fixed
+
+- `audit` rubric carve-out 4 states that same-org sibling repositories are external unless cited
+  (#4577).
+- `persist-findings` rung 1 names `review/reference/topic-docs.md` for destination resolution
+  offline (#4578).
+- `source-fetch` documents rung 1b for the publisher's source repository and `source.route`
+  `publisher-source` (#4579).
+- Pre-computed `--show-config` lines are plain invocations so worktree-isolated sessions accept them
+  (#4580).
+
 ## [0.6.0] - 2026-09-27
 
 ### Added

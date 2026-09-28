@@ -1,5 +1,5 @@
 ---
-description: "When the bundled simplify skill resolves in your session, prefer it for single-file cleanup; this skill for batch sweeps. Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a named scope such as a branch, a whole repository, or one directory, or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
+description: "When the bundled simplify skill resolves in your session, prefer it for single-file cleanup; this skill for batch sweeps. Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[unattended] [time-window | branch | repo] [path...] [docs] [override] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
@@ -194,7 +194,7 @@ For each group:
 
 1. **Mark the task in_progress** via `TaskUpdate`
 
-2. **Spawn a simplifier agent** via the `Agent` tool. Use `subagent_type: "pr-review-toolkit:code-simplifier"` when that plugin is installed, else `subagent_type: "general-purpose"`. The prompt includes:
+2. **Spawn a simplifier agent** via the `Agent` tool. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities

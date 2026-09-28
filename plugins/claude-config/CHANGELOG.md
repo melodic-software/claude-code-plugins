@@ -3,6 +3,71 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-permission-state` treats project `defaultMode: "bypassPermissions"` as dead**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), Claude Code
+  2.1.257). `C2-defaultMode` already flagged `auto` in project and local settings. From 2.1.257
+  the same files also ignore `bypassPermissions` (the session starts in Manual). `acceptEdits`,
+  `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page. The
+  permission-rule-hygiene convention states the same pair.
+
+## [0.51.6] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` catalog 1.23.0 closes surface-class gaps and keeps one lane-sizing rule** ([#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)). I31 covers `SKILL.md` and every file a skill loads (directory names are examples). I32 adds a user/project arm at `warning`. I30 and I12 gain Must NOT flag lines that route stretched cases to a new Out-of-catalog section, which Phase C refutes and Phase D reports and which never reaches `emit-findings.sh`. The surface partition accounts for I6–I35. Dispatch stays #4114's token-budget partition: no 9-lane cap and no 2,500-line constant. The central pre-scan runs once before dispatch; Phase C batches one verifier per lane that produced proposals.
+
+### Fixed
+
+- **`instruction-scan.sh` greps each family once over all files** (GNU and BSD `--null`), so process count no longer grows with file or hit count.
+
+## [0.51.5] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: parent record for the execution model and the report identity
+  contract (#4113).** New `context/execution-and-report.md` states the two standing contracts
+  the skill body already implements in pieces: token-budgeted plugin-atomic lanes with
+  `--unattended` and `--resume` over per-lane run files, and `(check, claim, sites)` finding
+  identity with I15 as one finding of two sites. Persist admission of I30 to I33 is recorded
+  there as the contract the persist unit satisfies; until those crosswalk rows exist they stay
+  declined `no-severity-crosswalk-row`. Phase D names the identity contract on the findings
+  table. No scanner, emit, or lane-runs change.
+
+## [0.51.4] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15:** point shared-surface *ownership* questions at the rejected-concept
+  ledger entry for #3568 (`docs/out-of-scope/shared-surface-instruction-governance.md`). I15 still
+  detects conflicting pairs only; `conflict-criteria.md` 1.6.1.
+
+## [0.51.3] - 2026-09-28
+
+### Fixed
+
+- **`audit`: unattended-push lane parse accepts CRLF and backticked rungs.** The
+  team-tracked `.claude/source-control.md` reader now strips CR and surrounding
+  backticks/whitespace on the merge value, and the suite pins that shape plus a
+  gawk/mawk PATH shim (#4600).
+
+## [0.51.2] - 2026-09-28
+
+### Fixed
+
+- **The `git push` ask-rule finding no longer tells an autonomous lane to stall itself (#4600).**
+  `audit` recommended adding `Bash(git push *)` and `Bash(git push)` to `permissions.ask` at
+  `warning` even in a repository whose team-tracked `.claude/source-control.md` declares an
+  unattended merge lane, although an ask rule prompts in auto mode and is auto-denied under
+  `dontAsk`. When `babysit_loop_merge` resolves above `human-only` in that file (an explicit
+  `c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane keys that default to the
+  `c2-mechanical` baseline), the push ask rows are now `info` and name the signal. Every push ask
+  row states that the rule blocks unattended lanes. Deny families, force-push included, are
+  unaffected. `required-permissions.md` narrowing 1 names the exemption and the signals that count.
+
 ## [0.51.1] - 2026-09-28
 
 ### Changed
