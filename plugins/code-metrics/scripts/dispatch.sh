@@ -7,7 +7,7 @@
 #   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
 #               [--config <resolved.json>] [--ladder <file.tsv>]
 #               [--lane-globs <lane>=<glob>[,<glob>...]]... [--disable-lane <lane>]...
-#               [--scope-file <file>] [--print-scope] [--no-collapse] [--] [<path>...]
+#               [--scope-file <file>] [--print-scope] [--no-collapse] [--no-anchor] [--] [<path>...]
 #
 # Scope: `<path>...` measures those files and directories (an explicitly named
 # path that does not exist is a usage error, exit 2); `--all` measures every
@@ -18,8 +18,8 @@
 # what the change is measured from, so commits the ref made after HEAD
 # diverged are not reported as this change's.
 # `--scope-file` reads the file list from a file (one path per line) instead.
-# Every path is emitted with forward slashes. `--print-scope` prints the
-# resolved scope as `lane<TAB>path` rows and stops, producing no document.
+# Document paths are relative to `root` with forward slashes; `--no-anchor`
+# keeps them cwd-relative. `--print-scope` prints cwd-relative rows and stops.
 #
 # Configuration: without `--config`, the cascade is resolved here through
 # scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
@@ -73,6 +73,7 @@ MODE_SET=0
 BASE_SET=0
 PRINT_SCOPE=0
 NO_COLLAPSE=0
+NO_ANCHOR=0
 SCOPE_FILE=""
 DETECT_ARGS=()
 PATHS=()
@@ -108,6 +109,12 @@ while [[ $# -gt 0 ]]; do
     # itself, so collapsing here would drop the copies before their coverage
     # was ever looked up. The registries are still validated.
     NO_COLLAPSE=1
+    shift
+    ;;
+  --no-anchor)
+    # Leave measured paths cwd-relative. Callers that still join those paths
+    # (coverage, duplication) anchor once, at emit, after that join.
+    NO_ANCHOR=1
     shift
     ;;
   --config)
@@ -737,15 +744,28 @@ done
 
 "${PY[@]}" "$REPORT" assemble --skill "$SKILL" --scope "$SCOPE_JSON" --run "$RUN" --measures "$ROWS" --thresholds "$THRESHOLDS" >"$WORK/assembled.json" || exit 2
 
-if [[ "$NO_COLLAPSE" -eq 1 ]]; then
-  cat "$WORK/assembled.json"
-else
+FINAL="$WORK/assembled.json"
+if [[ "$NO_COLLAPSE" -eq 0 ]]; then
   # Rows for a file the registry names collapse to one row per function with
   # a replica count, and the summary is recomputed from what survived so the
   # over-reference count stops counting one function once per copy.
   cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/collapsed.json" || exit 2
-  cat "$WORK/collapsed.json"
+  FINAL="$WORK/collapsed.json"
 fi
+if [[ "$NO_ANCHOR" -eq 0 ]]; then
+  anchor_kind="scan"
+  anchor_root="$PWD"
+  if anchor_top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    anchor_top="${anchor_top%$'\r'}"
+    if [[ -n "$anchor_top" ]]; then
+      anchor_kind="repository"
+      anchor_root="$anchor_top"
+    fi
+  fi
+  "${PY[@]}" "$REPORT" anchor --root "$anchor_root" --kind "$anchor_kind" <"$FINAL" >"$WORK/anchored.json" || exit 2
+  FINAL="$WORK/anchored.json"
+fi
+cat "$FINAL"
 
 [[ $COLLECT_FAILED -eq 0 ]] || exit 3
 exit 0

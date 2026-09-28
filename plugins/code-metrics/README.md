@@ -87,7 +87,10 @@ a documented YAML subset (block style, flow sequences of scalars, no flow mappin
 
 ## The report
 
-Every audit prints one `code-metrics/v1` JSON document (`--json`) or its markdown rendering. The
+Every audit prints one `code-metrics/v1` JSON document (`--json`) or its markdown rendering.
+Measured paths are relative to the `root` object on that document (the work-tree root, or
+the working directory outside a work tree), so two runs of the same repository from
+different directories name each file the same way. The
 document opens with a "Coverage of this run" table naming, per lane and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
 measured nothing can never read as green. The markdown table shows each function once with every

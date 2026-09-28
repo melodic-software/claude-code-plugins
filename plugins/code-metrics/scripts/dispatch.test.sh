@@ -218,16 +218,33 @@ assert_doc "change scope is the committed diff plus untracked files, base record
 out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 rc=$?
 assert_eq "change scope from a subdirectory exits 0" 0 "$rc"
-assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the cwd" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["../changed.py","../untracked.sh","inner.py"]'
+assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the repository root" "$out" \
+  'd["root"]["kind"]=="repository" and sorted(r["file"] for r in d["measures"])==["changed.py","sub/inner.py","untracked.sh"]'
 # `--all` means the whole repository, from a subdirectory too: an unanchored
 # listing stops at the cwd, so the run would measure that subtree while its
 # scope block still called itself `all`.
 out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
 rc=$?
 assert_eq "--all from a subdirectory exits 0" 0 "$rc"
-assert_doc "--all from a subdirectory measures the whole repository, paths relative to the cwd" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["../base.py","../changed.py","../untracked.sh","inner.py"]'
+assert_doc "--all from a subdirectory measures the whole repository, paths relative to the repository root" "$out" \
+  'd["root"]["kind"]=="repository" and sorted(r["file"] for r in d["measures"])==["base.py","changed.py","sub/inner.py","untracked.sh"]'
+from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
+cmpdir="$(mktemp -d)"
+printf '%s\n' "$out" >"$cmpdir/from-sub.json"
+printf '%s\n' "$from_root" >"$cmpdir/from-root.json"
+if "$PY" -c '
+import json, sys
+sub = json.load(open(sys.argv[1]))
+root = json.load(open(sys.argv[2]))
+files = lambda doc: sorted(row["file"] for row in doc["measures"])
+if files(sub) != files(root) or sub["root"] != root["root"] or sub["root"]["kind"] != "repository":
+    raise SystemExit(1)
+' "$cmpdir/from-sub.json" "$cmpdir/from-root.json"; then
+  pass "the same repository from two directories yields identical path fields and root"
+else
+  fail "the same repository from two directories yields identical path fields and root" "equal file lists and root" "differ"
+fi
+rm -rf "$cmpdir"
 # 9c. A change with nothing in it: the run row's reason is where the reader
 #     learns how to widen the scope, since the skill body is not in front of
 #     them when the report is.

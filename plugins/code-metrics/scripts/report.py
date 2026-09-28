@@ -30,6 +30,11 @@ Three subcommands, all standard library:
       (directories to `--rollup-depth`, default 2), and summarizes as
       `Files with clones`; every other document renders as it always has.
 
+  report.py anchor --root <dir> --kind repository|scan [< report.json]
+      Rewrite measured path fields so they are relative to `--root`, record
+      that root as `root.kind` and `root.path`, and recompute `summary`.
+      A document that already carries `root` is printed unchanged.
+
   report.py resummarize [--root <dir>] [< report.json]
       Recompute `summary` from `measures[]` and print the document; for a
       skill that drops rows after assembly (a duplication registry moving
@@ -215,6 +220,66 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
         summary["by_lane"] = by_lane
         summary["by_directory"] = by_directory
     return summary
+
+
+def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]:
+    """Make measured paths relative to `root` and record that root.
+
+    A second call is a no-op once `root.kind` and `root.path` are set, so a
+    dispatcher and a later emitter can both run this without joining an
+    already-relative path onto the working directory again.
+    """
+    existing = doc.get("root")
+    if isinstance(existing, dict) and existing.get("kind") and existing.get("path"):
+        return doc
+    if kind not in ("repository", "scan"):
+        raise SystemExit(f"anchor kind must be repository or scan, got {kind!r}")
+    root_text = root.replace("\\", "/").rstrip("/")
+    if not root_text:
+        raise SystemExit("anchor needs a root path")
+
+    def one(value: Any) -> Any:
+        if not isinstance(value, str) or not value:
+            return value
+        return root_relative(value, root)
+
+    for row in doc.get("measures") or []:
+        if not isinstance(row, dict):
+            continue
+        if isinstance(row.get("file"), str):
+            row["file"] = one(row["file"])
+        for instance in row.get("instances") or []:
+            if isinstance(instance, dict) and isinstance(instance.get("file"), str):
+                instance["file"] = one(instance["file"])
+        replicas = row.get("replicas")
+        if isinstance(replicas, dict) and isinstance(replicas.get("files"), list):
+            replicas["files"] = [
+                one(item) if isinstance(item, str) else item
+                for item in replicas["files"]
+            ]
+    for group in doc.get("excluded") or []:
+        if not isinstance(group, dict):
+            continue
+        for instance in group.get("instances") or []:
+            if isinstance(instance, dict) and isinstance(instance.get("file"), str):
+                instance["file"] = one(instance["file"])
+    for row in doc.get("run") or []:
+        if isinstance(row, dict) and isinstance(row.get("missing"), list):
+            row["missing"] = sorted(
+                one(item) if isinstance(item, str) else item for item in row["missing"]
+            )
+    doc["root"] = {"kind": kind, "path": root_text}
+    # `summarize` omits the duplication keys when no clone group survived.
+    # The zero floor a duplication run states after every group was excluded
+    # lives only on the previous summary, so keep those keys when the
+    # recomputation would drop them.
+    previous = doc.get("summary") if isinstance(doc.get("summary"), dict) else {}
+    doc["summary"] = summarize(doc.get("measures") or [], "")
+    if "duplicated_lines" in previous and "duplicated_lines" not in doc["summary"]:
+        for key in ("duplicated_lines", "clone_groups", "by_lane", "by_directory"):
+            if key in previous:
+                doc["summary"][key] = previous[key]
+    return doc
 
 
 def assemble(
@@ -530,6 +595,12 @@ def render(
             else ""
         )
     )
+    root_info = doc.get("root")
+    if isinstance(root_info, dict) and root_info.get("path"):
+        lines.append(
+            "Paths are relative to "
+            f"`{root_info.get('kind', 'scan')}` root `{root_info['path']}`."
+        )
     lines.append("")
     lines.append("## Coverage of this run")
     lines.append("")
@@ -819,6 +890,9 @@ def main(argv: list[str]) -> int:
     p_render.add_argument("--rollup-depth", type=int, default=2)
     p_res = sub.add_parser("resummarize")
     p_res.add_argument("--root", default="")
+    p_anchor = sub.add_parser("anchor")
+    p_anchor.add_argument("--root", required=True)
+    p_anchor.add_argument("--kind", required=True)
     args = parser.parse_args(argv)
     if args.command == "thresholds":
         config = _read_json(args.config)
@@ -837,6 +911,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(doc, indent=2))
         return 0
     doc = json.load(sys.stdin)
+    if args.command == "anchor":
+        print(json.dumps(anchor_document(doc, args.root, args.kind), indent=2))
+        return 0
     if args.command == "resummarize":
         doc["summary"] = summarize(doc.get("measures", []), args.root)
         print(json.dumps(doc, indent=2))

@@ -54,9 +54,31 @@ cm_resolve_config() {
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$1"
 }
 
+cm_anchor_document() {
+  # Record `root` and rebase measured paths onto it. Idempotent once `root`
+  # is present, so a dispatcher that already anchored is left unchanged.
+  local document="$1" kind="scan" root="$PWD" top anchored
+  if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    top="${top%$'\r'}"
+    if [[ -n "$top" ]]; then
+      kind="repository"
+      root="$top"
+    fi
+  fi
+  anchored="$(mktemp)"
+  if ! "${PY[@]}" "$CM_ENTRY_LIB_DIR/report.py" anchor --root "$root" --kind "$kind" <"$document" >"$anchored"; then
+    rm -f "$anchored"
+    return 2
+  fi
+  mv "$anchored" "$document"
+}
+
 cm_emit_document() {
   local skill="$1" json="$2" document="$3" persisted
   shift 3
+  if [[ "${CM_NO_ANCHOR:-0}" != "1" ]]; then
+    cm_anchor_document "$document" || return 2
+  fi
   if [[ "$json" -eq 1 ]]; then
     cat "$document"
     return 0

@@ -9,6 +9,7 @@ read, so its shape is stable within the `v1` schema string.
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | string | `code-metrics/v1` |
+| `root` | object | Where measured paths are relative to. `kind` is `repository` or `scan`; `path` is the absolute directory those paths are relative to. See [Path relativity](#path-relativity). |
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
 | `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row; a lane that skipped every file is `partial` even with no measure row, because its run row states the skip), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
@@ -20,15 +21,47 @@ read, so its shape is stable within the `v1` schema string.
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
 
-A reader ignores keys it does not know: fields are added within `v1` (the rollups and the run
-row's `hint` were), never renamed or removed.
+A reader ignores keys it does not know: fields are added within `v1` (the rollups, the run
+row's `hint`, and `root` were), never renamed or removed.
+
+## Path relativity
+
+Measured path fields are relative to `root.path`: `measures[].file`, clone
+`instances[].file`, `replicas.files`, `excluded[].instances[].file`, and
+`run[].missing`. Forward slashes, no leading `./`. A consumer resolves a field by
+joining it onto `root.path` and needs nothing else about how the run was invoked.
+
+`root.kind` is `repository` when the audit runs inside a work tree. `root.path` is
+then the absolute path `git rev-parse --show-toplevel` prints, the top-level
+directory of the working tree. A scope that names a subdirectory does not change
+that root: the same file audited from the repository root and from a subdirectory
+is the same string. Outside a work tree, or when that command reports no working
+tree, `root.kind` is `scan` and `root.path` is the working directory.
+
+The schema identifier stays `code-metrics/v1`. Producers do not also emit the old
+cwd-relative spelling.
+
+**Claim:** the decisions above. **Basis:** [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html)
+("Major version zero (0.y.z) is for initial development. Anything MAY change at any
+time. The public API SHOULD NOT be considered stable."); this plugin is 0.y.z, so
+the path contract changes without minting `code-metrics/v2` or a plugin major.
+[ADR 0013](../../../docs/adr/0013-keep-storage-format-identifiers-stable-across-renames.md)
+keeps a storage-format identifier stable absent a migration; `code-metrics/v1` is
+that identifier and this change adds `root` under the rule in the paragraph above
+rather than renaming it. [`git rev-parse --show-toplevel`](https://git-scm.com/docs/git-rev-parse)
+("Show the (by default, absolute) path of the top-level directory of the working
+tree. If there is no working tree, report an error."). **As of:** 2026-09-28.
+**Recheck:** a consumer outside this repository depends on cwd-relative
+`code-metrics/v1` paths, a git release note changes `--show-toplevel` away from the
+work-tree root, or this plugin reaches 1.0.0 and the report becomes a stable public
+API under SemVer.
 
 ## Duplication rollups
 
 `summary.by_lane` maps each lane to `{"groups", "duplicated_lines"}` over the surviving clone
 groups, and `summary.by_directory` maps `.` and every ancestor directory of each group's first
-instance (instances are sorted by path, so that is the lowest path; paths are made relative to the
-repository root) to the same shape. A group counts once under every ancestor, so a parent includes
+instance (instances are sorted by path, so that is the lowest path; paths are relative to
+`root.path`, the repository root when `root.kind` is `repository`) to the same shape. A group counts once under every ancestor, so a parent includes
 its children and directory rows cannot be summed; two identities hold instead:
 `by_directory["."].duplicated_lines == summary.duplicated_lines` and the `by_lane` values sum to
 it. A duplication run that found or kept no group carries both as empty maps, beside its
@@ -91,8 +124,8 @@ such a run is `partial` rather than `empty`, and it withholds `complete`, so a d
 read as complete while one of its own rows says `N of M`.
 
 A coverage row whose reason carries that `N of M scope files` count also carries `missing`, an
-additive key holding every scope file of the lane that no artifact mentions, root-relative and
-sorted; the reason names the first five and counts the rest (`; missing: a, b, c, d, e, +N more in
+additive key holding every scope file of the lane that no artifact mentions, relative to
+`root.path` and sorted; the reason names the first five and counts the rest (`; missing: a, b, c, d, e, +N more in
 the JSON`). The key is absent on an `ok` row, on a row that found no artifact at all (its reason
 lists the paths searched instead), and on the lane's `crap` row, which repeats the coverage reason
 verbatim when coverage is what it lacks.

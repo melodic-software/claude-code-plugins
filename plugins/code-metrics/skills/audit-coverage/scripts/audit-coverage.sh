@@ -180,7 +180,7 @@ done
 
 # The complexity rows come uncollapsed so every copy of a replicated file
 # gets its coverage looked up; the joined document is collapsed below.
-bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
+CM_NO_ANCHOR=1 bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse --no-anchor ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
 rc=$?
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"

@@ -3,6 +3,19 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.21] - 2026-09-28
+
+### Changed
+
+- **Report paths are relative to a recorded root (#3842).** `code-metrics/v1` stays
+  the schema identifier. Measured path fields (`measures[].file`, clone
+  `instances[].file`, `replicas.files`, `excluded[].instances[].file`, and
+  `run[].missing`) are relative to a new additive `root` object. Inside a work
+  tree `root.kind` is `repository` and `root.path` is `git rev-parse
+  --show-toplevel`; otherwise `kind` is `scan` and `path` is the working
+  directory. The same repository audited from two directories now yields the
+  same path strings. The decision record is in `reference/report-schema.md`.
+
 ## [0.3.20] - 2026-09-28
 
 ### Changed

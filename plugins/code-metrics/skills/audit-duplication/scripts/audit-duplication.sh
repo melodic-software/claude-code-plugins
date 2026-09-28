@@ -168,7 +168,7 @@ for registry in "${REGISTRY_ARGS[@]:-}" "${CONFIGURED_REGISTRIES[@]:-}"; do
   FILTER_ARGS+=(--registry "$resolved")
 done
 
-bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} >"$WORK/report.json"
+bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" --no-anchor ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 

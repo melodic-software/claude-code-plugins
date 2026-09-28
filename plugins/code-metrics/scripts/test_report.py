@@ -1773,5 +1773,95 @@ class JoinedRenderTests(unittest.TestCase):
         self.assertIn("Excluded by scope.exclude: `**/build/**` 4.", out)
 
 
+class AnchorTests(unittest.TestCase):
+    def test_subdirectory_paths_become_root_relative_and_a_second_anchor_is_a_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sub").mkdir()
+            (root / "b.py").write_text("b = 1\n", encoding="utf-8")
+            (root / "sub" / "a.py").write_text("a = 1\n", encoding="utf-8")
+            doc = {
+                "schema": "code-metrics/v1",
+                "skill": "audit-size",
+                "measures": [
+                    {
+                        "file": "../b.py",
+                        "function": None,
+                        "values": {"lines_total": 1},
+                        "over_reference": [],
+                    },
+                    {
+                        "file": "a.py",
+                        "function": None,
+                        "values": {"lines_total": 1},
+                        "over_reference": [],
+                    },
+                    {
+                        "instances": [
+                            {"file": "../b.py", "start_line": 1, "end_line": 1},
+                            {"file": "a.py", "start_line": 1, "end_line": 1},
+                        ],
+                        "values": {"lines": 1},
+                        "over_reference": [],
+                    },
+                ],
+                "excluded": [{"instances": [{"file": "../b.py"}]}],
+                "run": [{"missing": ["../b.py", "a.py"]}],
+                "summary": {},
+            }
+            first = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "anchor",
+                    "--root",
+                    str(root),
+                    "--kind",
+                    "repository",
+                ],
+                cwd=root / "sub",
+                input=json.dumps(doc),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr)
+            anchored = json.loads(first.stdout)
+            self.assertEqual(
+                anchored["root"],
+                {"kind": "repository", "path": str(root).replace("\\", "/")},
+            )
+            self.assertEqual(
+                sorted(row["file"] for row in anchored["measures"] if row.get("file")),
+                ["b.py", "sub/a.py"],
+            )
+            self.assertEqual(
+                sorted(item["file"] for item in anchored["measures"][2]["instances"]),
+                ["b.py", "sub/a.py"],
+            )
+            self.assertEqual(anchored["excluded"][0]["instances"][0]["file"], "b.py")
+            self.assertEqual(anchored["run"][0]["missing"], ["b.py", "sub/a.py"])
+            rendered = run("render", stdin=json.dumps(anchored)).stdout
+            self.assertIn(f"repository` root `{anchored['root']['path']}`", rendered)
+            second = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "anchor",
+                    "--root",
+                    str(root / "sub"),
+                    "--kind",
+                    "scan",
+                ],
+                cwd=root,
+                input=json.dumps(anchored),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(json.loads(second.stdout), anchored)
+
+
 if __name__ == "__main__":
     unittest.main()
