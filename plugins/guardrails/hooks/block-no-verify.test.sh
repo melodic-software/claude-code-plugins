@@ -342,6 +342,13 @@ run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
   "Invoke-Command -ScriptBlock { git status }; git commit --no-verify -m x" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 # reset-hard is a destructive-form token and must not open this sink.
+# The budget refuses (#4682 twin): a quoted call target makes no progress under
+# its token, so all five rounds are spent and the --no-verify inside is never read.
+expect "PS: no-progress sink under its token exhausts the budget (blocked)" 2 \
+  --tool PowerShell --command "\$a=& 'git commit --no-verify -m x'" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+assert_contains "PS: budget refusal names the five rounds" "$GUARD_ERR" "after five rounds"
+assert_contains "PS: budget refusal says no token clears it" "$GUARD_ERR" "No allow token clears this"
 run_pwsh "PS: reset-hard token does not open the sink" \
   "Invoke-Command -ScriptBlock { git reset --hard }" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
