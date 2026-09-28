@@ -196,6 +196,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on) |
 | `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
+| `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
 ### How to set these
 
