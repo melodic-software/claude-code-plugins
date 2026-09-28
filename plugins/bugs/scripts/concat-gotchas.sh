@@ -31,7 +31,8 @@ extract_gotchas() {
         next
       }
       if (insec) {
-        if (match(line, /^#{1,2}[[:space:]]/)) exit
+        # ##? not #{1,2}: mawk 1.3.3 matches ERE intervals as literal text.
+        if (match(line, /^##?[[:space:]]/)) exit
         print line
         next
       }
