@@ -103,6 +103,9 @@ run "an unknown tag fails status-tags" 1 "$TMP/badtag.md" 'untagged=Phase-3'
 good_plan | sed 's/^### Phase 2: Migrate shell config \[DOING\]$/### Phase 2: Migrate shell config [DOING - standing]/' >"$TMP/notedtag.md"
 run "a note inside a valid tag's brackets passes" 0 "$TMP/notedtag.md" 'criterion=status-tags status=pass'
 
+good_plan | sed 's/^### Phase 3: Docs \[DONE\]$/### Phase 3: Docs [DONEE]/' >"$TMP/typotag.md"
+run "a tag that only starts with a valid state fails" 1 "$TMP/typotag.md" 'untagged=Phase-3'
+
 good_plan | sed '/^## Decisions made/,/^$/{/^## Decisions made/d}' | sed '/^## Decisions made/d' >"$TMP/tableonly.md"
 run "the Decision table counts without a Decisions made heading" 0 "$TMP/tableonly.md" 'criterion=decisions status=pass tagged=1 rows=1'
 
@@ -139,6 +142,9 @@ run "an inline Blast radius line with a level passes" 0 "$TMP/blastline.md" 'cri
 
 { good_plan; printf '\nSource lives at %s.\n' "$DRIVE_PATH"; } >"$TMP/drive.md"
 run "a drive-letter user path fails portable-paths" 1 "$TMP/drive.md" 'criterion=portable-paths status=fail hits=1'
+
+{ good_plan; printf '\nClone into %s first.\n' "/Us""ers/Alice/src"; } >"$TMP/upper.md"
+run "a capitalized user name still fails portable-paths" 1 "$TMP/upper.md" 'criterion=portable-paths status=fail hits=1'
 
 { good_plan; printf '\nClone to %s first.\n' "$BACKSLASH_PATH"; } >"$TMP/backslash.md"
 run "a backslash drive path fails portable-paths" 1 "$TMP/backslash.md" 'path-hit=[0-9]+:Clone to D:'

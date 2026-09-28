@@ -7,7 +7,7 @@
 #   phases          at least one `### Phase N:` heading (N is 1, 2.5, 3a, or IV)
 #   status-tags     every `### Phase N:` heading ends in one of the three status
 #                   tags /planning:plan defines: not-started, [DOING] or [DONE]
-#                   (a note inside the brackets, as in [DOING - standing], is kept)
+#                   (a note after " - " inside the brackets, as in [DOING - standing], is kept)
 #   sanity-checks   every phase section carries at least one `Sanity Check`
 #   decisions       when the plan tags a decision [EXEC-SHAPE] or [FALLBACK], a
 #                   `| Decision | What it changes ...` table has at least one row
@@ -91,7 +91,7 @@ structural="$(
         gsub(/[ \t]+/, "-", phase_name)
         trimmed = heading
         sub(/[ \t]+$/, "", trimmed)
-        if (trimmed !~ /\[(TODO|DOING|DONE)([^]]*)\]$/) untagged = untagged " " phase_name
+        if (trimmed !~ /\[(TODO|DOING|DONE)([ \t]+-[^]]*)?\]$/) untagged = untagged " " phase_name
       } else if (heading ~ /^(#|##|###)[ \t]/) {
         flush_phase()
         in_phase = 0
@@ -180,7 +180,7 @@ fi
 
 path_hits="$(
   tr -d '\r' <"$plan" |
-    grep -nE '(^|[^A-Za-z])[A-Za-z]:[\\/]|/(Users|home)/[a-z]' |
+    grep -nE '(^|[^A-Za-z])[A-Za-z]:[\\/]|/(Users|home)/[A-Za-z0-9_]' |
     grep -v '<!-- path-example -->'
 )"
 if [[ -z "$path_hits" ]]; then
