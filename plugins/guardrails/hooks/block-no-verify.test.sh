@@ -313,8 +313,10 @@ run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
 run_pwsh "PS: reset-hard token does not open the sink" \
   "Invoke-Command -ScriptBlock { git reset --hard }" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
+# shellcheck disable=SC2016
 run_pwsh "PS: pwsh -File \$script (launcher sink, blocked)" \
   'pwsh -File $script' 2
+# shellcheck disable=SC2016
 run_pwsh "PS: pwsh -File \$script with launcher token (allowed — #4252)" \
   'pwsh -File $script' 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
