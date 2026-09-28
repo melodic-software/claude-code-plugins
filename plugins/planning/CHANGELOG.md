@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.0] - 2026-09-28
+## [0.45.5] - 2026-09-28
 
 ### Added
 
@@ -18,6 +18,26 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `/Users/<name>` or `/home/<name>` path unless the line carries `<!-- path-example -->`, since a
   committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
   carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
+
+## [0.45.4] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`, and consequential ones are grounded first**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `interview` resolves the conflict between "never recommend a consequential choice from recall"
+  and "recommend based on conventions": a consequential recommendation (cross-repo, shared
+  infrastructure, irreversible, or security) is grounded in its consumers and in external research
+  dispatched to a sub-agent, and only a non-consequential one may rest on convention, labeled
+  `Basis: judgment`. Every `My recommendation:` line gains a `Basis:` line, and a revised
+  recommendation is restated as old, new, why. `design`, `prd`, and `brainstorm` gain the same
+  rule. `interview-defenses.test.sh` re-pins the Stance and loop.md Step 2 digests; the edits add a
+  requirement and resolve nothing new.
+- **Ships `context/recommendation-basis.md`**, the convention's essentials (grounding bar,
+  consequential threshold, the verified, judgment, and withheld outcomes, old → new → why), a
+  byte-identical copy of the `discipline` contract, since an installed plugin cannot read the
+  repository's `docs/`. Each skill's Basis rule points to it and handles the withheld outcome;
+  interview asks an unsettled consequential question open with a `Withheld:` line.
 
 ## [0.45.3] - 2026-09-28
 
