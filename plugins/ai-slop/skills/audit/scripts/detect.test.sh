@@ -1055,8 +1055,8 @@ assert_contains "dir target with a trailing slash: only the tracked file counts"
 # Drive-root slash preservation is a string contract, not a host contract: the
 # suite does not need Windows. Source the production helper so this case cannot
 # drift from the function expand_dir_target actually calls.
-# shellcheck disable=SC1090
-source <(sed -n '/^normalize_dir_target()/,/^}/p' "$DETECT")
+# shellcheck source=lib/resolve-targets.sh
+source "$SCRIPT_DIR/lib/resolve-targets.sh"
 assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
 assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/tmp/")" "C:/tmp"
 assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
