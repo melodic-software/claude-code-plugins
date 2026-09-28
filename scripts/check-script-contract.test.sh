@@ -94,6 +94,7 @@ REGISTRY=(
   "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"
   "check-plugin-manifest-presence.sh|jq|-|-"
+  "check-publisher-token-alignment.sh|-|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
   "check-shell-portability.sh|-|-|-"
