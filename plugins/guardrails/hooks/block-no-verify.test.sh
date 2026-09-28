@@ -667,6 +667,23 @@ expect "PS #4235: the special-construct token sets aside the block (allowed)" 0 
 expect "PS #4235: a visible --no-verify beside the granted region still blocks" 2 \
   --tool PowerShell --command '& { git push }; git commit --no-verify -m x' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-special-construct
+# A grant waives the can't-parse denial only: a bypass written INSIDE the opaque
+# region is read from the raw text and still blocks.
+ALL_PS_TOKENS=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
+for granted_bypass in \
+  '& { git commit --no-verify -m x }' \
+  '{ git status; git commit --no-verify -m x }' \
+  '{ git remote -v; git commit -n -m x }' \
+  "$(printf "{ @'\nx\n'@ | git commit -F - --no-verify }")" \
+  "iex 'git commit --no-verify -m x'"; do
+  expect "PS #4235: bypass inside a granted region still blocks: $granted_bypass" 2 \
+    --tool PowerShell --command "$granted_bypass" \
+    -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS" \
+    CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW="$ALL_PS_TOKENS"
+done
+expect "PS #4235: a granted region with no bypass flag is allowed" 0 \
+  --tool PowerShell --command '& { git status; git commit -m x }' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS"
 expect "PS #4235: an unrelated token does not open the special-construct sink" 2 \
   --tool PowerShell --command '& { git push }' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-launcher

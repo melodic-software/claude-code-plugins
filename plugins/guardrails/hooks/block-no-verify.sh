@@ -284,6 +284,22 @@ check_segment() {
   return 0
 }
 
+# Run check_segment from every git token in TEXT (backticks removed) to the end,
+# wherever the token sits: inside `{}`/`()`, a quoted iex string, or after a
+# here-string. Starting mid-string can over-read a message as flags; that
+# over-blocks, and only on a command a sink token already let through.
+ps_scan_raw_git_calls() {
+  local raw="${1//\`/}" lc pre off=0 start
+  lc="${raw,,}"
+  while [[ "${lc:off}" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=@])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; do
+    pre="${lc:off}"
+    pre="${pre%%"${BASH_REMATCH[0]}"*}"
+    start=$((off + ${#pre} + ${#BASH_REMATCH[1]}))
+    hook::bash_parse_segments "${raw:start}" check_segment
+    off=$((start + 3))
+  done
+}
+
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
@@ -333,6 +349,11 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
       exit 2
     fi
+    # The grant waives only the can't-parse denial. Blanking would also drop a
+    # bypass written inside the region (`& { git commit --no-verify }`, an iex
+    # string, a here-string's pipeline), so first read every git call in the raw
+    # text with the same segment check.
+    ps_scan_raw_git_calls "$COMMAND"
     ps::blank_sink_opaque_regions "$COMMAND" "$PS_SINK_TRIGGER"
     COMMAND="$PS_SAFE_COMMAND"
     if [[ -z "${COMMAND//[[:space:]]/}" ]]; then

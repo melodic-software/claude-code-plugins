@@ -186,8 +186,10 @@ out of scope until such a signal exists.
   flat statements), prints the commit form only when the command names
   `commit`, and names the narrow lever: `block_no_verify_allow` takes the same
   `ps-unparsable-*` sink tokens as `block_dangerous_git_allow`. A granted token
-  blanks only the unreadable region, so a visible `--no-verify` beside it still
-  blocks.
+  waives only the can't-parse denial: every git call in the raw text, inside the
+  region or beside it, is still read, so `& { git commit --no-verify -m x }`,
+  `iex 'git commit -n -m x'` and a `--no-verify` beside the region all still
+  block.
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
@@ -1364,7 +1366,7 @@ reads it from.
 | `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Block writes containing high-confidence secret/credential patterns |
 | `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Block writes containing hardcoded machine-specific paths |
 | `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set: lefthook/husky/pre-commit/simple-git-hooks by default) |
-| `block_no_verify_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW` | Comma-separated PowerShell fail-closed sink shapes block-no-verify sets aside: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr. A granted shape's region is blanked and the rest is still checked, so a visible --no-verify still blocks; a command still unreadable after five granted rounds is refused whatever the list holds; empty blocks all |
+| `block_no_verify_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW` | Comma-separated PowerShell fail-closed sink shapes block-no-verify sets aside: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr. A granted shape waives only the can't-parse denial: every git call, inside the region or beside it, is still read, so a --no-verify anywhere in the command still blocks; a command still unreadable after five granted rounds is refused whatever the list holds; empty blocks all |
 | `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards, and push --force-with-lease when it leases against a value git resolves at push time, meaning either no expected value, or an expectation that is not an object id of the repository's own hash width) |
 | `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes. On Git for Windows, a Bash-tool /tmp that cygpath/mount shows is the usertemp mount of %TEMP% is not blocked; /c/tmp, C:\tmp, drive-root \tmp, PowerShell /tmp, and the file-path lane still are. curl -o/--output and wget -O/--output-document destinations are judged the same way as cp/mv |
