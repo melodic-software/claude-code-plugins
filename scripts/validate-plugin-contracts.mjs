@@ -1115,6 +1115,55 @@ for (const path of agentDefinitions) {
   }
 }
 
+// Unescaped $N in a skill that admits arguments. Official substitution expands
+// $0/$1 even inside fences on the 2.1.251 probe; a single preceding backslash
+// is the only escape, and a doubled backslash still expands. The message
+// points at the playbook section that records the rule.
+const ARGUMENTS_DOC =
+  "plugins/playbooks/skills/skill-authoring/SKILL.md (Arguments)";
+
+function backslashesBefore(text, index) {
+  let count = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i -= 1) count += 1;
+  return count;
+}
+
+function firstUnescaped(text, pattern) {
+  const re = new RegExp(pattern, "g");
+  let match;
+  while ((match = re.exec(text))) {
+    if (backslashesBefore(text, match.index) !== 1) return match[0];
+  }
+  return null;
+}
+
+function admitsArguments(frontmatter, body) {
+  if (/^arguments\s*:/m.test(frontmatter)) return true;
+  const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
+  if (hint) {
+    const raw = hint[1].trim();
+    if (raw !== "" && raw !== '""' && raw !== "''") return true;
+  }
+  return firstUnescaped(body, "\\$ARGUMENTS\\b") !== null;
+}
+
+const argumentSkills = pluginFiles.filter((path) =>
+  /[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/.test(path),
+);
+for (const path of argumentSkills) {
+  const content = read(path);
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const body = content.slice(content.indexOf("---", 3) + 3);
+  if (!admitsArguments(frontmatter, body)) continue;
+  const hit = firstUnescaped(body, "\\$[0-9]+");
+  if (hit) {
+    fail(
+      path,
+      `unescaped ${hit} in a skill that admits arguments; escape a literal with a single backslash (${ARGUMENTS_DOC})`,
+    );
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

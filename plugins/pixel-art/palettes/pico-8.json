@@ -1,0 +1,88 @@
+{
+  "name": "pico-8",
+  "variant": "startup system palette, indices 0-15",
+  "source": "http://pico8wiki.com/index.php?title=Palette",
+  "license": "The sixteen RGB triples are the PICO-8 startup system colors as published by the PICO-8 wiki (Official base colors). Lexaloffle has not published a separate color-table license. PICO-8 is a trademark of Lexaloffle Games LLP. Bundled as factual constants of that runtime, with community color names from the same page.",
+  "colors": [
+    {
+      "key": "0",
+      "hex": "#000000",
+      "name": "black"
+    },
+    {
+      "key": "1",
+      "hex": "#1d2b53",
+      "name": "dark-blue"
+    },
+    {
+      "key": "2",
+      "hex": "#7e2553",
+      "name": "dark-purple"
+    },
+    {
+      "key": "3",
+      "hex": "#008751",
+      "name": "dark-green"
+    },
+    {
+      "key": "4",
+      "hex": "#ab5236",
+      "name": "brown"
+    },
+    {
+      "key": "5",
+      "hex": "#5f574f",
+      "name": "dark-grey"
+    },
+    {
+      "key": "6",
+      "hex": "#c2c3c7",
+      "name": "light-grey"
+    },
+    {
+      "key": "7",
+      "hex": "#fff1e8",
+      "name": "white"
+    },
+    {
+      "key": "8",
+      "hex": "#ff004d",
+      "name": "red"
+    },
+    {
+      "key": "9",
+      "hex": "#ffa300",
+      "name": "orange"
+    },
+    {
+      "key": "a",
+      "hex": "#ffec27",
+      "name": "yellow"
+    },
+    {
+      "key": "b",
+      "hex": "#00e436",
+      "name": "green"
+    },
+    {
+      "key": "c",
+      "hex": "#29adff",
+      "name": "blue"
+    },
+    {
+      "key": "d",
+      "hex": "#83769c",
+      "name": "lavender"
+    },
+    {
+      "key": "e",
+      "hex": "#ff77a8",
+      "name": "pink"
+    },
+    {
+      "key": "f",
+      "hex": "#ffccaa",
+      "name": "light-peach"
+    }
+  ]
+}

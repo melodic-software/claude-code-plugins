@@ -561,6 +561,28 @@ else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list made only of */.github/*workflows/*.<ext> patterns (begin='$BEGIN_LINE' off-shape=$OFF_SHAPE globs=(${SCRIPT_EXTS//$'\n'/ }) patterns: ${SCRIPT_PATTERNS//$'\n'/ })"
 fi
 
+# --- Gitignored path (#4671): not reported by default ------------------------
+# A missing-step expression is a real diagnostic; under an ignored tree it is
+# silent unless actionlint_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.github/\n' >"$REPO_IGN/.gitignore"
+# shellcheck disable=SC2016  # literal workflow YAML fixture: ${{ }} must stay unexpanded
+printf 'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n' \
+  >"$REPO_IGN/.github/workflows/violation.yml"
+OUT=$(run_hook "$REPO_IGN/.github/workflows/violation.yml")
+if [[ -z "$OUT" ]]; then ok "gitignored: no findings reported"; else fail "gitignored: reported: $OUT"; fi
+OUT=$(run_hook_env "$REPO_IGN/.github/workflows/violation.yml" \
+  CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNORED=true)
+if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1 &&
+  printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' | grep -q 'missing'; then
+  ok "gitignored + actionlint_lint_gitignored=true: diagnostic reported"
+else
+  fail "gitignored + opt-in: no diagnostic: $OUT"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
