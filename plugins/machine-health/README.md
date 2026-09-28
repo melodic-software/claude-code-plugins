@@ -84,6 +84,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `report_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_DIR` | Directory where per-run health reports (reports/health-<UTC-timestamp>.md, e.g. health-2026-07-12T153327123Z.md) are written. Leave unset to use the default: Documents\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred medium for this plugin's rendered views. auto uses each skill's shipped default. terminal, file, and artifact select that rung of the rendered-views ladder. An unrecognized value is reported and treated as unset. |
 
 ### How to set these
 

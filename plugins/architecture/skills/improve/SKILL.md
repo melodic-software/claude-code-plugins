@@ -8,6 +8,17 @@ metadata:
   summary: Scan the codebase for shallow modules and friction, then design the chosen fix several ways
 ---
 
+
+## Rendered-view ladder
+
+Medium, first hit wins.
+
+1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
+2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
+3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
+4. **Shipped default.** Write the candidate artifact. Offer the HTML view. Emit the page only when a rung above selects `file` or `artifact`.
+
+A later planning pass re-reads the candidate artifact. The page is a view of that record.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -45,7 +56,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 | Argument | Action | What it does |
 |----------|--------|-------------|
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
-| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
+| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → candidate artifact, HTML view per the rendered-view ladder → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 

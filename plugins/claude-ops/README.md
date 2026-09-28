@@ -430,6 +430,7 @@ reads it from.
 | `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days). |
 | `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions). |
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred medium for this plugin's rendered views. auto uses each skill's shipped default. terminal, file, and artifact select that rung of the rendered-views ladder. An unrecognized value is reported and treated as unset. |
 
 ### How to set these
 

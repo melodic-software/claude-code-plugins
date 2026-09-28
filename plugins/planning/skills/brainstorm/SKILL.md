@@ -8,6 +8,17 @@ metadata:
   summary: Diverge into codebase-grounded candidate approaches before scoping
 ---
 
+
+## Rendered-view ladder
+
+Medium, first hit wins.
+
+1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
+2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
+3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
+4. **Shipped default.** A prose numbered list. Offer the HTML reaction page for a large spread. Emit it when a rung above selects `file` or `artifact`.
+
+The conversation record stays authoritative.
 ## Purpose
 
 The divergence step before any scoping: unknown-knowns (criteria the user only recognizes when seen) surface cheapest at candidate-list time. Finding one mid-implementation costs a re-plan. A brainstorm round also calibrates scope: reacting to a cheapest→most-ambitious spread prevents locking a scope that is too narrow (missed the high-value approach) or too wide (ambition the problem doesn't need).

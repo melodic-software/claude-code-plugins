@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-09-28
+
+### Changed
+
+- **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+
 ## [0.13.0] - 2026-09-28
 
 ### Changed

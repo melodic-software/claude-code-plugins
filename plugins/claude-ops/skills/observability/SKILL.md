@@ -10,6 +10,17 @@ metadata:
   cadence: weekly
 ---
 
+
+## Rendered-view ladder
+
+Medium, first hit wins.
+
+1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
+2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
+3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
+4. **Shipped default.** The markdown report. Offer the HTML dashboard when the scope is `week` or larger. Emit it when a rung above selects `file` or `artifact`.
+
+The markdown report is the record.
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

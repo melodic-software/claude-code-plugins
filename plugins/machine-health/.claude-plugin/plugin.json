@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "machine-health",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "description": "Workstation health audit: OS-specific checks (disk, OS updates, security posture, CISA KEV correlation) run from a versioned catalog with trend-aware severity, approval-gated remediations, and dated markdown reports. Windows fully implemented; macOS/Linux scaffolded (report UNKNOWN and stop). Machine state persists in the plugin data directory; the report directory and check catalog are configurable.",
   "author": {
     "name": "Melodic Software",
@@ -24,6 +24,12 @@
       "type": "directory",
       "title": "Report directory",
       "description": "Directory where per-run health reports (reports/health-<UTC-timestamp>.md, e.g. health-2026-07-12T153327123Z.md) are written. Leave unset to use the default: Documents\\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory."
+    },
+    "medium": {
+      "type": "string",
+      "title": "Rendered-view medium",
+      "description": "Preferred medium for this plugin's rendered views. auto uses each skill's shipped default. terminal, file, and artifact select that rung of the rendered-views ladder. An unrecognized value is reported and treated as unset.",
+      "default": "auto"
     }
   }
 }

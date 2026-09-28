@@ -53,8 +53,8 @@ Two sentences reconcile this with the local-first residence decision:
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
    `Artifact` rule) are the sanctioned day-one flip that turns every ladder local, with
    zero plugin changes.
-2. The existing emitting surfaces are grandfathered on the shipped ladder until the
-   priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
+2. The emitting surfaces named under "Wave-1 adoption and grandfathered surfaces"
+   are on the cascade ladder. Their shipped defaults are rung 4.
 
 Rendered views are untracked by default; publishing anywhere is optional and configured,
 never the default.
@@ -117,17 +117,18 @@ residence are how this convention prices them.
 
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
-Migrated onto the cascade ladder: `adhd:clarify` (argument, plugin `medium`
-dial, rendered-views cascade, then the shipped artifact-forward default).
-Its chrome copy is `plugins/adhd/reference/html-chrome.html`, byte-identical
-to visualization's copy and registered with it.
-
-Current emitters, grandfathered on their shipped behavior:
+Migrated onto the cascade ladder (argument, plugin `medium` dial,
+rendered-views cascade, then that surface's shipped default): `adhd:clarify`,
 `architecture:improve`, `education:quiz-me`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`claude-ops:observability`, `planning:interview` (and planning's other rendered views),
-`overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
-`visualization:visualize`.
+`claude-ops:observability`, `planning:interview`, `planning:prd`, `planning:design`,
+`planning:brainstorm`, `planning:plan`, `overengineering:audit`,
+`event-storming:simulation`, `ai-briefing:generate`. `adhd:clarify` holds the
+second chrome copy at `plugins/adhd/reference/html-chrome.html`, byte-identical
+to visualization's copy and registered with it.
+
+`visualization:visualize` stays the wave-1 adopter. No emitter from the
+grandfathered list remains on a private ladder.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
@@ -263,20 +264,19 @@ owner declaration.
 **Decision.** Park the interactive set-value, persist, and clear smoke of
 `visualization`'s `medium` `userConfig` dial until a host with the interactive
 `/plugin` dialog funds the run. The unset path is already the documented
-behavior the resolution ladders detect. `adhd:clarify` is the migrated
-slice of #3603 and reuses this dial shape. The remaining grandfathered
-emitters stay on their shipped ladders.
+behavior the resolution ladders detect. The fleet sweep (#3603) wired the
+same `medium` dial on every migrated emitter. It did not wait on this smoke.
 
-- **Claim:** the interactive `userConfig` smoke stays unrun. `adhd:clarify`
-  is on the ladder with the same `medium` dial visualization already ships.
-  The other grandfathered emitters are not migrated by that slice.
+- **Claim:** the interactive `userConfig` smoke stays unrun. The migrated
+  emitters use the same `medium` dial visualization already ships. The
+  unset path is what a headless host can see.
 - **Basis:** `plugins/visualization/.claude-plugin/plugin.json` ships
   `userConfig.medium` (default `auto`).
   `plugins/visualization/skills/visualize/SKILL.md` rung 2 is
   `${user_config.medium}` and treats the literal token as unset. Wave-1
   probed CLI 2.1.251 on the unset path only. This checkout's CLI is 2.1.280
   and has no interactive `/plugin` dialog. #3604 still tracks that unrun
-  smoke. The `adhd:clarify` slice does not wait on it. The dial has a bug
+  smoke. The fleet sweep does not wait on it. The dial has a bug
   history roughly v2.1.86 through v2.1.210.
 - **As of:** 2026-09-28.
 - **Recheck:** a machine with the interactive `/plugin` dialog records CLI
@@ -322,8 +322,8 @@ which is another cost of copying.
 - It never makes HTML the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML-generating skill: each skill owns its genre's page shape, and
   `visualization:visualize` stays a router that owns no craft.
-- It migrates grandfathered surfaces one slice at a time. `adhd:clarify` is
-  on the ladder. The other emitters listed above stay on their shipped ladders.
+- The grandfathered emitters named above are on the ladder. The interactive
+  userConfig smoke is still unrun.
 - It does not run the interactive userConfig smoke test: see Interactive
   userConfig smoke test (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

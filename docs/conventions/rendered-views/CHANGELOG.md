@@ -4,6 +4,14 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Fleet ladder sweep, 2026-09-28
+
+- **The grandfathered emitters are on the cascade ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)).
+  Each surface takes argument, then `userConfig.medium`, then the rendered-views
+  cascade, then its own shipped default. A dual-audience report offers the page
+  and keeps the markdown record unless a rung selects a view. No boundary-rule,
+  genre, or cascade-key change. The interactive userConfig smoke stays #3604.
+
 ## `adhd:clarify` ladder slice, 2026-09-28
 
 - **`adhd:clarify` leaves the grandfathered list** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)).

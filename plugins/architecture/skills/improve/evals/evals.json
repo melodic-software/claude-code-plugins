@@ -5,14 +5,14 @@
       "id": 1,
       "name": "empty-args-routes-to-deepening",
       "prompt": "/architecture:improve",
-      "expected_output": "Empty args route to the deepening lens (not a missing-action error). Reads the nearest project glossary (if any) and relevant architecture decision records, walks the codebase via the Explore subagent, applies the deletion test, and writes BOTH the HTML report and the machine-readable candidate artifact before asking which candidate to explore.",
+      "expected_output": "Empty args route to the deepening lens (not a missing-action error). Reads the nearest project glossary (if any) and relevant architecture decision records, walks the codebase via the Explore subagent, applies the deletion test, and writes the machine-readable candidate artifact. With the rendered-view ladder unset it offers the HTML report instead of emitting it, and it emits the page when an argument, the medium dial, or the cascade selects file or artifact. It asks which candidate to explore.",
       "files": [],
       "expectations": [
         "Routes empty `$ARGUMENTS` to the `deepening` action — does NOT error on a missing/unknown action",
         "Reads the nearest project glossary (if the project maintains one) and any relevant architecture decision records before exploring",
         "Uses the Agent tool with subagent_type=Explore (or an equivalent read-only exploration subagent) to walk the codebase rather than reading inline",
         "Applies the deletion test to anything suspected shallow (concentrates vs moves complexity)",
-        "Writes the durable machine-readable candidate artifact to the topic-docs memory tier (default `.work/<topic-slug>/deepening-candidates-<timestamp>.md`, honoring the consuming repo's `.claude/topic-docs.yaml` or declared working-docs convention per the plugin's topic-docs binding, with the path announced) alongside the HTML report",
+        "Writes the durable machine-readable candidate artifact to the topic-docs memory tier (default `.work/<topic-slug>/deepening-candidates-<timestamp>.md`, honoring the consuming repo's `.claude/topic-docs.yaml` or declared working-docs convention per the plugin's topic-docs binding, with the path announced) and offers the HTML view unless the rendered-view ladder selects a page",
         "Does NOT propose interfaces in Phase 2; ends by asking which candidate to explore"
       ]
     },
@@ -93,7 +93,7 @@
       "id": 7,
       "name": "report-bands-by-badge-and-artifact-records-verification",
       "prompt": "/architecture:improve deepening — scope is the whole repository, which splits into four top-level packages. Run the scan through to the report.",
-      "expected_output": "Before scanning, checks the branch against its base with separate git calls and reports the behind count. It names four scan subagents, one per package, before dispatching, and notes that scan cost rises with the count; no fixed default width is asserted. The HTML report groups cards into Strong, Worth exploring, and Speculative bands in that order, with no cap, pagination, or collapsed card. The candidate artifact ends with a phase-1.5 line carrying downgraded, dropped, and corrected counts, then the top-recommendation line, and leaves agreed-shape and graft-record out of entries that have not reached Phase 3.",
+      "expected_output": "Before scanning, checks the branch against its base with separate git calls and reports the behind count. It names four scan subagents, one per package, before dispatching, and notes that scan cost rises with the count; no fixed default width is asserted. When the rendered-view ladder emits the HTML report, it groups cards into Strong, Worth exploring, and Speculative bands in that order, with no cap, pagination, or collapsed card. The candidate artifact ends with a phase-1.5 line carrying downgraded, dropped, and corrected counts, then the top-recommendation line, and leaves agreed-shape and graft-record out of entries that have not reached Phase 3.",
       "files": [],
       "expectations": [
         "Runs the base-freshness check as separate git calls before the scan and reports the behind count or an unknown freshness",

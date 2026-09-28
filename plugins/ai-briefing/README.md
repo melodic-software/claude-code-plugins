@@ -93,6 +93,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `active_profile` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_ACTIVE_PROFILE` | Portable 1-63 character lowercase-kebab name of the ai-briefing profile to use; reserved Windows device names are not allowed. Leave unset when there is a single profile (or only the default). A per-invocation --profile <name> argument overrides this. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred medium for this plugin's rendered views. auto uses each skill's shipped default. terminal, file, and artifact select that rung of the rendered-views ladder. An unrecognized value is reported and treated as unset. |
 
 ### How to set these
 

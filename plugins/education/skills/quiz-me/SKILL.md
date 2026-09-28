@@ -8,6 +8,17 @@ metadata:
   summary: Generate a post-change report with a quiz verifying you absorbed the work
 ---
 
+
+## Rendered-view ladder
+
+Medium, first hit wins.
+
+1. **Argument.** A leading `terminal`, `file`, or `artifact` token, or an explicit request for that medium.
+2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}` token or an empty value is unset. Recognized values are `auto`, `terminal`, `file`, and `artifact`. Any other value is reported and treated as unset.
+3. **Cascade.** Only when rungs 1 and 2 are unset. Anchor at `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`. Read whichever of `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist. The last `medium:` wins. A team layer that is not tracked is a hard stop. An overlay that is staged or not gitignored is a failure to report. The user-global layer takes no git verdict. Name the winning layer. Skip a malformed layer. All layers absent falls through.
+4. **Shipped default.** Write the markdown report, the record a later recall reads, and offer the HTML quiz view. Emit the page when a rung above selects `file` or `artifact`, including an explicit request for an HTML report.
+
+Recall re-reads the retained report. The HTML page is the view.
 ## Purpose
 
 Verify that the **human** absorbed a completed change, the object under test is the
@@ -68,9 +79,10 @@ generating anything (see "Non-gating posture"; generation is always user-confirm
 
 ## Report contract
 
-Produce a **self-contained single-file HTML** report (all CSS/JS inline, no remote fetch,
-openable via `file://`, synthetic data only, never real secrets or tokens). Markdown
-fallback where the project convention prefers it. Sections: context, intuition, decisions,
+Follow the rendered-view ladder above. The markdown report is the record. When the
+ladder emits a page, it is a **self-contained single-file HTML** report (all CSS/JS
+inline, no remote fetch, openable via `file://`, synthetic data only, never real
+secrets or tokens). Sections: context, intuition, decisions,
 what-was-done, then the **quiz at the bottom** the user must answer, the canonical prompt
 pattern ("a quiz at the bottom on the changes that I must pass"). Match each narrative
 section's length to what the change needs: cover the substance, but do not pad with filler,
