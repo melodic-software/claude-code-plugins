@@ -180,6 +180,8 @@ Objective: fill gaps, resolve conflicts, strengthen low-confidence claims, AND a
 - **Primary-source deep dives**. Fetch the primary directly (raw release notes / docs pages) for claims needing Tier 1 confirmation
 - **Recency verification**, if not done in Phase 1, fetch the upstream changelog/releases NOW
 
+**Fan out per gap when nesting is available.** When the dispatch prompt says `nested spawning available` and the Phase 1 list carries 3 or more numbered gaps, dispatch the gap queries to parallel workers in one turn, one per gap or per group of gaps that share a primary, and merge and confirm their fetches yourself; the falsification query stays yours. Without nesting, run the gaps one after another. Grouping, the worker brief, and the merge rule: the discipline file's "Per-gap fan-out (Phase 2)".
+
 ### Phase 2 output (before proceeding to Phase 3)
 
 **Analyze the Phase 1 and Phase 2 results together before any Phase 3 query.** Update the gap/conflict list. Identify Phase 3 sources (preferred-source authors OR the tool-ecosystem fallback if no author covers the domain).
@@ -208,7 +210,7 @@ If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targe
 - **Source code as spec**, when the topic is "how does library/implementation X behave" and X's source is reachable (GitHub, vendored dependency, package cache), READ the source: it outranks every doc about it, even across languages. Port/reimplementation topics carry a semantics map in `RESEARCH.md`. Matched excerpts (source ↔ target), gotcha notes, edge-case table
 - **Version-aware**, always include version numbers in searches
 - **Avoid SEO content farms**. Down-rank listicles, repackaged content, vendor marketing pages. See the discipline file's "Source-quality red flags"
-- **Summarization loss is bounded by the artifact, not by staying inline**, the evidence table, fetch log and gap lists are on disk, so a consumer needing a detail reads it rather than re-running. Use parallel workers for breadth within a phase; never let one hand back a verdict whose primary it alone read
+- **Summarization loss is bounded by the artifact, not by staying inline**, the evidence table, fetch log and gap lists are on disk, so a consumer needing a detail reads it rather than re-running. Use parallel workers for breadth within a phase (Phase 2's per-gap fan-out is that step); never let one hand back a verdict whose primary it alone read
 - **No parallel MCP calls to the same stdio server**. That transport is serial. Run sequentially within a server, parallelize across different servers/tools
 - **Graceful degradation**, if a tool category is unavailable this session, substitute equivalent coverage and document the gap; don't lower the bar
 
