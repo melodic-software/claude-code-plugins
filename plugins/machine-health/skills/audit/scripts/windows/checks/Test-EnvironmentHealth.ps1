@@ -24,7 +24,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'environment-health'
 $category = 'config'
 $userKeyPath = 'HKCU:\Environment'
@@ -212,7 +211,9 @@ function New-FindingList {
     return , [System.Collections.Generic.List[object]]::new()
 }
 
-try {
+$FailureSummary = 'Environment and PATH health check failed.'
+$PassThru = $false
+$CheckBody = {
     $machineVars = @()
     $machineReadable = $true
     $machineError = $null
@@ -479,9 +480,5 @@ try {
     } `
         -NeedsAdmin $false -RanSuccessfully $true `
         -Notes $notes
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Environment and PATH health check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

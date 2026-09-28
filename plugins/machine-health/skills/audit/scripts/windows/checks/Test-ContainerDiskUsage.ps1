@@ -28,7 +28,6 @@ function ConvertFrom-HumanSize {
     return $null
 }
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'container-disk-usage'
 $category = 'storage'
 $commands = @(
@@ -36,7 +35,9 @@ $commands = @(
     'wsl --list --verbose'
 )
 
-try {
+$FailureSummary = 'Container disk check failed.'
+$PassThru = $false
+$CheckBody = {
     $dockerBytes = $null
     $wslBytes = $null
     $notes = [System.Collections.Generic.List[string]]::new()
@@ -116,9 +117,5 @@ try {
     } `
         -NeedsAdmin $false -RanSuccessfully $true `
         -Notes ($notes.Count -gt 0 ? ($notes -join '; ') : $null)
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Container disk check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

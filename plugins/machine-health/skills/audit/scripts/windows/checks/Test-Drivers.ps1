@@ -68,7 +68,6 @@ function Invoke-DriversCheck {
     [OutputType([pscustomobject])]
     param()
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $id = 'drivers'
     $category = 'drivers'
     $commands = @(
@@ -80,7 +79,9 @@ function Invoke-DriversCheck {
         "Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-CodeIntegrity/Operational'; Id=3001,3004 }"
     )
 
-    try {
+    $FailureSummary = 'Driver inventory check failed.'
+    $PassThru = $true
+    $CheckBody = {
         # spellchecker:ignore-next-line
         $drivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer)
@@ -249,13 +250,8 @@ function Invoke-DriversCheck {
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
             -AdminFields $adminFields
-    } catch {
-        $result = New-HealthFailureResult -Id $id -Category $category `
-            -Summary 'Driver inventory check failed.' -Commands $commands -ErrorRecord $_
     }
-
-    $sw.Stop()
-    $result.duration_ms = [int]$sw.ElapsedMilliseconds
+    . (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
     return $result
 }
 
