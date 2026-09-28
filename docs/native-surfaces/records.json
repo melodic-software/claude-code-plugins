@@ -32,7 +32,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true
       },
       "budget_caveat": true
@@ -133,7 +133,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true
       },
       "budget_caveat": true
