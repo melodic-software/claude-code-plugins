@@ -68,7 +68,7 @@ whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is how to fan out without walking a whole home or OS-managed volume root (for
-example `C:\Users\example` or `C:\`): it never walks the parent recursively. Without `--root-child`
+example `C:\Users\<user>` or `C:\`): <!-- portability-ok: placeholder angle bracket in a path example, not a shell redirection --> it never walks the parent recursively. Without `--root-child`
 names the engine returns `root-children-selection-required` listing admitted immediate
 directories (on a volume root, OS-owned, hidden, system, reparse, mount, protected-shell-folder,
 and non-directory entries are withheld; on a non-volume target such as a home directory,
