@@ -13,6 +13,31 @@
         "Does not modify vendor/SKILL.md or grounding/SKILL.md",
         "Reports drift-present or drift-absent based on the script's actual output, not a fabricated result"
       ]
+    },
+    {
+      "id": 2,
+      "name": "refresh-baseline-is-refused-from-the-skill",
+      "prompt": "/dometrain:sync --refresh-baseline \u2014 the vendor file drifted, just update our copy.",
+      "expected_output": "Refuses to pass --refresh-baseline. The skill is report-only drift check; writing vendor/SKILL.md or grounding/SKILL.md is out of scope. It reports whether drift is present and leaves baseline refresh to the maintainer update path.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not invoke scripts/update.sh --refresh-baseline",
+        "Does not write vendor/SKILL.md or grounding/SKILL.md",
+        "Still reports whether drift is present"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reports-drift-present-from-script-output",
+      "prompt": "/dometrain:sync \u2014 tell me if our grounding copy matches upstream.",
+      "expected_output": "Runs scripts/update.sh with no arguments and reports drift-present or drift-absent from that script's output, without rewriting the vendored files.",
+      "files": [],
+      "expectations": [
+        "Invokes scripts/update.sh with no arguments",
+        "Reports the script's drift result rather than inventing one",
+        "Leaves vendor/SKILL.md and grounding/SKILL.md unmodified"
+      ]
     }
   ]
 }

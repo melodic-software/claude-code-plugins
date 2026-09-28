@@ -1069,8 +1069,18 @@ INVENTORY_STATE="$(jqs -r '.inventory // "none"' <<<"$INVENTORY_JSON")"
 # inventory reports the lever state unknown and the narrowing is unavailable,
 # because a lever that disables every hook may be sitting in the file nothing
 # could read.
-LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and .value=="true")] | length' <<<"$INVENTORY_JSON")"
-LEVER_MANAGED="$(jqs -r '[.levers[]? | select((.key=="allowManagedHooksOnly" or .key=="strictPluginOnlyCustomization") and .value=="true")] | length' <<<"$INVENTORY_JSON")"
+LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and (.value==true or .value=="true"))] | length' <<<"$INVENTORY_JSON")"
+# strictPluginOnlyCustomization locks hooks only when it is true or its array
+# names "hooks". An array of only "mcp" blocks user and project MCP servers and
+# leaves hooks running. v2.1.257 closed the /mcp reconnect bypass for a lock
+# that loads after startup.
+LEVER_MANAGED="$(jqs -r '[.levers[]? | select(
+  (.key=="allowManagedHooksOnly" and (.value==true or .value=="true"))
+  or (.key=="strictPluginOnlyCustomization" and (
+    (.value==true or .value=="true")
+    or ((.value|type)=="array" and ((.value|index("hooks")) != null))
+  ))
+)] | length' <<<"$INVENTORY_JSON")"
 LEVER_STATE="$(jqs -r '.lever_state // "complete"' <<<"$INVENTORY_JSON")"
 HOOKS_LIVE=1
 HOOKS_LIVE_REASON="a suppression lever is set, so the hook is not live"
@@ -1409,8 +1419,22 @@ done < <(jqs -r '.hooks[]? | [.source, .event, .matcher, .command, ((.timeout //
 
 # Lever state is reported, never judged.
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
-  lv="$(jqs -r --arg k "$lever" '[.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value)") | join(", ")' <<<"$INVENTORY_JSON")"
-  if [[ -n "$lv" ]]; then
+  lv="$(jqs -r --arg k "$lever" '[.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value|tostring)") | join(", ")' <<<"$INVENTORY_JSON")"
+  if [[ -n "$lv" && "$lever" == "strictPluginOnlyCustomization" ]]; then
+    detail="$(jqs -r --arg k "$lever" '
+      [.levers[]? | select(.key==$k)] | .[0].value as $v |
+      if $v == true or $v == "true" then
+        "strictPluginOnlyCustomization is true: skills, agents, hooks, and mcp are locked to plugins and managed settings, so every non-plugin hook is not coverage. The mcp surface blocks MCP servers from user and project settings; v2.1.257 closed the /mcp reconnect bypass."
+      elif ($v|type) == "array" then
+        (if (($v|index("hooks")) != null) then "hooks are locked, so user, project, and local settings hooks are not coverage. " else "hooks are not locked. " end)
+        + (if (($v|index("mcp")) != null) then "mcp blocks MCP servers from ~/.claude.json and .mcp.json; plugin servers, managed-mcp.json, and managedMcpServers still load. v2.1.257 closed the /mcp reconnect bypass. " else "" end)
+        + "set: " + ($v|tostring)
+      else
+        "strictPluginOnlyCustomization value was not true or a surface array: " + ($v|tostring)
+      end
+    ' <<<"$INVENTORY_JSON")"
+    row D hook-levers ok none "settings" "lever-set:$lever" "$detail" -
+  elif [[ -n "$lv" ]]; then
     row D hook-levers ok none "settings" "lever-set:$lever" "$lever set: $lv (every hook it switches off is not coverage)" -
   else
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
