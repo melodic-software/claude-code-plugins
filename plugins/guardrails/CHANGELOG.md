@@ -3,12 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.3] - 2026-09-27
+## [0.38.4] - 2026-09-27
 
 ### Fixed
 
 - **`block-dangerous-git` refuses a PowerShell command it still cannot read once the sink-attempt budget is spent** ([#4682](https://github.com/melodic-software/claude-code-plugins/issues/4682)). With `ps-unparsable-*` allow tokens set, each round blanks one granted sink shape and re-reads the rest. After five rounds the guard used to exit 0 with the remainder unread, so a command carrying five sink triggers and `git reset --hard` passed under all five tokens. So did a granted shape whose blanking changes nothing, which spends every round on itself: `$a=& 'git reset --hard'` under `ps-unparsable-dynamic-invocation` alone. It now exits 2 (form `powershell-unparsable-budget-exhausted`), and no allow token clears it. Without tokens nothing changes, because the first unreadable shape is refused before any round runs.
 - **`block-convention-violation` and `block-noncanonical-commit` refuse a commented here-string opener whatever trigger fired first.** Both refused only when the recorded trigger was `herestring-comment-char`, a name the classifier sets only when no other trigger fired. A commit whose opener line carried a `#` behind a `{` or an `iex` was reported under that other trigger, and both guards deferred. They now test the opener flag itself. A git-free command with a commented opener and a `{` is refused too, the same accepted over-block as the plain commented opener.
+
+## [0.38.3] - 2026-09-27
+
+### Fixed
+
+- **A Bash or PowerShell command with thousands of substitutions no longer runs the guard row past its 60-second `timeout`** ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)). A `PreToolUse` command hook that times out does not block the tool call ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). `echo` followed by 2,339 `$(: rm)` stays under every per-command cap, and it took 65 s through the row on Windows (30 s on Linux). Now `run-guards.sh` counts the command's substitutions before it sources the first guard and refuses (exit 2) past 256, which the row passes as `--max-substitutions 256`. The count is text-only and costs about 1 ms on a 16 KB command: each `$(` (including `$((`), `<(` and `>(` counts as one, backticks count in pairs, and quoting is ignored. A payload the dispatcher could not prime (one with a NUL in it) is counted whole. Both measured payloads are now refused in 39 ms. A command at the cap takes 1.2 s through the row, or 3.1 s with eight busy loops on four cores. The guard suites' largest command holds 40 substitutions. A command at or under the cap runs through the guards exactly as before.
 
 ## [0.38.2] - 2026-09-27
 
