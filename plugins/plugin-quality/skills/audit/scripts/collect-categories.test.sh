@@ -224,7 +224,7 @@ printf '## Errors\r\nnone\r\n\r\n## Improvements\r\nnone\r\n\r\n## Quality of li
 run 0 "CRLF notes still grade" --notes "$CRLF"
 has "status: complete" "CRLF ledger completes"
 
-run 2 "missing --notes is usage" 
+run 2 "missing --notes is usage"
 has "ERROR: --notes is required" "usage names the missing flag"
 
 contract_report collect-categories
