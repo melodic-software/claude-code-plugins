@@ -24,10 +24,45 @@ skip() {
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 
+# 1 when this host's /tmp is the user temp (stock Git for Windows usertemp).
+# The Bash command lane then allows POSIX /tmp; drive-root spellings stay blocked.
+HOST_POSIX_TMP_IS_USERTEMP=0
+if command -v cygpath >/dev/null 2>&1; then
+  _dt_tmp_w=$(cygpath -w /tmp 2>/dev/null || true)
+  _dt_temp_e="${TEMP:-${TMP:-}}"
+  if [[ -n "$_dt_tmp_w" && -n "$_dt_temp_e" ]]; then
+    _dt_temp_w=$(cygpath -w "$_dt_temp_e" 2>/dev/null || printf '%s' "$_dt_temp_e")
+    _dt_tmp_n="${_dt_tmp_w,,}"
+    _dt_tmp_n="${_dt_tmp_n//\\//}"
+    _dt_tmp_n="${_dt_tmp_n%/}"
+    _dt_temp_n="${_dt_temp_w,,}"
+    _dt_temp_n="${_dt_temp_n//\\//}"
+    _dt_temp_n="${_dt_temp_n%/}"
+    if [[ -n "$_dt_tmp_n" && ("$_dt_tmp_n" == "$_dt_temp_n" || "$_dt_tmp_n" == "$_dt_temp_n"/*) ]]; then
+      HOST_POSIX_TMP_IS_USERTEMP=1
+    fi
+  fi
+fi
+
+# True when the command's only drive-root tmp spelling is POSIX /tmp.
+# /c/tmp and C:/tmp stay blocks on a usertemp host.
+posix_tmp_command_only() {
+  local c="${1//\\//}"
+  c="${c,,}"
+  [[ "$c" =~ (^|[^[:alnum:]])[a-z]:/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
+  [[ "$c" =~ (^|[^[:alnum:]._/:])/[a-z]/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
+  [[ "$c" =~ (^|[^[:alnum:]._/])/tmp(/|[^[:alnum:]_./-]|$) ]]
+}
+
 run_win() {
   local label="$1" command="$2"
   shift 2
-  run_win_payload "$label" "$(msys_command_json "$command")" "$@"
+  local expected="$1"
+  shift
+  if ((HOST_POSIX_TMP_IS_USERTEMP)) && [[ "$expected" == 2 ]] && posix_tmp_command_only "$command"; then
+    expected=0
+  fi
+  run_win_payload "$label" "$(msys_command_json "$command")" "$expected" "$@"
 }
 
 run_win_pwsh() {
@@ -306,6 +341,16 @@ run_win_usr_bin "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp
 run_win_usr_bin "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
+# Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
+# The verb regex stops at a space, so neither spelling matched and the write
+# was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
+run_win "/usr/bin/mkdir.exe C:/tmp/x (blocked)" '/usr/bin/mkdir.exe -p C:/tmp/x' 2
+run_win "quoted Program Files mkdir.exe C:/tmp (blocked)" \
+  '"C:/Program Files/Git/usr/bin/mkdir.exe" -p C:/tmp/x' 2
+run_win "single-quoted mkdir.exe C:/tmp (blocked)" \
+  "'/usr/bin/mkdir.exe' -p C:/tmp/x" 2
+run_win "/usr/bin/cp.exe to C:/tmp (blocked)" '/usr/bin/cp.exe ./a C:/tmp/a' 2
+run_win "echo /usr/bin/mkdir.exe mention (allowed)" 'echo /usr/bin/mkdir.exe C:/tmp/x' 0
 
 # --- PowerShell writers (blocked) --------------------------------------------
 run_win_pwsh "PS: Set-Content C:\\tmp\\x (blocked)" 'Set-Content -Path C:\tmp\x -Value hi' 2
@@ -406,7 +451,7 @@ run_win "kill switch disables guard" 'echo x > /tmp/x' 0 \
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK=$(make_sink "cat > \"$TEL\"")
 out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" \
-  <<<"$(command_json 'echo x > /tmp/x')" 2>&1) || true
+  <<<"$(command_json 'echo x > C:/tmp/x')" 2>&1) || true
 wait_for_sink "$TEL" || true
 if [[ -s "$TEL" ]]; then
   tel_body=$(cat "$TEL")

@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.23] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename. `hook::physical_path_to` uses `cygpath -l -m` when `realpath` and `readlink` are absent, so a long-name temp path and an 8.3 `TEMP` resolve to one directory ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+
 ## [0.63.22] - 2026-09-28
 
 ### Changed

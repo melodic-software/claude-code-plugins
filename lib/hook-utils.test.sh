@@ -3336,6 +3336,14 @@ case "$p" in
   esac
   p="$d:$rest"
   ;;
+/tmp/*/src/*)
+  # Disagree with the directory's conversion on purpose, so a helper that
+  # trusts cygpath alone degrades to the basename.
+  p="D:/diverged/${p#/tmp/}"
+  ;;
+/tmp/*)
+  p="C:/users/temp/${p#/tmp/}"
+  ;;
 *) ;;
 esac
 printf '%s\n' "$p"
@@ -3422,6 +3430,34 @@ rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b
 # drive-letter case degrades exactly as the nocyg control does.
 rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
 rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
+# Trailing separator, drive-letter case, and a cygpath that disagrees with
+# itself. Each one came back as the basename on Windows Git Bash (#4527).
+rrp_case cyg "a trailing slash on the root still strips" 'C:/repo/src/run.sh' 'C:/repo/' src/run.sh 0
+rrp_case cyg "drive-letter case does not matter" 'C:/Repo/src/run.sh' 'c:/repo' src/run.sh 0
+rrp_case cyg "cygpath disagreement falls back to the caller's spelling" /tmp/repo/src/run.sh /tmp/repo src/run.sh 0
+rrp_case nocyg "a trailing slash on a POSIX root still strips" /repo/src/run.sh /repo/ src/run.sh 0
+
+# physical_path_to on Windows: realpath is absent, cygpath -l -m is the resolver.
+# The stub above is the only cygpath, and PATH hides realpath and readlink.
+PHYS_PROBE=$(
+  # shellcheck disable=SC2016  # the child's $1 is its own positional, quoted on purpose
+  PATH="$RRP_DIR/cyg" "$BASH" -c '
+    OSTYPE=msys
+    # shellcheck source=hook-utils.sh
+    source "$1"
+    _out=""
+    hook::physical_path_to _out "/c/Users/RUNNER~1/AppData/Local/Temp" || exit 1
+    printf "%s\n%s\n" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$_out"
+  ' _ "$HOOK_DIR/hook-utils.sh"
+)
+PHYS_RC=$?
+PHYS_FLAG="${PHYS_PROBE%%$'\n'*}"
+PHYS_OUT="${PHYS_PROBE#*$'\n'}"
+if ((PHYS_RC == 0)) && [[ "$PHYS_FLAG" == 0 && "$PHYS_OUT" == "C:/Users/RUNNER~1/AppData/Local/Temp" ]]; then
+  ok "physical_path_to: Windows uses cygpath -l -m when realpath is absent"
+else
+  fail "physical_path_to windows cygpath: rc=$PHYS_RC flag=$PHYS_FLAG out=$PHYS_OUT"
+fi
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------

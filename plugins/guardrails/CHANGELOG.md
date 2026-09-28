@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename. `hook::physical_path_to` uses `cygpath -l -m` when `realpath` and `readlink` are absent, so a long-name temp path and an 8.3 `TEMP` resolve to one directory ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- **`block-windows-drive-tmp` treats `mkdir.exe` and a quoted `C:/Program Files/Git/usr/bin/mkdir.exe` as writers** ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)). The verb regex required the word to end at a space, so `mkdir.exe` never matched `mkdir` and a space in `Program Files` hid the verb. A path-qualified or `.exe` command word is now a writer. The suite allows POSIX `/tmp` on a host whose `/tmp` is the Git for Windows usertemp mount, and keeps `C:/tmp` blocked. `run-guards.test.sh` preserves fixture paths (`MSYS_NO_PATHCONV`) and shims `git.exe`, the name Git Bash resolves.
+
 ## [0.41.3] - 2026-09-28
 
 ### Changed
