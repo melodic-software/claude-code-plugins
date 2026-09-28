@@ -305,8 +305,7 @@ a new one.
 
 The standing execution model and the report identity contract are recorded together in
 [context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
-lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a
-later change to either lands in one place.
+lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a later change to either lands in one place.
 
 A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
 plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
