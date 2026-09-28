@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.55] - 2026-09-28
+
+### Fixed
+
+- **The branch-audit and branch-delete suites pass with a global `tag.gpgsign=true`.** Their fixture tags use `--no-sign`; a signed tag needs a message, and the empty one aborted `git tag`. Test-only.
+
 ## [0.10.54] - 2026-09-28
 
 ### Changed
