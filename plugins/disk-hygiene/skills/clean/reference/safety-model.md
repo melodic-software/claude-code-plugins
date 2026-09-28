@@ -156,7 +156,8 @@ VCS protection remains categorical in preview, apply, and every handoff verifica
 explicitly supply `--vcs-evidence`. The evidence mode can relax only
 `vcs-tracked-content`, `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the opaque scan
 boundary at that `.git` marker. It does so only when all four live gates pass for every repository
-marker within the one approved checkout:
+marker within the one approved checkout (gates 1 and 2 may instead be waived by the
+`accept_unpublished` acknowledgement described below):
 
 1. `git status --porcelain=v1 --untracked-files=all --ignored=matching --ignore-submodules=none`
    exits successfully and emits nothing, including gitignored-but-present paths (`.env`, local

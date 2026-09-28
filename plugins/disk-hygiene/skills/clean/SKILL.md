@@ -91,9 +91,11 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it outside the engine. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict: every other
-  contest reason must be gone. Before deleting, tell the operator plainly that unpushed commits and
-  untracked or ignored files in that checkout will be lost.
+  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict through the §6
+  manual handoff lane: every other contest reason must be gone. Preview and apply keep VCS
+  protection categorical; the acknowledgement exists only in `handoff-verify`. Before deleting,
+  tell the operator plainly that unpushed commits and untracked or ignored files in that checkout
+  will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.

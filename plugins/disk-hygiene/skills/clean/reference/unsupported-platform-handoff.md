@@ -74,8 +74,9 @@ engine plan:
    Include one entry for every live `.git` marker at or below the approved checkout. `path` is
    snapshot-relative; `remote` is the configured GitHub remote whose repository must contain every
    local branch-head SHA (plus detached `HEAD`, when applicable), or `null` only for a genuinely
-   unborn repository with no local heads or an entry carrying `accept_unpublished`. `stash_copies` contains independent absolute checkout
-   roots outside every approved deletion path; use `[]` when there are no stashes.
+   unborn repository with no local heads or an entry carrying `accept_unpublished`.
+   `stash_copies` contains independent absolute checkout roots outside every approved deletion
+   path; use `[]` when there are no stashes.
 
    A throwaway checkout (no remote, untracked files, no commits) fails the status or remote gate.
    When the operator still wants it deleted, never delete it outside this lane. Add
