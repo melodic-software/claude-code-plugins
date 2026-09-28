@@ -1,0 +1,95 @@
+name: claude-review
+
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/claude-lanes-hosted/claude-review.yml (the
+# `claude-review-hosted-caller` component in distribution/sync-manifest.yml).
+# Downstream edits are overwritten by the next sync PR; change the component
+# upstream, or move the component to `locally-owned` in the manifest to
+# customize.
+#
+# Thin caller for the org's reusable code-review lane. The reusable workflow
+# owns the action pin, model, and the secret-handling model; per its header,
+# this caller owns the triggers, concurrency, and the GITHUB_TOKEN permission
+# grant (a called workflow can only downgrade the caller's grant, never
+# elevate it).
+#
+# The reusable skips fork PRs (they receive no secrets and a read-only token)
+# and every `[bot]` actor, so neither is reviewed by design. On a public
+# repository that means the lane reviews only pull requests from branches of
+# this repository: fork and Dependabot pull requests get no secrets.
+#
+# RUNNER PLACEMENT: hosted shape. This file runs the lane on the GitHub-hosted
+# `ubuntu-24.04` runner, which the standards `runner-policy` component admits
+# on a public repository. It is the hosted sibling of
+# components/claude-lanes/claude-review.yml, which names the private fleet
+# review label, and differs from it only in these comments and `runner`. The
+# workflow and job names are the same, so the check context is the same on
+# every target. A target manages one of the two, never both.
+#
+# INTERIM: this per-visibility pair is removed when the runner choice moves
+# inside the ci-workflows reusable and runner-policy gains a cross-repo
+# routing kind, so one caller serves both visibilities
+# (distribution/sync-manifest.yml, the claude lane caller note).
+#
+# This lane is advisory (github-iac ADR 0011: no organization ruleset may make
+# an agentic review a merge prerequisite).
+
+on:
+  pull_request:
+    # `synchronize` reviews every push, including the push that resolves a
+    # merge conflict: GitHub runs no pull_request workflow while a PR
+    # conflicts with its base, so a once-per-PR trigger set silently skipped
+    # any PR that conflicted when it opened.
+    #
+    # Re-running the job does NOT review a newer head: a re-run replays the
+    # ORIGINAL event payload. Push to review the current head.
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+# Per-PR supersede group: a newer event for the same PR, a push included,
+# cancels the older run, so per-push reviews do not stack. A skipped actor's
+# same-PR event can cancel an in-flight review through this group; that is
+# accepted: with `synchronize`, the cancelled review was of a head the new
+# event has already superseded. This value is per-LANE and deliberate: the
+# security caller does not copy it (see its own concurrency note).
+#
+# The group is the `${{ github.workflow }}`-prefixed canonical form the
+# standards `concurrency-policy` component requires, so a target enforcing
+# that policy passes without an exemption. A file whose header says
+# downstream edits are overwritten cannot ask its consumers to normalize it
+# themselves.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # A draft is work in progress and does not spend a review; the
+    # ready_for_review trigger above is what delivers one when it is ready.
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post review + tracking comment
+      id-token: write        # OIDC, mints the Claude GitHub App token (required
+                             # even with an OAuth/API-key credential)
+    # Repo-wide review queue: a SEPARATE block from the workflow-level
+    # cancel group above, because `queue: max` cannot be combined with
+    # `cancel-in-progress: true`, the value that block sets
+    # (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency),
+    # and because this group is job-scoped and repo-wide, not per-PR.
+    # Serializes reviews repo-wide so parallel PRs queue for the shared
+    # Claude seat instead of contending for it.
+    concurrency:
+      group: claude-review-${{ github.repository }}
+      queue: max
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@35880dcbb2f174aac90159e276dc7eddf1bc20b9 # v0.30.1
+    with:
+      runner: ubuntu-24.04
+    # Pass only the one named secret (least privilege) rather than
+    # `secrets: inherit`, which would forward every parent secret to the
+    # called workflow.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
