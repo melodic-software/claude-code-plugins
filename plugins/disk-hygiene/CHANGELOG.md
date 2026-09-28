@@ -3,11 +3,21 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.9] - 2026-09-28
+## [0.28.10] - 2026-09-28
 
 ### Fixed
 
 - **The PowerShell belt no longer asks on mutation words inside string data** ([#4226](https://github.com/melodic-software/claude-code-plugins/issues/4226)). `git log --grep "move"`, `git commit -m "del stale entry"`, `gh issue comment --body "the move to a batched lane"` and similar commands prompted because the word list was matched against the raw command text. It now matches with single-quoted literals and here-strings masked, and with double-quoted strings reduced to their `$(...)` subexpressions, which PowerShell runs, so `"$(Remove-Item x)"` still asks. The typographic quotes PowerShell accepts are treated as quotes, so `'a’; rm x; 'b'` cannot hide a live `rm`. When a command can run a string as code (a call operator, a dot-source, `Invoke-Expression`, a nested `powershell`, `pwsh`, or `cmd`, a script block, an alias definition, `ForEach-Object`, `Get-Command`, or a member named by a string or variable such as `$f.'DeleteFile'()`), or a string or subexpression is unterminated, the raw text is matched as before. Words are still matched anywhere outside strings, not only in command position, so `Set-Alias z Remove-Item` and `$x = rm y` keep prompting. The handoff reference's PowerShell guard lane section names the rule and the `gh --body-file` / `-F` form.
+
+## [0.28.9] - 2026-09-28
+
+### Changed
+
+- **No disk-full emergency lane; every pass stays a cautious tidiness pass**
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
+  patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
+  signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
 
 ## [0.28.8] - 2026-09-28
 
