@@ -3,11 +3,23 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-09-28
+## [0.28.9] - 2026-09-28
 
 ### Fixed
 
 - **The PowerShell belt no longer asks on mutation words inside string data** ([#4226](https://github.com/melodic-software/claude-code-plugins/issues/4226)). `git log --grep "move"`, `git commit -m "del stale entry"`, `gh issue comment --body "the move to a batched lane"` and similar commands prompted because the word list was matched against the raw command text. It now matches with single-quoted literals and here-strings masked, and with double-quoted strings reduced to their `$(...)` subexpressions, which PowerShell runs, so `"$(Remove-Item x)"` still asks. The typographic quotes PowerShell accepts are treated as quotes, so `'a’; rm x; 'b'` cannot hide a live `rm`. When a command can run a string as code (a call operator, a dot-source, `Invoke-Expression`, a nested `powershell`, `pwsh`, or `cmd`, a script block, or an alias definition), or a string or subexpression is unterminated, the raw text is matched as before. Words are still matched anywhere outside strings, not only in command position, so `Set-Alias z Remove-Item` and `$x = rm y` keep prompting. The handoff reference's PowerShell guard lane section names the rule and the `gh --body-file` / `-F` form.
+
+## [0.28.8] - 2026-09-28
+
+### Changed
+
+- **The belt's last env-derived data-root channels are closed** ([#4669](https://github.com/melodic-software/claude-code-plugins/issues/4669)). `CLAUDE_PLUGIN_DATA` is never a data-root channel: the engine requires `--data-root`, the guard no longer reads the variable, and a `--plugin-dir` session with no cache layout and no `known_marketplaces.json` proof fails closed. The no-authority denial names the recovery as a marketplace install or `claude plugin marketplace add <checkout>`, not a launch-shell export. `engine_context.py` names the channel that supplied `data_root`. User-scope `extraKnownMarketplaces` is declined: the settings-reference key is Any-file, its purpose is repo-or-org registration, and a `directory` source is development-only. A paid probe of whether a launch-shell export reaches a skill-frontmatter hook was not run; the recovery hint matches that decision.
+
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
 
 ## [0.28.6] - 2026-09-28
 
