@@ -3,6 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-28
+
+### Added
+
+- **`block-root-delete-target` refuses a PowerShell recursive delete of the same
+  target classes Bash already refuses**
+  ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)).
+  `Remove-Item -Recurse -Force C:\`, `ri -r $X`, `Remove-Item -Recurse ''`, and
+  `cmd /c rd /s /q C:\` on the PowerShell tool used to exit 0 because the guard
+  left on any tool_name other than Bash. It now refuses root, empty, bare-variable,
+  and outside-tree targets for `Remove-Item` (aliases `ri`, `rm`, `del`, `erase`,
+  `rd`, `rmdir`) with `-Recurse` on any unambiguous prefix (`-r`, `-rec`) or the
+  bash-in-PS cluster `-rf`, for `cmd /c` / `cmd /k` `rd /s` and `rmdir /s`, and
+  for a pipeline into `Remove-Item -Recurse` with no path. The PowerShell lane
+  uses its own tokenizer (backtick escape, backslash literal) and does not load
+  `lib/powershell/ps-command.sh`, so it stays off the classifier's sink-attempt
+  budget. Existing Bash decisions are unchanged.
+
 ## [0.40.1] - 2026-09-28
 
 ### Changed
