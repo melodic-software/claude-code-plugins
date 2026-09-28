@@ -17,6 +17,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   cleanup never reads such a tree as unlocked. `worktree-claim.sh` still keys a claim on the
   lock reason, so a reasonless lock stays UNCLAIMED there, as before.
 
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- **The three guarded-mutation CLIs share one preamble (#3449).**
+  `guarded_mutation.py` owns the worker-lease check, the snapshot load, and the
+  head pin that `refresh_pr_branch.py`, `manage_feedback_ledger.py`, and
+  `request_review.py` each opened with. The helper documents what it checks,
+  what it permits, what it refuses, and that a refusal is still the exception
+  the caller already saw. Dry runs still skip the lease. What the guard permits
+  is unchanged.
+
 ## [0.62.10] - 2026-09-28
 
 ### Changed

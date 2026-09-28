@@ -11,6 +11,8 @@ SCRIPT="$SELF_DIR/check-skill-precompute-compose.sh"
 . "$SELF_DIR/lib/test-harness.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
+# shellcheck source=lib/changed-files.sh
+. "$SELF_DIR/lib/changed-files.sh"
 
 # The builder assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-var here is what tells it (SC2154) the name is written.
@@ -235,7 +237,7 @@ git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm tip >/dev/null
 subtree="$(git -C "$f" rev-parse "$base:plugins")"
 rm -f "$f/.git/objects/${subtree:0:2}/${subtree:2}"
-if git -C "$f" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+if (cd "$f" && changed_files::verify_base "$base"); then
   ok "the fixture's base ref still validates (the failure is in the diff, not the ref)"
 else
   fail "fixture setup: the base ref stopped resolving, so this asserts the wrong thing"
