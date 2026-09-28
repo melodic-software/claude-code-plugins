@@ -3,6 +3,17 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-09-28
+
+### Added
+
+- **map-* family status page (#4639).** `reference/map-family-status.md` records
+  the epic build order and the open child pull requests for map-dependencies,
+  map-components, map-context, map-containers, map-flow, map-events, map-data,
+  map-deployment, and map-states. Those skills are not on main. The README and
+  the catalog point at the page. `map-landscape`'s thin-result successor stays
+  `improve` / `discovery:explore` until map-components is in this tree.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

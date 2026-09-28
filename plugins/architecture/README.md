@@ -54,6 +54,10 @@ edge.
 A landscape that draws at most two systems or no edges is reported as thin, with
 the reason and what to run instead: `/architecture:improve` or
 `/discovery:explore` when the question is how one repository is built inside.
+The skills below that rung (dependencies, components, context, containers,
+flow, events, data, deployment, states) are not in this checkout. Their build
+order and the open pull requests that implement them are in
+[reference/map-family-status.md](reference/map-family-status.md).
 
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
