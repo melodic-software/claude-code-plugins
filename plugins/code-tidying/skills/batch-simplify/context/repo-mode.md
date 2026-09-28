@@ -294,6 +294,11 @@ closed.
 
 ## Delivery
 
+**Caller-owned branch, PR, and commits (tracked).** Repo mode below assumes **one feature
+branch, one pull request, and at least one commit per group**. Callers that already run on a
+shared sweep branch must override before invoking until an explicit on-branch mode lands
+([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)).
+
 **One feature branch and one pull request for the whole run.** Create the run's branch before the
 first group dispatches, from the refreshed tip of the intended PR base (fetch it first), normally
 the repository's default branch, and never silently from whatever HEAD the run happens to be invoked

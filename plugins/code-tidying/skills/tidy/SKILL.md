@@ -126,6 +126,13 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 `git checkout -b chore/tidy-<lane>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch, a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
 
+**Caller-owned branch, PR, and commits (tracked).** This skill always creates the
+`chore/tidy-*` branch above and opens one PR per invocation; `dry-run` skips edits and
+`override` only lifts path exclusions. Orchestrated callers that already hold a branch and
+PR (for example `/playbooks:repo-sweep`) must state their own instruction to stay on the
+current branch, open no PR, and leave committing to the caller until an explicit
+on-branch / in-place mode lands ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)).
+
 ### Phase C. Explore + research
 
 Understand before changing.
