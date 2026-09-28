@@ -1662,11 +1662,27 @@ jobs:
           rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate
       # step below: a validate-infra problem (e.g. the CLI needing auth) can
-      # never mask a real contract-test failure. shfmt is optional in both
-      # environments, so shfmt-gated cases skip rather than fail. Node, Python,
+      # never mask a real contract-test failure. The eval-coverage gate reads
+      # `shfmt --to-json` and exits 2 when shfmt is missing, so this job
+      # installs the same v3.14.1 pin as lint-2. Node, Python,
       # ShellCheck, Biome, and Ruff are declared here so hosted and local runs
       # exercise the same contract suites instead of inheriting different image
       # tool inventories.
+      - name: Install pinned shfmt
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          SHFMT_VERSION: v3.14.1
+          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/shfmt"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shfmt --version
+          test "$(shfmt --version)" = "$SHFMT_VERSION"
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
