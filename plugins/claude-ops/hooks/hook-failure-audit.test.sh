@@ -629,7 +629,7 @@ fi
 # An injected non-zero must also exit 0 and write exactly one stderr line.
 : >"$TEST_TMPDIR/empty.err"
 empty_rc=0
-empty_out=$(printf '' | bash "$HOOK" 2>"$TEST_TMPDIR/empty.err") || empty_rc=$?
+printf '' | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/empty.err" || empty_rc=$?
 assert_exit "empty stdin exits 0" 0 "$empty_rc"
 mal_rc=0
 printf 'not-json' | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/mal.err" || mal_rc=$?
