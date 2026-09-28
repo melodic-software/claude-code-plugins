@@ -3371,17 +3371,17 @@ hook::wsl_operand() {
   local -a w=("$@")
   local n=${#w[@]} i=0 exec_mode=0 out="" wd enc bs nb k ch
   local guid='^\{?[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\}?$'
-  ((i < n)) && [[ "${w[i]}" =~ $guid ]] && ((i++))
-  ((i < n)) && [[ "${w[i]}" == "~" ]] && ((i++))
+  ((i < n)) && [[ "${w[i]}" =~ $guid ]] && ((++i))
+  ((i < n)) && [[ "${w[i]}" == "~" ]] && ((++i))
   while ((i < n)); do
     case "${w[i]}" in
     --)
-      ((i++))
+      ((++i))
       break
       ;;
     -e | --exec)
       exec_mode=1
-      ((i++))
+      ((++i))
       break
       ;;
     --shell-type)
@@ -3389,7 +3389,7 @@ hook::wsl_operand() {
       ((i += 2))
       ;;
     -d | --distribution | --distribution-id | -u | --user | --cd | --parent-console) ((i += 2)) ;;
-    -*) ((i++)) ;;
+    -*) ((++i)) ;;
     *) break ;;
     esac
   done
@@ -3417,7 +3417,7 @@ hook::wsl_operand() {
       for ((k = 0; k < ${#wd}; k++)); do
         ch="${wd:k:1}"
         if [[ "$ch" == '\' ]]; then
-          ((nb++))
+          ((++nb))
           continue
         fi
         if [[ "$ch" == '"' ]]; then
