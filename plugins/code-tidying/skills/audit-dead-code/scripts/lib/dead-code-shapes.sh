@@ -94,6 +94,7 @@ dc_is_py_entry() {
     fi
     case "$line" in
     *'__name__'*'__main__'*) return 0 ;;
+    *) ;;
     esac
   done <"$file"
   return 1
