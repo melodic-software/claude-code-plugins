@@ -1840,7 +1840,7 @@ def scan_tree(
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable =reclaimable_local_bytes(entries)
+    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
