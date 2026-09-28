@@ -33,6 +33,7 @@ BOARD_FILES = (
     'boards/storyboard.json',
 )
 BRIEF_FIELDS = ('Subject', 'Length', 'Audience', 'Packs', 'Delivery')
+STYLES = Path(__file__).resolve().parent.parent / 'styles'
 
 
 def production(path):
@@ -307,9 +308,8 @@ def cmd_init(prod):
     if (prod / 'brief.md').is_file():
         print(f'produce: {prod} already has brief.md')
         return 0
-    (prod / 'boards/models').mkdir(parents=True)
-    (prod / 'boards/elements').mkdir(parents=True)
-    (prod / 'boards/storyboard').mkdir(parents=True)
+    for folder in ('models', 'elements', 'storyboard'):
+        (prod / 'boards' / folder).mkdir(parents=True, exist_ok=True)
     (prod / 'brief.md').write_text(
         '# Brief\n\nSubject:\nLength:\nAudience:\nPacks:\nDelivery:\n', encoding='utf-8')
     (prod / 'boards/style-guide.md').write_text(
@@ -398,7 +398,8 @@ def cmd_review(prod, frames):
             packs.append(shot['pack'])
     cuts = prod / 'shots.json'
     for pack in packs:
-        print(f'inkstats.py {frames} --cuts {cuts} --pack {pack}')
+        shipped = STYLES / pack   # a pack the plugin ships resolves to its directory
+        print(f'inkstats.py {frames} --cuts {cuts} --pack {shipped if shipped.is_dir() else pack}')
     return 0
 
 

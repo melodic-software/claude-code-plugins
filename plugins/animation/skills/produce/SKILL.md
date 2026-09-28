@@ -60,8 +60,9 @@ Paths in those files are relative to the production directory and stay inside it
 7. Render the film into `frames/` with `render.py`, at `shots.json` `fps` and `size`, long enough
    to reach the last `t1`. `--encode` writes the delivered file beside `frames/`.
 8. `produce.py review <dir>` prints one `inkstats.py <frames> --cuts <dir>/shots.json --pack <pack>`
-line per pack. Run each. Then read frames at 1:1 before calling the film done. A passing check
-whose frames do not read as the pack is a fail; say which mark is wrong.
+   line per pack; a pack the plugin ships resolves to its `styles/` directory. Run each. Then read
+   frames at 1:1 before calling the film done. A passing check whose frames do not read as the
+   pack is a fail; say which mark is wrong.
 
 Pass `--cuts` the `shots.json` path, not a retyped list. `inkstats.py` reads each shot's `t0`.
 

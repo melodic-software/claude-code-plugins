@@ -95,7 +95,7 @@ class ProduceTest(unittest.TestCase):
             }) + '\n', encoding='utf-8')
             out = run(['review', str(prod)])
             self.assertEqual(out.returncode, 0, out.stdout)
-            self.assertIn(f'inkstats.py {frames} --cuts {prod / "shots.json"} --pack woodcut-ink', out.stdout)
+            self.assertIn(f'inkstats.py {frames} --cuts {prod / "shots.json"} --pack {HERE.parent / "styles" / "woodcut-ink"}', out.stdout)
             meta = json.loads((frames / 'render.json').read_text(encoding='utf-8'))
             meta['duration'] = 9
             (frames / 'render.json').write_text(json.dumps(meta) + '\n', encoding='utf-8')
