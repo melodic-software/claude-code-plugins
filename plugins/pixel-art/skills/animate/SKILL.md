@@ -46,7 +46,7 @@ walker, start from `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py` and adapt it: a propor
 (`chibi`, `standard`, `tall`), a head shape, a hair shape, material ramps, and an `extra`
 callback for clothing or props. `${CLAUDE_PLUGIN_ROOT}/examples/walker/blacksmith.py` is a
 4-direction walker built that way. `${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` is an
-earlier hand-written MZ sheet; copy either example into the working directory before running it.
+earlier hand-written MZ sheet; copy either example into the working directory before running it, with `kit.py` beside `blacksmith.py`.
 Draw one side view and mirror it for the other only when the design is symmetric; the kit shades
 after the mirror so the light stays top-left.
 

@@ -62,7 +62,7 @@ can supply music or effects without either plugin depending on the other.
 head and hair shapes, clothing layers, material ramps, top-left shading, a selective outline, and
 4-direction handling. Adapt it; do not treat it as a fixed generator. `examples/walker/blacksmith.py`
 is a 4-direction walker built on it. `examples/campfire/` holds an earlier hand-written RPG Maker MZ
-walker and a cutscene that reuses it. Copy a folder somewhere writable, then:
+walker and a cutscene that reuses it. Copy a folder somewhere writable (for `walker/`, with `scripts/kit.py` beside it), then:
 
 ```shell
 python3 blacksmith.py
