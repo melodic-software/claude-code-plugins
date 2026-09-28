@@ -3,6 +3,16 @@
 Covers a plugin's configuration surfaces: `userConfig` keys, settings files,
 convention/config files the plugin reads.
 
+## Categories
+
+Every finding is one of three, and the return names all three:
+
+- **errors**: a bug, or a false positive the component showed a user
+- **improvements**: behavior the component should have
+- **quality-of-life**: friction while using the component
+
+A category with nothing found says `nothing found`. A return that names only the bug it found is incomplete.
+
 ## Read first
 
 - The plugin's `plugin.json` `userConfig` schema (keys, defaults, `sensitive` flags).

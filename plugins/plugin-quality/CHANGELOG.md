@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.28] - 2026-09-28
+
+### Changed
+
+- **An audit names errors, improvements, and quality-of-life, and checks the conventions it is under** ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)). The auditor's return and every component-type lens state all three categories, including a category with nothing found. Step 5 gains three presence-gated seams. Standards-alignment runs at `low` and above, and records `convention home unresolved` when `resolve-convention-home.sh` exits 1. Research and the finding-sample seam run at `medium` and above. A remediation that cannot meet discovery's source-tier bar (a Tier 0 or Tier 1 primary from this session, plus two corroborators, or `/discovery:research` when it is installed) is an open question. When the audited component emits findings, a false one is an errors finding.
+
 ## [0.7.27] - 2026-09-28
 
 ### Changed

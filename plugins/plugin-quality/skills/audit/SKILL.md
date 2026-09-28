@@ -114,9 +114,9 @@ in full at every level:
 
 | Effort | Step 5 review seams |
 |---|---|
-| `low` | `skill-quality:check` only, and only for a skill target. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor |
-| `high`, `xhigh`, `max` | every presence-gated seam over every finding |
+| `low` | `skill-quality:check` only when the target is a skill, plus the standards-alignment seam. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist. The research seam and the finding-sample seam are skipped. An uncited remediation is emitted as an open question. The three-category return is step 2, so it runs here too |
+| `medium` | the `low` seams, plus the breadth pass over findings at or above the run's severity floor, the research seam on every candidate remediation, and the finding-sample seam when the audited component emits findings to a user |
+| `high`, `xhigh`, `max` | every presence-gated seam over every finding, including standards-alignment, research, and the finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
 enters that pass only when its calibrated severity is at or above the floor. An attended run pins
@@ -191,6 +191,8 @@ history or prior reasoning, and the dispatch site names the worker so it is audi
 is the deliberate channel, the agent reads it as ground truth; what must not cross is the reasoning
 that produced the work under review. Running the step inline in the main thread, or in a
 conversation fork, satisfies neither property; any other dispatch mechanism must supply both.
+
+The dispatch brief names three categories and requires the return to state each one, including a category with nothing in it: **errors** (a bug, or a false positive that reached a user), **improvements** (behavior the component should have), and **quality-of-life** (friction while using it). The component-type lens files carry the same three names. A return that reports one bug and stops is incomplete.
 
 The `auditor` definition pins `model: opus`, the default a dispatch gets when it passes no
 `model`. Its verdict is consequential, so it runs at the session's model tier or above: when this
@@ -304,6 +306,24 @@ runs is used when installed, with a one-line fallback when absent:
   `apply` ran during evidence capture). The producer/consumer split means the audit never changes
   the audited plugin's code, so this seam is usually idle. *Absent:* re-state what was written
   and show the diff to the user.
+- **standards-alignment** (runs at `low` and above). Check the audited component against the
+  conventions it is subject to: this repo's `docs/conventions/*` when the audit is inside it, the
+  applicable `discipline:*` postures, and the `standards` repository where it applies. Cite the
+  convention file and the line in the component that disagrees. Resolve the convention home with
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`. Exit 0: use that home. Exit 1
+  (cwd is a plugin cache, or the home is otherwise unresolved): record `standards-alignment:
+  convention home unresolved` and skip the file compares. Do not guess a home.
+- **research** (runs at `medium` and above). Every candidate remediation and every load-bearing
+  claim in the emitted work item needs a primary source fetched this session plus independent
+  corroborators, with a source tier per claim. Route the claim through `/discovery:research` when
+  that skill is installed. When it is not, apply the source-tier rule in discovery's
+  `skills/research/context/discipline.md` by hand: a Tier 0 or Tier 1 primary captured this
+  session, plus at least two independent corroborators. A claim that cannot meet that bar is an
+  open question in the work item, never a recommendation.
+- **finding-sample** (runs at `medium` and above, and only when the audited component itself
+  emits findings to a user). Sample those findings and check them against the same source bar
+  before grading the component. "The component reported X and X was false" is an **errors**
+  finding. A sample that holds is recorded as held, not omitted.
 
 ### Step 6. Emit (sink resolution + egress gate)
 

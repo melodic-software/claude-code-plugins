@@ -162,7 +162,20 @@ task, your output destination, or the main session's sink and confirm gate.
 
 ## Output
 
-Write `audit-notes.md` into the evidence packet directory and return a summary. For each finding:
+Write `audit-notes.md` into the evidence packet directory and return a summary. The summary opens
+with three lines, in this order, and a category with nothing in it still gets its line:
+
+- errors: what was found, or `nothing found`
+- improvements: what was found, or `nothing found`
+- quality-of-life: what was found, or `nothing found`
+
+**errors** are bugs and false positives that reached a user. **improvements** are behavior the
+component should have. **quality-of-life** is friction while using it. A summary that names only
+the bug it found is incomplete. When the audited component itself emits findings to a user, sample
+them and say whether each sampled claim held. "The component reported X and X was false" is an
+errors finding.
+
+For each finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 a doc citation for any harness-behavior assertion, a severity suggestion, and a
 candidate remediation ordered cheapest-first. That doc citation carries the URL, the fetch date,
