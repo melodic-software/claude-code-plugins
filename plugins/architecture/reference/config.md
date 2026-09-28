@@ -35,7 +35,7 @@ into it and no dual-read window exists.
 4. Otherwise the skill asks once.
 5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
    `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
-   run, `map-landscape` stops and points at `/architecture:setup`.
+   run, `map-landscape` and `map-data` stop and point at `/architecture:setup`.
 
 ## Topic-doc format
 
@@ -54,7 +54,7 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. The same directory is where `map-data` writes `data-model.json`, `data-model.md`, and `data-model.dbml`. No default: an undeclared, unconfirmed value stops either skill rather than picking a directory. `--out <dir>` overrides it for one run. |
 | `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
 
 An unknown key, or a `landscape_dialect` value outside the two above, is reported by
@@ -92,8 +92,24 @@ key's mermaid default should change and whether `/architecture:map-landscape`'s 
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
+## Data model
+
+`/architecture:map-data` writes `data-model.json`, `data-model.md`, and, when the dialect is `dbml`,
+`data-model.dbml` into `architecture_dir`. It does not read `landscape_dialect`. The diagram
+dialect is `diagram_dialect.data` (`mermaid` or `dbml`, default `mermaid`), owned by the
+authoring-formats convention. This document adds no dialect key for the entity-relationship
+diagram.
+
+An entity-relationship diagram is not a C4 diagram. Claim: the C4 diagram set is system context,
+containers, components, and code, plus system landscape, dynamic, and deployment. Basis:
+<https://c4model.com/>. As of 2026-09-28. Recheck when that page adds a diagram type whose subject
+is entities and their relationships. On firing, decide whether this diagram grows a C4 dialect
+key, and record the outcome in this plugin's `CHANGELOG.md`.
+
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` and
+`map-data` read this surface and never write it. `map-data` also reads
+`<home>/authoring-formats/README.md` for `diagram_dialect.data` and never writes that file. Neither
+skill writes any other file in the consumer's root.

@@ -198,7 +198,7 @@ home through the resolver its own plugin bundles and restates the ladder in its 
 | Key | Reading skill |
 |---|---|
 | `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria) |
-| `diagram_dialect.data` | `/planning:design` (data-scope artifact) |
+| `diagram_dialect.data` | `/planning:design` (data-scope artifact) and `/architecture:map-data` (as-built ERD from a declared schema) |
 | `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set) |
 
 `landscape_dialect` is not a key of this convention. It is owned by the architecture plugin; see

@@ -7,6 +7,12 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Deviations and Implementers table, 2026-09-28 (architecture data)
+
+- **`architecture` map-data reads `architecture_dir` and authoring-formats `diagram_dialect.data`
+  (#4648).** No new architecture key. `landscape_dialect` is not the ERD dialect. No
+  `contract_version` bump.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the

@@ -3,6 +3,25 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-data` writes `data-model.json` (schema_version 1, one object per line) from tracked schema
+  declarations and renders an entity-relationship diagram. Prisma models win over Entity Framework
+  fluent mappings, which win over SQL migrations. A disagreement is a mismatch row. The diagram
+  stays on the winning tier. Mermaid writes an `erDiagram` in `data-model.md`. DBML writes
+  `data-model.dbml`. The dialect is the existing `diagram_dialect.data` key (default `mermaid`).
+  Columns appear only with `--include-columns`. Several modules refuse until `--scope` names one
+  or `all`. Django, SQLAlchemy, EF annotations, an unreadable EF chain, implicit Prisma
+  many-to-many, and `--live` each refuse on the artifact. No database connection is opened.
+
+### Changed
+
+- `map-landscape` points at `map-data` when the question is the declared entities and how they
+  relate.
+- `reference/config.md` records that the ERD reads `diagram_dialect.data` and adds no dialect key.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

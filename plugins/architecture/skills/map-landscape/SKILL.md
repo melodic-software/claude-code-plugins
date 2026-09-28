@@ -213,6 +213,7 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Next
 
+- Declared entities and their relationships need an ERD: `/architecture:map-data`.
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.

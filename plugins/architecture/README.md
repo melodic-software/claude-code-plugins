@@ -77,6 +77,24 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Declared schema
+
+`/architecture:map-data` draws an entity-relationship diagram from tracked declarations. It does
+not open a database connection. Prisma models win over Entity Framework fluent mappings, which win
+over SQL migrations replayed to a final shape. When two of those disagree, the artifact names the
+mismatch and the diagram stays on the higher tier.
+
+The dialect is `diagram_dialect.data` (`mermaid` or `dbml`, default `mermaid`), the same key
+`/planning:design` uses for a data diagram. This skill does not add a key. Mermaid writes
+`data-model.md`. DBML writes `data-model.dbml`. Columns are omitted unless you pass
+`--include-columns`.
+
+A repository with several modules lists them and draws none until you pass `--scope` with one
+module or `all`. A mechanism this skill does not extract (Django models, SQLAlchemy columns, EF
+data annotations) is named on the artifact and nothing is drawn, including when a Prisma schema
+sits beside it. `--live` is refused. Offline declarations are not substituted for a connection
+that was requested.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +116,8 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-data
+/architecture:map-data --scope orders --include-columns
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,18 +127,22 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map data",
+"ERD", "entity relationship", "schema diagram".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
-`/architecture:setup` owns the declaration: `check` reports the state read-only,
-`apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
-at setup rather than choosing a directory for you.
+`map-landscape` and `map-data` read `architecture_dir` from a topic doc at your
+repository's convention home, `<home>/architecture/README.md` (repo-relative, no
+default). `map-landscape` also reads `landscape_dialect` (`structurizr` or
+`mermaid`, default `mermaid`). `map-data` does not. Its diagram dialect is
+`diagram_dialect.data` on the authoring-formats topic doc (`mermaid` or `dbml`,
+default `mermaid`). The architecture contract lives in
+[`reference/config.md`](reference/config.md). `/architecture:setup` owns the
+architecture declaration: `check` reports the state read-only, `apply` converges
+the pointer region and the topic doc. With no `architecture_dir` declared and
+none confirmed, both skills stop and point at setup rather than choosing a
+directory for you.
 
 ## Persistence
 

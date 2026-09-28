@@ -97,7 +97,8 @@ Converge, in order:
 
 ## Next
 
-`/architecture:map-landscape`. Both `architecture_dir` and `landscape_dialect` are declared by now.
+- A landscape of repositories: `/architecture:map-landscape`.
+- An entity-relationship diagram from the declared schema: `/architecture:map-data`.
 
 ## Gotchas
 
