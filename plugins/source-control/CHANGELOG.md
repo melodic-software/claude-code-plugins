@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.3] - 2026-09-28
+
+### Changed
+
+- **Worktree fact model stays re-derived (#3422).** Porcelain parse, lock-reason
+  encode/decode, and the 15-column TSV `-` invariant stay in `landed-work.sh`,
+  `worktree-claim.sh`, and the four prose surfaces. A fact-record producer is
+  unpaid. Recorded in `skills/worktree/reference/fact-model.md`.
+
 ## [0.62.2] - 2026-09-28
 
 ### Changed
