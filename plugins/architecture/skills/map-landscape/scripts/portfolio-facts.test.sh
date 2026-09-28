@@ -423,6 +423,37 @@ out="$(bash "$SCRIPT" "$rooted_repo")"
 assert_equals "root-first: the root manifest supplies the framework" "$(field "$out" target_framework)" ">=22"
 assert_contains "root-first: the root dependency is collected" "$(array_field "$out" dependencies)" '"root-dep"'
 
+# --- Case group 9b: checkout identity follows github.com origin (#4554) ----
+ident_repo="$(make_repo weird-checkout-name)"
+git -C "$ident_repo" remote add origin "https://github.com/acme/canonical-repo.git"
+printf 'service
+' >"$ident_repo/README.md"
+commit_repo "$ident_repo"
+out="$(bash "$SCRIPT" "$ident_repo")"
+assert_equals "identity: name is the origin repository segment (#4554)" "$(field "$out" name)" "canonical-repo"
+
+ident2="$TEST_TMPDIR/another-weird-name"
+mkdir -p "$ident2"
+git -C "$ident2" init --quiet 2>/dev/null
+git -C "$ident2" config user.email "fixture@example.invalid"
+git -C "$ident2" config user.name "Fixture"
+git -C "$ident2" config commit.gpgsign false
+git -C "$ident2" remote add origin "https://github.com/acme/canonical-repo.git"
+printf 'service
+' >"$ident2/README.md"
+commit_repo "$ident2"
+out2="$(bash "$SCRIPT" "$ident2")"
+assert_equals "identity: second checkout agrees on name (#4554)" "$(field "$out2" name)" "canonical-repo"
+assert_equals "identity: two checkouts produce identical names (#4554)" "$(field "$out" name)" "$(field "$out2" name)"
+
+nongh_pf="$(make_repo local-only-name)"
+git -C "$nongh_pf" remote add origin "https://gitlab.example.invalid/acme/other.git"
+printf 'x
+' >"$nongh_pf/README.md"
+commit_repo "$nongh_pf"
+out3="$(bash "$SCRIPT" "$nongh_pf")"
+assert_equals "identity: non-github origin keeps directory name (#4554)" "$(field "$out3" name)" "local-only-name"
+
 # --- Case group 10: multiple repositories, and a bad path -------------------
 out="$(bash "$SCRIPT" "$dotnet_repo" "$node_repo")"
 line_count="$(printf '%s\n' "$out" | grep -c '^{')"
