@@ -1,5 +1,5 @@
 ---
-description: "Turn a decision another person holds into an async Markdown questionnaire: asks the user only about the send, never the subject. Use when: 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', 'I don't know, that's the client's call', 'send this to someone else to answer', 'write up questions for our security team', or an interview branch defers to a person. Self-answerable is /planning:interview."
+description: "Turn a decision another person holds into an async Markdown questionnaire, interviewing the user only about the send, never the subject. Use when: 'make a questionnaire for X', 'I need to ask my DBA/the client/legal about this', 'turn this into a doc someone else fills in', 'I don't know, that's the client's call', 'send this to someone else to answer', 'write up questions for our security team', or an interview branch defers to a person. Self-answerable: /planning:interview."
 argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
