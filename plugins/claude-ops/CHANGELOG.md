@@ -3,17 +3,37 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.17] - 2026-09-28
+## [0.63.23] - 2026-09-28
 
 ### Changed
 
 - **Long reference spokes open with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `audit-performance` `reference/known-performance-issues.md`, `observability` `context/data-sources.md` are over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on them. No content moved.
 
+## [0.63.17] - 2026-09-28
+
+### Fixed
+
+- **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
+- **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+
 ## [0.63.16] - 2026-09-28
 
 ### Changed
 
-- **The native-surface presence-gate token is `resolves in this session`** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). `audit-native-overlap`'s `GATE_TOKEN` was `resolves in your session`, which kept second person in every description that bakes a native-surface route. Anthropic's skill-authoring best practices say to always write a description in the third person because it is injected into the system prompt. The forward and reverse parity checks, the ungated-presence advisory's suggested fix, and the test fixtures now use the new token. The `audit-install-state` and `audit-skill-visibility` descriptions, which kept the old token after the voice sweep in #4108, carry the new one, as do their bodies, `audit-performance`'s routing line, the `audit-native-overlap` body and evals, and the store evidence in `docs/native-surfaces/records.json`. The native-references convention moves to 3.0.0 for the token change. A baked row whose description still carries `resolves in your session` now fails forward parity (self-check exit 1) until the description is rebaked with the new token.
+- **Unattended lanes and three changelog decisions**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `lane-launcher.sh` adds `--permission-prompts none` beside `--permission-mode auto` when
+  `claude --version` is at least 2.1.259, so the classifier stays and only a prompting call is
+  denied. The lanes skill records three declines against the pages read on 2026-09-28:
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (it ignores definition `model` pins), `/advisor` (documented
+  for `-p`, not a lane default), and `claude --resume <id> --bg` (the combination is not on the
+  cli-reference). `/reload-plugins` is recorded as running in `-p` and SDK sessions from 2.1.260;
+  reaching a loop whose skill body is already in context stays unprobed.
+  Observability routes a session's likely prompt-cache miss cause to `/usage` and
+  `prompt_cache.last_miss_cause` (2.1.260). `audit-install-state` separates a managed settings
+  file that refuses startup from a user settings file that pauses the retention sweep, and
+  nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
+  a store row.
 
 ## [0.63.15] - 2026-09-28
 
@@ -5204,3 +5224,4 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   - `claude-observability` → `observability` (`/claude-ops:observability`)
   - `claude-troubleshooting` → `troubleshoot` (`/claude-ops:troubleshoot`)
   - `claude-code-changelog` → `changelog` (`/claude-ops:changelog`)
+

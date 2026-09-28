@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.7] - 2026-09-28
+## [0.62.10] - 2026-09-28
 
 ### Changed
 
@@ -13,7 +13,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+- **Worktree isolation is four checks, and unattended prompts have a flag**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
+  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
+  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
+  mode and its classifier.
 
 ## [0.62.5] - 2026-09-28
 
@@ -6481,3 +6486,4 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - Readiness security-gate, mixed-actor, and three worktree evals.
+
