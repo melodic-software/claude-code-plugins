@@ -90,6 +90,9 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/pixel-art:animate`](../plugins/pixel-art/skills/animate/SKILL.md) | `pixel-art` | Author, render, and review pixel-art animation cycles and sprite sheets |
 | [`/pixel-art:scene`](../plugins/pixel-art/skills/scene/SKILL.md) | `pixel-art` | Author, render, and review a self-contained HTML pixel-art scene |
 | [`/pixel-art:sprite`](../plugins/pixel-art/skills/sprite/SKILL.md) | `pixel-art` | Author, render, and review a static pixel-art sprite |
+| [`/pixel-art:tileset`](../plugins/pixel-art/skills/tileset/SKILL.md) | `pixel-art` | Author, render, and review an engine tileset or parallax |
+| [`/pixel-art:ui`](../plugins/pixel-art/skills/ui/SKILL.md) | `pixel-art` | Author, render, and review pixel-art UI skins, icons, and fonts |
+| [`/pixel-art:vfx`](../plugins/pixel-art/skills/vfx/SKILL.md) | `pixel-art` | Author, render, and review pixel-art effects and animation cells |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test

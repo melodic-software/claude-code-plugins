@@ -1,0 +1,41 @@
+{
+  "skill_name": "ui",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-mz-window-skin",
+      "prompt": "make an RPG Maker MZ window skin, dark wood with a gold cursor",
+      "expected_output": "Fires /pixel-art:ui. Reads the Window.png region map in engine-layouts.md and draws those regions into one frame, because render.py uses one frame size per spec. Writes brief.md before the first render and grades each done criterion pass or fail.",
+      "files": [],
+      "expectations": [
+        "Invokes the ui skill",
+        "Composes Window.png regions into one frame at the positions in engine-layouts.md",
+        "Writes brief.md before the first render and grades its done criteria",
+        "Delivers sheet.png at 1x, not the preview"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "triggers-on-bitmap-font",
+      "prompt": "a bitmap font for Godot, uppercase and digits, on a glyph grid",
+      "expected_output": "Fires /pixel-art:ui. Builds a glyph grid and a BMFont .fnt whose page is sheet.png. Does not use an anti-aliased system font.",
+      "files": [],
+      "expectations": [
+        "Invokes the ui skill for a bitmap font",
+        "Ships a glyph grid and a BMFont .fnt pointing at sheet.png",
+        "Does not anti-alias the glyphs"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "near-miss-portrait-routes-to-sprite",
+      "prompt": "draw a character portrait of my mage, pixel art",
+      "expected_output": "Does not fire /pixel-art:ui. A character portrait is /pixel-art:sprite.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the ui skill for a character portrait",
+        "Routes to /pixel-art:sprite"
+      ]
+    }
+  ]
+}

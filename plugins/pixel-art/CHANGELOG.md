@@ -3,6 +3,15 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+
+- `tileset`, `ui`, and `vfx` skills (#4400): the same brief, render, and review shape as `sprite`,
+  aimed at engine tilesets, window skins and icon grids, and MV-style effect sheets. Worked
+  examples render an MZ A2 sheet (768x576), a 192x192 `Window.png`, and a 5-column 192x192
+  animation sheet.
+
 ## [0.1.1]
 
 ### Changed

@@ -7,11 +7,17 @@ animation cycles laid out for game engines, and animated scenes that open in any
 |---|---|
 | `/pixel-art:sprite` | A static sprite (character, item, icon, portrait, face) as a PNG sheet |
 | `/pixel-art:animate` | Idle, walk, attack and other cycles in 1, 4 or 8 directions, as an engine sprite sheet plus GIF previews |
+| `/pixel-art:tileset` | Terrain, autotiles, backgrounds, and parallax layers on the engine's sheet |
+| `/pixel-art:ui` | Window skins, icon grids, HUD elements, and bitmap fonts |
+| `/pixel-art:vfx` | Sparks, spells, and explosions as engine animation sheets |
 | `/pixel-art:scene` | A cutscene, title screen, ambient loop or short pixel film as one self-contained HTML file |
 
 ```shell
 /pixel-art:sprite a 32x32 potion icon, PICO-8 palette
 /pixel-art:animate a knight, walk and attack, 4 directions, RPG Maker MZ
+/pixel-art:tileset grassy A2 ground autotiles for RPG Maker MZ
+/pixel-art:ui a window skin and a 16-column icon set
+/pixel-art:vfx a 5-frame hit spark for an MZ animation sheet
 /pixel-art:scene the knight walks to a campfire at dusk and says one line, 240x160
 ```
 
@@ -55,7 +61,9 @@ can supply music or effects without either plugin depending on the other.
 ## Example
 
 `examples/campfire/` holds the generator for an RPG Maker MZ walking character and a cutscene that
-reuses it. Copy the folder somewhere writable, then:
+reuses it. `examples/tileset/a2_ground.py`, `examples/ui/window_mz.py`, and `examples/vfx/spark_mz.py`
+are the worked engine sheets for tiles, the window skin, and an effect. Copy a folder somewhere
+writable, then:
 
 ```shell
 python3 hero_mz.py

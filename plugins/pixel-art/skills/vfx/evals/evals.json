@@ -1,0 +1,41 @@
+{
+  "skill_name": "vfx",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-mz-hit-spark",
+      "prompt": "a pixel-art hit spark for RPG Maker, a short impact burst",
+      "expected_output": "Fires /pixel-art:vfx. Reads the MV-style img/animations layout in engine-layouts.md (not Effekseer). Writes brief.md before the first render, authors the burst as palette steps, renders a sheet and GIF with render.py, and reviews motion from preview.png.",
+      "files": [],
+      "expectations": [
+        "Invokes the vfx skill",
+        "Uses the MV-style animation cell sheet from engine-layouts.md",
+        "Does not write an Effekseer .efkefc file",
+        "Writes brief.md and grades each done criterion pass or fail",
+        "Reviews motion from the sheet, not from a GIF's first frame alone"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "near-miss-walk-cycle-routes-to-animate",
+      "prompt": "animate my knight's 4-direction walk cycle",
+      "expected_output": "Does not fire /pixel-art:vfx. A character walk cycle is /pixel-art:animate.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the vfx skill for a walk cycle",
+        "Routes to /pixel-art:animate"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "near-miss-effekseer-file",
+      "prompt": "export an Effekseer .efkefc explosion for MZ",
+      "expected_output": "Does not write an .efkefc file. Says MZ's native effect format is outside this plugin and offers the MV-style pixel cell sheet instead.",
+      "files": [],
+      "expectations": [
+        "Does not write an .efkefc file",
+        "Names the pixel cell sheet as the asset this skill can deliver"
+      ]
+    }
+  ]
+}
