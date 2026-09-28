@@ -143,7 +143,11 @@ assert_contains "trigger-phrase declines are reported, never silent" \
 bash "$SCAN" --body-only "$FIXTURES/protected-content.md" >"$TEST_TMPDIR/pc.txt"
 assert_not_contains "no I28 candidate on any protected-content line" \
   "$(cat "$TEST_TMPDIR/pc.txt")" "I28"
-OUT=$(emit "$TEST_TMPDIR/pc.txt" "$TEST_TMPDIR/pc.md")
+# The scanner may now return no row at all for this file, and the emitter
+# refuses an empty scan, so a non-crosswalk row keeps the coverage path under test.
+grep -v '^No instruction candidates' "$TEST_TMPDIR/pc.txt" >"$TEST_TMPDIR/pc-rows.txt" || true
+printf '%s\n' "$FIXTURES/protected-content.md:1:I6" >>"$TEST_TMPDIR/pc-rows.txt"
+OUT=$(emit "$TEST_TMPDIR/pc-rows.txt" "$TEST_TMPDIR/pc.md")
 ROWS=$(printf '%s\n' "$OUT" | grep -c '^| [0-9]')
 assert_eq "protected content emits zero findings" "0" "$ROWS"
 assert_contains "a zero-finding run still writes coverage" "$OUT" "## Surfaces"

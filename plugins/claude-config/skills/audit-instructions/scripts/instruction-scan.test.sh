@@ -48,6 +48,105 @@ Do not skip the lint step, since CI will reject the PR otherwise.
 EOF
 assert_eq "rationale-bearing prohibitions not flagged" "0" "$(bash "$SCRIPT" --count "$I6R")"
 
+# --- Case 3b: I6 imperative-opening gate --------------------------------------
+I6G="$TEST_TMPDIR/i6-imperative.md"
+cat >"$I6G" <<'EOF'
+Older versions do not support this flag.
+
+The config never loads before the hook runs.
+
+- Never call the tool directly.
+
+> **Do not** edit the generated file.
+EOF
+OUT=$(bash "$SCRIPT" "$I6G")
+assert_not_contains "descriptive 'do not' mid-sentence is not I6" "$OUT" "$I6G:1:I6"
+assert_not_contains "descriptive 'never' mid-sentence is not I6" "$OUT" "$I6G:3:I6"
+assert_contains "a list-item prohibition opens its sentence" "$OUT" "$I6G:5:I6"
+assert_contains "a blockquoted, emphasized prohibition opens its sentence" "$OUT" "$I6G:7:I6"
+
+# --- Case 3c: I6 paired-positive boundary -------------------------------------
+I6P="$TEST_TMPDIR/i6-paired.md"
+cat >"$I6P" <<'EOF'
+Never edit the lockfile by hand; regenerate it instead.
+
+Do not use tabs rather than spaces.
+
+Don't inline the helper, prefer the shared module.
+
+Never hardcode the path in place of the variable.
+
+Never write the file with a redirect: use the Write tool.
+
+Never guess the version, just read the manifest.
+
+Never call the tool directly; avoid its wrapper too.
+
+Do not use bash for this. Use the script.
+EOF
+OUT=$(bash "$SCRIPT" "$I6P")
+assert_not_contains "'instead' in the sentence pairs it" "$OUT" "$I6P:1:I6"
+assert_not_contains "'rather than' in the sentence pairs it" "$OUT" "$I6P:3:I6"
+assert_not_contains "'prefer' in the sentence pairs it" "$OUT" "$I6P:5:I6"
+assert_not_contains "'in place of' in the sentence pairs it" "$OUT" "$I6P:7:I6"
+assert_not_contains "a clause naming the alternative pairs it" "$OUT" "$I6P:9:I6"
+assert_not_contains "a transparent adverb is looked through to the alternative" "$OUT" "$I6P:11:I6"
+assert_contains "a second prohibition is not an alternative" "$OUT" "$I6P:13:I6"
+assert_contains "a positive in the NEXT sentence does not pair it" "$OUT" "$I6P:15:I6"
+
+# --- Case 3d: I6 soft-wrapped sentence accumulation ---------------------------
+I6W="$TEST_TMPDIR/i6-wrapped.md"
+cat >"$I6W" <<'EOF'
+Never edit the generated index by hand, because the
+next build overwrites it.
+
+Do not open the report in the browser
+from inside the sandbox; open the saved copy instead.
+
+Some intro text ends here. Never push the
+tag before the release notes land.
+EOF
+OUT=$(bash "$SCRIPT" "$I6W")
+assert_not_contains "a rationale on the wrapped line withholds the sentence" "$OUT" "$I6W:1:I6"
+assert_not_contains "a positive on the wrapped line pairs the sentence" "$OUT" "$I6W:4:I6"
+assert_contains "a wrapped sentence is attributed to its first physical line" "$OUT" "$I6W:7:I6"
+assert_not_contains "the continuation line carries no row" "$OUT" "$I6W:8:I6"
+
+# --- Case 3e: I6 fence, table, heading, and frontmatter exclusion --------------
+I6X="$TEST_TMPDIR/i6-excluded.md"
+cat >"$I6X" <<'EOF'
+---
+description: Never use this for the other thing.
+---
+
+# Never skip this heading
+
+```text
+Never run this inside the fence.
+```
+
+~~~~
+```
+Never run this in a nested fence.
+```
+~~~~
+
+| Rule | Why |
+|------|-----|
+| Never do X. | it breaks Y |
+
+Never run the migration twice.
+EOF
+OUT=$(bash "$SCRIPT" "$I6X")
+assert_not_contains "frontmatter is not read for I6" "$OUT" "$I6X:2:I6"
+assert_not_contains "a heading is not read for I6" "$OUT" "$I6X:5:I6"
+assert_not_contains "fenced code is not read for I6" "$OUT" "$I6X:8:I6"
+assert_not_contains "a shorter inner fence does not close the outer one" "$OUT" "$I6X:13:I6"
+assert_not_contains "a table row is not read for I6" "$OUT" "$I6X:19:I6"
+assert_contains "prose after the table is still read" "$OUT" "$I6X:21:I6"
+assert_eq "--i6-counts reports raw and surviving" "I6 raw=6 surviving=1" \
+  "$(bash "$SCRIPT" --i6-counts "$I6X")"
+
 # --- Case 4: I10 reasoning-echo directives flagged --------------------------
 I10F="$TEST_TMPDIR/i10.md"
 cat >"$I10F" <<'EOF'

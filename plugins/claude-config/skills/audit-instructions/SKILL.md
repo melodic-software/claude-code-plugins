@@ -216,8 +216,10 @@ ever deterministic pattern-marking:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh" <file>...
 ```
 
-It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
-marker), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
+It emits `file:line:check-id` candidate rows for I6 (a sentence that opens with a prohibition and
+carries neither a paired positive nor a rationale marker, read across soft-wrapped lines and never
+inside frontmatter, fences, table rows, or headings; `--i6-counts` prints `I6 raw=<n>
+surviving=<n>` for the Phase D cost line), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason, `I8-f`
 think-carefully steer (I8-c's
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
@@ -235,6 +237,11 @@ Advisory: a grep cannot judge whether a rationale is genuinely present, whether 
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
 run's resolved target model.
+
+I33 is lane-only, and a lane applies it one finding per spoke, keyed by an excerpt anchor over the
+opener sentence with its heading-path discriminator. Each lane brief restates the row's Must NOT flag
+fences: a one-line scope note that bounds the file's subject, the hub's own index table, and
+frontmatter yield no I33 finding.
 
 ### Lane sizing
 
@@ -357,8 +364,9 @@ fallback, never a route to a command that may not resolve
 (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per lane that produced proposals (not one per finding or per surface), counted
 under the same ~20-dispatch gate as the Phase B plan; the B2 conflict pass keeps its own separate
-verifier. A proposal the verifier defends is demoted to `info` or dropped, never surfaced as a
-confident removal.
+verifier. I33 findings are the exception to that grouping: one class-batched verifier judges every
+I33 finding across all lanes, since each is the same question asked of a spoke opener. A proposal
+the verifier defends is demoted to `info` or dropped, never surfaced as a confident removal.
 
 **An out-of-catalog defect takes its own refutation** (the catalog's "Out-of-catalog defects"
 section admits it): reproduce the cited evidence, then ask whether the claim is false today. One
@@ -394,7 +402,8 @@ the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
-the estimated per-surface token delta versus the previous catalog version **for this project**, and
+the estimated per-surface token delta versus the previous catalog version **for this project**, the
+I6 seed as `I6 raw=<n> surviving=<n>` from `--i6-counts`, and
 the dispatch count, planned and actual (lanes, Phase C verifiers, the B2 pass, and its verifier),
 stating whether the ~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
 its place. It names the lane budget (tokens and the derived line figure), every plugin the
@@ -413,6 +422,11 @@ Phase B2's findings carry two anchors, so they get their own **Cross-surface con
 Beside it, an **Out-of-catalog** subsection holds the defects the catalog's "Out-of-catalog defects"
 section admits, each with Check `out-of-catalog`, its evidence, and where it routes; those rows never
 reach `emit-findings.sh`.
+
+I33 findings leave the main table for an **I33 by plugin** section, one collapsed
+`<details><summary><plugin>: <n> spokes</summary>` block per plugin holding the same table columns,
+so every row keeps its `Surface:Line` and its fenced diff. The roll-up is presentation only: each
+spoke is still its own finding with its own anchor.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the

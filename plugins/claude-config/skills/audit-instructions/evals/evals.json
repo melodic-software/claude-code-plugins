@@ -313,5 +313,42 @@
         "Does not edit audited instruction files"
       ]
     }
+,
+    {
+      "id": 26,
+      "name": "i33-fenced-spokes-yield-no-finding",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, and evals/fixtures/i33-index-pointer-spoke.md relative to the skill directory, treated as one plugin's skill: the hub is its SKILL.md and the two spokes sit in its reference/ directory.",
+      "expected_output": "Reports zero I33 findings. The scope-note spoke opens with the one-line scope note \"Windows only.\", which bounds the file's subject, and the index-pointer spoke opens with a one-line pointer back to the hub's index table, where loading conditions belong; both sit inside I33's Must NOT flag fences, which the lane brief restates. The hub's own index table is not a spoke opener and is never an I33 candidate.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md"
+      ],
+      "expectations": [
+        "Reports no I33 finding for the one-line scope note \"Windows only.\"",
+        "Reports no I33 finding for the \"Full index:\" pointer line",
+        "Reports no I33 finding against the hub's index table",
+        "Does not present either spoke's opener as a Withheld or demoted I33 finding either; the fences exempt them before any finding exists"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "i33-per-spoke-finding-rolls-up-per-plugin",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory.",
+      "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md",
+        "evals/fixtures/i33-self-describing-spoke.md"
+      ],
+      "expectations": [
+        "Reports exactly one I33 finding, on i33-self-describing-spoke.md",
+        "Anchors that finding on the opener sentence (an excerpt anchor), not on the whole surface",
+        "Places the I33 finding in a collapsed per-plugin section for release-notes rather than the main findings table",
+        "Keeps Surface:Line and a fenced diff on the I33 row inside the collapsed section",
+        "Judges the I33 class with one class-batched verifier in Phase C"
+      ]
+    }
   ]
 }

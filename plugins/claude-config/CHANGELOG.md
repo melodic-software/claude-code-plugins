@@ -3,6 +3,28 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.0] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions`: the I6 pre-scan adopts the measured gate set of
+  `docs-hygiene`'s `rule-negation-without-positive`.** A row is now a sentence that opens with the
+  prohibition (after list, blockquote, checkbox, and emphasis markers) and carries neither a paired
+  positive (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) nor a rationale
+  marker. Soft-wrapped paragraph lines join into one sentence before the split, and frontmatter,
+  fenced code, table rows, headings, and HTML comment lines are never read. On this repository at
+  `2dfaaa40` the seed falls from 6,608 raw rows to 913. New `--i6-counts` prints
+  `I6 raw=<n> surviving=<n>`, which the Phase D cost line now states. `criteria.md` 1.23.0 rewrites
+  the I6 Detect sentence to say the exclusions are structural, not the row's fences (#4115).
+- **`audit-instructions`: I33 is reported one finding per spoke and rolled up per plugin.** Each
+  finding is anchored by an excerpt over the spoke's opener sentence with its heading path as the
+  discriminator, never a whole-surface anchor. The lane brief restates the row's Must NOT flag
+  fences (one-line scope note, hub index table, frontmatter). Phase C judges the class with one
+  class-batched verifier, and Phase D moves I33 rows into a collapsed per-plugin section that keeps
+  each row's `Surface:Line` and fenced diff. The row's tier, authority, Detect, and Remediate are
+  unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
+  (#4115).
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed
