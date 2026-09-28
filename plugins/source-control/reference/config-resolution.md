@@ -330,7 +330,7 @@ rationale are in
 | `babysit_merge_block_labels` | add-only union across layers + deprecated `userConfig` |
 | `babysit_extra_dependency_manager_logins` | add-only union |
 | `babysit_approval_downgrade_logins` | add-only union |
-| `babysit_skip_downgrade_logins` | **unclassified** (floor vs preference — decide before implementation) |
+| `babysit_skip_downgrade_logins` | **unclassified** (floor vs preference). Decide before implementation. |
 | `babysit_review_trigger_phrase` | per-key override |
 | `babysit_review_bot_logins` | bound with `babysit_review_settle_minutes` from one layer; lower layer may lengthen settle, never shorten |
 | `babysit_review_settle_minutes` | bound pair (see previous row) |
