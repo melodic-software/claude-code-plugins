@@ -1,0 +1,9 @@
+{
+  "csharp-ls": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/bin/launch-csharp-ls.mjs"],
+    "extensionToLanguage": {
+      ".cs": "csharp"
+    }
+  }
+}

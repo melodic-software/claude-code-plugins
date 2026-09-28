@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "csharp-lsp",
+  "version": "0.1.0",
+  "description": "Start csharp-ls by resolving the native dotnet-tool apphost and setting DOTNET_ROOT before Claude Code spawns it.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["csharp", "dotnet", "lsp", "windows"]
+}

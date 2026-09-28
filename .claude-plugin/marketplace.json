@@ -85,6 +85,18 @@
       }
     },
     {
+      "name": "csharp-lsp",
+      "source": "./plugins/csharp-lsp",
+      "category": "development",
+      "tags": ["csharp", "dotnet", "lsp", "windows"],
+      "relevance": {
+        "topic": "C#",
+        "signals": {
+          "filesRead": ["**/*.cs", "**/*.csproj", "**/*.sln"]
+        }
+      }
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",

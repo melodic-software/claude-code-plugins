@@ -33,6 +33,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 - [`ruff-format`](../plugins/ruff-format): Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo, using the consuming repo's own Ruff config.
 - [`typos-format`](../plugins/typos-format): Spell-check on edit via typos-cli, unconditionally. Report-only by default, honoring the consuming repo's own typos configuration when one is present.
 - [`go-format`](../plugins/go-format): Auto-fix Go formatting and import management on edit via goimports. Runs unconditionally (no consumer-config gate), skipping generated files.
+- [`csharp-lsp`](../plugins/csharp-lsp): Start csharp-ls by resolving the native dotnet-tool apphost and setting DOTNET_ROOT before Claude Code spawns it.
 - [`eol-normalizer`](../plugins/eol-normalizer): Normalize a written file's working-tree line endings to its .gitattributes eol value on edit: symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
 - [`powershell-format`](../plugins/powershell-format): Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo, using the consuming repo's own analyzer settings.
 - [`actionlint`](../plugins/actionlint): Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.
