@@ -62,8 +62,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --sc
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
-`backends.py` writes the same files `render.py` does. Pass `--backend` only when this request names
-one. A `generate` object on the spec is how PixelLab and Retro Diffusion get a prompt; Aseprite
+`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
+names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
+relying on the environment to carry it. A `generate` object on the spec is how PixelLab and Retro Diffusion get a prompt; Aseprite
 builds `source.aseprite` from the frame rows.
 
 Output directory, first match wins: an explicit path in the request; an assets location the

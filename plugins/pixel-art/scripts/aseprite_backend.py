@@ -54,6 +54,7 @@ def export_plan(spec):
             continue
         lo, hi = min(slots), max(slots)
         if sorted(slots) != list(range(lo, hi + 1)):
+            print(f"Aseprite tag {name} skipped: its frames are not contiguous in the sheet order")
             continue
         tags.append({"name": name, "from": lo, "to": hi})
     columns = spec.get("sheet", {}).get("columns") or len(order)
@@ -114,10 +115,13 @@ sprite:close()
 
 
 def script_argv(executable, lua_path, ase_path, spec_path):
+    # Aseprite processes CLI arguments in order: a --script-param after --script
+    # is not set yet when the script runs.
     return [
-        executable, "--batch", "--script", str(lua_path),
+        executable, "--batch",
         "--script-param", f"ase={ase_path}",
         "--script-param", f"spec={spec_path}",
+        "--script", str(lua_path),
     ]
 
 

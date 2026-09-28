@@ -69,7 +69,8 @@ skip that feature, continue with the documented reduced result.
   called again; pass that PNG to `backends.py --ingest`. The docs name a PixelLab MCP server and do
   not give a package name on the page fetched below.
 - Confirm before the first call in a session (`--confirm` or `PIXEL_ART_BACKEND_CONFIRM=1`). Without
-  it the adapter does not call the network. The API reference does not state an output license.
+  it the adapter does not call the network. Each `generate.frames` entry is one paid call, and the
+  adapter prints the count before it spends. The API reference does not state an output license.
 - Verification record: claim = the endpoint, bearer auth, body, response fields, and size limits in
   the previous bullets. Basis = [PixelLab API](https://api.pixellab.ai/v1/docs) (Generate image
   pixflux). As-of 2026-09-28. Recheck trigger: that page renaming `generate-image-pixflux`, the

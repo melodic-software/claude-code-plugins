@@ -4,7 +4,7 @@
   python3 backends.py spec.json --out dir
   python3 backends.py spec.json --out dir --backend aseprite
   python3 backends.py spec.json --out dir --backend pixellab --confirm
-  python3 backends.py ingest frame.png --palette pico-8 --out dir --width 32 --height 32
+  python3 backends.py --ingest frame.png --palette pico-8 --out dir --width 32 --height 32
 
 `native` always works. `aseprite` runs when the CLI is on PATH (or ASEPRITE).
 `pixellab` and `retrodiffusion` run only with an API token and `--confirm`,
@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 
 import aseprite_backend
 import hosted_backends
@@ -157,6 +158,7 @@ def _generate_frames(spec, rows_for_prompt, spec_path):
     width = int(block.get("width") or 32)
     height = int(block.get("height") or 32)
     jobs = block.get("frames") or [{"name": "image", "prompt": block["prompt"]}]
+    print(f"paid calls: {len(jobs)} (one per generated frame)")
     prepared = palette_mod.prepare_spec(spec, spec_path)
     palette = prepared["palette"]
     frames = {}
@@ -179,6 +181,12 @@ def _generate_frames(spec, rows_for_prompt, spec_path):
     return built
 
 
+def safe_base(url):
+    """The API token goes to this base, so it must be https, or plain http only to loopback (tests)."""
+    parsed = urllib.parse.urlparse(url)
+    return parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "::1"))
+
+
 def _run_pixellab(spec, out_dir, scale, spec_path, env, confirm):
     token = env.get("PIXELLAB_API_TOKEN")
     if not token:
@@ -188,6 +196,8 @@ def _run_pixellab(spec, out_dir, scale, spec_path, env, confirm):
     if not confirm:
         return _native(spec, out_dir, scale, spec_path, NOTICES["pixellab-confirm"])
     base = env.get("PIXELLAB_API_BASE", hosted_backends.PIXELLAB_BASE)
+    if not safe_base(base):
+        return _native(spec, out_dir, scale, spec_path, "PIXELLAB_API_BASE must be https (or loopback); rendered with the native backend")
 
     def fetch(prompt, width, height):
         rows, usage = hosted_backends.pixellab_image(token, prompt, width, height, base_url=base)
@@ -212,6 +222,8 @@ def _run_retro(spec, out_dir, scale, spec_path, env, confirm):
     if not confirm:
         return _native(spec, out_dir, scale, spec_path, NOTICES["retro-confirm"])
     base = env.get("RD_API_BASE", hosted_backends.RETRO_BASE)
+    if not safe_base(base):
+        return _native(spec, out_dir, scale, spec_path, "RD_API_BASE must be https (or loopback); rendered with the native backend")
 
     def fetch(prompt, width, height):
         rows, result = hosted_backends.retrodiffusion_image(token, prompt, width, height, base_url=base)
@@ -246,7 +258,9 @@ def run(spec, out_dir, backend, scale, spec_path, env, confirm):
     if name == "native":
         return _native(spec, out_dir, scale, spec_path, None)
     if name == "aseprite":
-        return _run_aseprite(spec, out_dir, scale, spec_path, env)
+        # Aseprite never needs the hosted API tokens; keep them out of its process.
+        local_env = {k: v for k, v in env.items() if k not in ("PIXELLAB_API_TOKEN", "RD_API_KEY")}
+        return _run_aseprite(spec, out_dir, scale, spec_path, local_env)
     if name == "pixellab":
         return _run_pixellab(spec, out_dir, scale, spec_path, env, confirm)
     if name == "retrodiffusion":
@@ -260,7 +274,9 @@ def main(argv=None):
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--scale", type=int, default=8)
     parser.add_argument("--backend", choices=["native", "aseprite", "pixellab", "retrodiffusion"])
-    parser.add_argument("--confirm", action="store_true", help="allow one paid PixelLab or Retro Diffusion call")
+    parser.add_argument(
+        "--confirm", action="store_true",
+        help="allow paid PixelLab or Retro Diffusion calls: one per generate.frames entry (one without frames)")
     parser.add_argument("--ingest", type=pathlib.Path, help="snap this PNG instead of reading a spec")
     parser.add_argument("--palette", help="preset, palette file, or inline JSON (with --ingest)")
     parser.add_argument("--width", type=int, default=32)

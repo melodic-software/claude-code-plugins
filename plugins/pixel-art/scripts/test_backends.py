@@ -121,6 +121,8 @@ def param(key):
     return None
 
 if "--script" in argv:
+    if "--script-param" in argv[argv.index("--script"):]:
+        raise SystemExit("a --script-param after --script is unset when the script runs")
     ase = pathlib.Path(param("ase"))
     ase.write_text(json.dumps({{"spec": param("spec")}}))
     raise SystemExit(0)
