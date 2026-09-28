@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.3] - 2026-09-27
+
+### Fixed
+
+- **`scan` exits 0 when it returns a required next step.** `root-children-selection-required` (the documented first call for an OS-managed volume root) and `large-target-confirmation-required` (for the whole target or a selected root child) exited 5, so the harness showed a normal step as a tool error. Both now exit 0 with the payload unchanged, and `status` carries the distinction. Real failures keep their non-zero exits (2 for an invalid or blocked target, 3 for elevation or unverifiable filesystem state), and the skill states these semantics.
+
 ## [0.24.2] - 2026-09-27
 
 ### Fixed

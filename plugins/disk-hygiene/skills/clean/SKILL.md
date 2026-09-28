@@ -74,7 +74,10 @@ is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
 `--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
-target; scan those without the flag.
+target; scan those without the flag. `root-children-selection-required` and
+`large-target-confirmation-required` name the next step, not a failure, so `scan` exits 0 for them
+and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
+blocked target, 3 when elevation is needed or filesystem state could not be verified.
 
 - Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking

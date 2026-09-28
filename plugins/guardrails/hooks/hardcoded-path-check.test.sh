@@ -87,6 +87,35 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(notebook_json "$FIXTU
 RC=$?
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 
+# NotebookEdit's target is notebook_path; the same scope rules as Write apply to
+# it, alone and in the dispatcher row the Write|Edit|NotebookEdit matcher runs.
+NB_PROBE="$TEST_TMPDIR/plugins/guardrails/probe-notebook.ipynb"
+for NB_VIA in direct dispatched; do
+  expect "NotebookEdit real shape in project ($NB_VIA) → exit 2" 2 --via "$NB_VIA" --hook "$HOOK" \
+    --merge-stderr --payload "$(notebook_json "$NB_PROBE" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → message" "$GUARD_OUT" "Linux user path"
+done
+# A payload with file_path and no notebook_path still scans through the fallback.
+NB_FAKE=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$NB_PROBE" --arg s "cd ${LINUX_HOME}" \
+  '{tool_name:"NotebookEdit",tool_input:{file_path:$fp,new_source:$s}}')
+expect_both "NotebookEdit file_path fallback → exit 2" 2 --hook "$HOOK" --merge-stderr \
+  --payload "$NB_FAKE" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+# notebook_path decides scope when both ride along.
+NB_BOTH=$(MSYS_NO_PATHCONV=1 jq -n --arg np "/tmp/other/n.ipynb" --arg fp "$NB_PROBE" --arg s "cd ${LINUX_HOME}" \
+  '{tool_name:"NotebookEdit",tool_input:{notebook_path:$np,file_path:$fp,new_source:$s}}')
+expect_both "NotebookEdit out-of-project notebook_path, in-project file_path → exit 0" 0 \
+  --hook "$HOOK" --merge-stderr --payload "$NB_BOTH" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+expect_both "NotebookEdit real shape outside the project → exit 0" 0 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "/tmp/other/n.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+NB_REPO="$TEST_TMPDIR/nbrepo"
+mkdir -p "$NB_REPO"
+git -C "$NB_REPO" init -q
+printf 'ignored.ipynb\n' >"$NB_REPO/.gitignore"
+expect_both "NotebookEdit real shape to a gitignored notebook → exit 0" 0 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "$NB_REPO/ignored.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$NB_REPO"
+expect_both "NotebookEdit real shape to a tracked-path notebook → exit 2" 2 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "$NB_REPO/kept.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$NB_REPO"
+
 # Repo-path branch: a genuine (non-home) git checkout root hardcoded in content
 # is a machine-specific marker and MUST still fire — guards against the home-gate
 # over-suppressing the branch entirely (the branch had no prior test).
