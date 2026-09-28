@@ -90,6 +90,8 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/pixel-art:animate`](../plugins/pixel-art/skills/animate/SKILL.md) | `pixel-art` | Author, render, and review pixel-art animation cycles and sprite sheets |
 | [`/pixel-art:scene`](../plugins/pixel-art/skills/scene/SKILL.md) | `pixel-art` | Author, render, and review a self-contained HTML pixel-art scene |
 | [`/pixel-art:sprite`](../plugins/pixel-art/skills/sprite/SKILL.md) | `pixel-art` | Author, render, and review a static pixel-art sprite |
+| [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |
+| [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test

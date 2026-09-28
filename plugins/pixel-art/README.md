@@ -53,8 +53,10 @@ list frame names and per-frame durations rather than `from`/`to` ranges.
 
 ## Audio
 
-This plugin makes no sound. A scene accepts an audio file you pass in, so a separate audio tool
-can supply music or effects without either plugin depending on the other.
+This plugin does not synthesize sound. `embed.py` inlines a WAV you place next to the template
+(`/*WAV:file.wav*/null`), and the scene plays it on the first click. `examples/campfire/campfire.wav`
+is that file for the example. It was rendered from the score in `examples/campfire/AUDIO.txt`.
+The renderer that produced it lives in the `retro-audio` plugin and is not imported here.
 
 ## Example
 

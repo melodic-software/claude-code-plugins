@@ -333,8 +333,15 @@
     {
       "name": "songwriting",
       "source": "./plugins/songwriting",
-      "category": "music",
+      "category": "audio",
       "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "retro-audio",
+      "source": "./plugins/retro-audio",
+      "category": "audio",
+      "tags": ["chiptune", "sfx", "mml", "wav", "gameboy", "nes", "audio", "skill"],
       "defaultEnabled": false
     },
     {
