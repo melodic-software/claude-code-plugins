@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-permission-state` treats project `defaultMode: "bypassPermissions"` as dead**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), Claude Code
+  2.1.257). `C2-defaultMode` already flagged `auto` in project and local settings. From 2.1.257
+  the same files also ignore `bypassPermissions` (the session starts in Manual). `acceptEdits`,
+  `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page. The
+  permission-rule-hygiene convention states the same pair.
+
 ## [0.51.6] - 2026-09-28
 
 ### Changed
