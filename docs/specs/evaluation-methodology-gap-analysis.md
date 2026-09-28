@@ -1,7 +1,6 @@
 # Fleet eval corpus vs Agent Skills evaluation pipeline
 
-Provenance: deferred vertical (V5) from the playground-article corpus effort. This document records a
-gap analysis of the marketplace fleet's `evals/evals.json` corpus (279 skill-level files as of
+This document records a gap analysis of the marketplace fleet's `evals/evals.json` corpus (279 skill-level files as of
 2026-09-28) against the pipeline described in Anthropic's [evaluating
 skills](https://agentskills.io/skill-creation/evaluating-skills) guidance and the `skill-creator`
 reference on `claude-plugins-official`.
@@ -20,7 +19,7 @@ patterns), and record one verdict per row.
 | Closed propose → apply → rerun → review loop | `/playbooks:skill-authoring` and `skill-quality` document the loop; nothing in CI reruns evals on skill edits by default. | **adopt** | Wire highest-value skills to optional CI or lane hooks that rerun a bounded eval subset on skill diff (cost-gated), matching the documented loop. |
 | Subagent isolation as clean-context eval mechanism | Planning, discovery, implementation, and review plugins dispatch purpose-built agents; plugin eval runs cases in isolated CLI sessions. | **already-covered** | Fleet already treats clean context as default for verification-style work; eval runners should keep prohibiting implementer numbers in verifier briefs (same pattern as `/performance:verify`). |
 | Task-completion notification as token/duration metrics source | `/claude-ops:observability` and session tooling expose usage; not wired into eval aggregate JSON for skill `evals.json` runs. | **rejected** (for skill evals.json runner) | Official guidance targets Claude Code task notifications; this repo's skill eval format is static prompt grading, not live harness telemetry. Revisit only if the fleet adopts a single runner that executes cases inside Claude Code and records completion metrics. |
-| Compare against `skill-creator` on `claude-plugins-official` before building parallel infra | `/evals:design` and playbooks cite skill-creator and `plugin eval` separation; no automated diff vs upstream skill-creator. | **adopt** | Before expanding fleet runner scope, run a periodic manual or scripted checklist against upstream skill-creator capabilities and record deltas in this file's changelog. |
+| Compare against `skill-creator` on `claude-plugins-official` before building parallel infra | `/evals:design` and playbooks cite skill-creator and `plugin eval` separation; no automated diff vs upstream skill-creator. | **adopt** | Before expanding fleet runner scope, run a periodic manual or scripted checklist against upstream skill-creator capabilities and record deltas in this file. |
 
 ## Recommended next adoptions (priority)
 
