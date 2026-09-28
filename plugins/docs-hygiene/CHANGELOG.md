@@ -1,12 +1,19 @@
 # Changelog: docs-hygiene plugin
 
-## [0.23.12] - 2026-09-28
+## [0.23.13] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `extract-ssot`, `rename-references` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.23.12] - 2026-09-28
+
+### Added
+
+- **`extract-ssot batch --commit-mode=<per-wave|single|none>`.** A caller chooses one commit per
+  wave (the unchanged default), one commit for the whole run, or no commits.
 
 ## [0.23.11] - 2026-09-28
 
