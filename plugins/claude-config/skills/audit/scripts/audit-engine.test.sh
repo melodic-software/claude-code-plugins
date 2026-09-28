@@ -267,6 +267,37 @@ assert_eq "case 4: severity stays error" "error" "$(jq -r '.findings[] | select(
 assert_contains "case 4: lever named in the detail" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "lever is set"
 assert_contains "case 4: lever row reports it set" "$(jq -r '.rows[] | select(.claim=="lever-set:disableAllHooks") | .detail' <<<"$out")" "project=true"
 
+# strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
+# "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
+write_surface_lock() {
+  local value="$1"
+  m="$(make_machine "surface-$value")"
+  mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+  jq -n --argjson lock "$value" '{
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    strictPluginOnlyCustomization: $lock,
+    permissions: {deny: ["Read(./.env)"], ask: ["Bash(git push *)"]},
+    enabledPlugins: {"guard@mkt": true},
+    extraKnownMarketplaces: {mkt: {source: {source: "directory", path: "../mkt"}}}
+  }' >"$m/project/.claude/settings.json"
+  printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/git.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+  printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
+}
+write_surface_lock '["mcp"]'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+# Other baseline denies are still absent, so the run exits 1. The force-push
+# row is the signal that the mcp-only lock did not switch hooks off.
+assert_eq "case 4b: force push stays info" "info" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+assert_contains "case 4b: the lever row says hooks are not locked" "$(jq -r '.rows[] | select(.claim=="lever-set:strictPluginOnlyCustomization") | .detail' <<<"$out")" "hooks are not locked"
+write_surface_lock '["hooks"]'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 4c: hooks lock keeps the error" 1 "$rc"
+assert_eq "case 4c: force push stays error" "error" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+
 # --- Case 5: the suppression record retires a finding by identity --------------
 m="$(make_machine suppress)"
 printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git push --force *)","Bash(git reset --hard *)"]}}' >"$m/project/.claude/settings.json"

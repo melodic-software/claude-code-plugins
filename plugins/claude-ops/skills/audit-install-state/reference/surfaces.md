@@ -18,8 +18,10 @@ Three facts about it that change how a finding should be read:
 
 - **A managed source that cannot be parsed refuses startup.** When a managed settings file,
   drop-in, MDM plist, or HKLM value is present but cannot be parsed as a JSON object, Claude Code
-  refuses to start and prints an error naming the source, even when another admin source has a
-  valid policy. **Claim, basis, as of, recheck:** that sentence,
+  refuses to start (exit 1, source named, from v2.1.259) and prints an error naming the source,
+  even when another admin source has a valid policy. `audit-install-state` reports that as
+  `managed-settings-unparsable-refuses-start`, not a silent lack of enforcement.
+  **Claim, basis, as of, recheck:** that sentence,
   [managed settings](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped),
   2026-09-28, and a re-fetch of that section that stops naming those four sources.
 - **A user settings file that cannot be parsed pauses the retention sweep.** If Claude Code cannot

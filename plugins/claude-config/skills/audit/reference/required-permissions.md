@@ -35,16 +35,22 @@ tree.
 
 These entries are a guardrail against routine access, not a containment boundary. Category B checks
 that the rules are present; presence is not evidence the file is unreachable. Say so whenever the
-category is reported, in either direction. Verified 2026-07-26 against
-[permissions](https://code.claude.com/docs/en/permissions#read-and-edit),
+category is reported, in either direction. Verified 2026-09-28 against
+[permissions](https://code.claude.com/docs/en/permissions),
 [sandboxing](https://code.claude.com/docs/en/sandboxing), and
-[tools reference](https://code.claude.com/docs/en/tools-reference#powershell-tool).
+[settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories).
+Recheck when a release note changes Read/Edit deny coverage, Bash redirect checks, sandbox
+shell-mode, or `permissions.blockReadsOutsideWorkingDirectories`.
 
 **Covered.** A `Read(...)` deny applies to the built-in file tools (Read, Grep, Glob, LSP), to
 `@file` mentions in a prompt, to the selection and open-file context a connected IDE shares, to the
-Edit tool on the same path (CC v2.1.208+), and, per the permissions page, to *file commands Claude
-Code recognizes inside a Bash command, such as `cat`, `head`, `tail`, and `sed`*. The obvious
-"`cat` it instead" fallback is therefore blocked.
+Edit tool on the same path (CC v2.1.208+), and to file commands Claude Code recognizes inside a Bash
+command, such as `cat`, `head`, `tail`, `sed`, and `tee`. It also applies to Bash redirect targets.
+An input redirect (`< file`) is checked against Read allow and deny rules; Claude Code checks input
+targets in v2.1.257 and later. An output redirect (`> file`, `>> file`, `2> file`) is checked
+against Edit allow and deny rules. The 2.1.259 widening that applied `Read()` deny rules to Bash
+arguments generally was reverted in 2.1.260 and is not the rule: a command that reads files without
+naming them, such as `grep -r pattern .` from the directory that holds the file, is not covered.
 
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
 files indirectly, like a Python or Node script that opens files itself." A `python -c`, a `node -e`,
@@ -84,9 +90,12 @@ sandbox.
 | `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
 | `excludedCommands` | Anything listed runs outside the sandbox, and upstream notes a developer can always append entries | kept narrow, and reviewed |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
+| `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |
 
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
-the same defect as recommending the deny globs without their scope.
+the same defect as recommending the deny globs without their scope. Strict mode
+(`allowUnsandboxedCommands: false`) closes the unsandboxed retry for commands Claude runs. It does
+not close `!` shell mode in an interactive session.
 
 **Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
@@ -143,8 +152,10 @@ again.
 
 **Unverified. Flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
-recognized-command coverage to commands in Bash. Treat PowerShell reads as uncovered until upstream
-says otherwise.
+recognized-command coverage to commands in Bash, and the tools reference lists `Read(...)` as
+applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
+otherwise. The recognized-command list is also introduced with "such as" and is not exhaustive, so
+`grep`, `jq`, and `strings` remain unconfirmed as recognized file commands.
 
 ## destructive-bash-deny (Bash deny)
 
@@ -232,8 +243,12 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
 **Three preconditions, all of which must hold before you take it.**
 
 - **The hook is live, not merely present.** Installed and enabled is not sufficient: `disableAllHooks`
-  turns every hook off, and a managed `allowManagedHooksOnly` or `strictPluginOnlyCustomization`
-  suppresses non-exempt hooks outright. A hook a setting has already switched off blocks nothing, so
+  turns every hook off, and a managed `allowManagedHooksOnly` or a
+  `strictPluginOnlyCustomization` value of `true` or an array that includes `"hooks"` suppresses
+  non-exempt hooks outright. The key is per-surface: `true` locks skills, agents, hooks, and mcp;
+  an array locks only the named surfaces. `"mcp"` blocks MCP servers from `~/.claude.json` and
+  `.mcp.json` and does not switch hooks off. v2.1.257 closed the `/mcp` reconnect bypass for a lock
+  loaded after startup. A hook a setting has already switched off blocks nothing, so
   under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
   severity. **Phase 1.0's `check-hook-coverage.sh` reports all three**, in every scope it could read,
   so the reading is available before Category B runs and on a scope-filtered `/audit permissions` run
@@ -261,7 +276,8 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
 is not, and an `info` that hides this is worse than the `error` it replaced. State that the coverage
 ends if the providing plugin is disabled or uninstalled, that it is narrowable by any per-guard opt-out
 the hook exposes, and that it is suppressible later by `disableAllHooks`, `allowManagedHooksOnly`, or
-`strictPluginOnlyCustomization` even where none of them is set today.
+`strictPluginOnlyCustomization` set to `true` or to an array that includes `"hooks"`, even where
+none of them is set today. An array that names only `"mcp"` does not suppress hooks.
 
 **Take the inventory; fail open only where it is incomplete.** Phase 1.0 runs
 `scripts/check-hook-coverage.sh`, which enumerates settings-declared hooks **and** every enabled

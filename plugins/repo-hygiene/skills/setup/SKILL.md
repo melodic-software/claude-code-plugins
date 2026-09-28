@@ -58,9 +58,14 @@ Install nothing, and run no mutating tier.
    take `--repo` (repeatable, glob-expanded) and `--repos-from FILE|-`; only the `ghq`-derived
    enumeration is unavailable. Report this rather than letting an empty repo list look like a bug.
 3. **A POSIX shell for the bundled scripts**. Every tier script and the destructive guard are
-   `bash`. On Windows that means Git Bash must be present; the guard is registered in **shell form**
-   with `shell: bash` precisely so Claude Code resolves it rather than a `PATH` lookup finding the
-   WSL relay. Report the shell as INFO on Unix; FAIL on Windows when no Git Bash resolves, since the
+   `bash`. On Windows that means Git Bash must be present. The guard is exec form: `command` is
+   `node`, and `hooks/exec-bash.mjs` finds Git Bash (`CLAUDE_CODE_GIT_BASH_PATH`, or
+   `Git\bin\bash.exe`) and never `System32\bash.exe`. <!-- portability-ok: Windows path, not a shell regex -->
+   Claim: exec form spawns `command` with `args` and no shell. `shell` is ignored when `args` is set.
+   Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form".
+   As of: 2026-09-28.
+   Recheck: that page stops ignoring `shell` when `args` is set.
+   Report the shell as INFO on Unix; FAIL on Windows when no Git Bash resolves, since the
    scripts and the guard alike cannot launch.
 4. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
