@@ -7,6 +7,15 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Deviations and Implementers table, 2026-09-28 (gitignore)
+
+- **gitignore postures declared, not converged (#3573).** Recommend stays the
+  default. Two consumer-root appends are sanctioned exceptions (`source-control`
+  recursive overlay line; `work-items` ADR 0015 overlay line). Own-ignore-file
+  inside a plugin-owned directory is a different file. No `contract_version`
+  bump: the layering rules are unchanged; the no-plugin-writes sentence now
+  names the exceptions it already described in Overlay spelling drift.
+
 ## Consumer gotchas tier, 2026-09-28
 
 - **Ratified `consumer-gotchas.md` (#3547).** Documents the concatenating cascade tier for
