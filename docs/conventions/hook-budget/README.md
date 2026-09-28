@@ -107,6 +107,10 @@ rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's tran
 installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
 recorded in the hook-performance program's DEVIATIONS log.
 
+## Exec-form fleet sweep
+
+Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)): `"command": "node"` and `hooks/exec-bash.mjs`, then the script. Option gates that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command`. A non-Windows skip of its spawn half does not show that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is absent; if that spawn reports args dropped, the script exits 1. Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`. The four-part record is [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). No shell-form hook row remains.
+
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its k and its measured cost in S** in its

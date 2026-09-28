@@ -1,4 +1,4 @@
-# gitleaks — https://github.com/gitleaks/gitleaks
+# gitleaks: https://github.com/gitleaks/gitleaks
 # Config reference: https://github.com/gitleaks/gitleaks#configuration
 #
 # Root-canonical policy: inherit the upstream default ruleset and add nothing
