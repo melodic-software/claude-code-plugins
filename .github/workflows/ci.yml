@@ -879,6 +879,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-hooks-description.sh
 
+      # A change to the guardrails PowerShell classifier or its consumers may
+      # only add refusals (#4682). The differential runs a corpus through the
+      # base tree and the working tree and takes minutes, so CI runs its
+      # self-test; a PR that touches those guards carries the differential's
+      # cell table.
+      - name: Test the guardrails PowerShell differential
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-guardrails-ps-differential.test.sh
+
       # Three separate readers judge `metadata.summary`, and they can drift
       # apart: a malformed value reached CI twice in #3162, failing in opposite
       # directions, each time after clearing the local check meant to catch it.

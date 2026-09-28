@@ -120,8 +120,9 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # THIS SHAPE HAS NO ALLOW TOKEN, and cannot be given one. Every token-granted
 # sink round spends the caller's shared `_ps_sink_attempts` budget, so a sixth
 # grantable trigger pushes a command that settles in four rounds past the cap,
-# where block-dangerous-git.sh exits 0 with a plainly visible destructive sibling
-# never checked. The refusal is therefore unconditional in every reader.
+# where block-dangerous-git.sh refuses as budget-exhausted without ever reading
+# the destructive sibling. The refusal is therefore unconditional in every
+# reader, and names this shape rather than the budget.
 #
 # Read by ps::classify_git_command (which turns it into sink trigger
 # `herestring-comment-char`), by ps::write_bypass, and by block-dangerous-git.sh,
@@ -1817,17 +1818,16 @@ ps::blank_sink_opaque_regions() {
     # stand in for this: ps::_skip_double_quote_to pairs the `"` of an `@"`
     # opener with the `"` of its `"@` closer, so a here-string body is copied
     # through untouched and the caller's bounded re-classification loop makes no
-    # progress at all: it would exhaust its attempt budget and exit 0 with a
-    # visible `git reset --hard` sibling never checked.
+    # progress at all: it would exhaust its attempt budget with a visible
+    # `git reset --hard` sibling never checked.
     #
     # WHAT THIS ARM DOES NOT FIX. The same no-progress loop is still reachable
     # through the `special-construct` arm above, for a here-string this function
     # does not recognize as one (an opener with trailing whitespace) or a second
-    # opener sitting on a closer line, which the opener scan never rescans. Those
-    # shapes refuse at default config and fail OPEN only under an
-    # `ps-unparsable-special-construct` token. Closing them needs the opener model
-    # tightened AND the caller's exhaustion path turned from exit 0 into exit 2,
-    # neither of which belongs to the trigger this arm serves.
+    # opener sitting on a closer line, which the opener scan never rescans. Under
+    # an `ps-unparsable-special-construct` token those shapes now spend the
+    # caller's budget and are refused as budget-exhausted, rather than read; the
+    # opener model is what would let them be read.
     ps::blank_herestrings "$cmd"
     # shellcheck disable=SC2034
     PS_SAFE_COMMAND="$PS_BLANKED"
@@ -2184,7 +2184,7 @@ ps::print_unparsable_git_block_message() {
   # set a value the guard never consults on this path. Name the rewrite instead.
   # A token for this shape cannot exist, because every token-granted sink round
   # spends the caller's shared attempt budget and a sixth grantable trigger
-  # pushes a four-round command past the cap, where the caller exits 0.
+  # pushes a four-round command past the cap, where the caller refuses.
   if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
     echo "This sink shape has NO allow token: granting one would spend a shared sink-attempt budget and could fail open a plainly visible destructive sibling in the same command. Rewrite instead: drop the comment, or move the here-string opener to a line of its own with no '#' on it. To switch the whole guard off, set the guardrails block_dangerous_git_enabled option to false (/plugin configure)." >&2
     return
