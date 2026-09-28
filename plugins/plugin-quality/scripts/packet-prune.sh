@@ -4,7 +4,7 @@
 # Three properties are enforced HERE, not in prose:
 #
 #   1. Dry run by default. Nothing is deleted without an explicit `--apply`.
-#   2. A packet holding `item.md` ANYWHERE beneath it is NEVER deleted, at any
+#   2. A packet holding `item*.md` (item.md, or item-<owner>.md) ANYWHERE beneath it is NEVER deleted, at any
 #      age. That file is a drafted-but-unemitted deliverable; step 6's
 #      unattended clause makes it the ONLY copy of the audit's entire output.
 #      Retention must not be the thing that destroys it. The search is recursive
@@ -220,7 +220,10 @@ for packet in "$root_abs"/*/*/*; do
   # BEFORE age so the reported reason is the real one. Searched RECURSIVELY and
   # case-insensitively: the packet layout does not forbid an item written into a
   # subdirectory, and a deliverable one level down is exactly as unrecoverable.
-  if [[ -n "$(find "$packet_real" -iname 'item.md' -print -quit 2>/dev/null)" ]]; then
+  # `item.md` is the primary emit. A second owner in the same packet is
+  # `item-<owner>.md` (item-plugin-quality.md). Retention matches every
+  # basename that starts with `item` and ends with `.md`, case-insensitive.
+  if [[ -n "$(find "$packet_real" -iname 'item*.md' -print -quit 2>/dev/null)" ]]; then
     echo "RETAIN-ITEM $packet"
     retained_item=$((retained_item + 1))
     continue
