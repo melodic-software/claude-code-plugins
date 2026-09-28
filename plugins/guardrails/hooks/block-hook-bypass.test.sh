@@ -1117,6 +1117,32 @@ run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+run_pwsh "PS: Set-Content recovered from behind a quote-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a backslash-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a <# then opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: shape 9 — a commented opener behind {} with no write (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
+run_pwsh "PS: a bare CR hiding Set-Content (blocked)" \
+  $'Write-Output hi\rSet-Content f.txt x' 2
+run_pwsh "PS: CRLF canonical verbatim here-string with no write (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @'" "hello" "'@")" 0
+run_pwsh "PS #4683 shape 2: Set-Content behind backslash-escaped quote opener (blocked)" \
+  "$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "Set-Content f.txt x" '"@')" 2
+run_pwsh "PS #4683 table bare CR hiding Set-Content (blocked)" \
+  "$(printf 'Write-Output x\rSet-Content f.txt x')" 2
+run_pwsh "PS #4683 A2: Set-Content behind apostrophe-straddle opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 N1: Set-Content behind quote-then-opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 B1: Set-Content behind backtick opener (blocked)" \
+  "$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 S5: Set-Content behind block-comment opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "Set-Content f.txt x" "'@")" 2
+
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
 run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
@@ -1565,6 +1591,7 @@ else
   guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
     -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR3" "PATH=$LATCH_NOJQ_PATH"
   assert_exit "latch (dispatched, no jq): the guard skips" 0 "$GUARD_RC"
+  # portability-ok: grep -c counts harness output lines, not a grep -P invocation
   assert_eq "latch (dispatched, no jq): one document on stdout" 1 "$(grep -c '^{' <<<"$GUARD_OUT")"
   assert_file_absent "latch (dispatched, no jq): the notice marker is not spent" \
     "$LATCH_DIR3/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent"
@@ -1579,13 +1606,14 @@ fi
 # by the producer-scoped design, so neither may be promised as blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
 run "invoked script with its own redirect (allowed)" "bash execute.sh >> run.log" 0
-run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0
+run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0 # portability-ok: sort of a fixture filename, not a sort -V invocation
 run "cat with input files is not a heredoc write (allowed)" "cat a.txt b.txt > c.txt" 0
 # tee and other inline-interpreter writes are outside the modeled surface.
 run "tee pipe write (accepted floor — allowed)" 'echo "*" | tee .gitignore' 0
 run "tee -a append (accepted floor — allowed)" 'echo "*" | tee -a .gitignore' 0
 run "node -e write (accepted floor — allowed)" \
   "node -e \"require('fs').writeFileSync('f.txt','a')\"" 0
+# portability-ok: test fixture command string containing sed -i, not an unsuffixed sed -i invocation
 run "sed -i in-place write (accepted floor — allowed)" \
   "sed -i 's/a/b/' f.txt" 0 # portability-ok: test fixture command string containing sed -i, not an unsuffixed sed -i invocation
 run "dd of= write (accepted floor — allowed)" "dd of=f.txt <<< x" 0
@@ -1725,9 +1753,9 @@ run "scratch: quoted content, unquoted target (allowed)" \
 # (1) Segment-scoped now: a quote in an unrelated LATER segment is that segment's
 #     business. Segment 1's target is a plain path strictly under the root.
 run "scratch: quote in an unrelated later segment keeps it (allowed)" \
-  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
+  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch" # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "scratch: the same compound with no quotes keeps it (allowed)" \
-  "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
+  "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch" # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "scratch: quote in a later ;-segment keeps it (allowed)" \
   "echo x > /tmp/scratch/f; cat \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
 # (2) Keyed on the redirect OPERAND now: a `>` inside quoted CONTENT is content,
@@ -2381,8 +2409,8 @@ PY_NL_BODY=$(printf 'gh pr create --body "line one\necho x > f\nline three"')
 run "#2217: multi-line PR body mentioning a write (allowed)" "$PY_NL_BODY" 0
 PY_NL_MSG=$(printf 'git commit -m "subject\n\ncat > notes.md is a bypass\n"')
 run "#2217: multi-line commit message mentioning a write (allowed)" "$PY_NL_MSG" 0
-PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l')
-run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0
+PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l') # portability-ok: grep of a fixture filename, not a grep -P invocation
+run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0 # portability-ok: grep of a fixture filename, not a grep -P invocation
 PY_NL_DEVNULL=$(printf 'echo "a\nb" > /dev/null')
 run "#2217: multi-line span discarded to /dev/null (allowed)" "$PY_NL_DEVNULL" 0
 PY_NL_PIPE=$(printf 'printf \x27a\nb\x27 | wc -c')
@@ -2391,7 +2419,7 @@ PY_NL_DANGLE=$(printf 'git status ; echo "dangling')
 run "#2217: unterminated quote at end of command (allowed)" "$PY_NL_DANGLE" 0
 # Already blocked pre-#2217; the segment split it relies on is a real
 # separator on the closing line, so it must keep blocking.
-PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt')
+PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt') # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THEN" 2
 
 # THE ONE ROW THAT MOVES THE OTHER WAY, pinned deliberately. Fusing the two
@@ -2533,8 +2561,9 @@ run "#2731: jq > /tmp && mv //tmp dest (blocked)" \
   "jq . f > /tmp/x && mv //tmp/x out.json" 2
 run "#2731: curl > tmp && cp tmp dest (blocked)" \
   "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
+# portability-ok: sort of a fixture filename, not a sort -V invocation
 run "#2731: sort > tmp && mv -f tmp dest (blocked)" \
-  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2
+  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2 # portability-ok: sort of a fixture filename, not a sort -V invocation
 run "#2731: mv -t dest form (blocked)" \
   "jq . f > /tmp/x && mv -t plugins/x.json /tmp/x" 2
 run "#2731: ordinary rename, no prior redirect (allowed)" \
@@ -2710,13 +2739,13 @@ strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXEC
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
-  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
-  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
+  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
 }
 if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
   printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
   for benign in 'git status --short' \
-    $'git status --short && git diff --stat | head\nsort f > out; cat README.md'; do
+    $'git status --short && git diff --stat | head\nsort f > out; cat README.md'; do # portability-ok: sort of a fixture filename, not a sort -V invocation
     strace_census "$(command_json "$benign")" "$TEST_TMPDIR/noop-guard.sh"
     noop_rc=$CENSUS_RC noop_cre=$CENSUS_CREATIONS noop_exe=$CENSUS_EXECVE
     strace_census "$(command_json "$benign")" block-hook-bypass.sh
