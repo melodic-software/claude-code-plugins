@@ -3,14 +3,6 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.11] - 2026-09-28
-
-### Fixed
-
-- `audit-dead-code` docs now match the grep lane (shell and PowerShell only, not other symbol
-  languages) across SKILL.md, `plugin.json`, and README; orphaned-file coverage stays TS/JS-only
-  with an explicit no-`package.json` gotcha (#4525).
-
 ## [0.23.10] - 2026-09-28
 
 ### Fixed
