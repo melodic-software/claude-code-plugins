@@ -362,6 +362,12 @@ jobs:
           # exclusion, so the exemption lives on the caller.
           exclude: plugins/*/skills/*/vendor/**
 
+      # scan-mode: git walks every ref in the clone, not the checked-out
+      # commit. One false positive on any in-flight branch therefore fails
+      # hygiene on every other PR (#3599). Keep this default. Park a PR-range
+      # / log-opts contract change on the shared gitleaks action until funded.
+      # False positives stay on .gitleaksignore or gitleaks:allow.
+      # Record: docs/out-of-scope/gitleaks-all-refs-scan.md.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true

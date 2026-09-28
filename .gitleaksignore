@@ -4,3 +4,7 @@
 #
 # Remove each line when the commit it names is no longer reachable (its branch
 # squash-merged or deleted); the entry is dead config from that point on.
+#
+# Hygiene still scans every fetched ref (scan-mode: git). Scoping a pull
+# request to its own commits is parked until funded (#3599). Record:
+# docs/out-of-scope/gitleaks-all-refs-scan.md.
