@@ -32,6 +32,16 @@ fi
 if ! grep -q 'not in this tree' "$PAGE"; then
   fail "status page does not say the child skills are absent from this tree"
 fi
+CONFIG="$ROOT/plugins/architecture/reference/config.md"
+if ! grep -q '## Map family dialect decision' "$CONFIG"; then
+  fail "config.md does not record the dialect decision"
+fi
+if ! grep -q 'diagram_dialect.data' "$CONFIG"; then
+  fail "config.md does not name diagram_dialect.data for map-data"
+fi
+if ! grep -q 'landscape_dialect' "$PAGE"; then
+  fail "status page does not point at the landscape_dialect decision"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "map-family-status.test.sh: all passed"

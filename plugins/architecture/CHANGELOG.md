@@ -11,8 +11,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   the epic build order and the open child pull requests for map-dependencies,
   map-components, map-context, map-containers, map-flow, map-events, map-data,
   map-deployment, and map-states. Those skills are not on main. The README and
-  the catalog point at the page. `map-landscape`'s thin-result successor stays
-  `improve` / `discovery:explore` until map-components is in this tree.
+  the catalog (outside the generated block) point at the page. `reference/config.md`
+  records the dialect decision the child pull requests already follow: C4-shaped
+  views reuse `landscape_dialect`, `map-data` reads `diagram_dialect.data`, and
+  `map-states` and `map-dependencies` add no key. `map-landscape`'s thin-result
+  successor stays `improve` / `discovery:explore` until map-components is in this tree.
 
 ## [0.12.1] - 2026-09-28
 

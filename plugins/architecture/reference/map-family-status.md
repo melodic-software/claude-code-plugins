@@ -31,15 +31,19 @@ and container views are meant to read. The behavior skills (events, flow, data,
 deployment, states) do not wait on it. `map-states` is the optional one: it
 earns its place where state machines are explicit in source.
 
+## Dialect
+
+The decision is recorded in [config.md](config.md) under "Map family dialect decision".
+C4-shaped views reuse `landscape_dialect`. `map-data` reads `diagram_dialect.data`.
+`map-states` and `map-dependencies` add no dialect key. This page does not add a second
+key beside that section.
+
 ## What is still open on the epic
 
-- The dialect-key decision (reuse `diagram_dialect.*` versus plugin-local keys)
-  is not recorded here. The child pull requests own that choice for the views
-  they emit. This page does not pick a dialect ahead of them.
 - Each child closes on its own issue when that pull request merges. This page
   is the index, not a substitute for those skills.
 - After `map-components` merges, `map-landscape`'s thin-result `## Next` should
   name it. Until then the landscape skill must not route to a missing command.
 
-Checked against `origin/main` at `ec232d017`: `plugins/architecture/skills`
-contains `map-landscape` and no other `map-*` directory.
+Checked in this tree: `plugins/architecture/skills` contains `map-landscape` and no
+other `map-*` directory.

@@ -17,7 +17,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Design
 
-- [`architecture`](../plugins/architecture): Uses Ousterhout's deep-module lens to scan an existing codebase for module-level architecture friction: shallow modules, seam leaks, and locality gaps. Presents candidates as a self-contained HTML report, then runs an interview loop on the selected candidate before handing off for planning. Also charts a repository and the systems it references as a C4 system landscape plus an application-portfolio table, committing the result as a record that later runs check for drift, and records an architecture decision into the repository's existing ADR convention. The map-* skills below the landscape rung are indexed in `plugins/architecture/reference/map-family-status.md`; they ship on open child pull requests and are not in this tree.
+- [`architecture`](../plugins/architecture): Uses Ousterhout's deep-module lens to scan an existing codebase for module-level architecture friction: shallow modules, seam leaks, and locality gaps. Presents candidates as a self-contained HTML report, then runs an interview loop on the selected candidate before handing off for planning. Also charts a repository and the systems it references as a C4 system landscape plus an application-portfolio table, committing the result as a record that later runs check for drift, and records an architecture decision into the repository's existing ADR convention.
 - [`prototype`](../plugins/prototype): Builds throwaway code to answer a design question before committing to architecture: a logic facet (an interactive terminal app over a portable state model) and a UI facet (radically different visual variants on one route).
 - [`planning`](../plugins/planning): Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.
 - [`domain-driven-design`](../plugins/domain-driven-design): Domain-driven-design practice skills. Today it actively maintains a consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, sharpens what-it-IS definitions, and routes entries to already-known bounded contexts without discovering boundaries.
@@ -142,3 +142,12 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 - [`adhd`](../plugins/adhd): Shape and restructure the assistant's output for a reader with ADHD: action-first, low-friction, and digestible. adhd:shape is a standing session posture: lead with the concrete next action, number multi-step work, restate state across turns, cap and rank lists, give concrete time estimates, make wins visible, and cut preamble, recap, and closers. adhd:clarify is a one-shot reshape of a dense, decision-heavy artifact already on screen: chunk it one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, faithfully (operative terms quoted verbatim, no altitude loss), rendered as an HTML decision table for big content. Reauthored in part from ayghri/i-have-adhd (MIT). Deliberately mutually exclusive with terse-for-tokens output shapers like caveman, which have opposite objectives.
 
 <!-- catalog:end -->
+
+## Architecture map family
+
+`map-landscape` is the only `map-*` skill in this release. The build order for the
+skills below that rung, and the open pull requests that implement them, is
+[`plugins/architecture/reference/map-family-status.md`](../plugins/architecture/reference/map-family-status.md)
+([#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639)).
+The dialect decision those skills share is in
+[`plugins/architecture/reference/config.md`](../plugins/architecture/reference/config.md).
