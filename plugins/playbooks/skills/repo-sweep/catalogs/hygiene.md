@@ -79,8 +79,8 @@ needs tracked work in the step's `Scope decisions:` instead.
 
 `code-tidying:tidy` runs one lane per invocation. When the sweep should tidy more than one lane,
 resolve `args` to a comma-separated lane list or `all` (every lane in the union of bundled and
-`.claude/tidy-lanes/*.md` names that applies to this repo). `next` invokes tidy once per lane in
-that list inside this single step. Present findings from every lane together for review; one step
+`.claude/tidy-lanes/*.md` names that applies to this repo, excluding the maintainer-only
+`self-update` lane). `next` invokes tidy once per lane in that list inside this single step. Present findings from every lane together for review; one step
 commit covers all lanes. Ad hoc globs with no lane file still need a project lane definition or a
 separate manual tidy outside repo-sweep.
 
