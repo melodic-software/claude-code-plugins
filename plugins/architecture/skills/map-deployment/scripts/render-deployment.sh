@@ -184,7 +184,7 @@ summary="$(
         for (i = 1; i <= ne; i++) print "- " safe(env_name[i]) > md
         print "" > md
       }
-      nd = count["diffs"] + 0
+      ndiffs = count["diffs"] + 0
       shown_d = 0
       if (status != "refused") {
         print "## Diff" > md
@@ -195,7 +195,7 @@ summary="$(
         }
         print "| Change | Environments | Tool | Container | Detail |" > md
         print "|---|---|---|---|---|" > md
-        for (i = 1; i <= nd; i++) {
+        for (i = 1; i <= ndiffs; i++) {
           item = held["diffs", i]
           L = jget(item, "left"); R = jget(item, "right")
           if (diff_a != "" && !((L == diff_a && R == diff_b) || (L == diff_b && R == diff_a))) continue

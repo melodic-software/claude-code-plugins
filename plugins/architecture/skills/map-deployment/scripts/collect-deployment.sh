@@ -535,15 +535,15 @@ if [[ -s "$TMP/compose.txt" ]]; then
         }
         for (sk in secret_val) {
           split(sk, sp, SUBSEP)
-          c = sp[2]; pn = sp[3]
-          if ((a SUBSEP c SUBSEP pn) in secret_val && (b SUBSEP c SUBSEP pn) in secret_val && secret_val[a SUBSEP c SUBSEP pn] != secret_val[b SUBSEP c SUBSEP pn])
-            printf "{\"change\":\"secret\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("secret parameter " pn " differs") >> diffs
+          c = sp[2]; param = sp[3]
+          if ((a SUBSEP c SUBSEP param) in secret_val && (b SUBSEP c SUBSEP param) in secret_val && secret_val[a SUBSEP c SUBSEP param] != secret_val[b SUBSEP c SUBSEP param])
+            printf "{\"change\":\"secret\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("secret parameter " param " differs") >> diffs
         }
         for (sk in plain_val) {
           split(sk, sp, SUBSEP)
-          c = sp[2]; pn = sp[3]
-          if ((a SUBSEP c SUBSEP pn) in plain_val && (b SUBSEP c SUBSEP pn) in plain_val && plain_val[a SUBSEP c SUBSEP pn] != plain_val[b SUBSEP c SUBSEP pn])
-            printf "{\"change\":\"parameter\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(pn " " plain_val[a SUBSEP c SUBSEP pn] " -> " plain_val[b SUBSEP c SUBSEP pn]) >> diffs
+          c = sp[2]; param = sp[3]
+          if ((a SUBSEP c SUBSEP param) in plain_val && (b SUBSEP c SUBSEP param) in plain_val && plain_val[a SUBSEP c SUBSEP param] != plain_val[b SUBSEP c SUBSEP param])
+            printf "{\"change\":\"parameter\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(param " " plain_val[a SUBSEP c SUBSEP param] " -> " plain_val[b SUBSEP c SUBSEP param]) >> diffs
         }
       }
     }
@@ -696,9 +696,9 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         }
         for (sk in secret_val) {
           split(sk, sp, SUBSEP)
-          c = sp[2]; pn = sp[3]
-          if ((a SUBSEP c SUBSEP pn) in secret_val && (b SUBSEP c SUBSEP pn) in secret_val && secret_val[a SUBSEP c SUBSEP pn] != secret_val[b SUBSEP c SUBSEP pn])
-            printf "{\"change\":\"secret\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("secret parameter " pn " differs") >> diffs
+          c = sp[2]; param = sp[3]
+          if ((a SUBSEP c SUBSEP param) in secret_val && (b SUBSEP c SUBSEP param) in secret_val && secret_val[a SUBSEP c SUBSEP param] != secret_val[b SUBSEP c SUBSEP param])
+            printf "{\"change\":\"secret\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("secret parameter " param " differs") >> diffs
         }
       }
     }
