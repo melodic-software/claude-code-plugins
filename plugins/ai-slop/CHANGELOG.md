@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.2] - 2026-09-28
+
+### Changed
+
+- **audit:** config cascade reads go through `scripts/lib/cascade-read.sh`. Scalar override,
+  wholesale-replace lists, and per-slug maps each have one function. A layer jq refuses is
+  skipped whole, a CRLF-emitting jq yields the same value as LF, and an explicit empty list
+  clears the inherited list.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed
