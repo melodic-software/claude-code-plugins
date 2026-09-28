@@ -52,8 +52,10 @@
 
 set -uo pipefail
 
+LANDED_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$LANDED_DIR" == "${BASH_SOURCE[0]}" ]] && LANDED_DIR=.
 # shellcheck source=lib/worktree-facts.sh
-source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+source "$LANDED_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
 
 PROG=${0##*/}
 
