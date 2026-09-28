@@ -62,7 +62,7 @@ logic present in the 2.1.278 binary. `BINARY` · HIGH.
 `claude plugin --help` lists no `types` subcommand. `OBSERVED` · MEDIUM ·
 `official-docs-changelog/RESEARCH-enablement.md` EN-5 (note: that probe tests a
 CLI subcommand while the README describes a slash command, so the MEDIUM is not
-fully earned by its cited evidence — `official-docs-changelog/VERIFICATION.md`
+fully earned by its cited evidence; see `official-docs-changelog/VERIFICATION.md`
 row 7). **Not run end to end in any lane.**
 
 Staff: *"If anyone decides to enable the experimental flag, `/plugin-types` will
@@ -84,7 +84,7 @@ the module hooks and calls and everything the engine would refuse, before any
 session loads it."* The lists it prints are exactly `PluginRegisterUses`'s
 `events`, `calls` and `env`. `SOURCE` · HIGH.
 
-Staff caveat: *"`validate` only syntactically checks your plugin"* — it does not
+Staff caveat: *"`validate` only syntactically checks your plugin"*: it does not
 prove that a `$` noun the plugin calls is provided by anything upstream.
 `STAFF` · HIGH.
 
@@ -104,14 +104,14 @@ from 'claude-code/testing'. Exits 1 when a test fails.
 even with the flag set**. `OBSERVED` · HIGH.
 
 There is also a `--file` form the binary intercepts before the argument parser,
-printing a `REPORT_MARK` payload when hooks modules are off — `INFERRED` as a
-machine-readable CI path; format not determined. `BINARY` · MEDIUM.
+printing a `REPORT_MARK` payload when hooks modules are off. It reads as a
+machine-readable CI path (`INFERRED`); format not determined. `BINARY` · MEDIUM.
 The runner's environment allowlist (`PATH`, `HOME`, `CLAUDE_CONFIG_DIR`,
 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`) forces
 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: "1"`, so function hooks are always on inside
 the test runner. `BINARY` · MEDIUM · `surfaces-desktop/VERIFICATION.md`.
 
-## `--plugin-dir` — running one from source
+## `--plugin-dir`: running one from source
 
 `claude --plugin-dir mods/diff`. `SOURCE` · HIGH. Long-established and
 well-covered in the CHANGELOG (12 entries, none about hooks modules). Relevant
@@ -128,7 +128,7 @@ lands in the **`user` tier**, so `next.to` is refused. `SOURCE` · HIGH.
 `declare module 'claude-code/testing'` at `.d.ts:L11257`. Exports: `describe`,
 `test`, `expect`, `mock`, `tier`. `SOURCE` · HIGH.
 
-### The seating model — the part worth copying
+### The seating model: the part worth copying
 
 > A test gets the engine's own `$` and a plugin's `on`. Each call on `$` is one
 > the engine makes, through every hook of the mod loaded as it ships. The hooks
@@ -144,8 +144,8 @@ test's first call on `$`, so a test registers its hooks before it.
 
 - `tier('builtin')` is a **file-level statement**, called once before `describe`.
   Legal values: `prepend`, `user` (the default when unsaid), `append`, `builtin`
-  — recovered by feeding an invalid one:
-  `tier("nonsense"): the tier is 'prepend', 'user', 'append' or 'builtin'`.
+  (recovered by feeding an invalid one:
+  `tier("nonsense"): the tier is 'prepend', 'user', 'append' or 'builtin'`).
   `OBSERVED` · HIGH · `official-docs-changelog/VERIFICATION.md` row 5.
 - `mock` covers **three nouns only**: `mock.clock`, `mock.store`, `mock.env`.
   `$.fs`, `$.process`, `$.http`, `$.settings`, `$.session` and the rest are
@@ -158,7 +158,7 @@ test's first call on `$`, so a test registers its hooks before it.
   a hand-written `on('env.get', …)`. `SOURCE` · HIGH ·
   `mods/telemetry/tests/register.test.ts:L79-83`.
 - `TestOptions.plugins` seats **inline plugins**, written literally in the test
-  file with their own `tier` — how a noun provider *or* a fake consumer is
+  file with their own `tier`, which is how a noun provider *or* a fake consumer is
   seated. `telemetry`'s tests invert the usual shape: seat a fake consumer, drive
   it with `$.command.run`. `SOURCE` · HIGH.
 - Matchers observed in use: `toEqual`, `toMatchObject`, `toBe`, `toContain`,
@@ -183,7 +183,7 @@ test's first call on `$`, so a test registers its hooks before it.
 
 ## Patterns from the shipped mods
 
-### `diff` — the `Host` indirection pattern
+### `diff`: the `Host` indirection pattern
 
 The largest module does **not** thread `$` through its internals. At
 `session.start` it binds one `Host` object of thin lambdas (20 members) and
@@ -201,7 +201,7 @@ built-in already holds, and collision is a normal condition to stand down from,
 not an exception; `$.ui.resolve(e)` is **awaited** and destructured.
 `SOURCE` · HIGH.
 
-### `agents-md` — options and migration
+### `agents-md`: options and migration
 
 - Conditional registration: `register` returns early, so which hooks exist
   depends on the option. `SOURCE` · HIGH
@@ -220,7 +220,7 @@ not an exception; `$.ui.resolve(e)` is **awaited** and destructured.
 - `prompt.context` carries **two** parallel collections, `blocks[]` and
   `instructionFiles[]` (`kind` ∈ `managed | user | project | local | memory`, in
   load order). A hook answers with the file list changed and **the engine
-  re-renders `blocks.claudeMd` from the answered files** — a hook adds *files*,
+  re-renders `blocks.claudeMd` from the answered files**: a hook adds *files*,
   never prose.
 - `tool.call`'s result carries `context`, an array a hook may append to, which is
   how a hook rides extra material down on a tool result.

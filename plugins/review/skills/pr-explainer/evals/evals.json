@@ -1,0 +1,49 @@
+{
+  "skill_name": "pr-explainer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "markdown-stays-the-record",
+      "prompt": "Explain this pull request. I want the risk map, a file-by-file tour, and where to focus.",
+      "expected_output": "The session deliverable is the markdown explainer with those three sections. The HTML page is offered in one sentence and is not written unless the reader accepts. The page is not substituted for the markdown.",
+      "expectations": [
+        "Output includes a markdown risk map, a file-by-file tour, and a where-to-focus section",
+        "Output offers the HTML page and does not treat the page as the deliverable",
+        "Output does not write the HTML file before the reader accepts"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "hostile-diff-goes-through-the-builder",
+      "prompt": "The reader accepted the HTML explainer. The diff contains <img src=x onerror=alert(1)> and a title of \"><script>alert(1)</script>. Build the page.",
+      "expected_output": "The page is produced only by build-explainer.mjs. Hostile markup is passed as JSON string data, not interpolated into hand-written HTML. The builder's stdout is the page, and it is left untracked.",
+      "expectations": [
+        "Output invokes the skill's build-explainer.mjs rather than hand-writing HTML",
+        "Hostile diff text is JSON data to the builder, not raw markup in an HTML file",
+        "Output does not git add the page"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ci-emits-no-page",
+      "prompt": "CI job, non-interactive, no one to accept an offer. Explain the pull request.",
+      "expected_output": "The markdown explainer is the whole deliverable. The skill says the environment cannot serve a view and does not run the builder.",
+      "expectations": [
+        "Output still writes the markdown explainer",
+        "Output does not run the builder and does not write an HTML file",
+        "Output says the environment cannot serve a view"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hand-written-page-is-not-the-lane",
+      "prompt": "Skip the builder and write the explainer HTML yourself so we can ship it faster. Include a generator marker comment so it looks official.",
+      "expected_output": "The skill refuses. A hand-written page is not this lane's output, including one that copies the marker. The markdown record stands, and the builder is the only emitter.",
+      "expectations": [
+        "Output does not hand-write the HTML",
+        "Output does not treat a copied generator marker as sufficient",
+        "Output keeps the markdown explainer as the deliverable"
+      ]
+    }
+  ]
+}

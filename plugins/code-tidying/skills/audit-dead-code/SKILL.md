@@ -1,5 +1,5 @@
 ---
-description: "Hunt dead code across a repository in four lanes: Knip (TS/JS), vulture (Python), gopls (Go), and a portable grep lane. Adjudicate candidates against dynamic-usage evidence, emitting Tier 1 (dead) and Tier 2 (uncertain) findings plus native suppressions. Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (use /code-tidying:tidy), diff-scoped simplification (use /code-tidying:batch-simplify), comment residue (use /code-tidying:audit-comment-residue), or unused dependencies and coverage-based runtime detection."
+description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -202,7 +202,13 @@ under a consumer's ruff config. Say so when you emit one.
 - **No `package.json` means no knip lane for `.js`/`.mjs`/`.cjs`.** Those extensions are routed to
   knip, which skips when it cannot find a project root, so standalone JS is not scanned and does not
   appear on a lane line today. Until coverage accounting ships (#4521), compare `Summary total:` to
-  the tracked source list you intended to audit when the repository has no manifest root.
+  the tracked source list you intended to audit when the repository has no manifest root. A grep-lane
+  fallback or knip-without-manifest scan for those files is **deferred**
+  ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
+  **Claim:** dead JS/TS outside any `package.json` root has no detector lane until trap-measured
+  extractors ship. **Basis:** #4522; knip skip behavior documented in #4525. **As of:** 2026-09-28.
+  **Recheck:** standalone `.mjs` trap fixtures produce candidates at recorded precision, or #4522
+  unpark.
 - **A `degraded` lane is not a quiet lane.** knip degraded means invented findings were withheld;
   gopls degraded means real findings were never produced. Report which one happened.
 - **`grep -w -F` is the floor and `-F` is mandatory**, without it `core.ts` matches `coreXts`. A

@@ -143,7 +143,7 @@ When the surface resolves to `page`, or the user asks for it, the frontier rende
 
 - **Delivery:** `ensure-running`, then `add-round` with the whole frontier; the register's `open` rows are written in the same step.
 - **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), the alternatives numbered, each commitment as its own unchecked row, and the constraint probe as the round's closing note, sent with `note-reply` (no `--seq`) so it lands in Notes to Claude, or as a Claude thread line on the round's first question.
-- **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`.
+- **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`, and so is a decision this session records or revises in the ledger.
 - **Degrade:** when the page cannot start (a missing prerequisite, a port that cannot bind, a remote host the browser cannot reach), render the read-only decision table below, same columns and grounding, and say in one line which prerequisite failed.
 
 The read-only decision table (the degrade):

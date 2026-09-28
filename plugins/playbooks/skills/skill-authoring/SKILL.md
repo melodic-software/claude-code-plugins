@@ -185,6 +185,52 @@ case first, the two caps with their sources) is the fuller form of tip 5.
 Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
 row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.
 
+## Skill `model` (Melodic Software addition)
+
+A skill may set frontmatter `model`. The override lasts for the rest of the current turn and is
+not saved; the session model resumes on the next prompt. `inherit` keeps the active model. A value
+the organization's `availableModels` list excludes is not used. In auto mode, and in plan mode while
+the classifier reviews commands, a model auto mode does not support is not used either, and the
+session keeps its current model. With `context: fork`, the value sets the forked subagent's model
+instead.
+
+**Record.** Claim: the sentences above. Basis:
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of: 2026-09-28.
+Recheck: that row changes the turn scope, the auto-mode exception, or the `context: fork` rule.
+
+## Arguments (Melodic Software addition)
+
+`arguments` in frontmatter names positional slots. It is not keyword arguments. With
+`arguments: [issue, branch]`, `\$issue` is the first argument and `\$branch` is the second. A
+space-separated string and a YAML list are both accepted. Keep bare `\$ARGUMENTS` for free text
+and for a single mode word. Use names when the body parses two or more ordered slots, and write
+the body so it still reads correctly when a missing name expands to nothing. A remainder after the
+named slots, a multi-word phrase, a variadic tail, and a flag that is not tied to one position stay
+in `\$ARGUMENTS`. That is why `planning:prd` names only the tier word, and why
+`knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` keep parsing
+`\$ARGUMENTS`: a phrase topic, a purpose tail, or a flag that can sit in any position is not a
+positional alias.
+
+Verification record. Claim: `\$0` is the first argument and `\$1` the second; `\$ARGUMENTS[N]` is
+the same 0-based index; an indexed placeholder with no argument stays unchanged; a named
+placeholder with no argument expands to an empty string; only a single backslash directly before
+the token escapes it, and a doubled backslash leaves `\$1` expanding; indexed values use
+shell-style quoting. Basis:
+<https://code.claude.com/docs/en/skills#available-string-substitutions> and the `arguments` row of
+<https://code.claude.com/docs/en/skills#frontmatter-reference>. As of: 2026-09-28. Recheck: either
+section changes indexing, the empty-name rule, or the escape rule.
+
+A 2.1.251 probe recorded on
+[#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543) found that
+substitution also reaches fenced code. That reach is not stated in the substitutions section
+fetched on the as-of date, and this page does not re-probe it. Escape `\$<digit>` in fences of a
+skill that admits arguments anyway. Recheck: a current-version probe where a fenced `\$0` stays
+literal with arguments present.
+
+The fleet contract gate fails an unescaped `\$<digit>` in a skill that admits arguments (a
+non-empty `argument-hint`, an `arguments` key, or an unescaped `\$ARGUMENTS` in the body). A
+no-argument skill is not in that gate. `argument-hint` spelling is a different concern.
+
 ## Next
 
 `/skill-quality:check <skill>`. A skill just authored is checked before publication.
