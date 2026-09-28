@@ -638,6 +638,41 @@ sidecar "$ledgered" research-checklist.md '| # | Corpus item | Depth criterion |
 stdout_raw 0 'sidecars=1 missing=0' "research-checklist.md is not counted as a sidecar" \
   "$ledgered" --index-name RESEARCH.md
 
+# --- verification= line -------------------------------------------------------
+# A usable verdict is followed by the index frontmatter's verification: value,
+# so an artifact whose sibling verifier never ran is visible at the gate.
+
+pending="$(slice pending)"
+index "$pending" '---' 'abstract: one line' 'verification: pending' '---' '' \
+  '# RESEARCH — topic' 'RESEARCH-tiers.md'
+sidecar "$pending" RESEARCH-tiers.md 'a'
+stdout_raw 0 $'status=usable\nverification=pending' \
+  "a pending index prints verification=pending on its own line" "$pending" --index-name RESEARCH.md
+
+skipped="$(slice skipped)"
+index "$skipped" '---' "verification: 'skipped (cost)'" '---' '# RESEARCH — topic' 'RESEARCH-tiers.md'
+sidecar "$skipped" RESEARCH-tiers.md 'a'
+stdout_raw 0 'verification=skipped (cost)' \
+  "a quoted verification value prints unquoted" "$skipped" --index-name RESEARCH.md
+
+stdout_raw 0 'verification=unrecorded' \
+  "an index with no frontmatter prints verification=unrecorded" "$ledgered" --index-name RESEARCH.md
+
+body_only="$(slice body-only)"
+index "$body_only" '# RESEARCH — topic' 'verification: pass' 'RESEARCH-tiers.md'
+sidecar "$body_only" RESEARCH-tiers.md 'a'
+stdout_raw 0 'verification=unrecorded' \
+  "a verification: line in the body is not the frontmatter value" "$body_only" --index-name RESEARCH.md
+
+stale_pending="$(slice stale-pending)"
+index "$stale_pending" '---' 'verification: pending' '---' '# RESEARCH — topic'
+out="$(bash "$SUT" "$stale_pending" --index-name RESEARCH.md 2>/dev/null)"
+if [[ "$out" != *verification=* ]]; then
+  pass "an unusable verdict prints no verification= line"
+else
+  fail "an unusable verdict prints no verification= line: $out"
+fi
+
 # --- help -------------------------------------------------------------------
 # --help answers before the required-argument check, so it works with no flags.
 

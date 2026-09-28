@@ -28,6 +28,10 @@ A proposal is **straightforward** when *all* of these hold:
 - **Narrow scope.** One metric, one category. Don't pack five unrelated signals into one check.
 - **Schema-compliant.** Emits the `CheckResult` schema from `output-schema.md`.
 
+These are safety properties; none shows the check's verdicts are true. The orchestrator
+therefore caps a custom check at WARN until it has reported clean in 3 runs, and marks it
+`[custom]` in the report (see [`catalog-overlay.md`](catalog-overlay.md), "Custom checks").
+
 Anything else lands in `<StateBase>/TODO.md` as a proposal for human review: new egress, required elevation, complex parsing, proposed remediations, or writes of any kind. Approval is never a checkbox: the human approves through `/machine-health:setup apply`, which writes the decision to `<StateBase>/state/approvals.json` for a remediation (see [`approvals.md`](approvals.md)) or to the catalog overlay for a check (see [`catalog-overlay.md`](catalog-overlay.md)), never to the shipped catalog.
 
 ## How the skill modifies itself

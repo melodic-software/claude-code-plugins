@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.38.4] - 2026-09-28
+## [0.38.5] - 2026-09-28
 
 ### Fixed
 
@@ -13,6 +13,20 @@
   before. When the line is already present nothing is written. The end state is unchanged. The
   refusal `save_point.py new` prints for a missing guard names the same tool step instead of the
   redirect.
+
+## [0.38.4] - 2026-09-28
+
+### Fixed
+
+- **Retiring a finished worker checks for its still-running background tasks (#4284).** A
+  worker that returned its report while a background shell it launched hung stayed listed as
+  active in the agent panel for hours, and neither `orchestrate` nor `reconcile` said to look.
+  `reconcile` step 3 now checks a reported-finished worker for background shells or tasks it
+  launched. Each one still running is surfaced by name as still-running work, stopping it goes
+  through the existing kill gate, and the worker is not reported retired while one is pending.
+  The report step leads with that question. `orchestrate` imperative 4 says the runtime may
+  leave such a task running and points at the reconcile step. A new `reconcile` eval case,
+  `finished-worker-hung-background-shell`, grades the flow. Hang detection is out of scope.
 
 ## [0.38.3] - 2026-09-27
 
