@@ -15,6 +15,11 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 ## Deviations and Implementers table, 2026-09-28
 
+- **Semantics-at-a-glance index (#3575).** A who-wins / merge-form table sits above
+  Implementers so an operator can see later-wins, policy-floor inversion,
+  `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
+  ladder without reading every conformance cell. Engines stay per-surface.
+  No `contract_version` bump: no layering rule changed.
 - **Location outliers ruled (#3577).** `standards` layer location outside `.claude/`
   (default `docs/standards/`) is ratified, the axis #649 left open. `work-items`
   recurring schedule stays at `.github/recurring-schedule.json` (team-only, no
