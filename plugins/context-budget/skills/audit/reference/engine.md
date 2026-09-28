@@ -10,7 +10,7 @@ that shows it, at the consumer's binary, and stamped with that binary's version.
 | Rung | Mode | Precision | Requires | Recorded caveats |
 |---|---|---|---|---|
 | 1 | `sdk` | `exact` (integer tokens) | `@anthropic-ai/claude-agent-sdk` resolvable from `--sdk-dir` or the working directory | none |
-| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table | rounded values; headless `/context` is undocumented as a `-p`-capable command, so this rung depends on unsanctioned behavior |
+| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table | rounded values; headless `/context` is undocumented as a `-p`-capable command, so this rung depends on unsanctioned behavior. When the token-counting API is unavailable, `/context` uses a local estimate instead of extra small-model requests (Claude Code 2.1.261). The commands page `/context` row, fetched 2026-09-28, does not yet say that; the changelog is the behavior source until the row does |
 | 3 | n/a | n/a | n/a | exit 3 with a `context-budget.error/1` record naming the remediation; **never a wrong number** |
 
 The `/context` output format carries no stability guarantee in either direction and has materially
@@ -28,11 +28,14 @@ instead).
 | Deferred tool loading controls what enters the context window, not what is sent. The full schema still goes out in the request | [Tool search: deferred tool loading](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading) |
 | `--disallowedTools` exists as a per-invocation CLI flag; there is **no** `disallowedTools` settings key. Persistent config uses `permissions.deny` | [CLI reference: flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings](https://code.claude.com/docs/en/settings) |
 | The Agent SDK exposes structured context usage over the control protocol (`getContextUsage()`) | [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) |
+| When the token-counting API is unavailable, `/context` counts with a local estimate instead of extra small-model requests. The commands page `/context` row fetched 2026-09-28 does not say this; the 2.1.261 changelog does | [Claude Code changelog](https://code.claude.com/docs/en/changelog) (2.1.261) and [commands](https://code.claude.com/docs/en/commands) (`/context` row, which does not yet name the estimate) |
 
-Every row above is verified 2026-09-06 against Claude Code 2.1.263, by reading the cited page and
-matching the claim to its text. Recheck a row when its page stops carrying the statement, or when
-a release note names deny rules, deferred tool loading, the `--disallowedTools` flag, or the Agent
-SDK control protocol.
+Every row above except the `/context` local-estimate row is verified 2026-09-06 against Claude Code
+2.1.263, by reading the cited page and matching the claim to its text. The local-estimate row is
+verified 2026-09-28 against the 2.1.261 changelog and a fetch of the commands page that still omits
+the estimate. Recheck a row when its page stops carrying the statement, or when a release note
+names deny rules, deferred tool loading, the `--disallowedTools` flag, the Agent SDK control
+protocol, or `/context` token counting.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine

@@ -75,15 +75,42 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 2
 fi
 
+# --json (Claude Code >= 2.1.259) is one object: success, strict, target,
+# manifest, and contents[] of per-file errors, warnings, and notes. The
+# renderer exits 2 when stdout is not that object, and this loop then falls
+# back to the text command so a CLI older than the flag still validates.
+# Basis: https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate
+render_validate() {
+  local dir="$1"
+  shift
+  local errfile json status rendered
+  errfile="$(mktemp)"
+  json="$(claude plugin validate --json "$@" "$dir" 2>"$errfile")"
+  status=$?
+  if rendered="$(printf '%s' "$json" | node scripts/plugin-validate-report.mjs)"; then
+    printf '%s\n' "$rendered"
+    if [[ "$status" -ne 0 ]]; then
+      cat "$errfile" >&2
+    fi
+  else
+    echo "claude plugin validate --json did not return a report for $dir; falling back to text" >&2
+    cat "$errfile" >&2
+    claude plugin validate "$@" "$dir"
+    status=$?
+  fi
+  rm -f "$errfile"
+  return "$status"
+}
+
 failed=0
 for dir in plugins/*/; do
   [[ -d "$dir" ]] || continue
   echo "=== validate ${dir%/} ==="
-  claude plugin validate "$dir" || failed=1
+  render_validate "$dir" || failed=1
 done
 
 echo "=== validate --strict (catalog manifest) ==="
-claude plugin validate --strict . || failed=1
+render_validate . --strict || failed=1
 
 if [[ $failed -ne 0 ]]; then
   echo "Plugin validation failed." >&2

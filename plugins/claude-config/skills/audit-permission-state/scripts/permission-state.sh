@@ -498,7 +498,7 @@ if [[ -n "$USER_CONFIG_ROOT" ]]; then
 else
   emit managed remote-cache skipped "-"
 fi
-note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. The failure read is the Organization policy line in /status. 'managed' above means the local managed surfaces only."
+note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line. 'managed' above means the local managed surfaces only."
 
 # --- The four file scopes -----------------------------------------------------
 

@@ -6,6 +6,11 @@ only after that version increases.
 
 ## [0.13.18] - 2026-09-28
 
+
+### Added
+
+- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
+
 ### Changed
 
 - **The `$`-free pre-compute rule applies to blocks that run git**

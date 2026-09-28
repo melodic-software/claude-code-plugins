@@ -307,7 +307,7 @@ assert_not_contains "status ignores non-lane sessions" "$out" "sid-other"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
 assert_contains "start skips running lane" "$out" "skip work — already running"
 assert_contains "start launches babysit" "$out" "claude --bg -n babysit"
-assert_contains "start launches babysit in auto mode" "$out" "claude --bg -n babysit --permission-mode auto"
+assert_contains "start launches babysit in auto mode" "$out" "claude --bg -n babysit --permission-mode auto --permission-prompts none"
 assert_contains "start mirrors babysit model" "$out" "--model sonnet"
 assert_contains "start mirrors babysit effort" "$out" "--effort medium"
 assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
@@ -401,9 +401,9 @@ out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGEN
 log="$(cat "$CLAUDE_LOG")"
 assert_contains "start really pulls the repo" "$log" "git -C $REPO pull --ff-only"
 assert_contains "start really updates the marketplace" "$log" "plugin marketplace update"
-assert_contains "start really launches work with model+effort" "$log" "--bg -n work --permission-mode auto --model opus --effort high"
+assert_contains "start really launches work with model+effort" "$log" "--bg -n work --permission-mode auto --permission-prompts none --model opus --effort high"
 assert_contains "start seeds the prompt-file body as the trailing arg" "$log" "--effort high You are the work lane."
-assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --model sonnet --effort medium"
+assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --permission-prompts none --model sonnet --effort medium"
 
 # ============================================================================
 # unknown lane rejected
@@ -432,7 +432,7 @@ assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
 assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
-assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --permission-mode auto --effort ultracode"
+assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --permission-mode auto --permission-prompts none --effort ultracode"
 
 # ============================================================================
 # ultracode version gate — below the floor the lane is skipped, and a restart
@@ -469,7 +469,7 @@ cat >"$TMP/ultra3.json" <<'JSON'
 JSON
 : >"$CLAUDE_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/ultra3.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
-assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --permission-mode auto --effort ultracode"
+assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --permission-mode auto --permission-prompts none --effort ultracode"
 assert_eq "version probe memoized across lanes" 1 "$(grep -c -- '--version' "$CLAUDE_LOG")"
 
 # --permission-prompts none keeps auto mode and denies only what would have
@@ -494,7 +494,7 @@ out="$(
   run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1
 )"
 assert_contains "no-CLI dry run reports the gate unevaluated" "$out" "version gate not evaluated"
-assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --permission-mode auto --effort ultracode"
+assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --permission-mode auto --permission-prompts none --effort ultracode"
 
 # ============================================================================
 # Medium 1 — an option must not swallow the next flag as its value
