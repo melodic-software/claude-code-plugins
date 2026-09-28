@@ -37,7 +37,10 @@ assert_exit "a non-repo exits 2" 2 "$rc"
 printf 'keep me\n' >"$ROOT/repo/note.txt"
 out="$(bash "$SCRIPT" --repo "$ROOT/repo" --hold "$ROOT/repo")"
 assert_contains "carve-out wins over dirty" "$out" "Proposed: hold-carve-out"
-assert_contains "dry-run note" "$out" "no worktree, branch, stash, or file was deleted"
+assert_contains "dry-run note" "$out" "no worktree, branch, stash, drive-root directory, or file was deleted"
+assert_contains "filed drive strays without a scan" "$out" "DriveStrays: filed-record"
+assert_contains "unscanned stray is not present" "$out" "Present: not-scanned"
+assert_contains "disposable lane is review-delete" "$out" "Proposed: review-delete"
 if [[ -f "$ROOT/repo/note.txt" ]]; then
   pass "dirty file still exists"
 else
@@ -93,6 +96,29 @@ if [[ -d "$ROOT/spike" ]]; then
 else
   fail "spike worktree was removed"
 fi
+
+# Drive-root strays: inventory and proposed actions, no deletes.
+DRIVE="$ROOT/drive"
+mkdir -p "$DRIVE/lane-j-mut-base" "$DRIVE/spike/phase2-spike" "$DRIVE/other-dir"
+printf 'keep\n' >"$DRIVE/lane-j-mut-base/marker.txt"
+printf 'venv\n' >"$DRIVE/spike/phase2-spike/venv-marker.txt"
+out="$(bash "$SCRIPT" --repo "$ROOT/repo" --drive-root "$DRIVE")"
+assert_contains "scan mode names the drive root" "$out" "DriveStrays: scanned"
+assert_contains "disposable lane present" "$out" $'Stray: lane-j-mut-base\nPresent: yes'
+assert_contains "top-level entry count is not a recursive walk" "$out" "Entries: 1"
+assert_contains "spike drive directory is held" "$out" "Proposed: hold-operator-deliverable"
+assert_contains "missing filed name is absent" "$out" $'Stray: lane-v157-ext\nPresent: no'
+assert_not_contains "unlisted drive entries are not proposed" "$out" "Stray: other-dir"
+if [[ -f "$DRIVE/lane-j-mut-base/marker.txt" && -f "$DRIVE/spike/phase2-spike/venv-marker.txt" && -d "$DRIVE/other-dir" ]]; then
+  pass "drive-root scan deleted nothing"
+else
+  fail "drive-root scan removed a directory or file"
+fi
+
+rc=0
+bash "$SCRIPT" --repo "$ROOT/repo" --drive-root "$ROOT/missing-drive" >/dev/null 2>"$ROOT/drive.err" || rc=$?
+assert_exit "missing drive root exits 2" 2 "$rc"
+assert_contains "missing drive root is named" "$(cat "$ROOT/drive.err")" "not a directory"
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "worktree-reconcile.test.sh: all passed"

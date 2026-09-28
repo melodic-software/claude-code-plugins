@@ -37,6 +37,19 @@
         "Does not treat a missing pull-request map as evidence the work landed",
         "Leaves stashes labeled inspect-before-prune"
       ]
+    },
+    {
+      "id": 4,
+      "name": "drive-root-strays-are-proposed-not-deleted",
+      "prompt": "/repo-hygiene:worktree-reconcile — inventory the D: root strays and remove the ones the handoff called disposable.",
+      "expected_output": "Prints the six filed names with Proposed actions. lane-j-mut-base is review-delete. spike is hold-operator-deliverable. It does not delete any directory. Without --drive-root, Present is not-scanned.",
+      "files": [],
+      "expectations": [
+        "Prints the filed stray names rather than scanning an assumed drive letter",
+        "Labels lane-j-mut-base review-delete and spike hold-operator-deliverable",
+        "Does not delete a drive-root directory or file",
+        "States that the paths are host-specific"
+      ]
     }
   ]
 }

@@ -15,8 +15,10 @@ intent from the conversation, or presents a menu and falls back to the safe `sca
 `/repo-hygiene:setup` is the separate, read-only prerequisite check. It verifies
 `git`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
 nothing. `/repo-hygiene:worktree-reconcile` inventories linked worktrees and
-stashes and prints a proposed action. It does not delete a worktree, branch,
-stash, or file. The primary checkout is always held.
+stashes and prints a proposed action. It also prints the six filed drive-root
+stray names and their proposed actions. Pass `--drive-root` to scan one host
+directory for those names. It does not delete a worktree, branch, stash,
+directory, or file. The primary checkout is always held.
 
 | Action | What it does | Risk |
 |--------|--------------|------|

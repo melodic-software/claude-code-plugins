@@ -1,11 +1,11 @@
 ---
-description: "Dry-run inventory of linked git worktrees and stashes. Prints a Proposed label per worktree (hold-dirty, hold-locked, hold-main, hold-open-pr, hold-carve-out, hold-sha-mismatch, hold-no-merged-pr, review-remove) and never deletes a worktree, branch, stash, or file. review-remove requires a clean tree, a MERGED pull request, and a HEAD that matches the remote tip, because squash-merge makes merge-base --is-ancestor unusable. Use when: 'reconcile worktrees', 'which worktrees are dirty', 'worktree fleet report', 'dry-run worktree cleanup'."
+description: "Dry-run inventory of linked git worktrees, stashes, and the six filed drive-root stray names. Prints a Proposed label and never deletes a worktree, branch, stash, directory, or file. review-remove requires a clean tree, a MERGED pull request, and a HEAD that matches the remote tip, because squash-merge makes merge-base --is-ancestor unusable. Drive-root names are host-specific: pass --drive-root to scan one directory. Use when: 'reconcile worktrees', 'which worktrees are dirty', 'D: root strays', 'dry-run worktree cleanup'."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--repo DIR] [--hold SUBSTR]..."
+argument-hint: "[--repo DIR] [--hold SUBSTR]... [--drive-root DIR]"
 metadata:
   workflow-stage: anytime
-  summary: Inventory dirty worktrees and print proposed actions
+  summary: Inventory worktrees and filed drive-root strays; print proposed actions
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/worktree-reconcile.sh:*)
 ---
@@ -15,7 +15,7 @@ allowed-tools:
 Inventory linked worktrees and stashes. Propose an action. Do not perform it.
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/worktree-reconcile.sh" [--repo DIR] [--hold SUBSTR]...
+bash "${CLAUDE_SKILL_DIR}/scripts/worktree-reconcile.sh" [--repo DIR] [--hold SUBSTR]... [--drive-root DIR]
 ```
 
 Read `Proposed:` and `Reason:`. `review-remove` means the evidence says the
@@ -33,6 +33,30 @@ and the branches `fix/2648-tzdata-degradation`, `fix-2618-belt-run-scoped-lifeti
 and `*-main`) are `hold-carve-out` without `--hold`. `--apply` exits 2.
 
 Stashes print `Proposed: inspect-before-prune`. Leave them.
+
+## Drive-root strays
+
+The same report prints six directory names that are not git worktrees. With no
+`--drive-root`, `Present:` is `not-scanned` and `Proposed:` is the filed action.
+`--drive-root DIR` reports whether each name is a directory under `DIR` and a
+top-level entry count. It does not list other names in that directory, and it
+does not delete anything. There is no delete flag.
+
+**Claim:** The six names and actions are the table in issue #2931.
+`lane-j-mut-base` and `lane-j-mut-mainbase` are `review-delete`.
+`lane-v157-ext`, `lane-v159-mut`, and `lane-v159-repro` are `hold-until-verdict`.
+`spike` is `hold-operator-deliverable`. The directory that holds them is
+specific to that host, so this skill does not assume a drive letter.
+
+**Basis:** <https://github.com/melodic-software/claude-code-plugins/issues/2931>
+(section "Six D:\\ root strays").
+
+**As of:** 2026-09-28.
+
+**Recheck:** that issue's stray table changes, or a `--drive-root` scan on the
+host shows a filed name whose presence no longer matches the action a person
+intends. On firing, update the table in `scripts/worktree-reconcile.sh` and
+this record together.
 
 ## Next
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dry-run inventory of linked worktrees and proposed actions.
 #
-# This script never deletes a worktree, a branch, a stash, or a file. Every
+# This script never deletes a worktree, a branch, a stash, a drive-root directory, or a file. Every
 # Proposed: line is a label for a person to read. Squash-merge repositories
 # cannot use merge-base --is-ancestor against main: a merged branch is not an
 # ancestor of main. review-remove is proposed only when the worktree is clean,
@@ -10,7 +10,7 @@
 # the pull request's head oid).
 #
 # Usage:
-#   worktree-reconcile.sh [--repo DIR] [--hold SUBSTR]... [--limit N]
+#   worktree-reconcile.sh [--repo DIR] [--hold SUBSTR]... [--limit N] [--drive-root DIR]
 #   worktree-reconcile.sh --help
 #   worktree-reconcile.sh --apply   # refused; exit 2
 #
@@ -23,6 +23,7 @@ usage() {
 
 REPO=""
 HOLDS=()
+DRIVE_ROOT=""
 LIMIT="${CLEAN_PR_LIST_LIMIT:-1000}"
 
 while [[ $# -gt 0 ]]; do
@@ -51,6 +52,14 @@ while [[ $# -gt 0 ]]; do
     LIMIT="$2"
     shift
     ;;
+  --drive-root)
+    [[ $# -ge 2 ]] || {
+      echo "worktree-reconcile.sh: --drive-root requires a directory" >&2
+      exit 2
+    }
+    DRIVE_ROOT="$2"
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -75,6 +84,10 @@ if ! git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 REPO="$(git -C "$REPO" rev-parse --show-toplevel)"
+if [[ -n "$DRIVE_ROOT" && ! -d "$DRIVE_ROOT" ]]; then
+  echo "worktree-reconcile.sh: --drive-root is not a directory: $DRIVE_ROOT" >&2
+  exit 2
+fi
 
 declare -a WT_PATH=() WT_HEAD=() WT_BRANCH=() WT_LOCKED=()
 
@@ -283,5 +296,49 @@ for ((i = 0; i < ${#WT_PATH[@]}; i++)); do
 done
 
 printf 'Summary: worktrees=%s hold=%s review-remove=%s\n' "${#WT_PATH[@]}" "$holds" "$reviews"
-printf 'Note: dry-run only; no worktree, branch, stash, or file was deleted\n'
+
+# Filed drive-root names from #2931. The directory that holds them is host-specific,
+# so a run with no --drive-root prints the proposed actions and does not scan.
+# Present/Entries are observations. Proposed is the filed action. Nothing is deleted.
+if [[ -n "$DRIVE_ROOT" ]]; then
+  printf 'DriveStrays: scanned\n'
+  printf 'DriveRoot: %s\n' "$DRIVE_ROOT"
+else
+  printf 'DriveStrays: filed-record\n'
+  printf 'DriveRoot: unset\n'
+  printf 'Note: drive-root paths are host-specific. Pass --drive-root to scan one directory. This run did not scan a drive.\n'
+fi
+while IFS=$'\t' read -r stray_name stray_proposed stray_reason; do
+  [[ -n "$stray_name" ]] || continue
+  printf 'Stray: %s\n' "$stray_name"
+  stray_entries=""
+  if [[ -z "$DRIVE_ROOT" ]]; then
+    stray_present="not-scanned"
+  else
+    stray_path="$DRIVE_ROOT/$stray_name"
+    if [[ -d "$stray_path" ]]; then
+      stray_present="yes"
+      stray_entries="$(find "$stray_path" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d '[:space:]')"
+    elif [[ -e "$stray_path" ]]; then
+      stray_present="not-a-directory"
+    else
+      stray_present="no"
+    fi
+  fi
+  printf 'Present: %s\n' "$stray_present"
+  if [[ -n "$stray_entries" ]]; then
+    printf 'Entries: %s\n' "$stray_entries"
+  fi
+  printf 'Proposed: %s\n' "$stray_proposed"
+  printf 'Reason: %s\n' "$stray_reason"
+done <<'EOF'
+lane-j-mut-base	review-delete	Filed in #2931: no unique data, and the owner handoff calls the directory disposable. This report does not delete it.
+lane-j-mut-mainbase	review-delete	Filed in #2931: no unique data, and the owner handoff calls the directory disposable. This report does not delete it.
+lane-v157-ext	hold-until-verdict	Filed in #2931: hold until proxy pull request 157 has a verdict.
+lane-v159-mut	hold-until-verdict	Filed in #2931: hold until proxy pull request 159 is verified.
+lane-v159-repro	hold-until-verdict	Filed in #2931: hold until proxy pull request 159 is verified.
+spike	hold-operator-deliverable	Filed in #2931: operator deliverable. Do not delete.
+EOF
+printf 'DriveStrayNote: inventory only; no drive-root directory or file was deleted\n'
+printf 'Note: dry-run only; no worktree, branch, stash, drive-root directory, or file was deleted\n'
 exit 0
