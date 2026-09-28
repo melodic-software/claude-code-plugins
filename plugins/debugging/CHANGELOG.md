@@ -3,13 +3,24 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.7] - 2026-09-28
+## [0.7.8] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `debug` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.7.7] - 2026-09-28
+
+### Changed
+
+- **`debug`'s Phase 6 architectural recommendation carries a `Basis:`** and, when it touches
+  shared code, is grounded in its consumers first, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld and filed as an open question.
 
 ## [0.7.6] - 2026-09-21
 

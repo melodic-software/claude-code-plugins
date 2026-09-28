@@ -1,237 +1,203 @@
-{
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
-  "name": "source-control",
-  "version": "0.62.11",
-  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-authored-by trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop, safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /babysit-loop (the loop-lane merge lane: a standing or drain loop that invokes babysit-prs per cycle, configured through repo-scoped babysit_loop_* keys on the layered source-control.md seam, with merge authority human-only until the target repo's tracked config adopts the lane, a gate-proven C2-mechanical baseline once adopted, and standing merge-rung raises binding from the team-tracked layer only, with one named exception, where an invocation line explicitly typing both the autopilot tier keyword and the dedicated raise argument --merge c3-this-run widens that single invocation's merge authority up to C3 behind a fresh independent frontier-tier resolver, while C4-structural and C5-untrusted-provenance stay unconditionally human-merge), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply, which interviews the repo and writes the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep, never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
-  "author": {
-    "name": "Melodic Software",
-    "email": "info@melodicsoftware.com"
-  },
-  "license": "MIT",
-  "keywords": [
-    "git",
-    "github",
-    "commit",
-    "pull-request",
-    "babysit",
-    "worktree",
-    "merge-conflict",
-    "rebase",
-    "ci",
-    "code-review",
-    "delivery",
-    "skill"
-  ],
-  "userConfig": {
-    "lane_instance": {
-      "type": "string",
-      "title": "Lane instance id",
-      "description": "Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^[a-z0-9][a-z0-9-]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments. Set an opaque id if a machine name should not be published in a public tracker."
-    },
-    "pr_body_linkage_gate_enabled": {
-      "type": "boolean",
-      "title": "pr-body-linkage-gate hook",
-      "description": "Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required PR-contract check (missing a closing keyword, or a missing/empty `## Summary`, `## Fix`, `## Verification`, or `## Related` section). Enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step; a body the hook cannot read statically always passes.",
-      "default": true
-    },
-    "pr_linkage_mcp_gate_enabled": {
-      "type": "boolean",
-      "title": "pr-linkage-mcp-gate hook",
-      "description": "Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required PR-contract check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`), the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step, and only for the repository the origin remote names.",
-      "default": true
-    },
-    "worktree_add_containment_gate_enabled": {
-      "type": "boolean",
-      "title": "worktree-add-containment-gate hook",
-      "description": "Block a raw Bash `git worktree add` whose resolved target lands inside a git repository, meaning a working tree or a .git / bare directory, with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\".",
-      "default": true
-    },
-    "worktree_add_claim_gate_enabled": {
-      "type": "boolean",
-      "title": "worktree-add-claim-gate hook",
-      "description": "After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled.",
-      "default": true
-    },
-    "worktree_create_gate_enabled": {
-      "type": "boolean",
-      "title": "worktree-create-gate hook",
-      "description": "Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel, and measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation. That is why `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: \"worktree\"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `\"none\"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`.",
-      "default": true
-    },
-    "babysit_watched_owners": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit watched owners",
-      "description": "GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run."
-    },
-    "babysit_self_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit extra self identities",
-      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login, forming the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter. Which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone."
-    },
-    "babysit_intended_write_identity": {
-      "type": "string",
-      "title": "Babysit intended write identity",
-      "description": "The single GitHub login babysit-prs's own writes are intended to land under, typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant."
-    },
-    "babysit_default_tier": {
-      "type": "string",
-      "title": "Babysit default tier",
-      "description": "Tier an explicit bare /source-control:babysit-prs invocation runs: safe, worker, or autopilot. Never applies to auto-routed invocations.",
-      "default": "safe"
-    },
-    "babysit_merge_method": {
-      "type": "string",
-      "title": "Babysit merge method",
-      "description": "Merge method for gate-proven merges: merge, squash, or rebase. Absent: repo convention, then squash."
-    },
-    "babysit_autopilot_merge_tier": {
-      "type": "boolean",
-      "title": "Babysit autopilot merge tier",
-      "description": "Enable the #476 autopilot merge tier: a distinct bot account submits a genuine approving review, then the gate merges only when every criterion holds (issue-linked, lane-authored, no do-not-merge label, distinct-bot approval on the live head, no human blocking comment). Ships DISABLED; a deliberate operator opt-in. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels to be set. Absent/false: the tier does not exist and PRs go to the human merge-ready list.",
-      "default": false
-    },
-    "babysit_lane_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit pipeline lane logins",
-      "description": "Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when enabled) refuses fail-closed."
-    },
-    "babysit_approver_bot_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit approver bot logins",
-      "description": "Bot logins whose approving review satisfies the autopilot merge tier's author != approver criterion. Absent: the tier (when enabled) refuses fail-closed."
-    },
-    "babysit_merge_block_labels": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit merge block labels",
-      "description": "Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed."
-    },
-    "babysit_review_trigger_phrase": {
-      "type": "string",
-      "title": "Babysit review trigger phrase",
-      "description": "Comment phrase that requests an AI re-review (posted and recognized). Absent: the review-trigger module stays dormant."
-    },
-    "babysit_review_bot_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit review bot logins",
-      "description": "Logins of the AI review bots the trigger phrase addresses, and whose review of the live head the merge gate waits for. Absent: the review-trigger module stays dormant and the merge gate's review-settle hold stays dormant."
-    },
-    "babysit_review_settle_minutes": {
-      "type": "string",
-      "title": "Babysit review settle minutes",
-      "description": "How long after a head appears a review bot's re-review may still be in flight. The merge gate holds a head that bot has not reviewed yet until the window elapses, then stops waiting. Requires babysit_review_bot_logins; absent, the hold stays dormant. Set it above the reviewer's observed latency."
-    },
-    "babysit_review_gate_context": {
-      "type": "string",
-      "title": "Babysit review gate context",
-      "description": "Check/status context name of the AI-review gate. Absent: gate treated as absent (degrade)."
-    },
-    "babysit_ci_gateway_context": {
-      "type": "string",
-      "title": "Babysit CI gateway context",
-      "description": "Check/status context name of a CI gateway check. Absent: gateway classification unused."
-    },
-    "babysit_extra_bot_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit extra bot logins",
-      "description": "Additional logins to treat as bots when structural detection cannot identify them. Absent: structural detection only."
-    },
-    "babysit_extra_dependency_manager_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit extra dependency-manager logins",
-      "description": "Additional dependency-manager bot logins beyond the built-in dependabot/renovate set whose PRs the merge gate holds absent --allow-dependency, the same as the built-ins. Absent: built-in dependency-manager set only."
-    },
-    "babysit_approval_downgrade_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit approval-downgrade reviewer logins",
-      "description": "AI reviewer logins whose approval is surfaced as a `material` finding instead of `ignored` in the one case the structural approval-downgrade reaches: a review body carrying blocking-looking prose that still parses as an approval verdict (no CRITICAL/IMPORTANT or required-fix marker). Every bot's such approval is downgraded to non-blocking regardless; naming a login opts its own into the more-conservative `material` bucket rather than being ignored. Does not affect a review already in the APPROVED state or a plain clean approval with no blocking-looking prose. Both are ignored regardless. Absent: such approvals are ignored for every bot."
-    },
-    "babysit_skip_downgrade_logins": {
-      "type": "string",
-      "multiple": true,
-      "title": "Babysit skip-downgrade reviewer logins",
-      "description": "AI reviewer logins whose skip/no-op review is not treated as an approval. Absent: the downgrade heuristic stays dormant."
-    },
-    "babysit_max_quiet_recheck_seconds": {
-      "type": "number",
-      "title": "Babysit max quiet recheck seconds",
-      "description": "Longest a quiet PR may go without a worker recheck.",
-      "default": 14400
-    },
-    "babysit_stuck_check_age_seconds": {
-      "type": "number",
-      "title": "Babysit stuck-check age threshold (seconds)",
-      "description": "Minimum age before a pending non-required check under UNSTABLE is reported stuck (stuck_queued / never_settling material finding). Orphaned status contexts with no backing run are detected structurally and ignore this threshold.",
-      "default": 1800
-    },
-    "babysit_advisory_fix_round_cap": {
-      "type": "number",
-      "title": "Babysit advisory fix-round cap",
-      "description": "Per-PR cap on advisory-only fix rounds (never caps blocking defects).",
-      "default": 100
-    },
-    "babysit_worker_concurrency_cap": {
-      "type": "number",
-      "title": "Babysit worker concurrency cap",
-      "description": "Maximum per-PR workers dispatched concurrently in one cycle.",
-      "default": 10
-    },
-    "babysit_worktree_root": {
-      "type": "directory",
-      "title": "Babysit worktree root",
-      "description": "Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir."
-    },
-    "worktree_root": {
-      "type": "directory",
-      "title": "Worktree root",
-      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids. That claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\"."
-    },
-    "worktree_stale_days": {
-      "type": "number",
-      "title": "Worktree staleness threshold (days)",
-      "description": "Days since last commit before /worktree status classifies a worktree as stale",
-      "default": 14,
-      "min": 1
-    },
-    "fetch_logs_max_bytes": {
-      "type": "number",
-      "title": "CI-log fetch size cap (bytes)",
-      "description": "Abort a CI-log ZIP fetch larger than this",
-      "default": 52428800,
-      "min": 1
-    },
-    "branch_issue_pattern": {
-      "type": "string",
-      "title": "Branch-to-issue grammar (ERE)",
-      "description": "Deprecated: set `branch_issue_pattern` on the layered .claude/source-control.md surface instead; this value is read only as a fallback. POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^[^/]+/([0-9]+)-' for 'alice/1234-slug' or '-([0-9]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention."
-    },
-    "setup_inference_window": {
-      "type": "string",
-      "title": "Setup inference history window",
-      "description": "git log --since window /source-control:setup samples for commit-subject convention inference (any git-approxidate, e.g. '1 year', '6 months'). Absent: 1 year.",
-      "default": "1 year"
-    },
-    "setup_inference_recency_days": {
-      "type": "number",
-      "title": "Setup inference recency split (days)",
-      "description": "Boundary for the recency split in /source-control:setup's convention-inference report: subjects newer than this many days are the 'recent' bucket, weighted as the live convention when its share diverges from the older bucket. Absent: 90.",
-      "default": 90,
-      "min": 1
-    },
-    "setup_inference_min_commits": {
-      "type": "number",
-      "title": "Setup inference low-confidence threshold (commits)",
-      "description": "Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence rather than authoritative. Absent: 50.",
-      "default": 50,
-      "min": 1
-    }
-  }
-}
+---
+description: "Navigate a staged workflow (explore, research, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto)"
+arguments: [mode, modifier]
+user-invocable: true
+disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Navigate the staged dev workflow and suggest the next stage
+---
+
+## Repository context. Gather first
+
+Take `branch`, `status`, and `recent-commits` at `-5`. No session id, this skill stamps no ledger.
+Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
+rationale for gathering at run time rather than pre-computing:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
+
+## Purpose
+
+The reference and navigator for a staged development workflow. Individual stages are executed by
+whatever means the consuming repo provides (its own stage skills, or inline work); this skill is the
+map. It defines the stages, detects the current position, and suggests what comes next.
+
+**Three roles:**
+
+1. **Reference**, stage definitions and how stages compose (`context/steps.md`)
+2. **Navigator**, session-aware guidance on which stage comes next based on what's been done
+3. **Checklist**. Pre-PR sequence and end-of-session wrap-up as structured checklists
+
+## Consumer conventions
+
+This skill adapts to the consuming repo rather than imposing structure:
+
+- **Stage execution.** When the consuming repo defines a skill for a stage (its skill listing or
+  `CLAUDE.md` names one, e.g. an explore, research, plan, or implement skill), suggest
+  invoking that skill. Otherwise execute the stage inline following its definition in
+  `context/steps.md`. Never invent skill names. Check what actually exists.
+- **Artifact location.** When persisting stage outputs or checklists, honor the consuming repo's
+  documented convention for work/planning artifacts (check `.claude/topic-docs.yaml`, `CLAUDE.md` /
+  `.claude/rules/`). When no convention exists, the checklist is a per-topic stage ledger at
+  `<memory_dir>/<slug>/workflow-checklist.md`. Default `.work/<slug>/workflow-checklist.md`, the
+  topic's memory-tier slice per the plugin binding
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)):
+  never committed; on the session's first memory-tier write, verify-or-create the resolved memory
+  root's `.gitignore` containing `*` (announced). The sibling `handoff` skill's
+  `<memory_dir>/handoffs/` holds only handoff save-points, a fixed-filename checklist there would
+  clobber across two in-flight topics.
+- **Quality gates.** The consuming repo's own build/test/lint commands and review criteria govern;
+  this skill names WHERE gates belong in the sequence, not what they contain.
+- **Override boundary.** The stage set itself is fixed. Plugin identity, not consumer config; there
+  is no seam to swap in a different taxonomy, and this skill never reads a consumer-supplied one.
+  What adapts flows through the conventions above (execution routes to your skills; gate commands
+  and review criteria come from your repo), never by editing the plugin.
+
+## Argument parsing
+
+The mode word is `$mode` and the continuation modifier is `$modifier`. Treat a missing mode as the default row. When `$mode` is `continue`, `$modifier` is the second token. Treat a missing modifier, or any modifier other than `auto`, as suggest-only continuation. `auto` is the only modifier.
+
+| Argument | Mode | Action |
+|----------|------|--------|
+| *(none)* | **Default** | Show compact stage overview + detect current position + suggest next stage |
+| `steps` | **Steps** | Load `context/steps.md`, full stage definitions |
+| `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist |
+| `wrap-up` | **Wrap-up** | Load `context/wrap-up.md`, end-of-session checklist |
+| `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
+| `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution with `/clear` between stages |
+| `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
+
+## Default mode (no arguments)
+
+### 1. Show the workflow at a glance
+
+```text
+0. Contract   (optional — lock goal, constraints, acceptance criteria before building)
+1. Explore  → 2. Research → 3. Plan (+ stress-test) → 4. Implement
+5. Test     → 6. Review   → 7. Verify outcome       → 8. Retrospective (/session-flow:retro)
+PR lifecycle: prep → create → monitor CI → merge (runs after step 7)
+```
+
+Stages 0-3 expand, for unfamiliar territory, into a known five-pass pre-implementation order
+(blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
+`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+
+### 2. Detect current position
+
+Check conversation context for evidence of completed stages:
+
+- Is the goal/constraints/acceptance-criteria contract crisp (stated by the user, or in a plan
+  artifact on disk)? → Stage 0 satisfied
+- Has the relevant code been read or the codebase surveyed? → Stage 1 done
+- Have external sources been consulted for load-bearing technical claims? → Stage 2 done
+- Has a plan been written and approved? → Stage 3 done
+- Has code been written via Write/Edit? → Stage 4 in progress or done
+- Have tests been run? → Stage 5 done
+- Has a self-review or delegated review happened? → Stage 6 done
+- Has the outcome been verified against intent with evidence? → Stage 7 done
+- Is there a PR? → PR lifecycle in progress
+
+Verify a stage from its artifact or output, a plan file, cited sources, green test output, not
+from conversation vibes.
+
+### 3. Suggest next stage
+
+Based on what's been done, recommend the next stage with rationale. If the consuming repo has a
+skill for that stage, name it; otherwise describe the inline work.
+
+### 4. Route the continuation mechanism at a phase boundary
+
+When the just-finished work closed out a stage (its artifact exists), or the user is asking how
+to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
+`/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
+its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
+context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
+skip this, the default is simply to continue.
+
+The router **suggests; it does not act**. The recommendation goes to the human with the evidence
+that drove it, and executing the routed mechanism takes an explicit per-invocation license
+(`continue auto`, or the user's own words), which expires with the invocation. Its inputs beyond
+the gather above are presence-gated pointers to the siblings that own them; the rules live there.
+
+### 5. Track progress (tasks ≥3 stages)
+
+For work expected to span 3+ stages, create a task per applicable stage via TaskCreate, mark
+completed stages `completed` and the current one `in_progress`. For durable cross-`/clear` tracking,
+also copy `templates/checklist.md` into the artifact location (see "Consumer conventions") as
+`workflow-checklist.md` and tick boxes as stages produce their outputs. Skip the file when the
+consuming repo already tracks the same stages in its own plan artifact, never mirror progress in
+two files.
+
+## On-ramps: work that merges into the flow partway
+
+The stage sequence is the main line, not the only entrance. Work also arrives from the side and
+merges in at a later stage. Recognize the CLASS of arrival and merge at the right point instead of
+forcing every session through stage 0. Common classes:
+
+- **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
+  already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
+  through a diagnosis capability first (if the consuming setup installs one, e.g. from a diagnose
+  or debugging plugin), then rejoins at implement with the root cause in hand.
+- **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
+  single plan can hold it yet. Route through a wayfinding or route-charting capability (if
+  installed, e.g. from a planning plugin) to convert unknowns into decisions BEFORE the plan stage;
+  without one, run explore/research cycles until a plan becomes writable.
+- **Codebase-upkeep findings**. Audits, tidy sweeps, and architecture surveys surface candidate
+  improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
+  fresh cycle at contract/explore; it never merges into an in-progress cycle's later stages.
+
+These are classes, not an inventory. Match the arriving situation to its class, then check what the
+consuming setup actually installs for that class, the same rule as stage execution: never invent
+skill names, and degrade to inline work when nothing is installed.
+
+## When two capabilities both fit
+
+Adjacent capabilities overlap at their edges. Intake vs diagnosis, wayfinding vs planning, upkeep
+vs review. Route to exactly ONE owner and state why; never present both and leave the user to
+disambiguate. Precedence:
+
+1. **Exclusion language wins.** A capability whose own description disclaims the situation ("skip
+   when", "not for") is out, however well its trigger words match.
+2. **The more specific claim owns it.** Observed broken behavior belongs to diagnosis, not a
+   generic implement pass; a route-finding problem belongs to wayfinding, not an oversized plan.
+3. **Still tied → the earlier stage wins**, every downstream stage remains reachable from it, but
+   a skipped upstream stage is gone.
+
+**This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
+hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
+prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
+annotated, for a human to choose from is a different job, and `/session-flow:show-options` owns it.
+Reach for this skill when the user wants the next stage decided; reach for that one when they want
+the menu. The two are complementary, not competing, and when a request could be either, "what comes
+next" is a stage question and belongs here.
+
+## Key principles (always apply, regardless of mode)
+
+- **Verification rigor is size-independent**. A one-line config change gets the same rigor as a
+  multi-file feature (`context/philosophy.md`)
+- **This skill navigates; stages execute elsewhere**. Route to the stage work once position is
+  known, don't re-run it here
+- **Verify stage completion from artifacts**. A stage is done when its output exists, not when it
+  was mentioned
+
+## Gotchas
+
+- **Marking a stage done from conversation vibes**. Verify the artifact or output exists before
+  suggesting the next stage.
+- **Skipping the contract stage on behavior-changing work**. Fuzzy intent becomes silent plan
+  assumptions; lock the goal and acceptance criteria first.
+- **Opening a PR before the verify stage**, the pre-PR sequence (`context/pre-pr.md`) is ordered
+  for a reason; verification evidence comes before the PR, not after.
+- **Routing from a stale map**, a navigator that has drifted from the actual capability inventory
+  is worse than none: it confidently routes to things that were renamed or removed. Whenever
+  capabilities are added, renamed, or retired, in the consuming setup or in this marketplace,
+  re-check that the flows described here still match what exists before trusting a route.
+
+## What this skill does NOT do
+
+- **Does not execute stages**; it is the map, not the territory
+- **Does not replace the consuming repo's own gates**, build/test/lint commands, review criteria,
+  and commit conventions stay repo-owned
+- **Does not require any specific stage skills to exist**, every stage degrades gracefully to
+  inline execution

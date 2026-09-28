@@ -108,6 +108,16 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | Refresh a stale (behind-base) branch, post a review trigger | orchestrator-only | orchestrator-only | orchestrator-only |
 | `CHANGES_REQUESTED`, security/P1, posture, design, dependency acceptance | escalate | escalate | attempt with research; escalate only when it cannot confidently and safely resolve |
 
+**Blast radius before a fix, verdict, or merge, in every tier.** When a fix, a VALID/INCORRECT
+verdict, or a merge changes a shared artifact (a reusable workflow or action, shared config, a
+published package), list its consumers and check the change against each first, and state the
+verdict with a `Basis:` (`verified` with the `file:line`, tool output, or URL, or `judgment`,
+which such a change never qualifies for). A verdict the evidence cannot settle is withheld:
+UNCERTAIN, naming the evidence that would settle it, and escalated. The per-finding form is D3
+and D4 in [review-discipline](../../reference/review-discipline.md) §3. Contract:
+[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
+
 **Reading the merge-conflict blocker string.** The snapshot classifier is mode-agnostic by
 design, it has no tier input, so it emits the same blocker string, `"merge conflict;
 dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.

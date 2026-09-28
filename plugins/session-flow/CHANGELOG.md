@@ -1,12 +1,22 @@
 # Changelog: session-flow plugin
 
-## [0.38.23] - 2026-09-28
+## [0.38.24] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `continue-in-background`, `handoff`, `retro`, `running-retro`, `show-options`, `workflow` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
 
 ## [0.38.22] - 2026-09-28
 
