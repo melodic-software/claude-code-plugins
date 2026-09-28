@@ -7,24 +7,33 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
+            ],
             "if": "Edit(*.ps1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
+            ],
             "if": "Edit(*.psm1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
+            ],
             "if": "Edit(*.psd1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."

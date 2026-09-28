@@ -33,7 +33,12 @@ slice and its templates. The contract stays surface-class vocabulary only.
      provenance obligation.
    - *Executor invocation* (marked example, self-operated CLI class): headless `claude -p`
      with `--bare` for deterministic CI context, tool allowlisting via `--allowedTools` /
-     `--permission-mode`, verified against the official headless reference at wire time.
+     `--permission-mode`. On Claude Code v2.1.259 or later, an unattended executor adds
+     `--permission-prompts none` beside the mode it already chose, so the classifier stays and
+     only a call that would have prompted is denied. **Basis:**
+     [headless](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs).
+     **As of:** 2026-09-28. **Recheck trigger:** that section drops the flag or changes what it
+     denies. Verify the rest of the invocation against the official headless reference at wire time.
 3. **Advise plan-gated native integrations.** Vendor-hosted channel agents and native
    tracker automations that carry a plan/seat cost: steps + cost surfaced, explicit opt-in,
    never the default path. Zero paid dependencies on the default path.

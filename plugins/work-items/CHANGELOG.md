@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.5] - 2026-09-28
+## [0.41.6] - 2026-09-28
 
 ### Fixed
 
@@ -14,6 +14,21 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   fixture bin cannot land on that PATH, and neither pass reaches the real `gh` or
   `curl`. Pinning the suite to one CPU already passed 10/10, so the serial
   allowlist entry is removed. It was not the fix.
+
+## [0.41.5] - 2026-09-28
+
+### Changed
+
+- **`triage` defines a well-grounded RECOMMENDED answer** by the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md):
+  the affected code and its consumers read, plus external research for a consequential item, with
+  a `Basis:` on the line after the `Decision defaulted` comment's prefix line (the brief keeps its
+  no-file-paths rule, and the prefix the babysit merge gate matches is unchanged). A consequential item whose basis is
+  `judgment` routes to human-gated. `decompose` states a `Basis:` for each HITL/AFK call.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  A withheld consequential answer gets no `Decision defaulted` comment and routes to human-gated;
+  an unsettled HITL/AFK call becomes an investigation ticket.
 
 ## [0.41.4] - 2026-09-28
 
