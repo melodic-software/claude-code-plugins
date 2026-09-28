@@ -85,6 +85,18 @@
       }
     },
     {
+      "name": "typescript-lsp",
+      "source": "./plugins/typescript-lsp",
+      "category": "development",
+      "tags": ["typescript", "javascript", "lsp", "windows"],
+      "relevance": {
+        "topic": "TypeScript",
+        "signals": {
+          "filesRead": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+        }
+      }
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "typescript-lsp",
+  "version": "0.1.0",
+  "description": "Start typescript-language-server through node and its JavaScript entry so Claude Code can spawn it on Windows without a shell.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["typescript", "javascript", "lsp", "windows"]
+}
