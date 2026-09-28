@@ -42,6 +42,12 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
   and outlining passes and emits the spec JSON. Materials map to color ramps (highlight, base,
   shadow, line), which keeps the palette locked and makes recolors one-line edits.
 
+The spec `palette` may be an inline object, a bundled preset name, or a path to a project palette
+file ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). When the project has
+`pixel-art-palette.json` (or another path its `CLAUDE.md` names), use that path instead of
+inventing colors. Do not retype a preset by hand. Images from another backend are snapped with
+`render.py --snap` (see [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)), not by eye.
+
 Apply [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md): readable silhouette
 first, one light direction, hue-shifted ramps, selective outline, no pillow shading, no banding,
 no dithering on small sprites.

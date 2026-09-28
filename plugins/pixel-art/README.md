@@ -18,7 +18,9 @@ animation cycles laid out for game engines, and animated scenes that open in any
 ## How it works
 
 1. The model turns the request into a spec: a locked palette and frames, written by hand for small
-   sprites or by a short procedural generator for larger ones.
+   sprites or by a short procedural generator for larger ones. The palette may be an inline object,
+   a bundled preset (`pico-8`, `nes`, `game-boy`, or a CC0 Lospec set in `palettes/`), or a project
+   palette file.
 2. `scripts/render.py` (Python standard library only) writes the engine asset at 1x, an upscaled
    preview, a GIF per animation, and frame data. `scripts/embed.py` builds scenes into one HTML file.
 3. The model looks at what it rendered and revises, usually two to four rounds. Better briefs and
@@ -67,7 +69,8 @@ python3 <plugin>/scripts/gallery.py out
 ## Reference files
 
 `reference/` holds the sourced rules the skills apply: `craft-static.md`, `craft-animation.md`,
-`craft-tiles.md`, `engine-layouts.md`, `scene-canvas.md`, and `backends.md`.
+`craft-tiles.md`, `engine-layouts.md`, `scene-canvas.md`, and `backends.md`. `palettes/` holds
+the bundled preset files and the notes for a project palette file.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
