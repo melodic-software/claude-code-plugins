@@ -34,7 +34,7 @@ were eight, one per Write/Edit PreToolUse where there were three, one per Write/
 PostToolUse where there were three), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons; that
 is deliberate, not leftover work, so a dual-blocked PowerShell sink prints both
-denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236))), and the merge
+denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)); measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host — this Linux checkout cannot produce that figure), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
 emit. On the Bash/PowerShell row it also refuses (exit 2) a command holding more than
 256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair, counted as
