@@ -666,7 +666,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# The credential read boundary is stated once and pointed at (#4244)
+# The credential read boundary is stated once and pointed at
 #
 # A researcher's capability probe ran `git credential fill` and captured a live
 # token. No frontmatter key can block one shell command, so the rule is
