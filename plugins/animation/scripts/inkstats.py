@@ -33,7 +33,9 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
             plus the share of small marks (nicks, dashes, specks), each rough by construction under a 4 px fit
   straight  share of contour length in straight runs of 30 px or more (approxPolyDP 1.5 px): ruled lines
   straight_border straight_caption   the same over the contour segments whose midpoint lies in that content class,
-            leaving out segments that run along the frame edge; None under 200 px of such contour
+            leaving out segments that run along the frame edge. straight_border also leaves out a ring side
+            whose inner edge is ink (subject or a field running into the frame); a side is kept when that
+            edge is paper. None under 200 px of such contour
   specks    ink islands of 2-200 px per megapixel      gaps  paper islands of 2-200 px per megapixel
   holes     paper share of the ink after a 7 px closing: streaks and gouges inside masses
   ink_sd paper_sd   gray standard deviation inside eroded ink and paper: dry brush and paper grain
@@ -97,6 +99,7 @@ STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'strai
          'sliver_border', 'sliver_caption', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
 BORDER = 0.03             # border class, every border row: this share of the short side, from each edge (the stroke)
+CONTACT = 0.25            # a ring side whose inner edge is at least this share ink is subject contact, not the frame line
 PRESENT = 0.1             # a drawing has the border class when its ring is at least this share ink
 CAPTION = 0.013           # caption class: each detected box grown by this share of the short side (its outline)
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
@@ -191,10 +194,31 @@ def at(lab, xy):
     return lab[xy[:, 1], xy[:, 0]]
 
 
+def clear_sides(ink):
+    """Top, bottom, left, right. True when that ring side's inner edge is paper, so the frame line
+    there is not sharing the ring with subject ink."""
+    H, W = ink.shape
+    e = max(1, round(BORDER * min(H, W)))
+    if H <= 2 * e + 1 or W <= 2 * e + 1:
+        return np.zeros(4, bool)
+
+    def paper(line):
+        return float(line.mean()) < CONTACT
+
+    return np.array([
+        paper(ink[e, e:W - e]),
+        paper(ink[H - 1 - e, e:W - e]),
+        paper(ink[e:H - e, e]),
+        paper(ink[e:H - e, W - 1 - e]),
+    ], bool)
+
+
 def contour_stats(ink, lab):
     """(rough, straight, {class: straight share}) over contours of 50 px or more."""
     cs, _ = cv2.findContours(ink.astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     H, W = ink.shape
+    e = max(1, round(BORDER * min(H, W)))
+    clear = clear_sides(ink)
     raw = smooth = total = straight = 0.0
     segs = [np.zeros((0, 2))]
     for c in cs:
@@ -208,9 +232,13 @@ def contour_stats(ink, lab):
         seg = np.hypot(*(q - p).T)
         total += seg.sum()
         straight += seg[seg >= 30].sum()
+        mid = (p + q) / 2
         frame = ((p <= 0) & (q <= 0)).any(1) | ((p[:, 0] >= W - 1) & (q[:, 0] >= W - 1)) \
             | ((p[:, 1] >= H - 1) & (q[:, 1] >= H - 1))   # a run along the frame edge is the frame, not a stroke
-        segs.append(np.c_[at(lab, (p + q) / 2), seg][~frame])
+        cls = at(lab, mid)
+        on = np.column_stack((mid[:, 1] < e, mid[:, 1] >= H - e, mid[:, 0] < e, mid[:, 0] >= W - e))
+        contact = (cls == 0) & on[:, ~clear].any(1)   # border contour on a side whose inner edge is ink
+        segs.append(np.c_[cls, seg][~frame & ~contact])
     segs = np.vstack(segs)
     per = {}
     for k, n in enumerate(CLASSES):

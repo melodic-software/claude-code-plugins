@@ -32,6 +32,16 @@ now measures:
 
 - Edges: props and masses are overlapping `inkFill` strokes with edges re-stroked past the corners,
   never a filled polygon. Polygon edges are too straight (`straight_border`) and too smooth (`rough`).
+  A 1 px jog still counts as straight: `approxPolyDP` at 1.5 px erases it, so a frame that looks
+  slightly wobbly at 1:1 can score near 0.97. Keep the subject out of the frame ring. A ring side
+  whose inner edge is ink is left out of `straight_border` (`inkstats.CONTACT`); the row is the
+  frame line on the sides whose inner edge is paper.
+- Caption slits: a few short enclosed cuts, not a plain hand-cut notch and not a long cream strip.
+  `scripts/woodcut_marks.py` `caption_panel()` (four slits, 5 px by 2 px) scores 2.5, inside the
+  band 2.02-3.28. Length 4 scores 2.0, below it. Length 8 scores 4.0, above it.
+- Boil: move the frame stroke 1 px and it scores about 1.00, below 1.30-1.48. Move all of it 2 px
+  and it scores about 2.00. `frame_pair('tail')` moves 14% of a 10 px stroke by 4 px and the rest
+  by 1 px, and scores about 1.41. 8% at 4 px is still below the band.
 - Texture: gray inside the ink comes in irregular patches. Parallel dry-brush lines at a fixed pitch
   read as ribbed black; pixel noise lowers `grain` (`grain` and `period` are measured only).
 - Carving: gouges are chunky and irregular, not long thin lines (`sliver`) or rows at one spacing.

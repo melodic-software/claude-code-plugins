@@ -269,6 +269,22 @@ edge, however asymmetric the band. A row fails above 1. The film's distance is t
 defined rows and ranks films that pass; its margin (largest row distance minus 1) says how far the
 worst row is from the edge. The source scores 0.
 
+## Third adjudication
+
+`straight_border` counted every contour segment in the 3% ring, including sides whose inner edge
+is ink. That is subject, or a dark field, running into the frame, not the frame line. A synthetic
+square-wave frame scores 0.09. A straight bar across its top ring raises the unfiltered row to
+0.23. With those sides dropped (`inkstats.clear_sides`, inner-edge ink share at or above
+`CONTACT` 0.25) the row stays at 0.11. The frozen band is unchanged: on a drawing whose four
+sides are clear the number is the same as before, and a contaminated side can no longer pull it.
+The source clip is not in the repo, so the band was not relearned. Do not widen it.
+
+The other two open rows are the drawing, not the check. `scripts/woodcut_marks.py` lands inside
+the frozen bands: caption slits of 5x2 px score `sliver_caption` 2.5 (a 4 px slit scores 2.0,
+below 2.02; an 8 px slit scores 4.0, above 3.28), and a frame stroke with 14% of its pixels
+moved 4 px and the rest 1 px scores `boil` about 1.41 (a 1 px move of the whole stroke scores
+about 1.00, below 1.30; a 2 px move of the whole stroke scores about 2.00).
+
 ## What the check cannot say
 
 - **The attack is caught by round 3's own frame.** `sliver_border` and `boil` reject it because round

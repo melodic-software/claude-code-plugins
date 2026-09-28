@@ -3,6 +3,16 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Fixed
+
+- `straight_border` ignores a frame-ring side whose inner edge is ink, so subject running into
+  the frame no longer pulls that row. The woodcut bands are unchanged (#4507).
+- `scripts/woodcut_marks.py` draws the caption slits and the 4 px boil tail that land inside the
+  frozen `sliver_caption` and `boil` bands. A 1 px redraw of the whole frame stroke scores about
+  1.00, and a 2 px redraw scores about 2.00.
+
 ## [0.1.1]
 
 ### Fixed

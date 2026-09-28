@@ -92,5 +92,48 @@ class WorkDirFinalHold(unittest.TestCase):
             self.assertAlmostEqual(times[-1] - times[-2], 1 / FPS, places=6)
 
 
+def _jagged_frame(invade):
+    """A connected square-wave frame line. invade fills the top ring with a straight bar."""
+    h, w = 240, 360
+    img = np.empty((h, w, 3), np.uint8)
+    img[:] = (243, 234, 215)
+    ink = (20, 17, 14)
+
+    def jog(i):
+        return 1 if (i // 10) % 2 == 0 else 3
+
+    for x in range(w):
+        y0 = jog(x)
+        img[y0:y0 + 3, x] = ink
+        y1 = h - 4 - jog(x)
+        img[y1:y1 + 3, x] = ink
+    for y in range(h):
+        x0 = jog(y)
+        img[y, x0:x0 + 3] = ink
+        x1 = w - 4 - jog(y)
+        img[y, x1:x1 + 3] = ink
+    if invade:
+        e = max(1, round(inkstats.BORDER * min(h, w)))
+        img[0:e + 2, 40:w - 40] = ink
+    return img
+
+
+@unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
+class StraightBorderContact(unittest.TestCase):
+    def test_subject_in_the_ring_does_not_pull_straight_border(self):
+        clean = inkstats.one(_jagged_frame(False))
+        invaded = inkstats.one(_jagged_frame(True))
+        self.assertTrue(inkstats.clear_sides(clean['mask']).all())
+        self.assertFalse(inkstats.clear_sides(invaded['mask'])[0])
+        real = inkstats.clear_sides
+        inkstats.clear_sides = lambda ink: np.ones(4, bool)
+        try:
+            raw = inkstats.one(_jagged_frame(True))['straight_border']
+        finally:
+            inkstats.clear_sides = real
+        self.assertGreater(abs(raw - clean['straight_border']), 0.1)
+        self.assertLess(abs(invaded['straight_border'] - clean['straight_border']), 0.03)
+
+
 if __name__ == '__main__':
     unittest.main()
