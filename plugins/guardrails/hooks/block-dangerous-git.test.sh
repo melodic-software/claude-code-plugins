@@ -1701,6 +1701,13 @@ run_pwsh "PS hs: the removed token string does not open the expandable-body sink
 # here-string opener with trailing whitespace is a special construct whose
 # region walk makes no progress, so under that one token every round was spent
 # on it and the `git reset --hard` beside it was never read.
+#
+# #4683: a trailing-space opener is not confirmed, so `"@` at column zero is
+# herestring-orphan-closer (no allow token). PS_BUDGET_NOPROGRESS and
+# PS_BUDGET_FIVE_TRIGGERS still exit 2, now as that shape, which is the
+# monotone over-block. The budget-exhausted *message* is pinned on the
+# quoted-call no-progress shape, which still spends five granted rounds on
+# itself without acquiring an untrusted flag.
 PS_BUDGET_NOPROGRESS="$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')"
 PS_BUDGET_FIVE_TRIGGERS="$(printf '%s\n%s\n%s' 'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard; Write-Output @" ' "\$(y)" '"@')"
 PS_SINK_TOKENS_5=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
@@ -1717,8 +1724,8 @@ run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-guard_invoke --tool PowerShell --command "$PS_BUDGET_FIVE_TRIGGERS" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
-  -- "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+guard_invoke --tool PowerShell --command "\$a=& 'git reset --hard'" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
 assert_contains "PS budget: the refusal names the exhausted budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
 assert_contains "PS budget: and says no allow token clears it" "$GUARD_ERR" "No allow token clears this"
 assert_absent "PS budget: it does not point at an allow token" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
@@ -1729,8 +1736,10 @@ run_pwsh "PS budget: three granted triggers then git status are still allowed" \
 run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-run_pwsh "PS budget: a no-progress construct beside a harmless line stays allowed (git-free)" \
-  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 0 \
+# Trailing-space opener is unconfirmed, so `"@` at column zero is orphan closer
+# even with no git and even with the special-construct token (#4683).
+run_pwsh "PS budget: a no-progress construct beside a harmless line is refused as orphan closer (git-free)" \
+  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 
 # The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
