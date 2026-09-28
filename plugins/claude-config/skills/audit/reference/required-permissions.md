@@ -67,7 +67,16 @@ and `~/.ssh/` unless they are listed.
 
 **`sandbox.enabled: true` alone is not a boundary. Check the escape surfaces before calling it one.**
 Upstream documents four, all open at their defaults, and each puts a subprocess back outside the OS
-boundary where it can read the denied path:
+boundary where it can read the denied path. A fifth path is not a setting: commands typed at the
+`!` shell-mode prompt run outside the sandbox even when strict mode
+(`allowUnsandboxedCommands: false`) is on, in an interactive session, from Claude Code 2.1.260.
+Two sessions are the exception: a background session, where strict mode covers shell-mode commands
+too, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, where every command runs
+sandboxed. Before v2.1.260, strict mode sandboxed shell-mode commands in every session.
+**Claim, basis, as of, recheck:** that sentence,
+[sandboxing: the unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch),
+2026-09-28, and a re-fetch of that section that no longer says shell-mode commands run outside the
+sandbox.
 
 | Setting | Why it matters | What a boundary requires |
 | --- | --- | --- |
@@ -99,22 +108,43 @@ vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for
 carry "rank it below the sandbox" into a destructive-git finding. See that section's own note.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
-secret from a session that has shell execution. **Directory location is not a boundary**: a
-subprocess opens absolute paths, so moving the file outside the working directory and
-`additionalDirectories` changes nothing about who can read it. Never present relocation as
-protection. The boundary that holds is the OS principal. A file readable by the account the session
-runs as is reachable, wherever it sits. So the durable control is that the secret is not sitting in a
-file that account can read at all: keep it in an OS credential store or a secrets manager and inject
-it at use time, scope it to a short-lived credential whose theft expires, or run the session as a
-different principal or inside a container that never receives it. Keep the deny rules above; do not
-report them as proof the file is protected.
+secret from a session that has shell execution. **Directory location is a fence for the file tools,
+not for an arbitrary subprocess.** From Claude Code 2.1.257,
+`permissions.blockReadsOutsideWorkingDirectories` stops Read, Grep, Glob, and LSP from reading
+paths outside the working directories, in every permission mode including `bypassPermissions`. Auto
+mode offers to turn that block on before the first such read. A Bash command that reads a matching
+path through a recognized file command, such as `cat`, prompts even in auto mode and
+`bypassPermissions`. A command the shell parser cannot trace prompts even when it names no outside
+path. A Python or Node script that opens the path itself is still not fenced by the setting.
+**Claim, basis, as of, recheck:** that paragraph,
+[settings-reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories),
+2026-09-28, and a re-fetch of that section that changes which tools the block covers. Moving a
+secret outside the working directory is still not protection against a subprocess the fence does
+not cover. The boundary that holds for that case is the OS principal. A file readable by the
+account the session runs as is reachable by that subprocess, wherever it sits. So the durable
+control is that the secret is not sitting in a file that account can read at all: keep it in an OS
+credential store or a secrets manager and inject it at use time, scope it to a short-lived
+credential whose theft expires, or run the session as a different principal or inside a container
+that never receives it. Keep the deny rules above; do not report them as proof the file is
+protected.
+
+**Redirect targets are covered. The 2.1.259 argument widening is not.** Read and Edit deny rules
+apply to recognized Bash file commands, such as `cat`, `head`, `tail`, `sed`, and `tee`, and to
+the targets of Bash redirections such as `> file` and `< file`. Input redirect targets are checked
+in v2.1.257 and later. They do not apply to a command that reads files without naming them, such
+as `grep -r pattern .` from the directory that holds the file, or to an arbitrary subprocess.
+Claude Code 2.1.259 briefly applied `Read()` deny rules to Bash arguments (option values, `git`
+file operands, `cd && cat`). 2.1.260 reverted that widening. Do not write the widening back in.
+**Claim, basis, as of, recheck:** the page sentence plus the revert,
+[permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) and
+[changelog](https://code.claude.com/docs/en/changelog) 2.1.260 ("Reverted the 2.1.259 change
+applying `Read()` deny rules to Bash arguments"), 2026-09-28, and either page stating the widening
+again.
 
 **Unverified. Flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
-recognized-command coverage to commands "in Bash", and the tools reference lists `Read(...)` as
-applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
-otherwise. The recognized-command list is also introduced with "such as" and is not exhaustive, so
-`grep`, `jq`, `strings`, and shell redirects are unconfirmed in both directions.
+recognized-command coverage to commands in Bash. Treat PowerShell reads as uncovered until upstream
+says otherwise.
 
 ## destructive-bash-deny (Bash deny)
 
