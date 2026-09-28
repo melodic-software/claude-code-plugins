@@ -10441,8 +10441,13 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "managed-report": "managed-report --snapshot s --output m",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        ),
+        "managed-apply": (
+            "managed-apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
         ),
     }
@@ -10530,6 +10535,11 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         belt = self.run_main(self.engine_command("apply"), self.argv())
         self.assertEqual("deny", belt["permissionDecision"])
         self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+        managed = self.run_main(self.engine_command("managed-apply"), self.argv())
+        self.assertEqual("deny", managed["permissionDecision"])
+        self.assertIn("execution is disabled", managed["permissionDecisionReason"])
+        report = self.run_main(self.engine_command("managed-report"), self.argv())
+        self.assertEqual("allow", report["permissionDecision"])
 
     def test_fails_closed_on_a_plugin_other_than_disk_hygiene(self) -> None:
         self.write_json(
@@ -10865,7 +10875,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "managed-report": "allow",
             "apply": "ask",
+            "managed-apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
             command = self.engine_command(subcommand)
@@ -11304,6 +11316,310 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+
+class ManagedStateLaneTests(unittest.TestCase):
+    """Owner registry lane beside the engine (#4006). The engine still does not delete.
+
+    Covers ``plugins/disk-hygiene/lib/owner_registry.py``.
+    """
+
+    def test_bundled_registry_is_inspectable_data(self) -> None:
+        payload = json.loads(
+            hygiene.owner_registry.REGISTRY_PATH.read_text(encoding="utf-8")
+        )
+        self.assertIn("owner-registry.json", hygiene.owner_registry.REGISTRY_PATH.name)
+        loaded = hygiene.owner_registry.load_registry()
+        self.assertEqual(payload, loaded)
+        for entry in loaded["entries"]:
+            self.assertTrue(entry["owner"])
+            self.assertTrue(entry["path_suffixes"])
+            self.assertTrue(entry["platforms"])
+            self.assertIn("read_only_argvs", entry)
+            self.assertIn("destructive_argvs", entry)
+
+    def test_absent_tool_offers_no_command(self) -> None:
+        registry = hygiene.owner_registry.load_registry()
+        row = hygiene.owner_registry.classify_path(
+            "AppData/Local/Docker",
+            registry,
+            "linux",
+            which=lambda _name: None,
+            runner=lambda _argv: (_ for _ in ()).throw(AssertionError("ran")),
+        )
+        assert row is not None
+        self.assertEqual("absent-tool", row["status"])
+        self.assertEqual("Docker Desktop", row["owner"])
+        self.assertEqual([], row["offered_commands"])
+        self.assertEqual([], row["read_only_results"])
+        self.assertIsNone(row["gated_destructive_command"])
+        self.assertFalse(row["authorization"])
+        self.assertFalse(row["removable_by_engine"])
+
+    def test_read_only_output_is_surfaced_when_the_tool_is_present(self) -> None:
+        registry = hygiene.owner_registry.load_registry()
+        calls: list[list[str]] = []
+
+        def run(argv: list[str]) -> dict[str, object]:
+            calls.append(list(argv))
+            return {"argv": argv, "exit_code": 0, "stdout": "RECLAIMABLE 23GB", "stderr": ""}
+
+        row = hygiene.owner_registry.classify_path(
+            "AppData/Local/Docker/data",
+            registry,
+            "linux",
+            which=lambda _name: "/usr/bin/docker",
+            runner=run,
+        )
+        assert row is not None
+        self.assertEqual("owner", row["status"])
+        self.assertEqual([["docker", "system", "df"]], calls)
+        self.assertEqual("RECLAIMABLE 23GB", row["read_only_results"][0]["stdout"])
+        self.assertIn("docker image prune -f", row["gated_destructive_command"])
+        self.assertFalse(row["authorization"])
+
+    def test_unmatched_managed_container_child_is_a_coverage_gap(self) -> None:
+        registry = hygiene.owner_registry.load_registry()
+        row = hygiene.owner_registry.classify_path(
+            "AppData/Local/SomeGame", registry, "windows"
+        )
+        assert row is not None
+        self.assertEqual("coverage-gap", row["status"])
+        self.assertIsNone(row["owner"])
+        self.assertEqual([], row["offered_commands"])
+        self.assertFalse(row["removable_by_engine"])
+        self.assertIsNone(
+            hygiene.owner_registry.classify_path("notes.txt", registry, "linux")
+        )
+
+    def test_probe_lists_container_children_without_walking_past_them(self) -> None:
+        registry = hygiene.owner_registry.load_registry()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docker = root / "AppData" / "Local" / "Docker" / "nested"
+            docker.mkdir(parents=True)
+            (docker / "blob").write_text("x", encoding="utf-8")
+            (root / "AppData" / "Local" / "SomeGame").mkdir(parents=True)
+            (root / "keep.txt").write_text("work", encoding="utf-8")
+            found = hygiene.owner_registry.probe_container_children(
+                root, {"AppData"}, registry["managed_container_suffixes"]
+            )
+            self.assertIn("AppData/Local", found)
+            self.assertIn("AppData/Local/Docker", found)
+            self.assertIn("AppData/Local/SomeGame", found)
+            self.assertNotIn("AppData/Local/Docker/nested", found)
+            self.assertNotIn("keep.txt", found)
+
+    def test_run_argv_does_not_invoke_a_shell(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["docker", "system", "df"], returncode=0, stdout="ok", stderr=""
+        )
+        with mock.patch.object(
+            hygiene.owner_registry.subprocess, "run", return_value=completed
+        ) as run:
+            result = hygiene.owner_registry.run_argv(["docker", "system", "df"])
+        self.assertEqual(["docker", "system", "df"], run.call_args.args[0])
+        self.assertFalse(run.call_args.kwargs.get("shell", False))
+        self.assertEqual(0, result["exit_code"])
+        self.assertEqual("ok", result["stdout"])
+
+    def test_engine_eligibility_is_unchanged_by_a_registry_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "AppData" / "Local" / "Docker").mkdir(parents=True)
+            (root / "AppData" / "Local" / "Docker" / "cache.bin").write_text(
+                "state", encoding="utf-8"
+            )
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            unmanaged = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [
+                    candidate("orphan.tmp"),
+                    candidate("AppData/Local/Docker/cache.bin"),
+                ],
+            }
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(
+                    hygiene,
+                    "managed_lane_blockers",
+                    side_effect=AssertionError("engine lane must not consult the registry gate"),
+                ),
+            ):
+                result = hygiene.preview(snapshot, unmanaged)
+            by_path = {item["path"]: item["blockers"] for item in result["candidates"]}
+            self.assertEqual(by_path["orphan.tmp"], by_path["AppData/Local/Docker/cache.bin"])
+            self.assertNotIn("native-managed-report-only", by_path["orphan.tmp"])
+            managed = candidate("AppData/Local/Docker/cache.bin")
+            managed["owner"] = "Docker Desktop"
+            managed["native_gc_evidence"] = {
+                "command": "docker image prune -f",
+                "result": "eligible",
+            }
+            plan = {"version": 1, "tier": "high", "candidates": [managed]}
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "anchored_remove") as remove,
+                mock.patch.object(hygiene.owner_registry, "run_argv") as run,
+            ):
+                preview = hygiene.preview(snapshot, plan)
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertIn("native-managed-report-only", preview["candidates"][0]["blockers"])
+            remove.assert_not_called()
+            run.assert_not_called()
+            self.assertTrue((root / "AppData" / "Local" / "Docker" / "cache.bin").exists())
+            self.assertEqual([], report["removed"])
+
+    def test_managed_and_engine_lanes_share_the_approval_gate(self) -> None:
+        snapshot = {"session_nonce": "nonce", "entries": []}
+        plan = {"tier": "high", "candidates": [{"path": "orphan.tmp"}]}
+        checked = {
+            "status": "ready-for-explicit-approval",
+            "outcome": "explicit-approval",
+            "approval_token": "b" * 24,
+        }
+        errors: list[str] = []
+        lanes: list[str] = []
+
+        def preview(
+            _snapshot: dict[str, Any], _plan: dict[str, Any], *, lane: str = "engine"
+        ) -> dict[str, Any]:
+            lanes.append(lane)
+            return checked
+
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            report = data / "report.json"
+            for command in ("apply", "managed-apply"):
+                stdout = io.StringIO()
+                with (
+                    mock.patch.object(
+                        hygiene, "load_json", side_effect=[snapshot, plan]
+                    ),
+                    mock.patch.object(hygiene, "preview", side_effect=preview),
+                    mock.patch.object(hygiene, "apply_plan") as apply_plan,
+                    mock.patch.object(
+                        hygiene, "run_managed_owner_commands"
+                    ) as managed_run,
+                    redirect_stdout(stdout),
+                ):
+                    code = hygiene.main(
+                        [
+                            command,
+                            "--execute",
+                            "--snapshot",
+                            "snapshot.json",
+                            "--plan",
+                            "plan.json",
+                            "--confirm-tier",
+                            "high",
+                            "--approval-token",
+                            "a" * 24,
+                            "--report",
+                            str(report),
+                            "--data-root",
+                            str(data),
+                        ]
+                    )
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(2, code, command)
+                errors.append(payload["error"])
+                apply_plan.assert_not_called()
+                managed_run.assert_not_called()
+        self.assertEqual(errors[0], errors[1])
+        self.assertIn("approval token does not match the fresh preview", errors[0])
+        self.assertEqual(["engine", "managed"], lanes)
+        token = hygiene.approval_token(snapshot, plan)
+        fresh = dict(checked, approval_token=token)
+        self.assertIsNone(
+            hygiene.gate_exact_tier_approval(
+                snapshot,
+                plan,
+                fresh,
+                execute=True,
+                confirm_tier="high",
+                approval_token_value=token,
+            )
+        )
+
+    def test_managed_apply_runs_registry_argv_and_does_not_delete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            cache = root / "AppData" / "Local" / "Docker" / "cache.bin"
+            cache.parent.mkdir(parents=True)
+            cache.write_text("state", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rendered = hygiene.owner_registry.render_argvs(
+                [
+                    ["docker", "image", "prune", "-f"],
+                    ["docker", "builder", "prune", "-f"],
+                ]
+            )
+            managed = candidate("AppData/Local/Docker/cache.bin")
+            managed["owner"] = "Docker Desktop"
+            managed["native_gc_evidence"] = {"command": rendered, "result": "eligible"}
+            plan = {"version": 1, "tier": "high", "candidates": [managed]}
+            calls: list[list[str]] = []
+
+            def run(argv: list[str]) -> dict[str, object]:
+                calls.append(list(argv))
+                return {"argv": argv, "exit_code": 0, "stdout": "", "stderr": ""}
+
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene.owner_registry, "tool_present", return_value=True),
+                mock.patch.object(hygiene.owner_registry, "run_argv", side_effect=run),
+                mock.patch.object(hygiene, "anchored_remove") as remove,
+            ):
+                checked = hygiene.preview(snapshot, plan, lane="managed")
+                self.assertEqual("ready-for-explicit-approval", checked["status"])
+                self.assertEqual(
+                    hygiene.approval_token(snapshot, plan), checked["approval_token"]
+                )
+                report = hygiene.run_managed_owner_commands(snapshot, plan)
+            remove.assert_not_called()
+            self.assertTrue(cache.exists())
+            self.assertEqual(
+                [
+                    ["docker", "image", "prune", "-f"],
+                    ["docker", "builder", "prune", "-f"],
+                ],
+                calls,
+            )
+            self.assertEqual(0, report["paths_removed"])
+            self.assertEqual([], report["removed"])
+            mismatched = candidate("AppData/Local/Docker/cache.bin")
+            mismatched["owner"] = "Docker Desktop"
+            mismatched["native_gc_evidence"] = {
+                "command": "rm -rf AppData/Local/Docker",
+                "result": "eligible",
+            }
+            bad = {"version": 1, "tier": "high", "candidates": [mismatched]}
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(
+                    hygiene.owner_registry, "tool_present", return_value=True
+                ),
+            ):
+                blocked = hygiene.preview(snapshot, bad, lane="managed")
+            self.assertIn(
+                "destructive-command-mismatch", blocked["candidates"][0]["blockers"]
+            )
+            self.assertIsNone(blocked["approval_token"])
 
 
 if __name__ == "__main__":

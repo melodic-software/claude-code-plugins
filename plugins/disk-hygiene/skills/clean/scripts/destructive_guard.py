@@ -2381,7 +2381,8 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    spec = engine_grammar.subcommand(command_kind) if command_kind else None
+    if spec is not None and not spec.mutates:
         return _settle(
             command,
             tool_name,
@@ -2390,25 +2391,43 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
-    if command_kind == "apply" and enabled:
-        return _settle(
-            command,
-            tool_name,
-            start,
-            "ask",
-            "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
-        )
-    denied_by_kill_switch = command_kind == "apply"
+    if spec is not None and spec.mutates and enabled:
+        if command_kind == "apply":
+            rule = "exact-engine-apply"
+            reason = (
+                "disk-hygiene is ready to apply one exact, previewed tier. "
+                "Confirm this final mutation prompt only if it matches the tier "
+                "and paths you just approved."
+            )
+        else:
+            rule = f"exact-engine-{command_kind}"
+            reason = (
+                "disk-hygiene is ready to run one registry owner's destructive "
+                "command for one exact, previewed tier. Confirm this final "
+                "mutation prompt only if it matches the tier and paths you just "
+                "approved. The engine does not delete the path."
+            )
+        return _settle(command, tool_name, start, "ask", rule, reason)
+    denied_by_kill_switch = spec is not None and spec.mutates
+    readonly = ", ".join(
+        item.name for item in engine_grammar.SUBCOMMANDS if not item.mutates
+    )
     return _settle(
         command,
         tool_name,
         start,
         "deny",
         "kill-switch-disabled-apply"
-        if denied_by_kill_switch
-        else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        if denied_by_kill_switch and command_kind == "apply"
+        else (
+            f"kill-switch-disabled-{command_kind}"
+            if denied_by_kill_switch
+            else "not-exact-engine-command"
+        ),
+        (
+            "Disk-hygiene execution is disabled; only exact bundled "
+            f"{readonly} invocations are permitted."
+        )
         if denied_by_kill_switch
         else _bash_denial_guidance(authority),
     )

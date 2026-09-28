@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import owner_registry  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -3003,7 +3004,156 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     return target, known_mounts
 
 
-def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def managed_lane_blockers(
+    candidate: dict[str, Any], relative: str, *, platform: str | None = None
+) -> list[str]:
+    """Why a managed-lane candidate cannot run its registry command.
+
+    The engine deletion lane does not call this. A registry hit stays a hint:
+    the only destructive argv that can run is the one stored in the registry,
+    and only when this list is empty.
+    """
+    host = platform or os_key()
+    try:
+        registry = owner_registry.load_registry()
+    except owner_registry.OwnerRegistryError as exc:
+        raise HygieneError(str(exc)) from exc
+    if candidate.get("owner") == "unmanaged":
+        return ["managed-lane-requires-owner"]
+    entry = owner_registry.match_entry(relative, host, registry)
+    if entry is None or candidate.get("owner") != entry["owner"]:
+        return ["owner-registry-miss"]
+    destructive = list(entry.get("destructive_argvs") or [])
+    tool = entry.get("tool")
+    if not tool or not destructive:
+        return ["no-static-destructive-command"]
+    if not owner_registry.tool_present(str(tool)):
+        return ["absent-tool"]
+    native = candidate.get("native_gc_evidence")
+    rendered = owner_registry.render_argvs(destructive)
+    if (
+        not isinstance(native, dict)
+        or native.get("result") != "eligible"
+        or native.get("command") != rendered
+    ):
+        return ["destructive-command-mismatch"]
+    return []
+
+
+def gate_exact_tier_approval(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    checked: dict[str, Any],
+    *,
+    execute: bool,
+    confirm_tier: str,
+    approval_token_value: str,
+) -> dict[str, Any] | None:
+    """The one tier-and-exact-list gate for engine apply and managed-apply.
+
+    Returns the blocked preview when the gate refuses, or None when the
+    supplied token is the shared ``approval_token`` for this snapshot and plan.
+    """
+    if not execute:
+        raise HygieneError("mutating lane requires the explicit --execute flag")
+    if checked["status"] != "ready-for-explicit-approval":
+        return checked
+    if confirm_tier != plan.get("tier"):
+        raise HygieneError("--confirm-tier must match the plan's single tier")
+    # The preview stamps ``approval_token`` with ``approval_token()`` for every
+    # lane. This comparison is the one the engine apply lane already used.
+    if approval_token_value != checked.get("approval_token"):
+        raise HygieneError("approval token does not match the fresh preview")
+    return None
+
+
+def run_managed_owner_commands(
+    snapshot: dict[str, Any], plan: dict[str, Any]
+) -> dict[str, Any]:
+    """Run registry destructive argv after the shared gate. Never deletes a path."""
+    target = Path(snapshot["target"]).absolute()
+    entries = entry_map(snapshot)
+    candidates = validate_plan(plan, entries)
+    try:
+        registry = owner_registry.load_registry()
+    except owner_registry.OwnerRegistryError as exc:
+        raise HygieneError(str(exc)) from exc
+    platform = os_key()
+    ran: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        relative = candidate["path"]
+        blockers = managed_lane_blockers(candidate, relative, platform=platform)
+        if blockers:
+            skipped.append(
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": ", ".join(blockers),
+                }
+            )
+            continue
+        entry = owner_registry.match_entry(relative, platform, registry)
+        if entry is None:
+            skipped.append(
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": "owner-registry-miss",
+                }
+            )
+            continue
+        identifier = str(entry["id"])
+        if identifier in seen:
+            ran.append(
+                {
+                    "path": relative,
+                    "registry_id": identifier,
+                    "outcome": "same-owner-command",
+                }
+            )
+            continue
+        seen.add(identifier)
+        tool = str(entry["tool"])
+        if not owner_registry.tool_present(tool):
+            skipped.append(
+                {"path": relative, "outcome": "absent-tool", "detail": tool}
+            )
+            continue
+        for argv in entry["destructive_argvs"]:
+            result = owner_registry.run_argv(list(argv))
+            result["registry_id"] = identifier
+            result["path"] = relative
+            ran.append(result)
+            if result["exit_code"] != 0:
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "owner-command-failed",
+                        "detail": f"exit {result['exit_code']}",
+                    }
+                )
+    return {
+        "status": "completed-with-skips" if skipped else "completed",
+        "lane": "managed",
+        "tier": plan["tier"],
+        "target": str(target),
+        "removed": [],
+        "commands": ran,
+        "skipped": skipped,
+        "paths_removed": 0,
+        "empty_directories_removed": 0,
+        "logical_bytes_removed": 0,
+        "reclaimable_local_bytes_removed": 0,
+        "observed_free_space_delta_bytes": 0,
+        "authorization": False,
+    }
+
+
+def preview(
+    snapshot: dict[str, Any], plan: dict[str, Any], *, lane: str = "engine"
+) -> dict[str, Any]:
     baseline_exact_names = baseline_protected_names()
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
@@ -3032,17 +3182,33 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         relative = candidate["path"]
         path = target.joinpath(*PurePosixPath(relative).parts)
         blockers = hard_protection(path, target, exact_names, known_mounts)
-        blockers.extend(execution_blockers())
-        if candidate["owner"] != "unmanaged":
-            blockers.append("native-managed-report-only")
-        if overlaps_truncated(relative, truncated_paths):
+        if lane == "engine":
+            # Unlink prerequisites and the managed-state refusal belong to the
+            # deletion lane. The managed lane runs the owner's command and
+            # never reaches anchored_remove.
+            blockers.extend(execution_blockers())
+            if candidate["owner"] != "unmanaged":
+                blockers.append("native-managed-report-only")
+        elif lane == "managed":
+            blockers.extend(managed_lane_blockers(candidate, relative))
+        else:
+            raise HygieneError(f"unknown preview lane: {lane}")
+        if lane == "engine" and overlaps_truncated(relative, truncated_paths):
             blockers.append("truncated-not-inventoried")
         if snapshot.get("root_children_mode"):
             parts = PurePosixPath(relative).parts
             if not parts or root_child_key(parts[0]) not in selected_root_children:
                 blockers.append("outside-root-children-selection")
         expected_paths = subtree_names(relative, entries)
-        if "truncated-not-inventoried" in blockers:
+        if lane == "managed":
+            # A live product directory churns while its owner runs. Descendant
+            # equality, per-child identity, VCS, and handle probes are the
+            # deletion lane's containment. This lane re-stats the approved
+            # path itself and then stops: the registry command is not a delete.
+            if not same_identity(path, entries[relative]):
+                blockers.append("changed-since-scan")
+            state, detail = "clear", None
+        elif "truncated-not-inventoried" in blockers:
             # A truncated candidate is already hard-blocked from planning above;
             # walking its live subtree here would be the same unbounded
             # traversal --max-depth exists to avoid, for a candidate that can
@@ -4196,20 +4362,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if handoff_verify_blocks(result) else 0)
+        if args.command == "managed-report":
+            target, _known_mounts = resolve_snapshot_target(snapshot)
+            try:
+                report = owner_registry.build_report(
+                    snapshot, target, platform=os_key()
+                )
+            except owner_registry.OwnerRegistryError as exc:
+                raise HygieneError(str(exc)) from exc
+            write_json(Path(args.output), report)
+            return emit(report, 0)
         plan = load_json(Path(args.plan))
-        checked = preview(snapshot, plan)
+        lane = "managed" if args.command == "managed-apply" else "engine"
+        checked = preview(snapshot, plan, lane=lane)
         if args.command == "preview":
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
-        if not args.execute:
-            raise HygieneError("apply requires the explicit --execute flag")
-        if checked["status"] != "ready-for-explicit-approval":
-            return emit(checked, 3)
-        if args.confirm_tier != plan.get("tier"):
-            raise HygieneError("--confirm-tier must match the plan's single tier")
-        if args.approval_token != checked["approval_token"]:
-            raise HygieneError("approval token does not match the fresh preview")
+        blocked = gate_exact_tier_approval(
+            snapshot,
+            plan,
+            checked,
+            execute=bool(args.execute),
+            confirm_tier=args.confirm_tier,
+            approval_token_value=args.approval_token,
+        )
+        if blocked is not None:
+            return emit(blocked, 3)
         report_path = state_output_path(Path(args.report))
-        report = apply_plan(snapshot, plan)
+        if args.command == "managed-apply":
+            report = run_managed_owner_commands(snapshot, plan)
+        else:
+            report = apply_plan(snapshot, plan)
         write_json(report_path, report)
         return emit(report, 4 if report["skipped"] else 0)
     except HygieneError as exc:

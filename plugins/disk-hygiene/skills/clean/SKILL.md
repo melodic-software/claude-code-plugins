@@ -339,6 +339,34 @@ For managed state, report the documented native command and its current dry-run 
 the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
 non-overlapping, and never globs.
 
+## Managed-state lane
+
+The engine never deletes managed state. The bundled registry
+`reference/owner-registry.json` is the inspectable list of owners, path suffixes,
+platforms, read-only argv, and destructive argv. Read it to see what the component
+believes about a path. A match is a hint, not proof of ownership and not permission
+to delete.
+
+After the snapshot, run:
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" managed-report \
+  --snapshot "<run-dir>/snapshot.json" --output "<run-dir>/managed-report.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+A matched row names the owner. When the owning tool is on PATH, the row includes
+that read-only command's output. When the tool is absent, the row is `absent-tool`
+and offers no command. A child of a known product-state container (`AppData/Local`,
+`AppData/Roaming`, `.cache`, and the other suffixes in the registry) with no
+registry row is `coverage-gap`: not clean, not removable, and not a guess.
+
+The destructive command runs only through `managed-apply`, with the same
+`--execute`, `--confirm-tier`, and `--approval-token` flags as `apply`. Both
+commands call `gate_exact_tier_approval`. The lane executes the registry argv
+and does not delete the path. `apply` still refuses a managed candidate with
+`native-managed-report-only`.
+
 ## 5. Preview, then ask
 
 Run the deterministic gate:
@@ -428,9 +456,10 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  managed-report, apply, and managed-apply shapes (plus the argument-free kill-switch probe) pass,
+  using the hook runtime's own absolute interpreter. Do supporting inspection with non-Bash read-only
+  tools. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`

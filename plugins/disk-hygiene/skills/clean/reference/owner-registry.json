@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "managed_container_suffixes": [
+    "AppData/Local",
+    "AppData/Roaming",
+    "AppData/LocalLow",
+    "Library/Application Support",
+    "Library/Caches",
+    ".cache",
+    ".local/share"
+  ],
+  "entries": [
+    {
+      "id": "docker-desktop",
+      "owner": "Docker Desktop",
+      "path_suffixes": ["AppData/Local/Docker", ".docker"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "docker",
+      "read_only_argvs": [["docker", "system", "df"]],
+      "destructive_argvs": [
+        ["docker", "image", "prune", "-f"],
+        ["docker", "builder", "prune", "-f"]
+      ],
+      "operator_action": null,
+      "note": "Reclaims unused images and build cache. Does not delete the Docker data directory."
+    },
+    {
+      "id": "nvidia-shader-cache",
+      "owner": "NVIDIA driver",
+      "path_suffixes": ["AppData/Local/NVIDIA"],
+      "platforms": ["windows"],
+      "tool": null,
+      "read_only_argvs": [],
+      "destructive_argvs": [],
+      "operator_action": "Disk Cleanup, DirectX Shader Cache, or the NVIDIA shader-cache size setting",
+      "note": "No CLI is bundled. The registry does not invent a delete command for the shader cache."
+    },
+    {
+      "id": "cursor-ide",
+      "owner": "Cursor IDE",
+      "path_suffixes": ["AppData/Roaming/Cursor", ".cursor"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": null,
+      "read_only_argvs": [],
+      "destructive_argvs": [],
+      "operator_action": "Cursor in-app cache clearing and backups retention",
+      "note": "Cache clearing is an in-app action. This lane does not delete the Cursor configuration directory."
+    },
+    {
+      "id": "openai-codex",
+      "owner": "OpenAI Codex CLI",
+      "path_suffixes": [".codex"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "codex",
+      "read_only_argvs": [],
+      "destructive_argvs": [],
+      "operator_action": "Codex history and retention configuration",
+      "note": "Retention is configuration, not a static prune command."
+    },
+    {
+      "id": "chezmoi",
+      "owner": "chezmoi",
+      "path_suffixes": [".cache/chezmoi", ".local/share/chezmoi"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "chezmoi",
+      "read_only_argvs": [["chezmoi", "doctor"]],
+      "destructive_argvs": [],
+      "operator_action": null,
+      "note": "No cache command. The http cache re-downloads on the next apply."
+    },
+    {
+      "id": "pulumi",
+      "owner": "Pulumi",
+      "path_suffixes": [".pulumi"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "pulumi",
+      "read_only_argvs": [["pulumi", "about"], ["pulumi", "plugin", "ls"]],
+      "destructive_argvs": [],
+      "operator_action": "pulumi plugin rm for one unused name and version shown by pulumi plugin ls",
+      "note": "The unused version is not known to the registry, so plugin rm is not run."
+    },
+    {
+      "id": "dotnet-nuget",
+      "owner": "dotnet nuget",
+      "path_suffixes": [".nuget"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "dotnet",
+      "read_only_argvs": [["dotnet", "nuget", "locals", "all", "--list"]],
+      "destructive_argvs": [["dotnet", "nuget", "locals", "all", "--clear"]],
+      "operator_action": null,
+      "note": "Clears the NuGet HTTP, temp, and global-packages caches. Does not delete the directory by path."
+    },
+    {
+      "id": "ollama",
+      "owner": "Ollama",
+      "path_suffixes": [".ollama"],
+      "platforms": ["windows", "linux", "macos"],
+      "tool": "ollama",
+      "read_only_argvs": [["ollama", "list"]],
+      "destructive_argvs": [],
+      "operator_action": null,
+      "note": "ollama list is read-only. Removing a model needs a name this registry does not invent."
+    }
+  ]
+}

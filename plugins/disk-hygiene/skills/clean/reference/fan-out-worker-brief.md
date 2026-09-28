@@ -16,8 +16,8 @@ redirection, or extra commands in the same tool call. Required flags on every sc
 Use the hook Python launcher from the skill (`<hook-python>` in `SKILL.md`), not a bare `python3`
 on PATH.
 
-Denied: `apply`, `preview`, `handoff-verify`, `rm`, `del`, moves, or any command that mutates the
-target. Denied: compound shells (`;`, `&&`, `|`) wrapping the engine.
+Denied: `apply`, `managed-apply`, `preview`, `handoff-verify`, `rm`, `del`, moves, or any command
+that mutates the target. Denied: compound shells (`;`, `&&`, `|`) wrapping the engine.
 
 ## Scan invocation templates
 

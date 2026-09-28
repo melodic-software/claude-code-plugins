@@ -116,7 +116,16 @@ class Flag:
 class Subcommand:
     """One engine subcommand: its parser help and its flags in declaration order."""
 
-    __slots__ = ("name", "help", "flags", "required", "optional", "one_of", "_by_name")
+    __slots__ = (
+        "name",
+        "help",
+        "flags",
+        "required",
+        "optional",
+        "one_of",
+        "mutates",
+        "_by_name",
+    )
 
     def __init__(
         self,
@@ -125,10 +134,12 @@ class Subcommand:
         *,
         help: str | None = None,
         one_of: tuple[tuple[str, ...], ...] = (),
+        mutates: bool = False,
     ):
         self.name = name
         self.help = help
         self.flags = flags
+        self.mutates = mutates
         self.required = tuple(flag for flag in flags if flag.required)
         self.optional = tuple(flag for flag in flags if not flag.required)
         self._by_name = {flag.name: flag for flag in flags}
@@ -150,6 +161,24 @@ class Subcommand:
 
 def _data_root_flag() -> Flag:
     return Flag(DATA_ROOT_FLAG, external_check=AUTHORIZED_DATA_ROOT)
+
+
+def _tier_approval_flags() -> tuple[Flag, ...]:
+    """The exact-tier ceremony shared by engine apply and managed-apply."""
+    return (
+        Flag("--execute", takes_value=False, required=True),
+        Flag("--snapshot", required=True, example="snapshot.json"),
+        Flag("--plan", required=True, example="plan.json"),
+        Flag("--confirm-tier", required=True, choices=TIERS, example="high"),
+        Flag(
+            "--approval-token",
+            required=True,
+            pattern=r"[0-9a-f]{24}",
+            example="0123456789abcdef01234567",
+        ),
+        Flag("--report", required=True, example="report.json"),
+        _data_root_flag(),
+    )
 
 
 # A directory basename with no separator and no self/parent reference.
@@ -253,21 +282,27 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         one_of=(("--paths", "--path"),),
     ),
     Subcommand(
-        "apply",
+        "managed-report",
         (
-            Flag("--execute", takes_value=False, required=True),
             Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--plan", required=True, example="plan.json"),
-            Flag("--confirm-tier", required=True, choices=TIERS, example="high"),
-            Flag(
-                "--approval-token",
-                required=True,
-                pattern=r"[0-9a-f]{24}",
-                example="0123456789abcdef01234567",
-            ),
-            Flag("--report", required=True, example="report.json"),
+            Flag("--output", required=True, example="managed-report.json"),
             _data_root_flag(),
         ),
+        help="report managed-state owners from the bundled registry (read-only)",
+    ),
+    Subcommand(
+        "apply",
+        _tier_approval_flags(),
+        mutates=True,
+    ),
+    Subcommand(
+        "managed-apply",
+        _tier_approval_flags(),
+        help=(
+            "run one registry owner's destructive command after the shared "
+            "exact-tier gate; does not delete paths"
+        ),
+        mutates=True,
     ),
 )
 

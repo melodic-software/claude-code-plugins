@@ -3,6 +3,23 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-28
+
+### Added
+
+- **Gated managed-state lane with a bundled owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps path suffixes to an owner, a
+  read-only argv, a destructive argv, and the platforms each applies on. A match
+  is a hint, not authorization. `managed-report` surfaces the owner and, when
+  the owning tool is on PATH, the read-only command's output. An absent tool is
+  `absent-tool` and offers no command. A child of a known product-state
+  container with no registry row is a `coverage-gap`, not clean and not
+  removable. `managed-apply` runs only the registry's destructive argv, and only
+  through `gate_exact_tier_approval`, the same tier-and-exact-list gate `apply`
+  uses. The engine deletion lane is unchanged: managed candidates stay
+  `native-managed-report-only`.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed
