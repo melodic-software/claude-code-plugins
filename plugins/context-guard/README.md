@@ -202,6 +202,10 @@ window is the resolve, not an mtime tick. A missed crossing is therefore late, n
 converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
 manufacture an injection the full path would not have made.
 
+#### Oversize envelope, unchanged inputs
+
+The 150 KB repeat row above paid a here-string `jq` before the unchanged-input skip could run, because the skip needs `session_id`. On a `PostToolBatch` envelope those ids are top-level strings and `tool_calls` is the nested value that makes the payload large (hooks reference: common fields include `session_id` and `hook_event_name`; `PostToolBatch` adds `tool_calls`). The hook now closes a leading scalar object at the comma before that first nested value and parses the two ids with the builtin parser. The skip then exits with no external command, the same budget as a small envelope. Ids that follow the nested value, or a header the scan cannot prove, still use the here-string `jq`. A rewritten snapshot still resolves, so a crossing is not dropped on this path. `zone-crossing-inject.test.sh` pins both arms by xtrace.
+
 #### The cost this pass added: a temp file on payloads over 64KiB
 
 The saving is not free, and the charge is disk rather than CPU. Two of the five removed process

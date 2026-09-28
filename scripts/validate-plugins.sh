@@ -14,6 +14,7 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 node scripts/validate-plugin-contracts.mjs || exit 1
+bash scripts/check-publisher-token-alignment.sh || exit 1
 node scripts/generate-catalog.mjs --check || exit 1
 node scripts/generate-cheatsheet.mjs --check || exit 1
 node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs --check || exit 1

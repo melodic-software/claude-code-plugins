@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "provenance",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Deprecated: this plugin was renamed to attribution. Install attribution@melodic-software instead; this entry only points its skills at /attribution:audit and /attribution:setup, does no work, and is removed in a later release.",
   "author": {
     "name": "Melodic Software",

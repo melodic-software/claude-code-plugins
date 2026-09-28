@@ -147,6 +147,25 @@ repo-invariant fact about *this* gate's `cmd` that every execution surface must 
 per-surface wrapper choice, so it belongs in the ecosystem file alongside them, not in a consuming
 surface's own config.
 
+## Consumers
+
+Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`,
+`code-fix-cmd`) live under "Why this contract exists" (`toolchain:check`, `toolchain:lint`, the
+`review` `ecosystem-specialist`). This table records plugins that read lane membership without
+running a verb:
+
+| Plugin | Keys | Use |
+|---|---|---|
+| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. |
+
+**Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
+no other ecosystem-commands key. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
+merge form", the paragraph on consumer ecosystems files. **As of:** 2026-09-28. **Recheck:** when
+that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
+
+A plugin that starts reading a verb, or a membership key other than those two, updates this table
+in the same change.
+
 ## Task-runner deferral (recorded decision)
 
 A task-runner verb SSOT (go-task / just / `lefthook run` wrappers) was evaluated and **deferred**:

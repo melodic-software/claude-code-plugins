@@ -26,12 +26,15 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$HOOK_DIR/rewrite-guard.sh"
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
 # document. `--id` because the telemetry hook id is the script's name, not the
-# `actionlint` label the skip notices carry. This hook never rewrites the file
-# and never sources the rewrite guard, so no verdict is passed and the builder
-# leaves the `changed` key off rather than guessing one.
+# `actionlint` label the skip notices carry. This hook never rewrites the file,
+# so no verdict is passed and the builder leaves the `changed` key off rather
+# than guessing one. rewrite-guard.sh is sourced only for
+# hook::gitignored_out_of_scope (#4671).
 #
 # The whole prologue: the start stamp, the buffered payload, the workflow-file
 # filter (applied before the jq gate on the raw payload text, so a non-workflow
@@ -55,6 +58,10 @@ source "$HOOK_DIR/hook-utils.sh"
 # below reads FILE_REL_DEGRADED to know which of the two it holds.
 hook::begin --no-membership --relative actionlint PostToolUse \
   '*/.github/workflows/*.yml' '*/.github/workflows/*.yaml'
+
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNORED:-false}" "$FILE"; then
+  hook::finish --id actionlint-check skipped findings array '[]'
+fi
 
 # Graceful degrade: actionlint absent -> skip, made VISIBLE once per session on
 # both channels (agent + user). Telemetry (opt-in) also records a "skipped"

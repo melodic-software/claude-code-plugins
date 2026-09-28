@@ -6,6 +6,11 @@ free of decayed references. Each skill is invocable on its own; together they
 cover the flavor, noise, duplication, boundary, rename, worth, loading,
 and authoring axes of doc upkeep.
 
+The plugin contract (five concerns, five boundaries, and the hold-the-line
+decision on a `docs-naming` split) lives in
+[`reference/plugin-contract.md`](reference/plugin-contract.md). A future skill
+is measured against that charter.
+
 ## The skills
 
 | Skill | What it does |

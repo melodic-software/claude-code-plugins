@@ -1,5 +1,5 @@
 ---
-description: "Capture a baseline or post-change performance snapshot with the HOST QUALIFIED FIRST: repeated no-op spawns characterize the machine's own noise, and a wall-clock claim is REFUSED outright from a host carrying the bimodal contention signature, naming the drift-immune counter it can still report instead. Interleaves before/after arms within one run rather than comparing two passes, since a host that drifts 6x in an hour attributes its own drift to the change. Reports a counter alongside and ranked above any duration. Use when: capturing a before or after snapshot, running the comparison between them, or asking whether this machine can support a timing claim at all: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists yet (run /performance:goal), or when the claim is about code shape rather than runtime (that is /verification:measure metrics)."
+description: "Capture a baseline or post-change snapshot with the host qualified first: refuse a wall-clock claim from a bimodal-contention host and name the drift-immune counter instead. Interleaves before/after arms in one run. Use when: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists, or when the claim is code shape (/verification:measure)."
 user-invocable: true
 argument-hint: "[baseline|post] [<target>] (e.g. /performance:snapshot baseline, /performance:snapshot post)"
 disable-model-invocation: false
@@ -74,6 +74,11 @@ For a process-spawn count, run the bundled census rather than writing one:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-spawn-census.sh" --shim-dir <stable-dir> --before <cmd>
 --after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
 the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
+Report the census as **`spawns=` (PATH-shim accounting)** in the snapshot; when the goal instead
+tracks a Windows Job Object or other host counter, state that label explicitly and cite the MSYS
++2-per-external-command rule from
+[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash)
+so a +2 delta is not chased as a mystery third process.
 
 ### 2b. Code path under test (before each arm)
 

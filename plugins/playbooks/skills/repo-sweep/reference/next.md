@@ -44,8 +44,13 @@ every branch name, step id, and playbook name you put in a command.
 3. When the row's `prime` column (last field) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
-4. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
-5. Unless resuming, record `base=$(git rev-parse HEAD)` and write
+4. Re-check `applies-when` (column 7 of `bash S/catalog.sh C`) with the same cheap evidence
+   `plan.md` uses (`git ls-files`, globs, `ls`). When it no longer holds, record each
+   `plugin:skill` with `bash S/skill-version.sh <plugin:skill>...`, then `bash S/tick.sh <id>
+   not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
+   running section 3. Evidence must be one line with no commas.
+5. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
+6. Unless resuming, record `base=$(git rev-parse HEAD)` and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally
    HEAD.
@@ -60,7 +65,8 @@ every branch name, step id, and playbook name you put in a command.
 3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
    produced by running that procedure in full as the skill states it. A summary of them, or a
    skipped procedure step, does not complete the step. The user reviews them for accuracy before
-   anything is fixed.
+   anything is fixed. Do not tick the step, including a `no findings` tick, until this review
+   finishes.
 4. Ask the scope questions the findings raise as one short numbered list in chat (which
    findings to fix, how far to go). A file synced from another repository is overwritten by the
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
@@ -84,8 +90,12 @@ every branch name, step id, and playbook name you put in a command.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
-3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): `bash
-   S/tick.sh <id> no-findings <skill@version>...`. No commit.
+3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): tick only
+   after section 3 steps 3–4. Count findings the skill marks report-only (tiers the procedure
+   says never edit in this pass, such as `source-fetched-similar` or `not-found`). When that
+   count is greater than zero, `bash S/tick.sh <id> report-only <n> <skill@version>...` where
+   `<n>` is that count. When there are zero findings of any kind, `bash S/tick.sh <id>
+   no-findings <skill@version>...`. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,

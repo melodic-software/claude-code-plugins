@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [9.3.0] - 2026-09-28
+
+Additive, minor. Documents background-job launch mode for the escalation record write; no topology,
+escalation-contract, tier-vocabulary, or loop-layer invariant changed.
+
+- **Escalation record write:** Background Claude Code jobs block Write to the shared checkout until
+  `EnterWorktree`; loop lanes must not enter a worktree, so the record leg is lost while the tracker
+  marker survives ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
 ## [9.2.0] - 2026-09-26
 
 Additive, minor. New §7 documents how the attended operator steers a lane through GitHub state. No
