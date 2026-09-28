@@ -10,6 +10,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Long reference spokes open with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `audit-performance` `reference/known-performance-issues.md`, `observability` `context/data-sources.md` are over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on them. No content moved.
 - **`audit-install-state`, `audit-skill-visibility`: the native-surface presence gate reads "resolves in this session"** (#4112), matching the registry's gate token, so the native-overlap self-check passes on their baked descriptions.
 
+## [0.63.25] - 2026-09-28
+
+### Changed
+
+- **`known-issues search` states the `Basis:` of its SAFE / CAUTION / DO NOT USE verdict**: the
+  issue URLs, status-page read, or version output it rests on, or `judgment`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential verdict is withheld as an open question.
+
 ## [0.63.24] - 2026-09-28
 
 ### Changed
