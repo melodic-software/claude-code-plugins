@@ -121,3 +121,40 @@ Converting shell-form `.sh` rows to exec form is gated by `scripts/check-exec-fo
 3. **Interpreter choice is a budget decision.** Every always-on hook pays its interpreter's startup
    on every fire. On the Windows reference host `python3 -c pass` measured about 160 ms against
    80 ms for `bash -c :`, so a Python hook costs about 2 S before its first statement.
+
+## Host defect: Windows kernel Token leak
+
+This is an allowed host-kernel-defect exception. The leak is in Windows, and this repository
+keeps the record so hook accounting can name the floor that child-creating processes amplify.
+[#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) reduces that
+amplification and leaves this record as the host-defect note.
+
+**Claim:** On Windows 11 builds through 26200.9550, each process that creates a child can leave
+one dead primary token (pool tag `Toke`) until reboot. The public trace names the holder as
+`win32kfull!CForegroundLaunch::_CheckAllowForeground`. Leaked tokens track the child-creating
+process count one-for-one, so a hook, a statusline, or a Bash-tool call amplifies the leak by
+the number of child-creating processes that surface starts. Microsoft has published no
+acknowledgement and no fix through build 26200.9550 (KB5124010, 2026-09-22).
+
+**Basis:**
+
+- [bentoner/windows-token-leak](https://github.com/bentoner/windows-token-leak), the
+  `PsReferencePrimaryToken` trace and the `ForegroundLockTimeout` note.
+- [#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372), melo-lap-001,
+  build 26200.9457, N=300 per row: `bash -c true` leaked 0.00 with 0 child-creating processes;
+  one external leaked about 1; five externals leaked about 6, matching the child-creating count.
+  Which binary it is does not move the count.
+- [Windows 11, version 25H2 known issues](https://learn.microsoft.com/en-us/windows/release-health/status-windows-11-25h2),
+  read 2026-09-22, with no Token-leak row.
+- [KB5124010](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/09/kb5124010-windows-11-24h2-25h2-update).
+- The operator runbook in
+  `plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md`, section
+  "The host-level floor: a kernel Token-object leak".
+- `token-leak-amplification.sh` in this directory, which checks the published rows against the
+  one-for-one line and prints `fires × child-creating processes` for a fan-out.
+
+**As of:** 2026-09-28.
+
+**Recheck trigger:** a Windows build greater than 26200.9550, or a Microsoft acknowledgement of
+the Token leak (a 25H2 release-health known issue, a servicing note, or a Microsoft reply).
+Either event re-derives this record.
