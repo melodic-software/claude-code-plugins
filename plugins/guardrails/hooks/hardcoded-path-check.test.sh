@@ -19,6 +19,25 @@ git -C "$TEST_TMPDIR" init -q
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+SKIPPED=0
+# A case whose git path form this host cannot pin is neither a pass nor a failure.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+# Git Bash canonicalizes an MSYS /tmp worktree to a native Windows path.
+# Cases that pass the bash spelling to the hook and to git check-ignore then
+# disagree. Probe the round trip, not the OS name.
+host_git_rewrites_worktree_path() {
+  local d tl
+  d="$(mktemp -d)"
+  git -C "$d" init -q
+  tl="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null || true)"
+  rm -rf "$d"
+  [[ -n "$tl" && "$tl" != "$d" ]]
+}
+
 # Neutralize ambient CLAUDE_PROJECT_DIR. Cases that expect scanning set it
 # explicitly — with no active project the hook skips entirely (README
 # "Project scoping": only files under $CLAUDE_PROJECT_DIR are policed).
@@ -505,9 +524,15 @@ GITREPO="$TEST_TMPDIR/gitrepo"
 mkdir -p "$GITREPO"
 git -C "$GITREPO" init -q
 printf 'ignored.txt\n' >"$GITREPO/.gitignore"
-OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
-RC=$?
-assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_git_rewrites_worktree_path; then
+  skip "gitignored file → exit 0 (consumer seam)" \
+    "git --show-toplevel spelling diverges from the bash fixture path"
+else
+  OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
+  RC=$?
+  assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
+fi
 
 # Kill switch — disabled path is a clean no-op even on a real machine path.
 OUT=$(CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "$LINUX_HOME")" 2>&1)
@@ -557,11 +582,17 @@ HOMEREPO="$TEST_TMPDIR/homerepo"
 mkdir -p "$HOMEREPO/Desktop"
 git -C "$HOMEREPO" init -q
 HOMEREPO_TL="$(git -C "$HOMEREPO" rev-parse --show-toplevel)"
-OUT=$(HOME="$HOMEREPO_TL" CLAUDE_PROJECT_DIR="$HOMEREPO/Desktop" \
-  bash "$HOOK" <<<"$(write_json "$HOMEREPO/Desktop/run.txt" "path $HOMEREPO/Desktop/data.bin")" 2>&1)
-RC=$?
-assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
-assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_git_rewrites_worktree_path; then
+  skip "F1: home-is-checkout, project = subdir of home → exit 0" \
+    "git --show-toplevel spelling diverges from the bash fixture path"
+else
+  OUT=$(HOME="$HOMEREPO_TL" CLAUDE_PROJECT_DIR="$HOMEREPO/Desktop" \
+    bash "$HOOK" <<<"$(write_json "$HOMEREPO/Desktop/run.txt" "path $HOMEREPO/Desktop/data.bin")" 2>&1)
+  RC=$?
+  assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
+  assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
+fi
 
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
@@ -832,4 +863,5 @@ CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" \
   <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
 assert_exit "MCP: disabled guard allows the write" 0 "$RC"
 
+echo "SKIPPED=$SKIPPED"
 report
