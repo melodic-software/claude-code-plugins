@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-09-28
+## [0.28.8] - 2026-09-28
 
 ### Fixed
 
 - **`os_autoclean.recommendation` acts on a large Windows temp directory** ([#4010](https://github.com/melodic-software/claude-code-plugins/issues/4010)). It stayed `null` whenever Storage Sense was enabled on a schedule, even with 7.0 GB standing in `AppData\Local\Temp`. The advisory now sums the temp directory's regular-file sizes in a read-only walk that follows no links and stops after 100,000 entries, and reports that as `temp_zone`. At or above the new baseline-policy value `os_temp_recommendation_threshold_bytes` (1 GiB), it recommends running Storage Sense now when it is on, turning on temporary-files cleanup when only that is off, or enabling it with a note that a manual run is available either way. The text quotes the detected on/off state, schedule, and scope. Below the threshold the recommendation is `null` whatever the configuration. When a capped walk stays below the threshold, the size proves nothing, and the configuration-only recommendation applies as before. The advisory runs nothing and changes nothing about engine eligibility. systemd-tmpfiles is unchanged.
+
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
 
 ## [0.28.6] - 2026-09-28
 
