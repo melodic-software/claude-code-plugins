@@ -380,6 +380,9 @@ run_win "python open(*a) with a /tmp,'w' tuple (blocked)" "python3 -c \"a=('/tmp
 run_win_pwsh "PS: python open(*a) with a C:/tmp,'w' tuple (blocked)" "python -c \"a=('C:/tmp/x','w'); open(*a).write('a')\"" 2
 run_win "python open(**k) dict literal (blocked)" "python3 -c \"k={'file':'/tmp/x','mode':'w'}; open(**k)\"" 2
 run_win "python open(**k) dict() C:/tmp (blocked)" "python3 -c \"k=dict(file='C:/tmp/x',mode='a'); open(**k)\"" 2
+# An f-string runs code inside its braces, so it never proves a read.
+run_win "python open(f-string running os.system to /tmp) (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(f\'/tmp/x{__import__("os").system("echo a > /tmp/y")}\')\nEOF' 2
 # A proven read must not whitelist a sibling write in the same segment.
 run_win "python read + os.system redirect to /tmp (blocked)" \
   "python3 -c \"open('/etc/hosts').read(); __import__('os').system('echo a > /tmp/y')\"" 2

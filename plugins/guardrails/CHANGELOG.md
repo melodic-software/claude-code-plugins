@@ -18,11 +18,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `encoding=` / `errors=` / `newline=`, then `)`; or `Path('<literal>').open(` with no argument or
   a lone read-mode literal. Any backslash in the command voids the exemption, because the matcher
   sees the slash-normalized string where an escaped quote looks like a close quote. Everything
-  else still blocks: a write or unknown mode, a mode in a variable, `*` / `**` unpacking, a nested
+  else still blocks: a write or unknown mode, a mode in a variable, an f-string path, `*` / `**` unpacking, a nested
   call inside `open(`, `os.open`, `popen(` / `fdopen(`, and `write_text(` / `write_bytes(` /
   `makedirs(`. A drive-root path outside the read call also blocks, so a `/tmp` argv operand read
   through `sys.argv`, or issue prose quoting `open(...)` beside a `/tmp` path, still blocks.
-  Eight read shapes are pinned as allowed (each exited 2 before the fix), and thirty-nine write or
+  Eight read shapes are pinned as allowed (each exited 2 before the fix), and forty write or
   unproven spellings are pinned as still blocked (#3951).
 
 ## [0.41.3] - 2026-09-28

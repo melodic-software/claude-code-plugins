@@ -495,7 +495,7 @@ out of scope until such a signal exists.
   it is a provable read and, with those read calls cut out, no drive-root path
   is left, so `json.load(open('/tmp/x.json'))` in a `python3 -` heredoc is
   allowed but a read beside `os.system('… > /tmp/y')` is not. A bare `open(` is
-  a read when its one argument is a single whole quoted literal or an unquoted
+  a read when its one argument is a single whole plain (not f-string) quoted literal or an unquoted
   run free of commas, parens, quotes, `#` and `*`, then an optional read-mode
   literal (only `r`, `b`, `t`), optional literal `encoding=` / `errors=` /
   `newline=`, then `)`. `Path('<literal>').open(` is a read with no argument or

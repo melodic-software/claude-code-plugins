@@ -525,7 +525,8 @@ segment_downloader_output_operand() {
 # Provable read, bare `open(`: one argument (a single whole quoted literal, or an
 # unquoted run free of , ( ) quotes # and *), an optional read-mode literal
 # (only r/b/t), optional literal encoding=/errors=/newline=, then `)`. Quotes
-# pair by type, so a `)` hidden in a string or comment cannot end the match; `*`
+# pair by type, so a `)` hidden in a string or comment cannot end the match; an
+# f-string is not a plain literal (its `{…}` runs code), so it never proves; `*`
 # is excluded so `open(*a)` / `open(**k)` cannot smuggle a mode. Method form: a
 # `Path('<literal>').open(` receiver with no argument or a lone read-mode literal
 # (the receiver is cut with the call); any other `.open(` keeps its receiver, so
@@ -536,9 +537,9 @@ segment_downloader_output_operand() {
 _PY_LIT="(\"[^\"]*\"|'[^']*')"
 _PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
 _PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_PY_LIT}"
-_PY_BARE_OPEN_READ="^[[:space:]]*([rbfu]*${_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
+_PY_BARE_OPEN_READ="^[[:space:]]*([rbu]*${_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
 _PY_METHOD_OPEN_READ="^[[:space:]]*(${_PY_READ_MODE}[[:space:]]*)?\)"
-_PY_PATH_RECEIVER="(^|[^[:alnum:]_])((pathlib\.)?path\([[:space:]]*[rbfu]*${_PY_LIT}[[:space:]]*\)\.)$"
+_PY_PATH_RECEIVER="(^|[^[:alnum:]_])((pathlib\.)?path\([[:space:]]*[rbu]*${_PY_LIT}[[:space:]]*\)\.)$"
 _PY_RAW_HAS_BACKSLASH=0
 [[ "$COMMAND" == *\\* ]] && _PY_RAW_HAS_BACKSLASH=1
 segment_opens_only_for_read() {
