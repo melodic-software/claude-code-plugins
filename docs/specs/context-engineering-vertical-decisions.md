@@ -108,6 +108,22 @@ consumer here. Named rather than invented.
   handoff artifacts, per-skill ledgers, the topic memory slice), and a new cross-cutting convention
   would collide with the topic-docs redesign already locked and in flight. **Not adopted**, and the
   reason is sequencing, not disagreement.
+- **Standing precondition on any future notes-file convention (G-SEC, #3566).** A notes file is
+  read back into context on later turns and sessions, so a one-time injection written into it
+  returns as if it were the agent's own earlier conclusion. The convention that mandates one must
+  carry the poisoning caution at birth, not in a later pass. Notes are untrusted input on re-read,
+  framed at the re-read site under the
+  [untrusted-content](../conventions/untrusted-content/README.md) contract. Nothing enters a note
+  verbatim from a surface the writer does not control unless it is marked as quoted data. A note
+  holds no secret or credential. Each project's notes are isolated from the others'. Prompt-level
+  instructions to ignore embedded commands are not enough on their own; the critical apparatus
+  row T8-A008 records that gap. Basis: the memory cookbook's "Security: Memory Poisoning"
+  section, which labels it a Critical Risk and names content sanitization, scope isolation,
+  auditing, and prompt engineering as mitigations. Verified 2026-09-28 against
+  <https://platform.claude.com/cookbook/tool-use-memory-cookbook>. Recheck when that section is
+  removed or its mitigations change, or when a notes-file convention is proposed. This
+  precondition lives here, beside the decision that deferred the convention, so it fires when
+  the convention is written.
 - **Compaction**: harness-owned. The corpus's tuning guidance (maximize recall first, then trim for
   precision; clear tool results before summarizing) applies to anyone *building* an agent loop, not
   to this repo's consumers. Recorded, not adopted.
