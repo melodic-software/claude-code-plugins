@@ -391,11 +391,18 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         server.shutdown()
         server.server_close()
         if proc and proc.poll() is None:
-            os.killpg(proc.pid, signal.SIGTERM)
+            # os.killpg is POSIX only; Windows has no process group to signal here.
+            if hasattr(os, "killpg"):
+                os.killpg(proc.pid, signal.SIGTERM)
+            else:
+                proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                os.killpg(proc.pid, signal.SIGKILL)
+                if hasattr(os, "killpg"):
+                    os.killpg(proc.pid, signal.SIGKILL)
+                else:
+                    proc.kill()
         shutil.rmtree(profile, ignore_errors=True)
 
 

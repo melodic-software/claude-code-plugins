@@ -78,7 +78,12 @@ check silhouettes against the background, palette contrast, beat timing, text le
 non-integer or smoothed pixels. Fix, rebuild, re-run the same command. Stop when every done
 criterion passes, or after the round budget (typically 2 to 4) with the failing criteria named.
 
-Exit 3 prints `visually unreviewed`. Say that the scene is visually unreviewed. Do not claim it
+Exit 3 means no Chrome or Chromium on `PATH` (set `CAPTURE_BROWSER` to a browser binary, such as
+Playwright's Chromium, to point it at one). When a browser automation tool is present instead (a
+Playwright CLI or MCP, the built-in browser tools), serve the output directory over
+`http://127.0.0.1:<port>/`, call `window.__pixelScene.seek(t)` at the same timeline points, take
+the screenshots with that tool, and review them as above. With neither, exit 3's
+`visually unreviewed` stands. Say that the scene is visually unreviewed. Do not claim it
 looks right. Check the script parses (`node --check` on the extracted script when Node is
 present), grade whatever criteria the script can speak to, mark the rest fail with the reason
 "not seen", and ask the user to open it and describe what they see.
