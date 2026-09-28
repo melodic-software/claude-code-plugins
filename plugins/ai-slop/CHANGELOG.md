@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.2] - 2026-09-28
+
+### Changed
+
+- **Four config-cascade reader idioms stay in `detect.sh` (#3419).** `cfg_scalar`,
+  `cfg_array`, the `rule_allowed_paths` per-slug loop, and the `phrase_add` /
+  `phrase_remove` presence-keyed reader keep their own last-layer-wins, jq-exit,
+  and CR-strip logic. A cascade-reader module is unpaid. Recorded in
+  `skills/audit/reference/cascade-readers.md`.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed
