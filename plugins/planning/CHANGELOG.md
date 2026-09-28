@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0] - 2026-09-28
+
+### Fixed
+
+- **`plan` nested reviews carry brevity, effort, and cost disclosure**
+  ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)). New
+  `agents/plan-reviewer.md` with bounded `effort` and `maxTurns`; Step 3 dispatches it instead of a
+  generic sub-agent after surfacing cost. Step 4 surfaces cost before `/planning:devils-advocate`.
+  Reviewer prompt asks for brief reasoning and a findings table only.
+
 ## [0.44.9] - 2026-09-28
 
 ### Fixed
