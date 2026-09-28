@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-09-28
+
+### Changed
+
+- **Interview page backlog after V1 is recorded
+  ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).**
+  `surface/backlog-after-v1.md` keeps the SPEC section 11 list in-tree. Hedged
+  kind and the register gate wait on #4611. Accept-all and the hidden-tab badge
+  are build-later. SQLite, several sessions, Mermaid, composer extras, and the
+  rest stay parked. No page code in this release.
+
 ## [0.45.0] - 2026-09-28
 
 ### Fixed

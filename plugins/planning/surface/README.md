@@ -14,6 +14,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 | `exporters.py` | Claude | `export-ledger`, `export-brief`, `export-report`, `import-ledger` (called through `round.py`) |
 | `schema.py`, `schema/*.schema.json` | shared | JSON Schemas for the question, response, event, visual and ops files, and the stdlib validator `round.py` applies on every write |
 | `test_*.py`, `*.test.sh`, `tests/` | tests | Python `unittest` suites, shell suites, browser suites and fixtures |
+| `backlog-after-v1.md` | docs | Recorded build / drop / park table for the V1 remainder (#4653) |
 
 Per data dir: `questions.json` (Claude, through `round.py`), `responses.json` (server only: the event log and derived answers), optional `settings.json` and `theme.json`, and runtime files never exported (`.interview-session.json`, `.interview-session.env`, `.watch-seq`, `.watch-replay`, `questions.json.lock`).
 
