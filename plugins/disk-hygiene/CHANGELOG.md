@@ -15,6 +15,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   approval, or revalidation. Unknown owners stay `keep` and are asked once;
   a human answer is not asked again while identity holds.
 
+## [0.28.2] - 2026-09-28
+
+### Changed
+
+- **macOS engine execution stays behind the platform-name gate**
+  ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
+  reversal trigger has not fired. The safety model quotes it and records the four-part
+  2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
+  change. Version is 0.28.2 so it serializes after 0.28.1 on main.
+
 ## [0.28.1] - 2026-09-28
 
 ### Changed
