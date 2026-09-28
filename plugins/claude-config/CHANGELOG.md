@@ -34,6 +34,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   I21 drops the "Opus 5 has no hold" sentence for the current model-config page: Opus 5.5 ignores
   a top-level user `effortLevel`, and that key still applies on Opus 5, Fable 5.1, and earlier
   models. Each claim cites the page read on 2026-09-28.
+
 ## [0.51.10] - 2026-09-28
 
 ### Changed

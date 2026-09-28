@@ -303,7 +303,6 @@ Three Claude Code 2.1.257 to 2.1.263 capabilities stay out of the launcher.
   `--resume` row documents combining it with `--bg`, including what happens
   to the prompt and the session name.
 
-
 ## Gotchas
 
 - **No durable prompt home.** `.work/lanes` is a sanctioned home, not a durable one:

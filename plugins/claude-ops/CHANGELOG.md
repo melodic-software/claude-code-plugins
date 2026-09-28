@@ -9,6 +9,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
 - **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+
 ## [0.63.16] - 2026-09-28
 
 ### Changed
@@ -39,7 +40,6 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **Lane restart does not use `claude --resume <id> --bg`.** The decline is recorded on `lanes` with the four-part record. Restart stays stop plus a fresh seeded launch.
 - **`audit-native-overlap` nominates the stale sandbox-mask warning.** The seeded `doctor` / `audit-install-state` pair names the `claude doctor` warning for 0-byte placeholders a killed session leaves. That note is a candidate, not a verdict.
-
 
 ## [0.63.0] - 2026-09-28
 
