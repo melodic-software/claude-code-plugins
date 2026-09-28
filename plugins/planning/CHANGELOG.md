@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.12] - 2026-09-28
+
+### Changed
+
+- **interview: park ledger row grammar redesign ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).** `reference/ledger-row-grammar-settle.md` records Claim/Basis, Option A (unified field grammar) vs Option B (per-shape patches), and defers exporter changes until a human approves Option A.
+
 ## [0.44.11] - 2026-09-28
 
 ### Added
