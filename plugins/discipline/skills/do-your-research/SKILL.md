@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor research and no-assumptions discipline, then audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. To verify every claim in the session, use do-your-research-deep."
+description: "Re-anchor no-assumptions research discipline; audit and correct the work and pending recommendations. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', or at conversation start. All claims: do-your-research-deep."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -104,6 +104,22 @@ premature solution from the actual problem, and flag whatever stays
 unverifiable, naming where you looked, rather than smoothing over it. Where your own judgment is
 the suspected source of bias, re-derive in a fresh-context subagent.
 
+## Pending recommendations are an audit unit
+
+Every recommendation the session has put to the user and the user has not
+yet settled is audited too, whether it is an option, verdict, default, or
+next step. Apply the contract in
+[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
+ground the affected code and its consumers or blast radius through
+`/discovery:explore`, and current consensus through `/discovery:research`,
+when the `discovery` plugin is installed; without it, do the same reads and
+fetches inline. Report each as old → new → why when the evidence moved it,
+or unchanged with why, in one of the contract's three outcomes:
+`Basis: verified`, `Basis: judgment` (never on a consequential one), or
+withheld as an open question naming the evidence that would settle it.
+This runs inside the
+loop's audit and correct-forward steps, so it is not a step delta.
+
 ## Escalating to a verification fan-out
 
 When your own judgment is the suspected source of bias across MANY
@@ -120,6 +136,13 @@ at a configurable depth, and reports a per-item ledger.
   fits those.
 - **Does not fabricate a citation or a violation.** An honest "nothing to
   correct" or "this stays unverified" is the right output when true.
+
+## Next
+
+/discipline:do-your-research-deep [tiered|full]
+
+When many load-bearing claims or recommendations need provable coverage,
+the fan-out tier verifies each one as a ledger row.
 
 ## Gotchas
 
