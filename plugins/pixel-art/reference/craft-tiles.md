@@ -27,7 +27,9 @@ Sources: [Saint11 Tiles](https://saint11.art/img/pixel-tutorials/Tiles.gif),
 
 ## Autotile sets: pick by engine
 
-The "Use when" column's Godot pairings are judgment; the Godot 3 bitmask mapping is unverified.
+The Godot 4 mode names in "Use when" follow `engine-layouts.md` (class reference plus the TileSets
+tutorial). The tutorial says the three modes correspond to Godot 3's 2×2, 3×3, and 3×3-minimal
+bitmasks and does not zip them; the zip used here is the one in `engine-layouts.md`.
 
 | Set | Drawn tiles | Covers | Use when |
 |---|---|---|---|
@@ -36,7 +38,7 @@ The "Use when" column's Godot pairings are judgment; the Godot 3 bitmask mapping
 | RPG Maker quarter-tile | one 2x3 (floor) or 2x2 (wall) block | 48 floor / 16 wall shapes, composed by the engine | RPG Maker MV/MZ A1-A4 |
 
 - Blob = 47 of the 256 edge-plus-corner combinations, because a corner counts only when both
-  adjacent edges are filled. [boristhebrave; second source: redblobgames autotile article (no URL)]
+  adjacent edges are filled. (single source: boristhebrave)
 - The corner-only set needs 16 tiles; that it equals marching squares is derived, not quoted.
   [boristhebrave]
 - RPG Maker stores quarter pieces, not whole tiles; each final tile is 4 quarters (TL, TR, BL, BR),

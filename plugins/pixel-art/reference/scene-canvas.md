@@ -15,8 +15,11 @@ brackets; "(judgment)" marks a rule no source states.
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled)).
 - Set `imageSmoothingEnabled` again after every canvas resize, which resets context state
   (judgment).
-- Set CSS `image-rendering: pixelated` on the canvas (unverified; see
-  [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/image-rendering)).
+- Set CSS `image-rendering: pixelated` on the canvas. `pixelated` scales with nearest neighbor to
+  an integer multiple, then may smooth to the final size; `crisp-edges` keeps contrast and does
+  not smooth. The campfire example sets both.
+  ([MDN image-rendering](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/image-rendering);
+  as-of 2026-09-28; recheck trigger: that page dropping `pixelated` or `crisp-edges`).
 - Draw at integer coordinates only: `Math.floor` every x and y before `fillRect` or `drawImage`
   (judgment; fractional coordinates blend edges).
 

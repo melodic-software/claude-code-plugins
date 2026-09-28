@@ -86,6 +86,20 @@
         "Reads an existing brief.md on a re-run instead of re-asking",
         "Does not require /planning:interview; that offer is presence-gated and optional"
       ]
+    },
+    {
+      "id": 8,
+      "name": "vague-brief-states-defaults",
+      "prompt": "make me a pixel-art character",
+      "expected_output": "Fires /pixel-art:sprite. The request names a subject but no size, palette, view, or done criterion, so it is vague. Offer /planning:interview only if the planning plugin is installed, and do not start it unless the user accepts. Otherwise continue with the in-skill brief: ask only for the subject details that change the pixels, state every other omitted field as a default in one line, and write brief.md with at least the two default done criteria before the first render.",
+      "files": [],
+      "expectations": [
+        "Invokes the sprite skill",
+        "Treats the request as vague because it has no checkable done criterion",
+        "Offers /planning:interview only when the planning plugin is installed, and does not start it without acceptance",
+        "States omitted fields as defaults in one line",
+        "Writes brief.md before the first render"
+      ]
     }
   ]
 }

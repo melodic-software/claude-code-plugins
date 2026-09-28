@@ -135,14 +135,20 @@ recheck trigger: the store page showing a release date or U2U publishing its own
   relative / (fps x |speed|)). The editor slices a sheet by horizontal and vertical counts, so
   `sheet.columns` = horizontal count, rows = vertical count.
 - `TileSet`: `TileSetAtlasSource` over a texture with region size, margins, separation. Terrain
-  modes: Match Corners and Sides, Match Corners, Match Sides (the exact pairing with Godot 3's 2x2,
-  3x3, 3x3-minimal bitmasks is unverified). Animated tiles carry per-frame durations.
+  modes, from `TileSet.TerrainMode`: Match Corners and Sides (corners and sides must match),
+  Match Corners (corners must match), Match Sides (sides must match). The TileSets tutorial says
+  those three modes correspond to Godot 3's 2×2, 3×3, and 3×3-minimal bitmasks and does not zip
+  the names in that sentence. Pairing used here (judgment; the tutorial does not zip the names): Match Corners and
+  Sides is the 8-neighbor blob (47 tiles, see `craft-tiles.md`), Match Corners is the 4-corner
+  2×2 set (16 tiles), Match Sides is the side-only 3×3-minimal set. Animated tiles carry per-frame
+  durations.
 - Pixel fonts: BMFont `.fnt` or an Image Font on a glyph grid; Nearest filter, integer size.
 - Verification record: basis = [SpriteFrames](https://docs.godotengine.org/en/stable/classes/class_spriteframes.html),
   [Using TileSets](https://docs.godotengine.org/en/stable/tutorials/2d/using_tilesets.html),
+  [TileSet.TerrainMode](https://docs.godotengine.org/en/stable/classes/class_tileset.html#enum-tileset-terrainmode),
   [Using fonts](https://docs.godotengine.org/en/stable/tutorials/ui/gui_using_fonts.html) at 4.7.2;
-  as-of 2026-09-23; recheck trigger: a Godot 4.8 (or later) release whose notes touch SpriteFrames,
-  TileSet, or font import.
+  as-of 2026-09-28; recheck trigger: a Godot 4.8 (or later) release whose notes touch SpriteFrames,
+  TileSet, or font import. The 47/16 tile counts are owned by `craft-tiles.md`.
 
 ## PICO-8
 
@@ -164,5 +170,11 @@ recheck trigger: the store page showing a release date or U2U publishing its own
 
 ## Unity
 
-Unverified; see [Unity Manual](https://docs.unity3d.com/Manual/index.html). Emit a uniform
-grid so cell-size slicing can consume it (judgment).
+- Sprite Mode Multiple, then the Sprite Editor Slice overlay. Type **Grid By Cell Size** cuts the
+  texture into equal rectangles; Pixel Size is the cell width and height. Grid By Cell Count cuts
+  by row and column counts instead. Padding and offset are optional.
+- Emit a uniform grid (`sheet.columns` by the cell size) so that slicer can consume it (the grid
+  itself is what the manual slices; which cell size to pick for a given character is judgment).
+- Verification record: claim = Grid By Cell Size and Pixel Size, as named above. Basis =
+  [Sprite Editor Slice overlay](https://docs.unity3d.com/Manual/sprite/sprite-editor/sprite-editor-window-reference.html).
+  As-of 2026-09-28. Recheck trigger: that page renaming Grid By Cell Size or Pixel Size.

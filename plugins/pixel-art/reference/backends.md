@@ -43,32 +43,62 @@ skip that feature, continue with the documented reduced result.
   `--split-layers|--split-tags|--split-slices`, `--tag`, `--filename-format`
   ([CLI docs](https://www.aseprite.org/docs/cli/); as-of 2026-09-23; recheck trigger: an Aseprite
   release past v1.3.18.6 whose notes touch CLI export).
-- Unverified: `--batch` (headless run) and `--script <file.lua>` (Lua scripting to build a sprite
-  from the spec) are unverified; see [CLI docs](https://www.aseprite.org/docs/cli/) and
-  [scripting docs](https://www.aseprite.org/docs/scripting/) before use.
-- Detect: `aseprite --version` succeeds (unverified flag; same URL).
-- Cost and license: paid, not open source under its own EULA (unverified; see
-  [aseprite.org](https://www.aseprite.org/)). Do not quote a price.
+- `--batch` does not start the UI. `--script <filename>` runs that Lua file. `--script-param
+  name=value` is `app.params` inside the script. `--version` prints the version and exits.
+  Basis: [CLI docs](https://www.aseprite.org/docs/cli/). As-of 2026-09-28. Recheck trigger: an
+  Aseprite release whose CLI page drops one of those options.
+- A script that builds a sprite from a spec can use `Sprite`, `Image:drawPixel`,
+  `app.pixelColor.rgba`, `Sprite:newTag`, `Sprite:saveAs`, and `json.decode`. Basis:
+  [Sprite](https://www.aseprite.org/api/sprite),
+  [Image:drawPixel](https://www.aseprite.org/api/image#imagedrawpixel),
+  [pixelColor](https://www.aseprite.org/api/pixelcolor),
+  [json](https://www.aseprite.org/api/json). As-of 2026-09-28. Recheck trigger: one of those
+  pages renaming a function named here.
+- Detect: `aseprite --version` exits 0 (same CLI page).
+- Cost and license: the CLI page does not state a price. Do not quote one. The
+  [EULA](https://github.com/aseprite/aseprite/blob/main/EULA.txt) licenses the program and
+  forbids distributing copies of it; it is not an OSI license grant. As-of 2026-09-28.
+  Recheck trigger: that EULA gaining a price or an open-source grant.
 - Contract: build the sprite from the spec (script or import of the native `sheet.png`), export
   with `--sheet sheet.png --data sheet.json --format json-hash`, then render `preview.png` and GIFs
   natively from the same spec. Document that its `sheet.json` is the real Aseprite shape.
 
 ## PixelLab (API / MCP)
 
-- Adds: model-generated pixel art from text or a reference image, including rotations and
-  animation frames (unverified; see [pixellab.ai](https://www.pixellab.ai/)).
-- Detect: a PixelLab MCP server listed in the session's tools, or an API key the user configured.
-  Endpoint names, MCP server name, and auth scheme: unverified (same URL).
-- Cost and license: paid tiers and output-license terms unverified (same URL). Confirm before use.
+- Adds: a text-to-image call. Rotations and animation are separate endpoints on the same API.
+- Call: `POST https://api.pixellab.ai/v1/generate-image-pixflux` with `Authorization: Bearer` and
+  a body of `description` plus `image_size` `{width, height}`. The image comes back as
+  `image.base64` (a PNG data URL). `usage.usd` is the reported charge. The v1 docs put the area
+  bounds on that call; do not send a canvas outside them.
+- Detect: `PIXELLAB_API_TOKEN` (the docs call it the API token). The v1 docs page fetched for
+  this record does not name an MCP package. If the session already has a PixelLab image, snap
+  that file; do not call the API again.
+- Cost and license: each successful call reports `usage.usd`. The API reference does not state
+  an output license. Confirm before the first call in a session. Do not quote a price table.
+- Verification record: claim = the endpoint, bearer scheme, body, `image.base64`, and `usage.usd`.
+  Basis: [PixelLab API v1](https://api.pixellab.ai/v1/docs), Generate image (pixflux). As-of
+  2026-09-28. Recheck trigger: that page renaming `generate-image-pixflux`, the bearer scheme, or
+  `usage.usd`.
 - Contract: treat output as raw pixels. Run the image-model pipeline below, then render natively.
 
 ## Retro Diffusion (API / MCP)
 
-- Adds: pixel-art image generation with palette and size controls (unverified; see
-  [retrodiffusion.ai](https://www.retrodiffusion.ai/)).
-- Detect: a Retro Diffusion MCP server in the session's tools, or a configured API key. Endpoints,
-  MCP availability, and auth: unverified (same URL).
-- Cost and license: credit pricing and output license unverified (same URL). Confirm before use.
+- Adds: text-to-image (and, on other styles, animation and tilesets) through the HTTP API.
+- Call: `POST https://api.retrodiffusion.ai/v2/inferences` with header `X-RD-Token` and an
+  `Idempotency-Key`. Body fields used here: `prompt`, `prompt_style`, `width`, `height`,
+  `num_images`. The POST returns `task_id`. Poll `GET /v2/inferences/tasks/{task_id}` until
+  `status` is `succeeded`. Images are raw base64 PNG in `result.base64_images`.
+  `result.balance_cost` is the USD charge. The quick-start style id is `rd_plus__default`.
+- Detect: `RD_API_KEY` (keys on that page start with `rdpk-`). Agent MCP is
+  `https://mcp.retrodiffusion.ai/mcp` with `Authorization: Bearer` and the same key. An image
+  that already came back from that server is snapped; it is not generated again.
+- Cost and license: the call spends prepaid USD balance and the task reports `balance_cost`.
+  Confirm before the first call in a session. Do not invent a credit-to-USD rate.
+- Verification record: claim = the v2 URL, `X-RD-Token`, the idempotency header, the task poll,
+  `base64_images`, `balance_cost`, and the MCP URL. Basis:
+  [api-examples README](https://github.com/Retro-Diffusion/api-examples/blob/main/README.md).
+  As-of 2026-09-28. Recheck trigger: that README moving the default base URL off `/v2` or
+  renaming `X-RD-Token`.
 - Contract: image-model pipeline below, then native render.
 
 ## General image models

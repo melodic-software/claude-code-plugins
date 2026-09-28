@@ -3,6 +3,19 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- Reference review (#4406). Aseprite `--batch`, `--script`, `--version`, and the scripting calls
+  the backend section names are stamped against the CLI and API pages. PixelLab and Retro Diffusion
+  name the checked endpoints instead of an unverified placeholder. Godot terrain modes cite
+  `TileSet.TerrainMode` and the TileSets tutorial. Unity slice cites the Sprite Editor page.
+  `image-rendering: pixelated` cites MDN. The blob-autotile count is marked single-source.
+- Evals for `sprite`, `animate`, and `scene` add a vague brief, a Godot sheet layout, and a
+  refusal to claim a visual review when no browser tool is used. Cases that name a hypothetical
+  `./watchman/` path set `narration` so the quality lint does not look for a fixture.
+
 ## [0.3.0]
 
 ### Added

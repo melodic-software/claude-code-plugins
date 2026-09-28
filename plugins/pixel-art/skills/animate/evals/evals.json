@@ -90,11 +90,38 @@
       "prompt": "animate the watchman spec in ./watchman/watchman.json, which already has ./watchman/brief.md beside it: a 4-direction walk, plain PNG strip. Done when contact and passing poses differ in every direction.",
       "expected_output": "Fires /pixel-art:animate. Reads the existing brief.md and extends it with cycles, directions, and layout instead of re-asking subject, proportions, or style. Writes the extended brief before the first render. Each review round marks every done criterion pass or fail with a one-line reason.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Reads the brief.md beside the reused spec instead of re-asking those fields",
         "Extends the brief with cycles, directions, and the target layout",
         "Writes the extended brief before the first render",
         "Each review round marks each done criterion pass or fail"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "godot-spriteframes-layout",
+      "prompt": "4-direction walk cycle for Godot AnimatedSprite2D, a 32x32 scout",
+      "expected_output": "Fires /pixel-art:animate. Reads engine-layouts.md and lays the sheet out for Godot 4 SpriteFrames: sheet.columns is the horizontal frame count, each direction is a named animation, and durations are relative frame durations rather than an RPG Maker cell. Renders with render.py and reviews motion from preview.png.",
+      "files": [],
+      "expectations": [
+        "Invokes the animate skill",
+        "Takes the Godot AnimatedSprite2D layout from engine-layouts.md",
+        "Sets sheet.columns to the horizontal frame count",
+        "Reviews motion from preview.png"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "vague-animate-brief-states-defaults",
+      "prompt": "animate something",
+      "expected_output": "Fires /pixel-art:animate only if the user is asking for pixel-art motion; the subject is missing, so the brief asks for the subject and does not invent a character. Omitted cycle, direction, and layout fields are one defaults line. Offer /planning:interview only when the planning plugin is installed. Do not render a sheet before brief.md exists.",
+      "files": [],
+      "expectations": [
+        "Does not invent a subject the request never named",
+        "States omitted cycle, direction, and layout choices in one defaults line",
+        "Offers /planning:interview only when the planning plugin is installed",
+        "Writes the brief before the first render"
       ]
     }
   ]
