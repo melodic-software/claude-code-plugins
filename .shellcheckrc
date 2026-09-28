@@ -1,15 +1,15 @@
-# ShellCheck configuration — repo-agnostic shell-quality ruleset.
+# ShellCheck configuration: repo-agnostic shell-quality ruleset.
 # ShellCheck searches for this file from each script's directory upward; CI
 # points at this root-canonical file explicitly with --rcfile.
 #
 # Ref: https://github.com/koalaman/shellcheck/wiki/Optional
 # Targets ShellCheck 0.11.0+.
 #
-# Optional checks are selectively enabled — NOT enable=all. The ShellCheck wiki
+# Optional checks are selectively enabled; NOT enable=all. The ShellCheck wiki
 # warns against enable=all: "optional checks are more subjective rather than
 # more comprehensive, and may conflict with each other".
 
-# Default shell dialect — scripts target bash.
+# Default shell dialect: scripts target bash.
 shell=bash
 
 # Resolve `source`d files at lint time (no remote fetch; analysis only).
@@ -20,24 +20,24 @@ source-path=SCRIPTDIR
 
 # --- Optional checks (selectively enabled) ---
 
-# Suggest a default *) case in case statements — catches missing fallthrough.
+# Suggest a default *) case in case statements: catches missing fallthrough.
 enable=add-default-case
 
-# Suggest [ a -ne b ] over [ ! a -eq b ] — reduces cognitive load.
+# Suggest [ a -ne b ] over [ ! a -eq b ]: reduces cognitive load.
 enable=avoid-negated-conditions
 
-# Suggest explicit [ -n "$var" ] over [ "$var" ] — clarity of intent.
+# Suggest explicit [ -n "$var" ] over [ "$var" ]: clarity of intent.
 enable=avoid-nullary-conditions
 
-# Notify when set -e is suppressed during function invocation in conditionals —
+# Notify when set -e is suppressed during function invocation in conditionals:
 # catches the bash trap where errexit silently stops working inside if/while/&&/||.
 # Ref: https://github.com/koalaman/shellcheck/wiki/SC2310
 enable=check-set-e-suppressed
 
-# Warn on unassigned uppercase variables — catches typos in UPPER_SNAKE globals.
+# Warn on unassigned uppercase variables: catches typos in UPPER_SNAKE globals.
 enable=check-unassigned-uppercase
 
-# Suggest command -v over which — POSIX standard, more reliable.
+# Suggest command -v over which: POSIX standard, more reliable.
 enable=deprecate-which
 
 # Require [[ ]] over [ ] in bash (SC2292). A script that intentionally uses
@@ -45,7 +45,7 @@ enable=deprecate-which
 # `# shellcheck disable=SC2292` (disable directives take SC codes, not names).
 enable=require-double-brackets
 
-# Re-enable useless-use-of-cat — was default before 0.11.0, now optional.
+# Re-enable useless-use-of-cat: was default before 0.11.0, now optional.
 enable=useless-use-of-cat
 
 # --- NOT enabled (with rationale) ---
@@ -54,10 +54,10 @@ enable=useless-use-of-cat
 #   substitutions that intentionally capture output; deliberate `2>/dev/null ||
 #   true` patterns would fire on every `var=$(cmd)`.
 
-# quote-safe-variables (SC2248): conflicts with require-variable-braces (SC2250)
-#   — one wants "$var", the other ${var}; together they demand "${var}"
+# quote-safe-variables (SC2248): conflicts with require-variable-braces (SC2250);
+#   one wants "$var", the other ${var}; together they demand "${var}"
 #   everywhere. SC2086 (default, non-optional) already catches dangerous unquoted
 #   expansions.
 
-# require-variable-braces (SC2250): too verbose — $var is clear in most contexts;
+# require-variable-braces (SC2250): too verbose, since $var is clear in most contexts;
 #   ${var} is only needed when concatenating adjacent characters (${var}_suffix).

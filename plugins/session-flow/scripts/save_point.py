@@ -14,11 +14,14 @@ Usage:
     save_point.py fill <file> --slots <json>
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
+    save_point.py memory-root
 
 Exit codes:
     new       0 written (prints the file's absolute forward-slash path)
               1 refused: root-equivalent memory dir, memory root without the
-                self-ignore `.gitignore` (`*`), no session UUID / bridge-shaped
+                self-ignore `.gitignore` (`*`), no --memory-dir outside a git
+                work tree with no plugin data dir to fall back to (neither
+                $CLAUDE_PLUGIN_DATA nor an installed cache layout), no session UUID / bridge-shaped
                 id, predecessor unreadable or outside the handoffs dir, target
                 already exists
               2 usage (neither or both of --previous / --no-previous, bad slug)
@@ -47,6 +50,11 @@ Exit codes:
               1 section absent (shape 1 says so) or the file still carries a
                 `<!-- FILL` slot (unfinished skeleton, never emitted)
               2 usage / unreadable
+    memory-root
+              0 printed the absolute forward-slash memory root `new` uses
+                without --memory-dir (`.work` in a git work tree, else the
+                plugin data dir's `topic-docs`)
+              1 no git work tree and no plugin data dir
 
 Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` keeps
 the target its own line endings; stdout/stderr are reconfigured to UTF-8 so
@@ -1333,6 +1341,40 @@ def _git_toplevel(start: Path) -> Path | None:
     return Path(result.stdout.strip()).resolve()
 
 
+def _plugin_data_root() -> Path | None:
+    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when set, else derived
+    from this script's install path. Claude Code does not export the variable
+    to Bash-tool commands, so the derivation is the normal case in a session.
+    An installed plugin runs from ``<config>/plugins/cache/<marketplace>/
+    <plugin>/<version>/``, and its data dir is ``<config>/plugins/data/<id>/``
+    where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
+    than a letter, digit, ``_`` or ``-`` replaced by ``-``. Any other layout
+    (``--plugin-dir``, a source checkout) has no derivable id: None."""
+    env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+    if env:
+        return Path(env).expanduser()
+    version_dir = _SCRIPTS_DIR.parent
+    plugin_dir = version_dir.parent
+    marketplace_dir = plugin_dir.parent
+    cache_dir = marketplace_dir.parent
+    if cache_dir.name != "cache" or cache_dir.parent.name != "plugins":
+        return None
+    plugin_id = re.sub(
+        r"[^A-Za-z0-9_-]", "-", f"{plugin_dir.name}@{marketplace_dir.name}"
+    )
+    return cache_dir.parent / "data" / plugin_id
+
+
+def _default_memory_dir() -> Path | None:
+    """``.work`` under a git top level; the topic-docs no-project-root
+    fallback (``<plugin data>/topic-docs``) outside one. None when there is
+    no project root and no plugin data dir to fall back to."""
+    if _git_toplevel(Path.cwd()) is not None:
+        return Path(".work")
+    data_root = _plugin_data_root()
+    return data_root / "topic-docs" if data_root is not None else None
+
+
 def _git_origin(repo_root: Path) -> str | None:
     try:
         result = subprocess.run(
@@ -1650,6 +1692,17 @@ def build_skeleton(
     return "\n".join(fm + body) + "\n"
 
 
+def cmd_memory_root(args: argparse.Namespace) -> int:
+    root = _default_memory_dir()
+    if root is None:
+        return _die(
+            1,
+            "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache",
+        )
+    print(root.expanduser().resolve().as_posix())
+    return 0
+
+
 def cmd_new(args: argparse.Namespace) -> int:
     slug = args.topic
     if not SLUG_RE.match(slug):
@@ -1668,7 +1721,18 @@ def cmd_new(args: argparse.Namespace) -> int:
         )
     session_id = session_id.lower()
 
-    memory_dir = Path(args.memory_dir or ".work").expanduser().resolve()
+    if args.memory_dir:
+        memory_dir = Path(args.memory_dir).expanduser().resolve()
+    elif args.repo_root:
+        memory_dir = Path(".work").resolve()
+    else:
+        default = _default_memory_dir()
+        if default is None:
+            return _die(
+                1,
+                "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache; pass --memory-dir <root> explicitly",
+            )
+        memory_dir = default.expanduser().resolve()
     repo_root = (
         Path(args.repo_root).expanduser().resolve()
         if args.repo_root
@@ -1821,7 +1885,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_new.add_argument(
         "--memory-dir",
-        help="memory root (default .work); handoffs go to <root>/handoffs/",
+        help="memory root (default .work inside a git work tree; outside one, the plugin data dir's topic-docs/); handoffs go to <root>/handoffs/",
     )
     p_new.add_argument(
         "--session-id", help="session UUID (default: $CLAUDE_CODE_SESSION_ID)"
@@ -1860,6 +1924,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_emit.add_argument("file")
     p_emit.set_defaults(func=cmd_emit)
+
+    p_root = sub.add_parser(
+        "memory-root", help="print the memory root `new` uses without --memory-dir"
+    )
+    p_root.set_defaults(func=cmd_memory_root)
     return parser
 
 

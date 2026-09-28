@@ -572,6 +572,16 @@ predecessor flags). It never overwrites. A refusal for a missing or non-UUID ses
 save-point to the prompt-only path with that reason stated (`save-point.md` "Choosing the path");
 every other refusal names its fix.
 
+**No project root** (step 2's `git rev-parse --show-toplevel` fails): the procedure takes the
+binding's no-project-root branch ([`topic-docs.md`](topic-docs.md)). Interactive, ask for a
+location and pass it as `--memory-dir`. Non-interactive, skip steps 1 to 3 and run `new` with no
+`--memory-dir`: outside a git work tree it resolves `<plugin data>/topic-docs` itself, from
+`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path, because Claude Code
+does not export that variable to Bash-tool commands. The self-ignore guard still binds there. The
+first refusal names the exact `.gitignore` path to create; create it with the single line `*`,
+announce the write, and re-run. When neither source gives a data dir (a `--plugin-dir` or source
+checkout run), `new` refuses and asks for an explicit `--memory-dir`.
+
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
 naming no slot in the file, a slot name occurring twice in the file, a value that itself carries a
