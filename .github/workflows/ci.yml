@@ -1737,8 +1737,9 @@ jobs:
               # outside the four sub-projects and the Pester suites have no
               # runner on EITHER path (run-plugin-tests.sh is shell-only too),
               # so failing here would red pull requests for a gap push shares.
-              # #3703 closes it; the gate ledger's coverage-not-carried row
-              # records it.
+              # #3703 parks adding those runners until funded. Record:
+              # docs/out-of-scope/node-pester-ci-runners.md. The gate ledger's
+              # coverage-not-carried row still names the gap.
               notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
               echo "::warning::The affected-suite selector declined to run: $(printf '%s' "$notrun" | tr '\n' ' ')"
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
