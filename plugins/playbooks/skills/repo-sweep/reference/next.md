@@ -35,12 +35,15 @@ every branch name, step id, and playbook name you put in a command.
 
 ## 2. Prepare
 
-1. Invoke `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool.
-2. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
+1. If this session showed a `Plugin updated: <name> · Run /reload-plugins to apply` notice, stop:
+   ask the user to run `/reload-plugins` or start a new session, then rerun `next`. Until then
+   the session runs the versions it loaded, which the step's record would misname.
+2. Invoke `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool.
+3. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
    and `bash S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
-3. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
-4. Unless resuming, record `base=$(git rev-parse HEAD)` and write
+4. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
+5. Unless resuming, record `base=$(git rev-parse HEAD)` and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally
    HEAD.
@@ -73,7 +76,12 @@ every branch name, step id, and playbook name you put in a command.
    - 11: run the printed `git reset --soft <base>` so the skill's commits fold into the step
      commit.
    - 0: continue.
-2. Versions: `bash S/skill-version.sh <each skill in the entry>`.
+2. Versions: one `bash S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
+   `plugin:skill` in the entry, where `<base-dir>` is the "Base directory for this skill" line
+   the Skill tool printed when it loaded that skill, so the record names the version that ran.
+   A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
+   means the next step would load a different version: record stdout, and tell the user to run
+   `/reload-plugins` before the next step.
 3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): `bash
    S/tick.sh <id> no-findings <skill@version>...`. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's

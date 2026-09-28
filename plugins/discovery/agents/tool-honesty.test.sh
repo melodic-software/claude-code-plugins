@@ -148,8 +148,12 @@ for agent in "${agents[@]}"; do
 
   # ---------------------------------------------------------------------------
   # 5. The by-value recovery rung only exists if the payload can express it.
+  #    A read-only agent, one whose allowlist holds no Write, has no disk
+  #    axis to report.
   # ---------------------------------------------------------------------------
-  if grep -q '^persistence: ' <<<"$agent_body"; then
+  if [[ -n "$tools" && ",${tools// /}," != *",Write,"* ]]; then
+    pass "$agent: read-only allowlist, so no \`persistence:\` axis is owed"
+  elif grep -q '^persistence: ' <<<"$agent_body"; then
     pass "$agent: the return payload carries a \`persistence:\` axis"
   else
     fail "$agent: the return payload has no \`persistence:\` field — a completed run whose write was refused cannot be told apart from one that never ran"
@@ -160,10 +164,10 @@ for agent in "${agents[@]}"; do
   #    absence; this is the only one that can fire on an input that is present
   #    and wrong.
   # ---------------------------------------------------------------------------
-  if grep -qE '^(scope|topic)_as_received: ' <<<"$agent_body"; then
-    pass "$agent: the return payload echoes back the scope/topic as received"
+  if grep -qE '^(scope|topic|target)_as_received: ' <<<"$agent_body"; then
+    pass "$agent: the return payload echoes back the scope/topic/target as received"
   else
-    fail "$agent: the return payload has no \`scope_as_received:\`/\`topic_as_received:\` field — a corrupted input passes every gate"
+    fail "$agent: the return payload has no \`scope_as_received:\`/\`topic_as_received:\`/\`target_as_received:\` field — a corrupted input passes every gate"
   fi
 done
 

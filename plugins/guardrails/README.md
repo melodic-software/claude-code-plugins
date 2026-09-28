@@ -150,7 +150,12 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` inspects one command string, and only the write forms
   listed above.** It reads `.tool_input.command`; it does not read the contents
   of a script that command invokes, so `bash build.sh` runs whatever writes
-  `build.sh` performs. It is also producer-scoped by design, so a redirect whose
+  `build.sh` performs. The inline operand of a child shell is in that string,
+  so since **0.38.9** it is re-parsed and judged like the top level, nested
+  shells included: `bash -c 'echo x > f'` and `sh -c 'cat > f <<EOF …'` block.
+  `block-windows-drive-tmp` does not re-parse a `-c` operand, so
+  `bash -c 'echo x > /tmp/f'` still reaches a drive-root temp path on Windows.
+  It is also producer-scoped by design, so a redirect whose
   producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
   c`) is allowed. Only a content producer writing a real file
   (`cat > f` consuming stdin, `echo`/`printf > f`, inline python writes,
@@ -449,6 +454,20 @@ out of scope until such a signal exists.
   drive-root prefix matches at any length, so length creates no parse ambiguity
   and a blocking ceiling would only refuse legitimate long paths. The payload as
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
+- **Running a repo script under PowerShell: the form that passes.** On the
+  PowerShell tool a launcher (`pwsh`, `powershell`, `cmd`, `Start-Process`) in a
+  command that could reach git is the `ps-unparsable-launcher` fail-closed sink,
+  so run the script in the tool's own session instead, where every guard reads
+  it in full:
+  `Set-Location <dir>; & ./<script>.ps1`. Set the directory first: a script
+  that imports a module by a relative path resolves it against the current
+  directory, not the script's, which is the `Import-Module` failure a bare
+  `pwsh -File <script>` from another directory hits. Where only the Bash tool is
+  available (an agent whose tool list omits PowerShell), the working shape is
+  `pwsh -NoProfile -NonInteractive -WorkingDirectory <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"`,
+  with `exit $LASTEXITCODE` carrying the script's exit code back to Bash. The
+  Bash lane does not parse inside that `-Command` string, so a git command
+  written there is not guarded: run git as its own Bash command.
 
 ### Hook budget accounting
 
