@@ -124,6 +124,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:audit-enforceability`](../plugins/review/skills/audit-enforceability/SKILL.md) | `review` | Propose the cheapest deterministic rung for each review finding |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |
+| [`/review:pr-explainer`](../plugins/review/skills/pr-explainer/SKILL.md) | `review` | Offered HTML explainer for a pull request, markdown record kept |
 | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | `review` | Single-lens review checkpoint routed to the matching reviewer |
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
