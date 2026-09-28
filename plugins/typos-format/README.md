@@ -95,8 +95,8 @@ spell-checked. `guardrails`' `block-hook-bypass`, when installed, blocks the
 common Bash redirect and heredoc forms, `python3 -c` writes that use a
 file-write call it recognizes, and the PowerShell write cmdlets; `sed -i`,
 `perl -i`, `tee`, a standalone `cp`, and other interpreters' one-liners such as
-`node -e` are outside what it detects, and it does not see MCP tools. CI is the only gate that sees every path. The
-matcher does not list `MultiEdit`: the
+`node -e` are outside what it detects, and it does not see MCP tools. CI is
+the only gate that sees every path. The matcher does not list `MultiEdit`: the
 [tools reference](https://code.claude.com/docs/en/tools-reference) does not
 list it among the built-in tools, and
 [permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
