@@ -35,19 +35,24 @@ melodic-software/claude-code-plugins#4503.
 
 - skill: code-tidying:audit-comment-residue, code-tidying:dissolve-comments
 - args: .
-- applies-when: repo has source code with comments
+- applies-when: repo has non-config source code with comments outside CI workflows and synced files
 - checked: true
 
 #### Notes
 
 One step: the residue audit's Tier 1 rows are the dissolve pass's input, so run both in the same
-session without `/clear` between them.
+session without `/clear` between them. `dissolve-comments` does not edit CI workflows unless the
+operator lifts that exclusion by hand (for example `dissolve-comments override
+.github/workflows/ci.yml`). Findings on files synced from another repository are fixed upstream,
+never in this sweep; filter them out before fixing. When the only commented in-scope paths are CI
+workflows, pass `dissolve-comments override <path>` for each workflow the operator wants edited.
 
 ### testing-audit
 
 - skill: testing:audit
 - args: .
 - applies-when: repo has tests in JavaScript, TypeScript, Python, or C#
+- prime: false
 - checked: true
 
 ### scan-todos

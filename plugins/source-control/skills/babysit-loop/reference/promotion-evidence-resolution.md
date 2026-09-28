@@ -38,8 +38,10 @@ only**, never by re-deriving a subset in prose.
 
 **Current seam state.** This seam does not yet return a qualified, non-forgeable evidence read, so
 **every promotable cell resolves effective-unpromoted**: autonomous merge stays off for C2/C3
-classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. Recheck
-trigger: `check-security-binding.mjs --evidence` returning a qualified read through the trusted
+classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. The
+implementation checklist and phased plan are settled in
+[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md)
+([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)); recheck trigger: `check-security-binding.mjs --evidence` returning a qualified read through the trusted
 seam, and the repository's evidence predicates being met
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md) merge-lane
 copy-blocks); until then this paragraph is the rule, and the fail-closed table below is how it is

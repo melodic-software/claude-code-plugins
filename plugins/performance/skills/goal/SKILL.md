@@ -1,5 +1,5 @@
 ---
-description: "Construct a performance goal the data can actually settle: the metric and the exact command that produces it, a REALISTIC target and an IDEAL target held separately, and the irreducible FLOOR computed BEFORE any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front and makes the human decide, instead of silently failing the goal at the end. Human-gated always: this is the one phase that may never run unattended. Use when: setting or sanity-checking a performance target, judging whether a target is reachable at all, or defining done for an optimization: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. Runs after /performance:target and before /performance:snapshot. Skip when the work is exploratory with no claim to defend, or when the target is a correctness fix that happens to also be faster."
+description: "Construct a performance goal the data can settle: metric, command, realistic vs ideal targets, and the floor before any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front. Human-gated; never unattended. Use when: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. After /performance:target, before /performance:snapshot."
 user-invocable: true
 argument-hint: "[<target>] (e.g. /performance:goal the destructive-guard PreToolUse hook)"
 disable-model-invocation: false
@@ -31,6 +31,21 @@ If the user is unavailable, **stop and say what is blocked**. Do not pick a targ
 
 ## What a goal must contain
 
+### 0. Inputs: the ranked candidate
+
+Read the ranking `/performance:target` produced and quote the chosen candidate's row verbatim
+(rank, tier, what is known, the settling counter, the cheapest next instrument). That row is the
+object this goal is about, and its tier is the one the Output's `Target` line carries.
+
+- **The ranking says to instrument this candidate first** (its tier is E3 or E4, or its closing
+  line says the recommendation is to instrument, not to optimize): **STOP.** A goal cannot be
+  set on a cost nobody has measured. The next step is the named instrument, then
+  `/performance:target` again.
+- **No ranking exists** (the user came straight here with a chosen, measured target): record the
+  evidence the user names and the tier it earns under `/performance:target`'s tier table. Never
+  leave the tier blank or fill it with the baseline's tier, which answers a different question
+  about a different object.
+
 ### 1. The metric, and the exact command that produces it
 
 Not "latency". The literal command, its arguments, and the field of its output that is the number.
@@ -51,13 +66,47 @@ network split each falls on. Name the start state too (cold start, fresh load, w
 different measurement. End at the moment the user or caller can act, not when loading finishes.
 See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
 
+**Parallel units on one event.** When several units run **in parallel** for a single user-visible
+event (Claude Code hooks on one hook event, parallel CI jobs surfaced as one wait, concurrent
+requests behind one wall-clock barrier), the user waits for the **slowest** unit, not the sum. Record:
+
+- **Event metric:** wall-clock time for the whole event (for hooks, the event's `total_duration_ms`
+  or equivalent; not the sum of per-hook CPU).
+- **Unit metric:** the unit under study, plus its **marginal cost**: how much slower the event is
+  with this unit than it would be if only the next-slowest peer remained (excess over the
+  next-slowest unit on that event). A Stop hook at 300 ms matters only when it is 300 ms **above**
+  the next-slowest Stop hook, not when read in isolation.
+- **Event-level target:** the realistic/ideal targets for the user-visible wait, held beside the
+  unit-level targets.
+- **Summed CPU or syscall totals:** optional secondary figures; never substitute them for the event
+  wall-clock target.
+
+On MSYS/Cygwin, when the counter is a process count, state which accounting the goal uses (Job
+Object +2 per external command vs PATH-shim `spawns=`); see
+[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash).
+
+**Scaling arm when state grows with use.** When the subject **reads state whose size grows with
+real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
+entries), a single-size measurement can pass while realistic use fails. The metric MUST be measured
+at **two or more sizes** spanning realistic use (for example 50 KB and 10 MB on the same transcript
+shape, not two sizes that exercise different code paths). Record each arm's size and result. **Done
+when** must state whether cost stays flat as size grows, or grows only within a stated bound (for
+example "p50 does not grow faster than linear in transcript bytes"). If the bound is unknown,
+`unproven` is legal and travels to verify like `Correlation:`. `/performance:target` should flag
+such candidates when ranking; if it did not, name the growing-state read here anyway.
+
 ### 2. The floor, computed before any work
 
 The irreducible cost this target cannot go below whatever the code does. Compute it by measuring the
 cheapest possible version of the operation: the empty hook, the no-op spawn, the single round trip,
 the query returning one row.
 
-`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly.
+`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly. Pass
+its summary to `is_measurable(summary)` and quote the returned reason verbatim before stating any
+wall-clock floor. Contention is a two-part predicate: a spread at or above 3.0x across identical
+no-op spawns AND a slow mode at or above 500 ms. A wide spread alone is a healthy cold-then-warm
+host, so never assert "this host drifts with load" from `spread_ratio` by itself. A False keeps
+the floor in counter terms (spawns per operation) rather than milliseconds.
 
 Then compare:
 
@@ -112,11 +161,14 @@ Metric:     <exact command> -> <field>
 Counter:    <drift-immune counter>   [ranked above the duration]
 Correlation: <evidence the counter moves the duration> | unproven   [REQUIRED]
 Boundary:   start <event> -> end <event>; <which side of the split each falls on>; <start state>
+Event:      <wall-clock metric when units run in parallel> | n/a
+Unit:       <unit under study + marginal over next-slowest peer> | n/a
 Floor:      <value> (measured by: <command>)
-Realistic:  <value>    Ideal: <value>
+Realistic:  <value>    Ideal: <value>   [event-level realistic/ideal when parallel]
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
-Done when:  <criteria, including whether merge is in scope>
-Evidence tier of the target: <E1..E4 from /performance:target>
+Scaling:    <sizes and per-arm results> | n/a (fixed-size subject)
+Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
+Target (from /performance:target): <candidate> @ <E1..E4>
 ```
 
 ## Boundary
@@ -146,3 +198,6 @@ Evidence tier of the target: <E1..E4 from /performance:target>
   signal (the raw events the score is built from) and measure that instead.
 - **A goal built on an E3/E4 candidate must record that.** Optimizing an unmeasured target can
   succeed against its own metric and change nothing a user perceives.
+- **One size is not enough when the subject re-reads growing state.** A hook that re-reads the
+  whole transcript can look fine at 50 KB and fail at 10 MB; the scaling arms exist to catch that
+  before work is spent.

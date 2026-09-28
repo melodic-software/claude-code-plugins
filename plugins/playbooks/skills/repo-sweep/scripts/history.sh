@@ -33,18 +33,26 @@ bash "$dir/catalog.sh" "$1" >"$tmp/rows"
 # Last-run lines, "<skill>@<version>", newest and highest-priority source first.
 if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 1000 \
   --json headRefName,body,mergedAt,isCrossRepository 2>/dev/null); then
+  : >"$tmp/partial"
   jq -r '[.[] | select((.isCrossRepository | not) and (.headRefName | startswith("chore/repo-sweep-")))]
     | sort_by(.mergedAt) | reverse | .[].body' <<<"$prs" | awk '
     { sub(/\r$/, "") }
     /^<!-- repo-sweep:begin / { inb = 1; next }
     /^<!-- repo-sweep:end -->/ { inb = 0; next }
     inb && /^- \[[xX]\] / {
+      if ($0 ~ /, not applicable:/) next
+      rest = substr($0, 7); i = index(rest, ": ")
+      if (i) {
+        eid = substr(rest, 1, i - 1)
+        if ($0 ~ /partial coverage:/) print eid > partialf
+      }
       n = split(substr($0, index($0, ": ") + 2), t, /, */)
       for (i = 1; i <= n; i++) if (t[i] ~ /^[^ @]+@[^ @]+$/) print t[i]
-    }' >"$tmp/last"
+    }' partialf="$tmp/partial" >"$tmp/last"
 else
   printf 'history.sh: gh unavailable or unauthenticated; using commit trailers only\n' >&2
   : >"$tmp/last"
+  : >"$tmp/partial"
 fi
 ref=HEAD
 git rev-parse -q --verify origin/HEAD >/dev/null && ref=origin/HEAD
@@ -58,15 +66,17 @@ while IFS= read -r s; do skills+=("$s"); done < <(awk -F'\t' '{
   n = split($3, s, /, */); for (i = 1; i <= n; i++) print s[i] }' "$tmp/rows" | sort -u)
 bash "$dir/skill-version.sh" "${skills[@]+"${skills[@]}"}" >"$tmp/current"
 
-awk -F'\t' -v curf="$tmp/current" -v lastf="$tmp/last" '
+awk -F'\t' -v curf="$tmp/current" -v lastf="$tmp/last" -v partialf="$tmp/partial" '
 function at(line, part,   i) { i = match(line, /@[^@]*$/); return part == 1 ? substr(line, 1, i - 1) : substr(line, i + 1) }
 function add(list, item) { return list == "" ? item : list ", " item }
 BEGIN {
   while ((getline l < curf) > 0) cur[at(l, 1)] = at(l, 2)
   while ((getline l < lastf) > 0) if (!(at(l, 1) in last)) last[at(l, 1)] = at(l, 2)
+  while ((getline l < partialf) > 0) partial[l] = 1
   OFS = "\t"
 }
 {
+  if ($1 in partial) { print $1, "rerun", "partial coverage on a prior sweep"; next }
   run = ""; rerun = ""; same = ""
   n = split($3, s, /, */)
   for (i = 1; i <= n; i++) {

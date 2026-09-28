@@ -4,6 +4,7 @@
 
 - [The config surface](#the-config-surface)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
+- [Deferred: babysit-prs repository-policy keys (#4572)](#deferred-babysit-prs-repository-policy-keys-4572)
 - [The three layers](#the-three-layers)
 - [Merge semantics: per-key override](#merge-semantics-per-key-override)
 - [Drafting vs enforcement](#drafting-vs-enforcement)
@@ -68,15 +69,23 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   - A leading UTF-8 BOM and CRLF line endings are accepted, and so are trailing whitespace and a
     closing `#` sequence on the heading (`## branch_issue_pattern ##`). Headings inside fenced
     blocks are ignored.
-  - A **near-miss heading** stops resolution: an H2 outside a fence whose text contains
-    `branch_issue_pattern` in any case but is not the exact heading (`## branch_issue_pattern:`,
-    `## Branch_Issue_Pattern`, `## branch_issue_pattern (ERE)`). The script prints a note and no
-    issue number, and exits 1. It does not fall back to a lower layer, the userConfig, or the
-    default, because any of those could close the wrong issue. A higher-precedence layer that
-    already supplied a valid pattern wins, since the lower layer is never read.
-  - A layer is reported and skipped, and resolution continues with the next source, when the
-    section's first value line is a heading or an HTML comment (`<!--`), its fence is empty or
-    unterminated, or its pattern fails validation.
+  - A layer whose section exists but yields no usable pattern **stops resolution**. The script
+    prints a note containing `resolution stopped` and no issue number, and exits 1. It does not
+    fall back to a lower layer, the userConfig, or the default, because any of those could close
+    the wrong issue; the no-number path already exists and `create` relays the note. A
+    higher-precedence layer that already supplied a valid pattern wins, since the lower layer is
+    never read. The stop reasons:
+    - a **near-miss heading**: an H2 outside a fence whose text contains `branch_issue_pattern` in
+      any case but is not the exact heading (`## branch_issue_pattern:`, `## Branch_Issue_Pattern`,
+      `## branch_issue_pattern (ERE)`);
+    - a section with no value before the next H2 or the end of the file;
+    - a first value line that is a heading or an HTML comment (`<!--`);
+    - an empty or unterminated fence;
+    - a pattern that fails validation.
+
+    This diverges from the config-cascade rule to degrade soft on a malformed layer, and this repo's
+    `config-cascade` convention records it as a declared deviation. A userConfig value that fails
+    validation is still reported and ignored, so the default applies.
 
   A pattern passes validation when it compiles as an ERE and keeps within these limits, which are
   checked before it is compiled: at most 200 characters, every `{m}`, `{m,}`, or `{m,n}` bound at
@@ -291,6 +300,63 @@ reconciles the two, and every rule below is fail-closed:
   a trust match never establishes C2. It only removes the categorical C5 bar. The PR still needs a
   close-linked item with a recorded classification, and still faces the C4 diff veto, the rung
   comparison, and every other withholding in the partition.
+
+## Deferred: babysit-prs repository-policy keys (#4572)
+
+Ten `/source-control:babysit-prs` `userConfig` keys describe **repository tooling** (merge method,
+hold lists, review triggers, CI/review gate contexts). They still resolve from `pluginConfigs`
+(one value per machine) until a dedicated resolver ships. Identity and trust keys stay in
+`userConfig` permanently; `branch_issue_pattern` already moved to this surface. The split and
+rationale are in
+[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
+
+### Decision record
+
+- **Claim:** These ten keys cannot move to the cascade until `/source-control:babysit-prs` resolves
+  each **target repository** independently, on every fleet cycle, from that repository's tracked
+  `.claude/source-control.md` on its **default branch** (`gh api` contents), never from the
+  launching checkout's working tree or from a single machine-wide substitute. Each key needs an
+  explicit merge mode (plain override, add-only union, or bound pair) before any script change.
+- **Basis:** ADR 0039 decision 3; the `babysit_loop_trusted_internal_bot_logins` precedent in this
+  document ("team-tracked layer only, target repository, default branch, always"); issue
+  [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).
+- **As of:** 2026-09-28.
+
+### Keys in scope (#4572)
+
+| Key | Intended merge mode (settled in ADR 0039) |
+| --- | --- |
+| `babysit_merge_method` | per-key override |
+| `babysit_merge_block_labels` | add-only union across layers + deprecated `userConfig` |
+| `babysit_extra_dependency_manager_logins` | add-only union |
+| `babysit_approval_downgrade_logins` | add-only union |
+| `babysit_skip_downgrade_logins` | **unclassified** (floor vs preference). Decide before implementation. |
+| `babysit_review_trigger_phrase` | per-key override |
+| `babysit_review_bot_logins` | bound with `babysit_review_settle_minutes` from one layer; lower layer may lengthen settle, never shorten |
+| `babysit_review_settle_minutes` | bound pair (see previous row) |
+| `babysit_review_gate_context` | per-key override; **default branch only**, never user-global or local overlay |
+| `babysit_ci_gateway_context` | per-key override; **default branch only**, never user-global or local overlay |
+
+Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit_self_logins`,
+`babysit_intended_write_identity`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
+`babysit_extra_bot_logins`.
+
+### Required resolver behavior (implementation checklist)
+
+1. **Per-target-repo resolution.** Substitute `${user_config.*}` once at skill load today; the
+   resolver must read each PR's repository default-branch cascade per key, per cycle, following the
+   trusted-internal-bot login read above.
+2. **Deprecation window.** Keep each `userConfig` value as a fallback (union member for hold
+   lists) with one stderr deprecation note when used; remove in a later minor release with a
+   CHANGELOG `Removed` entry, no earlier than 90 days after the resolver ships.
+3. **Tests.** Resolver cases for each merge mode, default-branch-only reads, precedence against the
+   deprecated fallback, and a fleet run over two repositories with different values.
+4. **Security review.** Mandatory on the implementing pull request; any design that lets a
+   repo-writable layer shorten a hold, drop a veto label, or replace a hold list under plain
+   per-key override loosens merge safety and needs explicit operator approval.
+
+Until that resolver lands, operators with several identity domains on one machine leave these keys
+unset or launch the lane with a per-domain `--settings` file, as for the identity keys in ADR 0039.
 
 ## The three layers
 

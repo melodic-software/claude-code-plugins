@@ -364,6 +364,10 @@ expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
 expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
 expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
 expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
+expect_both 'wsl rm -rf / blocks' 2 --command 'wsl rm -rf /'
+expect_both 'wsl.exe -e rm -rf / blocks' 2 --command 'wsl.exe -e rm -rf /'
+expect_both 'wsl -d Ubuntu -- sudo rm -rf / blocks' 2 --command 'wsl -d Ubuntu -- sudo rm -rf /'
+expect_both 'wsl ls / allowed' 0 --command 'wsl ls /'
 
 # `su` runs its operand through the target user's shell, so one process is every
 # command inside it too. Its grammar is not a shell's: the operand follows the
@@ -481,7 +485,7 @@ expect_both 'substitution through taskset blocks' 2 --command 'echo "$(taskset 1
 expect_both 'env -S through taskset blocks' 2 --command "env -S 'taskset 1 rm -rf /'"
 # chrt takes a priority only when the word is all digits; otherwise the word
 # is the command. `chrt -r rm` is an invocation chrt itself rejects (rr needs a
-# priority), refused anyway because underblocking is the costlier mistake.
+# priority), refused by decision (#4681, section 4c).
 expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
 expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
 expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
@@ -533,9 +537,9 @@ expect_both 'nsenter -t1 -m rm -rf / blocks' 2 --command 'nsenter -t1 -m rm -rf 
 expect_both 'numactl -i all rm -rf / blocks' 2 --command 'numactl -i all rm -rf /'
 expect_both 'numactl --interleave=all rm -rf / blocks' 2 --command 'numactl --interleave=all rm -rf /'
 expect_both 'numactl --cpunodebind 0 rm -rf / blocks' 2 --command 'numactl --cpunodebind 0 rm -rf /'
-# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host rather
-# than the host root, and is refused anyway: a known overblock, kept on the
-# refusal side.
+# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host (and
+# anything bind-mounted in it) rather than the host root, and is refused by
+# decision (#4681, section 4c).
 expect_both 'chroot / rm -rf / blocks' 2 --command 'chroot / rm -rf /'
 expect_both 'chroot /mnt rm -rf / blocks (known overblock)' 2 --command 'chroot /mnt rm -rf /'
 expect_both 'chroot --userspec bob:bob /mnt rm -rf / blocks' 2 --command 'chroot --userspec bob:bob /mnt rm -rf /'
@@ -1441,13 +1445,105 @@ guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
 assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 
-# --- 4. Tool gating: the declared PowerShell gap ------------------------------
-# Remove-Item -Recurse -Force and `rd /s` are the same hazard through the
-# PowerShell tool, and this guard does not cover them: it exits on a non-Bash
-# tool_name, which also keeps it out of the PowerShell classifier path entirely.
-# Pinned so widening it later is a deliberate change to this line.
-expect "PowerShell payload is a declared gap, not a block" 0 \
+# --- 4. PowerShell Remove-Item / rd /s (#4516) --------------------------------
+# Same target classes as Bash: root, empty, bare variable, outside-tree.
+# JSON on stdin only. The guard must not load the PowerShell classifier.
+if grep -nE '^[[:space:]]*source .+ps-command' "$HOOK" || grep -nE '^[^#]*ps::' "$HOOK"; then
+  bad "the PowerShell lane sources or calls the classifier"
+else
+  ok "the PowerShell lane does not source the classifier"
+fi
+
+# Root, every spelling the issue names plus the aliases and prefixes.
+expect_both 'PS Remove-Item -Recurse -Force C:\ blocks' 2 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
+expect_both 'PS Remove-Item -r C:/ blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -r C:/'
+expect_both 'PS Remove-Item -rec C: blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -rec C:'
+expect_both 'PS ri -r C:\ blocks' 2 \
+  --tool PowerShell --command 'ri -r C:\'
+expect_both 'PS rm -rf / blocks (bash-in-PS cluster)' 2 \
+  --tool PowerShell --command 'rm -rf /'
+expect_both 'PS Remove-Item -LiteralPath C:\ -Recurse blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -LiteralPath C:\ -Recurse'
+expect_both 'PS Remove-Item -Path C:\ -Recurse blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Path C:\ -Recurse'
+expect_both 'PS Remove-Item -Recurse / blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse /'
+expect_both 'PS Remove-Item -Recurse ~ blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ~'
+expect_both 'PS Remove-Item -Recurse $HOME blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse $HOME'
+expect_both 'PS Remove-Item -Recurse /c blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse /c'
+expect_both 'PS & Remove-Item -Recurse C:\ blocks' 2 \
+  --tool PowerShell --command '& Remove-Item -Recurse C:\'
+
+# Empty operand.
+expect_both "PS Remove-Item -Recurse '' blocks" 2 \
+  --tool PowerShell --command "Remove-Item -Recurse ''"
+expect_both 'PS Remove-Item -Recurse "" blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ""'
+expect_both 'PS Remove-Item -Recurse with no path blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse'
+
+# Bare variable.
+expect_both 'PS ri -r $X blocks' 2 \
+  --tool PowerShell --command 'ri -r $X'
+expect_both 'PS Remove-Item -Recurse $env:X blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse $env:X'
+expect_both 'PS Remove-Item -Recurse ${X} blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ${X}'
+
+# cmd /c rd /s and rmdir /s.
+expect_both 'PS cmd /c rd /s /q C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd /c rd /s /q C:\'
+expect_both 'PS cmd /c rmdir /s C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd /c rmdir /s C:\'
+expect_both "PS cmd /c 'rd /s /q C:\' blocks" 2 \
+  --tool PowerShell --command "cmd /c 'rd /s /q C:\'"
+expect_both 'PS cmd.exe /c rd /s C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd.exe /c rd /s C:\'
+expect_both 'PS rd /s C:\ blocks (cmd grammar on the alias)' 2 \
+  --tool PowerShell --command 'rd /s C:\'
+
+# Pipeline target cannot be named.
+expect_both 'PS pipeline Remove-Item -Recurse blocks' 2 \
+  --tool PowerShell --command 'Get-ChildItem x | Remove-Item -Recurse'
+
+# Allowed: non-recursive, prose, other verbs.
+expect_both 'PS Get-ChildItem C:\ allowed' 0 \
+  --tool PowerShell --command 'Get-ChildItem C:\'
+expect_both 'PS Remove-Item file (no recurse) allowed' 0 \
+  --tool PowerShell --command 'Remove-Item C:\file.txt'
+expect_both 'PS Write-Output naming the delete allowed' 0 \
+  --tool PowerShell --command "Write-Output 'Remove-Item -Recurse C:\'"
+expect_both 'PS cmd /c dir allowed' 0 \
+  --tool PowerShell --command 'cmd /c dir C:\'
+expect_both 'PS cmd /c rd without /s allowed' 0 \
+  --tool PowerShell --command 'cmd /c rd C:\empty'
+expect_both 'PS ri file (no -r) allowed' 0 \
+  --tool PowerShell --command 'ri C:\file.txt'
+expect_both 'PS Get-Process allowed' 0 \
+  --tool PowerShell --command 'Get-Process'
+
+# Outside-tree, with a payload cwd, same classes as Bash.
+# portability-ok: Windows path string in a test fixture, not a regex/sed construct
+expect_both 'PS Remove-Item -Recurse C:\Windows blocks with cwd' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse C:\Windows'
+expect_both 'PS Remove-Item -Recurse ./build allowed with cwd' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse ./build'
+expect_both 'PS ri -r $X blocks with cwd' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'ri -r $X'
+
+# A non-Bash, non-PowerShell tool is still a skip.
+expect "Write tool is not this guard's lane" 0 --tool Write --command 'Remove-Item -Recurse C:\'
+
+# Kill switch covers the PowerShell lane too.
+expect "PS kill switch disables the guard" 0 \
+  --tool PowerShell --command 'Remove-Item -Recurse C:\' \
+  -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 
 # --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
 # sg re-parses its one command word; setpriv, prlimit and systemd-run step
@@ -1520,6 +1616,34 @@ expect_both 'launcher: sg root -c rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --com
 expect_both 'launcher: setpriv --reuid=0 rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --command 'setpriv --reuid=0 rm -rf /etc'
 expect_both 'launcher: sg - root -c rm -rf ./build from a cwd is not followed' 0 "${RDT_CWD[@]}" \
   --command "sg - root -c 'rm -rf ./build'"
+
+# --- 4c. Launcher lines refused by decision (#4681) --------------------------
+# The guard header records why each stays refused: chrt rejects a non-digit
+# word after a realtime policy (and runs it under -o / -b / -i / -d / -e from
+# util-linux 2.42), runuser rejects a permuted `-rf` unless POSIXLY_CORRECT is
+# inherited, and chroot's `/` is host `<dir>` plus whatever is bind-mounted in
+# it. Pinned so loosening any of them is a deliberate change to this table.
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decided: $rdt_cmd" "$rdt_want" --command "$rdt_cmd"
+  expect_both "decided: $rdt_cmd, with cwd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+2|chrt -r rm -rf /
+2|chrt --rr rm -rf /
+2|chrt -f rm -rf /
+2|chrt rm -rf /
+2|chrt -o rm -rf /
+2|chrt -b rm -rf /*
+2|runuser -u bob rm -rf /
+2|runuser -u bob rm -rf /*
+2|POSIXLY_CORRECT=1 runuser -u bob rm -rf /
+2|chroot /mnt rm -rf /
+2|chroot /mnt rm -rf /*
+2|chroot /mnt rm -rf --no-preserve-root /
+0|chrt -r 5 ls /
+0|runuser -u bob -- ls /
+0|chroot /mnt ls /
+EOF
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

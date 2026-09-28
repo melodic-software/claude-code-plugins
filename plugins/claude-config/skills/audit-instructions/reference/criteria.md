@@ -1,6 +1,6 @@
 ---
-version: 1.22.0
-last-updated: 2026-09-23
+version: 1.23.0
+last-updated: 2026-09-28
 ---
 
 # Instruction-Audit Criteria
@@ -42,12 +42,13 @@ Look up a specific check by ID:
   - [I28: Over-aggressive trigger emphasis and blanket tool defaults](#i28-over-aggressive-trigger-emphasis-and-blanket-tool-defaults)
   - [I29: Body prose that restates the always-in-context description, or a sibling section](#i29-body-prose-that-restates-the-always-in-context-description-or-a-sibling-section)
   - [I30: Dated verification stamp with no recheck trigger](#i30-dated-verification-stamp-with-no-recheck-trigger)
-  - [I31: Migration-relative phrasing in reference and context files](#i31-migration-relative-phrasing-in-reference-and-context-files)
-  - [I32: Routing text that names a skill absent from the marketplace](#i32-routing-text-that-names-a-skill-absent-from-the-marketplace)
+  - [I31: Migration-relative phrasing in skill bodies and the files they load](#i31-migration-relative-phrasing-in-skill-bodies-and-the-files-they-load)
+  - [I32: Routing text that names a skill that does not resolve](#i32-routing-text-that-names-a-skill-that-does-not-resolve)
   - [I33: Sibling-file meta-commentary](#i33-sibling-file-meta-commentary)
   - [I34: Maintainer rationale inside model-facing YAML comments](#i34-maintainer-rationale-inside-model-facing-yaml-comments)
   - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
 - [Stopping condition](#stopping-condition)
+- [Out-of-catalog defects](#out-of-catalog-defects)
 - [Output format](#output-format)
 
 The checks the `audit-instructions` skill runs, seeded from current official prompting doctrine.
@@ -143,8 +144,10 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
 `~/.claude/rules/`) their findings route to the `claude-memory` plugin's `audit` skill when it is
 installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
-not. Checks I6–I12 and I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in
-their own rows.
+not. Checks I6–I12, I16–I28, I30, and I35 apply to all surfaces. I15 also applies to all surfaces,
+but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14, I29, I31,
+I32, I33, and I34 name narrower surface sets in their own rows, and a lane runs each only on the
+surfaces its row names.
 
 ## Sources
 
@@ -769,6 +772,10 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   canonical pair, and a file that states both is right, not drifting. A bare routing pointer that
   tells the reader to run a command without claiming what it does. Text that quotes a retired
   affordance explicitly as retired.
+- **Must NOT flag: a claim about the content of the operator's own config files**, such as what
+  their `settings.json` chains or which hooks they wire. That describes a file, not the harness, so
+  it is not a harness-behavior claim. When the evidence in hand shows it false, report it under
+  [Out-of-catalog defects](#out-of-catalog-defects).
 - **Source:** CLI reference, "Print read-only installation and settings diagnostics from the
   terminal without starting a session … For the in-session setup checkup that can also apply
   fixes, run `/doctor`."
@@ -1910,17 +1917,23 @@ measurement.
 - **Must NOT flag:** a dated stamp whose trigger lives in a named owner record the site points at
   ("recheck per `reference/parent-contract.md`"); a CHANGELOG entry or ADR, which are history by
   design; a date that is data (a release date in a table) rather than a verification stamp.
+- **Must NOT flag: a moving ref or an undated version literal** (`main`, a branch name, "requires
+  2.1.200"). With no as-of date there is no stamp for this row to judge. When the evidence in hand
+  shows the literal is stale, report it under [Out-of-catalog defects](#out-of-catalog-defects).
 - **Remediate:** add the trigger as an observable event (a release note naming the flag, a fetch
   no longer carrying the quoted span, a version floor moving), or point the site at the dated
   owner record.
 
 ---
 
-### I31: Migration-relative phrasing in reference and context files
+### I31: Migration-relative phrasing in skill bodies and the files they load
 
-Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: the `reference/`,
-`context/`, and `references/` spokes a skill loads on invocation. Unscoped. The skill-body row for
-this shape stops at `SKILL.md`; the spokes carry the same phrasing and load into the same context.
+Tier `behavioral` · Authority `HOUSE` · Severity `warning` · Surfaces: a skill's `SKILL.md` and
+every file it loads on invocation or reads on demand, such as `reference/`, `context/`,
+`references/`, and `actions/` files, root-level spokes (`formats.md`), and per-slice
+`<slice>/README.md` spokes; and a file a memory surface points the model at to read (e.g.
+`~/.claude/references/*.md`). Unscoped. Every one of these loads into the model's context, so the
+phrasing costs the same wherever it sits.
 
 - **Detect:** "now works differently", "no longer", "also counts", "instead of the old", "since
   the change", and the like, describing a diff against a prompt or harness version the reader
@@ -1933,18 +1946,35 @@ this shape stops at `SKILL.md`; the spokes carry the same phrasing and load into
 
 ---
 
-### I32: Routing text that names a skill absent from the marketplace
+### I32: Routing text that names a skill that does not resolve
 
-Tier `mechanical` · Authority `HOUSE` · Severity `error` · Surfaces: descriptions, `Not for` and
-`Skip when` clauses, Boundary and Sibling sections, and any spoke that says "use
-`/<plugin>:<skill>`".
+Tier `mechanical` · Authority `HOUSE` · Severity `error` (marketplace arm), `warning` (user and
+project arm) · Surfaces: descriptions, `Not for` and `Skip when` clauses, Boundary and Sibling
+sections, any spoke that says "use `/<plugin>:<skill>`", and routing text on a user or project
+surface (CLAUDE.md, a natively read AGENTS.md, rules, a user or project skill or agent).
 
-- **Detect:** a `/<plugin>:<skill>` or `<plugin>:<skill>` reference whose target has no
-  `plugins/<plugin>/skills/<skill>/SKILL.md`, or a routing sentence naming a plugin where a skill
-  is required.
-- **Must NOT flag:** references to bundled Claude Code skills marked as bundled; a capability
-  named by class ("a visualization capability") that deliberately avoids a binding; a reference
-  inside a fenced example.
+- **Detect:** two arms.
+  1. **Marketplace arm, `error`:** a `/<plugin>:<skill>` or `<plugin>:<skill>` reference whose
+     target has no `plugins/<plugin>/skills/<skill>/SKILL.md`, or a routing sentence naming a
+     plugin where a skill is required.
+  2. **User and project arm, `warning`:** on a user or project surface, a routed skill name that
+     resolves to no plugin, user, project, or nested skill directory and appears in no skill
+     listing the run can see.
+- **Evidence basis for arm 2:** the session's skill listing plus the plugin, user
+  (`~/.claude/skills/`), project (`.claude/skills/`), and nested skill directories the inventory
+  reached. The finding cites which of those it checked. It is a `warning` rather than an `error`
+  because one session's listing is not every session's: a skill can be missing here and present
+  where the surface is actually read.
+- **Must NOT flag:** references to bundled Claude Code skills marked as bundled; a name that could
+  be bundled, claude.ai-synced (an `anthropic-skills:` name, or a directory under
+  `~/.claude/skills/synced/`), or gated by settings, environment, plan, or host, since none of
+  those rosters can be enumerated from files; a capability named by class ("a visualization
+  capability") that deliberately avoids a binding; a reference inside a fenced example.
+- **Stamp:** the reserved `anthropic-skills` namespace and the `~/.claude/skills/synced/` download
+  directory are from <https://code.claude.com/docs/en/skills> ("Claude Code reserves the name
+  `anthropic-skills` ... for skills synced from claude.ai"; "Claude Code downloads your account's
+  skills into `~/.claude/skills/synced/`"). **Verified 2026-09-27.** **Recheck trigger:** either
+  span leaving that page, or a release note moving synced skills to another namespace or directory.
 - **Remediate:** name the skill that exists, or describe the capability by class per the
   seam-phrasing convention; never leave a route to nowhere.
 
@@ -1952,8 +1982,11 @@ Tier `mechanical` · Authority `HOUSE` · Severity `error` · Surfaces: descript
 
 ### I33: Sibling-file meta-commentary
 
-Tier `behavioral` · Authority `HOUSE` · Severity `info` · Surfaces: `context/` and `reference/`
-spokes.
+Tier `behavioral` · Authority `HOUSE` · Severity `info` · Surfaces: every file a skill loads on
+invocation or reads on demand other than its `SKILL.md`, such as `reference/`, `context/`,
+`references/`, and `actions/` files, root-level spokes (`formats.md`), and per-slice
+`<slice>/README.md` spokes; and a file a memory surface points the model at to read (e.g.
+`~/.claude/references/*.md`).
 
 - **Detect:** a spoke that opens by describing its own role and loading ("this file is read by
   step 3", "loaded when the skill runs in mode X", "the hub links here") rather than stating its
@@ -1977,6 +2010,8 @@ skill body.
   working-memory budget"); comments in files the model never loads.
 - **Remediate:** move the rationale to the CHANGELOG, an ADR, or a maintainer-facing `AGENTS.md`;
   leave the value and, at most, a present-tense reason.
+
+---
 
 ### I35: Settled-answers instruction where later steps revise earlier ones
 
@@ -2021,6 +2056,27 @@ more aggressive.
   ground. A silently suppressed finding reads as coverage.
 - **Source:** none. The "except in highly important areas" carve-out appears on no official page,
   and it is the calibration knob the de-prescription guidance (I8's Fable 5 source) leaves unset.
+
+---
+
+## Out-of-catalog defects
+
+No check id. This section admits a real factual defect a lane observed **incidentally**, with the
+evidence already in hand, that no row's Detect and Surfaces fit: a stale version literal with no
+as-of date, a wrong statement about what an operator's config file contains, a path that no longer
+exists. It is not a search mandate. Lanes never hunt for general factual errors, and they never file
+such a defect under the nearest row, since a row stretched to fit carries that row's severity and
+remediation into a case its Detect never described.
+
+- **Report** it in the skill body's Out-of-catalog subsection with Check `out-of-catalog`, the
+  evidence that shows it false, and a proposed correction.
+- **Verify** it in Phase C like any proposal, with its own refutation: reproduce the cited evidence,
+  then ask whether the claim is false today. A defect whose evidence does not reproduce is dropped.
+- **Route** it by class when an owner is installed: doc or config drift to a doc/config drift
+  auditor, copied or stale upstream content to a provenance auditor, each named by class or with
+  "when installed". With no such owner installed, the report here is the whole disposition.
+- **Never relayed.** These rows are never written by `--persist-findings` and never reach
+  `emit-findings.sh`.
 
 ---
 

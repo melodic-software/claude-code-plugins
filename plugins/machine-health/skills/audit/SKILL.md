@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 ## Overview
 
-This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Severity is always trend-aware. A single reading is rarely load-bearing; history is consulted before finalizing severity.
+This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Trend adjusts severity upward only: a worsening metric or a repeat across runs can raise WARN to CRIT, and nothing lowers a reading later. A first run has no history, so every finding in it is a single, unmoderated reading. A custom check from the catalog overlay is capped at WARN until it has reported clean in 3 runs.
 
 The skill is stateless about scheduling; a separate routine (e.g., a Monday 08:00 scheduled task, or an ad-hoc `/machine-health:audit` invocation) calls into it.
 
@@ -70,7 +70,7 @@ Routing table:
 1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. Never prompt for UAC.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `reference/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
 3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas, but checks remain stateless themselves.
-4. **Invoke the OS orchestrator.** Pass `OutputBase`, `StateBase`, and `RunMode`. The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies trend-aware severity adjustments, and, on non-dry runs, dispatches authorized remediations with before/after logging.
+4. **Invoke the OS orchestrator.** Pass `OutputBase`, `StateBase`, and `RunMode`. The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
 5. **Receive the structured result.** Run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay); anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
 6. **Render the markdown report** from `reference/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 

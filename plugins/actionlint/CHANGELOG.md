@@ -3,6 +3,18 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-09-28
+
+### Changed
+
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored workflow file is no longer reported. Set `actionlint_lint_gitignored` to `true` to lint gitignored workflow files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
+
+## [0.8.61] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.8.60] - 2026-09-27
 
 ### Changed

@@ -1,5 +1,68 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.9] - 2026-09-28
+
+### Changed
+
+- **`write-for-agents` CLI surface table names the file and subagent append flags**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 261-003).
+  `reference/agent-doc-surfaces.md` now lists `--append-system-prompt-file`,
+  `--append-subagent-system-prompt`, and `--append-subagent-system-prompt-file` beside
+  `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
+  `docs/specs/agent-doc-surfaces.md` gains the same rows.
+
+## [0.23.8] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Ten of the 11 listed skills
+  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: verdict-weighing axes, classification
+  detail, and the long "not for" lists. `check-listing-budget.sh plugins/docs-hygiene/skills` goes
+  from 7,985 to 5,234 characters, under the 8,000 default. No skill is renamed or merged, and
+  `setup` and `generate-file-name-gate` stay user-invoked and unlisted.
+
+## [0.23.7] - 2026-09-28
+
+### Changed
+
+- **Plugin contract recorded (#4142).** Five concerns (authoring, in-page
+  quality, whole-document worth, cross-file structure, enforcement) and five
+  boundaries (not a prose-style engine, not a linter, not a code-comment tool,
+  not a commit or PR authoring tool, not an auto-applier) are the charter a
+  future skill is measured against. The file-name set stays in this plugin;
+  a `docs-naming` split is a separately briefed extraction, not this change.
+  Record: [`reference/plugin-contract.md`](reference/plugin-contract.md).
+
+## [0.23.6] - 2026-09-28
+
+### Changed
+
+- **`audit-derivability` routing-only docs (#4573, F1).** Factor 1 and the spot-test protocol now
+  cover pointer-only agent docs (`convert-to-pointer (already satisfied)`), with a worked example
+  for routing-only root `CLAUDE.md`.
+
+## [0.23.5] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Ten of the 11 listed skills
+  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: verdict-weighing axes, classification
+  detail, and the long "not for" lists. `check-listing-budget.sh plugins/docs-hygiene/skills` goes
+  from 7,985 to 5,234 characters, under the 8,000 default. No skill is renamed or merged, and
+  `setup` and `generate-file-name-gate` stay user-invoked and unlisted.
+
+## [0.23.4] - 2026-09-28
+
+### Fixed
+
+- **`audit-noise`'s pre-computed sample keeps the `status: no-targets` line.** The sample filter dropped it, so a clean tree read `Summary total: files=0` with nothing marking it as a run that scanned nothing, contradicting the output-schema section. An agent could report a clean audit instead of making the repo-wide offer.
+- **`audit-noise`'s repo-wide run sizes the judgment pass to the corpus.** A corpus small enough for one inline reading is read in full in the main session, with no subagent fan-out and no separate verification pass. The fan-out stays for corpora large enough to pay for it.
+- **`extract-ssot identify` surveys a small corpus inline.** Step 2 reads a small corpus in the main session and greps each candidate, so every lead is Tier 0 on arrival instead of a subagent roster that has to be re-grepped. A new `--inline` flag forces that route at any size, and a new anti-pattern names the subagent survey over a corpus smaller than its verification cost.
+- **`extract-ssot identify` persists a roster only when a candidate is actionable.** An all-refused run records its refusals as one `status: closed` line in the working notes and routes new refusal patterns to `context/lessons.md`. "Active candidate roster" is now defined once in `SKILL.md`, and the three resume gates cite it, so a closed record no longer makes a later bare invocation resume. Notes stay out of the tracked tree when the caller forbids commits.
+- Evals cover the small-corpus route for both skills, the all-refused roster, and the `status: no-targets` sample.
+
 ## [0.23.3] - 2026-09-27
 
 ### Changed
