@@ -32,7 +32,7 @@ classes.
 3. A promoted cell with clean in-epoch evidence resolves promoted; contrary events still demote per
    the fail-closed table.
 4. Update the "Current seam state" paragraph in `promotion-evidence-resolution.md` to match shipped
-   behaviour.
+   behavior.
 
 ## Phases (implement after PLAN approval)
 
