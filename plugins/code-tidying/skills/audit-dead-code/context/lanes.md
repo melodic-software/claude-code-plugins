@@ -120,6 +120,16 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
   which is acceptable for a read-only skill and the reason the lane ships as high-precision/low-recall.
 - **A hit adjacent to `$`, `-`, or `.` is never an automatic `alive`** during adjudication: inspect
   it before crediting it as a reference.
+- **`unreferenced-file` reuses this search** on two keys per source file: the basename and the
+  repo-relative path. A hit in any other tracked file saves it. That includes CI workflows,
+  settings, manifests, and docs. A hit inside the file itself does not. The input set is shell,
+  PowerShell, Python entry points (line-1 shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json`
+  root owns, and source extensions with no lane. Go stays on the gopls lane. Knip still owns
+  unused TS/JS files inside a manifest root. The shape is tier 2: a computed path, a glob,
+  `python -m`, or a build file that never spells the path can still load the file, so the
+  candidate is uncertain, not dead. `-H -o` attribute the match to a file; both are on BSD grep.
+  Precision of this shape is unmeasured beyond the fixture contract (a workflow reference saves
+  the script it names; a script named nowhere is the one candidate).
 
 ## Why Rust, .NET, and an LSP scanning lane are absent
 
@@ -127,7 +137,8 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
   `build.rs` and proc macros; the Roslyn server signals "project needs to be restored"; clangd needs
   `compile_commands.json`; jdtls needs a built classpath. Every one of them builds or executes
   project code. The exclusion trigger is a detector that does neither. That trigger is what
-  admitted Go.
+  admitted Go. Source files in those languages still enter the grep lane's `unreferenced-file`
+  search, which does not build.
 - **An LSP scanning lane**: Claude Code's `LSP` tool is model-callable only. No bash script can
   reach it, and it has no batch mode, so enumerating every symbol would cost one model turn each.
   It is retained only as an optional per-candidate assist inside the already-bounded adjudication.
