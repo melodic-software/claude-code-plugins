@@ -8,11 +8,17 @@ refusal. There is no second call, and there is no permanent-delete function.
 
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
+from ctypes import POINTER, byref, c_int, c_long, c_void_p, c_wchar_p
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+
+# WINFUNCTYPE exists on Windows. Linux still imports this module so the engine
+# can refuse the primitive; the COM call itself never runs there.
+WINFUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)
 
 # FILEOPERATION_FLAGS, Windows SDK shobjidl_core.h.
 FOFX_RECYCLEONDELETE = 0x00080000
@@ -45,9 +51,11 @@ _DRIVE_RAMDISK = 6
 # then DeleteItem, PerformOperations, GetAnyOperationsAborted.
 _SLOT_RELEASE = 2
 _SLOT_SET_OPERATION_FLAGS = 5
-_SLOT_DELETE_ITEM = 18
-_SLOT_PERFORM = 21
-_SLOT_ABORTED = 22
+# IUnknown is three slots. DeleteItem is the 15th IFileOperation method
+# (index 17), PerformOperations index 20, GetAnyOperationsAborted index 21.
+_SLOT_DELETE_ITEM = 17
+_SLOT_PERFORM = 20
+_SLOT_ABORTED = 21
 
 _CLSID_FileOperation = "{3ad05575-8857-4850-9277-11b85bdb8e09}"
 _IID_IFileOperation = "{947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8}"
@@ -90,7 +98,7 @@ def primitive_available() -> bool:
 
 def require_recycle_flag(flags: int) -> None:
     """Refuse before any delete call when the recycle-on-delete bit is absent."""
-    if flags & FOFX_RECYCLEONDELETE == 0:
+    if (flags & FOFX_RECYCLEONDELETE) == 0:
         raise RecycleFailed(
             "FOFX_RECYCLEONDELETE is not set; refusing rather than deleting"
         )
@@ -147,8 +155,6 @@ def probe_volume(path: Path) -> VolumeFacts:
     text = os.fspath(path)
     if text.startswith("\\\\") or text.startswith("//"):
         return VolumeFacts("network", None, None)
-    import ctypes
-
     root = os.path.splitdrive(text)[0]
     if not root:
         return VolumeFacts("unknown", None, None)
@@ -195,8 +201,6 @@ def ifileoperation_recycle(path: Path, flags: int) -> None:
     require_recycle_flag(flags)
     if not primitive_available():
         raise RecycleFailed("IFileOperation is not available on this host")
-    import ctypes
-    from ctypes import HRESULT, POINTER, WINFUNCTYPE, byref, c_int, c_void_p, c_wchar_p
 
     class GUID(ctypes.Structure):
         _fields_ = [
@@ -220,7 +224,7 @@ def ifileoperation_recycle(path: Path, flags: int) -> None:
 
     def release(interface: c_void_p) -> None:
         if interface.value:
-            com_method(interface, _SLOT_RELEASE, HRESULT)(interface)
+            com_method(interface, _SLOT_RELEASE, c_long)(interface)
             interface.value = None
 
     ole32 = ctypes.windll.ole32
@@ -241,7 +245,7 @@ def ifileoperation_recycle(path: Path, flags: int) -> None:
         )
         if hr != 0 or not operation.value:
             raise RecycleFailed(f"CoCreateInstance IFileOperation failed: {hr}")
-        set_flags = com_method(operation, _SLOT_SET_OPERATION_FLAGS, HRESULT, ctypes.c_ulong)
+        set_flags = com_method(operation, _SLOT_SET_OPERATION_FLAGS, c_long, ctypes.c_ulong)
         if int(set_flags(operation, flags)) != 0:
             raise RecycleFailed("SetOperationFlags failed")
         shell_iid = parse_guid(_IID_IShellItem)
@@ -253,15 +257,15 @@ def ifileoperation_recycle(path: Path, flags: int) -> None:
         if hr != 0 or not item.value:
             raise RecycleFailed(f"SHCreateItemFromParsingName failed: {hr}")
         delete_item = com_method(
-            operation, _SLOT_DELETE_ITEM, HRESULT, c_void_p, c_void_p
+            operation, _SLOT_DELETE_ITEM, c_long, c_void_p, c_void_p
         )
         if int(delete_item(operation, item, None)) != 0:
             raise RecycleFailed("DeleteItem failed")
-        perform = com_method(operation, _SLOT_PERFORM, HRESULT)
+        perform = com_method(operation, _SLOT_PERFORM, c_long)
         if int(perform(operation)) != 0:
             raise RecycleFailed("PerformOperations failed")
         aborted = c_int()
-        query = com_method(operation, _SLOT_ABORTED, HRESULT, POINTER(c_int))
+        query = com_method(operation, _SLOT_ABORTED, c_long, POINTER(c_int))
         if int(query(operation, byref(aborted))) != 0 or aborted.value:
             raise RecycleFailed("GetAnyOperationsAborted reported an abort")
     finally:
@@ -274,7 +278,11 @@ def ifileoperation_recycle(path: Path, flags: int) -> None:
 
 
 def _bin_policy(drive: str) -> tuple[bool | None, int | None]:
-    """Return ``(enabled, max_bytes)``. ``None`` means the read did not prove it."""
+    """Return ``(enabled, max_bytes)``. ``None`` means the read did not prove it.
+
+    ``winreg`` is Windows-only. Importing it at module load would stop the
+    Linux engine from importing this primitive.
+    """
     try:
         import winreg
     except ImportError:
