@@ -1,4 +1,4 @@
-# Promotion-evidence trusted seam — implementation plan (#4588)
+# Promotion-evidence trusted seam. Implementation plan (#4588)
 
 User-approved plan required before code changes. This document settles scope and phases; it does
 not wire the seam.
@@ -36,21 +36,21 @@ classes.
 
 ## Phases (implement after PLAN approval)
 
-### Phase 1 — Bootstrap contract
+### Phase 1. Bootstrap contract
 
 - Document the required operator surfaces: security binding location, `--probe-evidence-root` path
   class (agent-unwritable), and how epoch-scoped promotion-evidence artifacts are published.
 - Add a babysit-loop preflight check that names the missing bootstrap when evaluation would
   fail-closed (without weakening merge safety).
 
-### Phase 2 — Cycle-step invocation
+### Phase 2. Cycle-step invocation
 
 - In babysit-loop cycle-shape step 3, invoke `check-security-binding.mjs` evaluation mode through
   the documented bootstrap only (never repo-local JSON the lane could forge).
 - Map script output to the promotable-cell table already in `promotion-evidence-resolution.md`.
 - Report bound→effective pairs and fail-closed reasons in the cycle-start config report.
 
-### Phase 3 — Verification
+### Phase 3. Verification
 
 - Extend `check-security-binding.fixtures.test.mjs` coverage for the invocation argv the lane uses.
 - Add babysit-loop eval or harness case where bootstrap qualifies and C2/C3 PRs enter the
