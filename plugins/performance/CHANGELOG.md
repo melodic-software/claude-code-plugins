@@ -3,6 +3,15 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.5] - 2026-09-28
+
+### Fixed
+
+- **`snapshot` reports and controls which code path each arm took**
+  ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)). Before each arm,
+  reset or record state that selects the path; report intended versus observed path with evidence;
+  flag arms that do not match the goal's named path. New eval 10.
+
 ## [0.2.3] - 2026-09-28
 
 ### Fixed
