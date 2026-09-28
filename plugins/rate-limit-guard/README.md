@@ -241,6 +241,9 @@ probe's two, unchanged, and the atomic write's `umask` subshell, which disappear
 write it wraps. The steady render is unchanged within measurement noise and sits well inside the
 2 spawn-equivalent bar, because the spool had already reduced it to zero external processes.
 
+Since this measurement, both locks are files created in-process with `noclobber` and released
+with `rm`, so taking a lock spawns nothing and releasing one spawns one `rm`; not re-measured.
+
 ## Tuning: `RLG_TEE_ASYNC`
 
 Not a plugin option. A plain environment variable the statusline tee reads directly, so it sits
