@@ -253,7 +253,8 @@ ticked. Emit the rails block before ending the turn, always.
 - [ ] Every body section the structure doc defines is present. Walked from that doc this turn, not
   written from memory; a section with nothing to report says so explicitly rather than being omitted
 - [ ] Claim provenance applied. Inherited status marked `UNVERIFIED (<source>)`, not stated as
-  plain fact (engine doc, "Claim provenance")
+  plain fact. A fix still in CI, merge, or another unreturned check is `UNVERIFIED (<check>)`,
+  never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green)
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
@@ -316,7 +317,8 @@ ticked. Emit the rails block before ending the turn, always.
   prompt-only writes no file, so the goal travels in the prompt or not at all (engine doc,
   "Original goal, mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
-  `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
+  `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
+  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
@@ -355,6 +357,9 @@ ticked. Emit the rails block before ending the turn, always.
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   NOT relax this
+- **Does not offer a resident / no-stop mode.** `/implementation:implement-dispatch` resident
+  phase boundaries record plan marks and the commit; they do not invoke this skill. Dual-owner
+  split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
 - **Does not orient from durable state**; the position panel restates what this turn already

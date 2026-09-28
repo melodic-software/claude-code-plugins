@@ -1334,23 +1334,21 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(["Cache"], folded)
 
-    def test_root_children_on_non_volume_target_lists_immediate_children(self) -> None:
+    def test_os_managed_non_volume_target_still_rejects_root_children(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            target = base / "home"
+            target = base / "windows-subdir"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            (target / "AppData").mkdir()
-            (target / ".cache").mkdir()
-            (target / "Documents").mkdir()
+            (target / "Temp").mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
                 [
                     mock.patch.object(hygiene, "is_volume_root", return_value=False),
                     mock.patch.object(
-                        hygiene, "is_os_managed_target", return_value=False
+                        hygiene, "is_os_managed_target", return_value=True
                     ),
                     mock.patch.object(
                         hygiene, "mount_state", return_value=(False, None)
@@ -1358,42 +1356,79 @@ class HygieneTests(unittest.TestCase):
                 ],
                 extra_args=["--root-children"],
             )
-            self.assertEqual(0, code)
-            self.assertEqual("root-children-selection-required", payload["status"])
-            admitted = {item["name"] for item in payload["admitted_children"]}
-            self.assertEqual({".cache", "AppData"}, admitted)
-            skipped = {
-                item["name"]: item["reason"] for item in payload["skipped_children"]
-            }
-            self.assertEqual("baseline-protected-name", skipped["Documents"])
-
-    def test_root_children_on_non_os_volume_root_still_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-            target = base / "dev-drive-root"
-            data_root = base / "plugin-data"
-            target.mkdir()
-            data_root.mkdir()
-            code, payload = self._scan_target(
-                target,
-                data_root,
-                self._non_os_volume_root_patches(),
-                extra_args=["--root-children"],
-            )
             self.assertEqual(2, code)
-            self.assertIn("OS-managed", payload["error"])
+            self.assertIn("volume-root target", payload["error"])
 
-    def test_home_root_children_inventories_selected_subtree(self) -> None:
+    def test_root_children_selects_immediate_children_of_a_non_os_target(self) -> None:
+        """A home (or any non-OS directory) can re-inventory approved children.
+
+        Depth-1 of the parent leaves those children truncated-not-inventoried.
+        --root-children on that same parent inventories only the named
+        children, including hidden ones volume-root mode would withhold.
+        """
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             target = base / "home"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            deep = target / "AppData" / "Local" / "pkg"
-            deep.mkdir(parents=True)
-            (deep / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
             (target / "Documents").mkdir()
+            (target / "tmp").mkdir()
+            (target / "loose.tmp").write_text("never", encoding="utf-8")
+            home_patches = [
+                mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                home_patches,
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertIn(".dotnet", admitted)
+            self.assertIn("scratch", admitted)
+            self.assertIn("AppData", admitted)
+            self.assertIn("tmp", admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual("not-a-directory", skipped["loose.tmp"])
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_on_home_inventories_approved_hidden_children(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1409,17 +1444,73 @@ class HygieneTests(unittest.TestCase):
                 extra_args=[
                     "--root-children",
                     "--root-child",
-                    "AppData",
+                    ".dotnet",
+                    "--root-child",
+                    "scratch",
                 ],
             )
             self.assertEqual(0, code)
             self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue(payload["root_children_mode"])
+            self.assertEqual([".dotnet", "scratch"], payload["root_children_selected"])
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")
             )
             paths = {entry["path"] for entry in snapshot["entries"]}
-            self.assertIn("AppData/Local/pkg/orphan.tmp", paths)
-            self.assertNotIn("Documents", paths)
+            self.assertIn(".dotnet", paths)
+            self.assertIn(".dotnet/sdk", paths)
+            self.assertIn(".dotnet/sdk/deep", paths)
+            self.assertIn(".dotnet/sdk/deep/tool.dll", paths)
+            self.assertIn("scratch", paths)
+            self.assertIn("scratch/orphan.tmp", paths)
+            self.assertNotIn("AppData", paths)
+            self.assertNotIn("AppData/nested/cache.tmp", paths)
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual({".dotnet", "scratch"}, set(rollup))
+            self.assertTrue(rollup[".dotnet"]["walked"])
+            self.assertTrue(rollup["scratch"]["walked"])
+
+    def test_root_children_home_snapshot_clears_truncated_handoff_block(
+        self,
+    ) -> None:
+        """Approved home children become previewable once re-inventoried."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "home"
+            nested = root / "scratch" / "deep"
+            nested.mkdir(parents=True)
+            (nested / "orphan.tmp").write_text("x", encoding="utf-8")
+            policy = hygiene.load_policy(None)
+            bounded = hygiene.scan_tree(root.resolve(), policy, max_depth=1)
+            truncated = hygiene.preview(
+                bounded,
+                {
+                    "version": 1,
+                    "tier": "high",
+                    "candidates": [candidate("scratch")],
+                },
+            )
+            self.assertIn(
+                "truncated-not-inventoried",
+                truncated["candidates"][0]["blockers"],
+            )
+            inventoried = hygiene.scan_tree(
+                root.resolve(), policy, root_children=["scratch"]
+            )
+            inventoried["root_children_skipped"] = []
+            with mock.patch.object(hygiene, "execution_blockers", return_value=[]):
+                result = hygiene.preview(
+                    inventoried,
+                    {
+                        "version": 1,
+                        "tier": "high",
+                        "candidates": [candidate("scratch/deep/orphan.tmp")],
+                    },
+                )
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertNotIn(
+                "truncated-not-inventoried",
+                result["candidates"][0]["blockers"],
+            )
 
     def test_root_child_requires_root_children_flag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2304,6 +2395,40 @@ class HygieneTests(unittest.TestCase):
                 self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries"),
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+
+    def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for index in range(4):
+                (root / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual([], snapshot["entries"])
+            self.assertEqual("sizes-only", snapshot["inventory_mode"])
+            self.assertEqual("exact", snapshot["rollup_precision"])
+            child = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "file-0.txt"
+            )
+            self.assertTrue(child["walked"])
+
+    def test_sizes_only_depth_cut_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            nested = root / "child"
+            nested.mkdir()
+            (nested / "deep.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1, sizes_only=True
+            )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+            child_row = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "child"
+            )
+            self.assertFalse(child_row["walked"])
 
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -8111,6 +8236,8 @@ class GuardTests(unittest.TestCase):
             f"{base} --root-children --root-child builds --root-child tmp",
             f"{base} --root-children --root-child builds --max-depth 1",
             f"{base} --confirmed-large-scan --root-children --root-child builds",
+            f"{base} --sizes-only",
+            f"{base} --sizes-only --max-depth 2",
         )
         denied = (
             f"{base} --root-child builds",

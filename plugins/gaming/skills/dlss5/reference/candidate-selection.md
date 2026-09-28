@@ -69,9 +69,10 @@ Known gaps:
 ## Non-candidates
 
 - **No temporal upscaler.** Most 2D, pixel-art and older titles, such as Stardew Valley. No source
-  addresses 2D games directly; they fall under "no upscaler". The only no-upscaler path in the fork
-  trackers is an unmerged proof of concept (wilsjo2 #6) that feeds constant depth and zero motion
-  vectors. The plugin does not support it.
+  addresses 2D games directly; they fall under "no upscaler". The in-process OptiScaler route needs an
+  upscaler DLL. The community **DLSS5-Feeder** ReShade add-on route can work without one; see
+  [`feeder-route.md`](feeder-route.md) for manual install guidance. Manifest-backed Feeder support is
+  tracked in #4592.
 - **Anti-cheat.** Refused on disk and by the Steam store check; see
   `reference/anticheat-posture.md`.
 

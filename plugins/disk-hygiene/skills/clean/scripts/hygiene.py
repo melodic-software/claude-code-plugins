@@ -152,8 +152,8 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     'snapshot file named by "snapshot" carries every row and every truncated '
     "path in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
-    "immediate directories, so the volume root itself and every skipped "
-    "OS-owned/hidden/system/reparse entry were never walked, and "
+    "immediate directories, so the scan target itself and every skipped "
+    "OS-owned/hidden/system/reparse or unselected sibling were never walked, and "
     "children_rollup covers the selected children only. The skipped entries "
     'are listed as "root_children_skipped" in the snapshot and are not '
     "represented in truncated_paths. Re-run without --quiet for the rollup "
@@ -184,8 +184,8 @@ def scan_complete_payload(
     from being missing in the other.
     """
     entries = snapshot["entries"]
-    hinted = sum(1 for entry in entries if entry["hints"])
-    return {
+    hinted = sum(1 for entry in entries if entry.get("hints"))
+    payload = {
         "status": "scan-complete",
         "target": str(target),
         **(extra or {}),
@@ -203,6 +203,10 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if snapshot.get("inventory_mode") == "sizes-only":
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = snapshot.get("rollup_precision")
+    return payload
 
 
 def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
@@ -1387,18 +1391,16 @@ def root_child_skip_reason(
     exact_names: set[str],
     known_linux_mounts: set[Path] | None = None,
     os_owned_names: set[str] | None = None,
-    allow_dot_hidden: bool = False,
-    apply_volume_os_owned_names: bool = True,
+    strict_volume_root: bool = True,
 ) -> str | None:
-    """Why an immediate child must not be offered or audited under --root-children.
+    """Why an immediate child must not be offered or audited.
 
-    Mirrors the volume-root guard's exclusion spirit (OS-owned / hidden /
-    system / reparse) and fails closed on anything ambiguous (#2588). Root
-    files are never candidates — only directories can be selected.
-
-    ``apply_volume_os_owned_names`` and ``allow_dot_hidden`` relax the volume-root
-    listing rules for a non-root target (for example a user home directory) where
-    dot-prefixed profile directories are legitimate fan-out subtrees.
+    On an OS-managed volume root, mirrors the volume-root guard (OS-owned /
+    hidden / system / reparse) and fails closed on anything ambiguous (#2588).
+    On any other target (#4221), hidden and OS-owned-by-volume-name children
+    stay selectable so a depth-1 home audit can re-inventory approved
+    directories without walking the rest of the home. Root files are never
+    candidates — only directories can be selected.
     """
     try:
         info = path.lstat()
@@ -1413,10 +1415,10 @@ def root_child_skip_reason(
     name = path.name
     if name in {".", ".."} or not name:
         return "invalid-name"
-    if not allow_dot_hidden and name.startswith("."):
-        return "hidden"
-    folded = name.casefold()
-    if apply_volume_os_owned_names:
+    if strict_volume_root:
+        if name.startswith("."):
+            return "hidden"
+        folded = name.casefold()
         owned = (
             os_owned_names
             if os_owned_names is not None
@@ -1428,11 +1430,11 @@ def root_child_skip_reason(
         # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
         if name.startswith("$"):
             return "os-owned"
-    attributes = int(getattr(info, "st_file_attributes", 0) or 0)
-    if attributes & FILE_ATTRIBUTE_HIDDEN:
-        return "hidden"
-    if attributes & FILE_ATTRIBUTE_SYSTEM:
-        return "system"
+        attributes = int(getattr(info, "st_file_attributes", 0) or 0)
+        if attributes & FILE_ATTRIBUTE_HIDDEN:
+            return "hidden"
+        if attributes & FILE_ATTRIBUTE_SYSTEM:
+            return "system"
     if has_protected_name(path, exact_names):
         return "baseline-protected-name"
     mounted, mount_error = mount_state(path, known_linux_mounts)
@@ -1440,7 +1442,7 @@ def root_child_skip_reason(
         return "mount-state-unverified"
     if mounted:
         return "nested-mount-point"
-    if apply_volume_os_owned_names:
+    if strict_volume_root:
         for root in system_roots():
             if path.absolute() == root.absolute() or is_within(
                 path.absolute(), root.absolute()
@@ -1453,49 +1455,19 @@ def enumerate_root_children(
     target: Path,
     policy: dict[str, Any],
     known_linux_mounts: set[Path] | None = None,
+    *,
+    strict_volume_root: bool = True,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """List immediate volume-root entries into admitted vs skipped buckets.
+    """List immediate children into admitted vs skipped buckets.
 
-    Enumerates the root once and never recurses. Admitted entries are
+    Enumerates the target once and never recurses. Admitted entries are
     directories that cleared every root-children exclusion; skipped entries
-    carry the reason they were withheld.
+    carry the reason they were withheld. ``strict_volume_root`` keeps the
+    OS-owned / hidden / system ladder that an OS-managed volume root needs;
+    any other target drops those so approved home children stay selectable.
     """
     exact_names = set(policy["protected_exact_names"])
     os_owned = volume_root_os_owned_names()
-    admitted: list[dict[str, str]] = []
-    skipped: list[dict[str, str]] = []
-    try:
-        with os.scandir(target) as iterator:
-            children = sorted(iterator, key=lambda entry: entry.name.casefold())
-    except OSError as exc:
-        raise HygieneError(f"cannot enumerate volume root: {exc}") from exc
-    for child in children:
-        path = Path(child.path)
-        reason = root_child_skip_reason(
-            path,
-            exact_names=exact_names,
-            known_linux_mounts=known_linux_mounts,
-            os_owned_names=os_owned,
-        )
-        if reason is None:
-            admitted.append({"name": child.name, "path": str(path)})
-        else:
-            skipped.append({"name": child.name, "path": str(path), "reason": reason})
-    return admitted, skipped
-
-
-def enumerate_target_children(
-    target: Path,
-    policy: dict[str, Any],
-    known_linux_mounts: set[Path] | None = None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """List immediate entries of a non-volume audit target for --root-children.
-
-    Uses the same admitted/skipped shape as ``enumerate_root_children`` but
-    admits dot-prefixed profile directories and does not apply volume-root
-    OS-owned name exclusions.
-    """
-    exact_names = set(policy["protected_exact_names"])
     admitted: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
     try:
@@ -1509,8 +1481,8 @@ def enumerate_target_children(
             path,
             exact_names=exact_names,
             known_linux_mounts=known_linux_mounts,
-            allow_dot_hidden=True,
-            apply_volume_os_owned_names=False,
+            os_owned_names=os_owned,
+            strict_volume_root=strict_volume_root,
         )
         if reason is None:
             admitted.append({"name": child.name, "path": str(path)})
@@ -1578,6 +1550,7 @@ def scan_tree(
     max_depth: int | None = None,
     *,
     root_children: list[str] | None = None,
+    sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -1638,12 +1611,12 @@ def scan_tree(
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
                     walked = True
-                    if path.name.casefold() in VCS_NAMES:
+                    if not sizes_only and path.name.casefold() in VCS_NAMES:
                         subtotal: int | None = None
                         walked = False
                         truncated.append(relative)
                         unwalked_reasons[relative] = "vcs-boundary"
-                    elif protections:
+                    elif not sizes_only and protections:
                         subtotal = None
                         walked = False
                         truncated.append(relative)
@@ -1692,19 +1665,22 @@ def scan_tree(
                 errors.append({"path": relative, "error": str(exc)})
                 unwalked_reasons[relative] = "scan-error"
                 continue
-            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
+            if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
                     f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
                     "--max-depth or split the audit into bounded subtrees"
                 )
-            entries.append(
-                {
-                    "path": relative,
-                    **data,
-                    "hints": matching_hints(relative, path.name, policy),
-                    "protected_reasons": sorted(set(protections)),
-                }
-            )
+            if sizes_only:
+                entries.append({"path": relative, **data})
+            else:
+                entries.append(
+                    {
+                        "path": relative,
+                        **data,
+                        "hints": matching_hints(relative, path.name, policy),
+                        "protected_reasons": sorted(set(protections)),
+                    }
+                )
             if len(entries) % 25_000 == 0:
                 print(f"scanned {len(entries)} entries...", file=sys.stderr)
         return total
@@ -1714,7 +1690,8 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
-    annotate_tracked(entries, target, repositories, truncated, repo_errors)
+    if not sizes_only:
+        annotate_tracked(entries, target, repositories, truncated, repo_errors)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
@@ -1765,8 +1742,13 @@ def scan_tree(
             unknown_paths=unknown_paths,
             unwalked_reasons=unwalked_reasons,
         ),
-        "entries": sorted(entries, key=lambda entry: entry["path"]),
+        "entries": []
+        if sizes_only
+        else sorted(entries, key=lambda entry: entry["path"]),
     }
+    if sizes_only:
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = "exact" if not truncated else "partial"
     if root_children is not None:
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
@@ -2824,11 +2806,15 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     removed, so any unrelated write into a live target during the approval
     window would otherwise abort the run.
 
-    Root-children mode is the exception to the OS-managed-root veto on volume
-    roots, and the way a home (or other non-volume) target fans out without a
-    whole-tree walk: the snapshot target stays the parent directory, but the
-    inventory only covers explicitly selected immediate children.
+    Root-children mode is the sole exception to the OS-managed-root veto: the
+    snapshot target may be an OS-managed volume root, but the inventory only
+    covers explicitly selected immediate children — never a recursive walk of
+    the root itself. The same selection surface also covers a non-OS target
+    (a home directory) so approved children can be re-inventoried without
+    walking the rest of the tree.
     """
+    if snapshot.get("inventory_mode") == "sizes-only":
+        raise HygieneError("sizes-only snapshot is not eligible for disposition")
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
         or snapshot.get("engine") != "disk-hygiene-python-1"
@@ -2846,14 +2832,9 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     if is_os_managed_target(target) and not root_children_mode:
         raise HygieneError("snapshot target is now an OS-managed root")
     if root_children_mode:
-        if is_volume_root(target):
-            if not is_os_managed_target(target):
-                raise HygieneError(
-                    "root-children snapshot target must remain an OS-managed volume root"
-                )
-        elif is_os_managed_target(target):
+        if is_os_managed_target(target) and not is_volume_root(target):
             raise HygieneError(
-                "root-children snapshot target cannot be an OS-managed root"
+                "root-children snapshot of an OS-managed target must remain a volume root"
             )
         selected = snapshot.get("root_children_selected")
         if not isinstance(selected, list) or not selected:
@@ -3813,20 +3794,14 @@ def main(argv: list[str] | None = None) -> int:
             selected_root_children = list(args.root_child or [])
             if selected_root_children and not root_children_mode:
                 raise HygieneError("--root-child requires --root-children")
-            if root_children_mode:
-                if is_volume_root(target):
-                    if not is_os_managed_target(target):
-                        raise HygieneError(
-                            "--root-children on a volume root requires an OS-managed "
-                            "volume root; scan a non-OS volume root without this flag"
-                        )
-                elif is_os_managed_target(target):
-                    raise HygieneError(
-                        "OS-managed roots are not valid audit targets; use "
-                        "--root-children on a volume root instead"
-                    )
-            elif is_os_managed_target(target):
+            os_managed = is_os_managed_target(target)
+            volume_root = is_volume_root(target)
+            if os_managed and not root_children_mode:
                 raise HygieneError("OS-managed roots are not valid audit targets")
+            if os_managed and root_children_mode and not volume_root:
+                raise HygieneError(
+                    "--root-children on an OS-managed target requires a volume-root target"
+                )
             if mounted and not is_volume_root(target):
                 raise HygieneError("mount points are not valid audit targets")
             policy = load_policy(
@@ -3845,19 +3820,35 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            sizes_only = bool(args.sizes_only)
             if root_children_mode:
-                if is_volume_root(target):
-                    admitted, skipped = enumerate_root_children(
-                        target, policy, known_mounts
-                    )
-                else:
-                    admitted, skipped = enumerate_target_children(
-                        target, policy, known_mounts
-                    )
+                admitted, skipped = enumerate_root_children(
+                    target,
+                    policy,
+                    known_mounts,
+                    strict_volume_root=os_managed and volume_root,
+                )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
                 # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
+                    if os_managed:
+                        selection_note = (
+                            "OS-managed volume roots are never walked as a "
+                            "whole. Re-run with --root-children and one or "
+                            "more explicit --root-child NAME flags naming "
+                            "admitted immediate directories; a general "
+                            "'clean everything' is not selection."
+                        )
+                    else:
+                        selection_note = (
+                            "Re-run with --root-children and one or more "
+                            "explicit --root-child NAME flags naming admitted "
+                            "immediate directories of this target; a general "
+                            "'clean everything' is not selection. Selected "
+                            "children are inventoried into one snapshot "
+                            "without walking the rest of the target."
+                        )
                     return emit(
                         {
                             "status": "root-children-selection-required",
@@ -3865,13 +3856,7 @@ def main(argv: list[str] | None = None) -> int:
                             "admitted_children": admitted,
                             "skipped_children": skipped,
                             "os_autoclean": advisory,
-                            "note": (
-                                "OS-managed volume roots are never walked as a "
-                                "whole. Re-run with --root-children and one or "
-                                "more explicit --root-child NAME flags naming "
-                                "admitted immediate directories; a general "
-                                "'clean everything' is not selection."
-                            ),
+                            "note": selection_note,
                         },
                         0,
                     )
@@ -3892,6 +3877,7 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
+                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -3915,6 +3901,7 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         args.max_depth,
                         root_children=resolved_children,
+                        sizes_only=sizes_only,
                     )
                 except HygieneError as exc:
                     return emit(
@@ -3937,11 +3924,11 @@ def main(argv: list[str] | None = None) -> int:
                             advisory,
                             (
                                 "Root-children mode inventoried only the "
-                                "selected immediate directories; the volume "
-                                "root itself and every skipped "
-                                "OS-owned/hidden/system/reparse entry were "
-                                "never walked — so children_rollup covers the "
-                                "selected children only. unhinted_entries is "
+                                "selected immediate directories; the scan "
+                                "target itself and every skipped "
+                                "OS-owned/hidden/system/reparse or unselected "
+                                "sibling were never walked — so children_rollup "
+                                "covers the selected children only. unhinted_entries is "
                                 "entries minus hinted_entries: every "
                                 "inventoried entry no hint judged, left to "
                                 "positional review. Hints are discovery "
@@ -3960,6 +3947,7 @@ def main(argv: list[str] | None = None) -> int:
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
+                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
@@ -3981,7 +3969,9 @@ def main(argv: list[str] | None = None) -> int:
                     0,
                 )
             try:
-                snapshot = scan_tree(target, policy, args.max_depth)
+                snapshot = scan_tree(
+                    target, policy, args.max_depth, sizes_only=sizes_only
+                )
             except HygieneError as exc:
                 return emit(
                     {
@@ -4001,25 +3991,33 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         advisory,
                         (
-                            "Safe tidiness is the primary objective; "
-                            "reclaimable bytes are a secondary signal. "
-                            "empty_directory_count names walked empty "
-                            "directories (logical_size 0, not truncated) so "
-                            "zero-byte residue stays visible. "
-                            "unhinted_entries is entries minus "
-                            "hinted_entries — every inventoried entry no hint "
-                            "judged, left to positional review — so hint "
-                            "coverage reads as a rate, not a bare count. "
-                            "Hints are discovery signals, never cleanup "
-                            "verdicts. children_rollup carries one row per "
-                            "immediate child; its logical_bytes, entry_count "
-                            "and newest_mtime_ns are exact where walked is "
-                            "true and null where it is false, never 0. "
-                            "target_reclaimable_local_bytes excludes every "
-                            "entry whose size_qualifiers is non-empty "
-                            "(cloud-placeholder, hardlinked, sparse, "
-                            "not-walked); target_logical_bytes is the walked "
-                            "roll-up and may understate truncated subtrees."
+                            "Sizes-only walk: no per-entry inventory was "
+                            "written; children_rollup and rollup_precision "
+                            "carry exact subtree totals when the walk was "
+                            "complete. Use a normal scan when you need hints, "
+                            "protected_reasons, or handoff paths."
+                            if sizes_only
+                            else (
+                                "Safe tidiness is the primary objective; "
+                                "reclaimable bytes are a secondary signal. "
+                                "empty_directory_count names walked empty "
+                                "directories (logical_size 0, not truncated) so "
+                                "zero-byte residue stays visible. "
+                                "unhinted_entries is entries minus "
+                                "hinted_entries — every inventoried entry no hint "
+                                "judged, left to positional review — so hint "
+                                "coverage reads as a rate, not a bare count. "
+                                "Hints are discovery signals, never cleanup "
+                                "verdicts. children_rollup carries one row per "
+                                "immediate child; its logical_bytes, entry_count "
+                                "and newest_mtime_ns are exact where walked is "
+                                "true and null where it is false, never 0. "
+                                "target_reclaimable_local_bytes excludes every "
+                                "entry whose size_qualifiers is non-empty "
+                                "(cloud-placeholder, hardlinked, sparse, "
+                                "not-walked); target_logical_bytes is the walked "
+                                "roll-up and may understate truncated subtrees."
+                            )
                         ),
                     ),
                     args.quiet,

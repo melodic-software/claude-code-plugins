@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-09-28
+
+### Added
+
+- **`scan --sizes-only` for exact subtree sizing**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). Full walk with no
+  per-entry inventory, no inventory entry cap, and `rollup_precision` marking exact vs partial output.
+- **Fan-out worker brief** at `skills/clean/reference/fan-out-worker-brief.md` (Bash contract, scan
+  templates, evidence-only rules).
+
+## [0.27.1] - 2026-09-28
+
+### Added
+
+- **`--root-children` inventories approved children of any target, not only an OS-managed volume
+  root** ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). A depth-1
+  home audit left every approved directory `truncated-not-inventoried`, and a deeper whole-home
+  walk hit the 250,000-entry cap. The same `--root-child` selection that already bounded an
+  OS-managed volume root now re-inventories those named immediate children into one snapshot,
+  paths relative to the original target. On a non-OS target, hidden directories (`.dotnet`,
+  `AppData`) stay selectable; the volume-root OS-owned / hidden / system ladder still applies
+  only at an OS-managed volume root. An OS-managed path that is not a volume root is still
+  refused.
+
 ## [0.27.0] - 2026-09-28
 
 ### Added
