@@ -596,7 +596,7 @@ lane_gopls() {
 }
 
 # ---------------------------------------------------------------------------
-# Lane: grep (shell and other symbol languages) — measured 4/4 true positives,
+# Lane: grep (shell and PowerShell) — measured 4/4 true positives,
 # 0 false positives over 546 .sh / 177,793 lines. High precision, acknowledged
 # low recall. `grep -w -F` is the portable floor and -F is MANDATORY: without
 # it `core.ts` matches `coreXts`.

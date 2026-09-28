@@ -104,7 +104,7 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
 
-### grep: shell and other symbol languages
+### grep: shell and PowerShell
 
 - **The portable floor is `grep -w -F -f <names>`** over the repository's tracked files. `-F` is
   **mandatory**: without it `core.ts` matches `coreXts`. None of `-w`, `-F`, `-f` is a GNU-only
