@@ -59,6 +59,7 @@ lanes: []
 
 - Team lane: skip the billing sandbox.
 '
+# shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
 run_case "team-only layer" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team lane: skip the billing sandbox.\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
 
 HOME="${FIXTURES}/home-b"
@@ -82,6 +83,7 @@ layer "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" '## Gotchas
 
 - Overlay: my fork uses a different tracker.
 '
+# shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
 run_case "three layers concatenate in cascade order" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: this machine has no GPU.\n\n#### team (`%s`)\n\n- Team: do not file from the sandbox.\n\n#### local overlay (`%s`)\n\n- Overlay: my fork uses a different tracker.\n' "$HOME/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md")"
 
 HOME="${FIXTURES}/home-c"
@@ -103,6 +105,7 @@ layer "$CLAUDE_PROJECT_DIR/.claude/bugs.md" '# bugs
 
 - Ignore this.
 '
+# shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
 run_case "heading inside a fence is ignored; next H2 ends the section" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Real: respect the fence.\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
 
 HOME="${FIXTURES}/home-d"
@@ -118,6 +121,7 @@ Keep the subsection.
 
 Stop here.
 '
+# shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
 run_case "deeper heading is section content" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n### Nested note\n\nKeep the subsection.\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
 
 HOME="${FIXTURES}/home-e"

@@ -61,6 +61,7 @@ emit_layer() {
   else
     printf '\n'
   fi
+  # shellcheck disable=SC2016  # backticks are the literal markdown code span in the printf format, not substitution
   printf '#### %s (`%s`)\n\n%s\n' "$label" "$file" "$body"
   emitted=1
 }
