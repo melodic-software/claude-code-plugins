@@ -3906,9 +3906,6 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
                 mock.patch.object(
                     hygiene, "os_autoclean_advisory", side_effect=windows_advisory
                 ),
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
                 redirect_stdout(output),
             ):
                 code = hygiene.main(
@@ -3918,6 +3915,8 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
                         str(temp_root),
                         "--output",
                         str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(0, code)
