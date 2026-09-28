@@ -866,6 +866,19 @@ jobs:
         continue-on-error: true
         run: scripts/check-hook-exec-form.sh
 
+      # Windows exec form spawns a real .exe with an args array and no shell.
+      # The static half rejects a script, shim, or bare bash used as `command`.
+      # The spawn half is a reported skip on this Linux lane; that skip does
+      # not authorize converting .sh rows. The Windows lane runs the spawn
+      # (#3686, anthropics/claude-code#90495). Self-test first.
+      - name: Test the Windows exec-form probe
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-exec-form-windows-probe.test.sh
+      - name: Probe exec-form rows for a real Windows executable
+        id: exec_form_windows_probe
+        continue-on-error: true
+        run: scripts/check-exec-form-windows-probe.sh
+
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
       # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
@@ -1509,6 +1522,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
             hook-slow-shapes=${{ steps.hook_slow_shapes.outcome }}
             hooks-description=${{ steps.hooks_description.outcome }}
