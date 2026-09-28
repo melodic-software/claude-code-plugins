@@ -111,6 +111,12 @@ hand-rolled loop gets wrong: an arm whose probe exits 127 (a command that never 
 records as a fast clean sample), a drive-letter path in an arm, a ratio from too few pairs, and a
 clock it cannot read. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --help` lists the options.
 
+The paired-ratio median carries its own floor beside the percentile floor: at least 20 pairs, the
+default of `${CLAUDE_PLUGIN_ROOT}/scripts/ratio.py`. Below it, report the raw per-pair ratios and no
+median, since six repeats of two identical arms at five pairs gave medians from 0.78x to 1.00x and
+one run reported 17.12x. A lowered `BENCH_MIN_PAIRS` prints itself on the line; carry it into the
+report.
+
 Grounded, Tier 1, `benchstat`'s own documentation: *"The best way to do this is to interleave before
 and after runs, rather than running, say, 10 iterations of the before benchmark, and then 10
 iterations of the after benchmark."*
