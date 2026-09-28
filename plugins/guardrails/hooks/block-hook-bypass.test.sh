@@ -2799,4 +2799,37 @@ assert_contains "two blocking guards dispatched: this guard's reason survives" \
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
   "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
+# --- cat > outside any git toplevel (#3689) ---------------------------------
+# A target with no git root has no Write|Edit hook to bypass. The same redirect
+# inside a work tree still blocks. echo/printf is not widened. Temp and
+# plugin-data defaults are unchanged and are not what these cases rely on:
+# CLAUDE_PROJECT_DIR stays unset, which is the state where those defaults stand
+# down.
+# Hand-spelled lowercase names. mktemp is mixed-case, and the segment scan
+# folds case, so a capital in the fixture would miss the real directory.
+GITLESS_DIR="/tmp/bhb-3689-gitless-$$"
+GIT_REPO_DIR="/tmp/bhb-3689-repo-$$"
+rm -rf "$GITLESS_DIR" "$GIT_REPO_DIR"
+mkdir -p "$GITLESS_DIR" "$GIT_REPO_DIR"
+git -C "$GIT_REPO_DIR" init -q
+git -C "$GITLESS_DIR" rev-parse --show-toplevel >/dev/null 2>&1 &&
+  echo "fixture error: gitless dir is inside a work tree" >&2
+run "cat > gitless absolute (allowed)" "cat > ${GITLESS_DIR}/x.ps1" 0
+run "cat > inside a git work tree (blocked)" "cat > ${GIT_REPO_DIR}/x.ps1" 2
+run "echo > gitless absolute still blocked" "echo hi > ${GITLESS_DIR}/y.ps1" 2
+# Inherited GIT_DIR must not make a gitless target look like the session repo.
+run "cat > gitless ignores inherited GIT_DIR (allowed)" \
+  "cat > ${GITLESS_DIR}/z.ps1" 0 GIT_DIR="${GIT_REPO_DIR}/.git"
+GITLESS_LINK="/tmp/bhb-3689-link-$$"
+rm -rf "$GITLESS_LINK"
+mkdir -p "$GITLESS_LINK"
+ln -s "$GIT_REPO_DIR" "${GITLESS_LINK}/into-repo"
+run "cat > symlink into a git work tree (blocked)" \
+  "cat > ${GITLESS_LINK}/into-repo/x.ps1" 2
+if ! git -C "$HOME" rev-parse --show-toplevel >/dev/null 2>&1; then
+  run "cat > quoted \$HOME (allowed)" 'cat > "$HOME/x.ps1"' 0
+  run "cat > tilde home (allowed)" 'cat > ~/x.ps1' 0
+fi
+rm -rf "$GITLESS_DIR" "$GIT_REPO_DIR" "$GITLESS_LINK"
+
 report

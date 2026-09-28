@@ -323,6 +323,13 @@ out of scope until such a signal exists.
   as a static default, because neither has a fixed spelling: the scratchpad path
   carries a session id, so it resolves at run time.
 
+  **A `cat >` whose target has no git toplevel is allowed** (since **0.40.2**).
+  The guard resolves that target, including a leading `$HOME` or `~/`, and runs
+  `git rev-parse --show-toplevel` from its directory. When that fails, no
+  formatter or verify hook would have seen the Write either, so the redirect is
+  not a bypass. A toplevel still blocks. `echo` and `printf` redirects are
+  unchanged. The temp-tree and plugin-data defaults above still apply first.
+
   **Exempting it gives up little protection**, which is the only reason a default
   is defensible here: guardrails' own `Write|Edit` gates decline most temp-tree
   files reached from a known project root outside the temp tree.

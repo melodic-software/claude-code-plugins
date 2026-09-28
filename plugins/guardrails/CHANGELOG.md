@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` allows `cat >` only when the target has no git toplevel
+  ([#3689](https://github.com/melodic-software/claude-code-plugins/issues/3689)).**
+  The guard resolves the write target, including a leading `$HOME` or `~/`, and
+  runs `git rev-parse --show-toplevel` from that directory. A failure means no
+  formatter or verify hook would have seen the Write, so the redirect is allowed.
+  A toplevel still blocks. `echo`/`printf` redirects are unchanged. The temp-tree
+  and plugin-data scratch defaults are unchanged and still apply first.
+
 ## [0.41.3] - 2026-09-28
 
 ### Changed

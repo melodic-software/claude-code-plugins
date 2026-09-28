@@ -38,6 +38,9 @@
 # that does not contain it and confirmed through symlink resolution. See the
 # block above scratch_target_exempt for why exempting those gives up no
 # protection, and why the memory tier is deliberately not one of them.
+# A `cat >` whose resolved target has no git toplevel is also allowed (#3689):
+# `git rev-parse --show-toplevel` fails there, so no Write|Edit hook would have
+# run. A toplevel still blocks. echo/printf redirects are not widened.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -1236,6 +1239,65 @@ target_exempt() {
   scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}"
 }
 
+# 0 when segment $1's stdout target has no git toplevel.
+#
+# Only the cat lane calls this, and only after the discard and scratch
+# exemptions have declined, so a temp or plugin-data target never pays for a
+# rev-parse and an echo/printf redirect is unchanged. A target this function
+# cannot place stays blocked. `$HOME` and `~/` are the two expansions the
+# reported false positive uses; any other metacharacter stays blocked.
+# Inherited GIT_DIR / GIT_WORK_TREE are unset so the probe is about this
+# directory, not the session's repository.
+_bbh_cat_gitless() {
+  local s="$1" target abs dir
+  ((SEG_TGT_OPQ[s])) && return 1
+  command -v git >/dev/null 2>&1 || return 1
+  target="${SEG_TGT[s]}"
+  [[ -n "$target" ]] || return 1
+  # Quoted operands stay blocked, except the two home spellings the false
+  # positive uses. A quoted pathname is one word to bash (`"/dev/null ../../etc/pw"`,
+  # #2226) and is not a path this probe can trust.
+  if ((SEG_TGT_Q[s])); then
+    case "$target" in
+      '$home' | '$home/'* | '~' | '~/'*) ;;
+      *) return 1 ;;
+    esac
+  fi
+  if [[ -n "${HOME:-}" ]]; then
+    case "$target" in
+      '$home') target="$HOME" ;;
+      '$home/'*) target="${HOME}/${target#\$home/}" ;;
+      '~') target="$HOME" ;;
+      '~/'*) target="${HOME}/${target#\~/}" ;;
+    esac
+  fi
+  case "$target" in
+    *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['* | *\\*) return 1 ;;
+  esac
+  abs="$(_scratch_abs_target "$target")" || return 1
+  [[ -n "$abs" ]] || return 1
+  _bbh_physical_path "$abs" || return 1
+  abs="$_BBH_PHYS"
+  [[ -n "$abs" ]] || return 1
+  # Probe the directory that exists: the target itself when it is a directory,
+  # otherwise its parent. Do not walk further. A missing parent is not proof
+  # of "no git root" — the segment scan has already folded case, and a
+  # mixed-case directory would look missing and then match an ancestor that
+  # is not the repository.
+  dir="$abs"
+  if [[ -d "$dir" ]]; then
+    :
+  elif [[ -d "${dir%/*}" ]]; then
+    dir="${dir%/*}"
+  else
+    return 1
+  fi
+  if env -u GIT_DIR -u GIT_WORK_TREE git -C "$dir" rev-parse --show-toplevel >/dev/null 2>&1; then
+    return 1
+  fi
+  return 0
+}
+
 # `cat >` with no input file is content authoring redirected into a file — the
 # heredoc/typed-content Write bypass. Per segment, so the /dev/null DISCARD
 # exemption cannot leak across a compound command: `cat > /dev/null &&
@@ -1262,6 +1324,7 @@ cat_redirect_bypass() {
     done
     ((k >= 0)) || continue
     target_exempt "$s" && continue
+    _bbh_cat_gitless "$s" && continue
     return 0
   done
   return 1
