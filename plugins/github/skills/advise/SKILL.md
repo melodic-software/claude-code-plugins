@@ -47,6 +47,17 @@ ruleset, current spend), read it through the user's own `gh` session first and a
 recommendation to it. Advice against an imagined baseline is noise. Reads follow the same
 read-only contract as `audit`.
 
+**Cross-repo blast radius.** When the advice changes something other repositories consume (an
+org or enterprise ruleset, a required or reusable workflow, an org Actions policy, an org secret
+or variable, a custom property), list the repositories it reaches, with the same GET-only reads,
+and name what the change does to each before recommending it. Every recommendation carries a
+`Basis:`: `verified` with the fetched doc URL, `gh` output, or `file:line`, or `judgment`
+(never for a cross-repo, shared-infrastructure, irreversible, or security change). One the reads
+and docs cannot settle is withheld: present it as a decision point naming the evidence that would
+settle it, not as a recommendation. A changed recommendation is restated as old → new → why.
+Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
+full convention: `docs/conventions/recommendation-basis/README.md` in the marketplace repository.
+
 ## 4. Advise
 
 - **Recommendation with rationale**: what to configure and why, citing the fetched doc and the
