@@ -485,6 +485,11 @@ config)
   mock=""
   if [[ "$key" == "worktreeroot.path" ]]; then
     mock="${MOCK_WORKTREEROOT_PATH:-}"
+    # MOCK_WORKTREEROOT_PATH_FOR="<repo-basename>=<path>" models an includeIf that gives one
+    # repository its own root.
+    if [[ -n "${MOCK_WORKTREEROOT_PATH_FOR:-}" && "$base" == "${MOCK_WORKTREEROOT_PATH_FOR%%=*}" ]]; then
+      mock="${MOCK_WORKTREEROOT_PATH_FOR#*=}"
+    fi
   elif [[ "$key" == "melodic.worktreeroot" ]]; then
     mock="${MOCK_MELODIC_WORKTREE_ROOT:-}"
   else
@@ -1690,6 +1695,31 @@ assert_not_contains_file "no-origin layout does not expect upstream owner/repo p
   "other-upstream-repo" "$no_origin_out"
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
+
+# #4212: a repository whose includeIf sets its own root is classified against that root, not the
+# fleet default taken from the first target. conform-canon resolves $TMP/other-root first, so the
+# pre-fix collector judged no-origin-canon's correctly placed worktree against it.
+per_repo_out="$TMP/per-repo-root-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/other-root" MOCK_WORKTREEROOT_PATH_FOR="no-origin-canon=$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$per_repo_out" 2>&1 || true
+assert_contains_file "fleet default root still heads the report" \
+  "Worktree root: $TMP/other-root (source: worktreeroot.path" "$per_repo_out"
+per_repo_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$per_repo_out" | grep -F 'Target: ' || true)"
+if [[ "$per_repo_outside_targets" == *no-origin-canon-feature-ok* ]]; then
+  printf 'FAIL: worktree under its own includeIf root flagged outside the fleet default root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: worktree under its own includeIf root is not flagged outside the fleet default root\n'
+fi
+assert_contains_file "per-repository rollup names the repository's own root" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/conform-root)" "$per_repo_out"
+assert_contains_file "the other repository still uses the fleet default root" \
+  "expected location $TMP/other-root/acme-conform-feature-flat" "$per_repo_out"
+assert_contains_file "fleet summary lists the repository that used its own root" \
+  "classified against their own resolved root: $TMP/no-origin-canon uses $TMP/conform-root" "$per_repo_out"
+assert_not_contains_file "a repository on the fleet default root is not listed as an override" \
+  "$TMP/conform-canon uses" "$per_repo_out"
 
 # This fixture is the only one that puts TWO findings on a single target, so it
 # is the only place the detail and JSON emitters' dedupe is exercised at all. A
