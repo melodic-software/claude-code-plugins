@@ -51,7 +51,13 @@ against a run that produced none):
    Sibling, not child: independence is a property of *context provenance*, not of spawn parentage. A
    verifier that reads the artifact off disk has never seen the producing context, whoever spawned
    it, which is why nested spawning stays an optimization here rather than a correctness
-   prerequisite.
+   prerequisite. The verifier is `discovery:research-verifier`, a read-only definition with no
+   `Write`, `Edit` or `Bash`; the copyable dispatch block sits after the acceptance gate in
+   `SKILL.md`.
+
+   **Skipping it is allowed on the cost path, and the skip is recorded.** Write
+   `verification: skipped (cost)` into the index frontmatter. A later reader then knows no verifier
+   ran, which `pending` cannot tell them.
 
    **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
    rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
@@ -75,8 +81,9 @@ against a run that produced none):
    and a later reader cannot tell an unverified run from a verified one whose result went unrecorded.
 
    Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
-   index's outcome-gate result: `verification: pending` becomes the verifier's verdict, the verifier
-   rows carry pass or the criterion that failed, and project fit is recorded as its own finding
+   index's outcome-gate result: the frontmatter's `verification: pending` becomes the verifier's
+   `verification_line` (its values are in `artifact-shape.md`), the verifier rows carry pass or the
+   criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
    its own failure.
@@ -279,16 +286,10 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 
 ## Truncation
 
-What the harness returns at the turn limit:
-
-- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
-  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
-  output marked as partial, and Claude can resume it to continue. The partial marking requires
-  Claude Code v2.1.246 or later".
-- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
-- **As of.** 2026-09-25.
-- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
-  release note names turn-limit output or partial marking.
+At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
+the parent can resume it. Dated record:
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"A turn-limit stop returns partial output, and the parent can resume the agent".
 
 A partial marking says the run stopped; it does not say what reached disk. Because the ledger and
 sidecars are written incrementally, a turn-limit stop leaves a half-marked ledger and sidecars for

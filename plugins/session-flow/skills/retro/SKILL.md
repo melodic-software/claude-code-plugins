@@ -1,6 +1,6 @@
 ---
 description: "Run a structured session retrospective: extract transcript metrics, assess quality across five dimensions, check feedback-memory regressions, and codify learnings durably. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
+argument-hint: "[unattended] [mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -107,8 +107,9 @@ backwards from the newest handoff file and aggregates metrics across every chain
 follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file,
 a chain linked by hand-pasted continuation prompts instead of save-points can end after one hop.
 The parser reports what it saw in `chain_coverage` (`requested` / `found` / `available` / `ratio`,
-where `available` counts the transcripts present for this project, or under `--chain-from` the
-chain plus the other transcripts that mention the handoff's topic). When `ratio` is below ~0.5, say
+where `available` is the requested chain, plus under `--chain-from` the other transcripts that
+mention the handoff's topic; `project_transcripts` counts the whole project directory apart from
+the ratio). When `ratio` is below ~0.5, say
 so before presenting: name the found and available counts, and offer `--sessions` with the ids
 enumerated explicitly. A retro authored from a fifth of the evidence must not read like a complete
 one. Offer each `fork_candidates` entry the same way: a fork shares records with the chain but no
@@ -122,10 +123,7 @@ is verified 2026-09-06 against Claude Code 2.1.263 and
 store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
 `cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
 release note names `cleanupPeriodDays`. When the
-built-in `export` command resolves in your session, close by offering the one-line export
-`/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after verifying the memory root's
-self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Offer only,
-never run: built-ins are user-invoked, and nothing records or verifies that the export happened.
+If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
 
 ## What this skill does NOT do
 

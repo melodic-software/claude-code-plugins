@@ -49,7 +49,7 @@
 #       affected-model range is a criteria-owned Detect condition)
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
-# Requires grep; exits 2 when grep is absent.
+# Requires grep, tr, and awk; exits 2 when one is absent.
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
@@ -94,8 +94,8 @@ token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
 parameters.
 
-Advisory — always exits 0 (candidates never fail the run). Requires grep
-(exit 2 when absent). Seeds the candidate set of the audit-instructions
+Advisory: always exits 0 (candidates never fail the run). Requires grep, tr,
+and awk (exit 2 when one is absent). Seeds the candidate set of the audit-instructions
 skill; the per-surface lane refines every candidate against reference/criteria.md.
 EOF
 }
@@ -112,6 +112,12 @@ if ! command -v grep >/dev/null 2>&1; then
   echo "ERROR: grep required" >&2
   exit 2
 fi
+for tool in tr awk; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "ERROR: $tool required" >&2
+    exit 2
+  fi
+done
 
 mode="report"
 body_only=0
@@ -181,11 +187,23 @@ I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${
 # condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 
-rows=()
-
-# frontmatter_end <file>
+# --- Scan ---------------------------------------------------------------------
+# Each family runs ONE grep over every file (per argv chunk), so the process
+# count is a fixed number per run rather than per file or per hit: the group
+# subshell, one grep per family per chunk, one tr, and one awk. The awk regroups
+# the rows into argument order, then family order, then line order, which is
+# the order a per-file scan produces.
 #
-# Print the line number of a leading YAML frontmatter block's CLOSING `---`, or 0
+# grep --null ends each file name with a NUL so a path containing a colon (C:/...)
+# splits unambiguously; tr maps the NUL to \003 because not every awk reads NUL
+# bytes. The awk applies the two same-line filters to the line TEXT alone:
+# I6 drops a hit carrying a rationale marker, I27 keeps a hit only when a
+# brevity token shares its line. Both filter patterns are lowercase, so matching
+# them against tolower(text) is the case fold grep -i gives.
+
+# frontmatter_end (awk function in SCAN_AWK)
+#
+# The line number of a leading YAML frontmatter block's CLOSING `---`, or 0
 # when the file has none. Frontmatter is recognized only when `---` is the very
 # first line, which is the form every skill, agent, and output-style surface
 # uses; a `---` thematic break mid-document therefore opens nothing. An UNCLOSED
@@ -204,88 +222,125 @@ rows=()
 # the fence silently inverted on exactly the Windows-authored and
 # hand-edited files it most needs to hold for. Measured, not theorized: before
 # this, a CRLF fixture produced rows at lines 2 and 3. `[[:space:]]` covers CR.
-frontmatter_end() {
-  local file="$1"
-  head -n 1 "$file" 2>/dev/null | grep -qE '^---[[:space:]]*$' || {
-    printf '0\n'
-    return 0
-  }
-  local close
-  close="$(awk 'NR>1 && $0 ~ /^---[[:space:]]*$/ {print NR; exit}' "$file")"
-  if [[ -n "$close" ]]; then
-    printf '%s\n' "$close"
-  else
-    awk 'END {print NR}' "$file"
-  fi
-}
-
-# collect_rows <file> <check-id> <ere> <grep-flags> [<require-ere>] [<reject-ere>]
 #
-# Append one `file:line:check-id` row per line of <file> matching <ere>. The
-# grep flags travel per call because I28-a is case-SENSITIVE by design — the
-# all-caps marker IS the signal — while every other family folds case.
-# <require-ere> keeps only hits whose text also matches (I27's brevity token,
-# which must land on the SAME line as the effort directive); <reject-ere> drops
-# hits whose text matches (I6's rationale marker).
-collect_rows() {
-  local file="$1" id="$2" ere="$3" grep_flags="$4" require="${5:-}" reject="${6:-}"
-  local hit lineno text
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] || continue
-    lineno="${hit%%:*}"
-    text="${hit#*:}"
-    # Body-scope fence: drop every hit inside the frontmatter block, so no
-    # emitted row can carry a remediation that edits a description, when_to_use,
-    # or a trigger phrase quoted in one.
-    if [[ "$body_only" -eq 1 && "$lineno" -le "$fm_end" ]]; then
-      continue
-    fi
-    if [[ -n "$reject" ]] && printf '%s\n' "$text" | grep -qiE "$reject"; then
-      continue
-    fi
-    if [[ -n "$require" ]] && ! printf '%s\n' "$text" | grep -qiE "$require"; then
-      continue
-    fi
-    rows+=("$file:$lineno:$id")
-  done < <(grep "$grep_flags" "$ere" "$file" 2>/dev/null)
+# Under --body-only the awk drops every hit at or above that line, so no emitted
+# row can carry a remediation that edits a description, when_to_use, or a
+# trigger phrase quoted in one. It reads a file's frontmatter only when that
+# file has a hit, and never forks to do it.
+#
+# A grep "Binary file X matches" notice (no NUL) is kept as a row with the text
+# before its first colon as the line field, which is what a per-file read of
+# grep -n output makes of it.
+# shellcheck disable=SC2016 # an awk program: its $0 is awk's, not the shell's
+SCAN_AWK='
+function frontmatter_end(p,   line, n) {
+  if ((getline line < p) <= 0) { close(p); return 0 }
+  n = 1
+  if (line !~ /^---[[:space:]]*$/) { close(p); return 0 }
+  while ((getline line < p) > 0) {
+    n++
+    if (line ~ /^---[[:space:]]*$/) { close(p); return n }
+  }
+  close(p)
+  return n
 }
-
-scan_file() {
-  local file="$1"
-  [[ -f "$file" ]] || return 0
-
-  # Resolved once per file and read by collect_rows; only consulted under
-  # --body-only, so the default path costs one head/awk pass and nothing else.
-  fm_end=0
-  if [[ "$body_only" -eq 1 ]]; then
-    fm_end="$(frontmatter_end "$file")"
-  fi
-
-  collect_rows "$file" I6 "$I6_ERE" -niE "" "$RATIONALE_ERE"
-  collect_rows "$file" I10 "$I10_ERE" -niE
-  collect_rows "$file" I23 "$I23_ERE" -niE
-  collect_rows "$file" I8-a "$I8_A_ERE" -niE
-  collect_rows "$file" I8-b "$I8_B_ERE" -niE
-  collect_rows "$file" I8-c "$I8_C_ERE" -niE
-  collect_rows "$file" I8-f "$I8_F_ERE" -niE
-  collect_rows "$file" I27 "$I27_EFFORT_ERE" -niE "$I27_BREVITY_ERE"
-  collect_rows "$file" I28-a "$I28_A_ERE" -nE
-  collect_rows "$file" I28-b "$I28_B_ERE" -niE
-  collect_rows "$file" I25 "$I25_ERE" -niE
+BEGIN { nfam = split(ids, id, " "); total = 0 }
+substr($0, 1, 1) == "\002" { order[++nfiles] = substr($0, 2); next }
+substr($0, 1, 1) == "\001" { fam = substr($0, 2) + 0; next }
+{
+  z = index($0, "\003")
+  if (z) { path = substr($0, 1, z - 1); hit = substr($0, z + 1) }
+  else if ($0 ~ /^Binary file .* matches$/) { path = substr($0, 13, length($0) - 20); hit = $0 }
+  else next
+  c = index(hit, ":")
+  if (c) { lineno = substr(hit, 1, c - 1); text = substr(hit, c + 1) } else { lineno = hit; text = hit }
+  if (id[fam] == "I6" && tolower(text) ~ rationale) next
+  if (id[fam] == "I27" && tolower(text) !~ brevity) next
+  key = path SUBSEP fam
+  if ((key SUBSEP lineno) in seen) next
+  seen[key SUBSEP lineno] = 1
+  hits[key] = hits[key] "\n" lineno
 }
+END {
+  for (i = 1; i <= nfiles; i++) {
+    p = order[i]
+    for (f = 1; f <= nfam; f++) {
+      key = p SUBSEP f
+      if (!(key in hits)) continue
+      if (body_only && !(p in fm)) fm[p] = frontmatter_end(p)
+      n = split(substr(hits[key], 2), ls, "\n")
+      for (j = 1; j <= n; j++) {
+        if (body_only && ls[j] ~ /^[0-9]+$/ && ls[j] + 0 <= fm[p]) continue
+        total++
+        if (mode != "count") print p ":" ls[j] ":" id[f]
+      }
+    }
+  }
+  if (mode == "count") print total
+  else if (total == 0) print "No instruction candidates found."
+}'
 
+# Existing files in argument order, duplicates kept: each occurrence re-emits
+# its rows, and a nonexistent path is skipped.
+files=()
 for file in "$@"; do
-  scan_file "$file"
+  [[ -f "$file" ]] && files+=("$file")
 done
 
-if [[ "$mode" == "count" ]]; then
-  printf '%s\n' "${#rows[@]}"
-  exit 0
+# Chunk the file list so no single grep command line nears the 32,767-character
+# Windows limit.
+chunk_start=()
+chunk_len=()
+start=0
+len=0
+size=0
+for ((i = 0; i < ${#files[@]}; i++)); do
+  n=$((${#files[i]} + 3))
+  if ((len > 0 && size + n > 24000)); then
+    chunk_start+=("$start")
+    chunk_len+=("$len")
+    start=$i
+    len=0
+    size=0
+  fi
+  len=$((len + 1))
+  size=$((size + n))
+done
+if ((len > 0)); then
+  chunk_start+=("$start")
+  chunk_len+=("$len")
 fi
 
-if [[ "${#rows[@]}" -eq 0 ]]; then
-  echo "No instruction candidates found."
-else
-  printf '%s\n' "${rows[@]}"
-fi
+# run_family <index> <grep-flags> <ere>
+#
+# The grep flags travel per family because I28-a is case-SENSITIVE by design
+# (the all-caps marker IS the signal) while every other family folds case.
+run_family() {
+  local idx="$1" flags="$2" ere="$3" c
+  printf '\001%s\n' "$idx"
+  for ((c = 0; c < ${#chunk_start[@]}; c++)); do
+    grep "$flags" --null -e "$ere" -- "${files[@]:chunk_start[c]:chunk_len[c]}" 2>/dev/null
+  done
+}
+
+{
+  if [[ ${#files[@]} -gt 0 ]]; then
+    printf '\002%s\n' "${files[@]}"
+  fi
+  if [[ ${#chunk_start[@]} -gt 0 ]]; then
+    run_family 1 -nHiE "$I6_ERE"
+    run_family 2 -nHiE "$I10_ERE"
+    run_family 3 -nHiE "$I23_ERE"
+    run_family 4 -nHiE "$I8_A_ERE"
+    run_family 5 -nHiE "$I8_B_ERE"
+    run_family 6 -nHiE "$I8_C_ERE"
+    run_family 7 -nHiE "$I8_F_ERE"
+    run_family 8 -nHiE "$I27_EFFORT_ERE"
+    run_family 9 -nHE "$I28_A_ERE"
+    run_family 10 -nHiE "$I28_B_ERE"
+    run_family 11 -nHiE "$I25_ERE"
+  fi
+} | tr '\000' '\003' | awk -v mode="$mode" -v body_only="$body_only" \
+  -v ids="I6 I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25" \
+  -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK"
 exit 0

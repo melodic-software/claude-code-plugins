@@ -3,7 +3,18 @@ description: "Configure the ai-slop plugin for a consumer repository: exemption 
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s config resolve ran at load time. The detector's `--show-config` output below names the
+layer supplying each effective value; `(detector unavailable)` means it did not run:
+
+!`"${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/detect.sh" --show-config 2>/dev/null || echo "(detector unavailable)"`
+
+When it reads `(detector unavailable)` or `[shell command execution disabled by policy]`, run the
+detector's `--show-config` via Bash or read the three layers directly.
 
 ## Purpose
 
@@ -30,8 +41,9 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 
 Report the current state and change nothing:
 
-1. Run the detector's `--show-config` (it names the layer supplying each value) or read the
-   layers directly; report which layer wins each key and which layers are absent.
+1. Read the pre-computed `--show-config` output (it names the layer supplying each value), or read
+   the layers directly when it is unavailable; report which layer wins each key and which layers are
+   absent.
 2. Flag drift: unknown keys, an em-dash threshold key (the rule is zero-tolerance by design, and
    per-document exemption via `em_dash_allowed_paths` is the supported mechanism), globs that
    match nothing, a `disabled_rules` slug that names no shipped rule, a `phrase_add` fragment
@@ -48,7 +60,8 @@ Everything `check` does, then the confirmed write:
 2. Write ONLY the team layer (`.claude/ai-slop.json`), showing the diff and getting explicit
    confirmation before writing. Never write the user-global or overlay layers on the user's
    behalf; name them as options the user edits themselves.
-3. Re-run `--show-config` and report the new effective state. Then run the tracked-file pair on
+3. Re-run `--show-config` via Bash (the pre-computed output predates the write) and report the
+   new effective state. Then run the tracked-file pair on
    the written team file: `git check-ignore -v .claude/ai-slop.json` reports no match (a match is
    FAIL with the pattern) AND `git ls-files --error-unmatch .claude/ai-slop.json` exits 0
    (non-zero right after a fresh write means "written but untracked: commit it to share with the

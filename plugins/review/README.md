@@ -1,13 +1,13 @@
 # review
 
-A Claude Code plugin bundling one cohesive capability: **code review**. Six read-only
-reviewer agents plus two orchestration skills, a single-lens quality gate and a
+A Claude Code plugin bundling one cohesive capability: **code review**. Six reviewer
+agents, read-only over the reviewed code, plus two orchestration skills, a single-lens quality gate and a
 multi-surface review fan-out that normalizes every reviewer's output into one
 severity-ranked, deduplicated findings report.
 
 ## Components
 
-### Agents (six, all read-only)
+### Agents (six, read-only over the reviewed code)
 
 | Agent | Concern |
 |---|---|
@@ -18,9 +18,30 @@ severity-ranked, deduplicated findings report.
 | `ecosystem-specialist` | Multi-language build/test/lint verification, detected from changed paths |
 | `ci-log-auditor` | GitHub Actions run audit. Masked failures, skipped jobs, suspicious successes, perf outliers |
 
-All six carry persistent per-project memory (`memory: local`, stored under
-`.claude/agent-memory-local/` and never checked into version control) so they learn a
-codebase's patterns across sessions without dirtying the consumer repo's tracked tree. "read-only" means the reviewed code; agent memory is the one documented write path.
+All six declare persistent per-project memory (`memory: local`, stored under
+`.claude/agent-memory-local/` and never checked into version control) so they can learn a
+codebase's patterns across sessions without dirtying the consumer repo's tracked tree. Two
+limits apply:
+
+- **Memory needs auto memory.** With `autoMemoryEnabled: false` or
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in your settings, the `memory` field has no effect: nothing
+  persists across sessions and each agent's `## Memory` section does nothing.
+- **"Read-only" is an instruction, not a tool boundary.** None of the six lists `Write` or `Edit`,
+  but with auto memory on the harness enables both so the agent can manage its memory files,
+  and nothing scopes them to the memory directory. `permissionMode` cannot narrow a plugin
+  subagent either. Keeping writes to the memory directory is the agents' own convention.
+
+Each agent also treats the reviewed code, `REVIEW.md`, rules files and cited documents as data:
+an instruction embedded in them is reported as a finding, and project conventions override an
+agent's baseline only as review criteria.
+
+*Basis for the two limits, as of 2026-09-28:* [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
+states that with memory enabled "Read, Write, and Edit tools are automatically enabled so the
+subagent can manage its memory files", that turning auto memory off means "the `memory` field
+has no effect", and lists `permissionMode` among the fields ignored for plugin subagents.
+*Recheck* when that page stops carrying any of those three statements, or a release note names
+subagent memory tools, auto memory, or plugin-subagent frontmatter restrictions.
+
 Invoke via `@review:<agent>` or let Claude delegate.
 
 ### Skills
@@ -40,6 +61,10 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
+- **`/review:pr-explainer [pr-number|this branch]`**. Offered HTML explainer for a
+  pull request: risk map, file-by-file tour, where to focus. The markdown record
+  is the deliverable. The page is built only by the checked-in escape helper and
+  is not written unless the reader accepts it.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture

@@ -125,7 +125,7 @@ function sha12(text) {
 // ---------------------------------------------------------------------------
 
 // Flags that take no value; everything else consumes the next argv element.
-const FLAG_ONLY = ['help', 'verify-additivity', 'list'];
+const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored'];
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -152,12 +152,14 @@ Usage:
   measure.mjs snapshot [--deny <T1,T2>] [--binary <path>] [--sdk-dir <dir>]
                        [--label <text>] [--out <file>]
   measure.mjs attribute --tools <T1,T2,...|from-baseline> [--binary <path>]
-                       [--sdk-dir <dir>] [--verify-additivity] [--out <file>]
+                       [--sdk-dir <dir>] [--verify-additivity]
+                       [--operator-deny <T1,T2>] [--out <file>]
   measure.mjs compare --before <file> --after <file> [--lever <name>]
                        [--emitted-config <text>]
   measure.mjs ledger (--append <row-file>|--list) --dir <data-dir>
   measure.mjs parse-context --file <captured-context.md>
-  measure.mjs verify-catalogue [--binary <path>] [--catalogue <file>] [--out <file>]
+  measure.mjs verify-catalogue [--binary <path>] [--catalogue <file>]
+                       [--find-unstored] [--out <file>]
 
 Exit: 0 success; 2 usage error; 3 measurement unavailable/unparsable
       (stdout then carries a ${ERROR_SCHEMA} record with a remediation).
@@ -325,7 +327,24 @@ function parseContextMarkdown(text) {
     }
   }
 
-  return { categories, model, skillRows, agents, precision: anyRounded ? 'display-rounded' : 'exact' };
+  // Optional `Caveat:` lines are not part of /context's table. The hermetic
+  // fake binary uses them so a deny run can carry a disclosure the baseline
+  // does not. A real /context render has none, and unknown lines elsewhere
+  // stay ignored.
+  const caveats = [];
+  for (const line of lines) {
+    const match = /^Caveat:\s+(.+)$/.exec(line);
+    if (match) caveats.push(match[1].trim());
+  }
+
+  return {
+    categories,
+    model,
+    skillRows,
+    agents,
+    precision: anyRounded ? 'display-rounded' : 'exact',
+    caveats,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -335,6 +354,24 @@ function parseContextMarkdown(text) {
 function listingSignature(rows) {
   const canon = rows.map((r) => `${r.name} ${r.source}`).sort();
   return sha12(JSON.stringify(canon));
+}
+
+function skillFrontmatterRow(entry) {
+  const row = { name: entry?.name ?? null, source: entry?.source ?? null };
+  if (typeof entry?.tokens === 'number') row.tokens = entry.tokens;
+  if (typeof entry?.pluginName === 'string' && entry.pluginName.length) row.pluginName = entry.pluginName;
+  return row;
+}
+
+function collapsedSkillCount(total, included) {
+  if (typeof total !== 'number' || typeof included !== 'number') return null;
+  if (total < included) return null;
+  return total - included;
+}
+
+function splitCsv(value) {
+  if (!value) return [];
+  return String(value).split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -383,9 +420,11 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   // a caveat names every synthesized zero so a raw consumer can tell a real
   // reported 0 from a filled-in omission.
   const caveats = [];
+  const synthesizedZeroBuckets = [];
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
     if (!(bucket in categories)) {
       categories[bucket] = 0;
+      synthesizedZeroBuckets.push(bucket);
       caveats.push(
         `sdk omitted "${bucket}"; recorded as measured 0 (sdk category vocabulary is known; numbers are exact)`,
       );
@@ -393,7 +432,9 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   }
 
   const skillFrontmatter = usage.skills?.skillFrontmatter ?? [];
-  const skillRows = skillFrontmatter.map((s) => ({ name: s.name, source: s.source }));
+  const skillRows = skillFrontmatter.map(skillFrontmatterRow);
+  const totalSkills = usage.skills?.totalSkills ?? null;
+  const includedSkills = usage.skills?.includedSkills ?? null;
 
   return {
     schema: SNAPSHOT_SCHEMA,
@@ -408,18 +449,22 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
     cwd: process.cwd(),
     deny,
     categories,
+    synthesizedZeroBuckets,
     totalTokens: usage.totalTokens ?? null,
     maxTokens: usage.maxTokens ?? null,
     tools: init.tools ?? [],
     agents: usage.agents ?? [],
     mcpTools: usage.mcpTools ?? [],
     memoryFiles: usage.memoryFiles ?? [],
+    slashCommands: usage.slashCommands ?? [],
     skillListing: {
-      totalSkills: usage.skills?.totalSkills ?? null,
-      includedSkills: usage.skills?.includedSkills ?? null,
+      totalSkills,
+      includedSkills,
+      collapsedSkills: collapsedSkillCount(totalSkills, includedSkills),
       tokens: usage.skills?.tokens ?? categories.Skills ?? null,
       signature: listingSignature(skillRows),
       rows: skillRows.length,
+      frontmatter: skillRows,
     },
     caveats,
   };
@@ -438,6 +483,11 @@ function cliSnapshot({ bin, deny, label }) {
       + `${(r.stderr || String(r.error || '')).trim().slice(0, 300)}`);
   }
   const parsed = parseContextMarkdown(r.stdout);
+  const synthesizedZeroBuckets = [];
+  for (const match of r.stdout.matchAll(/<!--\s*synthesized-zero:\s*([^>]+?)\s*-->/g)) {
+    const name = match[1].trim();
+    if (name && !synthesizedZeroBuckets.includes(name)) synthesizedZeroBuckets.push(name);
+  }
   // Match the SDK/renderer headline semantics: deferred pools (any
   // "... (deferred)" category — built-in and MCP alike) are excluded from the
   // context-usage total (they ship in the request but sit outside the context
@@ -458,22 +508,27 @@ function cliSnapshot({ bin, deny, label }) {
     cwd: process.cwd(),
     deny,
     categories: parsed.categories,
+    synthesizedZeroBuckets,
     totalTokens: payloadTotal,
     maxTokens: null,
     tools: [],
     agents: parsed.agents,
     mcpTools: [],
     memoryFiles: [],
+    slashCommands: [],
     skillListing: {
       totalSkills: null,
       includedSkills: null,
+      collapsedSkills: null,
       tokens: parsed.categories.Skills ?? null,
       signature: listingSignature(parsed.skillRows),
       rows: parsed.skillRows.length,
+      frontmatter: parsed.skillRows,
     },
     caveats: [
       'cli-parse mode: values are display-rounded, not exact integers',
       'headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior',
+      ...(parsed.caveats || []),
     ],
   };
 }
@@ -642,10 +697,18 @@ const BUCKET_ROW_FIELD = {
   'System tools (deferred)': 'deferredDelta',
 };
 
+// Off-by-one is not a verdict. Larger gaps, including a prefix side that
+// double-counts, stay false.
+const ADDITIVITY_EPSILON = 1;
+
+function withinAdditivityEpsilon(combinedSaved, sumOfParts) {
+  return Math.abs(combinedSaved - sumOfParts) <= ADDITIVITY_EPSILON;
+}
+
 // A verdict is `true`/`false` only when the bucket was measured on both sides
 // of the comparison; anything unmeasured is `null` — "not measurable" is not
 // the same answer as "measured, and not additive".
-function bucketAdditivity(rows, cmp) {
+function bucketAdditivity(rows, cmp, synthesized) {
   const perBucket = {};
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
     // A bucket absent from BOTH runs is outside this binary's category
@@ -662,8 +725,13 @@ function bucketAdditivity(rows, cmp) {
     const runComparable = bucket === 'System tools'
       ? cmp.comparability.systemToolsComparable
       : cmp.comparability.modeBinaryComparable;
-    const measured = runComparable && sumOfParts !== null && combinedSaved !== null;
+    const saturated = synthesized.has(bucket);
+    const measured = runComparable && sumOfParts !== null && combinedSaved !== null && !saturated;
     const reasons = [];
+    if (saturated) {
+      reasons.push(`${bucket} is a synthesized zero on the combined run (the SDK omitted the `
+        + 'bucket and the engine filled 0), so additivity is not measurable');
+    }
     if (!runComparable) {
       const gateReasons = bucket === 'System tools'
         ? cmp.comparability.reasons
@@ -678,7 +746,7 @@ function bucketAdditivity(rows, cmp) {
     perBucket[bucket] = {
       sumOfParts,
       combinedSaved,
-      additive: measured ? combinedSaved === sumOfParts : null,
+      additive: measured ? withinAdditivityEpsilon(combinedSaved, sumOfParts) : null,
       reasons,
     };
   }
@@ -698,11 +766,20 @@ function loadInteractiveOnly() {
   return data;
 }
 
-function knownUncoveredRecord(candidates, listing) {
+function knownUncoveredRecord(candidates, listing, operatorDeny) {
   const seen = new Set(candidates);
+  const denied = new Set(operatorDeny);
+  const tools = [];
+  const deniedAbsent = [];
+  for (const tool of listing.tools || []) {
+    if (seen.has(tool)) continue;
+    if (denied.has(tool)) deniedAbsent.push(tool);
+    else tools.push(tool);
+  }
   return {
     reason: 'interactive-only — structurally unreachable from a headless candidate list',
-    tools: (listing.tools || []).filter((t) => !seen.has(t)),
+    tools,
+    deniedAbsent,
     notes: listing.notes || [],
   };
 }
@@ -724,9 +801,11 @@ async function runAttribute(args) {
   }
   if (!tools.length) usageError('--tools resolved to an empty list');
 
+  const measured = [baseline];
   const perTool = [];
   for (const tool of tools) {
     const run = await takeSnapshot({ ...args, deny: tool, label: `deny:${tool}` });
+    measured.push(run);
     const cmp = compareSnapshots(baseline, run, { lever: `deny:${tool}` });
     const { saved, comparable, reasons } = systemBucketSaving(cmp);
     perTool.push({
@@ -748,23 +827,33 @@ async function runAttribute(args) {
     const savers = perTool.filter((t) => t.comparable && t.savedTokens > 0).map((t) => t.tool);
     if (savers.length >= 2) {
       const combined = await takeSnapshot({ ...args, deny: savers.join(','), label: 'deny:combined' });
+      measured.push(combined);
       const cmp = compareSnapshots(baseline, combined, { lever: `deny:${savers.join('+')}` });
       // Denying every saver at once can empty a bucket out of the combined
       // snapshot; its delta is then null and the combined saving is
       // unmeasured — published as incomparable, never coerced to zero.
-      const { saved: combinedSaved, comparable, reasons } = systemBucketSaving(cmp);
+      const { saved: combinedSaved, comparable, reasons: savingReasons } = systemBucketSaving(cmp);
       const saverRows = perTool.filter((t) => savers.includes(t.tool));
       const sumOfParts = saverRows.reduce((s, t) => s + t.savedTokens, 0);
+      const synthesized = new Set(combined.synthesizedZeroBuckets || []);
+      const saturated = SYSTEM_TOOL_BUCKETS.some((bucket) => synthesized.has(bucket));
+      const reasons = [...savingReasons];
+      if (saturated) {
+        reasons.push('a combined-run bucket is a synthesized zero, so the summed additivity '
+          + 'verdict is not measurable');
+      }
       additivity = {
         tools: savers,
         sumOfParts,
         combinedSaved,
         // Tri-state: true/false are measured verdicts, null means the run
         // could not be measured. A boolean here would publish an unmeasured
-        // reading as a definite "not additive".
-        additive: comparable ? combinedSaved === sumOfParts : null,
-        comparable,
-        perBucket: bucketAdditivity(saverRows, cmp),
+        // reading as a definite "not additive". A synthesized zero is the
+        // saturated case: the numeric comparison is not a verdict.
+        additive: comparable && !saturated && typeof combinedSaved === 'number'
+          ? withinAdditivityEpsilon(combinedSaved, sumOfParts) : null,
+        comparable: comparable && !saturated,
+        perBucket: bucketAdditivity(saverRows, cmp, synthesized),
         reasons,
       };
     }
@@ -785,9 +874,26 @@ async function runAttribute(args) {
     knownUncovered: knownUncoveredRecord(
       [...tools, ...(baseline.tools || [])],
       loadInteractiveOnly(),
+      splitCsv(args['operator-deny']),
     ),
-    caveats: baseline.caveats,
+    // Baseline-only caveats dropped every deny run's disclosures, including the
+    // synthesized-zero note sdk mode writes when it fills an omitted bucket.
+    caveats: mergeCaveats(measured),
   };
+}
+
+function mergeCaveats(snapshots) {
+  const seen = new Set();
+  const merged = [];
+  for (const snap of snapshots) {
+    const list = Array.isArray(snap?.caveats) ? snap.caveats : [];
+    for (const caveat of list) {
+      if (typeof caveat !== 'string' || caveat.length === 0 || seen.has(caveat)) continue;
+      seen.add(caveat);
+      merged.push(caveat);
+    }
+  }
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -911,8 +1017,13 @@ function runVerifyCatalogue(args) {
 
   const rows = [];
   const absent = [];
+  const storedEnv = new Set();
   for (const lever of cat.levers ?? []) {
-    const tokens = catalogueTokens(lever).map((name) => {
+    const names = catalogueTokens(lever);
+    for (const name of names) {
+      if (/^(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+$/.test(name)) storedEnv.add(name);
+    }
+    const tokens = names.map((name) => {
       const hits = countTokenHits(buf, name);
       const present = hits > 0;
       if (!present) absent.push({ id: lever.id, name });
@@ -925,6 +1036,16 @@ function runVerifyCatalogue(args) {
     });
   }
 
+  let unstored = null;
+  if (args['find-unstored']) {
+    const seen = new Set();
+    const text = buf.toString('latin1');
+    for (const match of text.matchAll(/\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g)) {
+      if (!storedEnv.has(match[0])) seen.add(match[0]);
+    }
+    unstored = [...seen].sort();
+  }
+
   const caveats = [
     'binary scan is the authority on existence of each key/env name at this binary version',
     'docs fetch remains the authority on semantics',
@@ -933,6 +1054,9 @@ function runVerifyCatalogue(args) {
     caveats.push('scanned a Windows command shim; a sibling .exe was not found, so absence findings may be the wrapper rather than the payload');
   } else if (scanned.viaShim) {
     caveats.push(`resolved Windows command shim ${bin} to sibling ${scanned.path}`);
+  }
+  if (unstored) {
+    caveats.push('unstored lists env names found in the binary that no catalogue row cites; existence only, not a claim that each is an operator switch');
   }
 
   return {
@@ -948,6 +1072,7 @@ function runVerifyCatalogue(args) {
     checked: rows.reduce((n, r) => n + r.tokens.length, 0),
     missing: absent.length,
     absent,
+    ...(unstored ? { unstored } : {}),
     caveats,
   };
 }

@@ -32,6 +32,16 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A hedged reply read as accept-all:** "yes?" or "I think so" signals doubt, so it cannot lock a bundle or a round (SKILL.md "A hedged reply resolves only the headline").
 
+- **An upstream Brief treated as binding:** a prior Brief locked "as a starting point" reads as settled, so its constraints steer every recommendation without the user confirming them for this topic. Record them as `inherited` and ask the ones the contract relies on (SKILL.md "Keep a running constraint ledger").
+
+- **A research design recommended as found:** explore or research output, or an existing implementation, arrives with a recommended design that was never checked against this interview's constraints. It is a candidate until re-derived against the constraint ledger (SKILL.md "Composed artifacts are candidates").
+
+- **Drifting from what to how:** recommendations slide into per-step platforms and token scopes with nothing stopping them. The first question that names a mechanism triggers one question: settle mechanisms now, or at planning (SKILL.md "What, not how: the mechanism tripwire").
+
+- **Past evidence read as the target:** months of metrics describe the old process, not the one the user just changed to. Label each finding past, current, or intended, and never recommend the intended process from past-only evidence (SKILL.md "Label evidence by when it was true").
+
+- **A clean register over unasked assumptions:** the register tracks only questions that were asked, so it grades clean while the draft still rests on hidden defaults and contradictions. Sweep before the confirmation gate (SKILL.md "Sweep for assumptions before Step 3").
+
 ## Page surface
 
 - **A stale `ops.json`:** a file left from an earlier wake re-applies its old replies; write it fresh with the Write tool on every wake.

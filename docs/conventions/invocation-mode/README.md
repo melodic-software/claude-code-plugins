@@ -23,7 +23,7 @@ default for an absent key is `false` (docs table row,
 `skill-quality:check` criterion.
 
 Evidence behind the default (verified 2026-08-17 against current official docs unless noted; the
-skills-page claims re-verified 2026-08-31; recheck trigger for every doc-derived bullet: a fetch
+skills-page claims re-verified 2026-08-31 and 2026-09-28; recheck trigger for every doc-derived bullet: a fetch
 of its cited page no longer matching the bullet re-derives it here):
 
 - **A `true` skill is model-invisible everywhere.** `disable-model-invocation: true` removes the
@@ -47,6 +47,53 @@ of its cited page no longer matching the bullet re-derives it here):
   those through `/plugin` instead"), so for this marketplace's fleet the applicable levers are
   trimming descriptions at the source and plugin enablement via `/plugin`.
   `skill-quality:check listing-budget` is the standing measurement instrument.
+
+**Listing cost was considered as a fourth exception class and rejected (2026-09-28,
+[#4659](https://github.com/melodic-software/claude-code-plugins/issues/4659)).** The proposal was
+to set `true` on operator-initiated skills, mostly the `audit-*` family, to take their descriptions
+out of the listing. The class list stays at three; no skill takes `true` for listing cost. Three
+reasons, each measured rather than assumed:
+
+- **The harness already does what the flip would do, and keeps what the flip destroys.** Under
+  overflow Claude Code drops descriptions "starting with the skills you invoke least", while the
+  listing "always contains every skill name". A rarely invoked operator audit, the proposed
+  population, is therefore already first in line for name-only, and it stays model-invocable and
+  chainable. The flip frees at most that skill's name on top, and pays the whole cost the first
+  bullet above names.
+- **Flipping the whole candidate set leaves the verdict unchanged.** The 21 listing-eligible
+  skills in the families #4659 names (every non-setup `instruction-placement` skill counted) total
+  19,096 description chars. With all 21 flipped, the fleet's
+  149,643 would drop to 130,547, still about 16× over the 8,000-char fallback budget and over 3×
+  the 40,000 chars that 1% of a 1M-token window buys. Where the listing already fits (a 1M window
+  at `skillListingBudgetFraction: 0.05`, observed in #4657) there is nothing to save. The saving
+  that does move the verdict is at the source, owned by #4657's description-trim child.
+- **At least five candidates are operative Skill-tool targets, so a flip breaks live chains.**
+  Examples: `docs-hygiene:audit-encapsulation` from `extract-ssot`,
+  `docs-hygiene:audit-progressive-disclosure` from `instruction-placement:migrate` and
+  `docs-hygiene:write-for-agents`, and `claude-ops:audit-native-overlap` from `education:eli5`.
+  The invocation-reach invariant below makes each of those unreachable under `true`.
+
+`/skill-doctor` ("flags skills in the listing that have never been invoked and says where to turn
+them off") does not reopen this. For a plugin skill, turning it off means disabling the plugin
+through `/plugin`, not editing its frontmatter. A never-invoked count also measures one operator's
+history, so it is not evidence that a skill is operator-only. A skill whose timing or side effects
+really are the human's call already fits class (i) on those grounds, and cost plays no part.
+
+Verification record. Claim: overflow drops the least-invoked descriptions first and keeps every
+name; plugin skills ignore `skillOverrides`; `/skill-doctor` routes plugin skills to `/plugin`.
+Basis: <https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short", "Override
+skill visibility from settings", "Find unused skills"), and for the figures
+`bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` at `0fc60e845` (211
+listing-eligible skills). As of: 2026-09-28. Recheck: the skills page changing its drop order or
+its plugin-skill lever, or a fleet audit's re-run moving the flipped-set arithmetic past a
+documented budget.
+
+**#4661 / #4657 500-character listing exceptions** are recorded in
+[`docs/out-of-scope/skill-listing-500-char-exceptions.md`](../../out-of-scope/skill-listing-500-char-exceptions.md),
+not as a fourth `disable-model-invocation` class. The trim fleet is the #4661 plugin table;
+remaining over-500 descriptions are skipped (map / pixel / Fable), outside that table, or
+in-flight on Refs PRs. Claim, basis, as-of date, and recheck trigger live on that ledger
+entry.
 
 ## Exception classes (the only reasons to write `true`)
 

@@ -15,7 +15,7 @@ Whether a surface can run a mod is a conjunction:
    is the only listed surface that does not.
 2. **Does that engine process have hooks modules enabled?** Barely documented at
    all, and not per surface. The gate reads the env var or the rollout result
-   plus hook policy — **it reads no surface, host, or client type**.
+   plus hook policy; **it reads no surface, host, or client type**.
    `BINARY` · HIGH · `surfaces-desktop/VERIFICATION.md` finding C.
 
 A surface that loads plugins and classic hooks today does **not** thereby load
@@ -31,15 +31,15 @@ mods.
 | **CLI, `-p` / headless** | D yes | D yes | D yes | Engine yes, **draws nowhere**: `session.start.surface` is `null`, `$.session.surfaces()` empty. Non-UI hooks run; UI hooks have no destination. |
 | **Desktop, Code tab, local session** | D yes, *"the same underlying engine with a graphical interface"*; shares `~/.claude.json`, `~/.claude/settings.json`, `CLAUDE.md`, hooks, skills | D yes, plugin browser in the `+` menu | D yes | **I yes**, on two unconfirmed sub-conditions: (a) the **bundled** CLI carries the runtime; (b) the env var or the rollout reaches that process. Desktop's local-environment editor is a documented mechanism for (b) but not a documented outcome. `RenderSurface` includes `desktop`. |
 | **Desktop, Code tab, cloud session** | D yes, in an Anthropic-managed VM | D **no plugin browser**; repo `enabledPlugins` or claude.ai account sync only | D yes, from those plugins | **U.** Env vars are settable on the cloud environment; nothing says the gate is honored there. |
-| **Desktop, Cowork tab** | D yes — *"Cowork in the Claude Desktop app runs its sessions on Claude Code"* | D account/org plugins from **Customize**, synced through claude.ai, not `~/.claude` | D yes — a synced plugin's *"skills, agents, hooks, MCP servers, and LSP servers all load"* | **U.** Engine yes and plugin hooks load, so the only missing condition is the gate. No source says a person can set it in a Cowork session. |
+| **Desktop, Cowork tab** | D yes: *"Cowork in the Claude Desktop app runs its sessions on Claude Code"* | D account/org plugins from **Customize**, synced through claude.ai, not `~/.claude` | D yes: a synced plugin's *"skills, agents, hooks, MCP servers, and LSP servers all load"* | **U.** Engine yes and plugin hooks load, so the only missing condition is the gate. No source says a person can set it in a Cowork session. |
 | **Desktop, Chat tab** | D **no** | D installable, only **skills** run | D no | **X** for plugin hooks: they do not run in chat at all. |
 | **claude.ai chat (web)** | D no | same as Chat tab | D no | **X**, same basis. |
-| **claude.ai/code (web), mobile Code tab** | D yes — clients onto cloud sessions | D repo-declared or account-synced only; `/plugin` unavailable | D yes | **U**, same reasoning as Desktop cloud. `RenderSurface` has `mobile`, whose element table has no `Input`/`Select`/`Client`. |
+| **claude.ai/code (web), mobile Code tab** | D yes: clients onto cloud sessions | D repo-declared or account-synced only; `/plugin` unavailable | D yes | **U**, same reasoning as Desktop cloud. `RenderSurface` has `mobile`, whose element table has no `Input`/`Select`/`Client`. |
 | **VS Code extension** | D yes, bundles a private CLI copy for the chat panel | D yes; graphical manager, *"the same CLI commands under the hood"*, shared both ways | D yes | **I yes** if the gate reaches the bundled CLI. `RenderSurface` includes `vscode`, whose table lacks `Client`. Whether the extension passes the env var through is **U**. |
-| **JetBrains plugin** | D indirectly — *"runs the `claude` command in your IDE's integrated terminal"*, does not bundle a CLI | D yes, because it is a terminal session | D yes | **D-adjacent yes**: a JetBrains session is a `terminal` surface, so the CLI answer applies unchanged. |
+| **JetBrains plugin** | D indirectly: *"runs the `claude` command in your IDE's integrated terminal"*, does not bundle a CLI | D yes, because it is a terminal session | D yes | **D-adjacent yes**: a JetBrains session is a `terminal` surface, so the CLI answer applies unchanged. |
 | **Agent SDK** | D yes | D `{ type: "local", path }` only | D yes | Engine yes, **draws nowhere** (`surface` null for *"a `-p` run or the SDK"*). Whether the SDK honors the gate is **U**. |
 
-All `D` rows: `SOURCE` (docs) · HIGH, fetched 2026-09-19 —
+All `D` rows: `SOURCE` (docs) · HIGH, fetched 2026-09-19;
 `surfaces-desktop/RESEARCH-surface-matrix.md` carries the verbatim quote and URL
 for each.
 
@@ -75,7 +75,7 @@ did; its verifier corrected it in four places.
 Two further Desktop-specific constraints: the Desktop-bundled CLI **lags** the
 standalone one (the CHANGELOG records a fix landing *"on Claude Desktop (once
 Desktop bundles this CLI version)"*), and the `144`/`110`-column pane-width rule
-is written in terminal terms — whether Desktop applies the same test is unknown.
+is written in terminal terms; whether Desktop applies the same test is unknown.
 `SOURCE` · MEDIUM.
 
 **The highest-value cheap experiment is empirical, not bibliographic:** set the
@@ -85,7 +85,7 @@ whether it registers.
 
 ## Cowork: the row most likely to be misread
 
-Cowork **is** a Claude Code host and **does** run plugin hooks — but only for
+Cowork **is** a Claude Code host and **does** run plugin hooks, but only for
 plugins synced from a claude.ai account or org, not from `~/.claude`. A
 mods-bearing plugin distributed that way would be *delivered* to Cowork; whether
 its module would *load* there depends entirely on the gate, which nothing sourced
@@ -102,7 +102,7 @@ Pro/Max → Team/Free → Enterprise with 30 days' notice to Enterprise admins.
 **UNVERIFIABLE first-party**: the announcement body never names Claude Code at
 all, and on re-fetch only one of three secondary outlets (9to5Mac) carries the
 two-mode claim. `surfaces-desktop/VERIFICATION.md` row 3b. Current docs still
-describe three tabs — documentation lag on a rolling change, not a contradiction.
+describe three tabs, which is documentation lag on a rolling change, not a contradiction.
 
 ## `RenderSurface` and what depends on it
 
@@ -135,5 +135,5 @@ entire value is the hooks module reaches almost nobody today.**
 `INFERRED` · HIGH-supported · `surfaces-desktop/RESEARCH.md`.
 
 Reaching Cowork and Chat users at all requires the claude.ai account/org plugin
-path, not a git marketplace — a publishing choice that gates any non-CLI reach
+path, not a git marketplace, a publishing choice that gates any non-CLI reach
 regardless of how function hooks land. `SOURCE` · HIGH.

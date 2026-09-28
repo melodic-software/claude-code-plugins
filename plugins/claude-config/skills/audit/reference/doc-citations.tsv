@@ -22,7 +22,9 @@ settings-reference	### `availableModels`
 settings-reference	### `enforceAvailableModels`
 settings-reference	### `enableAllProjectMcpServers`
 settings-reference	### `disabledMcpjsonServers`
+settings-reference	Overrides don't apply to plugin skills
 settings	"$schema"
+settings	You, in this one project only
 permissions	are fragile
 permissions	The space before a trailing `*` is part of the rule
 permissions	such as `cat`
@@ -35,6 +37,7 @@ env-vars	Despite the name, this is a file path, not a directory
 env-vars	`CLAUDE_CODE_DISABLE_AUTO_MEMORY`
 skills	Skill descriptions are cut short
 skills	skillOverrides
+skills	Plugin skills are not affected by
 model-config	ultracode
 cli-reference	`--debug-file
 deep-links	disableDeepLinkRegistration

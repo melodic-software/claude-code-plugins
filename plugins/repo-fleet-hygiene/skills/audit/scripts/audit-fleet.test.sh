@@ -140,7 +140,7 @@ rev-parse)
     not-the-layout) printf '%s\n' "$TEST_ROOT/conform-root/not-the-layout" ;;
     conform) printf '%s\n' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform" ;;
     no-origin-canon) printf '%s\n' "$TEST_ROOT/no-origin-canon" ;;
-    no-origin-canon-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok" ;;
+    no-origin-canon-feature-ok) printf '%s\n' "${MOCK_NO_ORIGIN_WT_PARENT:-$TEST_ROOT/conform-root}/no-origin-canon-feature-ok" ;;
     # bare-live / bare-pure: show-toplevel fails (not a work tree). bare-live-link is a real linked
     # worktree of the misconfigured main and answers normally.
     bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live-link" ;;
@@ -208,6 +208,12 @@ rev-parse)
   esac
   ;;
 remote)
+  # A global url.*.insteadOf seen only when global config is kept (#4211).
+  if [[ "${1:-}" == "get-url" && "$base" == canonical-a && -n "${FAKE_GLOBAL_INSTEADOF:-}" &&
+    "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]]; then
+    printf '%s\n' "$FAKE_GLOBAL_INSTEADOF"
+    exit 0
+  fi
   if [[ "${1:-}" == "get-url" && "${2:-}" == "origin" ]]; then
     case "$base" in
     discovered-a | canonical-a) printf '%s\n' 'https://github.com/acme/repo-a.git' ;;
@@ -287,7 +293,7 @@ worktree)
   no-origin-canon)
     printf 'worktree %s\0HEAD no-main\0branch refs/heads/main\0\0' "$TEST_ROOT/no-origin-canon"
     # worktree-create names <checkout-basename>-<slug> when origin is absent.
-    printf 'worktree %s\0HEAD no-ok\0branch refs/heads/feature/ok\0\0' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok"
+    printf 'worktree %s\0HEAD no-ok\0branch refs/heads/feature/ok\0\0' "${MOCK_NO_ORIGIN_WT_PARENT:-$TEST_ROOT/conform-root}/no-origin-canon-feature-ok"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -446,6 +452,10 @@ ls-remote)
   # Live remote existence probe for merged-remote-branch HIGH confidence. Default: echo the
   # matching tip. feature/stale-cached is present only in the local remote-tracking inventory
   # (auto-deleted upstream); ls-remote returns empty. feature/ls-fail forces a probe error → MEDIUM.
+  # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
+  # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
+  [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
+  [[ "${FAKE_LS_REMOTE_ALWAYS_FAIL:-}" != 1 ]] || exit 7
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -476,6 +486,16 @@ config)
   mock=""
   if [[ "$key" == "worktreeroot.path" ]]; then
     mock="${MOCK_WORKTREEROOT_PATH:-}"
+    # Per-repository value, the way an includeIf override answers `git -C <repo> config`.
+    # MOCK_WORKTREEROOT_BY_REPO is a space-separated list of <repo-basename>=<path>.
+    for entry in ${MOCK_WORKTREEROOT_BY_REPO:-}; do
+      [[ "${entry%%=*}" == "$base" ]] && mock="${entry#*=}"
+    done
+    # MOCK_WORKTREEROOT_PATH_FOR="<repo-basename>=<path>" models an includeIf that gives one
+    # repository its own root.
+    if [[ -n "${MOCK_WORKTREEROOT_PATH_FOR:-}" && "$base" == "${MOCK_WORKTREEROOT_PATH_FOR%%=*}" ]]; then
+      mock="${MOCK_WORKTREEROOT_PATH_FOR#*=}"
+    fi
   elif [[ "$key" == "melodic.worktreeroot" ]]; then
     mock="${MOCK_MELODIC_WORKTREE_ROOT:-}"
   else
@@ -902,6 +922,40 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable"
+# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+all_fail_out="$TMP/ls-remote-all-fail.txt"
+FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
+assert_contains_file "all-fail ls-remote emits fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
+if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
+  grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
+else
+  printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+  "Finding: merged-remote-branch" "$all_fail_out"
+# #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
+# rewrites the transport for the same repository still confirms HIGH; one that points the remote
+# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+instead_of_out="$TMP/instead-of.txt"
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+  FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
+  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+    grep -Fq "Confidence: ${rewrite#*|}"; then
+    printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
+  else
+    printf 'FAIL: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}" >&2
+    failures=$((failures + 1))
+  fi
+done
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
@@ -1098,8 +1152,12 @@ assert_display_value() {
 }
 assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
   $'invalid --canonical value: em\xe2\x80\x94dash'
+# spellchecker:off
+# café (U+00E9) and U+1F600 stay $'...' byte escapes so the fixture stays ASCII.
+# typos splits on the backslash and would read the ASCII prefix as "calf".
 assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
   $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
+# spellchecker:on
 assert_display_value "C0 ESC stays escaped" $'esc\x1b[31m' \
   "\$'invalid --canonical value: esc\\E[31m'"
 assert_display_value "C1 CSI U+009B is escaped" $'csi\xc2\x9b31m' \
@@ -1118,6 +1176,10 @@ assert_display_value "UTF-8-encoded surrogate is escaped" $'surr\xed\xa0\x80' \
   "\$'invalid --canonical value: surr\\355\\240\\200'"
 assert_display_value "truncated UTF-8 sequence is escaped" $'cut\xe2\x80' \
   "\$'invalid --canonical value: cut\\342\\200'"
+assert_display_value "LRM U+200E is escaped" $'lrm\xe2\x80\x8ex' \
+  "\$'invalid --canonical value: lrm\\342\\200\\216x'"
+assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
+  "\$'invalid --canonical value: alm\\330\\234x'"
 
 # Config resolution ladder: explicit --config > project-scoped > user-global > none,
 # with the consumed source named in the report header.
@@ -1274,6 +1336,38 @@ if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/bare-live" --repo
   printf 'PASS: discovery of bare-with-live-tree emits a finding and continues\n'
 else
   printf 'FAIL: discovery of bare-with-live-tree emits a finding and continues\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A .git marker that is not a working tree under --root is a discovery-skip, not a run abort
+# (#4207). uv writes a zero-byte .git into its sdists cache; git answers "invalid gitfile format".
+mkdir -p "$TMP/husk-root/packages/uv/sdists-v9" "$TMP/husk-root/repo-b/.git"
+: >"$TMP/husk-root/packages/uv/sdists-v9/.git"
+husk_out="$TMP/husk-root-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/husk-root" --detail >"$husk_out" 2>&1
+husk_status=$?
+if [[ "$husk_status" -ne 2 ]] &&
+  grep -Fq "Finding: discovery-skip" "$husk_out" &&
+  grep -Fq "Target: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out" &&
+  grep -Fq "discovered path is not a Git working tree" "$husk_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$husk_out" &&
+  grep -Fq "Discovery skips: 1 non-repository" "$husk_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$husk_out"; then
+  printf 'PASS: a non-working-tree .git under --root is a discovery-skip and the fleet is audited\n'
+else
+  printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
+  sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+# The operator named this path directly, so the typo-stops-the-run rule still holds.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/husk-root/packages/uv/sdists-v9" \
+  >"$husk_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "Error: not a Git working tree: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out"; then
+  printf 'PASS: explicit --repo on a non-working-tree .git marker still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker failed without the rejection\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -1626,6 +1720,31 @@ assert_not_contains_file "no-origin layout does not expect upstream owner/repo p
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
 
+# #4212: a repository whose includeIf sets its own root is classified against that root, not the
+# fleet default taken from the first target. conform-canon resolves $TMP/other-root first, so the
+# pre-fix collector judged no-origin-canon's correctly placed worktree against it.
+per_repo_out="$TMP/per-repo-root-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/other-root" MOCK_WORKTREEROOT_PATH_FOR="no-origin-canon=$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$per_repo_out" 2>&1 || true
+assert_contains_file "fleet default root still heads the report" \
+  "Worktree root: $TMP/other-root (source: worktreeroot.path" "$per_repo_out"
+per_repo_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$per_repo_out" | grep -F 'Target: ' || true)"
+if [[ "$per_repo_outside_targets" == *no-origin-canon-feature-ok* ]]; then
+  printf 'FAIL: worktree under its own includeIf root flagged outside the fleet default root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: worktree under its own includeIf root is not flagged outside the fleet default root\n'
+fi
+assert_contains_file "per-repository rollup names the repository's own root" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/conform-root)" "$per_repo_out"
+assert_contains_file "the other repository still uses the fleet default root" \
+  "expected location $TMP/other-root/acme-conform-feature-flat" "$per_repo_out"
+assert_contains_file "fleet summary lists the repository that used its own root" \
+  "classified against their own resolved root: $TMP/no-origin-canon uses $TMP/conform-root" "$per_repo_out"
+assert_not_contains_file "a repository on the fleet default root is not listed as an override" \
+  "$TMP/conform-canon uses" "$per_repo_out"
+
 # This fixture is the only one that puts TWO findings on a single target, so it
 # is the only place the detail and JSON emitters' dedupe is exercised at all. A
 # dedupe that stops suppressing duplicates emits the target's whole block twice;
@@ -1640,6 +1759,51 @@ else
     "$no_origin_target_blocks" >&2
   failures=$((failures + 1))
 fi
+
+# #4212: each canonical checkout is classified against its own worktreeroot.path. conform-canon
+# resolves conform-root; no-origin-canon resolves split-root (an includeIf override) and its one
+# worktree sits there. Before the fix the first target's root classified both repositories.
+mkdir -p "$TMP/split-root/no-origin-canon-feature-ok/.git"
+split_out="$TMP/split-root-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
+  MOCK_NO_ORIGIN_WT_PARENT="$TMP/split-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_out" 2>&1 || true
+split_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$split_out" | grep -F 'Target: ' || true)"
+if [[ "$split_outside_targets" == *no-origin-canon-feature-ok* ]]; then
+  printf 'FAIL: worktree under its own includeIf root flagged outside another repository root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: worktree under its own includeIf root is not flagged outside\n'
+fi
+assert_contains_file "per-repo includeIf root counts the worktree conforming" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/split-root)" "$split_out"
+assert_contains_file "fleet summary counts both repositories against their own roots" \
+  "2 of 6 linked worktrees are outside their repository's configured root or wrong layout (3 conforming, 1 tool-owned)" "$split_out"
+assert_contains_file "fleet summary groups by resolved root" \
+  "$TMP/conform-root (1 repository), $TMP/split-root (1 repository)" "$split_out"
+
+# The remedy for a genuinely misplaced worktree names that repository's root, not the fleet's.
+split_misplaced_out="$TMP/split-root-misplaced-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_misplaced_out" 2>&1 || true
+assert_contains_file "misplaced worktree remedy names its own repository root" \
+  "Recreate at $TMP/split-root/no-origin-canon-feature-ok with /source-control:worktree create" "$split_misplaced_out"
+assert_not_contains_file "misplaced worktree remedy does not borrow the first target's root" \
+  "Recreate at $TMP/conform-root/no-origin-canon-feature-ok" "$split_misplaced_out"
+
+# A repository with no key of its own falls back to source-control worktree_root, never to a
+# root another target resolved through its own includeIf.
+split_fallback_out="$TMP/split-root-fallback-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/split-root" \
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/nohome" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_fallback_out" 2>&1 || true
+assert_contains_file "repository without its own key uses the fallback root" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/conform-root)" "$split_fallback_out"
+assert_not_contains_file "repository without its own key does not borrow another target's root" \
+  "Recreate at $TMP/split-root/no-origin-canon-feature-ok" "$split_fallback_out"
 
 # Fallback to source-control pluginConfigs when melodic key is absent.
 mkdir -p "$TMP/settings-home/.claude"
@@ -1994,6 +2158,96 @@ else
   failures=$((failures + 1))
 fi
 
+# On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
+# a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
+# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
+# the <user> placeholder, which the machine-specific-paths gate treats as portable.
+WIN_BIN="$TMP/win-bin"
+WIN_TMP="$TMP/wintmp"
+mkdir -p "$WIN_BIN" "$WIN_TMP"
+printf '#!/usr/bin/env bash\nprintf "MINGW64_NT-10.0-26100\\n"\n' >"$WIN_BIN/uname"
+cat >"$WIN_BIN/cygpath" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "-m" && "$2" == "--" && $# -eq 3 ]] || exit 2
+case "$3" in
+"$MOCK_WIN_TMP"/*) printf 'C:/Users/<user>/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
+*) printf '%s\n' "$3" ;;
+esac
+EOF
+chmod +x "$WIN_BIN/uname" "$WIN_BIN/cygpath"
+win_native="C:/Users/<user>/AppData/Local/Temp"
+win_out="$TMP/win-plan-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" TMPDIR="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" >"$win_out" 2>&1 || true
+win_default_plan="$(compgen -G "$WIN_TMP/repo-fleet-hygiene-plan.*.json" | head -n 1)"
+win_default_native="$win_native/${win_default_plan#"$WIN_TMP"/}"
+if [[ -n "$win_default_plan" ]] &&
+  grep -Fxq "Action plan: $win_default_native" "$win_out" &&
+  grep -Fq -- "--apply-plan $win_default_native" "$win_out" &&
+  ! grep -Fq "$WIN_TMP" "$win_out"; then
+  printf 'PASS: Windows default plan path prints in native form on both plan lines\n'
+else
+  printf 'FAIL: Windows default plan path not native (plan=%s)\n' "$win_default_plan" >&2
+  sed -n '/^Action plan:/,/^Apply dry-run:/p' "$win_out" >&2
+  failures=$((failures + 1))
+fi
+win_explicit_out="$TMP/win-explicit-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/explicit.json" >"$win_explicit_out" 2>&1 || true
+if [[ -f "$WIN_TMP/explicit.json" ]] &&
+  grep -Fxq "Action plan: $win_native/explicit.json" "$win_explicit_out" &&
+  grep -Fq -- "--apply-plan $win_native/explicit.json" "$win_explicit_out"; then
+  printf 'PASS: Windows explicit --plan-file is written as given and printed in native form\n'
+else
+  printf 'FAIL: Windows explicit --plan-file path handling\n' >&2
+  failures=$((failures + 1))
+fi
+# Without cygpath the audit still reports, with the path as bash sees it.
+rm -f "$WIN_BIN/cygpath"
+win_nocyg_out="$TMP/win-nocygpath-out.txt"
+PATH="$WIN_BIN:$PATH" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/nocyg.json" >"$win_nocyg_out" 2>&1 || true
+if command -v cygpath >/dev/null 2>&1; then
+  printf 'SKIP: host cygpath present; cannot test its absence\n'
+elif grep -Fxq "Action plan: $WIN_TMP/nocyg.json" "$win_nocyg_out"; then
+  printf 'PASS: Windows host without cygpath prints the plan path unchanged\n'
+else
+  printf 'FAIL: Windows host without cygpath lost the plan path\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Printable UTF-8 renders as itself; controls, C1 controls, line separators, bidi overrides, and
+# malformed bytes are still one %q field (#4208). The caller's locale must not change the answer.
+display_probe_script="$TMP/display-probe.sh"
+cat >"$display_probe_script" <<'EOF'
+. "$1"
+eval "$(sed -n "/^repo_kind_counts_text()/,/^}/p" "$1")"
+F_KIND=(merged-branch)
+F_REPO_IDX=(1)
+print_field Branch "feature/café-über"
+print_field Target "/tmp/Ångström/日本語/😀"
+print_field "Kind counts" "$(repo_kind_counts_text 0)"
+for bad in $'a\nFinding: forged' $'a\033[31m' $'a\xc2\x9b[31m' $'a\xc2\x85b' $'a\xe2\x80\xa8b' \
+  $'a\xe2\x80\xaeb' $'a\xe2\x81\xa6b' $'a\x9bb' $'ab\xc3' $'a\xed\xa0\x80'; do
+  print_field Bad "$bad"
+done
+EOF
+for display_locale in C C.UTF-8; do
+  display_probe="$(LC_ALL="$display_locale" bash "$display_probe_script" "$SCRIPT" 2>/dev/null)"
+  display_readable="$(printf '%s\n' "$display_probe" | sed -n 1,3p)"
+  display_bad_total="$(printf '%s\n' "$display_probe" | grep -c '^Bad: ')"
+  display_bad_escaped="$(printf '%s\n' "$display_probe" | grep -c "^Bad: \\$'")"
+  display_lines="$(printf '%s\n' "$display_probe" | wc -l | tr -d ' ')"
+  if [[ "$display_readable" == $'Branch: feature/café-über\nTarget: /tmp/Ångström/日本語/😀\nKind counts: none' &&
+    "$display_bad_total" -eq 10 && "$display_bad_escaped" -eq 10 && "$display_lines" -eq 13 ]]; then
+    printf 'PASS: display_value keeps printable UTF-8 readable and escapes controls (LC_ALL=%s)\n' \
+      "$display_locale"
+  else
+    printf 'FAIL: display_value under LC_ALL=%s rendered:\n%s\n' "$display_locale" "$display_probe" >&2
+    failures=$((failures + 1))
+  fi
+done
+
 # Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence. Sourcing brings the
 # finding registry and both action predicates in; repo_verdict itself sits past the source guard,
 # so it is still extracted.
@@ -2113,8 +2367,12 @@ run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && status_reject
 allowed_log=true
 run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
 allowed_ls_remote=true
-run_git_probe -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared >/dev/null 2>&1 ||
+git_probe_allowed -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared ||
   allowed_ls_remote=false
+ls_remote_rejected=true
+run_ls_remote_probe "$TMP/canonical-a" --upload-pack=x refs/heads/feature/shared >/dev/null 2>&1 &&
+  ls_remote_rejected=false
+run_ls_remote_probe "$TMP/canonical-a" origin HEAD >/dev/null 2>&1 && ls_remote_rejected=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
   printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
@@ -2139,6 +2397,12 @@ if [[ "$allowed_ls_remote" != "true" ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: ls-remote --heads probe is admitted by the Git allowlist\n'
+fi
+if [[ "$ls_remote_rejected" != "true" ]]; then
+  printf 'FAIL: run_ls_remote_probe admitted a non-allowlisted remote or ref\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: run_ls_remote_probe rejects a non-allowlisted remote or ref\n'
 fi
 
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).

@@ -1,5 +1,6 @@
 ---
-description: "Get a session to a clean stopping point before the machine may go away. Everything durable, everything linked, nothing stranded on local disk. Sweep every repo and worktree touched for uncommitted, unpushed, or PR-less work, push it durable, put follow-ups and context in PR/issue bodies a cold agent could resume from, prune only what is provably safe, then give a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Makes durable freely; gates destructive cleanup."
+description: "Reach a clean stopping point before the machine may go away: sweep every repo and worktree touched for uncommitted, unpushed, or PR-less work, push it, record follow-ups in PR and issue bodies, prune only the provably safe, and give a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Gates destructive cleanup."
+argument-hint: "[unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -51,15 +52,10 @@ PR and issue bodies on the remote.
    not silently lost with the disk.
    The conversation itself is another machine-local, non-durable item:
    transcripts live only in this machine's `~/.claude` tree and are
-   retention-swept besides. When the built-in `export` command resolves in
-   your session and the session is worth keeping, first verify the resolved
-   memory root's self-ignore guard (a `.gitignore` containing `*`, created and
-   announced when absent), then offer the one-line export
-   `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`. Offer only,
-   never run: built-ins are user-invoked, and nothing verifies the export
-   happened. That destination is itself machine-local, so when the machine may
-   go away, also surface copying the export off the machine (or a durable
-   destination of the user's choice) as a "preserve off the machine" item.
+   retention-swept besides. When the session is worth keeping:
+   If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
+   That destination is machine-local, so when the machine may go away, also
+   surface copying the export off the machine as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR
    or issue body is created or updated, sweep everything outbound: remaining
    tasks, dependencies, resume context, any pasted terminal output or diffs,

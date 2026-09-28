@@ -13,6 +13,13 @@ outcome gate's artifact-grounded criteria, or not at all.
   token discards the run rather than downgrading it. It does **not** distinguish preload from the
   disk fallback. That is the `preload:` field. Treating a matching token as proof preload fired is
   unsound.
+- **A small, single-topic dispatch can still exhaust `maxTurns: 40` with no payload.** At session
+  effort `high`, one narrow question has stopped at the limit with nothing returned but the
+  harness's partial marking. That is not a discard: resume the agent with `SendMessage` addressed by
+  its agent ID, and it continues from retained context. That has recovered a complete artifact set
+  and a well-formed payload that passed both gates. The dated record is
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "A turn-limit stop returns partial output, and the parent can resume the agent".
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
   to surface inherits precisely the blind spot the ledger exists to close, and then certifies it. Use
   a surface that is exhaustive by construction, and record the corpus as narrowed when it is.

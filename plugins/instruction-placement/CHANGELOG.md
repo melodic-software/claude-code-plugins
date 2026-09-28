@@ -3,6 +3,72 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.12] - 2026-09-28
+
+### Changed
+
+- **Cutover sources rechecked on Claude Code 2.1.282 (#4281).** The bundle's code default for
+  `tengu_agents_md_mod` is true (`var W=!0` at offset 225456771). The env-vars feature-flag list
+  no longer mentions `AGENTS.md`. The memory page still floors direct reading at v2.1.277, says
+  Bedrock and telemetry-disabled sessions failed only before v2.1.281, and says `/memory` lists a
+  directly read `AGENTS.md` from v2.1.280. `InstructionsLoaded` still does not fire for that
+  direct read. Recorded in `skills/migrate/reference/sources.md` and in "Why the shim stays".
+- **This-repo cutover-check, canary attempted.** `cutover-check.sh --repo` this checkout, without
+  `--skip-canary`. Conditions 1 and 2 are `[MET]` for this repo. Condition 3 is `[UNREACH]`:
+  `claude auth status` is logged out, and both canary legs exited 1 (`Not logged in`). Condition
+  4 is `[MET]` after acknowledging `user-scope.sh`'s user-scope `CLAUDE.md` inventory line. The
+  other nine repos were not in this checkout. The recurring issue stays open. `last_checked` on
+  `agents-md-cutover-check` stays 2026-09-20.
+
+## [0.15.11] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: destination enumerations,
+  silent-failure ladders, and shim-removal mechanics. `setup` is
+  `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
+  plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
+  or merged.
+
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
+
+## [0.15.9] - 2026-09-28
+
+### Changed
+
+- **CI-canary host parked (#4282).** `melodic-software/claude-lane-sandbox` stays
+  archived; this marketplace does not grow a `claude-code-action` canary
+  workflow. Cutover condition 2 continues to rest on the knowledge-corpus run
+  already recorded in `reference/sources.md`. A maintainer who wants the two-pin
+  three-case matrix runs it on a host they choose and replaces that run id.
+
+## [0.15.8] - 2026-09-28
+
+### Fixed
+
+- **`index-drift` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory PostToolUse hook that dies of a hard error used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`instruction-placement index-drift: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
+## [0.15.7] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.15.6] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
 ## [0.15.5] - 2026-09-25
 
 ### Changed

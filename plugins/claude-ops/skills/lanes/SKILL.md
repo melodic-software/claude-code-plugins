@@ -26,8 +26,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 ## Pre-computed context
 
-claude CLI: !`claude --version 2>/dev/null || echo "MISSING (required)"`
-jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
+claude CLI version, then jq: !`claude --version 2>/dev/null || echo "claude CLI MISSING (required)"; command -v jq >/dev/null 2>&1 && echo "jq present" || echo "jq MISSING (required)"`
 Lane config: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/probe-lane-config.sh" 2>/dev/null || echo "unknown"`
 
 ## Variables
@@ -246,12 +245,14 @@ listed `--permission-mode` choice, and against the official
 `dontAsk`, `bypassPermissions`, or `manual`. Recheck when the CLI's major or
 minor version moves, or a release note names background sessions, the
 `agents` command, `plugin marketplace`, or `--permission-mode`. The primitives:
-`claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
-[--settings JSON] "<prompt>"` (launch a named background session, return
-immediately; `--permission-mode auto` is what makes an unattended lane run
-past its first permission prompt instead of stalling under a machine's Manual
-default; `--settings` accepts inline JSON and applies session-only, per the
-CLI reference),
+`claude --bg -n <name> --permission-mode auto --permission-prompts none
+[--model M] [--effort E] [--settings JSON] "<prompt>"` (launch a named
+background session, return immediately; `--permission-mode auto` is what makes
+an unattended lane run past its first permission prompt instead of stalling
+under a machine's Manual default; `--permission-prompts none` denies whatever
+would still fall through to a prompt, including `AskUserQuestion`, while auto
+mode keeps deciding; `--settings` accepts inline JSON and applies
+session-only, per the CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with
@@ -259,11 +260,34 @@ sessionId, name, status),
 `claude agents stop` verb. Stop resolves the sessionId from `agents --json` and
 only for a configured lane name.
 
+**Record.** Claim: an unattended lane launches with `--permission-mode auto` and
+`--permission-prompts none`, so auto mode still decides and a prompt that would
+have asked a person is denied. Basis:
+<https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs>
+and the `--permission-prompts` row of
+<https://code.claude.com/docs/en/cli-reference> (the row says print mode). A
+probe on Claude Code 2.1.282 accepted the flag together with `--bg` and
+`--permission-mode auto` and backgrounded a session, which was then stopped.
+As of: 2026-09-28. Recheck: the CLI flag row stops listing `none`, a `--bg`
+launch rejects the flag, or a release note changes what `none` denies.
+
 ## Gotchas
 
 - **No durable prompt home.** `.work/lanes` is a sanctioned home, not a durable one:
   the memory root is session-local, so a fresh machine or session has no prompts
   until they are authored there, or `prompt_dir` is pointed at a committed directory.
+- **Do not resume a lane with `claude --resume <session-id> --bg`.** Restart
+  stops the running session and launches a fresh `--bg` seed. A resume under
+  `--bg` continues that session's own id when nothing else is running it, and
+  announces a copy when something is. A lane's contract is the canonical prompt
+  file, not the previous transcript.
+  - **Claim:** decline `claude --resume <session-id> --bg` as a lane restart.
+  - **Basis:** <https://code.claude.com/docs/en/changelog> Claude Code 2.1.257,
+    the `--resume` plus `--bg` item (continues under its own id, and a copy is
+    announced), and the lanes launcher, which always passes a fresh prompt.
+  - **As of:** 2026-09-28.
+  - **Recheck:** a release note changes what `claude --resume <id> --bg` does
+    with an idle session, or the launcher grows a resume path.
 - **Name is the identity.** Lanes are matched by session `name` **and** `kind:
   background`: every lane is launched with `--bg`, so an interactive window sharing
   a lane name is never matched or stopped. Two lanes must not share a name; a

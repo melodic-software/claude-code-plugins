@@ -133,6 +133,7 @@ section() {
   for k in permissions.allow permissions.ask permissions.deny; do section "$k" '* **Type**: array of strings'; done
   printf '## Other settings\n\n'
   for k in extraKnownMarketplaces disableAllHooks hooks env enableAllProjectMcpServers enabledMcpjsonServers disabledMcpjsonServers; do section "$k"; done
+  section skillOverrides '* **Type**: object'
   section voiceEnabled '* **Type**: Boolean' '<Warning>' '  Deprecated since v2.1.92, when the [`voice`](#voice) object replaced it. Claude Code still reads it so older settings files keep working, but new configurations should set `voice.enabled`.' '</Warning>'
   section laterKey '* **Type**: Boolean' '<Warning>' '  Deprecated since v2.1.281, when a newer key replaced it.' '</Warning>'
   section disableArtifact '* **Type**: Boolean' '<Warning>' '  Deprecated, and replaced by [`enableArtifact`](#enableartifact). Claude Code still honors `disableArtifact: true`.' '</Warning>'
@@ -1109,6 +1110,144 @@ for order in "claude-code own@mkt" "own@mkt claude-code"; do
   assert_contains "case 47: ($order) and names the stale receipt" "$CR_WHY" "stale consent receipt, recheck"
 done
 unset -f row cr_match
+
+# --- Case 48: skillOverrides entries that can never take effect ------------------
+# Plugin skills are not affected by skillOverrides, so a key naming a known
+# plugin is a warning; a colon key whose prefix names no known plugin is not
+# decided. Plugin names come from the installed registry and enabledPlugins.
+so_row() { jq -c --arg c "$1" '[.rows[] | select(.claim == $c)]' <<<"$2"; }
+m="$(make_machine overrides)"
+printf '%s\n' '{"plugins":{"tools@mkt":[{"scope":"user"}]}}' >"$m/registry.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {skillOverrides:{"tools:lint":"off","tools:a/b~c":"name-only","plain":"off","apps/web:deploy":"off","anthropic-skills:pdf":"off"}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"enabledPlugins":{"other@mkt2":false},"skillOverrides":{"other:x":"off"}}' >"$m/user/settings.json"
+printf '%s\n' '{"skillOverrides":{"tools:a\nb":"off"}}' >"$m/project/.claude/settings.local.json" # portability-ok: a JSON newline escape, not a regex escape
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 48: override findings are warnings, exit 0" 0 "$rc"
+assert_eq "case 48: every scope read is a fixture file" "0" "$(jq --arg m "$m" '[.scopes[] | select(.path | startswith($m) | not)] | length' <<<"$out")"
+r="$(so_row "skill-override-plugin:tools:lint" "$out")"
+assert_eq "case 48: a registry plugin key is a warning finding on its file" "finding warning .claude/settings.json" "$(jq -r '.[0] | "\(.status) \(.severity) \(.surface)"' <<<"$r")"
+assert_eq "case 48: its anchor is the escaped JSON pointer" "$(bash "$SCRIPT" anchor --excerpt "/skillOverrides/tools:lint")" "$(jq -r '.[0].anchor' <<<"$r")"
+assert_contains "case 48: the detail quotes the docs" "$(jq -r '.[0].detail' <<<"$r")" "Plugin skills are not affected by"
+assert_contains "case 48: the detail names the reachable lever" "$(jq -r '.[0].detail' <<<"$r")" "enabledPlugins"
+assert_eq "case 48: slash and tilde are pointer-escaped" "$(bash "$SCRIPT" anchor --excerpt "/skillOverrides/tools:a~1b~0c")" "$(jq -r '.[0].anchor' <<<"$(so_row "skill-override-plugin:tools:a/b~c" "$out")")"
+assert_eq "case 48: a disabled enabledPlugins key still names a plugin" "finding warning user:settings.json" "$(jq -r '.[0] | "\(.status) \(.severity) \(.surface)"' <<<"$(so_row "skill-override-plugin:other:x" "$out")")"
+assert_eq "case 48: a nested directory-qualified key is a skip, not a finding" "skip none" "$(jq -r '.[0] | "\(.status) \(.severity)"' <<<"$(so_row "skill-override-plugin:apps/web:deploy" "$out")")"
+assert_eq "case 48: a synced-skill namespace key is a skip" "skip" "$(jq -r '.[0].status' <<<"$(so_row "skill-override-plugin:anthropic-skills:pdf" "$out")")"
+assert_eq "case 48: an unresolved key is never a finding" "0" "$(jq '[.findings[] | select(.identity.claim | test("apps/web|anthropic-skills"))] | length' <<<"$out")"
+assert_eq "case 48: a plain key gets no override row" "0" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-plugin")) | select(.claim | test("plain"))] | length' <<<"$out")"
+assert_eq "case 48: a key with a newline is one row" "1" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-plugin")) | select(.surface == ".claude/settings.local.json")] | length' <<<"$out")"
+assert_eq "case 48: its claim carries the escaped key" "1" "$(jq '[.findings[] | select(.identity.claim == "skill-override-plugin:tools:a\\nb")] | length' <<<"$out")" # portability-ok: the literal two-character escape in the claim
+assert_eq "case 48: no override value reaches a row" "0" "$(jq '[.rows[] | select(.check | contains("/G/skill-override")) | select(.detail | test("name-only"))] | length' <<<"$out")"
+assert_eq "case 48: an ordinary project with no user-dir local file has no home-local row" "0" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-home-local"))] | length' <<<"$out")"
+ul_scope() { jq -r '[.scopes[] | select(.label == "user-local") | "\(.state) \(.path | sub(".*/"; ""))"] | join(",")' <<<"$1"; }
+assert_eq "case 48: the user-dir local file is listed as a scope even when absent" "absent settings.local.json" "$(ul_scope "$out")"
+# The user dir's own settings.local.json is read whatever the project root.
+printf '%s\n' '{"skillOverrides":{"mine":"off"}}' >"$m/user/settings.local.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 48: a user-dir local file with overrides is an info finding" "finding info user:settings.local.json" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | "\(.status) \(.severity) \(.surface)"' <<<"$out")"
+assert_contains "case 48: and says a user-wide override belongs in settings.json" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | .detail' <<<"$out")" "settings.json"
+assert_eq "case 48: the read is disclosed in scopes" "ok settings.local.json" "$(ul_scope "$out")"
+assert_eq "case 48: the disclosed path is the user dir's file" "1" "$(jq --arg p "$m/user/settings.local.json" '[.scopes[] | select(.label == "user-local" and .path == $p)] | length' <<<"$out")"
+printf '%s\n' '{"skillOverrides":{}}' >"$m/user/settings.local.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 48: an empty skillOverrides object has no home-local row" "0" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-home-local"))] | length' <<<"$out")"
+assert_eq "case 48: a clean user-dir local file is still disclosed as read" "ok settings.local.json" "$(ul_scope "$out")"
+printf '%s\n' '{not json' >"$m/user/settings.local.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 48: an invalid user-dir local file is not inspectable, never clean" "not-inspectable" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | .status' <<<"$out")"
+assert_eq "case 48: and its scope state says invalid" "invalid settings.local.json" "$(ul_scope "$out")"
+out=$(run "$m" --table 2>&1) || true
+assert_contains "case 48: the table report lists the user-local scope" "$out" "user-local: invalid"
+
+# A home-rooted run: the project's .claude is the user dir, so settings.json is
+# one file under two labels and is scanned once, and the local file is the
+# user-dir local file. Checked with USER_DIR spelled unlike PROJECT_ROOT.
+m="$(make_machine home-overrides)"
+mkdir -p "$m/home/.claude"
+printf '%s\n' '{"plugins":{"tools@mkt":[{"scope":"user"}]}}' >"$m/registry.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {skillOverrides:{"tools:lint":"off","tools:fmt":"off"}}' >"$m/home/.claude/settings.json"
+printf '%s\n' '{"skillOverrides":{"mine":"off","tools:x":"off"}}' >"$m/home/.claude/settings.local.json"
+spellings=("$m/home/.claude/")
+command -v cygpath >/dev/null 2>&1 && spellings+=("$(cygpath -w "$m/home/.claude")")
+for ud in "$m/home/.claude" "${spellings[@]}"; do
+  rc=0
+  out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/home" SETTINGS_AUDIT_ENGINE_USER_DIR="$ud" \
+    SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
+    SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
+    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    bash "$SCRIPT" --json 2>&1) || rc=$?
+  assert_exit "case 48 ($ud): home-rooted run exits 0" 0 "$rc"
+  assert_eq "case 48 ($ud): the user file is read" "ok" "$(jq -r '.scopes[] | select(.label == "user") | .state' <<<"$out")"
+  assert_eq "case 48 ($ud): the local scope is the user-dir local file, listed once" "" "$(ul_scope "$out")"
+  assert_eq "case 48 ($ud): one finding per settings.json key, on the user surface" "user:settings.json user:settings.json" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-plugin")) | select(.identity.claim | test("lint|fmt")) | .identity.sites[0].surface] | join(" ")' <<<"$out")"
+  assert_eq "case 48 ($ud): the local file's plugin key is one finding" "1" "$(jq '[.findings[] | select(.identity.claim == "skill-override-plugin:tools:x")] | length' <<<"$out")"
+  assert_eq "case 48 ($ud): one home-local info finding" "info" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-home-local")) | .severity] | join(" ")' <<<"$out")"
+done
+
+# --- Case 49: a declared unattended-push lane narrows the push ask-gate only ----
+# Settings lack the push ask rule and the force-push deny. The team-tracked
+# source-control file decides whether the ask row is info (the lane's signal
+# named) or warning; the deny row keeps its severity either way, and every ask
+# row says an ask rule blocks an unattended lane.
+lane_settings='{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git reset --hard *)"]}}'
+ask_row() { jq -r --arg f "$2" '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .[$f]' <<<"$1"; }
+force_sev() { jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$1"; }
+for lane in c3-autonomous adopted human-only none; do
+  m="$(make_machine "lane-$lane")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  case "$lane" in
+  c3-autonomous | human-only)
+    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\n%s\n' "$lane" >"$m/project/.claude/source-control.md"
+    ;;
+  adopted)
+    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n' >"$m/project/.claude/source-control.md"
+    ;;
+  *) ;;
+  esac
+  rc=0
+  out=$(run "$m" --json 2>&1) || rc=$?
+  assert_eq "case 49 ($lane): force-push deny stays error" "error" "$(force_sev "$out")"
+  assert_contains "case 49 ($lane): ask row says it blocks unattended lanes" "$(ask_row "$out" detail)" "auto-denied under dontAsk"
+  case "$lane" in
+  c3-autonomous)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked .claude/source-control.md"
+    ;;
+  adopted)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the baseline rung is named" "$(ask_row "$out" detail)" "baseline c2-mechanical"
+    ;;
+  *)
+    assert_eq "case 49 ($lane): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+    ;;
+  esac
+done
+
+# CRLF + backticked rung (mawk-safe parse).
+m="$(make_machine "lane-crlf-bt")"
+printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+printf '# source-control configuration\r\n\r\n## babysit_loop_merge\r\n\r\n`full-autonomy`\r\n' >"$m/project/.claude/source-control.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 49 (crlf-bt): ask row is info" "info" "$(ask_row "$out" severity)"
+assert_contains "case 49 (crlf-bt): backticked rung is read" "$(ask_row "$out" detail)" "babysit_loop_merge: full-autonomy"
+assert_eq "case 49 (crlf-bt): force-push deny stays error" "error" "$(force_sev "$out")"
+
+# Explicit awk shim: first awk on PATH is the impl under test.
+for impl in gawk mawk; do
+  command -v "$impl" >/dev/null 2>&1 || { echo "skip case 49 ($impl): not installed"; continue; }
+  m="$(make_machine "lane-awk-$impl")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  printf '## babysit_loop_merge\n\n  c2-mechanical  \n' >"$m/project/.claude/source-control.md"
+  shim="$m/bin"
+  mkdir -p "$shim"
+  ln -sf "$(command -v "$impl")" "$shim/awk"
+  rc=0
+  out=$(PATH="$shim:$PATH" run "$m" --json 2>&1) || rc=$?
+  assert_eq "case 49 ($impl): ask row is info" "info" "$(ask_row "$out" severity)"
+  assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
+done
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

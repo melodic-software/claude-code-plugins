@@ -40,7 +40,7 @@ No action → route on context (a structural question → `form`; "write me a br
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §6 (+ §5 for hook/title) before output.
+- **Pre-flight:** run response-filter §6 (+ §5 for hook/title) before output.
 - Name the form and what each section is DOING; recommend the smallest structural change that fixes
   the problem, not a wholesale rewrite.
 - Repetition is repainting, not stagnation, a repeated chorus should mean something new by its

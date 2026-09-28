@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when the built-in /skill-doctor command resolves in your session, prefer it; likewise the bundled /doctor skill when that resolves in your session), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "When the built-in skill-doctor command resolves in your session, prefer it for cost; when the bundled doctor skill resolves in your session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
@@ -22,11 +22,14 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
 are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
 of the skills it ships. `skillOverrides` governs non-plugin skills, which this
-audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
+audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-27 against
 <https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
-`skillOverrides`") and Claude Code 2.1.263, whose listing resolver returns `on`
-for every plugin-sourced skill before it reads the override map; recheck when
-that section changes.
+`skillOverrides`. Manage those through `/plugin` instead.") and Claude Code 2.1.283,
+whose listing resolver returns `on` for every plugin-sourced skill before it reads the
+override map; recheck when that section changes or a release note says plugin skills
+honor `skillOverrides`. A `skillOverrides` entry already in an operator's settings
+that names a plugin skill therefore never takes effect; `claude-config:audit`,
+when installed, reports those entries.
 
 Claude Code budgets the model-visible skill listing in characters, at
 `window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,

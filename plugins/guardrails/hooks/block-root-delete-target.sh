@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block a recursive delete whose TARGET is a filesystem root.
-# Triggered on Bash tool calls (a command string).
+# Triggered on Bash and PowerShell tool calls (a command string).
 #
 # THE GAP THIS CLOSES. Before 0.36.0 no guard in this plugin inspected the target of
 # a delete at all: `rm -rf` appeared only in the suites, as fixture cleanup, and
@@ -114,15 +114,41 @@
 # src/*/__pycache__` over a large `src` are refused), an operand over 4096
 # bytes or 128 path separators, an expansion followed by a segment of
 # punctuation alone (`${X:-{a,b}}/*` leaves a literal `}`, which names nothing
-# here), a backslash-escaped brace (it reads as partly quoted), and
-# `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
+# here), a backslash-escaped brace (it reads as partly quoted), and the three
+# launcher lines decided below.
+#
+# LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
+# launcher does not delete the host root, and each stays refused on purpose:
+#   * `chrt -r rm -rf /`, `chrt -f rm -rf /` and a bare `chrt rm -rf /`
+#     (round-robin by default). chrt reads the word after a realtime policy
+#     as its priority, so it rejects these lines before exec: util-linux
+#     2.39.3 through 2.41 exits 1 with "invalid priority argument", 2.42 on
+#     with "policy <name> requires a priority argument". The same line
+#     under `-o`, `-b`, `-i`, `-d` or `-e` does run `rm` from 2.42, where the
+#     priority became optional for those policies, so a non-digit word after
+#     chrt is always read as the command. The cost is one retry and never a
+#     lost file.
+#   * `runuser -u bob rm -rf /` without `--`. runuser's getopt permutes, so
+#     `-rf` is read as its own option and the line exits 1 with "invalid
+#     option -- 'r'". Under POSIXLY_CORRECT, which a command inherits without
+#     showing it, options end at `rm` and the delete runs; the guard cannot
+#     see the shell's environment, so it refuses on both readings.
+#   * `chroot <dir> rm -rf /` and `rm -rf /*` under it. chroot's `/` is host
+#     `<dir>`, so the delete empties `<dir>` and every host directory
+#     bind-mounted inside it. Only GNU rm's default --preserve-root stops the
+#     bare `/` spelling, and not `/*` or `--no-preserve-root`. Not a
+#     harmless line, so kept on the refusal side.
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
-#   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
-#     hazard through the other shell and are NOT covered, for any of the target
-#     classes above. The guard exits on any tool_name other than Bash, which
-#     also keeps it out of the shared PowerShell classifier and its sink
-#     attempt budget. PowerShell is tracked separately.
+#   * PowerShell is covered for the same target classes as Bash, with its own
+#     tokenizer (not lib/powershell/ps-command.sh, so this guard stays off the
+#     classifier's sink-attempt budget). Matched: Remove-Item and its aliases
+#     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
+#     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
+#     rd /s and rmdir /s; a pipeline into Remove-Item -Recurse with no path.
+#     Still uncovered: Start-Process/iex wrapping a delete, a command word
+#     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
+#     (`pwsh -Command '...'`), and a here-string body.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
@@ -173,14 +199,17 @@
 #     table is an allow-list of names, so an unlisted launcher ends the walk
 #     and its own name is read as the command word. runuser is read by its own
 #     helper, because its getopt permutes: its -c operands are commands (su's
-#     grammar) and, with -u, its non-option words are the command.
-#   * Three sudo spellings: `-R` / `--chroot`, a short cluster ending in an
-#     operand-taking letter (`sudo -Eu bob …`), and an abbreviated long option
-#     (`sudo --us bob …`). Each is read as a flag that takes no operand, so the
-#     word after it becomes the command word. Reading them correctly changes
-#     how sudo lines the guard refuses today are read (`sudo -R rm -rf /` would
-#     take `rm` as the chroot directory), and this guard only ever adds
-#     refusals, so they stay gaps.
+#     grammar) and, with -u, its non-option words are the command. `builtin`,
+#     `doas`'s short clusters and `systemd-run`'s working directory are not
+#     modeled: a service unit runs from `/` (or the user's home) unless
+#     `--scope`, `-d` or `--working-directory` says otherwise, and a relative
+#     operand under it is judged from the payload cwd.
+#   * sudo's `-R` / `--chroot`, a short cluster ending in an operand-taking
+#     letter (`sudo -Eu bob …`), and an abbreviated long option (`sudo --us bob
+#     …`) are judged on two readings, blocking if either does: as a flag, so
+#     the word after it stays the command word (`sudo -R rm -rf /`), and as
+#     taking that word, so the one after is the command (`sudo -R /mnt rm -rf
+#     /`) (#4685).
 #   * A command word split across quoting so the RAW text never spells it.
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
@@ -263,9 +292,10 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 PAYLOAD_CWD=""
 RDT_CWD_NUL=0
 
-# The PowerShell lane is a declared gap, and exiting here is what keeps this
-# guard off the classifier's load path entirely.
-[[ "$TOOL_NAME" == "Bash" ]] || exit 0
+# Bash and PowerShell only. Exiting on every other tool keeps this guard off
+# the classifier's load path. The PowerShell lane uses a dedicated tokenizer
+# below and does not call the shared classifier.
+[[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]] || exit 0
 
 # Nothing to inspect.
 [[ -n "$COMMAND" ]] || exit 0
@@ -372,6 +402,12 @@ rdt_block() {
       'An empty word here is almost always a path that failed to build, and the same command with the path filled in deletes something nobody named.' \
       'Fix: name the directory to remove explicitly, or drop the empty word.' >&2
     ;;
+  pipeline-target)
+    printf '%s\n' \
+      'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
+      'Get-ChildItem x | Remove-Item -Recurse, or Remove-Item -Recurse (Get-Item C:\\), deletes whatever the left-hand side produces, including a filesystem root.' \
+      'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.' >&2
+    ;;
   bare-variable)
     # Single-quoted on purpose: the text shows a literal ${NAME:?}.
     # shellcheck disable=SC2016
@@ -459,22 +495,34 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   rdt_block "too-long"
 fi
 
-# Cheap prefilter ahead of the character walk. This guard is on the per-Bash-call
-# path, and a command whose TEXT does not contain `rm` cannot carry the one verb
-# the matcher recognizes, so it must not pay for the parse. A substring is all
-# this can be: `npm run format` contains `rm` and goes on to the tokenizer,
-# which allows it on its command word.
+# Cheap prefilter ahead of the character walk. A command whose TEXT cannot
+# carry a verb this matcher recognizes must not pay for the parse. Folded to
+# lower case: on Windows both the filesystem and the PATH lookup are
+# case-insensitive, so `RM -rf /` and `REMOVE-ITEM -Recurse C:\` run.
+# A case-SENSITIVE prefilter here would have exited allow first, a bypass of
+# the whole guard rather than a missed spelling.
 #
-# Folded to lower case, and that is load-bearing rather than tidy. The command
-# word is compared case-insensitively below, and on the Windows host this guard
-# was written for both the filesystem and the PATH lookup are case-insensitive,
-# so `RM -rf /` runs rm. A case-SENSITIVE prefilter here would have exited
-# allow before the matcher ever saw it, which is a bypass of the whole guard
-# rather than a missed spelling.
-case "${COMMAND,,}" in
-*rm*) ;;
-*) exit 0 ;;
-esac
+# Bash: a substring `rm` is all this can be (`npm run format` still reaches
+# the tokenizer and is allowed on its command word). PowerShell: Remove-Item,
+# rmdir, erase, cmd, rd, del, rm, and `ri` as a command word (not the `ri`
+# inside Write/string). Over-inclusive on purpose; the tokenizer decides.
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  rdt_ps_pre="${COMMAND,,}"
+  rdt_ps_hit=0
+  case "$rdt_ps_pre" in
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del*) rdt_ps_hit=1 ;;
+  *) ;;
+  esac
+  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
+    rdt_ps_hit=1
+  fi
+  ((rdt_ps_hit)) || exit 0
+else
+  case "${COMMAND,,}" in
+  *rm*) ;;
+  *) exit 0 ;;
+  esac
+fi
 
 # The payload cwd, for the outside-tree arm. A NUL byte in it does not refuse
 # the call here: only a recursive delete this arm must judge is refused
@@ -616,12 +664,17 @@ rdt_is_root() {
 # A short cluster holding a letter runuser rejects, or a long option it does
 # not know or cannot resolve, makes runuser refuse the whole invocation. Once
 # a non-option has been seen, that word is kept as one rather than read as
-# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag and the
-# words stay right when POSIXLY_CORRECT stops getopt at the first non-option.
+# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag.
 # Ahead of every non-option it is dropped, so it never becomes the command
 # word (`runuser -u root --foo rm -rf /`).
+# With RDT_RU_POSIX=1 the words are read the way getopt reads them when
+# POSIXLY_CORRECT is set, which no payload shows because it can be inherited:
+# the first non-option ends the options and every word from it on is kept, so
+# a later `-s env` is an argument, not the shell. Each caller judges both
+# readings (#4685).
 # su shares this option parser, so its arm reads su's argv here too, to find
 # the words that follow a -s program that is not a shell.
+RDT_RU_POSIX=0
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_runuser_argv() {
   local off="$1"
@@ -731,11 +784,27 @@ rdt_runuser_argv() {
       ;;
     *) ;;
     esac
+    if ((RDT_RU_POSIX)); then
+      for ((m = k; m < n; m++)); do
+        RDT_RU_ARGV+=("${a[m]}")
+        RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + m]:-0}")
+      done
+      return 0
+    fi
     RDT_RU_ARGV+=("$w")
     RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + k]:-0}")
     k=$((k + 1))
   done
   return 0
+}
+
+# rdt_ru_key_to <var>: one string that differs whenever two rdt_runuser_argv
+# results do, so a second reading identical to the first is not walked again.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_ru_key_to() {
+  local -n _rk_out="$1"
+  printf -v _rk_out '%q ' "$RDT_RU_U" "$RDT_RU_SHELL" "${#RDT_RU_CMDS[@]}" ${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"} \
+    "${#RDT_RU_ARGV[@]}" ${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"} ${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"}
 }
 
 # rdt_su_shell_run: su and runuser exec their -s / --shell program with the
@@ -765,13 +834,26 @@ rdt_su_shell_run() {
 # it is the last letter; RDT_SC_NEXT is 1 in that second case. A letter whose
 # operand is OPTIONAL (nsenter's `-m`) takes the rest of the cluster and never
 # the next word, so it ends the walk with nothing to report. The letters come
-# from each launcher's getopt string; sudo and doas are a declared gap, and
-# taskset and chroot have no operand-taking short option.
+# from each launcher's getopt string; doas is a declared gap, and taskset,
+# chroot and setpriv have no operand-taking short option. sudo's `-R`, `-a`
+# and `-c` alone are judged here too, because the plain walk steps over them
+# (see the sudo row of the launcher table).
+# env's `-S` is absent: its operand is a command, re-parsed by env's own arm.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_short_cluster_arg() {
   local w="$2" ops opt="" k ch
   RDT_SC_NEXT=0
   case "$1" in
+  sudo)
+    ops="aCcDgpRrTtUu"
+    opt="h"
+    ;;
+  env) ops="aCu" ;;
+  prlimit)
+    ops="po"
+    opt="cdefilmnqrstuvxy"
+    ;;
+  systemd-run) ops="HMCupE" ;;
   chrt) ops="DPTUX" ;;
   flock) ops="wE" ;;
   unshare) ops="RwSGl" ;;
@@ -795,21 +877,42 @@ rdt_short_cluster_arg() {
 
 # rdt_long_takes_arg <launcher> <name>: true when `--<name>`, written without
 # `=`, takes the next word as its operand. getopt_long accepts any unambiguous
-# prefix, so `flock --wa 5` is `flock --wait 5`; an ambiguous prefix is counted
-# as taking one only when every candidate does. The walk judges this reading IN
-# ADDITION to the plain one that steps over the word alone, and blocks if
-# either does, so resolving a prefix can only add refusals.
+# prefix, so `flock --wa 5` is `flock --wait 5`. An ambiguous prefix makes the
+# launcher refuse to run, and it is counted as taking one when any candidate
+# does (`nsenter --t 1` could mean --target), because the walk judges this
+# reading IN ADDITION to the plain one that steps over the word alone, and
+# blocks if either does, so resolving a prefix can only add refusals.
+# An exact flag name never takes one.
 # Each list is the launcher's operand-taking long names, then its flag names.
-# The `ops` lists must stay in sync with each launcher's `optarg` long names.
-# sudo and doas are absent: their abbreviations are a declared gap.
+# The `ops` lists hold every operand-taking long name. The ones missing from a
+# launcher's `optarg` (sudo's `chroot`, `auth-type` and `login-class`, env's
+# `argv0`, `env0-from` and `quoting-style`) are stepped over by the plain walk
+# and taken only here (see the sudo row of the launcher table). doas is
+# absent: it has no long options.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
-  local name="$2" ops fls o nop=0 nfl=0
+  local name="$2" ops fls o nop=0
   [[ -n "$name" ]] || return 1
   case "$1" in
+  sudo)
+    ops="other-user auth-type close-from login-class chdir group host prompt chroot role command-timeout type user"
+    fls="background preserve-env edit set-home login remove-timestamp list preserve-groups shell validate askpass bell help reset-timestamp no-update non-interactive stdin version"
+    ;;
   env)
-    ops="unset chdir"
+    ops="unset chdir argv0 env0-from quoting-style"
     fls="ignore-environment null block-signal default-signal ignore-signal list-signal-handling debug help version"
+    ;;
+  setpriv)
+    ops="inh-caps ambient-caps ruid euid rgid egid reuid regid groups bounding-set securebits pdeathsig ptracer selinux-label apparmor-profile landlock-access landlock-rule list-landlock-rights seccomp-filter" # spellchecker:disable-line
+    fls="dump nnp no-new-privs list-caps clear-groups keep-groups init-groups landlock-support list-landlock-access help reset-env version"
+    ;;
+  prlimit)
+    ops="pid output"
+    fls="as core cpu data fsize locks memlock msgqueue nice nofile nproc rss rtprio rttime sigpending stack version help noheadings raw verbose"
+    ;;
+  systemd-run)
+    ops="host machine capsule unit property description slice expand-environment service-type uid gid nice working-directory root-directory setenv output json job-mode background path-property socket-property timer-property on-active on-boot on-startup on-unit-active on-unit-inactive on-calendar"
+    fls="help version no-ask-password user system scope slice-inherit no-block remain-after-exit wait send-sighup same-dir same-root-dir tty pty pty-late pipe quiet verbose collect shell ignore-failure no-pager on-timezone-change on-clock-change"
     ;;
   timeout)
     ops="signal kill-after"
@@ -863,9 +966,8 @@ rdt_long_takes_arg() {
   done
   for o in $fls; do
     [[ "$o" == "$name" ]] && return 1
-    [[ "$o" == "$name"* ]] && nfl=$((nfl + 1))
   done
-  ((nop > 0 && nfl == 0))
+  ((nop > 0))
 }
 
 # rdt_abbr is 1 inside a RESOLVED walk, where an abbreviated launcher long
@@ -1986,6 +2088,10 @@ rdt_check_segment() {
     # rather than the command (`timeout` takes a duration).
     consume_bare=0
     case "$base" in
+    # sudo's -R / --chroot, -a and -c take an operand too, and are absent on
+    # purpose: reading `sudo -R rm -rf /` as chroot `rm` would drop a refusal.
+    # The plain walk steps over them alone, and the resolved walk takes the
+    # operand (rdt_short_cluster_arg, rdt_long_takes_arg), so both are judged.
     sudo | doas) optarg=" -u --user -g --group -p --prompt -C --close-from -D --chdir -r --role -t --type -T --command-timeout -U --other-user -h --host " ;;
     # The util-linux launchers. Each operand list is read from the tool's own
     # getopt string; an option whose argument is OPTIONAL (nsenter's `-m`,
@@ -2011,30 +2117,65 @@ rdt_check_segment() {
       optarg=" --userspec --groups "
       consume_bare=1
       ;;
+    # setpriv's, prlimit's and systemd-run's getopt strings start with `+`, so
+    # the first non-option is the command. setpriv's operand-taking options are
+    # all long; prlimit's resource options (`--nofile=10`) take their limit
+    # only when attached, so only -p and -o consume a word.
+    setpriv) optarg=" --inh-caps --ambient-caps --ruid --euid --rgid --egid --reuid --regid --groups --bounding-set --securebits --pdeathsig --ptracer --selinux-label --apparmor-profile --landlock-access --landlock-rule --list-landlock-rights --seccomp-filter " ;; # spellchecker:disable-line
+    prlimit) optarg=" -p --pid -o --output " ;;
+    systemd-run) optarg=" -H --host -M --machine -C --capsule -u --unit -p --property --description --slice --expand-environment --service-type --uid --gid --nice --working-directory --root-directory -E --setenv --output --json --job-mode --background --path-property --socket-property --timer-property --on-active --on-boot --on-startup --on-unit-active --on-unit-inactive --on-calendar " ;;
+    # shadow's `sg [-|-l] group [[-c] command]` runs exactly one word through
+    # `sh -c`: the one after the group, or after a `-c` that has a word after
+    # it. Later words are ignored, so that one word is re-parsed like su's -c
+    # operand. `-` and `-l` start from the user's home, as `su -` does.
+    sg)
+      j=$((i + 1))
+      if ((j < n)) && [[ "${words[j]}" == - || "${words[j]}" == -l ]]; then
+        ((RDT_ARM)) && rdt_cd_unknown=1
+        j=$((j + 1))
+      fi
+      ((j < n)) && [[ "${words[j]}" != -* ]] || return 0
+      j=$((j + 1))
+      ((j + 1 < n)) && [[ "${words[j]}" == -c ]] && j=$((j + 1))
+      ((j < n)) && hook::bash_parse_segments "${words[j]}" rdt_check_segment
+      return 0
+      ;;
     # runuser has two grammars and both are judged, blocking if either does:
     # every -c / --command / --session-command operand is a command, and with
     # -u its non-option words are the command. Without -u the first non-option
     # is the user and the rest go to the shell, so they get su's scan. The
     # remapped provenance is saved first, because each parse rebuilds it.
+    # Both getopt readings are judged (see rdt_runuser_argv), the second only
+    # when it differs from the first.
     runuser)
       ((RDT_ARM)) && rdt_note_login ${words[@]+"${words[@]:i+1}"}
-      rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
-      local -a ru_cmds=() ru_argv=() ru_quoted=()
-      local ru_u="$RDT_RU_U" ru_cmd
-      ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
-      ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
-      ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
-      rdt_su_shell_run
-      for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
-        hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+      local -a ru_cmds=() ru_argv=() ru_quoted=() ru_q0=()
+      local ru_u ru_cmd ru_posix ru_key ru_seen=""
+      ru_q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+      for ru_posix in 0 1; do
+        HOOK_SEG_WORD_QUOTED=(${ru_q0[@]+"${ru_q0[@]}"})
+        RDT_RU_POSIX=$ru_posix
+        rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+        RDT_RU_POSIX=0
+        rdt_ru_key_to ru_key
+        [[ "$ru_key" == "$ru_seen" ]] && break
+        ru_seen=$ru_key
+        ru_u="$RDT_RU_U"
+        ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
+        ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
+        ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
+        rdt_su_shell_run
+        for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
+          hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+        done
+        if ((ru_u)); then
+          HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
+          ((${#ru_argv[@]})) && rdt_check_segment "${ru_argv[@]}"
+        elif ((${#ru_argv[@]} > 1)); then
+          HOOK_SEG_WORD_QUOTED=()
+          rdt_check_segment su "${ru_argv[@]:1}"
+        fi
       done
-      if ((ru_u)); then
-        HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
-        ((${#ru_argv[@]})) && rdt_check_segment "${ru_argv[@]}"
-      elif ((${#ru_argv[@]} > 1)); then
-        HOOK_SEG_WORD_QUOTED=()
-        rdt_check_segment su "${ru_argv[@]:1}"
-      fi
       return 0
       ;;
     # `-S` / `--split-string` is absent on purpose: it is not an opaque option
@@ -2123,6 +2264,28 @@ rdt_check_segment() {
             rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
               ${words[@]+"${words[@]:i+1}"}
             return 0
+            ;;
+          --s*)
+            # No other env long option starts with `s`, so every prefix is
+            # --split-string (`env --spl='rm -rf /'`). The split is judged as
+            # an extra reading and the plain walk goes on, so reading the
+            # prefix can only add refusals.
+            sval="${w#--}"
+            if [[ "split-string" == "${sval%%=*}"* ]]; then
+              local -a env_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+              if [[ "$w" == *=* ]]; then
+                hook::env_s_split "${w#*=}"
+                HOOK_SEG_WORD_QUOTED=()
+                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+                  ${words[@]+"${words[@]:i+1}"}
+              elif ((i + 1 < n)); then
+                hook::env_s_split "${words[i + 1]}"
+                HOOK_SEG_WORD_QUOTED=()
+                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+                  ${words[@]+"${words[@]:i+2}"}
+              fi
+              HOOK_SEG_WORD_QUOTED=(${env_q[@]+"${env_q[@]}"})
+            fi
             ;;
           *) ;;
           esac
@@ -2225,9 +2388,17 @@ rdt_check_segment() {
   # so parsing every candidate is what keeps both readings covered.
   if [[ "$base" == "su" ]]; then
     local k
-    local sulong
+    local sulong su_key su_q0=()
+    su_q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
     rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+    rdt_ru_key_to su_key
     rdt_su_shell_run
+    HOOK_SEG_WORD_QUOTED=(${su_q0[@]+"${su_q0[@]}"})
+    RDT_RU_POSIX=1
+    rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+    RDT_RU_POSIX=0
+    rdt_ru_key_to sulong
+    [[ "$sulong" != "$su_key" ]] && rdt_su_shell_run
     for ((k = i + 1; k < n; k++)); do
       case "${words[k]}" in
       --?*)
@@ -2713,6 +2884,414 @@ rdt_scan_substitutions() {
   done
 }
 
+# --- PowerShell Remove-Item / rd /s (#4516) ---------------------------------
+# Own tokenizer, not lib/powershell/ps-command.sh: that classifier spends a
+# shared sink-attempt budget this guard must not touch. Backslash is literal;
+# backtick is the escape. Parameters match on any unambiguous prefix of
+# Remove-Item's names. cmd /c rd /s and rmdir /s are judged as cmd grammar.
+# A pipeline into Remove-Item -Recurse with no path is refused: the target
+# arrived through the pipe and cannot be named.
+
+rdt_ps_piped=0
+
+# rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
+# when the token is not a unique prefix of one. Token includes the leading
+# dash; a :value suffix is ignored for the name.
+rdt_ps_param_to() {
+  local __name="${2#-}"
+  __name="${__name%%:*}"
+  __name="${__name,,}"
+  local __hit="" __hits=0 __p
+  for __p in confirm credential debug erroraction errorvariable exclude filter \
+    force include informationaction informationvariable literalpath outbuffer \
+    outvariable pipelinevariable path recurse stream usetransaction verbose \
+    warningaction warningvariable whatif; do
+    if [[ "$__p" == "$__name" ]]; then
+      printf -v "$1" '%s' "$__p"
+      return 0
+    fi
+    if [[ -n "$__name" && "$__p" == "$__name"* ]]; then
+      __hit="$__p"
+      __hits=$((__hits + 1))
+    fi
+  done
+  if ((__hits == 1)); then
+    printf -v "$1" '%s' "$__hit"
+  else
+    printf -v "$1" '%s' ""
+  fi
+}
+
+# rdt_ps_cmd_split_to <nameref> <text>: cmd.exe-ish whitespace split of one /c
+# operand. Double quotes group; a backslash is literal; an empty quoted span
+# is an empty word.
+rdt_ps_cmd_split_to() {
+  local -n __cs_out="$1"
+  local __s="$2" __n=${#2} __i=0 __w="" __q=0 __in=0 __c
+  __cs_out=()
+  while ((__i < __n)); do
+    __c="${__s:__i:1}"
+    if ((__q)); then
+      if [[ "$__c" == '"' ]]; then
+        __q=0
+      else
+        __w+="$__c"
+      fi
+      __in=1
+    else
+      case "$__c" in
+      '"')
+        __q=1
+        __in=1
+        ;;
+      [[:space:]])
+        if ((__in)); then
+          __cs_out+=("$__w")
+          __w=""
+          __in=0
+        fi
+        ;;
+      *)
+        __w+="$__c"
+        __in=1
+        ;;
+      esac
+    fi
+    __i=$((__i + 1))
+  done
+  if ((__in)); then
+    __cs_out+=("$__w")
+  fi
+}
+
+# rdt_ps_operand <word>: one PowerShell / cmd target through the same root,
+# empty, bare-variable and outside-tree arms as Bash. $env:NAME is a bare
+# variable in PowerShell and is not a bash $NAME form.
+rdt_ps_operand() {
+  local w="$1" n
+  n="${w,,}"
+  n="${n//\\//}"
+  if [[ "$n" =~ ^\$env:[a-z_][a-z0-9_]*([/].*)?$ || "$n" =~ ^\$\{env:[a-z_][a-z0-9_]*\}([/].*)?$ ]]; then
+    rdt_block "bare-variable" "$w"
+  fi
+  rdt_check_operand "$w" 0
+}
+
+# rdt_ps_cmd_rd: recursive cmd rd/rmdir. Remaining words are the command line.
+rdt_ps_cmd_rd() {
+  local -a __cw=("$@")
+  ((${#__cw[@]})) || return 0
+  local __base="${__cw[0],,}" __i __rec=0
+  __base="${__base##*[\\/]}"
+  __base="${__base%.exe}"
+  case "$__base" in
+  rd | rmdir) ;;
+  *) return 0 ;;
+  esac
+  local -a __paths=()
+  for ((__i = 1; __i < ${#__cw[@]}; __i++)); do
+    case "${__cw[__i],,}" in
+    /s | /s/q | /q/s | /sq | /qs) __rec=1 ;;
+    /q | /f) ;;
+    /*)
+      [[ "${__cw[__i],,}" == /s* ]] && __rec=1
+      ;;
+    *) __paths+=("${__cw[__i]}") ;;
+    esac
+  done
+  ((__rec)) || return 0
+  if ((${#__paths[@]} == 0)); then
+    rdt_block "empty-operand"
+  fi
+  local __p
+  for __p in "${__paths[@]}"; do
+    if [[ -z "$__p" ]]; then
+      rdt_block "empty-operand"
+    fi
+    rdt_ps_operand "$__p"
+  done
+}
+
+# rdt_ps_cmd_from: argv after a cmd/cmd.exe command word.
+rdt_ps_cmd_from() {
+  local -a __a=("$@")
+  local __i=0 __t
+  local -a __parts=()
+  while ((__i < ${#__a[@]})); do
+    __t="${__a[__i],,}"
+    case "$__t" in
+    /c | /k)
+      __i=$((__i + 1))
+      ((__i < ${#__a[@]})) || return 0
+      if ((__i == ${#__a[@]} - 1)); then
+        rdt_ps_cmd_split_to __parts "${__a[__i]}"
+        rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+      else
+        rdt_ps_cmd_rd "${__a[@]:__i}"
+      fi
+      return 0
+      ;;
+    /c?* | /k?*)
+      rdt_ps_cmd_split_to __parts "${__a[__i]:2}"
+      rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+      return 0
+      ;;
+    *) ;;
+    esac
+    __i=$((__i + 1))
+  done
+}
+
+# rdt_ps_ri_args <start-index>: argv after a Remove-Item family command word,
+# passed as the remainder of the statement array in "$@".
+# shellcheck disable=SC2016,SC2329  # literal `$(` grouping; invoked from rdt_ps_statement
+rdt_ps_ri_check() {
+  local -a __w=("$@")
+  local __i=0 __rec=0 __param __raw __att
+  local -a __paths=()
+  while ((__i < ${#__w[@]})); do
+    local __v="${__w[__i]}"
+    if [[ "$__v" == -* && "$__v" != - ]]; then
+      rdt_ps_param_to __param "$__v"
+      __raw="${__v#-}"
+      __raw="${__raw%%:*}"
+      __raw="${__raw,,}"
+      if [[ "$__raw" == "rf" || "$__raw" == "fr" ]]; then
+        __rec=1
+      fi
+      case "$__param" in
+      recurse)
+        if [[ "$__v" == *:* ]]; then
+          __att="${__v#*:}"
+          __att="${__att,,}"
+          __att="${__att#\$}"
+          if [[ "$__att" != "false" && "$__att" != "0" ]]; then
+            __rec=1
+          fi
+        else
+          __rec=1
+        fi
+        ;;
+      path | literalpath)
+        if [[ "$__v" == *:* && "$__v" != *: ]]; then
+          __paths+=("${__v#*:}")
+        else
+          __i=$((__i + 1))
+          while ((__i < ${#__w[@]})) && { [[ "${__w[__i]}" != -* ]] || [[ "${__w[__i]}" == - ]]; }; do
+            __paths+=("${__w[__i]}")
+            __i=$((__i + 1))
+          done
+          __i=$((__i - 1))
+        fi
+        ;;
+      filter | include | exclude | credential | stream | erroraction | warningaction | \
+        informationaction | errorvariable | warningvariable | informationvariable | \
+        outvariable | outbuffer | pipelinevariable)
+        [[ "$__v" == *:* ]] || __i=$((__i + 1))
+        ;;
+      *) ;;
+      esac
+    else
+      case "$__v" in
+      /s | /s/q | /q/s | /sq | /qs) ;;
+      '('* | '$('*) rdt_block "pipeline-target" "$__v" ;;
+      *) __paths+=("$__v") ;;
+      esac
+    fi
+    __i=$((__i + 1))
+  done
+  ((__rec)) || return 0
+  if ((${#__paths[@]} == 0)); then
+    ((rdt_ps_piped)) && rdt_block "pipeline-target"
+    rdt_block "empty-operand"
+  fi
+  local __p
+  for __p in "${__paths[@]}"; do
+    if [[ -z "$__p" ]]; then
+      rdt_block "empty-operand"
+    fi
+    rdt_ps_operand "$__p"
+  done
+}
+
+# rdt_ps_rest <i>: remaining words of "$@" from index <i>, possibly empty.
+rdt_ps_rest() {
+  local __off="$1"
+  shift
+  if ((__off < $#)); then
+    rdt_ps_ri_check "${@:__off+1}"
+  else
+    rdt_ps_ri_check
+  fi
+}
+
+# rdt_ps_statement: one pipeline stage's words.
+rdt_ps_statement() {
+  local -a __w=("$@")
+  ((${#__w[@]})) || return 0
+  local __i=0 __cmd
+  while ((__i < ${#__w[@]})) && [[ "${__w[__i]}" == "&" ]]; do
+    __i=$((__i + 1))
+  done
+  ((__i < ${#__w[@]})) || return 0
+  __cmd="${__w[__i]}"
+  __cmd="${__cmd##*\\}"
+  __cmd="${__cmd##*/}"
+  __cmd="${__cmd,,}"
+  __cmd="${__cmd%.exe}"
+  __i=$((__i + 1))
+  case "$__cmd" in
+  remove-item | ri | rm | del | erase)
+    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
+    ;;
+  rd | rmdir)
+    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
+    if ((__i < ${#__w[@]})); then
+      rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
+    else
+      rdt_ps_cmd_rd "$__cmd"
+    fi
+    ;;
+  cmd)
+    if ((__i < ${#__w[@]})); then
+      rdt_ps_cmd_from "${__w[@]:__i}"
+    fi
+    ;;
+  *) ;;
+  esac
+}
+
+# rdt_ps_walk <command>: PowerShell quoting (backtick escape, backslash
+# literal) into statements split on ; | & && ||, then judged.
+rdt_ps_walk() {
+  local __s="$1" __n=${#1} __i=0
+  local -a __words=()
+  local __word="" __in=0 __q="" __c __nxt
+  rdt_ps_piped=0
+
+  rdt_ps_flush_word() {
+    if ((__in)); then
+      __words+=("$__word")
+    fi
+    __word=""
+    __in=0
+  }
+  rdt_ps_end_stmt() {
+    rdt_ps_flush_word
+    if ((${#__words[@]})); then
+      rdt_ps_statement "${__words[@]}"
+    fi
+    __words=()
+  }
+
+  while ((__i < __n)); do
+    __c="${__s:__i:1}"
+    if ((__i + 1 < __n)); then
+      __nxt="${__s:__i+1:1}"
+    else
+      __nxt=""
+    fi
+    if [[ -n "$__q" ]]; then
+      if [[ "$__q" == "'" ]]; then
+        if [[ "$__c" == "'" ]]; then
+          if [[ "$__nxt" == "'" ]]; then
+            __word+="'"
+            __i=$((__i + 1))
+          else
+            __q=""
+          fi
+        else
+          __word+="$__c"
+        fi
+      else
+        if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
+          __word+="$__nxt"
+          __i=$((__i + 1))
+        elif [[ "$__c" == '"' ]]; then
+          __q=""
+        else
+          __word+="$__c"
+        fi
+      fi
+      __in=1
+      __i=$((__i + 1))
+      continue
+    fi
+    if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
+      if [[ "$__nxt" == $'\n' ]]; then
+        __i=$((__i + 2))
+        continue
+      fi
+      __word+="$__nxt"
+      __in=1
+      __i=$((__i + 2))
+      continue
+    fi
+    case "$__c" in
+    "'")
+      __q="'"
+      __in=1
+      ;;
+    '"')
+      __q='"'
+      __in=1
+      ;;
+    '#')
+      if ((__in == 0)); then
+        while ((__i < __n)) && [[ "${__s:__i:1}" != $'\n' ]]; do
+          __i=$((__i + 1))
+        done
+        continue
+      else
+        __word+="#"
+      fi
+      ;;
+    '|')
+      if [[ "$__nxt" == '|' ]]; then
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        __i=$((__i + 1))
+      else
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        rdt_ps_piped=1
+      fi
+      ;;
+    '&')
+      if ((__in == 0)) && { [[ -z "$__nxt" ]] || [[ "$__nxt" == [[:space:]] ]] || [[ "$__nxt" == "'" ]] || [[ "$__nxt" == '"' ]]; }; then
+        rdt_ps_flush_word
+        __words+=("&")
+      elif [[ "$__nxt" == '&' ]]; then
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        __i=$((__i + 1))
+      else
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+      fi
+      ;;
+    ';')
+      rdt_ps_piped=0
+      rdt_ps_end_stmt
+      ;;
+    [[:space:]])
+      rdt_ps_flush_word
+      ;;
+    *)
+      __word+="$__c"
+      __in=1
+      ;;
+    esac
+    __i=$((__i + 1))
+  done
+  rdt_ps_end_stmt
+}
+
+# rdt_ps_run: PowerShell lane. Does not load the classifier.
+rdt_ps_run() {
+  rdt_ps_walk "$COMMAND"
+}
+
 # The substitution scan runs FIRST, and the order is load-bearing rather than
 # arbitrary. The tokenizer splits on unquoted `(`, `)` and `;`, so a deeply
 # nested payload yields as many segments as a flat one of the same length and
@@ -2733,10 +3312,14 @@ elif rdt_is_abs "$PAYLOAD_CWD"; then
   rdt_lex_to _rdt_origin "$PAYLOAD_CWD"
   RDT_ORIGINS=("$_rdt_origin")
 fi
-rdt_in_subst=1
-rdt_scan_substitutions "$COMMAND"
-rdt_in_subst=0
-hook::bash_parse_segments "$COMMAND" rdt_check_segment
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  rdt_ps_run
+else
+  rdt_in_subst=1
+  rdt_scan_substitutions "$COMMAND"
+  rdt_in_subst=0
+  hook::bash_parse_segments "$COMMAND" rdt_check_segment
+fi
 # The judgment runs in a subshell, so an error nobody anticipated inside it (an
 # unset variable under `set -u`, say) ends the subshell with a status other
 # than 0 or 2, and that status is refused here. Run in place, the same error

@@ -3,6 +3,213 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.3] - 2026-09-28
+
+### Changed
+
+- **`prd` names its first argument `tier`**
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  `arguments: [tier]` is a positional alias for that slot. An empty `$tier` means the invocation
+  passed no arguments and the skill asks for the tier. The full string stays in `$ARGUMENTS`, so a
+  multi-word task does not have to be quoted into a second name.
+
+## [0.45.2] - 2026-09-28
+
+### Fixed
+
+- **Interview page mirrors a session-recorded decision, not only a terminal answer
+  (#5009).** `record-terminal` already writes the page's decision. The page
+  protocol told the session to emit it only for text the user typed in the
+  terminal (R-H), so a decision the session resolved into the ledger never
+  reached the page. R-K requires that same op in the same wake whenever this
+  session records or revises a ledger decision. The op table, the page-surface
+  paragraph in `SKILL.md`, and the answer-path line in `loop.md` say so too.
+
+## [0.45.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Nine of the 11 listed skills
+  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: artifact lists, gate mechanics, mode
+  detail, and the long skip clauses. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 4,999 characters. `interview-defenses.test.sh`'s frontmatter digest is updated for the
+  new `interview` description, which states and qualifies neither pinned defense. No skill is
+  renamed or merged.
+
+## [0.45.0] - 2026-09-28
+
+### Fixed
+
+- **`plan` nested reviews carry brevity, effort, and cost disclosure**
+  ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)). New
+  `agents/plan-reviewer.md` with bounded `effort` and `maxTurns`; Step 3 dispatches it instead of a
+  generic sub-agent after surfacing cost. Step 4 surfaces cost before `/planning:devils-advocate`.
+  Reviewer prompt asks for brief reasoning and a findings table only.
+
+## [0.44.11] - 2026-09-28
+
+### Added
+
+- **`interview` eval case 25, `out-of-band-return-supersedes-before-the-reply`**
+  ([#3945](https://github.com/melodic-software/claude-code-plugins/issues/3945)). It is the async
+  twin of case 12: a sub-agent's return contradicts Q3's recommendation and is queued in the same
+  turn as a reply that accepts that recommendation. It grades the "Out-of-band drift" rule in
+  `context/loop.md`: the queued return is processed against the register as it stood before the
+  reply, so Q3 is not settled on the superseded recommendation and the user's answer is
+  revalidated; Q3 is restated with the superseded recommendation named; the untouched questions
+  get a one-line pointer instead of a re-printed round; and the rest of the frontier did not wait
+  for the lookup. `interview-defenses.test.sh` updates the roster digest and pins the new case
+  beside case 12.
+
+## [0.44.10] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (part of #4657).** Eight of the 12
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: step lists, artifact names,
+  mode details, and restated scope. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 5,454 characters. `interview` stays at 969: its whole frontmatter is digest-pinned by
+  `tests/interview-defenses.test.sh`, and recomputing that pin is left to an attended change. No
+  skill is renamed or merged, and invocation modes are unchanged.
+
+## [0.44.9] - 2026-09-28
+
+### Fixed
+
+- **`plan`: the approval gate has an unattended branch, the reviewer brief an evidence mandate,
+  and phases a merge floor.**
+  - Step 5 says the gate does not vanish without a human: an unattended run approves only under
+    a standing mandate covering the plan, and records the mandate, who granted it, and the
+    review surface (for example the PR) in PLAN.md's new `Approval:` line; with no mandate it
+    stops and reports the plan unapproved. The anatomy template carries the line and the final
+    persist step fills it.
+  - The Step 3 reviewer prompt carries the devil's advocate evidence mandate (never
+    training-data recall) and runs a read-only probe (`--dry-run`, `--help`, `list`,
+    `--version`) wherever the plan depends on a tool's behavior, citing its output.
+  - A phase merge floor beside the promotion trigger: a one-file, few-line phase with no
+    verification need of its own merges into the adjacent phase it serves.
+  - New eval for the unattended approval basis (#4278).
+
+## [0.44.8] - 2026-09-28
+
+### Fixed
+
+- **interview surface:** an `html` visual whose content is built by a script no longer renders
+  as a blank panel. The page renders `html` visuals in `<iframe sandbox="allow-scripts">`, never
+  with `allow-same-origin`, so the frame stays an opaque origin that cannot read the token,
+  cookies, storage or page DOM; `svg` keeps an empty sandbox. The exported report still runs no
+  scripts and now says so above an `html` visual that contains one. `context/surface.md` states
+  the rule, and the browser suite and exporter tests cover both behaviors.
+
+## [0.44.7] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
+
+## [0.44.6] - 2026-09-27
+
+### Fixed
+
+- **Interview surface: the lease, visual-file and Accept all lows from the V1 merge gate.**
+  - An expired lease now reads as no holder in `/api/state` and `round.sh lease` at once, not
+    only after another watcher claims it.
+  - `round.sh lease --release` ends a wait the old holder has in flight with 409
+    `{"error": "lease released"}` before it delivers anything, so the next event reaches the next
+    holder only; `watch.sh` exits 3 on it instead of retrying.
+  - `watch.sh` no longer forms a watcher id from a parent pid of 1, which every Claude Code Bash
+    shell on Windows reports: with no `WATCH_ID` or session id it exits 2 asking for `WATCH_ID`.
+  - `/api/visual-file` and `export-report` refuse a file with more than one hard link, so a link
+    inside the data dir to a session file is not served.
+  - Accept all sends the revision each question had when the user last opened it, so the server
+    refuses a question Claude revised in between and the toast names it.
+  - The planted-port case (`ensure-running` tries the port recorded in the data dir's session
+    file first) is recorded in the surface README as an accepted loopback-only residual.
+  - New tests: lease expiry, a release during a wait, the watcher-id fallback, hard links, the
+    burst cap, the ping-silence fallback (the page takes `?silentMs=` to shorten, never lengthen,
+    its 35 s window), and the header's round across two stages (#4652).
+
+## [0.44.4] - 2026-09-27
+
+### Fixed
+
+- **`interview`: Step 4 says the contract slice is not a durable home.** Step 4 named
+  `docs/topics/<slug>/` as where the contract lands without saying the slice is pruned before
+  merge, so it could be recommended as a place to keep a lasting trail. It now states that the
+  slice is pruned once durable outcomes graduate, that the topic-docs prune check fails a PR
+  leaving a path under it, and that the memory slice never reaches git; content meant to persist
+  goes to an ADR, a spec, or a tracker item. The topic-docs binding's contract rows say "pruned
+  before merge" too.
+
+## [0.44.3] - 2026-09-27
+
+### Changed
+
+- `plan`'s checklist template states that Step 3 is never skipped without the "MANDATORY" and "NEVER" caps. The stress-test is still required before presenting (#4120).
+
+## [0.44.2] - 2026-09-27
+
+### Fixed
+
+- `wayfind` and its map-anatomy context route buildable work to `/work-items:track add` (or `/work-items:decompose` for a plan-shaped chunk) and claims to `/work-items:track start`, instead of the bare `/work-items` plugin token (#4119).
+
+## [0.44.1] - 2026-09-27
+
+### Changed
+
+- **`setup` reads `.claude/topic-docs.yaml` at load time.** `check`'s read of the concern file
+  runs as pre-computed context from the session's working directory, so `check` reads it from the
+  skill instead of spending a call. The path is relative, with no `$` expansion, so the block also
+  loads from a worktree-isolated agent. When the working directory is not the repository root, or
+  the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
+  post-write verification still re-reads the file live.
+
+## [0.44.0] - 2026-09-27
+
+### Added
+
+- **`interview`:** a running constraint ledger (`## Constraint ledger` in the checklist, rows
+  `- C<N> | confirmed|inherited | <constraint> | <source>`). A constraint the user states is
+  written at once as `confirmed`; one from an upstream artifact is `inherited`, and one the
+  contract relies on is asked as a register row (in `lock` it is a gap that stops synthesis; in
+  `auto` direct synthesis it makes the path Mixed). Every recommendation carries a
+  `Checked against:` line; on the page it opens the question's `facts` field with each
+  constraint named in words, and a question that cites a constraint is asked in prose, never
+  on an `AskUserQuestion` card.
+- **`interview`:** a design from explore or research output, or from an existing
+  implementation, is a candidate until re-derived against the constraint ledger; a research
+  brief dispatched mid-interview carries the ledger verbatim.
+- **`interview`:** historical evidence is labeled `past`, `current`, or `intended` when the
+  survey finds a process change or cannot rule one out; past-only evidence never alone grounds
+  a recommendation.
+- **`interview`:** the mechanism tripwire. The first mechanism-naming question brings one
+  now-or-at-planning question; "at planning" defers open mechanism rows, "now" is recorded in
+  the Brief's Constraints.
+- **`interview`:** a fresh-context assumption sweep runs in `me` and `auto` once the frontier
+  is empty and before Step 3. It is dispatched as any subagent type but `fork`, with a dated
+  verification record against the subagents doc. Its items become register rows or stated
+  facts, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`).
+- **`interview`:** eval cases 20 to 23 cover the tripwire, the sweep, evidence currency, and
+  inherited constraints.
+- **`audit-answers`:** a `hedged:` row never closes on a CONFIRMED verdict and always reaches
+  the human; a `free-text:` row is validated and flagged.
+
+### Changed
+
+- **`interview`:** a commitment row registered after later ids exist takes the next free id
+  and names its headline in the question field.
+- `tests/interview-defenses.test.sh` adds digests over the interview `SKILL.md` Step 2
+  section, the `loop.md` Step 2 and relentless-mechanics sections,
+  `context/assumption-sweep.md`, and the `audit-answers` Step 1 and Step 4 sections, plus
+  phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 20 to
+  23, none of which contradicts case 15 or 16. No existing section digest changed.
+
 ## [0.43.0] - 2026-09-27
 
 ### Added

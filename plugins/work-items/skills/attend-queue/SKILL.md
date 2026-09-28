@@ -1,5 +1,5 @@
 ---
-description: "Attend the human-in-the-loop queue for loop-lane operation: ONE attention view merging worker-escalated items (human-gated role label + machine-marked escalation comment) with untriaged raw intake, then drive each row to resolution, answer escalated questions via interview, write answers back as issue comments, ratify first-drain C3 admissions, and flip unblocked items to the autonomous-eligible role label. Use when: 'attend the queue', 'attend queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Attended lane of the loop-lane three-session topology, judgment only; never executes work items, never merges. Composes /work-items:triage (attention view + machinery) and /planning:interview. Sibling skills: /work-items:work-loop (autonomous drain), /work-items:triage (raw intake), /work-items:track (backlog CRUD)."
+description: "Attend the loop-lane human queue: escalated items and untriaged intake in one view, driven to resolution. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
 argument-hint: "(no arguments. Polls escalations and untriaged intake for the bound repository)"
 user-invocable: true
 disable-model-invocation: false
@@ -89,7 +89,8 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" claim "<id>"
 ```
 
-`<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row.
+`<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row;
+record the claim object's `lease_comment_id`, which the release after disposition needs.
 Exit `7` → another attended session won: **skip that row** and advance to the next candidate (do
 NOT retry the same item in this pass). Claim identity is the authenticated session user, never the
 bot.
@@ -106,24 +107,31 @@ same idempotent stale-lease sweep `/work-items:work` Step 0 uses: enumerate assi
 each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit `6`
 (capability-unsupported) skips the sweep for providers that declare `reclaim: false`.
 
-**Clear assignee after disposition (flip while claimed).** Attend-queue holds a coordination lock,
-not an execution assignment. The seam ships no early-release verb. Only `claim`, `renew-lease`, and
-session-start `reclaim` (which never touches a live lease; do not hand-roll lease-comment JSON).
-Once the row's answer is written, ratification recorded, or triage disposition applied:
+**Clear assignee after disposition (flip while claimed), then release.** Attend-queue holds a
+coordination lock, not an execution assignment, so it hands the lock back as soon as the row is
+done. `claim` backs off from any earlier live lease, the same login's included (the seam's
+`CONTRACT.md` "Lease protocol", claim step 4), so a lease left to run out its TTL keeps every
+worker lane off the item this session just flipped. Once the row's answer is written,
+ratification recorded, or triage disposition applied:
 
 - **When the human blocker is removed:** perform the single-edit role-label flip **while this
   session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
-  edit (`--remove-assignee "@me"` for GitHub. See the adapter README "Edit labels / assignees").
-  Clearing assignee before the flip reopens the concurrent-session race this lane closes: a released
-  row still reads as `[escalated]`/`[ratify]` in another attended session's view until the label
-  lands. The live lease comment persists until TTL expiry; a later session-start `reclaim` clears an
-  expired inactive lease. A brief frontier delay while assignee still blocks selection after the
-  flip is acceptable; a pre-flip clear is not.
+  edit (`--remove-assignee "@me"` for GitHub. See the adapter README "Edit labels / assignees"),
+  then end the lease with `"$TRACKER" release "<id>" --lease-comment-id <n>`. Clearing assignee
+  before the flip reopens the concurrent-session race this lane closes: a released row still reads
+  as `[escalated]`/`[ratify]` in another attended session's view until the label lands. A brief
+  frontier delay while assignee still blocks selection after the flip is acceptable; a pre-flip
+  clear is not.
 - **When disposition leaves the item human-gated** (decline, parked intake, an answered
   escalation on a human-floor work class that was not reclassified): clear `@me` via the
   same adapter assignee edit once disposition comments are written, still while holding the claim
-  through those writes.
-- A row skipped on exit `7` needs no assignee clear.
+  through those writes, then `release` the same way.
+- **Release outcomes.** Exit `0` with either `released` value is done: `false` means the lease had
+  already expired or been superseded. Exit `6` (the provider declares `release: false`) leaves the
+  lease comment live until TTL expiry, and a later session-start `reclaim` clears it once expired.
+  Exit `7` means the handle is no longer this session's active lease; leave it. Never hand-roll
+  lease-comment JSON in place of the verb.
+- A row skipped on exit `7` needs no assignee clear and no release.
 
 **Long operator waits.** When an interview spans longer than the binding's lease TTL, renew the
 held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `claim` output carries
@@ -158,8 +166,21 @@ answer without stopping the pass to ask which item is in front of them.
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane. **Read the item's `work-class:` label first: a human-floor class blocks this
-  flip**, per the branch below.
+  it from this lane. **Read the item's `work-class:` label first: a missing class or a human-floor
+  class blocks this plain flip**, per the two branches below.
+- **No recorded class: stamp, then flip.** An item with no `work-class:` label never takes the
+  plain flip, since the autonomous-eligible role without a class is the pairing defect
+  `/work-items:triage` forbids and the fail-closed admission gate never admits it. This is the row
+  an unattended triage lane leaves when it may not record a class: its marker comment carries a
+  `Proposed work class:` line
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)).
+  Put the proposed class and its basis to the operator, who confirms or changes it. For a C1-C3
+  class, **one edit** applies that `work-class:` label and the autonomous-eligible role and
+  removes the human-gated role; record the stamped class as a reply comment. When this session's
+  standing direction forbids writing `work-class:` labels, hand the operator that edit as a
+  ready-to-paste command instead, one line per item and one command per proposed class, and
+  re-read the labels before clearing `@me`. A C4/C5 answer applies the class label alone and the
+  item stays human-gated, per the branch below.
 - **Human-floor work class: reclassify or stay gated, never the plain flip.** An item carrying
   `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is human-gated
   regardless of any other signal
@@ -264,7 +285,7 @@ user request" the hard-stop rule anticipates).
 - **Claim before mutate, flip while claimed.** Two attended sessions on one repository must not
   both work the same row, the seam `claim` arbitrates that race (exit `7` → skip). The single-edit
   role-label flip that removes the human blocker must land while the claim is still held; only then
-  clear `@me` via the adapter assignee edit. Clearing assignee before the flip leaves a window where
+  clear `@me` via the adapter assignee edit, and then `release` the lease. Clearing assignee before the flip leaves a window where
   another attended session can claim a row that still reads as escalated or ratify in its view.
 - **Do not re-triage routed items.** The `[intake]` source is `/work-items:triage`'s attention
   view by composition; items already carrying a routing outcome are out of scope by construction,

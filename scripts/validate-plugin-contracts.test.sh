@@ -839,6 +839,187 @@ else
 fi
 rm -rf "$TMP/.git"
 
+# --- S. Agent `skills:` preload resolution, and the return-contract copies. --
+#
+# A `skills:` entry that does not resolve is skipped silently by the harness, so
+# neither the run nor its artifact shows the discipline went missing. These
+# fixtures prove the gate goes red on the three ways that happens on disk, and
+# stays green on the two entry forms that resolve.
+SKILLS_UNRESOLVED='resolves to no SKILL.md'
+SKILLS_DISABLED='cannot be preloaded'
+SKILLS_MALFORMED='must be a YAML list of skill names'
+CONTRACT_DRIFT='must remain byte-identical to plugins/discovery/skills/report/SKILL.md'
+CONTRACT_MISSING_COPY='every preloading plugin must ship the return contract'
+
+# write_preloadable_skill <plugin> <skill> <disable-model-invocation-value>
+write_preloadable_skill() {
+  local plugin="$1" skill="$2" disabled="$3"
+  mkdir -p "$TMP/plugins/$plugin/skills/$skill"
+  {
+    echo '---'
+    printf 'description: "Fixture skill %s."\n' "$skill"
+    echo 'user-invocable: false'
+    printf 'disable-model-invocation: %s\n' "$disabled"
+    echo '---'
+    echo
+    echo 'Fixture body.'
+  } >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
+}
+
+# write_agent <plugin> <agent> -- the frontmatter `skills:` block arrives on
+# stdin, so a case can hand over a malformed shape as easily as a list.
+write_agent() {
+  local plugin="$1" agent="$2"
+  mkdir -p "$TMP/plugins/$plugin/agents"
+  {
+    echo '---'
+    printf 'name: %s\n' "$agent"
+    printf 'description: "Fixture agent %s."\n' "$agent"
+    cat
+    echo '---'
+    echo
+    echo 'Fixture agent body.'
+  } >"$TMP/plugins/$plugin/agents/$agent.md"
+}
+
+# write_contract_copy <plugin> <skill-body> -- the return-contract pair.
+write_contract_copy() {
+  local plugin="$1" body="$2"
+  mkdir -p "$TMP/plugins/$plugin/skills/report/evals"
+  {
+    echo '---'
+    echo 'description: "Fixture return contract."'
+    echo 'user-invocable: false'
+    echo 'disable-model-invocation: false'
+    echo '---'
+    echo
+    echo "$body"
+  } >"$TMP/plugins/$plugin/skills/report/SKILL.md"
+  printf '{"skill_name": "report", "evals": []}\n' \
+    >"$TMP/plugins/$plugin/skills/report/evals/evals.json"
+}
+
+# S1. A `skills:` entry naming a skill that is not on disk.
+reset_fixture
+make_plugin alpha ''
+write_preloadable_skill alpha explore false
+write_agent alpha explorer <<'YAML'
+skills:
+  - alpha:explor
+YAML
+out="$(run_fixture)"
+if has_fail_line "$SKILLS_UNRESOLVED" &&
+  grep -q 'alpha:explor' <<<"$out" &&
+  grep -qE 'alpha[/\\]agents[/\\]explorer\.md' <<<"$out"; then
+  ok "a \`skills:\` entry naming no SKILL.md fails the gate, naming the agent and the entry"
+else
+  fail "an unresolvable skills: entry should fail the gate: $out"
+fi
+
+# S2. The entry resolves, but the target cannot be preloaded at all.
+reset_fixture
+make_plugin alpha ''
+write_preloadable_skill alpha explore true
+write_agent alpha explorer <<'YAML'
+skills:
+  - alpha:explore
+YAML
+out="$(run_fixture)"
+if has_fail_line "$SKILLS_DISABLED" && grep -q 'alpha:explore' <<<"$out"; then
+  ok "a \`skills:\` entry targeting a disable-model-invocation skill fails the gate"
+else
+  fail "a disable-model-invocation preload target should fail the gate: $out"
+fi
+
+# S3. The namespaced form resolves ACROSS plugins, which is the form in
+#     production. Asserted as the absence of the failure, since a fixture root
+#     always trips the unrelated repo-wide checks.
+reset_fixture
+make_plugin alpha ''
+make_plugin beta ''
+write_preloadable_skill beta thing false
+write_agent alpha explorer <<'YAML'
+skills:
+  - beta:thing
+YAML
+out="$(run_fixture)"
+if grep -q "$SKILLS_UNRESOLVED" <<<"$out" || grep -q "$SKILLS_DISABLED" <<<"$out"; then
+  fail "the namespaced plugin:skill form should resolve: $out"
+else
+  ok "the namespaced \`plugin:skill\` form resolves to the named plugin's skill"
+fi
+
+# S3b. A bare entry resolves inside the agent's OWN plugin, not the first plugin
+#      carrying that leaf. beta also ships `thing`, so a resolver reaching for
+#      the wrong root would still pass; alpha's own copy is what must be found.
+reset_fixture
+make_plugin alpha ''
+make_plugin beta ''
+write_preloadable_skill alpha thing false
+write_preloadable_skill beta thing true
+write_agent alpha explorer <<'YAML'
+skills:
+  - thing
+YAML
+out="$(run_fixture)"
+if grep -q "$SKILLS_UNRESOLVED" <<<"$out" || grep -q "$SKILLS_DISABLED" <<<"$out"; then
+  fail "a bare skills: entry should resolve against the agent's own plugin: $out"
+else
+  ok "a bare \`skills:\` entry resolves against the agent's own plugin"
+fi
+
+# S4. A `skills:` key in a shape the reader does not parse fails rather than
+#     silently checking nothing.
+reset_fixture
+make_plugin alpha ''
+write_preloadable_skill alpha explore false
+write_agent alpha explorer <<'YAML'
+skills: alpha:explore
+YAML
+out="$(run_fixture)"
+if has_fail_line "$SKILLS_MALFORMED"; then
+  ok "a \`skills:\` key in an unparsed shape fails rather than checking nothing"
+else
+  fail "a malformed skills: key should fail the gate: $out"
+fi
+
+# S5. The three return-contract copies must stay byte-identical.
+reset_fixture
+write_contract_copy discovery 'The canonical contract text.'
+write_contract_copy implementation 'The canonical contract text.'
+write_contract_copy plugin-quality 'The canonical contract text.'
+out="$(run_fixture)"
+if grep -q "$CONTRACT_DRIFT" <<<"$out" || grep -q "$CONTRACT_MISSING_COPY" <<<"$out"; then
+  fail "three identical return-contract copies should raise no drift failure: $out"
+else
+  ok "three byte-identical return-contract copies pass the copy assertions"
+fi
+
+# S5b. One copy drifts by one word.
+reset_fixture
+write_contract_copy discovery 'The canonical contract text.'
+write_contract_copy implementation 'The canonical contract text.'
+write_contract_copy plugin-quality 'The canonical contract text, edited.'
+out="$(run_fixture)"
+if has_fail_line "$CONTRACT_DRIFT" &&
+  grep -qE 'plugin-quality[/\\]skills[/\\]report[/\\]SKILL\.md' <<<"$out"; then
+  ok "a drifted return-contract copy fails the gate, naming the canonical copy"
+else
+  fail "a drifted return-contract copy should fail the gate: $out"
+fi
+
+# S5c. A plugin that ships no copy at all is a missing copy, not a silent pass.
+reset_fixture
+write_contract_copy discovery 'The canonical contract text.'
+write_contract_copy implementation 'The canonical contract text.'
+out="$(run_fixture)"
+if has_fail_line "$CONTRACT_MISSING_COPY" &&
+  grep -qE 'plugin-quality[/\\]skills[/\\]report[/\\]SKILL\.md' <<<"$out"; then
+  ok "a preloading plugin shipping no return-contract copy fails the gate"
+else
+  fail "a missing return-contract copy should fail the gate: $out"
+fi
+
 # ===========================================================================
 # Agent definitions name a model (plugins/<plugin>/agents/*.md).
 #
@@ -1052,6 +1233,81 @@ if agent_fail_line glued-hash "$A_MALFORMED"; then
   ok "model: inherit#reason: x with no whitespace before # fails as malformed"
 else
   fail "a # glued to the value should fail as malformed: $out"
+fi
+
+# write_arg_body <plugin> <skill> <hint-or-dash-to-omit> -- body on stdin.
+# Hint "-" omits argument-hint. The frontmatter always carries description.
+write_arg_body() {
+  local plugin="$1" skill="$2" hint="$3"
+  mkdir -p "$TMP/plugins/$plugin/skills/$skill"
+  {
+    echo '---'
+    echo 'description: "Fixture skill."'
+    if [[ "$hint" != "-" ]]; then
+      printf 'argument-hint: "%s"\n' "$hint"
+    fi
+    if [[ "$hint" == "NAMED" ]]; then
+      echo 'arguments: [tier]'
+    fi
+    echo 'disable-model-invocation: false'
+    echo '---'
+    echo
+    cat
+  } >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
+}
+
+# --- 8c. Unescaped $N in a skill that admits arguments (#3543). -------------
+ARG_DOC='skill-authoring/SKILL.md'
+
+reset_fixture
+make_plugin argname ""
+printf 'Use $1 here.\n' | write_arg_body argname digit '[mode]'
+out="$(run_fixture)"
+if has_fail_line 'unescaped \$1' && grep -q "$ARG_DOC" <<<"$out" &&
+  grep -q 'argname/skills/digit/SKILL.md' <<<"$out"; then
+  ok "an unescaped \$1 in a skill with an argument-hint fails"
+else
+  fail "an unescaped \$1 should fail: $out"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Use \$1 here.\n' | write_arg_body argname escaped '[mode]'
+out="$(run_fixture)"
+if grep -q 'argname/skills/escaped/SKILL.md' <<<"$out"; then
+  fail "a single-backslash escape should pass: $out"
+else
+  ok 'a single-backslash \$1 passes'
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Use $1 in a shell example.\n' | write_arg_body argname noarg -
+out="$(run_fixture)"
+if grep -q 'argname/skills/noarg/SKILL.md' <<<"$out"; then
+  fail "a no-argument skill should keep a literal \$1: $out"
+else
+  ok "a no-argument skill may contain \$1"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Price is \\\\$1 today.\n' | write_arg_body argname doubled NAMED
+out="$(run_fixture)"
+if has_fail_line 'unescaped \$1' && grep -q 'argname/skills/doubled/SKILL.md' <<<"$out"; then
+  ok "a doubled backslash does not escape \$1"
+else
+  fail "a doubled backslash before \$1 should fail: $out"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Parse $ARGUMENTS only.\n' | write_arg_body argname plain '[mode]'
+out="$(run_fixture)"
+if grep -q 'argname/skills/plain/SKILL.md' <<<"$out"; then
+  fail "\$ARGUMENTS without \$N should pass: $out"
+else
+  ok "\$ARGUMENTS without an indexed placeholder passes"
 fi
 
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------

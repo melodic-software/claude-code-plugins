@@ -85,7 +85,9 @@ not model memory, not prior-iteration state, not comment counts (why:
 2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`; when more than
    one worker polls, read the head SHA's REST check-runs instead, per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) "Polling CI from more than
-   one worker"
+   one worker". A `pending` entry is reported as queued or running (with the queued job's
+   `runs-on` labels) per that file's "Waiting on a pending check", never waited on with
+   `gh pr checks --watch`
 3. **Fetch ALL comments:** run
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
    from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
@@ -116,7 +118,7 @@ PRs not needing attention are reported in a one-line status summary and skipped.
 ### 5.0.4 Structured finding extraction
 
 Finding extraction lives in the plugin-scope reference,
-[review-discipline.md](../../../reference/review-discipline.md) §2, including the MANDATORY
+[review-discipline.md](../../../reference/review-discipline.md) §2, including the
 subagent dispatch for ≥3-finding comments, the verbatim scope-fenced dispatch prompt, the ledger
 contract, and the main-session contract after the subagent returns. Apply it exactly; the
 finding-classification gate (§5.1.3 step E) mechanically enforces that classification rows cover
@@ -138,7 +140,7 @@ Before monitoring work on each PR, arm event delivery, in order:
    filter for `<N>` (health checks + arming per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
 3. **Monitor-tool fallback:** channel absent/unhealthy → arm a session-persistent Monitor watch
-   (30s `gh` poll; arming pattern per
+   (30s REST `gh api` poll, never `gh pr checks --watch`; arming pattern per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist
 

@@ -123,6 +123,12 @@ hook::walk_up_to settings_dir "$FILE_DIR_POSIX" "$CEILING" pssa_settings_here ||
 # quiet skip on hosts without PowerShell; telemetry still records the skip.
 command -v pwsh >/dev/null 2>&1 || emit_skipped
 
+# A file the repository gitignores is neither rewritten nor reported unless
+# powershell_format_lint_gitignored is set: a rewrite there has no
+# `git checkout` to undo it.
+hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
+  emit_skipped
+
 # PowerShell on Windows does not understand MSYS mount paths (/d/...). Convert
 # both the file and the settings path to a mixed drive-letter form (D:/...) that
 # pwsh consumes, when this is a Windows bash with cygpath (Git Bash); on

@@ -1352,6 +1352,16 @@ run_pwsh "PS: a commented here-string opener is refused here, not deferred (bloc
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
 run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit -m x" "'@ fine'")" 2
+# Keyed on the flag, not on the trigger name (#4682). The classifier names
+# herestring-comment-char only when no other trigger fired, so a `{` or an `iex`
+# on the same command reported its own trigger and this guard deferred.
+run_pwsh "PS: a commented opener behind a {} construct is refused (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "git commit -m x" "\"@ fine\"")" 2
+run_pwsh "PS: a commented opener behind an iex is refused (blocked)" \
+  "$(printf '%s\n%s\n%s' "iex a; Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
+# ACCEPTED OVER-BLOCK: git-free text is refused too once the flag is up.
+run_pwsh "PS: a commented opener behind a {} with no git in it (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
 # ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
@@ -1359,6 +1369,18 @@ run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted
 run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
+
+# --- #4683: opener-untrusted / comment-span / bare-cr (FLAG-keyed, not deferred)
+run_pwsh "PS: a quote on a confirmed opener prefix is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a backslash on a confirmed opener prefix is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a <# earlier than a confirmed opener is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a bare CR is refused here, not deferred (blocked)" \
+  $'Write-Output hi\rgit commit -m x' 2
+run_pwsh "PS: CRLF canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
 
 # Asserting the exit code alone would stay green if a sibling started blocking
 # these for an UNRELATED reason, silently breaking the coupling the deferral
