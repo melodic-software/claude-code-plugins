@@ -19,6 +19,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`plugins` sync Step 5** cites plugins-reference `#metadata-precedence` for a marketplace entry's
   `defaultEnabled` overriding `plugin.json`, instead of `scope-semantics.md`, which has no such
   content. It also says an id on `missing_from_enabled` is not loading today (#4660).
+
 ## [0.63.25] - 2026-09-28
 
 ### Changed

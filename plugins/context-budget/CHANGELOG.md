@@ -15,6 +15,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (Claude Code 2.1.280): the no-fallback rule, and a non-Boolean value making Claude Code skip every
   `enabledPlugins` entry in its file. The lever cites the `settings-reference#enabledplugins`,
   `plugins-reference#defaultenabled`, and `settings#fix-a-broken-settings-file` anchors (#4660).
+
 ## [0.6.42] - 2026-09-28
 
 ### Added
