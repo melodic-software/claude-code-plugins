@@ -75,7 +75,7 @@ When the review shows the film is a different style than the pack, that is a new
 
 - Exit 2 from `shots` or `review` means the gate is closed. Exit 1 means a field is wrong. Do not
   treat 2 as a schema error and edit `shots.json` to get past it.
-- Model-sheet PNGs are allowed before approval. A shot render is not.
+- Model-sheet PNG files are allowed before approval. A shot render is not.
 - `audio.path` is optional. When present it has to be a file inside the production directory, and
   `audio.start` is seconds into that file.
 - A style pack's bands were learned on films of at least about a third of the source. A much
