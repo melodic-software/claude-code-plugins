@@ -1840,7 +1840,7 @@ def scan_tree(
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable =reclaimable_local_bytes(entries)
+    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -1953,7 +1953,14 @@ def annotate_stdlib_shadowing(
     shadows: dict[str, dict[str, Any]] = {}
     for name, entry in children.items():
         stem, dot, suffix = name.rpartition(".")
-        if entry.get("kind") == "file" and dot and suffix == "py" and stem in stdlib:
+        # A case-insensitive filesystem imports Random.py for `import random`.
+        stem = fold(stem)
+        if (
+            entry.get("kind") == "file"
+            and dot
+            and fold(suffix) == "py"
+            and stem in stdlib
+        ):
             shadows[stem] = entry
     cache = children.get("__pycache__")
     compiled: list[str] | None = None
