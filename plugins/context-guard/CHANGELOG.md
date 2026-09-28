@@ -9,9 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`zone-crossing-inject` does not start the resolver when a rewritten snapshot stays in the same zone**
-  ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
-  The unchanged-input skip already exits through builtins when the snapshot file has not moved. The statusline tee still rewrites that file to advance `captured_at`, and that newer mtime was starting `scripts/context-zone.sh` on a zone that cannot have changed. The hook now keeps the last resolved word and the snapshot body after `captured_at`. A later fire whose override files are unchanged, whose new `captured_at` is inside the 10-minute staleness window, and whose other bytes match, reuses the word and starts nothing. An integer `used_percentage` that stays in the same shipped band (no `zones.json`) with every other field unchanged does the same. A band crossing, a stale or future `captured_at`, a `zones.json` change, and a compaction-marker change still resolve. A compaction marker still forces `dumb` without a resolver, which is the override the hook already applied after one. Crossing text is unchanged. A same-zone rewrite measured 6 process creations and execs before this reuse and 2 after, with no child process (`scripts/hook-census.sh`, bash 5.2.21, dash as `sh`, strace 6.8). The PostToolBatch k × S target is not set here; this change is the process cut the no-crossing path still owed.
+- **`zone-crossing-inject` does not source `hook-utils.sh` on the no-crossing path** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The session id and the event name are taken from the leading scalar strings. A backslash, a shape the scan cannot prove, a band crossing, and any emit still load the library. On this host (`spawn_probe` measurable, `bash -c :` p50 0.77 ms, n=22) the same-zone rewrite fell from 10.4 S to 2.88 S, with 0 child processes. Crossing text is unchanged. The goal is `reference/zone-crossing/PLAN.md`.
 
 ## [0.7.84] - 2026-09-28
 

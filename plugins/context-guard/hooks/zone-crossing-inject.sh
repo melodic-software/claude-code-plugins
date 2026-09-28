@@ -167,10 +167,27 @@ CG_DIR=${BASH_SOURCE[0]%/*}
 # Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
 # must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
-# shellcheck source=hook-utils.sh
-source "$CG_DIR/hook-utils.sh"
+# hook-utils.sh is about five milliseconds to source on a host where one
+# process is under a millisecond. The no-crossing path never calls it: the
+# session id comes from the leading scalars, and the skip and the same-zone
+# reuse are builtins. A crossing, a payload this fast path cannot prove, and
+# any emit load it. See cg_load_utils.
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
+CG_UTILS=0
+cg_load_utils() {
+  ((CG_UTILS)) && return 0
+  # shellcheck source=hook-utils.sh
+  source "$CG_DIR/hook-utils.sh"
+  CG_UTILS=1
+}
+CG_REQUIRED=0
+cg_require_utils() {
+  cg_load_utils
+  ((CG_REQUIRED)) && return 0
+  hook::require_jq "$EVENT" "context-guard" "$INPUT"
+  CG_REQUIRED=1
+}
 
 START_EPOCH=${EPOCHREALTIME:-0}
 # Not absolutized through `cd … && pwd`: this path is only ever handed to
@@ -303,9 +320,53 @@ cg::leading_scalar_object() {
   return 0
 }
 
+# Session id and event from a payload this hook can prove without jq and
+# without hook-utils. The scan stops at the first nested value, so a
+# tool-result that repeats these keys is not read. A backslash is an escape
+# the builtin below does not decode; that payload takes the full parser.
+# Returns 1 when the two fields are not both plain strings.
+cg_prove_scalar_ids() {
+  local s="$1" header ev="" sid=""
+  header=$s
+  EVENT=""
+  SESSION=""
+  if cg::leading_scalar_object "$s"; then
+    header=$CG_HEADER
+  else
+    ((${#s} <= 65536)) || return 1
+    [[ "$s" == '{'* ]] || return 1
+  fi
+  [[ "$header" != *\\* ]] || return 1
+  cg_json_plain_string "$header" hook_event_name ev || return 1
+  cg_json_plain_string "$header" session_id sid || return 1
+  [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+  [[ "$ev" =~ ^[A-Za-z0-9]+$ ]] || return 1
+  EVENT=$ev
+  SESSION=$sid
+}
+
+# <json> <key> <varname>. The key appears once, and the value has no escape.
+cg_json_plain_string() {
+  local s="$1" key="$2" rest stripped count
+  local -n _cg_out=$3
+  stripped=${s//"\"$key\""/}
+  count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
+  ((count == 1)) || return 1
+  rest=${s#*"\"$key\""}
+  [[ "$rest" =~ ^[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || return 1
+  _cg_out=${BASH_REMATCH[1]}
+}
+
 EVENT=""
 SESSION=""
-if ((${#INPUT} > 65536)); then
+CG_PROVED=0
+if cg_prove_scalar_ids "$INPUT"; then
+  CG_PROVED=1
+fi
+if ((CG_PROVED == 0)); then
+  cg_load_utils
+fi
+if ((CG_PROVED == 0)) && ((${#INPUT} > 65536)); then
   if cg::leading_scalar_object "$INPUT" &&
     hook::jq_fields "$CG_HEADER" '.hook_event_name' '.session_id'; then
     EVENT="${HOOK_JQ_FIELDS[0]}"
@@ -332,12 +393,16 @@ if ((${#INPUT} > 65536)) && [[ -z "$SESSION" ]]; then
   # session field to take, and the expansion above would otherwise hand back
   # the event name.
   [[ "$SESSION" != "$FIELDS" ]] || SESSION=""
-elif ((${#INPUT} <= 65536)) && hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
+elif ((CG_PROVED == 0)) && ((${#INPUT} <= 65536)) && hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
   EVENT="${HOOK_JQ_FIELDS[0]}"
   SESSION="${HOOK_JQ_FIELDS[1]}"
 fi
 [[ -n "$EVENT" ]] || EVENT="PostToolBatch"
-hook::require_jq "$EVENT" "context-guard" "$INPUT"
+# The proved path has not sourced hook-utils. A later emit loads it. The
+# unproved path already sourced it to parse, and still owes the jq notice.
+if ((CG_UTILS)); then
+  cg_require_utils
+fi
 
 [[ -n "$SESSION" ]] || exit 0
 # Same character class the tee/resolver enforce — also path containment for
@@ -782,6 +847,7 @@ if [[ -z "$persist_failed" && "$next_armed" != "$armed_on_disk" ]] &&
   fi
 fi
 if [[ -n "$persist_failed" ]]; then
+  cg_require_utils
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
     '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
   exit 0
@@ -820,6 +886,7 @@ fi
   # drop), a re-crossing the armed rank suppressed (the flap this gate exists
   # for), and an unchanged zone, which is not an event.
   if [[ -n "$last" && "$zone" != "$last" ]]; then
+    cg_require_utils
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
       '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false}'
   fi
@@ -847,6 +914,7 @@ fi
 # install no actionable path when state must survive.
 operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed) or a hand-written resume note, then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
 
+cg_require_utils
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
   '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true}'
