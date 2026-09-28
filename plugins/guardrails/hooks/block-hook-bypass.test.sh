@@ -1114,6 +1114,10 @@ run_pwsh "PS: & \$sh rebound by foreach (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; foreach (\$sh in \$ws) { & \$sh f x }" 2
 run_pwsh "PS: & \$sh rebound by sv (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; sv sh Set-Content; & \$sh f x" 2
+run_pwsh "PS: & \$sh rebound by a multiple assignment (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; \$sh, \$y = ${Q}Set-Content${Q}, 1; & \$sh f.txt x" 2
+run_pwsh "PS: & \$sh rebound through a parenthesized target (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; (\$sh) = ${Q}Set-Content${Q}; & \$sh f.txt x" 2
 run_pwsh "PS: & \$sh rebound by -OutVariable (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; gci -ov sh; & \$sh f x" 2
 run_pwsh "PS: & \$sh after a dot-sourced script (blocked — #4234)" \

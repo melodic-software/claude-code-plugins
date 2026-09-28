@@ -2403,7 +2403,8 @@ ps::resolve_literal_call_targets_to() {
       __rl_probe="${__rl_probe#*"${BASH_REMATCH[0]}"}"
     done
     ((__rl_count == 1)) || continue
-    __rl_re='\$'"$__rl_name"'[[:space:]]*(\+\+|--)|(\+\+|--)[[:space:]]*\$'"$__rl_name"'([^a-z0-9_]|$)'
+    # `$v, $y = …` and `($v) = …` rebind $v without a `$v =` spelling.
+    __rl_re='\$'"$__rl_name"'[[:space:]]*(\+\+|--|,|\))|(\+\+|--)[[:space:]]*\$'"$__rl_name"'([^a-z0-9_]|$)'
     [[ "$__rl_out" =~ $__rl_re ]] && continue
     __rl_re='foreach[[:space:]]*\([[:space:]]*\$'"$__rl_name"'([^a-z0-9_]|$)'
     [[ "$__rl_out" =~ $__rl_re ]] && continue
