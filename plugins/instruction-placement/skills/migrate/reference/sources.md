@@ -197,7 +197,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
 
 | Repository | Commit graded |
 |---|---|
-| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) | <!-- portability-ok: graded commit table records origin/main SHA at cutover-check run time -->
+| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) <!-- portability-ok: graded commit table records origin/main SHA at cutover-check run time --> |
 | standards | `849678b5e59d20b50ec39b4dd587d70756417727` |
 | ci-runner | `ac7ac20af851ca93f7d636cee5425bde032e04eb` |
 | ci-workflows | `b570d97203c7973b25c14e3de91c5ff3a4aa0e82` |
