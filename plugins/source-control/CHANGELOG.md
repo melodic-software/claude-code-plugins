@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.10] - 2026-09-28
+## [0.62.11] - 2026-09-28
 
 ### Changed
 
@@ -14,6 +14,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   what it permits, what it refuses, and that a refusal is still the exception
   the caller already saw. Dry runs still skip the lease. What the guard permits
   is unchanged.
+
+## [0.62.10] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.62.9] - 2026-09-28
 
