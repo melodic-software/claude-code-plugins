@@ -383,6 +383,19 @@ run_win "python open(**k) dict() C:/tmp (blocked)" "python3 -c \"k=dict(file='C:
 # An f-string runs code inside its braces, so it never proves a read.
 run_win "python open(f-string running os.system to /tmp) (blocked)" \
   $'python3 - <<\'EOF\'\nopen(f\'/tmp/x{__import__("os").system("echo a > /tmp/y")}\')\nEOF' 2
+# Only a read call's CONTENT may leave it; its path (.name, a call argument) or exec keeps it blocked.
+run_win "python shutil.copy to open(/tmp).name (blocked)" \
+  "python3 -c \"import shutil; shutil.copy('/etc/hosts', open('/tmp/x').name)\"" 2
+run_win "python os.system cp to open(/tmp).name (blocked)" \
+  "python3 -c \"import os; os.system('cp /etc/hosts ' + open('/tmp/x').name)\"" 2
+run_win "python os.rename to open(/tmp).name (blocked)" \
+  "python3 -c \"import os; os.rename('a', open('/tmp/x').name)\"" 2
+run_win "python shutil.copy to Path(/tmp).open().name (blocked)" \
+  "python3 -c \"from pathlib import Path; import shutil; shutil.copy('/etc/hosts', Path('/tmp/x').open().name)\"" 2
+run_win_pwsh "PS: python shutil.copy to open(C:/tmp).name (blocked)" \
+  "python -c \"import shutil; shutil.copy('a', open('C:/tmp/x').name)\"" 2
+run_win "python exec(open(/tmp).read()) (blocked)" "python3 -c \"exec(open('/tmp/x').read())\"" 2
+run_win "python os.remove(open(/tmp).name) (blocked)" "python3 -c \"import os; os.remove(open('/tmp/x').name)\"" 2
 # A proven read must not whitelist a sibling write in the same segment.
 run_win "python read + os.system redirect to /tmp (blocked)" \
   "python3 -c \"open('/etc/hosts').read(); __import__('os').system('echo a > /tmp/y')\"" 2

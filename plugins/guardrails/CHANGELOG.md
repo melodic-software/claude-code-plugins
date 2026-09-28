@@ -16,13 +16,17 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   whose one argument is a single whole quoted literal or an unquoted run free of commas, parens,
   quotes, `#` and `*`, then an optional read-mode literal (only `r`, `b`, `t`), optional literal
   `encoding=` / `errors=` / `newline=`, then `)`; or `Path('<literal>').open(` with no argument or
-  a lone read-mode literal. Any backslash in the command voids the exemption, because the matcher
+  a lone read-mode literal. A read call is cut only when just its content leaves it: `.read(` /
+  `.readline(` / `.readlines(` right after it, or the whole of `json.load(...)`; so
+  `open('/tmp/x').name` or `f(open('/tmp/x'))` still blocks, and any `exec(` / `eval(` /
+  `compile(` in the segment voids the exemption. Any backslash in the command voids it too, because the matcher
   sees the slash-normalized string where an escaped quote looks like a close quote. Everything
   else still blocks: a write or unknown mode, a mode in a variable, an f-string path, `*` / `**` unpacking, a nested
   call inside `open(`, `os.open`, `popen(` / `fdopen(`, and `write_text(` / `write_bytes(` /
   `makedirs(`. A drive-root path outside the read call also blocks, so a `/tmp` argv operand read
-  through `sys.argv`, or issue prose quoting `open(...)` beside a `/tmp` path, still blocks.
-  Eight read shapes are pinned as allowed (each exited 2 before the fix), and forty write or
+  through `sys.argv`, or issue prose quoting `open(...)` beside a `/tmp` path, still blocks, and so
+  do `with open(...) as f` and `for line in open(...)`.
+  Eight read shapes are pinned as allowed (each exited 2 before the fix), and forty-seven write or
   unproven spellings are pinned as still blocked (#3951).
 
 ## [0.41.3] - 2026-09-28

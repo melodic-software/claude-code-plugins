@@ -521,7 +521,11 @@ segment_downloader_output_operand() {
 # exempt only when every `open(` is a provable read AND, with those read calls
 # cut out, no drive-root tmp path is left anywhere in the segment; so a read
 # never whitelists a sibling `os.system('… > /tmp/y')`, `shutil.copy(…, '/tmp/y')`
-# or `open('/tmp/x'); os.mknod('/tmp/y')`. Any other shape fails closed.
+# or `open('/tmp/x'); os.mknod('/tmp/y')`. A read call is cut only when just its
+# content leaves it (`.read(`/`.readline(`/`.readlines(` next, or the whole of
+# `json.load(…)`), so `open('/tmp/x').name` or `f(open('/tmp/x'))` keep the path
+# in play; any `exec(`/`eval(`/`compile(` in the segment voids the exemption.
+# Any other shape fails closed.
 # Provable read, bare `open(`: one argument (a single whole quoted literal, or an
 # unquoted run free of , ( ) quotes # and *), an optional read-mode literal
 # (only r/b/t), optional literal encoding=/errors=/newline=, then `)`. Quotes
@@ -540,11 +544,15 @@ _PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[
 _PY_BARE_OPEN_READ="^[[:space:]]*([rbu]*${_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
 _PY_METHOD_OPEN_READ="^[[:space:]]*(${_PY_READ_MODE}[[:space:]]*)?\)"
 _PY_PATH_RECEIVER="(^|[^[:alnum:]_])((pathlib\.)?path\([[:space:]]*[rbu]*${_PY_LIT}[[:space:]]*\)\.)$"
+_PY_READ_CHAIN="^[[:space:]]*\.[[:space:]]*(read|readline|readlines)[[:space:]]*\("
+_PY_JSON_LOAD_OPEN="(^|[^[:alnum:]_])json[[:space:]]*\.[[:space:]]*load[[:space:]]*\([[:space:]]*$"
+_PY_EXEC_CALL="(^|[^[:alnum:]_])(exec|eval|compile)[[:space:]]*\("
 _PY_RAW_HAS_BACKSLASH=0
 [[ "$COMMAND" == *\\* ]] && _PY_RAW_HAS_BACKSLASH=1
 segment_opens_only_for_read() {
   local rest="$1" before out="" call
   ((_PY_RAW_HAS_BACKSLASH)) && return 1
+  [[ "$rest" =~ $_PY_EXEC_CALL ]] && return 1
   while [[ "$rest" == *'open('* ]]; do
     before="${rest%%open(*}"
     rest="${rest#*open(}"
@@ -560,8 +568,14 @@ segment_opens_only_for_read() {
       call="${BASH_REMATCH[0]}"
       ;;
     esac
-    out+="$before"
     rest="${rest:${#call}}"
+    # Only the file's CONTENT may leave the call: `.read(` / `.readline(` /
+    # `.readlines(` right after it, or the whole of `json.load(<call>)`.
+    # Anything else (`.name`, an argument to another call) could carry the path.
+    [[ "$rest" =~ $_PY_READ_CHAIN ]] ||
+      [[ "$before" =~ $_PY_JSON_LOAD_OPEN && "$rest" =~ ^[[:space:]]*\) ]] ||
+      return 1
+    out+="$before"
   done
   ! has_drive_root_tmp "$out$rest"
 }

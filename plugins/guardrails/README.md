@@ -499,13 +499,18 @@ out of scope until such a signal exists.
   run free of commas, parens, quotes, `#` and `*`, then an optional read-mode
   literal (only `r`, `b`, `t`), optional literal `encoding=` / `errors=` /
   `newline=`, then `)`. `Path('<literal>').open(` is a read with no argument or
-  a lone read-mode literal. Any backslash in the command voids the exemption:
+  a lone read-mode literal. A read call is cut only when just its content
+  leaves it (`.read(` / `.readline(` / `.readlines(` right after it, or the
+  whole of `json.load(...)`), so `open('/tmp/x').name` or `f(open('/tmp/x'))`
+  blocks, and any `exec(` / `eval(` / `compile(` in the segment voids the
+  exemption. Any backslash in the command voids it too:
   the matcher sees the slash-normalized string, where an escaped quote looks
   like a close quote. Residual, in the fail-closed direction: a real read
   blocks when it uses a backslash (`open(r'C:\tmp\x')`), a nested call or
   variable (`open(os.path.join(d, f))`, `open(os.environ['F'])`), `os.open`, or
   a drive-root path outside the call (a `/tmp` argv operand read through
-  `sys.argv`, issue prose quoting `open(...)` beside a `/tmp` path).
+  `sys.argv`, issue prose quoting `open(...)` beside a `/tmp` path), or reads
+  through `with open(...) as f` or `for line in open(...)`.
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching
