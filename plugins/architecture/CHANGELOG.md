@@ -12,7 +12,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   namespace-qualified type, so the same short name in two namespaces is two messages. Orphan
   publishers, orphan consumers, fan-out past 3, and competing consumers are findings. A `Publish(`
   or `Send(` with no type argument is unresolved and is never dropped. Mermaid writes `events.md`
-  (dotted broadcast, solid point-to-point). Structurizr writes `events.dsl`. The skill reads
+  with publish and send labels so broadcast and point-to-point render differently. Structurizr
+  writes `events.dsl`. The skill reads
   `landscape_dialect` and does not add a dialect key. The Handoff section is the form
   `map-flow` consumes. `render-events.sh` exits 1 on a reformatted record and writes nothing.
 
