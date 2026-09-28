@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.12] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` says which target spelling the scratch exemption takes** ([#4118](https://github.com/melodic-software/claude-code-plugins/issues/4118)). On the `cat`, `echo`/`printf` and staged-move lanes the roots line read "A bare target under these roots is exempt", which never said the target must be written out literally. An agent blocked on a project path was offered the temp tree without being told that `$TMPDIR/x` or a quoted path would be blocked too. The line now reads "An unquoted literal target under these roots is exempt: ..., the OS temp directory; a quoted or variable-carried one never is." When the reason line above it already says so (a quoted target, or one holding `$`, a backtick or `~`), the second half is left off. The temp tree is still listed only when the project root is outside it. The exemption itself is unchanged: following a shell variable would mean neutralizing quoting, which would re-block inert prose.
+
 ## [0.38.11] - 2026-09-28
 
 ### Fixed
