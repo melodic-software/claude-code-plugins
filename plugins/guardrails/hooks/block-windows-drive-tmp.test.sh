@@ -307,6 +307,42 @@ run_win_usr_bin "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' .
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
 
+# --- Inline python: a READ of a drive-root tmp path (allowed, #3951) ---------
+# A bare `open(` is a read; only a write-mode literal in argument position makes
+# it a write. The heredoc shapes are the incident's, verbatim in structure.
+run_win "python heredoc json.load(open(/tmp)) read (allowed)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
+run_win "python heredoc reads a /tmp argv operand (allowed)" \
+  $'python3 - /tmp/retro-685.json <<\'EOF\'\nimport json, sys\nprint(json.load(open(sys.argv[1])))\nEOF' 0
+run_win "python -c open(/tmp,'r') explicit read mode (allowed)" \
+  "python3 -c \"print(open('/tmp/x','r').read())\"" 0
+run_win "python -c open(/tmp,'rb') binary read mode (allowed)" \
+  "python3 -c \"print(open('/tmp/x', 'rb').read())\"" 0
+run_win "python open(/tmp) read with dict subscript (allowed)" \
+  "python3 -c \"import json; print(json.load(open('/tmp/x.json'))['a'])\"" 0
+run_win "python open(/tmp) read with encoding= (allowed)" \
+  "python3 -c \"print(open('/tmp/x', encoding='utf-8').read())\"" 0
+# The filing incident: a heredoc issue body that QUOTES the read line beside the path.
+run_win "gh body quoting open(...) beside /tmp (allowed)" \
+  $'gh issue create --title x --body "$(cat <<\'EOF\'\na `python3 - <<\'EOF\'` heredoc whose only use of the path was\n`json.load(open(...))` on a `/tmp/retro-685.json` argument was blocked\nEOF\n)"' 0
+
+# --- Inline python: every write spelling still blocks ------------------------
+run_win "python heredoc open(/tmp,'w') write (blocked)" \
+  $'python3 - <<\'EOF\'\nwith open(\'/tmp/x\', \'w\') as f:\n    f.write(\'a\')\nEOF' 2
+run_win "python open(/tmp, mode='a') (blocked)" "python3 -c \"open('/tmp/x', mode='a').write('a')\"" 2
+run_win "python open(/tmp,'r+') update mode (blocked)" "python3 -c \"open('/tmp/x','r+').write('a')\"" 2
+run_win "python open(/tmp,'xb') exclusive create (blocked)" "python3 -c \"open('/tmp/x','xb')\"" 2
+run_win "python open(join(/tmp,x),'w') nested call (blocked)" \
+  "python3 -c \"import os; open(os.path.join('/tmp','x'),'w')\"" 2
+run_win "python Path(/tmp).open('w') method form (blocked)" \
+  "python3 -c \"from pathlib import Path; Path('/tmp/x').open('w').write('a')\"" 2
+run_win "python Path(/tmp).write_text (blocked)" \
+  "python3 -c \"from pathlib import Path; Path('/tmp/x').write_text('a')\"" 2
+run_win "python os.makedirs(/tmp/x) (blocked)" "python3 -c \"import os; os.makedirs('/tmp/x')\"" 2
+run_win "python os.open(/tmp, O_WRONLY|O_CREAT) (blocked)" \
+  "python3 -c \"import os; os.open('/tmp/x', os.O_WRONLY | os.O_CREAT)\"" 2
+run_win "python open(C:\\tmp,'w') drive-letter (blocked)" "python3 -c \"open(r'C:\\tmp\\x','w')\"" 2
+
 # --- PowerShell writers (blocked) --------------------------------------------
 run_win_pwsh "PS: Set-Content C:\\tmp\\x (blocked)" 'Set-Content -Path C:\tmp\x -Value hi' 2
 run_win_pwsh "PS: Out-File \\tmp\\x (blocked)" "'hi' | Out-File \tmp\x" 2

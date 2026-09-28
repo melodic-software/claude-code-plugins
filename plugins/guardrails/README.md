@@ -490,6 +490,18 @@ out of scope until such a signal exists.
   command string, and a drive-root path there still has to sit in a
   write-shaped position, so a heredoc body carrying `C:\tmp` inside a
   `cat > file` does not block either.
+- **`block-windows-drive-tmp` reads inline python's `open(` as a read unless a
+  write mode rides with it** (since **0.38.11**, #3951). `open(f)` and
+  `open(f,'w')` differ only by an argument, so a bare `open(` beside a
+  drive-root path, such as `json.load(open('/tmp/x.json'))` in a `python3 -`
+  heredoc or an issue body that quotes that line, is allowed. It blocks when a
+  write-mode literal (one containing `w`, `a`, `x` or `+`) sits in argument
+  position: after a comma, after `mode=`, or first inside a method-form
+  `.open(`. It also blocks on `write_text(` / `write_bytes(` / `makedirs(`, and
+  on `os.open` with a write-side `O_*` flag. This is the boundary
+  `block-hook-bypass` adopted in 0.19.3. Residuals: a read-only `open()` in a
+  segment that separately carries an argument-position write-mode literal still
+  blocks, and a mode passed through a variable is not seen.
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching

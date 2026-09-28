@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **`block-windows-drive-tmp` no longer blocks a python READ of a drive-root temp path.** The
+  inline-python rule treated any `open(` as a write, so a `python3 - <<'EOF'` heredoc whose only use
+  of `/tmp/retro-685.json` was `json.load(open(...))` was refused as a "write target", and so was the
+  `gh issue create` call whose heredoc body quoted that line. A bare `open(` now counts only when a
+  write-mode literal (containing `w`/`a`/`x`/`+`) co-occurs in argument position: after a comma,
+  after `mode=`, or first inside a method-form `.open(`. `write_text(` / `write_bytes(` /
+  `makedirs(` still block on their own, and `os.open` blocks with a write-side `O_*` flag. This is the
+  boundary `block-hook-bypass` adopted in 0.19.3. Seven read shapes are pinned as allowed (each
+  exited 2 before the fix), and ten write spellings are pinned as still blocked, including a nested
+  `open(os.path.join('/tmp','x'),'w')` and `Path('/tmp/x').open('w')` (#3951).
+
 ## [0.41.3] - 2026-09-28
 
 ### Changed
