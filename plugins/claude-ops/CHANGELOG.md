@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.16] - 2026-09-28
+
+### Changed
+
+- **`changelog` keeps the current item-level apply pipeline; the decisions redesign is parked
+  ([#4024](https://github.com/melodic-software/claude-code-plugins/issues/4024)).**
+  `skills/changelog/reference/decisions-redesign-park.md` records Option A. Slice 1 (marker,
+  range, cap) from PR #4041 stays; slices 2 to 4 wait on funding.
+
 ## [0.62.15] - 2026-09-28
 
 ### Changed

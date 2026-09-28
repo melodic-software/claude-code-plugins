@@ -201,3 +201,4 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
 | `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `reference/decisions-redesign-park.md` | Why this skill keeps item-level P1/P2/P3 and the in-skill apply pipeline; slices 2 to 4 of #4024 are parked. |
