@@ -14,7 +14,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   tree `root.kind` is `repository` and `root.path` is `git rev-parse
   --show-toplevel`; otherwise `kind` is `scan` and `path` is the working
   directory. The same repository audited from two directories now yields the
-  same path strings. The decision record is in `reference/report-schema.md`.
+  same path strings. A run row's `; missing:` suffix is rewritten from the
+  rebased `missing` list, including a CRAP row that copies that reason. The
+  decision record is in `reference/report-schema.md`.
 
 ## [0.3.20] - 2026-09-28
 

@@ -222,6 +222,21 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     return summary
 
 
+_MISSING_NOTE_SHOWN = 5
+
+
+def _missing_note(paths: list[Any]) -> str:
+    """The `; missing:` suffix join.py writes from a scope-file list."""
+    texts = [item for item in paths if isinstance(item, str)]
+    if not texts:
+        return ""
+    shown = ", ".join(texts[:_MISSING_NOTE_SHOWN])
+    extra = len(texts) - _MISSING_NOTE_SHOWN
+    if extra > 0:
+        shown += f", +{extra} more in the JSON"
+    return f"; missing: {shown}"
+
+
 def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]:
     """Make measured paths relative to `root` and record that root.
 
@@ -263,11 +278,29 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
         for instance in group.get("instances") or []:
             if isinstance(instance, dict) and isinstance(instance.get("file"), str):
                 instance["file"] = one(instance["file"])
+    rebases: list[tuple[str, str]] = []
     for row in doc.get("run") or []:
         if isinstance(row, dict) and isinstance(row.get("missing"), list):
-            row["missing"] = sorted(
-                one(item) if isinstance(item, str) else item for item in row["missing"]
+            old_paths = list(row["missing"])
+            new_paths = sorted(
+                one(item) if isinstance(item, str) else item for item in old_paths
             )
+            row["missing"] = new_paths
+            old_note = _missing_note(old_paths)
+            new_note = _missing_note(
+                [item for item in new_paths if isinstance(item, str)]
+            )
+            if old_note and old_note != new_note:
+                rebases.append((old_note, new_note))
+    if rebases:
+        for row in doc.get("run") or []:
+            if not isinstance(row, dict) or not isinstance(row.get("reason"), str):
+                continue
+            reason = row["reason"]
+            for old_note, new_note in rebases:
+                if old_note in reason:
+                    reason = reason.replace(old_note, new_note, 1)
+            row["reason"] = reason
     doc["root"] = {"kind": kind, "path": root_text}
     # `summarize` omits the duplication keys when no clone group survived.
     # The zero floor a duplication run states after every group was excluded

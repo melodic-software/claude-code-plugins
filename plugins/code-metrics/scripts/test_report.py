@@ -1806,7 +1806,16 @@ class AnchorTests(unittest.TestCase):
                     },
                 ],
                 "excluded": [{"instances": [{"file": "../b.py"}]}],
-                "run": [{"missing": ["../b.py", "a.py"]}],
+                "run": [
+                    {
+                        "missing": ["../b.py", "a.py"],
+                        "reason": "2 of 2 scope files absent; missing: ../b.py, a.py",
+                    },
+                    {
+                        "measure": "crap",
+                        "reason": "coverage is missing; missing: ../b.py, a.py",
+                    },
+                ],
                 "summary": {},
             }
             first = subprocess.run(
@@ -1841,6 +1850,14 @@ class AnchorTests(unittest.TestCase):
             )
             self.assertEqual(anchored["excluded"][0]["instances"][0]["file"], "b.py")
             self.assertEqual(anchored["run"][0]["missing"], ["b.py", "sub/a.py"])
+            self.assertEqual(
+                anchored["run"][0]["reason"],
+                "2 of 2 scope files absent; missing: b.py, sub/a.py",
+            )
+            self.assertEqual(
+                anchored["run"][1]["reason"],
+                "coverage is missing; missing: b.py, sub/a.py",
+            )
             rendered = run("render", stdin=json.dumps(anchored)).stdout
             self.assertIn(f"repository` root `{anchored['root']['path']}`", rendered)
             second = subprocess.run(
