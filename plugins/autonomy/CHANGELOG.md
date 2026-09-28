@@ -3,6 +3,13 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5] - 2026-09-28
+
+### Added
+
+- **Scope decision (#4703):** `reference/artifact-attestation-scope.md` records that signed
+  agent-run artifact attestation is out of scope for this plugin generation.
+
 ## [0.24.4] - 2026-09-28
 
 ### Changed
