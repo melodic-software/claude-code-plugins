@@ -2,9 +2,11 @@
 # Black-box contract test for statusline-shim.sh (the version-independent
 # locator the operator wires into their statusline).
 #
-# Proves: (a) RESOLUTION — the newest installed tee by mtime wins across
-# version directories whose names do NOT sort lexically (0.10.0 vs 0.9.0),
-# transient temp_* marketplace clones are skipped, version directories marked
+# Proves: (a) RESOLUTION: the install record's installPath ranks first, then
+# dotted-number version names compare by value (0.10.0 over 0.9.0, and the
+# higher of two equal-mtime copies), then mtime for any other pair; the record
+# is read only when two live candidates need ranking; transient temp_*
+# marketplace clones are skipped, version directories marked
 # orphaned by an update or an uninstall are skipped even when they are the
 # newest, the marketplace directory name is never assumed, and other plugins'
 # trees are ignored; (b)
@@ -297,6 +299,155 @@ make_wrapped "$H9/render.sh" 0
 run "$H9" bash "$H9/render.sh"
 assert_contains "$ERR" "TEE:installed" "orphaned version directory skipped even when newest by mtime"
 assert_not_contains "$ERR" "TEE:orphaned" "the orphaned tee does not also run"
+
+# Write the install record Claude Code keeps beside the cache, in the shape the
+# plugins loading reference documents (each install with `scope`,
+# `installPath`, `version`). Each remaining argument is one installPath.
+#   $1 = the effective config dir, $2 = marketplace, rest = installPaths
+write_record() {
+  local cfg="$1" mkt="$2" first=1 p
+  shift 2
+  mkdir -p "$cfg/plugins"
+  {
+    printf '{\n  "version": 2,\n  "plugins": {\n    "context-guard@%s": [\n' "$mkt"
+    for p in "$@"; do
+      ((first)) || printf ',\n'
+      first=0
+      printf '      {\n        "scope": "user",\n        "installPath": "%s",\n        "version": "%s"\n      }' "$p" "${p##*[/\\]}"
+    done
+    printf '\n    ]\n  }\n}\n'
+  } >"$cfg/plugins/installed_plugins.json"
+}
+
+# --- 17. EQUAL mtimes on a miss: the higher version runs, not the first match
+# Cache copies can carry equal mtimes, so `-nt` never fires. 0.8.1 is the first
+# glob match, which is what the previous revision ran while the higher version was installed.
+H21="$WORK/h21"
+EQ1="$(plant_tee "$H21" "mkt" "context-guard" "0.8.1" "eqlow")"
+EQ2="$(plant_tee "$H21" "mkt" "context-guard" "0.8.9" "eqhigh")"
+touch -t 202501010000 "$EQ1" "$EQ2"
+make_wrapped "$H21/render.sh" 0
+run "$H21" bash "$H21/render.sh"
+assert_contains "$ERR" "TEE:eqhigh" "equal mtimes: the higher version runs"
+assert_not_contains "$ERR" "TEE:eqlow" "equal mtimes: the first glob match does not run"
+
+# --- 18. dotted numbers compare by value, and value outranks mtime ----------
+# 0.9.0 is lexically after 0.10.0 and here also the newer copy, so neither a
+# lexical sort nor mtime picks 0.10.0; only the value comparison does.
+H22="$WORK/h22"
+V10="$(plant_tee "$H22" "mkt" "context-guard" "0.10.0" "v10")"
+V9="$(plant_tee "$H22" "mkt" "context-guard" "0.9.0" "v9")"
+touch -t 202001010000 "$V10"
+touch -t 203001010000 "$V9"
+make_wrapped "$H22/render.sh" 0
+run "$H22" bash "$H22/render.sh"
+assert_contains "$ERR" "TEE:v10" "0.10.0 outranks 0.9.0 by value, whatever the mtimes"
+# A missing segment counts as 0, so 1.2 and 1.2.0 tie on value and mtime decides.
+H22B="$WORK/h22b"
+SHORT="$(plant_tee "$H22B" "mkt" "context-guard" "1.2" "short")"
+LONG="$(plant_tee "$H22B" "mkt" "context-guard" "1.2.0" "long")"
+touch -t 203001010000 "$SHORT"
+touch -t 202001010000 "$LONG"
+make_wrapped "$H22B/render.sh" 0
+run "$H22B" bash "$H22B/render.sh"
+assert_contains "$ERR" "TEE:short" "a tie on value (1.2 and 1.2.0) falls back to the newer mtime"
+
+# --- 19. names that are not dotted numbers keep the mtime order -------------
+H23="$WORK/h23"
+SHA1="$(plant_tee "$H23" "mkt" "context-guard" "9f3c2a1" "shaold")"
+SHA2="$(plant_tee "$H23" "mkt" "context-guard" "1a2b3c4" "shanew")"
+touch -t 202001010000 "$SHA1"
+touch -t 203001010000 "$SHA2"
+make_wrapped "$H23/render.sh" 0
+run "$H23" bash "$H23/render.sh"
+assert_contains "$ERR" "TEE:shanew" "non-numeric version names: the newer mtime wins"
+# Mixed: a dotted number against a non-numeric name is not a value comparison.
+H23B="$WORK/h23b"
+MIXNUM="$(plant_tee "$H23B" "mkt" "context-guard" "9.0.0" "mixnum")"
+MIXSHA="$(plant_tee "$H23B" "mkt" "context-guard" "abc1234" "mixsha")"
+touch -t 202001010000 "$MIXNUM"
+touch -t 203001010000 "$MIXSHA"
+make_wrapped "$H23B/render.sh" 0
+run "$H23B" bash "$H23B/render.sh"
+assert_contains "$ERR" "TEE:mixsha" "a numeric name against a non-numeric one: the newer mtime wins"
+
+# --- 20. the install record outranks version and mtime ----------------------
+# A newer, higher, unmarked directory the record does not name (a staged fetch
+# for a pending update) loses to the version the record says is installed.
+H24="$WORK/h24"
+REC1="$(plant_tee "$H24" "mkt" "context-guard" "0.8.1" "recorded")"
+STAGED="$(plant_tee "$H24" "mkt" "context-guard" "0.8.9" "staged")"
+touch -t 202001010000 "$REC1"
+touch -t 203001010000 "$STAGED"
+write_record "$H24/.claude" "mkt" "$H24/.claude/plugins/cache/mkt/context-guard/0.8.1"
+make_wrapped "$H24/render.sh" 0
+run "$H24" bash "$H24/render.sh"
+assert_contains "$ERR" "TEE:recorded" "the recorded install outranks a higher, newer unrecorded directory"
+assert_not_contains "$ERR" "TEE:staged" "the unrecorded staged directory does not run"
+
+# --- 21. a Windows installPath (JSON-escaped backslashes) is recognized -----
+H25="$WORK/h25"
+WREC="$(plant_tee "$H25" "mkt" "context-guard" "0.8.1" "winrec")"
+plant_tee "$H25" "mkt" "context-guard" "0.8.9" "winstaged" >/dev/null
+touch -t 202501010000 "$WREC"
+write_record "$H25/.claude" "mkt" 'C:\\Users\\<user>\\.claude\\plugins\\cache\\mkt\\context-guard\\0.8.1' # portability-ok: angle-bracket user placeholder in a JSON path, not a GNU word boundary
+make_wrapped "$H25/render.sh" 0
+run "$H25" bash "$H25/render.sh"
+assert_contains "$ERR" "TEE:winrec" "a backslash-escaped Windows installPath names the installed version"
+
+# --- 22. several recorded installs: the highest recorded version runs -------
+# Two scopes can record different versions. The higher recorded one runs, and
+# a still higher unrecorded directory does not.
+H26="$WORK/h26"
+plant_tee "$H26" "mkt" "context-guard" "0.7.0" "scopelow" >/dev/null
+plant_tee "$H26" "mkt" "context-guard" "0.8.0" "scopehigh" >/dev/null
+plant_tee "$H26" "mkt" "context-guard" "0.9.0" "unrecorded" >/dev/null
+write_record "$H26/.claude" "mkt" \
+  "$H26/.claude/plugins/cache/mkt/context-guard/0.7.0" \
+  "$H26/.claude/plugins/cache/mkt/context-guard/0.8.0"
+make_wrapped "$H26/render.sh" 0
+run "$H26" bash "$H26/render.sh"
+assert_contains "$ERR" "TEE:scopehigh" "of two recorded installs, the higher version runs"
+assert_not_contains "$ERR" "TEE:unrecorded" "a higher unrecorded directory loses to a recorded one"
+
+# --- 23. two marketplaces: the recorded one wins on a miss -------------------
+H27="$WORK/h27"
+MKTA="$(plant_tee "$H27" "mkt-a" "context-guard" "0.9.0" "mkta")"
+MKTB="$(plant_tee "$H27" "mkt-b" "context-guard" "0.1.0" "mktb")"
+touch -t 203001010000 "$MKTA"
+touch -t 202001010000 "$MKTB"
+write_record "$H27/.claude" "mkt-b" "$H27/.claude/plugins/cache/mkt-b/context-guard/0.1.0"
+make_wrapped "$H27/render.sh" 0
+run "$H27" bash "$H27/render.sh"
+assert_contains "$ERR" "TEE:mktb" "the marketplace the record names wins over a newer, higher copy"
+
+# --- 24. a record that names no candidate changes nothing -------------------
+# An install record for another plugin only, and one that is not JSON at all,
+# both leave the version order in charge.
+H28="$WORK/h28"
+plant_tee "$H28" "mkt" "context-guard" "0.8.1" "norec-low" >/dev/null
+plant_tee "$H28" "mkt" "context-guard" "0.8.9" "norec-high" >/dev/null
+mkdir -p "$H28/.claude/plugins"
+printf '{"version":2,"plugins":{"rate-limit-guard@mkt":[{"installPath":"%s"}]}}\n' \
+  "$H28/.claude/plugins/cache/mkt/rate-limit-guard/0.8.1" >"$H28/.claude/plugins/installed_plugins.json"
+make_wrapped "$H28/render.sh" 0
+run "$H28" bash "$H28/render.sh"
+assert_contains "$ERR" "TEE:norec-high" "a record naming only another plugin leaves the version order in charge"
+printf 'not json\0with a NUL' >"$H28/.claude/plugins/installed_plugins.json"
+run "$H28" bash "$H28/render.sh"
+assert_contains "$ERR" "TEE:norec-high" "an unparsable record leaves the version order in charge"
+assert_eq "" "$(printf '%s' "$ERR" | grep -v '^TEE:')" "an unparsable record prints nothing to stderr"
+
+# --- 25. one live candidate: the record is never read ----------------------
+# With a single non-orphaned tee there is nothing to rank, so the render reads
+# no record at all; the xtrace shows every command the shim ran.
+H29="$WORK/h29"
+plant_tee "$H29" "mkt" "context-guard" "0.1.0" "solo" >/dev/null
+write_record "$H29/.claude" "mkt" "$H29/.claude/plugins/cache/mkt/context-guard/0.1.0"
+T29="$WORK/trace29"
+printf '%s' "$INPUT" | env -u CLAUDE_CONFIG_DIR "HOME=$H29" BASH_XTRACEFD=9 bash -x "$SHIM" >/dev/null 2>&1 9>"$T29"
+assert_not_contains "$(<"$T29")" "read -r -d" "a single live candidate never reads the install record"
+assert_contains "$(<"$T29")" "exec bash $H29/.claude/plugins/cache/mkt/context-guard/0.1.0/scripts/statusline-tee.sh" "the single live candidate is the one exec'd"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

@@ -97,7 +97,10 @@ concurrent sessions each own the file named by their `session_id`.
 }
 ```
 
-- `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule.
+- `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A refresh
+  whose other fields are unchanged rewrites the snapshot at most once per 60 seconds (the writer's
+  no-change floor), so `captured_at` can trail the latest refresh by up to that much, well inside
+  the 10-minute window.
 - `session_id`: always present (the tee refuses to write without one); also the filename stem,
   sanitized to `[A-Za-z0-9_-]`.
 - `cli_version`: the statusline payload's top-level `version` (the Claude Code version), copied

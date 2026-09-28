@@ -1352,6 +1352,16 @@ run_pwsh "PS: a commented here-string opener is refused here, not deferred (bloc
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
 run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit -m x" "'@ fine'")" 2
+# Keyed on the flag, not on the trigger name (#4682). The classifier names
+# herestring-comment-char only when no other trigger fired, so a `{` or an `iex`
+# on the same command reported its own trigger and this guard deferred.
+run_pwsh "PS: a commented opener behind a {} construct is refused (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "git commit -m x" "\"@ fine\"")" 2
+run_pwsh "PS: a commented opener behind an iex is refused (blocked)" \
+  "$(printf '%s\n%s\n%s' "iex a; Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
+# ACCEPTED OVER-BLOCK: git-free text is refused too once the flag is up.
+run_pwsh "PS: a commented opener behind a {} with no git in it (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
 # ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
