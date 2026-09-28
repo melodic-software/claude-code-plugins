@@ -45,11 +45,7 @@ unvalidated tree.
   and unverified skips) and records logical / reclaimable bytes plus observed free-space delta as
   secondary figures.
 
-The execution lane is Linux-only. It reads the current mount namespace from `/proc/self/mountinfo`,
-re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,
-checks the descriptor identities against the snapshot, and calls descriptor-relative `unlink`/`rmdir`.
-Windows and macOS retain the complete audit/report lane but return `execution-platform-unsupported`
-at preview. Backups remain the recovery boundary for user data.
+The execution lane is primitive-gated, not OS-name-gated. It reads the current mount namespace from `/proc/self/mountinfo` when that file is present, re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors, checks the descriptor identities against the snapshot, and calls descriptor-relative `unlink`/`rmdir`. Windows retains the complete audit/report lane but returns `execution-platform-unsupported` at preview. A host missing directory-descriptor anchoring or `/proc/self/mountinfo` names those primitives instead. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
@@ -70,13 +66,13 @@ at preview. Backups remain the recovery boundary for user data.
   Recycle-Bin handoff offered only after an execution request and explicit approval. The
   request is `--execute` or the user's own in-session request after the audit report, and it
   gates every deletion lane, manual included. The Recycle-Bin / Trash naming is a model-layer
-  distinction only, the engine treats Windows and macOS identically (execution unsupported); which
-  reversible-removal container the manual lane prefers is the model's instruction, not engine
-  behavior.
+  distinction only; which reversible-removal container the manual lane prefers is the model's
+  instruction, not engine behavior.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
-- macOS supports audit/report only because this implementation has no authoritative bind-mount and
-  descriptor-anchoring proof for its execution lane.
+- macOS supports audit/report. Engine apply is offered only when the same primitives Linux uses
+  are present; today that means a readable `/proc/self/mountinfo` and directory-descriptor
+  anchoring. Missing primitives are named, and preview routes to the manual handoff lane.
 
 Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
 `/disk-hygiene:setup apply` resolves anything the check reports with guidance.

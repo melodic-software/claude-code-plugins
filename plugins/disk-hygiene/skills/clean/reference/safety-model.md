@@ -85,9 +85,10 @@ it structurally rather than by heuristic:
 - **Verdict expiry.** `handoff-verify` verdicts expire immediately and are per-path, so a session
   that starts writing between two paths cannot be covered by an earlier path's approval.
 
-Two consequences worth stating plainly. First, on Windows and macOS the engine returns
-`execution-platform-unsupported`, so a Windows temp root, where this growth was measured, is a
-manual-lane job under the per-item human prompt, never an engine apply. Second, the honest posture
+Two consequences worth stating plainly. First, on Windows the engine returns
+`execution-platform-unsupported`, and on a host missing directory-descriptor anchoring or
+`/proc/self/mountinfo` it returns those primitive blockers, so a Windows temp root, where this
+growth was measured, is a manual-lane job under the per-item human prompt, never an engine apply. Second, the honest posture
 here is that a temp root is a *low*-confidence target however large it looks: the tier is set by what
 can be proven quiescent, not by how much space would be reclaimed.
 
@@ -102,29 +103,37 @@ the caller's authority and may be slow; a timeout, diagnostic, absent binary, or
 `handle-state-unverified`. The plugin never substitutes deletion failure because POSIX may unlink an
 open file while the process retains the underlying object.
 
-Execution is intentionally not cross-platform. Linux requires readable `/proc/self/mountinfo`,
+Execution is intentionally not cross-platform. Apply requires readable `/proc/self/mountinfo`,
 `O_NOFOLLOW`, and descriptor-relative stat/unlink/rmdir. Apply anchors the target and every parent to
 directory descriptors, verifies those descriptor identities, repeats live mount/protection/Git/handle
 checks immediately before each operation, and walks only snapshot entries bottom-up. Once captured
 children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
 device/inode/type identity, proves it empty through that descriptor, rechecks the name-to-descriptor
-identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
-`execution-platform-unsupported`; their audit and report behavior is unchanged.
+identity, and only then calls descriptor-relative `rmdir`. Those capabilities are gated per primitive,
+not by the host's OS name: a missing directory-descriptor API is `dirfd-anchoring-unavailable`, and
+an unreadable `/proc/self/mountinfo` is `mount-state-unverified`. Windows is the remaining
+platform-name decline (`execution-platform-unsupported`). Audit and report behavior is unchanged.
 
-Windows and macOS execution stays declined by design. A descriptor-anchored Windows apply would
+Windows execution stays declined by design. A descriptor-anchored Windows apply would
 be a large new trust surface, while the manual lane's per-item revalidation rules and the
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
 
-**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
-execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
-question, not this trigger firing. **Basis:** the trigger quoted from the
+**Claim:** the #1116 reversal trigger has not fired. Execution blockers are still re-gated
+per primitive anyway, because the OS-name test was standing in for primitive availability
+and is not the apply-on-macOS decline that trigger governs. Windows stays
+`execution-platform-unsupported` (#3857 out of scope). A host missing directory-descriptor
+anchoring or a readable `/proc/self/mountinfo` still cannot apply; preview names those
+primitives and routes a host-primitive-only set to `manual-handoff-lane`. **Basis:** the
+trigger quoted from the
 [#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
 affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
-near-miss recurrence is on the record in this checkout; #3855 remains the open related
-design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
-manual lane, or #3855 closing with a per-primitive design.
+near-miss recurrence is on the record in this checkout. `execution_blockers` and
+`linux_mount_points` now probe `os.supports_dir_fd` / `os.supports_fd` / `O_NOFOLLOW` and
+`/proc/self/mountinfo`, not `os_key() != "linux"`. **As of:** 2026-09-28. **Recheck:** a
+documented post-#1109 near-miss in the manual lane; `/proc/self/mountinfo` appearing on a
+non-Linux host; or a macOS bind-mount primitive landing that could replace that file.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 

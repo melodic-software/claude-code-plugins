@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3] - 2026-09-28
+
+### Changed
+
+- **Execution blockers are gated per primitive, not by the host's OS name**
+  ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
+  reversal trigger has not fired (quoted in the safety model). This is not a reversal of
+  apply-on-macOS: Windows still returns `execution-platform-unsupported`, and a host that
+  lacks directory-descriptor anchoring or a readable `/proc/self/mountinfo` still cannot
+  apply. Preview now names the missing primitive (`dirfd-anchoring-unavailable` and/or
+  `mount-state-unverified`) and routes a host-primitive-only blocker set to
+  `manual-handoff-lane`. Linux behavior is unchanged. Supersedes the 0.26.2 re-affirmation
+  of the platform-name gate.
+
 ## [0.26.2] - 2026-09-28
 
 ### Changed

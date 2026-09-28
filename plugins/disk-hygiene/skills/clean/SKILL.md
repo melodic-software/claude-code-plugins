@@ -350,16 +350,19 @@ Run the deterministic gate:
 ```
 
 It rechecks containment, identity and full descendant set, hard protections, Git's index, and live
-handles from current state rather than trusting snapshot annotations. It also proves Linux mount and
-directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
-blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
+handles from current state rather than trusting snapshot annotations. It also proves mount and
+directory-descriptor primitives. Windows returns `execution-platform-unsupported`. A host that
+lacks directory-descriptor anchoring or a readable `/proc/self/mountinfo` returns those
+primitive names instead of a platform-name blocker. Any blocker means no approval prompt and no
+deletion. Fix nothing behind the gate; rescan.
 
 `outcome` names where the preview routes you, and the exit code follows it: `explicit-approval`
 (status `ready-for-explicit-approval`, exit 0); `manual-handoff-lane` (status `blocked`, exit 0),
-when every blocker on every candidate is `execution-platform-unsupported`, a fact about the host
-rather than any path; and `blocked` (exit 3), when any other blocker is present, including beside
-the platform one. Invalid input exits 2. `manual-handoff-lane` issues no approval token, and
-`apply` still refuses it.
+when every blocker on every candidate is a host-wide primitive gap
+(`execution-platform-unsupported`, `dirfd-anchoring-unavailable`, or `mount-state-unverified`);
+and `blocked` (exit 3), when any other blocker is present, including beside a host-primitive
+one. Invalid input exits 2. `manual-handoff-lane` issues no approval token, and `apply` still
+refuses it.
 
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
 it is, why removable, risk, whether it is an empty directory, the single tier, and only then logical
@@ -393,11 +396,12 @@ Report `reclaimable_local_bytes_removed` and the observed free-space delta **aft
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
 
-### Unsupported-platform handoff (Windows, macOS)
+### Unsupported-platform handoff (Windows, and hosts missing apply primitives)
 
-Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
-so the engine never deletes there and the default outcome is the report. When, and only when,
-an execution request was made on one of those platforms and the human approved an exact single-tier
+Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows, and
+`dirfd-anchoring-unavailable` / `mount-state-unverified` where those primitives are missing, so
+the engine never deletes there and the default outcome is the report. When, and only when,
+an execution request was made on one of those hosts and the human approved an exact single-tier
 path list in this session, read
 [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
 it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path

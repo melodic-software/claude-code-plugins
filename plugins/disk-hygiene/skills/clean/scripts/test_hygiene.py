@@ -4141,6 +4141,61 @@ class TargetRootIdentityTests(unittest.TestCase):
             remove.assert_not_called()
 
 
+class ExecutionBlockersPrimitiveTests(unittest.TestCase):
+    """execution_blockers is gated per primitive, not per OS name (#3857)."""
+
+    def test_windows_stays_a_platform_name_blocker(self) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            self.assertEqual([hygiene.PLATFORM_BLOCKER], hygiene.execution_blockers())
+
+    def test_macos_reports_missing_primitives_not_the_platform_name(self) -> None:
+        with (
+            mock.patch.object(hygiene, "os_key", return_value="macos"),
+            mock.patch.object(
+                hygiene,
+                "linux_mount_points",
+                return_value=(set(), "cannot read /proc/self/mountinfo: missing"),
+            ),
+            mock.patch.object(hygiene.os, "supports_dir_fd", new=frozenset()),
+        ):
+            blockers = hygiene.execution_blockers()
+        self.assertNotIn(hygiene.PLATFORM_BLOCKER, blockers)
+        self.assertIn(hygiene.DIRFD_BLOCKER, blockers)
+        self.assertIn(hygiene.MOUNT_BLOCKER, blockers)
+
+    def test_macos_with_dirfd_still_reports_a_missing_mount_primitive(self) -> None:
+        required = frozenset({os.open, os.stat, os.unlink, os.rmdir})
+        with (
+            mock.patch.object(hygiene, "os_key", return_value="macos"),
+            mock.patch.object(
+                hygiene,
+                "linux_mount_points",
+                return_value=(set(), "cannot read /proc/self/mountinfo: missing"),
+            ),
+            mock.patch.object(hygiene.os, "supports_dir_fd", new=required),
+            mock.patch.object(hygiene.os, "supports_fd", new=frozenset({os.scandir})),
+        ):
+            self.assertEqual([hygiene.MOUNT_BLOCKER], hygiene.execution_blockers())
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "Linux host already has both primitives"
+    )
+    def test_linux_host_has_no_execution_blockers(self) -> None:
+        self.assertEqual([], hygiene.execution_blockers())
+
+    def test_linux_mount_points_probes_the_file_not_the_os_name(self) -> None:
+        with (
+            mock.patch.object(hygiene, "os_key", return_value="macos"),
+            mock.patch.object(
+                Path, "read_text", side_effect=OSError("no mountinfo")
+            ),
+        ):
+            points, error = hygiene.linux_mount_points()
+        self.assertEqual(set(), points)
+        self.assertIsNotNone(error)
+        self.assertIn("cannot read /proc/self/mountinfo", error)
+
+
 class PreviewPlatformBlockerExitTests(unittest.TestCase):
     """A platform-only blocker routes to the manual lane, not exit 3 (#4011)."""
 
@@ -4213,10 +4268,16 @@ class PreviewPlatformBlockerExitTests(unittest.TestCase):
             self.blockers(payload),
         )
 
-    def test_other_host_blockers_still_exit_three(self) -> None:
+    def test_host_primitive_blockers_name_the_manual_lane(self) -> None:
         status, payload = self.preview_cli(["dirfd-anchoring-unavailable"])
-        self.assertEqual(3, status)
-        self.assertEqual("blocked", payload["outcome"])
+        self.assertEqual(0, status)
+        self.assertEqual("manual-handoff-lane", payload["outcome"])
+        self.assertIsNone(payload["approval_token"])
+
+    def test_mount_state_blocker_names_the_manual_lane(self) -> None:
+        status, payload = self.preview_cli(["mount-state-unverified"])
+        self.assertEqual(0, status)
+        self.assertEqual("manual-handoff-lane", payload["outcome"])
 
     def test_a_clear_preview_exits_zero_for_explicit_approval(self) -> None:
         status, payload = self.preview_cli([])

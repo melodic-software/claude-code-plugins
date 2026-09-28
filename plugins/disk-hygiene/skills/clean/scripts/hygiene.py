@@ -408,8 +408,6 @@ def _decode_mountinfo_path(value: str) -> str:
 
 
 def linux_mount_points() -> tuple[set[Path], str | None]:
-    if os_key() != "linux":
-        return set(), None
     try:
         lines = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
         points = {
@@ -2826,21 +2824,32 @@ def evidence_adjusted_protections(
 
 
 PLATFORM_BLOCKER = "execution-platform-unsupported"
+DIRFD_BLOCKER = "dirfd-anchoring-unavailable"
+MOUNT_BLOCKER = "mount-state-unverified"
+# Host-wide primitive gaps, identical for every candidate. Preview routes
+# these to the manual handoff lane the way PLATFORM_BLOCKER always did.
+# Windows stays a platform-name decline (#3857 out of scope).
+HOST_PRIMITIVE_BLOCKERS = frozenset(
+    {PLATFORM_BLOCKER, DIRFD_BLOCKER, MOUNT_BLOCKER}
+)
 
 
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
-    if os_key() != "linux":
+    if os_key() == "windows":
         return [PLATFORM_BLOCKER]
+    blockers: list[str] = []
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
-        return ["dirfd-anchoring-unavailable"]
-    if os.scandir not in os.supports_fd:
-        return ["dirfd-anchoring-unavailable"]
-    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
-        return ["dirfd-anchoring-unavailable"]
+        blockers.append(DIRFD_BLOCKER)
+    elif os.scandir not in os.supports_fd:
+        blockers.append(DIRFD_BLOCKER)
+    elif not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        blockers.append(DIRFD_BLOCKER)
     _, error = linux_mount_points()
-    return ["mount-state-unverified"] if error else []
+    if error:
+        blockers.append(MOUNT_BLOCKER)
+    return blockers
 
 
 def windows_handle_state(path: Path) -> tuple[str, str | None]:
@@ -3114,15 +3123,14 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
-    # A blocker that is a fact about the platform, identical for every
+    # A blocker that is a fact about the host, identical for every
     # candidate, routes the operator to the manual handoff lane; only a
     # blocker about a path means "do not proceed".
-    platform_only = {reason for item in results for reason in item["blockers"]} == {
-        PLATFORM_BLOCKER
-    }
+    host_blockers = {reason for item in results for reason in item["blockers"]}
+    host_only = bool(host_blockers) and host_blockers <= HOST_PRIMITIVE_BLOCKERS
     if not blocked:
         outcome = "explicit-approval"
-    elif platform_only:
+    elif host_only:
         outcome = "manual-handoff-lane"
     else:
         outcome = "blocked"
