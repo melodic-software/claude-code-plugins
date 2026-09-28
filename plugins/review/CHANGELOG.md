@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0] - 2026-09-28
+
+### Security
+
+- **Pull-request explainers go through a checked-in escape helper (#3605).**
+  `/review:pr-explainer` writes the markdown record first (risk map, file-by-file
+  tour, where to focus) and offers a self-contained HTML page. The page is built
+  only by `skills/pr-explainer/scripts/build-explainer.mjs`, which escapes every
+  interpolated field with the synced `lib/html-escape.mjs` and stamps a generator
+  marker. `validateRenderedPage` flags a page assembled without that helper,
+  including a hand-written page and a forged marker. The markdown record stays
+  the deliverable. Adversarial diff text (markup, quotes, handler attributes)
+  renders as text.
+
 ## [0.32.0] - 2026-09-28
 
 ### Changed
