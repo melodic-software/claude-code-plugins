@@ -21,6 +21,7 @@
     "Dropbox (*)",
     "OneDrive - *"
   ],
+  "os_temp_recommendation_threshold_bytes": 1073741824,
   "hints": [
     {
       "id": "common-temp-file",

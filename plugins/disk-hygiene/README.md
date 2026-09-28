@@ -67,9 +67,8 @@ at preview. Backups remain the recovery boundary for user data.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
   exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
   `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
-  Recycle-Bin handoff offered only after an execution request and explicit approval. The
-  request is `--execute` or the user's own in-session request after the audit report, and it
-  gates every deletion lane, manual included. The Recycle-Bin / Trash naming is a model-layer
+  Recycle-Bin handoff offered only when `--execute` was requested and after explicit approval
+  (the flag gates every deletion lane, manual included). The Recycle-Bin / Trash naming is a model-layer
   distinction only, the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
@@ -83,13 +82,13 @@ Verify this machine's prerequisites and platform posture with `/disk-hygiene:set
 
 ## How the guard is registered
 
-**All three** hook registrations, both wired hooks and the skill-scoped belt, use **exec form**
-with `"command": "node"`. `args` is `hooks/exec-bash.mjs`, then
-`hooks/run-python-hook.sh` and that script's arguments. `node` is a real executable. The
-launcher finds Git Bash and never `System32\bash.exe`. Bare `bash` or `python3` as `command`
-is the launch that fails open on Windows: the WSL relay and the WindowsApps alias stub, and a
-failed hook launch is non-blocking, so the guard would silently enforce nothing. The launcher
-resolves Python itself instead (#1504, #3686).
+**All three** hook registrations, both wired hooks and the skill-scoped belt, use **shell form**:
+the `command` string is `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...` with
+`"shell": "bash"` and no `args`, so Claude Code routes it through Git Bash itself instead of
+resolving the command on `PATH`, and that `bash` is looked up by Git Bash on its own `PATH`. Exec form does not survive Windows, where a bare `PATH` lookup finds the WSL relay
+`System32\bash.exe` before Git Bash, or the zero-length `WindowsApps\python3.exe` App Execution
+Alias stub; the launch fails, and a failed hook launch is non-blocking, so the guard silently
+enforces nothing. The launcher resolves Python itself instead (#1504).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
@@ -125,31 +124,14 @@ skill the guard's absolute Python and authorized `--data-root`, resolved by the 
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
 guard still judges every call.
 
-**Windows `python3` gotcha, and what the guard does when no Python resolves.** Every hook resolves
-Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
+**Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves Python
+through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
-skill-scoped belt included. A PreToolUse hook blocks a tool call only with exit code 2 or a `deny`
-decision, and one that exits 0 with nothing to say reads as approval
-([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run used to look exactly
-like one that ran and allowed. Since 0.26.0 (#3861) the launcher answers for the guard when the
-ladder is exhausted, on the call itself, the same way the guard's watchdog answers "could not
-decide":
-
-| Surface | No interpreter resolves |
-|---|---|
-| `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
-| Skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
-| Plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
-| Plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-
-The last row is the one fail-open left, and it is deliberate. Those are the commands the guard would
-have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
-missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
-stop work (and deny outright under `-p`) on a host whose only fault is having no Python. The
-residual is an engine reached without its file name appearing in the payload, the identity class the
-guard itself documents. The Stop detector stays as the end-of-turn backstop and repeats a summary of
-the same report.
-
+skill-scoped belt included. When no interpreter resolves anywhere on the ladder, the guard fails
+open: a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny` decision
+([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither, and Claude
+Code treats the non-blocking result as approval, so the destructive Bash/PowerShell command proceeds
+ungated. The Stop detector emits a `systemMessage` in that case so the blind spot is visible.
 `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
 or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
 or `py -3` is a **WARN**, not a FAIL: every guard launches there, and the residual is only that a
@@ -210,11 +192,6 @@ launched.
 /disk-hygiene:clean --policy <policy.json> <target-directory>
 ```
 
-`--root-children` with `--root-child <name>` inventories only the named immediate children of the
-target. That is required for an OS-managed volume root (the root itself is never walked) and is
-also how a depth-1 home audit re-inventories the directories the operator approved, without
-walking the rest of the home.
-
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 
@@ -253,24 +230,23 @@ advisory naming the OS mechanism that should own it (Windows Storage Sense, syst
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
 hand-cleaning the zone.
 
-## Volume-root coverage
+On Windows the advisory also sums the user temp directory's regular-file sizes in a read-only walk
+that follows no links and stops after 100,000 entries. The result is reported as `temp_zone`, and
+the size is a floor when `complete` is false. The recommendation then depends on size against
+`os_temp_recommendation_threshold_bytes` in `skills/clean/reference/baseline-policy.json` (1 GiB by
+default):
 
-`--root-children` on an OS-managed volume root never walks the root itself. Immediate children are
-admitted or withheld one `scandir` deep. This supersedes #2588 criterion 2 (the volume root's own
-files are never inventoried): regular files now use the same admission ladder as directories.
+| Temp directory size | Storage Sense | `recommendation` |
+|---|---|---|
+| At or above the threshold | On, temporary-files cleanup on | Run Storage Sense now (Settings > System > Storage > Storage Sense) |
+| At or above the threshold | On, temporary-files cleanup off | Turn on temporary-files cleanup and run it now |
+| At or above the threshold | Off or not detected | Enable it on a schedule; a manual run is available either way |
+| Below the threshold | Any | `null` |
 
-| Never covered | Why |
-|---|---|
-| The volume root itself | Whole-root recursive walk is refused |
-| OS-owned directory names (`Windows`, `/usr`, `Users`/`home`, …) | Per-platform directory set |
-| OS-owned file names (`pagefile.sys`, `/swapfile`, `vmlinuz*`, `.file`, …) | Per-platform file set |
-| Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
-| Symlinks, reparse points, cloud placeholders | Ambiguous identity |
-| Nested mounts and baseline-protected shell-folder names | Existing hard stops |
-| Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
+The text quotes the detected on/off state, schedule, and temporary-files scope. The advisory never
+runs Storage Sense, and it changes nothing about what the engine may delete in that directory.
 
-User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, but
-`C:\vc_redist.x64.exe` is not) can be selected with `--root-child NAME` and inventoried as a file.
+## Relationship to other tools
 
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
@@ -384,10 +360,9 @@ measurements below carry the conditions they were taken under.
   run-to-run noise on that host (52–58 ms both before and after, the sign of the difference
   changing between repetitions), which is why the syscall census rather than a duration is the
   figure cited here.
-  On a machine where no Python 3 interpreter resolves at all, the gate denies every command naming
-  the engine and lets the rest through with a once-per-session notice, and the `Stop` detector
-  repeats that as a `systemMessage` (#1110, #1504, #3861; the table under the Windows `python3`
-  gotcha states each surface). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
+  On a machine where no Python 3 interpreter resolves at all the gate fails
+  open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
+  visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
   registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
   platform managed-settings.json. The added trust surface is that settings-file *read*, bounded to a
@@ -408,12 +383,9 @@ measurements below carry the conditions they were taken under.
   double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
   substituted value (both placeholders resolve under Claude Code's own install and data roots). The
   invariant is therefore **maintained by test**, not structural, `hooks/run-python-hook.test.sh`
-  asserted, at 0.17.8, that the launcher was named in `command`, `args` was absent, and
-  `shell: bash` was declared. **0.28.5** moves those registrations to exec form
-  (`"command": "node"`, `args` naming `hooks/exec-bash.mjs` then `hooks/run-python-hook.sh`).
-  **0.28.6** makes the skill belt's `args` a YAML sequence. The tests assert that shape, and
-  `test_hygiene.py`'s hook helpers stay form-agnostic so a later form change cannot make an
-  assertion vacuously green. Interpolating anything beyond those two
+  asserts the launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every
+  placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
+  entry can never make an assertion vacuously green. Interpolating anything beyond those two
   placeholders into the command string would open a live injection surface; a repo-wide CI gate for
   this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
   skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same
@@ -426,8 +398,8 @@ measurements below carry the conditions they were taken under.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this did **not** change was the guard's no-interpreter behavior, which 0.26.0 (#3861)
-  later made fail-closed for the belt: it now denies every call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  path. What this does **not** change is the guard's no-interpreter behavior, the launcher still
+  exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
