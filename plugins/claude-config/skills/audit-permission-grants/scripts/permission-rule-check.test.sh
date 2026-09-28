@@ -526,6 +526,17 @@ mkdir -p "$D10C/.claude"
 printf '{ "permissions": { "allow": [ "Bash(python*)"\n' >"$D10C/.claude/settings.json"
 OUT=$(run "$D10C")
 assert_contains "unparsable settings file is named, not skipped in silence" "$OUT" "project: NOT VALID JSON"
+assert_contains "a user or project parse failure names /status" "$OUT" "/status"
+
+# 10c2: Bash(ls) x is a malformed rule, not a narrow Bash(ls) grant. A path
+# that contains parentheses is one rule and is not malformed.
+D10C2="$TEST_TMPDIR/malformed-rule"
+mkdir -p "$D10C2/.claude"
+printf '%s\n' '{"permissions":{"allow":["Bash(ls) x","Edit(./Finance (2024)/**)"]}}' >"$D10C2/.claude/settings.json"
+OUT=$(run "$D10C2")
+assert_contains "trailing text is a malformed rule" "$OUT" "malformed Tool(content) rule"
+assert_contains "the finding names Bash(ls) x" "$OUT" "Bash(ls) x"
+assert_not_contains "a path parenthesis is not malformed" "$OUT" "Finance"
 assert_contains "unparsable file is counted under NOT read" "$OUT" "NOT read:"
 assert_not_contains "a run whose only rules file will not parse is not a clean bill" "$OUT" "No fragile permission grants found."
 

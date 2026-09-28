@@ -1,5 +1,25 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.11] - 2026-09-28
+
+### Changed
+
+- **`write-for-agents` lists the system-prompt file and subagent append flags**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
+  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
+  rows are in `docs/specs/agent-doc-surfaces.md`.
+
+## [0.23.10] - 2026-09-28
+
+### Changed
+
+- **`write-for-agents` lists the system-prompt file and subagent append flags**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
+  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
+  rows are in `docs/specs/agent-doc-surfaces.md`.
+
 ## [0.23.9] - 2026-09-28
 
 ### Changed
