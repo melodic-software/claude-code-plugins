@@ -215,6 +215,7 @@ if [[ "$action" == record ]]; then
       for name in ${files[@]+"${files[@]}"}; do
         case "$name" in
         packet.sha256 | packet.sha256.*) continue ;;
+        *) ;;
         esac
         file="$packet/$name"
         if [[ -L "$file" ]]; then
