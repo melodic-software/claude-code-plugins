@@ -1,5 +1,3 @@
-# Changelog: session-flow plugin
-
 ## [0.38.9] - 2026-09-28
 
 ### Changed
@@ -9,6 +7,8 @@
   Claim provenance now marks a pending CI, merge, or unreturned check
   `UNVERIFIED (<check>)`. A pending-verification field in the shape is parked in
   `skills/handoff/reference/pending-ci-caveat.md`.
+
+# Changelog: session-flow plugin
 
 ## [0.38.8] - 2026-09-28
 
