@@ -115,7 +115,8 @@ personal variation is limited to lane names the team does not track: an uncommit
 - Graceful degrade: if the `discovery` plugin is installed, explore/research
   phases use `/discovery:explore` + `/discovery:research`; if `work-items` is
   installed, deferrals file through `/work-items:track add`; if
-  `pr-review-toolkit` is installed, batch-simplify uses its `code-simplifier`
+  `code-simplifier` (or legacy `pr-review-toolkit`) is installed, batch-simplify uses its
+  `code-simplifier`
   agent. Absent any of them, the skills fall back to inline
   exploration/research, `gh issue create`, and general-purpose agents.
 - Reads your conventions, assumes none: canonical build/test/lint commands,

@@ -66,7 +66,12 @@ function Get-NormalizedPathEntry {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] [string] $PathEntry)
 
-    return $PathEntry.Trim().TrimEnd('\', '/').ToLowerInvariant()
+    # Windows accepts both separators for the same directory. A REG_EXPAND_SZ
+    # value often keeps a forward slash after the expanded token
+    # (%SystemRoot%/System32) while the live process PATH uses backslashes.
+    # Scope lookup compares those two strings, so leave them in one form.
+    $normalized = $PathEntry.Trim().TrimEnd('\', '/').ToLowerInvariant()
+    return $normalized.Replace('/', '\')
 }
 
 function Get-ExpandedPathEntry {

@@ -185,9 +185,10 @@ Three artifacts, one direction of flow:
 
 1. **The store**, a committed, hand-editable JSON file (default `docs/native-surfaces/records.json`
    in this repository; configurable). It is the SSOT. Every row carries: the native surface with its
-   provenance class and hidden/gated markers, our component, the verdict and its reason, evidence, a
-   class-tagged observation record, a recheck trigger with its verified date, `baked` flags, and the
-   budget caveat.
+   provenance class and markers (`hidden`, `gated`, `model-invocation-disabled`), our component, the
+   verdict and its reason, `integration` (`route`, `wrap`, or `suggest`), evidence, a class-tagged
+   observation record, a recheck trigger with its verified date, `baked` flags (`description_phrase`,
+   `boundary_section`, `native_step`, `suggest_sentence`), and the budget caveat.
 2. **The generated view**. `docs/native-surfaces.md`, rendered from the store between HTML
    markers, per provenance lane. Never hand-edited; a `--check` mode regenerates and diffs.
 3. **The self-check**, a deterministic script over what is locally decidable: store parses and
@@ -230,12 +231,19 @@ section written for some other surface never passes for this row.
 
 **The description phrase is the gated `apply`.** `apply` edits one plugin at a time. Preconditions,
 all required: the store has a row for the pair; the row's verdict is not `defer`; the row's
-observation class is extraction-evidence (session-provided rows are never baked); and the user
+observation class is extraction-evidence (session-provided rows are never baked); the row's
+`integration` is not `route` when a Native step or suggest sentence is to be written; the row
+does not carry `model-invocation-disabled` when a Native step is to be written; and the user
 asked for this plugin by name. It emits one clause, front-loaded, carrying the presence gate
 ("when the bundled &lt;name&gt; skill resolves in your session, prefer it for …; this skill for
-…"), the provenance class, and the routing split. It must fit inside the per-entry cap with the
-existing description, and it cites nothing outside its own plugin, a shipped plugin has no copy of
-this repository's registry, so a citation would be a broken reference at install time.
+…"), the provenance class, and the routing split, and, when `integration` is `wrap` or
+`suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
+`when_to_use` after baking must fit the per-entry cap the native-references convention records,
+measured by `bash plugins/skill-quality/scripts/check-skill.sh <skill>`; a row that would exceed
+the cap is not baked. Every wrapped or suggesting skill declares `unattended` in its
+`argument-hint`. The
+emitted text cites nothing outside its own plugin, a shipped plugin has no copy of this
+repository's registry, so a citation would be a broken reference at install time.
 
 Then set the row's `baked` flags and re-run the self-check. Parity is **direction-sensitive**:
 every baked line must trace to a store row, and a claimed Boundary section must name that row's
