@@ -210,6 +210,11 @@ cmd_partition() {
       ;;
     S) split_rows+="split=$a:$b"$'\n' ;;
     O) over_rows+="over_budget=$a"$'\n' ;;
+    "") ;;
+    *)
+      printf 'lane-runs: unknown plan row kind %s\n' "$kind" >&2
+      return 1
+      ;;
     esac
   done <<<"$plan"
 
