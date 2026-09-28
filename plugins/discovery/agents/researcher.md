@@ -58,7 +58,8 @@ load-time machinery, no user turn, no unresolved scope.
   while a missing reason is invisible. You research the topic as written, return something
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a topic is the one wanted.
-- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth
+  as `low`, `medium`, or `full` (parent contract, "`Budget:` vocabulary");
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
   reserve your last turns" below). A value above that default is ignored and noted in
@@ -66,8 +67,8 @@ load-time machinery, no user turn, no unresolved scope.
 - **Source breadth**: `low`, `medium`, `high`, `xhigh`, or `max`. This is the *caller's*
   effort, written by the parent. Your frontmatter pin is `high` so reasoning does not
   degrade; that pin is why a substituted effort in a preloaded skill body is not this
-  value. Follow the envelope line for the source-breadth table in the research skill.
-  If the line is absent, treat the run as `high`, name that default in the artifact,
+  value. Follow the envelope line for the source-breadth table in the research skill,
+  or the lower row `Budget:` authorizes when it names one. If the line is absent, treat the run as `high`, name that default in the artifact,
   and mention the omission in `open_questions`. Dated record:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Harness facts the dispatch design rests on".

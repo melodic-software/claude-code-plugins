@@ -64,7 +64,7 @@ Agent({
            Reason: <the decision this research feeds, and who the output is for — on the N-topic path, the slice of that decision THIS topic answers>
            Memory slice: <memory_dir>/<slug>/ — on the N-topic path, the <topic-slug>/ sub-slice assigned to THIS topic
            Memory root: <memory_dir>
-           Budget: <the depth this session authorized>
+           Budget: <low|medium|full>, optionally followed by words on the depth this session authorized
            Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
            Capability flags: nested spawning <available|unavailable>
            Source breadth: <low|medium|high|xhigh|max, resolved from this session's caller effort; write high if the substitution is a literal placeholder>

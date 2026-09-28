@@ -1,6 +1,6 @@
 ---
-description: "Multi-source external research in chained phases, corpus enumeration, broad, targeted + falsification, preferred sources, with per-claim source tiers, recency checks, a coverage ledger, and a binary outcome gate before presenting. Dispatches a fresh-context subagent by default so the research transcript stays out of the main conversation, with a documented inline escape hatch. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', or grounding any decision in current authoritative sources instead of training data. This is the right skill for a single topic, including a small one. For a multi-topic or workflow-driven pass that fans one question across several dispatches, use research-deep, which layers tiered execution on this same discipline."
-argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
+description: "Multi-source external research in chained phases, corpus enumeration, broad, targeted + falsification, preferred sources, with per-claim source tiers, recency checks, a coverage ledger, and a binary outcome gate before presenting. Dispatches a fresh-context subagent by default so the research transcript stays out of the main conversation, with a documented inline escape hatch. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', or grounding any decision in current authoritative sources instead of training data. This is the right skill for a single topic, including a small one; pass breadth=low to narrow a small question. For a multi-topic or workflow-driven pass that fans one question across several dispatches, use research-deep, which layers tiered execution on this same discipline."
+argument-hint: "[breadth=low|medium] [topic] (e.g., /discovery:research breadth=low <library> <version> changelog, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -35,7 +35,7 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 **Run inline instead when any of these holds**, and inline runs the identical discipline; the escape hatch relaxes nothing below:
 
 - **Tight turn-by-turn iteration**. You will redirect the queries as they land. Dispatch is a pre-run choice; the steering loss is mid-run.
-- **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name.
+- **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name. Inline moves that cost into this context without reducing it; `breadth=low` (see "Effort, source breadth") is what reduces it.
 - **The invoking context is already a subagent**. Dispatch-by-default is scoped to the main-conversation boundary, so a subagent invoking this skill runs it inline. The outer dispatch already supplied the fresh context. Hoisting, not nesting.
 
 **Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
@@ -81,6 +81,8 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 Research the following topic: $ARGUMENTS
 
+A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth".
+
 **A dispatched run does not read that line.** The topic does not reach a preloaded body by argument substitution, and a non-fork subagent has no conversation to fall back on, so **do not rely on seeing an unfilled slot**. Whatever the line above renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. What is and is not documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no topic supplied above, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
 
 **Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `topic_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
@@ -98,7 +100,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 7. **One falsification query in Phase 2**. Phase 2 includes exactly one query that attempts to falsify the leading hypothesis from Phase 1; without it Phase 2 confirms Phase 1 by default
 8. **Broad-topic auto-detect → doubled minimums**, when the topic involves 2+ vendors / 2+ tools / 3+ proper-noun products / comparison ("X vs Y") / migration ("X replaces Y") → 6+ queries per phase, 12+ total, 5+ tool types, 4+ Tier 0/1 sources per claim
 9. **Phases chain through a WRITTEN analysis**. Phase 2 consumes the gap/conflict/leading-hypothesis list emitted at the end of Phase 1; each Phase 2 query maps to a named entry in it. Phase 3 chains the same way off the Phase 1+2 list. A query not traceable to a prior-phase gap is unchained, the written list IS the broad→deep link, intent is not
-10. **Task size does not reduce phase count**, a one-line config change gets the same treatment as a multi-file feature
+10. **Task size does not reduce phase count**, a one-line config change gets the same treatment as a multi-file feature. Only the Effort table reduces it, at the row caller effort or a `breadth=` token selects
 11. **Confidence tracked per claim**. HIGH / MEDIUM / LOW per the discipline file's "Confidence calibration." A LOW-confidence claim is not a basis for a code edit; iterate until HIGH
 12. **Primary source fetched directly, not via the SERP**. For every accepted claim, name the canonical doc home and fetch it directly with whatever direct-fetch tool is connected this session, top-down through the discipline file's artifact ladder (an announcement page is not the vendor's deepest artifact); SERP + synthesis tools only DISCOVER what to fetch and find corroborators, never serve as the terminal source
 13. **Outcome gate before presenting**, the run self-checks its own evidence table + written gap lists + fetch log against binary criteria; any FAIL returns to the named phase (see "Outcome gate")
@@ -113,6 +115,14 @@ skill-loaded, so the substitution never ran: treat the run as `high` and run eve
 Dated record: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
+
+**`breadth=` narrows, never widens.** A `breadth=low` or `breadth=medium` token in `$ARGUMENTS`
+selects that row when it is below caller effort; source breadth is the lower of the two, so the
+token never raises a run above `${CLAUDE_EFFORT}`, and nothing here widens the researcher's
+`maxTurns: 40`. A dispatched run writes the resolved row to `Source breadth:` and the matching word
+to `Budget:` (parent contract, "`Budget:` vocabulary"). Without the token, lowering session effort
+before invoking is the other lever. Use `low` for a question about one named artifact, folder, or
+version.
 
 | Effort | Source breadth |
 |---|---|
@@ -254,7 +264,7 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 - **Does not make decisions**. Presents verified evidence; the planning step (or user) decides
 - **Does not write code**. Researches only; execution is a separate step
-- **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases
+- **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases, at the row caller effort or a `breadth=` token selects
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
 
 ## See also

@@ -1,5 +1,22 @@
 # Changelog: discovery plugin
 
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **`/discovery:research breadth=low|medium` narrows a small question below caller effort.** The
+  only depth lever was session effort, so at `effortLevel: high` a one-folder question ran the
+  full Phase 0-3 workflow and hit the researcher's 40-turn limit. The token selects a lower Effort
+  row; source breadth is the lower of the token and `${CLAUDE_EFFORT}`, so it never raises a run
+  and never widens `maxTurns: 40`. The parent strips it from the topic and writes the resolved row
+  to `Source breadth:`. The `argument-hint` shows it, and the inline "Cost" hatch now says inline
+  moves the cost rather than reducing it (#4230).
+- **`Budget:` has a defined vocabulary.** The parent contract's new "`Budget:` vocabulary" table
+  is the one place the values live: `low`, `medium`, and `full`, each mapped to a research Effort
+  row. A research worker runs the lower of `Budget:` and `Source breadth:`, and the narrowing-only
+  rule now appears in the parent contract and research SKILL.md, not only in research-deep. All
+  three agents read the word. `contract.test.sh` pins the token, the rule, and the table (#4230).
+
 ## [0.24.7] - 2026-09-27
 
 ### Added

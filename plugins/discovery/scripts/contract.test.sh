@@ -151,6 +151,21 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# A breadth token narrows a small question below caller effort, and Budget: has
+# one vocabulary mapped to Effort rows (#4230).
+assert_present 'research argument-hint shows the breadth token' \
+  'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
+assert_present 'research SKILL.md states breadth narrows and never widens' \
+  'skills/research/SKILL.md' '^\*\*`breadth=` narrows, never widens\.\*\*'
+assert_present 'the parent contract defines the Budget: vocabulary once' \
+  'reference/parent-contract.md' '^### `Budget:` vocabulary$'
+for word in low medium full; do
+  assert_present "the Budget: vocabulary maps $word to an Effort row" \
+    'reference/parent-contract.md' "^\| \`$word\` \| \`(low|medium|high)\`"
+done
+assert_present 'the parent contract envelope opens Budget: with the vocabulary' \
+  'reference/parent-contract.md' '^Budget: <low\|medium\|full>'
+
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
 #

@@ -44,7 +44,8 @@ inventory.
   while a missing reason is invisible. You explore the scope as written, return something
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a scope is the one wanted.
-- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth
+  as `low`, `medium`, or `full` (parent contract, "`Budget:` vocabulary");
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
   reserve your last turns" below). A value above that default is ignored and noted in
