@@ -3,6 +3,90 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `scan-todos` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **work-loop: document background-job launch mode and the escalation record write ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Step 5 names the harness block on the shared default-branch checkout, why `EnterWorktree` is forbidden, and that the tracker marker remains the escalation of record when the Write tool is refused. Loop-lane convention §2 and `escalation-marker.md` carry the same guidance.
+
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- Trimmed the nine model-invocable skill descriptions to 500 characters or fewer each, keeping
+  every skill's trigger phrases and its routing pointer (#4657). The plugin's listing-budget
+  aggregate (`check-listing-budget.sh plugins/work-items/skills`) drops from 7,651 to 4,212
+  characters, and the fleet aggregate from 149,643 to 146,204. `decompose` no longer breaches
+  the 1,024-codepoint cap, so its row leaves `scripts/skill-description-cap-baseline.txt`.
+  `setup` is `disable-model-invocation: true`, is never listed, and is unchanged.
+
+## [0.41.0] - 2026-09-27
+
+### Added
+
+- Tracker seam `release <id> --lease-comment-id <n>` verb. It ends the caller's own live lease
+  early by setting `superseded_at`. It acts only on the item's active lease, held by the
+  authenticated login, and refuses anything else with exit `7`. An already-superseded or expired
+  lease is a no-op (`released: false`). Assignees are left alone. The GitHub adapter implements
+  it. The linear, local-markdown, gitea, and jira manifests declare it `false` (exit `6`), and a
+  manifest with no `release` key degrades the same way (#4609).
+- Conformance and GitHub lease-coordination cases for `release`, including attended claim, flip,
+  release, and then a same-login claim that succeeds where it previously backed off.
+
+### Changed
+
+- `attend-queue` releases the row's lease right after the flip and the `@me` clear (and after a
+  human-gated disposition), so worker lanes running as the same login can claim a just-flipped
+  item at once instead of waiting out the 24-hour TTL.
+
+### Fixed
+
+- `claim` usage (dispatcher, `CONTRACT.md`, and the github, linear, and local-markdown adapters)
+  now lists `--ttl-minutes` and states that it adds to `--ttl-hours`; a sub-hour lease is
+  `--ttl-hours 0 --ttl-minutes <n>`.
+
+## [0.40.32] - 2026-09-27
+
+### Changed
+
+- The `work_dispatch_concurrency_cap` description, the README, and `work` name what the cap bounds:
+  the worker rows of one plan phase that `/implementation:implement-dispatch` runs at once, one
+  dispatch wave, in place of "concurrent dispatch waves". Rows that share a worktree under the
+  default `worker` commit authority still run one at a time, per implementation 0.19.1 (#4262).
+
+## [0.40.31] - 2026-09-27
+
+### Fixed
+
+- `triage` no longer gives a lane that may not write `work-class:` labels two contradictory
+  instructions. For a delegable or decision-defaulted outcome, such a lane now applies
+  `status:ready` and the human-gated role label and posts a `kind=escalated` marker comment with
+  a `Proposed work class:` line. It never applies `agent-ready` without a class, and it never
+  leaves the item at `status:ready` with no role label, which no queue lists (#4605).
+- `attend-queue` resolves such a row with one stamp-then-flip edit: the operator confirms the
+  class, and that edit applies the `work-class:` label and the autonomous-eligible role and
+  removes the human-gated role. When the session may not write class labels either, it hands the
+  operator the edit to paste. An item with no class never takes the plain flip.
+- `escalation-marker.md` documents the optional `Proposed work class:` body line (no new `kind`),
+  and `work-loop`'s intake sweep gives this marker the same escalation-record write as
+  `routed-advisory`.
+
+## [0.40.30] - 2026-09-27
+
+### Fixed
+
+- `work-loop`'s admission gate now drops a frontier candidate that already has an open closing PR
+  (drafts included) before classifying it, using `/work-items:work`'s in-flight exclusion rule and
+  the adapter's "Open linked PRs" operation. Such an item is no longer ratify-queued, escalated,
+  or dispatched, its labels are left alone, and the cycle report lists it as in flight. A failed
+  check excludes the item for that cycle (#4610).
+
 ## [0.40.29] - 2026-09-27
 
 ### Fixed

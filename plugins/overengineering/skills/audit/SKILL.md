@@ -1,5 +1,5 @@
 ---
-description: "Audit an existing enforcement surface. Agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations. Under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when the ask is to assess the enforcement surface ('audit our enforcement surface', 'is our CI overengineered'), to find which incumbents can be retired ('are these hooks still earning their keep', 'do we still need this gate'), to name enforcement clutter or process cruft, or to reconstruct why a check exists. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
+description: "Audit an existing enforcement surface under evidence-earned-keep: every incumbent is a retirement candidate until evidence earns its keep; security-class items cap at flag-for-human. Read-only: walks and reports; never mutates the surface. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'do we still need this gate', or to name enforcement clutter. Not for proposing NEW automation. Sibling realign executes accepted findings."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -76,7 +76,12 @@ none.
 **Writing the artifact from a delegated run.** Some harnesses refuse a report-shaped filename from a
 delegated or dispatched executor, the `unattended` caller below is exactly that. The sanctioned
 route is the file-write tool: write the full content to a neutral filename in the artifact's own
-directory, then rename it to the contract's filename. **A shell content-write is never acceptable.**
+directory, then rename it to the contract's filename. **An `unattended` run takes this route from
+its first write**, without waiting for a refusal; an attended run writes the contract filename
+directly and switches to the route at the first refusal. **The route covers every write of the
+artifact**, each per-layer checkpoint and the re-read-and-merge write that produces it (see "The
+walk"), not only the first or the last. A run that saves the artifact once at the end has lost
+every checkpoint the per-layer write exists for. **A shell content-write is never acceptable.**
 It routes the deliverable around the write path the harness governs, and quoting, expansion, and
 encoding silently transform what it carries. Where neither route is available, say so and stop.
 
@@ -116,6 +121,16 @@ Parse `$ARGUMENTS`:
 - Anything else, a free-text focus hint (a path, a mechanism name). Narrow attention with it; it
   does not change the layer scope, and a hint that matches nothing is reported, not silently dropped.
 
+The inline report groups by custody: in-repo findings first and in full; out-of-repo findings
+(user- and machine-scope settings, plugin hook manifests owned upstream) as one summary row per
+owner. The findings artifact is unchanged. See
+[context/report-template.md](context/report-template.md) "Custody grouping".
+**Claim:** the walk still covers every settings scope; only the inline report groups out-of-repo
+findings per owner. **Basis:** issue #4596 after #4597 scoped the playbooks repo-sweep entry off
+the four org-level layers; a direct `/overengineering:audit` still walks every harness-merged
+scope. **As of:** 2026-09-28. **Recheck:** when this skill gains a custody-scope argument or stops
+walking user or machine settings.
+
 ## Before the walk
 
 1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
@@ -127,7 +142,14 @@ Parse `$ARGUMENTS`:
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
    default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
-   opening line**, naming the path just resolved.
+   opening line**, naming the path just resolved. **An `unattended` run then probes the write
+   path** before any layer is walked: with the file-write tool, write a neutral file in the
+   artifact's directory, rename it to a second neutral name there, and delete it. The probe never
+   renames onto the contract filename, so a prior artifact is left untouched, and it leaves no file
+   behind. It is part of the findings-artifact write, not a third auxiliary write, and a run with no
+   branch identity, which writes nothing, has nothing to probe. When the write
+   or the rename is refused, name the refusal and stop before walking, as for a run where neither
+   route is available.
 2. **Resolve consumer configuration**. Protected categories, threshold overrides, the observation
    window, and suppression entries, from the consuming repo's `.claude/overengineering.md` through
    the config-cascade layering. Keys, defaults, per-key merge forms, and which layer may weaken what

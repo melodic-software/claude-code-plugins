@@ -171,6 +171,14 @@ if command -v playwright-cli >/dev/null 2>&1; then
   eport=$(sed -n 's/^PORT=//p' "$e/.interview-session.env" | tr -d '\r')
   sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
   pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
+  # Phase 5, same server: an interview round 3, then a newer design round 1, for the header's
+  # derived round across two stages.
+  for r in interview-3:3 design-1:1; do
+    bash "$here/round.sh" --dir "$e" add-round --file "tests/fixtures/ui_d/round-${r%:*}.json" --round "${r#*:}" >/dev/null ||
+      bad "ui_c.5: add-round ${r%:*} refused"
+  done
+  sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
+  pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
   # flow on one page in seven phases; the shell writes as Claude between them.
@@ -240,11 +248,11 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 7
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
-  for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 254 browser checks not run, 100 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 254))
+  echo "SKIP: 262 browser checks not run, 100 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 262))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

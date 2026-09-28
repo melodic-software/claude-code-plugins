@@ -977,6 +977,35 @@ else
   ok "SKIP: strace unavailable — process-creation budget not asserted here"
 fi
 
+# C. Oversize envelope, unchanged inputs, ids ahead of tool_calls (#4392).
+# The here-string jq used to run before the skip could see the session id.
+# The leading-scalar cut lets the builtin parser answer, so this fire matches
+# the small steady budget: zero command-position spawns.
+OVER=$(python3 -c 'print("x"*70000, end="")')
+TRACE_LOG3="$WORK/inject-xtrace-oversize.log"
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch","tool_calls":[{"tool_response":"%s"}]}' "$OVER" |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$TRACE_LOG3"
+TRACE3_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG3" 2>/dev/null | tr -cd '0-9')
+TRACE3_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG3" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$TRACE3_SPAWNS" == "0" ]]; then
+  ok "trace: an oversize unchanged envelope spawns nothing when ids precede tool_calls"
+else
+  fail "trace: oversize steady path spawns $TRACE3_SPAWNS, budget is 0: $TRACE3_DETAIL"
+fi
+
+# Ids after the nested array are not in the leading object. The jq fallback
+# must still see them: a fresh dumb snapshot injects.
+write_snapshot "$TH" safter 90
+AFTER_OUT=$(printf '{"tool_calls":[{"tool_response":"%s"}],"session_id":"safter","hook_event_name":"PostToolBatch"}' "$OVER" |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+AFTER_RC=$?
+if [[ $AFTER_RC -eq 0 && "$AFTER_OUT" == *additionalContext* ]]; then
+  ok "oversize payload with ids after tool_calls still injects"
+else
+  fail "oversize fallback suppressed injection: rc=$AFTER_RC out=${AFTER_OUT:0:120}"
+fi
+
 # --- Redirection placement must not change what the hook emits ----------------
 # The fork reduction moved `2>/dev/null` off three command substitutions and
 # onto their enclosing groups. A group redirect covers everything in the group,

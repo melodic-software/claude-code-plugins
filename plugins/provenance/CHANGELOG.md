@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.1] - 2026-09-28
+
+### Changed
+
+- Version serializes with `attribution` 0.6.1; the shim still points at `/attribution:audit`.
+
+## [0.6.0] - 2026-09-27
+
+### Deprecated
+
+- **This plugin is now `attribution`.** Every skill, script, and reference moved to
+  `attribution@melodic-software`: `/provenance:audit` is `/attribution:audit` and
+  `/provenance:setup` is `/attribution:setup`. This version is a deprecation shim: its two skills
+  only tell you where the real skill went and do no work. Install `attribution@melodic-software`,
+  remove `provenance@melodic-software` from `enabledPlugins`, and rename `.claude/provenance.json`
+  to `.claude/attribution.json`. The shim is removed in a later release.
+
 ## [0.5.16] - 2026-09-27
 
 ### Fixed

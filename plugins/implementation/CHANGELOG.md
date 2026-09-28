@@ -3,6 +3,89 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.6] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` run-end keeps the Step 5 `/verification:confirm` route; post-phase
+  worker/verifier pairing is parked
+  ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).**
+  `skills/implement-dispatch/reference/run-end-outcome-verify.md` records Option A and the
+  unpaid route.
+
+## [0.19.5] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` keeps the per-phase fresh-context verifier mandate; an opt-out is
+  parked ([#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)).**
+  `skills/implement-dispatch/reference/phase-verifier-mandate.md` records Option A and that the
+  verifier does not replace implement Step 5's end gate.
+
+## [0.19.4] - 2026-09-28
+
+### Fixed
+
+- **`implement-dispatch`: a wave's fences are composed together before dispatch.** Each brief
+  enumerated its own ALLOWED and FORBIDDEN paths, but nothing compared the rows of one wave, so a
+  path in one row's ALLOWED set and nobody's FORBIDDEN list could be edited by two rows without
+  tripping the divergence-escalation clause. The rows of a wave now hold ALLOWED sets that are
+  disjoint by file path written (not by worktree), each row's FORBIDDEN list carries its siblings'
+  paths, briefs list paths without naming an owner, and rows that will not split disjointly run in
+  sequential waves.
+
+## [0.19.3] - 2026-09-28
+
+### Fixed
+
+- **`implement`: the phase-boundary ritual invokes the handoff last.** Step 4 invoked
+  `/session-flow:handoff`, whose STOP gate ends the turn, as item 2, before the status summary,
+  the commit and the resume prompt, so the documented order could not be followed. The ritual
+  now runs verify and mark, status summary, commit, then the handoff entry (or the fallback
+  note) as the final item. The status summary points at the handoff by its `phase-N` topic,
+  since the file does not exist yet when it is written, and the resume prompt is the handoff's
+  own copy region, with the same two skip conditions. `implement-dispatch` cites the commit as
+  Step 4 item 3 (#3711).
+
+## [0.19.2] - 2026-09-27
+
+### Added
+
+- `report` ships a byte-identical copy of discovery's return contract. `implementer` and `phase-verifier` preload `implementation:report`.
+
+## [0.19.1] - 2026-09-27
+
+### Fixed
+
+- **`implement-dispatch` defines the wave, and one git writer per worktree binds under both
+  commit authorities.** A wave is a batch of one phase's worker rows, each an independent brief
+  with its own disjoint fence, and `--wave-cap` bounds the rows in flight at once; waves never
+  span phases. 0.18.0 added commit authority `orchestrator` with its single-committer
+  Concurrency rule (#4511), but that rule bound only under `orchestrator`. Under the default
+  `worker` authority, rows that share a worktree now run one at a time whatever the cap, since a
+  worktree has one index and one HEAD; concurrent rows in a shared worktree need `orchestrator`.
+  The wave-cap eval now runs its rows under `orchestrator`, and a new eval covers two `worker`
+  rows sharing a worktree (#4262).
+
+## [0.19.0] - 2026-09-27
+
+### Changed
+
+- **`implement-dispatch`: a resident phase boundary runs a reduced ritual.** When the orchestrator
+  stays in the window and dispatches the next phase, the boundary runs the acceptance verdict,
+  plan marks, a `DEVIATIONS.md` entry, and mark-then-commit. The handoff entry, status summary,
+  and resume prompt now run only when the orchestrator clears, a model or domain switch is
+  pending, or the run ends: a resident orchestrator was their only reader, and it already held
+  their content.
+- **`implement-dispatch`: each worker-brief rule is stated once.** The brief step is a numbered
+  checklist. The worktree-anchoring, comment-hygiene, exec-bit ordering, and push-early rules
+  live only in Gotchas, and the checklist names them there instead of restating them in other
+  words.
+- **`phase-verifier`: its read-only contract names the concrete prohibition.** It never re-runs a
+  build, render, format, or lint script that writes files; it reads the committed output instead.
+  The README documents the `permissions.deny` Bash-rule recipe, the one instrument that narrows
+  its `Bash`, and that recipe's matching limits.
+
 ## [0.18.1] - 2026-09-27
 
 ### Fixed

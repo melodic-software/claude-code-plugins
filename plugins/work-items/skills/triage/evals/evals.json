@@ -160,6 +160,20 @@
         "Does not relabel, comment on, or close #412 — closing or relabeling it would destroy or hide the surface holding durable lane state",
         "Reports the ordinary bug report normally"
       ]
+    },
+    {
+      "name": "triage-lane-barred-from-class-labels-proposes-class",
+      "prompt": "/work-items:triage 4399\n\nRunning as the work-loop intake sweep. The lane's standing directive authorizes triage label and comment mutations but says: never apply or change a work-class: label; propose a class in your cycle report. #4399 is a verified, reproduced bug with a clear fix inside one plugin, and it carries needs-triage. The verified outcome is briefed, delegable, and the class you would pick is work-class: scoped (C3).",
+      "expected_output": "Takes apply-outcome.md's 'Lane barred from recording a class' branch instead of the work-class pairing rule. First posts the brief and an AI-disclaimed escalation marker comment whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->, carrying 'Proposed work class: work-class: scoped', a one-line basis, and a ready-to-paste single label edit that adds the class and agent-ready and removes needs-human. Then, in one label edit, applies status:ready and the human-gated role label resolved from config.role_labels (default needs-human) and removes needs-triage. It applies no work-class: label and no agent-ready, and it does not leave the item at status:ready with neither role label.",
+      "files": [],
+      "expectations": [
+        "Does not apply any work-class: label or the autonomous-eligible role label",
+        "Posts a kind=escalated marker comment carrying a 'Proposed work class:' line and its basis before editing labels",
+        "Applies status:ready and the human-gated role label, and removes needs-triage, in one edit",
+        "Never leaves the item at status:ready with no role label",
+        "Includes the ready-to-paste stamp-and-flip label edit in the marker comment"
+      ],
+      "id": 13
     }
   ]
 }

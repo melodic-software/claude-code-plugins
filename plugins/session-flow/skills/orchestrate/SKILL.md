@@ -1,5 +1,5 @@
 ---
-description: "Arm the CURRENT session for an orchestration-heavy task by loading seven proactive-orchestration imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested subagents, surface drift, calibrate-to-conditions) as active standing instructions; optionally export them as a paste-ready brief for a spawned worker or fresh session. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
+description: "Arm the current session for an orchestration-heavy task with seven standing imperatives (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions); optionally export them as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
 argument-hint: "[<task>] | handoff [compact] | worker [compact]"
 user-invocable: true
 disable-model-invocation: false
@@ -80,7 +80,10 @@ told:
    must wait on an external result polls it in the foreground with a bounded loop, or returns what
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
-   sentinel file appears unless something the worker launched writes it.
+   sentinel file appears unless something the worker launched writes it. The runtime may also leave
+   it running: a hung background shell keeps a worker that already reported listed as active. So
+   retiring a finished worker includes checking for its still-running background tasks and
+   surfacing each one; stopping one is gated like any kill (`/session-flow:reconcile` step 3).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep

@@ -3,6 +3,116 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.10] - 2026-09-28
+
+### Added
+
+- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto --permission-prompts none`. Auto mode still decides. A prompt that would have asked a person is denied. Probed on Claude Code 2.1.282: the flag is accepted together with `--bg`.
+- **`/reload-plugins` in headless sessions.** `plugins` `context/scope-semantics.md` records that the command runs in `-p`, the Agent SDK, and the desktop app from Claude Code 2.1.260, only on input typed into the session, and that it does not apply plugin MCP server changes there.
+
+### Changed
+
+- **Lane restart does not use `claude --resume <id> --bg`.** The decline is recorded on `lanes` with the four-part record. Restart stays stop plus a fresh seeded launch.
+- **`audit-native-overlap` nominates the stale sandbox-mask warning.** The seeded `doctor` / `audit-install-state` pair names the `claude doctor` warning for 0-byte placeholders a killed session leaves. That note is a candidate, not a verdict.
+
+## [0.63.0] - 2026-09-28
+
+### Added
+
+- **`audit-native-overlap`: every store row carries `integration`**
+  ([#4049](https://github.com/melodic-software/claude-code-plugins/issues/4049)).
+  The field is `route`, `wrap`, or `suggest`, required beside `verdict`. Class rules:
+  a built-in command takes `route` or `suggest`; a bundled skill, plugin-backed built-in,
+  or marketplace plugin takes `route` or `wrap`; a bundled skill marked
+  `model-invocation-disabled` takes `suggest`; a session skill takes `route`; a `defer`
+  verdict takes `route` and overrides the marker rule. `wrap` and `suggest` rows name the
+  observed invocation mode in evidence. `baked` gains `native_step` and `suggest_sentence`.
+  The generated view renders an Integration column. native-references moves to 2.0.0 for
+  the Native step grammar, the suggest sentence, and the built gate-token check.
+
+## [0.62.17] - 2026-09-28
+
+### Changed
+
+- **Machine-profile orchestrator stays parked
+  ([#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666)).**
+  Do not build a host-fact store that drives the 58 setup skills. Options 2 and
+  3 need an invocation-mode class (ii) amendment (#4240). Option 1 is unpaid
+  operator typing. Recorded in `docs/out-of-scope/machine-profile.md`.
+
+## [0.62.16] - 2026-09-28
+
+### Changed
+
+- **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
+  Python unit tests pass, the contract that a two-scope install collapses to one plugin
+  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
+  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **`audit-performance` composes `/doctor` after the capture, not before**
+  ([#3533](https://github.com/melodic-software/claude-code-plugins/issues/3533)). The overlap
+  verdict stays `complementary`. A Scope-boundary row and a Reading-the-report line name the
+  transcript half this engine never reads. No description change.
+
+## [0.62.14] - 2026-09-28
+
+### Fixed
+
+- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
+## [0.62.12] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Six of the nine listed skills
+  ran over 500, and two of them over the 1,024-codepoint spec maximum. Each now leads with its use
+  case, keeps its quoted trigger phrases, and names its nearest sibling. What the bodies already
+  carry is cut: the suspect list, the component enumeration, and the "not for" lists.
+  `check-listing-budget.sh plugins/claude-ops/skills` goes from 7,839 to 4,204 characters.
+  `audit-install-state` and `audit-skill-visibility` keep their baked native references in the
+  convention's gate-and-split form, and `audit-skill-visibility`'s now leads the description.
+  `audit-performance` and `audit-skill-visibility` leave
+  `scripts/skill-description-cap-baseline.txt`. No skill is renamed or merged.
+- The native-surfaces store's `/skill-doctor` evidence line names the front-loaded routing clause
+  where it named a Not-for clause, and `docs/native-surfaces.md` is regenerated.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.10] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
+
+## [0.62.9] - 2026-09-27
+
+### Changed
+
+- **`audit-skill-visibility` re-verifies the `skillOverrides` exemption and routes inert
+  entries.** The exemption is re-stamped against the skills page and Claude Code 2.1.283 on
+  2026-09-27, with a recheck trigger on a release note saying plugin skills honor
+  `skillOverrides`. The skill now says an entry naming a plugin skill never takes effect and that
+  `claude-config:audit`, when installed, reports those entries (#4654).
+
+## [0.62.7] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
 ## [0.62.6] - 2026-09-27
 
 - **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the

@@ -444,7 +444,7 @@ declares_both_fixtures B "$CASE_B"
 # frontmatter key states or qualifies either.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "4b5a32a41e797942dd400feb1a0f45d136de8d1ab5f0ceb490d8455ce04c6cd5"
+  "e2a73d2443b93e7a5bfec83f083aff9877aad6151b2fab0316cdd1dbc15181d7"
 
 # The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
 # question to its recommendation — the auto-guard applies inside rounds too"), and the
@@ -508,11 +508,13 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
   "2a0a3a73f9f2deeb28d899fb737db3dab6de106c0895db3fb1110d1fe5d8f881"
+# Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
+# outlives the branch goes and touches no assumption or Brief rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "853b3aca0949a146a6c49f7763473e339f4e444507f232ea58c2e6e3611fb8d1"
+  "97bdc458c1c9b01ae0a5731df5f7b569e3ac723b0794c7582c14a1ecfb113bee"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -535,11 +537,13 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page paragraph now opens with the configured surface value in bold and says a `page`
 # value starts the page before the first round, with no round asked inline. It only names
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
+# It also says a decision the session records in the ledger is mirrored with the same op as a
+# terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "e3e842fd0e3b7852a5bdd29d994674c3d6357ece723a3ed07f3cd5ee6d2c41ea"
+  "d9b38e3209a062977a9726d0ad975742500cba5bfa498b30500b68cc38f44290"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
@@ -568,11 +572,13 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
   "471ee4ea0d64f1358ca8357ba71adfdd42be821b6f0edb19e128336daf0ca035"
+# The answer-path line now also mirrors a decision the session records in the ledger. It does
+# not change which rows relentless mode may close.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "a5778c4a818943d961c25a184d9b4f73e94a7559b560e04d3178abe86a22e3f0"
+  "1bc352d972e0a7770917e7f4d5e3a7cce8d082b98abe3427560c7e2849e02170"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
@@ -596,9 +602,12 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned after merge: main case 19 (page-surface) plus cases 20 to 23 (mechanism
 # tripwire, assumption sweep, evidence currency, inherited constraint). Each grades a
 # question, row, or label before the contract locks; none licenses a silent capture or a
-# fudged gap, so none contradicts case 15 or 16.
+# fudged gap, so none contradicts case 15 or 16. Case 24 (contract slice not offered as a
+# durable home) grades where content persists after merge and touches neither defense.
+# Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
+# and the queued-output-first order, and resolves no row the user did not answer.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "a0224159531a7aa6a547f990a9f4ecbb91373c2b6e0d4c2b40073f2f329e4981"
+  "a3038d1d112c3727c1ea4bf1aa3dccbe16fccaf26587cca79050ff07e4ebf43a"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -625,6 +634,9 @@ pin_case_digest "case 8 still asks decisions and only looks up facts" \
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
+pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
+  "out-of-band-return-supersedes-before-the-reply" \
+  "60964b5db1076b8be673e75b7a0bd5c247b6e87fa62c5da0b34531deca7d22f0"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
   "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"

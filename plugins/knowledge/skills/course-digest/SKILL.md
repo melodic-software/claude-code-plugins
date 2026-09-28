@@ -1,5 +1,5 @@
 ---
-description: "Extract and synthesize online video courses into repo-applicable recommendations via browser automation (Playwright + claude-in-chrome), transcript extraction, frame analysis, and LLM synthesis. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', user shares a Dometrain/Pluralsight/Udemy course URL, or wants course patterns applied to their codebase. Single public YouTube videos → use /knowledge:video-digest. Actions: full pipeline (default), extract (phases 1-2 only), analyze (phases 3-5 only), status (list all digested courses), resume <slug> (continue extraction), continue <slug> (resume from saved session state)."
+description: "Extract and synthesize online video courses into repo-applicable recommendations. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', or a Dometrain/Pluralsight/Udemy course URL. Single public YouTube videos use /knowledge:video-digest."
 argument-hint: "[action] [url|slug] (e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status)"
 user-invocable: true
 disable-model-invocation: false
@@ -147,7 +147,7 @@ Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib
 
 Follow the 8-phase workflow in [context/workflow.md](context/workflow.md), each building on the previous. Discover → Extract → Process Frames → Analyze Code Repo → Validate → Synthesize → Analyze → Recommend (phases 1, 2, 2b, 2c, 2d, 3, 4, 5). Phases 1-2d are extraction (browser + CLI); 3-5 are analysis (LLM-heavy, parallelizable across modules). Storage runs continuously throughout.
 
-**Critical rule:** ALL context (transcripts + frames + code repo) must be gathered before Phase 3.
+All context (transcripts + frames + code repo) must be gathered before Phase 3.
 Module summaries note their context level: `[transcript-only]`, `[transcript+frames]`, `[full-context]`.
 
 ### Phase 3 modalities (`[full-context]` requires all three)
@@ -228,7 +228,7 @@ Repo-applicability analysis follows the template in [reference/analysis-template
 
 Generated course output lands under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.
 
-**Critical rules:**
+Rules:
 
 - No video or audio files. Transcripts and screenshots capture the content
 - Screenshots are PNG files. Keep small (resize to 1280px wide max)

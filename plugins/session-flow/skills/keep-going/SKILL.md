@@ -1,5 +1,5 @@
 ---
-description: "Recover and continue after an interruption, rate limit, crash, disconnect, or gap, or when live off-thread work looks stalled and a check on it is requested. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: asked to keep going, continue, resume, or pick up where the work left off; after being cut off or interrupted ('what were you doing'); or asked to check on, poke, or judge whether off-thread work is stuck ('check the monitor', 'is it stuck', 'stop staring at it'). Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work. To retire finished off-thread work and reconcile the task ledger rather than resume, use /session-flow:reconcile."
+description: "Recover and continue after an interruption, rate limit, crash, or gap, or check on off-thread work that looks stalled: inspect its real output, act on evidence (resume, rerun, kill-and-restart), then continue the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -166,16 +166,25 @@ For any "is it stuck / check the monitor / poke it":
   reset clause parsed but the IANA timezone could not be resolved (rare when
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
   failure rather than treating the message as unparsable. In a single
-  interactive session, if you are running, the answer is already GO.
-- Reset information reaches a session through the limit **message text**
-  (e.g. `resets 3:45pm`) and the interactive `/usage` and `/rate-limit-options`
-  views. Read the reset from the message; never invent a window. Verified
-  2026-09-06 against Claude Code 2.1.263 and
-  [Manage costs effectively](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit),
-  which states that the limit message shows when the window resets and points
-  at `/rate-limit-options` for the wait. Recheck when that page stops carrying
-  that statement, or when a release note names another surface for the reset
-  time.
+  interactive session, if you are running, the answer is already GO. A date-bearing
+  form such as `resets Sep 8, 6pm (America/New_York)` is unparsed (exit `2`); never
+  treat exit `2` as lifted.
+- Reset information reaches a session through several in-session surfaces. The
+  limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the account
+  that emitted it. Live readings of the *current* account are the interactive
+  `/usage` view, `/rate-limit-options`, and, when present, the statusline
+  `rate_limits` object (`five_hour` / `seven_day` `used_percentage` and
+  `resets_at`). The statusline object is subscriber-or-gateway only, appears only
+  after the first API response, and is absent in cloud or other sessions with no
+  statusline producer. Prefer a live `/usage` reading over a captured message.
+  This skill has no in-session account-identity signal, so a message captured
+  under one account must not by itself drive a still-blocked verdict after an
+  account switch: re-check `/usage` (or a live `rate_limits` reading when one is
+  present) before handing back. Never invent a window.
+
+  | Claim | Basis | As of | Recheck |
+  |---|---|---|---|
+  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). Statusline `rate_limits` is an additional live surface when present. | [Manage costs effectively](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit) ("The message shows when the window resets"; `/rate-limit-options`), fetched 2026-09-28. [Customize your status line](https://code.claude.com/docs/en/statusline) `rate_limits` schema, fetched 2026-09-28. `check-usage-limit-reset.py` `RESET_RE` (no month token). Issue #3915 observation: no in-session account-identity field in this skill. | 2026-09-28 | That costs section stops carrying the reset-time statement; the statusline page drops `rate_limits`; an in-session account-identity field this skill can read without a sibling plugin ships; or `RESET_RE` starts matching a date-bearing form. |
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 
@@ -184,7 +193,8 @@ Compose with `/session-flow:handoff` to drop a resume artifact so nothing
 is lost, then stop. Automatic wake-and-continue at the reset time is an
 external scheduler's job, a desktop scheduled task or a cloud routine
 launched to resume from that handoff, not this skill's; keep-going hands
-back cleanly and stops.
+back cleanly and stops. Reach still-blocked only after a live re-check of
+the current account, never from a captured message alone.
 
 ## Nothing-off-thread case
 
@@ -218,3 +228,6 @@ that is still the job.
   artifact before you decide.
 - After a limit lifts, the pull is to summarize and hand back. Resist it:
   if you are running, continue, and report at the end.
+- A usage-limit message captured under one account is not a reading of the
+  current account. After `/login` or any other account switch, re-check
+  `/usage` before a still-blocked handoff (#3915).

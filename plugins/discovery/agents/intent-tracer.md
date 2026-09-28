@@ -3,6 +3,7 @@ name: intent-tracer
 description: "Runs the full /discovery:trace-intent discipline in a fresh context and persists the INTENT.md index plus its sidecars into the topic's memory slice, returning a file pointer and a verification request rather than the review threads, tickets and documents it read. Dispatched by /discovery:trace-intent; not intended for direct ad-hoc use."
 skills:
   - discovery:trace-intent
+  - discovery:report
 disallowedTools: "NotebookEdit, EnterWorktree, ExitWorktree"
 model: opus
 effort: high
@@ -216,6 +217,14 @@ it stands, and whatever is not on disk by then is invisible to the parent's gate
 turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
+
+**Read each file once.** A file you have already read in this run is still in your context; read it
+again only to see a change you made to it. A scan followed by a full read of the same file on a
+later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you need
+the whole file, read it whole then. Read file contents with `Read` and search with `Grep` rather
+than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for you and for
+anyone auditing the run. Every turn spent re-reading is a turn taken from gathering before
+your stop turn.
 
 Write the artifact in stages:
 

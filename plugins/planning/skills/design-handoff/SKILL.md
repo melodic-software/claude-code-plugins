@@ -1,5 +1,5 @@
 ---
-description: "Gate and package a finished design for /planning:plan: binary check that every thread in design-threads.md is RESOLVED, directional, or TAGGED-DEFERRED, then an advisory six-dimension coverage table, then emit the plan-ready summary and resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'plan-ready summary', 'design gate', /planning:design discussion rounds stop surfacing gaps, or entering /planning:plan from a completed design session. FAILs on any thread that is unresolved AND untagged. Names it and routes back to /planning:design. Skip when: still exploring the design space. Use /planning:design; mid-session save-point to clear and resume later. Use a session-handoff capability."
+description: "Gate a finished design for /planning:plan: FAILs on any design thread left unresolved and untagged, then emits a coverage table, the plan-ready summary, and a resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'plan-ready summary', 'design gate', or design rounds stop surfacing gaps. Still exploring: /planning:design. Mid-session save-point: a session-handoff capability."
 argument-hint: "(no args; reads the design-threads artifact in the topic's contract slice)"
 user-invocable: true
 disable-model-invocation: false

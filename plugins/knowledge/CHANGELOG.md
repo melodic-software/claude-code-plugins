@@ -4,6 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.7] - 2026-09-28
+
+### Changed
+
+- Vendor tests for `repo-analysis` and `video-digestion` run under `node:test` instead of vitest, and each package.json exposes an `npm test` script so the outside-node suite runner can execute them.
+
+## [0.14.6] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** All five listed skills ran
+  over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: pipeline-phase lists, action
+  enumerations, and restated output shape. `setup` is `disable-model-invocation: true`, is never
+  listed, and is unchanged. `check-listing-budget.sh plugins/knowledge/skills` goes from 4,200
+  to 2,155 characters. No skill is renamed or merged.
+
+## [0.14.5] - 2026-09-27
+
+### Changed
+
+- `book-distill`'s one-chapter-at-a-time rule, `course-digest`'s gather-before-Phase-3 rule and storage rules, and the Dometrain adapter's instructor rule drop their all-caps and "Critical rule" markers. The rules themselves are unchanged (#4120).
+
 ## [0.14.4] - 2026-09-27
 
 ### Changed

@@ -131,13 +131,16 @@
 #  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
 #  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
 #      elsewhere)
-#  25. Description/verb-contract polarity: read-only vs mutate (WARN;
+#  25. Description/verb-contract polarity: read-only vs mutate (FAIL;
 #      description lead vs Naming verb vs body; #2896)
 #  26. Long spoke files carry a table of contents: a reference|references|context
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
 #      `](#` in-page anchor links WARNs (advisory heuristic)
 #  27. `## Next` successor section: absent is INFO (a terminal skill has
-#      none); present but after `## Gotchas`, last in the file, neither
+#      none), except on a stage-bearing skill (metadata.workflow-stage explore
+#      through retro, not contract) with no Handoff/Routing/Integration/Skill
+#      chaining heading either, where it is WARN (27b); present but after
+#      `## Gotchas`, last in the file, neither
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
 #      carrying operative-chain phrasing (Skill tool, installed, fallback,
 #      otherwise) anywhere in the block is WARN
@@ -670,6 +673,52 @@ else
       warn "skill name '$EFFECTIVE_NAME' contains the word '$reserved_word', which a Skills API upload rejects ('anthropic' and 'claude' are reserved there; Claude Code loads it and ships bundled skills carrying the word); rename the $name_source if the skill will ever be uploaded"
     fi
   done
+
+  # Frontmatter `model` is honored for the rest of the current turn. Accept
+  # inherit, an alias or model id, and one optional [1m] suffix. Empty, spaced,
+  # or otherwise non-scalar values are the defect. Auto mode keeping the
+  # session model when the named model is unsupported is runtime behavior,
+  # documented on the skills page, not a second finding here.
+  # Basis: https://code.claude.com/docs/en/skills#frontmatter-reference
+  if grep -qE '^model:' <<<"$FRONTMATTER"; then
+    RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
+    CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
+    if [[ ! "$CUR_MODEL" =~ ^(inherit|[A-Za-z0-9._-]+(\[1[mM]\])?)$ ]]; then
+      err "frontmatter model '$CUR_MODEL' is not inherit, a model alias, or a model id with an optional [1m] suffix"
+    fi
+  fi
+
+  # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
+  # A quoted scalar or a block scalar may contain it. Claude Code's skills
+  # reference: when the YAML between the markers does not parse, the skill
+  # still loads with no fields set
+  # (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  desc_header="$(grep -E '^description:' <<<"$FRONTMATTER" | head -n 1 || true)"
+  desc_value="${desc_header#description:}"
+  desc_value="${desc_value#"${desc_value%%[![:space:]]*}"}"
+  desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
+  case "$desc_value" in
+  \"* | \'*) ;;
+  \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
+  *:[[:space:]]*)
+    err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+    ;;
+  *) ;;
+  esac
+
+  # compatibility is optional. The Agent Skills spec says most skills do not
+  # need the field and, when it is present, it is 1-500 characters
+  # (https://agentskills.io/specification). Claude Code accepts it and does not
+  # act on it (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # Absence is success.
+  if grep -qE '^compatibility:[[:space:]]*' <<<"$FRONTMATTER"; then
+    RAW_COMPAT="$(skill_frontmatter::field compatibility <<<"$FRONTMATTER")"
+    CUR_COMPAT="$(skill_frontmatter::strip_quotes "$RAW_COMPAT")"
+    COMPAT_LEN="$(skill_frontmatter::codepoint_len "$CUR_COMPAT")"
+    if ((COMPAT_LEN < 1 || COMPAT_LEN > 500)); then
+      err "compatibility is $COMPAT_LEN characters (Agent Skills spec requires 1-500 when the field is present); omit it when the skill has no environment requirement"
+    fi
+  fi
 fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
@@ -1928,7 +1977,7 @@ else
   note "invocation mode: model-invoked (fleet default)"
 fi
 
-# --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
+# --- Check 25: description/verb-contract polarity (FAIL) --------------------
 # plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
@@ -1943,10 +1992,9 @@ fi
 #     never-mutates claim;
 #   - "remediation" as a noun and a negated "or rewrites" list are not
 #     mutate-advertising.
-# Advisory only: a static scan cannot judge whether an audit skill should
-# gain a --fix path (out of scope) or whether a name should change (no
-# rename campaign). A WARN is a factual-consistency candidate to
-# hand-verify, not a mandate to rewrite the fleet.
+# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
+# factual defect in the listing surface being routed on. Hand-verify before
+# exempting; --fix in the description is the compliant override shape.
 # Fenced code blocks are ignored in the body so a literal example cannot
 # satisfy or trip the body limbs.
 
@@ -2035,7 +2083,7 @@ elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
 fi
 
 if [[ -n "$VC_HIT" ]]; then
-  warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+  err "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
 else
   note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
 fi
@@ -2077,10 +2125,26 @@ done < <(
 # fleet are terminal or not yet wired, and a WARN on each would drown the
 # gate. A section that is present but misplaced or malformed is a WARN,
 # because that is a shape the rule names and the author did not intend.
+#
+# 27b. A stage-bearing skill is the exception to "absence is the author's
+# call": its `metadata.workflow-stage` puts it mid-sequence, so it has a
+# successor by construction. When it has no `## Next` and no older routing
+# heading either (Handoff, Routing, Integration, Skill chaining, each matched
+# as a prefix because the fleet titles them several ways), the absence is a
+# WARN. `contract` is left out of the stage list on purpose: interview, prd,
+# and design route through the contract slice they write, not through a
+# successor section. `anytime`, `operator`, and `session` are not stages.
+NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
+NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
 
 NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
 if [[ -z "$NEXT_LINE" ]]; then
-  note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+  NEXT_STAGE="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field workflow-stage <<<"$FRONTMATTER")")"
+  if [[ "$NEXT_STAGE" =~ $NEXT_STAGE_BEARING ]] && ! grep -qiE "$NEXT_ROUTING_HEADING" "$SKILL_MD"; then
+    warn "no '## Next' section on a stage-bearing skill (workflow-stage: $NEXT_STAGE): a mid-sequence skill names its successor in one, before '## Gotchas' (skill-bodies rule)"
+  else
+    note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+  fi
 else
   NEXT_GOTCHAS_LINE="$(grep -nEi '^##[[:space:]]+(gotchas|quirks)' "$SKILL_MD" | head -1 | cut -d: -f1)"
   NEXT_LAST_H2="$(grep -nE '^## ' "$SKILL_MD" | tail -1 | cut -d: -f1)"

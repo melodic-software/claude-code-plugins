@@ -94,6 +94,41 @@ assert_eq "no plugin dir match: falls back to installed_plugins.json" "gamma:z@u
 delta:z@unknown
 alpha-extra:q@9.9.9" "$(REPO_SWEEP_PLUGIN_DIRS="$dirs" run_in "$repo" gamma:z delta:z alpha-extra:q)"
 
+cache="$TMP/plugins/cache/mkt"
+mkdir -p "$cache/alpha/0.8.0/.claude-plugin" "$cache/alpha/0.8.0/skills/x" \
+  "$cache/beta/5ee7a1c/.claude-plugin" "$cache/beta/5ee7a1c/skills/y" "$TMP/loose/alpha/skills/x"
+printf '{"name":"alpha","version":"0.8.0"}\n' >"$cache/alpha/0.8.0/.claude-plugin/plugin.json"
+printf '{"name":"beta"}\n' >"$cache/beta/5ee7a1c/.claude-plugin/plugin.json"
+run_err() { { run_in "$@" >/dev/null; } 2>&1; }
+assert_eq "--dir: the loaded copy's manifest beats installed_plugins.json" "alpha:x@0.8.0" \
+  "$(run_in "$repo" --dir "$cache/alpha/0.8.0/skills/x" alpha:x 2>/dev/null)"
+assert_eq "--dir: a loaded version that differs from the install record is named on stderr" \
+  "skill-version.sh: alpha loaded 0.8.0, installed_plugins.json records 0.9.0: it updated mid-session" \
+  "$(run_err "$repo" --dir "$cache/alpha/0.8.0/skills/x" alpha:x)"
+assert_eq "--dir: manifest with no version falls back to the cache path segment" "beta:y@5ee7a1c" \
+  "$(run_in "$repo" --dir "$cache/beta/5ee7a1c/skills/y" beta:y 2>/dev/null)"
+assert_eq "--dir: no manifest above the dir, not a cache path: install record" "alpha:x@0.9.0" \
+  "$(run_in "$repo" --dir "$TMP/loose/alpha/skills/x" alpha:x 2>/dev/null)"
+assert_eq "--dir: another plugin's dir is ignored" "beta:y@ca08d5e47d64" \
+  "$(run_in "$repo" --dir "$cache/alpha/0.8.0/skills/x" beta:y 2>/dev/null)"
+b="\\"
+assert_eq "--dir: Windows separators resolve" "alpha:x@0.8.0" \
+  "$(run_in "$repo" --dir "${cache//\//$b}${b}alpha${b}0.8.0${b}skills${b}x" alpha:x 2>/dev/null)"
+mkdir -p "$cache/alpha/0.9.0/.claude-plugin" "$cache/alpha/0.9.0/skills/x"
+printf '{"name":"alpha","version":"0.9.0"}\n' >"$cache/alpha/0.9.0/.claude-plugin/plugin.json"
+assert_eq "--dir: same version as the record, nothing on stderr" "" \
+  "$(run_err "$repo" --dir "$cache/alpha/0.9.0/skills/x" alpha:x)"
+assert_eq "--dir applies only to the next argument" "alpha:x@0.8.0
+alpha:x@0.9.0
+beta:y@5ee7a1c" "$(run_in "$repo" --dir "$cache/alpha/0.8.0/skills/x" alpha:x alpha:x \
+  --dir "$cache/beta/5ee7a1c/skills/y" beta:y 2>/dev/null)"
+assert_eq "--dir beats REPO_SWEEP_PLUGIN_DIRS" "alpha:x@0.8.0" \
+  "$(REPO_SWEEP_PLUGIN_DIRS="$dirs" run_in "$repo" --dir "$cache/alpha/0.8.0/skills/x" alpha:x 2>/dev/null)"
+run_in "$repo" alpha:x --dir "$cache/alpha/0.8.0" >/dev/null 2>&1
+assert_eq "--dir with no skill after it: usage error" "2" "$?"
+run_in "$repo" --dir >/dev/null 2>&1
+assert_eq "--dir with no value: usage error" "2" "$?"
+
 if ((FAILED)); then
   printf '%d FAILED\n' "$FAILED" >&2
   exit 1

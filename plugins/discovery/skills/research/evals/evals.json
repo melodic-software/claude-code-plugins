@@ -368,6 +368,20 @@
         "The general-mechanism reference page is recorded and not counted, because it does not describe the tenant scenario the claim is about",
         "The published answer quotes only current sources as support; a historical source appears only in a note that labels it historical"
       ]
+    },
+    {
+      "id": 26,
+      "name": "phase-2-fans-out-per-gap-when-nesting-available",
+      "prompt": "[You are the dispatched discovery:researcher. Envelope: Topic: how five agent vendors document context-file loading and instruction density. Capability flags: nested spawning available. The Agent tool is present. Your Phase 1 list names five numbered gaps, G1 to G5; G1, G2 and G3 all point at the same sub-agents documentation page, while G4 and G5 each point at a different vendor's docs.]",
+      "files": [],
+      "expected_output": "In Phase 2 it groups G1 to G3 into one worker because they share a primary, gives G4 and G5 their own workers, and dispatches the three gap workers in one turn as generic subagents rather than nested discovery:researcher agents. Each brief asks the worker to gather and return URLs, on-disk artifact paths, quoted spans and what each source measures, with no verdict. It runs the falsification query itself. On return it appends the workers' fetches to the fetch log, reads each cited primary's on-disk artifact before counting it as Tier 0/1, and leaves any gap a worker did not answer open in the Phase 2 output.",
+      "expectations": [
+        "Groups the three gaps that share one primary into a single worker",
+        "Dispatches the gap workers in parallel in one turn, as generic subagents, not nested discovery:researcher agents",
+        "Keeps the falsification query in its own hands",
+        "Confirms each cited primary from its on-disk artifact before counting it as Tier 0/1",
+        "Leaves an unanswered gap open rather than closing it in the merge"
+      ]
     }
   ]
 }

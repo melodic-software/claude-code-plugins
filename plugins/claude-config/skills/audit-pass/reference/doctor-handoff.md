@@ -55,8 +55,8 @@ from what it does not.
 **Suppression channels: one unconfirmed, one documented but silent on bundled skills.** Item 3 has
 flipped between present and absent across fetches, so it stays unconfirmed. `skillOverrides` is a
 documented settings key: the settings and skills pages state it reaches project and user skills and
-"does not apply to plugin skills, which are managed through `/plugin`" (quoted spans verified
-2026-08-31 in this plugin's `audit` skill, Category G). Neither page says whether it reaches a
+"Overrides don't apply to plugin skills, which you manage through `/plugin`." (quoted span
+verified 2026-09-27 in this plugin's `audit` skill, Category G). Neither page says whether it reaches a
 bundled skill such as `/doctor`, so its effect on the handoff is UNVERIFIED; probe rather than assert.
 
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually

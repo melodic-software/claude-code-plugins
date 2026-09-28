@@ -65,7 +65,10 @@ token means unset), then the built-in `<type>/<N>-<slug>` convention. `won by` n
 `userConfig (deprecated)` with a WARN recommending `apply branch_issue_pattern=<ERE>`, or
 `plugin default`. Confirm the row by running
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch> '${user_config.branch_issue_pattern}'`
-from `REPO_ROOT` and relaying any stderr note, which names a skipped layer and the reason. The
+from `REPO_ROOT` and relaying any stderr note, which names the source and the reason. A note
+containing `resolution stopped` means that layer's section exists but yields no usable pattern:
+the script prints no number, whatever the lower sources say, so report the row as a FAIL naming
+that layer rather than the source a lower rung would have supplied. The
 single-quoted second argument passes the deprecated userConfig value, so a configuration set only
 there is reported correctly; the script ignores the literal placeholder when the key is unset.
 
