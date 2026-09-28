@@ -122,8 +122,10 @@ scripts/context-zone.test.sh
 # Dedicated check: scripts/sync-html-escape.sh --check. Canonical:
 # lib/html-escape.mjs. Adopting copies: review (first), education, and testing.
 # The path-within-plugin line is live now that a second plugin carries the file.
-# The arrow line is the duplication audit's cluster.
 lib/html-escape.mjs
+
+# Dedicated check: scripts/sync-html-escape.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
