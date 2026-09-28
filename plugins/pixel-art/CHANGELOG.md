@@ -14,6 +14,26 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 - Worked generators under `examples/tileset`, `examples/ui`, and `examples/vfx`, rendered by
   `scripts/render.py`. Tests check an MZ A2 sheet, a `Window.png` skin, and a five-column animation
   sheet against the grids in `engine-layouts.md`.
+## [0.3.0]
+
+### Added
+
+- Bundled palette presets in `palettes/`: `pico-8`, `nes` (jsnes NTSC table), `game-boy` (mGBA
+  DMG Green), and the CC0 Lospec sets `retro-8-bit`, `deep-sea`, and `cosmic-space` (#4401). Each
+  file records its source and license. A spec `palette` string names a preset or a project palette
+  file; the inline object form is unchanged.
+- `render.py --snap` maps an 8-bit RGB or RGBA PNG onto a palette (nearest sRGB color, alpha below
+  128 transparent). `--dither` adds 4x4 Bayer ordered dither. `--emit-frames` writes spec rows.
+
+## [0.2.0]
+
+### Added
+
+- `reference/brief.md`: the shared brief fields (including style references, proportions, and 2 to 6
+  done criteria). `sprite`, `animate`, and `scene` write that brief beside the spec before the
+  first render, re-read it on a later run, and mark each criterion pass or fail every review round.
+- A presence-gated offer of `/planning:interview` for a vague or high-stakes request. The in-skill
+  brief remains the default and works with nothing else installed.
 
 ## [0.1.1]
 

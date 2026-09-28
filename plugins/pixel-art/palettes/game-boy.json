@@ -1,0 +1,24 @@
+{
+  "name": "game-boy",
+  "variant": "mGBA DMG Green preset, lightest to darkest (array order, matching the grayscale preset's white-to-black order)",
+  "source": "https://github.com/mgba-emu/mgba/blob/master/src/gb/overrides.c",
+  "license": "Four 15-bit colors from mGBA's DMG Green preset (0x2691, 0x19A9, 0x1105, 0x04A3), expanded to 8-bit with mGBA's mColorFrom555 formula (channel * 0x21) >> 2, from include/mgba-util/image.h. mGBA is MPL-2.0, Copyright 2013-2025 Jeffrey Pfau. This file records the four resulting hex values, not mGBA source. https://www.mozilla.org/en-US/MPL/2.0/",
+  "colors": [
+    {
+      "hex": "#8ca54a",
+      "key": "0"
+    },
+    {
+      "hex": "#4a6b31",
+      "key": "1"
+    },
+    {
+      "hex": "#294221",
+      "key": "2"
+    },
+    {
+      "hex": "#182908",
+      "key": "3"
+    }
+  ]
+}

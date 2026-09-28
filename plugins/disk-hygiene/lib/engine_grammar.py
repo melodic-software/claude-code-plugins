@@ -185,14 +185,23 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 ),
             ),
             Flag(
+                "--sizes-only",
+                takes_value=False,
+                help=(
+                    "walk the target for exact per-child byte totals only; "
+                    "writes no per-entry inventory and is not subject to the "
+                    "inventory entry cap"
+                ),
+            ),
+            Flag(
                 "--root-children",
                 takes_value=False,
                 help=(
-                    "inventory only explicitly selected immediate child "
-                    "directories of the target; required for an OS-managed "
-                    "volume root (never a whole-root walk) and available on "
-                    "any other directory so approved children can be "
-                    "re-inventoried without walking the rest of the tree"
+                    "inventory only explicitly selected immediate children "
+                    "of the target; on an OS-managed volume root those "
+                    "children are non-OS directories and regular files, and "
+                    "on any other directory they are directories, so approved "
+                    "children can be re-inventoried without a whole-tree walk"
                 ),
             ),
             Flag(
@@ -203,7 +212,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 metavar="NAME",
                 example="Projects",
                 help=(
-                    "immediate child directory basename to audit under "
+                    "immediate child basename to audit under "
                     "--root-children; repeatable; never inferred"
                 ),
             ),
