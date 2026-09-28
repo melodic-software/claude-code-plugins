@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.28] - 2026-09-28
+
+### Changed
+
+- **`audit` scope expansion (errors, improvements, QoL, standards, research) is parked
+  ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)).**
+  `skills/audit/reference/scope-expansion-park.md` records Option A. Child of #3999.
+
 ## [0.7.27] - 2026-09-28
 
 ### Changed

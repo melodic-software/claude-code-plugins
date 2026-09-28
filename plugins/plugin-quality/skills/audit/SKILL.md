@@ -34,6 +34,8 @@ elsewhere: **static skill QA** (frontmatter/lint/trigger checks with no behavior
 as a `config` component here and say the server itself is out of scope). A universal wrap-up
 mandate after every plugin-using session is declined;
 [`reference/universal-retrospective-settle.md`](reference/universal-retrospective-settle.md).
+Category / standards / research scope expansion is parked;
+[`reference/scope-expansion-park.md`](reference/scope-expansion-park.md).
 
 ## Config resolution (once, at invocation)
 
