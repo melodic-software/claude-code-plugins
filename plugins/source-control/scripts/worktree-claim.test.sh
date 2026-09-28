@@ -262,4 +262,9 @@ run_claim claim "$EXT/wt-s10" --repo-dir "$REPO" --session-id s10
 run_claim check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1
 assert_exit "session s1 does not own a session-s10 claim" 4 "$?"
 
+# Run by bare name from its own directory: the library must still load, so a
+# foreign claim still stops instead of failing open.
+(cd "${CLAIM%/*}" && bash "${CLAIM##*/}" check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1 2>/dev/null)
+assert_exit "bare-name invocation still stops on a foreign claim" 4 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

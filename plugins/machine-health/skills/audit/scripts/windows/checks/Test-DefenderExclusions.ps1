@@ -11,7 +11,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-IsElevated.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'defender-exclusions'
 $category = 'security'
 $commands = @(
@@ -36,7 +35,13 @@ $adminFieldList = @(
     'unexpected_path_count'
 )
 
-try {
+# Outer-catch fallback must keep admin-gate metadata so unexpected
+# failures don't get misclassified as non-admin downstream.
+$FailureSummary = 'Defender exclusion check failed.'
+$PassThru = $false
+$FailureNeedsAdmin = $true
+$FailureAdminFields = $adminFieldList
+$CheckBody = {
     # Non-elevated Get-MpPreference returns "N/A: Must be administrator..." as
     # a literal string for the exclusion fields -- gate stops it being counted.
     if (-not (Test-IsElevated)) {
@@ -99,12 +104,5 @@ try {
                 -NeedsAdmin $true -RanSuccessfully $true
         }
     }
-} catch {
-    # Outer-catch fallback must keep admin-gate metadata so unexpected
-    # failures don't get misclassified as non-admin downstream.
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Defender exclusion check failed.' -Commands $commands -ErrorRecord $_ `
-        -NeedsAdmin $true -AdminFields $adminFieldList
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
