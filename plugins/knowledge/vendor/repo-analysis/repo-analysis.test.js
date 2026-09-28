@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 
 import { parseGitHubUrl } from "./repo-analysis.js";
 
 describe("parseGitHubUrl", () => {
-  it.each([
+  const accepted = [
     [
       "https://github.com/melodic-software/medley",
       { owner: "melodic-software", repo: "medley" },
@@ -20,18 +21,24 @@ describe("parseGitHubUrl", () => {
       "git@github.com:melodic-software/medley.git",
       { owner: "melodic-software", repo: "medley" },
     ],
-  ])("accepts an exact GitHub URL: %s", (url, expected) => {
-    expect(parseGitHubUrl(url)).toEqual(expected);
-  });
+  ];
+  for (const [url, expected] of accepted) {
+    it(`accepts an exact GitHub URL: ${url}`, () => {
+      assert.deepEqual(parseGitHubUrl(url), expected);
+    });
+  }
 
-  it.each([
+  const rejected = [
     "https://github.com.example/owner/repo",
     "https://example.com/github.com/owner/repo",
     "https://user@github.com/owner/repo",
     "http://github.com/owner/repo",
     "--upload-pack=malicious",
     "git@github.com.evil:owner/repo",
-  ])("rejects a host or option spoof: %s", (url) => {
-    expect(parseGitHubUrl(url)).toBeNull();
-  });
+  ];
+  for (const url of rejected) {
+    it(`rejects a host or option spoof: ${url}`, () => {
+      assert.equal(parseGitHubUrl(url), null);
+    });
+  }
 });
