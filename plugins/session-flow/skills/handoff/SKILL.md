@@ -1,6 +1,6 @@
 ---
 description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
-argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
+argument-hint: "[unattended] [file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -318,12 +318,7 @@ ticked. Emit the rails block before ending the turn, always.
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
-- [ ] When the built-in `export` command resolves in your session, the close offers the one-line
-  conversation export `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after
-  verifying the memory root's self-ignore guard (a `.gitignore` containing `*`, created and
-  announced when absent). Prompt-only writes no file, so the transcript is this handoff's only
-  record and it is retention-swept; an export is the copy that survives the sweep. Offer only,
-  never run, and record nothing about whether the user ran it
+- [ ] If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No

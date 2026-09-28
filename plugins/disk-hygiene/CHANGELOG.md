@@ -3,6 +3,36 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1] - 2026-09-28
+
+### Added
+
+- **`--root-children` inventories approved children of any target, not only an OS-managed volume
+  root** ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). A depth-1
+  home audit left every approved directory `truncated-not-inventoried`, and a deeper whole-home
+  walk hit the 250,000-entry cap. The same `--root-child` selection that already bounded an
+  OS-managed volume root now re-inventories those named immediate children into one snapshot,
+  paths relative to the original target. On a non-OS target, hidden directories (`.dotnet`,
+  `AppData`) stay selectable; the volume-root OS-owned / hidden / system ladder still applies
+  only at an OS-managed volume root. An OS-managed path that is not a volume root is still
+  refused.
+
+## [0.27.0] - 2026-09-28
+
+### Added
+
+- **`--root-children` on non-volume targets (home fan-out)**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
+  depth-1 home audit, re-run against the home path with `--root-children` and explicit
+  `--root-child` names to fully inventory approved top-level directories into one snapshot without
+  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
+## [0.26.4] - 2026-09-28
+
+### Fixed
+
+- **`guard_launch_monitor.py` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). A hard error in the Stop detector used to become a second `hook_non_blocking_error` with no hook text. `main` now catches `SystemExit` other than 0 and `BaseException`, writes one stderr line (`disk-hygiene guard-launch-monitor: did not run …; fail-open`), and returns 0. `SystemExit(0)` is re-raised so `raise SystemExit(main())` still works.
+
 ## [0.26.3] - 2026-09-28
 
 ### Changed

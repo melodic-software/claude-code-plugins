@@ -69,8 +69,9 @@ one-line pointer to the official CLAUDE.md include/exclude guidance (recorded wi
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
 **non-memory surfaces** (skill bodies, agent definitions, hook instruction text, output styles) the
 catalog applies, since no incumbent auditor covers instruction content there, **bounded by each row's
-own surface declaration**, which is narrower than the partition for some checks. I13 and I14 name
-their own surface sets and are not run outside them; this partition never widens a row.
+own surface declaration**, which is narrower than the partition for some checks. I13, I14, I29,
+I31, I32, I33, and I34 name their own surface sets and are not run outside them; I15 is answered
+pairwise by Phase B2; this partition never widens a row.
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
 population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
@@ -204,9 +205,12 @@ token budget in "Lane sizing" below, each lane sharing
 the Scope boundary to every surface it holds. **A record whose residency Phase A could not establish carries that state into
 its lane**: the lane still runs, and reports each result as `RESIDENCY-UNRESOLVED` with the named
 unresolved condition (Phase D) rather than as a finding, since a removal or a rewrite proposed
-against a surface the session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
-surface's files (the seeded checks span both evidence tiers; the scan itself is only ever
-deterministic pattern-marking):
+against a surface the session may never load is work the reader cannot act on. Seed each lane's
+candidate set from a **central pre-scan** run once over every inventoried file before dispatching,
+with an extended Bash timeout or in the background, because one pass over a large inventory can
+take minutes under Git Bash on Windows. Hand each lane the rows whose `file:` prefix is one of its
+files; a lane never re-scans. The seeded checks span both evidence tiers; the scan itself is only
+ever deterministic pattern-marking:
 
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh" <file>...
@@ -225,14 +229,22 @@ verb it licenses, which routinely sits in a different sentence), I25 (retired sa
 I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line), and
 the I28 families (`I28-a` forced-compliance emphasis, case-sensitive; `I28-b` blanket tool
 defaults). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
-over the same files for the I29 families (`I29-a` description-restatement; `I29-b`
-sibling-section-restatement); `--count` prints the row count.
+over the same files, in the same central pass, for the I29 families (`I29-a`
+description-restatement; `I29-b` sibling-section-restatement); `--count` prints the row count.
 Advisory: a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
 run's resolved target model.
 
 ### Lane sizing
+
+Lane sizing is #4114's token-budget rule below. This skill ships no second sizing rule: no lane
+cap and no line-count constant. **Plan the dispatch before dispatching** by running
+`lane-runs.sh partition` over the inventoried files, then dispatch those lanes.
+**Claim:** dispatch sizing is the #4114 token-budget partition only. **Basis:** issue #4656
+(the 9-lane cap and 2,500-line constant were a rejected second rule). **As of:** 2026-09-28.
+**Recheck:** when `lane-runs.sh partition` grows a second cap, or the catalog ships a line-count
+sizing constant.
 
 A lane's budget is a fraction of the **lane model's own** context window, since a subagent's window
 is sized by the model it runs on, not the parent's. The budget is **0.25 of that window**, leaving
@@ -291,10 +303,8 @@ rows to `lane-runs.sh plan --run-dir <run-dir>`: dispatch only the `rerun` lanes
 touches, and a changed partition re-runs them all. With no prior run, `--resume` says so and starts
 a new one.
 
-The standing execution model and the report identity contract are recorded together in
-[context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
-lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a
-later change to either lands in one place.
+The standing execution model and the report identity contract are recorded together in [context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
+lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a later change to either lands in one place.
 
 A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
 plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
@@ -345,9 +355,14 @@ installed and set up**, e.g. the OpenAI Codex plugin, when its documented surfac
 artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated
 fallback, never a route to a command that may not resolve
 (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
-Batch one verifier per surface
-(not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
-demoted to `info` or dropped, never surfaced as a confident removal.
+Batch one verifier per lane that produced proposals (not one per finding or per surface), counted
+under the same ~20-dispatch gate as the Phase B plan; the B2 conflict pass keeps its own separate
+verifier. A proposal the verifier defends is demoted to `info` or dropped, never surfaced as a
+confident removal.
+
+**An out-of-catalog defect takes its own refutation** (the catalog's "Out-of-catalog defects"
+section admits it): reproduce the cited evidence, then ask whether the claim is false today. One
+whose evidence does not reproduce is dropped.
 
 **A conflict pair takes a different refutation**, because the removal prompt cannot falsify it: both
 sides are usually load-bearing, so "argue it is still needed" defends both and demotes the finding
@@ -380,8 +395,8 @@ the two absent-prior cases.
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
 the estimated per-surface token delta versus the previous catalog version **for this project**, and
-the dispatch count, planned and actual (lanes plus Phase C verifiers), stating whether the
-~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
+the dispatch count, planned and actual (lanes, Phase C verifiers, the B2 pass, and its verifier),
+stating whether the ~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
 its place. It names the lane budget (tokens and the derived line figure), every plugin the
 partition split by skill and into how many lanes, any over-budget skill, and on a `--resume` how
 many lanes were reused and how many re-ran. It also confirms the run added zero new interactive gates (report-only contract
@@ -395,6 +410,9 @@ outside the hash. An I15 conflict is one finding with two sites.
 |---|-------|--------------|----------|------|-----------|---------|-----------------|
 
 Phase B2's findings carry two anchors, so they get their own **Cross-surface conflicts** subsection.
+Beside it, an **Out-of-catalog** subsection holds the defects the catalog's "Out-of-catalog defects"
+section admits, each with Check `out-of-catalog`, its evidence, and where it routes; those rows never
+reach `emit-findings.sh`.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the

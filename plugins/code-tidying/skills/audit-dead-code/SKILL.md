@@ -27,7 +27,7 @@ report that presents them as equals is wrong even when every finding in it is ri
 | **knip** | TS/JS: unused files, exports, types, enum members. **Not** class members. Knip 6 rejects `--include classMembers` outright | **60% precision / 100% recall** on trap fixtures | Unrestored, it **manufactures false positives** (a failed config load produced 2 phantom "unused files"). Its `ERROR:` line goes to stderr, which the JSON reporter discards |
 | **vulture** | Python: unused function / class / method / variable / attribute, plus unreachable code | **16.7% precision / 100% recall**. All five trap classes false-positived at 100% | High recall, low precision **by construction**. Read its output as a worklist, never as a verdict |
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`). That is the lane's declared coverage, not a defect | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**. False **NEGATIVES**, the opposite of knip. Never describe the two degradations with one shared phrase |
-| **grep** | Shell and other symbol languages: function definitions with no reference anywhere | **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4 | High precision, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead |
+| **grep** | Shell and PowerShell: function definitions with no reference anywhere | **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4 | High precision, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead |
 
 Every figure in the Measured character column comes from this plugin's own trap fixtures under
 `evals/fixtures/`, as recorded on 2026-08-23. Recheck trigger: a major version bump in any lane's
@@ -92,7 +92,8 @@ Bounded by design. Full evidence catalogue in
 
 1. **Consent gate.** Report the candidate **count** and the `--max` cap from
    `Summary candidates:` and get a go-ahead before adjudicating. Never quote a time or token
-   estimate. There is no measurement behind one.
+   estimate. There is no measurement behind one. Done when the operator has explicitly approved
+   adjudication or declined it (report-only).
 2. **Order is git recency, oldest-untouched first.** The script already emits them that way. There
    is no confidence key to order by: vulture pins every symbol-level finding at exactly 60 and knip
    has no confidence field at all.
@@ -105,7 +106,8 @@ Bounded by design. Full evidence catalogue in
 6. **Optional LSP assist**, never required and never a lane: when Claude Code's `LSP` tool is
    available, `findReferences` on one candidate is one more evidence source. `includeDeclaration` is
    hard-coded true, so the dead threshold is `resultCount == 1`. Imports count as references, so a
-   re-export still reads alive.
+   re-export still reads alive. Done when every emitted candidate has a `dead`, `uncertain`, or
+   `alive` verdict with evidence, or the cap stopped the batch and that stop is stated.
 
 ## Hard rules
 
@@ -128,6 +130,22 @@ Bounded by design. Full evidence catalogue in
   never hidden. It is narrower than a build; vulture, measured, is genuinely pure.
 - **`**/evals/fixtures/**` is never scanning input**, matching the policy `ruff.toml` already sets.
   A detector's planted-defect corpus is not the consumer's dead code.
+
+## When coverage is incomplete
+
+A `skipped` lane, a `scanned-zero-files` lane, or source files with no lane at all are gaps, not a
+clean bill. After presenting the lane roster:
+
+1. **Name each gap**: which paths, which language, and why (no lane, no local binary, no
+   `package.json` root, or policy exclusion such as Rust/.NET).
+2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
+   the operator to edit and submit. Do nothing unless they agree.
+3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for the
+   language, show the choice and its install command, and install or invoke it only after an
+   explicit yes. Record its precision as **unmeasured** until trap fixtures cover it.
+
+The default stays read-only: no package runner, no network fetch, and no build without consent
+(#4524). Consent-gated lanes that may compile or execute project code remain out of scope here.
 
 ## Output schema
 
@@ -155,11 +173,12 @@ Close with the lane roster, the candidate count against the cap, and `n dropped 
 
 The skill writes nothing, so the memory has to live in the repository:
 
-1. Adjudicate a bounded batch.
+1. Adjudicate a bounded batch. Done when the batch is adjudicated or explicitly deferred.
 2. Paste the emitted suppression entries into each detector's **native** config. Knip `ignore`
    entries, a vulture whitelist. Formats in [context/adjudication.md](context/adjudication.md)
-   "Suppression formats".
-3. The next run is cleaner, and the batch after it reaches new code.
+   "Suppression formats". Done when the operator has the suppression text or has declined to apply it.
+3. The next run is cleaner, and the batch after it reaches new code. Done when a follow-up scan is
+   scheduled or the operator stops after one batch.
 
 Only the knip and vulture lanes converge. **The Go and shell lanes have no native suppression**: measured, `gopls check -severity=hint` reports through every candidate directive (`//lint:ignore` is
 staticcheck's and is not honored), so those verdicts live in the report and in a comment at the
@@ -180,6 +199,16 @@ under a consumer's ruff config. Say so when you emit one.
 
 ## Gotchas
 
+- **No `package.json` means no knip lane for `.js`/`.mjs`/`.cjs`.** Those extensions are routed to
+  knip, which skips when it cannot find a project root, so standalone JS is not scanned and does not
+  appear on a lane line today. Until coverage accounting ships (#4521), compare `Summary total:` to
+  the tracked source list you intended to audit when the repository has no manifest root. A grep-lane
+  fallback or knip-without-manifest scan for those files is **deferred**
+  ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
+  **Claim:** dead JS/TS outside any `package.json` root has no detector lane until trap-measured
+  extractors ship. **Basis:** #4522; knip skip behavior documented in #4525. **As of:** 2026-09-28.
+  **Recheck:** standalone `.mjs` trap fixtures produce candidates at recorded precision, or #4522
+  unpark.
 - **A `degraded` lane is not a quiet lane.** knip degraded means invented findings were withheld;
   gopls degraded means real findings were never produced. Report which one happened.
 - **`grep -w -F` is the floor and `-F` is mandatory**, without it `core.ts` matches `coreXts`. A
