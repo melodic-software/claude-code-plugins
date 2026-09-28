@@ -1612,7 +1612,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     if not guarded:
         return _die(
             1,
-            f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: printf '*\\n' >> {guard.as_posix()}), then re-run; this script never writes it",
+            f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: the Write tool, or the Edit tool when the file exists, never a shell redirect), then re-run; this script never writes it",
         )
 
     handoffs = memory_dir / "handoffs"
