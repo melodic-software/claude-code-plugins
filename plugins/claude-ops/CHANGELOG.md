@@ -9,6 +9,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **Long reference spokes open with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `audit-performance` `reference/known-performance-issues.md`, `observability` `context/data-sources.md` are over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on them. No content moved.
 
+## [0.63.22] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
 ## [0.63.17] - 2026-09-28
 
 ### Fixed

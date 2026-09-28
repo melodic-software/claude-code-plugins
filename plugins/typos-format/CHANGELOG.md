@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-09-28
+
+### Changed
+
+- The spelling row is exec form. `hooks/exec-bash.mjs --run-if-unset-or-true TYPOS_FORMAT_ENABLED` exits 0 before bash when the option is set to something other than `true` ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
 ## [0.7.0] - 2026-09-28
 
 ### Changed

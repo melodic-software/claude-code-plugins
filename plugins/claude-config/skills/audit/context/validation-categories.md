@@ -113,8 +113,8 @@ complete set.
   needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
 - A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
   is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, so do not flag it
-- On a Windows-targeting repo, exec-form `command` resolves to a real executable. `bash` there
-  finds the WSL relay and the hook silently never launches
+- On a Windows-targeting repo, judge exec-form `command` resolution from the Category D
+  checklist row. That row carries the four-part record for the hooks-page Windows rule.
 - No duplicate hooks (same script registered twice for same event)
 - Hook events are valid (cross-reference against official docs)
 - **Hook-suppression levers are read and reported**, because a hook that cannot run is not a control:

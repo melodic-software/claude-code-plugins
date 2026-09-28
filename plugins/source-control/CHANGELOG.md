@@ -9,6 +9,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`setup`'s `reference/apply-convention.md` opens with a table of contents that links its sections** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). The 460-line spoke had a Contents block with one in-page link, because the `apply` interview is walked as bolded numbered steps rather than headings. Two H2 headings now open the target-layer and non-interactive-write block and the interactive interview. The steps stay a numbered list, and the Contents block links all three sections. Anthropic's skill-authoring best practices ask for a table of contents at the top of a long reference file so a partial read still shows its scope, and `skill-quality:check` check 26 no longer warns on it.
 
+## [0.62.8] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.62.7] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
 ## [0.62.6] - 2026-09-28
 
 ### Changed

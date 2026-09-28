@@ -8062,58 +8062,23 @@ class GuardTests(unittest.TestCase):
             return [cls._substitute_plugin_root(item, root) for item in value]
         return value
 
-    def test_skill_hook_registers_in_portable_shell_form(self) -> None:
-        """The skill-scoped belt must launch the way the wired hooks do (#2568).
+    def test_skill_hook_registers_through_node_exec_form(self) -> None:
+        """The skill-scoped belt must launch the way the wired hooks do (#3686).
 
-        Exec form (`args` present) resolves `command` as a bare PATH lookup, and
-        the belt's was the literal `python3` — which on stock Windows resolves to
-        the zero-length WindowsApps App Execution Alias stub, not a real
-        executable. The spawn fails, a failed hook launch is non-blocking, and the
-        belt silently enforces nothing. Shell form through
-        `hooks/run-python-hook.sh` is the shape #1006/#2570 proved: Claude Code
-        routes it through its own Git Bash rather than a PATH lookup, and the
-        launcher rejects the alias stub before exec'ing.
-
-        These are the same four portability assertions
-        `hooks/run-python-hook.test.sh` makes for `hooks.json`; that suite is
-        jq-based and cannot read YAML frontmatter, so this surface is asserted
-        here. The sibling substitution-allowlist test passes in BOTH forms, so it
-        is not the discriminator — this test is.
+        Bare `bash` or `python3` as an exec-form command is a PATH lookup. On
+        Windows those names resolve to the WSL relay and the WindowsApps alias
+        stub, the spawn fails, and a failed hook launch does not block. The
+        legal command is `node`, with exec-bash.mjs finding Git Bash and then
+        running run-python-hook.sh.
         """
         hook = self._skill_hook()
-        command = hook.get("command", "")
-        self.assertIn(
-            "hooks/run-python-hook.sh",
-            command,
-            f"skill hook must launch through the shared launcher: {command!r}",
-        )
-        self.assertTrue(
-            command.startswith('bash "${CLAUDE_PLUGIN_ROOT}"/'),
-            "the belt runs the launcher with a leading `bash`, as every "
-            f"hooks.json row does, so no `env` process runs: {command!r}",
-        )
-        self.assertNotIn(
-            "args",
-            hook,
-            "`args` switches Claude Code to exec form, where `command` is a bare "
-            f"PATH lookup and `shell` is ignored: {hook!r}",
-        )
-        self.assertEqual(
-            "bash",
-            hook.get("shell"),
-            "shell form falls back to PowerShell on a Windows host with no Git "
-            f"Bash detected, which cannot run a .sh launcher: {hook!r}",
-        )
-        unquoted = re.findall(
-            r'(?:^|[^"])(\$\{CLAUDE_PLUGIN_[A-Z]+\})|(\$\{CLAUDE_PLUGIN_[A-Z]+\})(?:[^"]|$)',
-            command,
-        )
-        self.assertEqual(
-            [],
-            unquoted,
-            "every path placeholder must be double-quoted — the shell "
-            f"re-tokenizes the string and plugin roots contain spaces: {command!r}",
-        )
+        self.assertEqual("node", hook.get("command"), hook)
+        args = hook.get("args")
+        self.assertIsInstance(args, list, hook)
+        joined = " ".join(args)
+        self.assertIn("hooks/exec-bash.mjs", joined, hook)
+        self.assertIn("hooks/run-python-hook.sh", joined, hook)
+        self.assertNotIn("shell", hook, hook)
 
     def test_skill_hook_argv_matches_the_exec_form_vector_it_replaced(self) -> None:
         """Converting a LIVE guard must not change the argv the guard receives.
