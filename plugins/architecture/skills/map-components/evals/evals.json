@@ -1,0 +1,73 @@
+{
+  "skill_name": "map-components",
+  "evals": [
+    {
+      "id": 1,
+      "name": "renders-one-deployable-from-the-graph",
+      "prompt": "/architecture:map-components\n\nThe convention home resolves and architecture_dir is docs/architecture. docs/architecture/dependency-graph.json already exists and is a schema_version 1 record of three .NET projects: Billing.Api references Billing.Application, which references Billing.Domain. Billing.Api is the only indegree-zero deployable. landscape_dialect is mermaid. No component_layers key is declared.",
+      "expected_output": "Renders docs/architecture/components.md from the existing graph with render-components.sh. Does not recollect. Groups by directory. The arrows match the ProjectReference edges and each evidence cell cites the declaration. Closes with the fixed report.",
+      "narration": true,
+      "expectations": [
+        "Uses the existing dependency-graph.json and does not run component-graph.sh over it",
+        "Runs scripts/render-components.sh rather than composing the diagram by hand",
+        "Groups by directory, the default",
+        "Billing.Api, Billing.Application, and Billing.Domain are components, and the arrows follow the declared ProjectReference edges",
+        "Every drawn edge is directed and the evidence table cites the declaration file",
+        "Closes with the fixed report: artifacts, container, grouping, components, thin result, layer violations, aggregated, external and unresolved, graph source"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "several-deployables-ask-instead-of-charting-all",
+      "prompt": "/architecture:map-components\n\nThe convention home resolves. The graph has two indegree-zero projects, Billing.Api and Billing.Worker. The run is interactive. No container argument was given.",
+      "expected_output": "The renderer exits 3 and writes nothing. The skill asks which deployable to chart and does not draw both.",
+      "narration": true,
+      "expectations": [
+        "Does not write components.md before a container is chosen",
+        "Names Billing.Api and Billing.Worker as the choices",
+        "Does not chart both deployables: that is map-containers",
+        "Waits for the operator to pick one, then re-runs with --container"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "layer-violation-is-visible-and-not-a-failure",
+      "prompt": "/architecture:map-components Billing.Api --group-by layer\n\nThe topic doc declares component_layers: host, application, domain, outside to inside. Billing.Domain references Billing.Application. The renderer exits 0.",
+      "expected_output": "The diagram groups by the three layers. The Domain to Application edge is marked as a layer violation. The run does not fail. The report says the mark is informational.",
+      "narration": true,
+      "expectations": [
+        "Passes --layers host,application,domain and --group-by layer to render-components.sh",
+        "The upward edge is visibly distinguishable from the other ProjectReference arrows",
+        "The exit code stays 0",
+        "Says enforcement belongs to the consumer's architecture tests, not to this run",
+        "Does not invent a layer for a node that matches none of the declared names"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "single-module-is-thin",
+      "prompt": "/architecture:map-components\n\nThe graph has one project and no project edges. The operator asked how this service is structured inside.",
+      "expected_output": "components.md says the result is thin and names the neighboring rungs. It does not present a one-box diagram as the answer.",
+      "narration": true,
+      "expectations": [
+        "Quotes thin=yes from the summary line",
+        "The artifact does not contain a C4Component diagram",
+        "Names /architecture:map-landscape, /architecture:map-containers, and /architecture:improve",
+        "Does not invent an internal edge to make the picture look fuller"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "missing-graph-collects-dotnet-or-reports-unknown",
+      "prompt": "/architecture:map-components\n\nNo dependency-graph.json exists. map-dependencies is not installed. The repository has no .NET project and does have a package.json.",
+      "expected_output": "Runs component-graph.sh, which records ecosystem unknown with a reason and empty arrays. The render writes that reason and no diagram.",
+      "narration": true,
+      "expectations": [
+        "Runs component-graph.sh because the graph is absent and collect-dependencies.sh is not installed",
+        "Does not hand-build nodes from the package.json name",
+        "The artifact says the ecosystem is unknown and does not draw an empty diagram",
+        "Writes the collected record to the architecture directory so the next run can read it"
+      ]
+    }
+  ]
+}

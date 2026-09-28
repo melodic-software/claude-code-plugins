@@ -3,6 +3,26 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `/architecture:map-components` charts the modules inside one deployable as a C4 component view.
+  It reads `dependency-graph.json` (schema_version 1, one object per line). When that file is
+  absent and map-dependencies is not installed, `component-graph.sh` collects .NET
+  `ProjectReference` and `PackageReference` declarations into the same record. An unrecognized
+  ecosystem stays `unknown` with empty arrays. Grouping is directory (the default), namespace, or
+  a declared layering (`component_layers`, outside to inside). A layer violation is drawn and does
+  not fail the run. Above the node threshold (24, or the record's `node_threshold`) the view
+  aggregates and says so. A single module with no internal edges is a thin result and names the
+  neighboring rungs instead of a one-box diagram. The view reuses `landscape_dialect` (`mermaid`
+  `C4Component`, or structurizr `component`). A separate component dialect is deferred.
+
+### Changed
+
+- `map-landscape`'s thin-result remedy and `## Next` route a question about the inside of one
+  deployable to `/architecture:map-components`.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

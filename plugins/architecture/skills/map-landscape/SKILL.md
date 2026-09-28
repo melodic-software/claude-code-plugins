@@ -178,9 +178,9 @@ End every run with this block, in this order, filled from the record and the scr
 - **Thin result**: `no`, or `yes` with the reason and the one remedy that fits, taken from the
   summary line. Under `--check` it reads `not assessed (--check)`.
   - `edges=0`: the subject names no other repository. Lead by saying this is the wrong tool for the
-    question: a landscape answers which systems exist and how they reference each other, not how
-    one repository is built inside; that is `/architecture:improve` for module structure or
-    `/discovery:explore` for how it works. Then offer
+    question: a landscape answers which systems exist and how they reference each other. How one
+    deployable is built inside is `/architecture:map-components`. Module-design friction inside
+    that code is `/architecture:improve`. How the code behaves is `/discovery:explore`. Then offer
     `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
   - `unresolved_edges` above 0: no charted repository has the name the edges come from, so the
     repository that supplies them is not charted. Add it to `--repos`, first.
@@ -188,9 +188,10 @@ End every run with this block, in this order, filled from the record and the scr
     Re-render with a larger `--top-external`; nothing needs collecting again.
   - `drawn_systems` at most 2 with drawn edges: `--root <dir>`, or `--repos` with the current
     subject kept first, adds the organization's other repositories as nodes.
-  - Whenever `internal=1`, also point to `/architecture:improve` or `/discovery:explore`, whatever
-    the counts. Never offer `--remote` here: it fills facts for existing nodes and adds no system
-    and no edge.
+  - Whenever `internal=1`, point to `/architecture:map-components` for the modules inside this
+    repository's deployable, whatever the counts. Also name `/architecture:improve` when the
+    question is module design. Never offer `--remote` here: it fills facts for existing nodes and
+    adds no system and no edge.
 - **Unknown facts**: how many fields across the record are the literal `unknown`.
 - **Discovery source**: default (current repository plus reference graph), explicit list, fleet
   plan, or bundled walk.
@@ -201,7 +202,8 @@ End every run with this block, in this order, filled from the record and the scr
 ## What this skill does NOT do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
-- Container-level or component-level C4 views. This is the landscape altitude only.
+- Container-level C4 views, and the modules inside one deployable. Components are
+  `/architecture:map-components`. This skill is the landscape altitude only.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.
@@ -213,9 +215,9 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Next
 
-- One repository on the landscape needs its own module-level pass: `/architecture:improve`.
-- The landscape came back thin and the question was how one repository works inside:
-  `/discovery:explore`.
+- The question is the modules inside one deployable: `/architecture:map-components`.
+- The question is module-design friction: `/architecture:improve`.
+- The question is how the code behaves: `/discovery:explore`.
 - The landscape settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas

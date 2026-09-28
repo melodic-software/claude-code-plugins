@@ -52,8 +52,9 @@ rather than becoming a plausible guess, and a repository nobody names produces n
 edge.
 
 A landscape that draws at most two systems or no edges is reported as thin, with
-the reason and what to run instead: `/architecture:improve` or
-`/discovery:explore` when the question is how one repository is built inside.
+the reason and what to run instead: `/architecture:map-components` when the
+question is the modules inside one deployable, `/architecture:improve` for
+module-design friction, or `/discovery:explore` for how the code behaves.
 
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
@@ -77,6 +78,20 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Inside one deployable
+
+`/architecture:map-components` draws the C4 component view of one deployable:
+the modules inside it, grouped by directory (the default), by namespace, or by
+a declared layering, with a directed arrow for every internal build reference.
+Each arrow cites the declaration it came from. The view reads
+`dependency-graph.json` when that file is already in the architecture directory,
+and otherwise collects .NET `ProjectReference` and `PackageReference`
+declarations into the same record. An unrecognized ecosystem stays `unknown`
+rather than becoming an empty diagram. A layering violation is drawn so you can
+see it, and the run does not fail: enforcement stays with the repository's own
+architecture tests. A single module with no internal edges is reported as thin
+and names the neighboring rungs, instead of a one-box diagram.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -99,6 +114,9 @@ your records.
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
 
+/architecture:map-components
+/architecture:map-components Billing.Api --group-by layer
+
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
 ```
@@ -107,14 +125,17 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map
+components", "component diagram", "what is inside this service".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+`map-landscape` and `map-components` read keys from a topic doc at your
+repository's convention home, `<home>/architecture/README.md`: `architecture_dir`
+(repo-relative, no default), `landscape_dialect` (`structurizr` or `mermaid`,
+default `mermaid`, used for both the landscape and the component view), and
+optional `component_layers` (outside to inside, no default). The contract lives
+in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
 `architecture_dir` declared and none confirmed, `map-landscape` stops and points

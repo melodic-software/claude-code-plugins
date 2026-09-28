@@ -35,7 +35,8 @@ into it and no dual-read window exists.
 4. Otherwise the skill asks once.
 5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
    `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
-   run, `map-landscape` stops and points at `/architecture:setup`.
+   run, `map-landscape` and `map-components` stop and point at `/architecture:setup`.
+   `component_layers` has no fallback and no stop: absent, layer grouping is unavailable.
 
 ## Topic-doc format
 
@@ -47,6 +48,7 @@ Markdown with a fenced YAML block (human-readable, shell-greppable):
 ```yaml
 architecture_dir: docs/architecture   # repo-relative; no default
 landscape_dialect: mermaid            # structurizr | mermaid
+component_layers: host, application, domain  # optional; outside to inside; no default
 ```
 ````
 
@@ -54,27 +56,44 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
-| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. The same directory is where `map-components` writes `components.md` / `components.dsl` and reads `dependency-graph.json` and `components-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which diagram `map-landscape` and `map-components` emit. `structurizr` emits `landscape.dsl` (`systemLandscape`) and `components.dsl` (a component view). `mermaid` emits `landscape.md` (`C4Context`) and `components.md` (`C4Component`). |
+| `component_layers` | comma-separated layer names | **none** | Optional. Ordered from outside to inside. `/architecture:map-components --group-by layer` reads it. Absent, that grouping cannot run. A name is letters, digits, `.`, `_`, or `-`. |
 
-An unknown key, or a `landscape_dialect` value outside the two above, is reported by
-`/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
-never coerced to the default.
+An unknown key, a `landscape_dialect` value outside the two above, or a
+`component_layers` value that is not a comma-separated list of layer names, is
+reported by `/architecture:setup check` as a FAIL with a remediation line. It is
+never silently ignored and never coerced to the default. `component_layers`
+absent is a PASS: the key is optional.
 
 ## C4 dialect surfaces
 
-This plugin owns one C4-shaped artifact. The authoring-formats convention owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This plugin owns two C4-shaped artifacts, and they share one key. The authoring-formats
+convention owns another. They keep separate keys from that convention, separate allowed
+values, and separate defaults because they are different artifacts, not because they
+disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
 | C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| C4 component view | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-components` |
 | C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
-`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits, and the
+C4 component view `/architecture:map-components` emits, once `architecture_dir` is set.
+Mermaid writes a `C4Context` diagram for the landscape and a `C4Component` diagram for one
+container. Structurizr writes a `systemLandscape` view and a `component` view. The mermaid
+default is a format choice for artifacts these skills already emit; it does not add a new
+deliverable.
+
+The component view reuses `landscape_dialect` on purpose. It does not add
+`component_dialect`, and it does not read `diagram_dialect.system`. That is a deferral of
+a full C4 dialect redesign: one key already chooses `structurizr` or `mermaid` for this
+plugin's C4 pictures, and a second key for the same choice would split the setting before
+a later view needs a different allowed set. Recheck when a later C4 view skill
+(map-containers or map-context) needs an allowed set this key does not have, or when the
+authoring-formats mermaid-C4 trigger below fires. On firing, record the outcome in this
+plugin's `CHANGELOG.md`.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
@@ -88,12 +107,14 @@ The mermaid-C4 experimental fact and its recheck trigger live in the authoring-f
 ([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. That trigger fires when the experimental banner
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
-key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
+key's mermaid default should change, whether `/architecture:map-landscape`'s mermaid output
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
-and record the outcomes in this plugin's `CHANGELOG.md`.
+and whether `/architecture:map-components`'s mermaid output should stay a `C4Component` diagram.
+Record the outcomes in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` and
+`map-components` read this surface and never write it. Neither skill writes any other file in
+the consumer's root. `map-components` writes its view under `architecture_dir` only.
