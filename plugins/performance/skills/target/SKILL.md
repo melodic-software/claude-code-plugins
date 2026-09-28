@@ -86,6 +86,10 @@ A ranked table, highest evidence tier first:
 | Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |
 |---|---|---|---|---|---|
 
+Add a **Growing state** column when the candidate reads state whose size grows with use (transcripts,
+logs, histories, accumulating caches): `yes — /performance:goal will require scaling arms` or `no`.
+When `yes`, name what grows and the smallest realistic span of sizes to measure (not a single point).
+
 Then one line naming the recommended target and the tier it rests on. If that tier is E3 or E4, the
 recommendation is to instrument, not to optimize.
 
@@ -119,3 +123,5 @@ candidate must say so.
   layers before believing size.
 - **A target with no drift-immune counter is a harder target**, not an equal one. Say so here rather
   than discovering it in `/performance:snapshot` when a wall-clock claim gets refused.
+- **Growing-state reads need a scaling arm in the goal.** Flag them in the table so
+  `/performance:goal` does not settle on one transcript size while production grows without bound.
