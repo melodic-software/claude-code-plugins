@@ -1561,6 +1561,8 @@ _POWERSHELL_STRING_EVALUATORS = re.compile(
     r"invoke-expression|iex|invoke-command|icm|start-process|saps|start"
     r"|start-job|sajb|start-threadjob|invoke-wmimethod|iwmi|invoke-cimmethod"
     r"|powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|bash(?:\.exe)?|sh|wsl(?:\.exe)?"
+    r"|zsh|dash|fish|ssh(?:\.exe)?|python[\d.]*(?:\.exe)?|py(?:\.exe)?"
+    r"|node(?:\.exe)?|perl(?:\.exe)?|ruby(?:\.exe)?"
     r"|scriptblock|executioncontext|addscript|addcommand|add-type"
     r"|new-alias|set-alias|nal|sal"
     r")(?![\w-])|function:"
