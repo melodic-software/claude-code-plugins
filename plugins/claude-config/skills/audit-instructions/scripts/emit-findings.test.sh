@@ -380,6 +380,24 @@ bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co3.md" \
   --branch testbranch --declined-carveout notanumber >/dev/null 2>&1 || rc=$?
 assert_exit "a non-numeric carve-out count exits 2" 2 "$rc"
 
+# --- Case 9g: residency-unresolved holds are counted under their own reason --
+# A RESIDENCY-UNRESOLVED row proposes no edit, so the lane holds it out of
+# --from; the count keeps that decline visible without borrowing the I28
+# carve-out label, which names a different ground.
+bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/ru.md" \
+  --branch testbranch --declined-residency 2 >/dev/null 2>&1
+RU=$(cat "$TEST_TMPDIR/ru.md")
+assert_contains "a residency-unresolved decline count is reported" \
+  "$RU" "count=2 reason=residency-unresolved"
+assert_not_contains "a residency hold is not reported as a carve-out" \
+  "$RU" "criteria-carve-out"
+assert_not_contains "omitting the flag reports no residency line" \
+  "$(emit "$TEST_TMPDIR/yb.txt" "$TEST_TMPDIR/ru2.md")" "residency-unresolved"
+rc=0
+bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/ru3.md" \
+  --branch testbranch --declined-residency two >/dev/null 2>&1 || rc=$?
+assert_exit "a non-numeric residency count exits 2" 2 "$rc"
+
 # --- Case 10: tier and confidence are rule-keyed, not per-finding ------------
 TIERS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)
 assert_eq "every emitted row carries the crosswalk tier" "IMPORTANT" "$TIERS"

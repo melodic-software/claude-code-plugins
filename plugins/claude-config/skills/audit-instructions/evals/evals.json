@@ -244,6 +244,20 @@
         "Does not flag the Cross-references section that is the source",
         "Does not flag the partial-overlap Purpose that adds load-bearing content after the echo"
       ]
+    },
+    {
+      "id": 21,
+      "name": "residency-unresolved-lane-is-not-a-finding",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/agents-md-residency-unresolved.md relative to the skill directory, treated as this repository's root AGENTS.md. Phase A could not read the managed settings scope, so whether the effective instruction-files mode loads AGENTS.md at all is unresolved; no CLAUDE.md sits on its path.",
+      "expected_output": "Inventories the file, since every residency condition is satisfied or unresolved, and runs its lane, but reports none of its results as an actionable finding. Every row the lane produces (the I28-a coercive emphasis, the I6 bare prohibition, the I28-b blanket tool default) carries RESIDENCY-UNRESOLVED in the Proposed change column with the named unresolved condition (the effective instruction-files mode, unreadable at managed scope), and no fenced diff follows it. The candidate rewrite may be described as what the lane would propose once the file is known to load, never as a proposed change. Under --persist-findings those candidates are held out of the emitted file and counted with --declined-residency, not --declined-carveout.",
+      "files": [
+        "evals/fixtures/agents-md-residency-unresolved.md"
+      ],
+      "expectations": [
+        "Marks every result of the lane RESIDENCY-UNRESOLVED in the Proposed change column, naming the unresolved condition",
+        "Gives no fenced diff for any RESIDENCY-UNRESOLVED row and does not present its rewrite as an actionable proposal",
+        "Does not exclude the file from the inventory, since its residency is unresolved rather than known to be ruled out"
+      ]
     }
   ]
 }
