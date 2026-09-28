@@ -7,7 +7,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 ### Security
 
-- The `generate` build pins `image-size` to `^2.0.3` through an npm `overrides` entry, clearing GHSA-5p2g-fcmc-qvqq and GHSA-w3rx-r6r6-pgpr (denial of service through infinite loops in the JXL, HEIF, and ICNS parsers). `pptxgenjs@4.0.1` declares `image-size ^1.2.1` but its distributed build never imports it, so the major bump changes no build behaviour.
+- The `generate` build pins `image-size` to `^2.0.3` through an npm `overrides` entry, clearing GHSA-5p2g-fcmc-qvqq and GHSA-w3rx-r6r6-pgpr (denial of service through infinite loops in the JXL, HEIF, and ICNS parsers). `pptxgenjs@4.0.1` declares `image-size ^1.2.1` but its distributed build never imports it, so the major bump changes no build behavior.
 
 ## [0.7.42] - 2026-09-27
 
