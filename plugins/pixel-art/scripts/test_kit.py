@@ -76,6 +76,14 @@ class KitTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             kit.Walker(preset="giant")
 
+    def test_extra_material_without_a_ramp_is_a_clear_error(self):
+        def mail(canvas, lay, direction, step):
+            tx, ty, tw, th = lay["torso"]
+            canvas.rect(tx, ty, tw, th, "chainmail")
+
+        with self.assertRaisesRegex(ValueError, "chainmail"):
+            kit.Walker(size=48, extra=mail).spec()
+
 
 if __name__ == "__main__":
     unittest.main()

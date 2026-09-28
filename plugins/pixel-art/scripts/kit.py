@@ -263,18 +263,23 @@ class Walker:
         for mat, ramp in self.ramps.items():
             for index, color in enumerate(ramp):
                 if color not in palette.values():
-                    palette[next(letters)] = color
+                    key = next(letters, None)
+                    if key is None:
+                        raise ValueError("ramps use more distinct colors than the spec has palette keys")
+                    palette[key] = color
                 char_of[(mat, index)] = next(key for key, value in palette.items() if value == color)
         return palette, char_of
 
     def spec(self):
         palette, char_of = self._chars()
-        # materials named by extra() must have ramps
         frames, order = {}, []
         for direction in ("down", "left", "right", "up"):
             for pattern, step in enumerate((-1, 0, 1)):
                 name = f"{direction}{pattern}"
-                frames[name] = self.materials(direction, step).shade(char_of)
+                try:
+                    frames[name] = self.materials(direction, step).shade(char_of)
+                except KeyError as exc:
+                    raise ValueError(f"material {exc.args[0][0]!r} has no ramp; add it to ramps") from exc
                 order.append(name)
         animations = {
             f"walk_{direction}": {

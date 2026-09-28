@@ -65,7 +65,7 @@ is a 4-direction walker built on it. `examples/campfire/` holds an earlier hand-
 walker and a cutscene that reuses it. Copy a folder somewhere writable, then:
 
 ```shell
-python3 blacksmith.py
+CLAUDE_PLUGIN_ROOT=<plugin> python3 blacksmith.py
 python3 <plugin>/scripts/render.py blacksmith.json --out out --scale 4
 python3 hero_mz.py
 python3 <plugin>/scripts/render.py hero_mz.json --out out --scale 4

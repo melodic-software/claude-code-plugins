@@ -2,13 +2,17 @@
 
 Copy this folder somewhere writable, then:
 
-    python3 blacksmith.py
+    CLAUDE_PLUGIN_ROOT=<plugin> python3 blacksmith.py
     python3 <plugin>/scripts/render.py blacksmith.json --out out --scale 4
+
+kit.py is found under CLAUDE_PLUGIN_ROOT when it is set, else beside this file in the plugin.
 """
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+sys.path.insert(0, str(Path(_root) / "scripts" if _root else Path(__file__).resolve().parents[2] / "scripts"))
 
 import kit  # noqa: E402
 
