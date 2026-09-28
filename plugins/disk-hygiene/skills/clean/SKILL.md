@@ -1,26 +1,35 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
+argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Exec form. `command` is `node` (a real executable). exec-bash.mjs
-        # finds Git Bash and never System32\bash.exe, then runs
-        # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
-        # launch that fails open on Windows.
-        # Claim: exec form spawns `command` with `args` and no shell, and a
-        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
-        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
-        # and "Command hook fields".
-        # As of: 2026-09-28.
-        # Recheck: that page stops ignoring `shell` when `args` is set, or a
-        # skill hook gains another placeholder.
+        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
+        # which runs the launcher without the `env` process its shebang costs.
+        # Git Bash, which runs the shell-form string, looks that `bash` up on
+        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
+        # Verified 2026-09-23 against Claude Code 2.1.281 at
+        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
+        # Windows; exec form resolves `command` on PATH); recheck when that
+        # page changes how shell-form commands are run on Windows, or a
+        # release note names hook shell selection. Exec form resolves
+        # `command` on PATH with no shell, and a bare `python3` there is
+        # the zero-length WindowsApps App Execution Alias stub on stock
+        # Windows, the hook cannot launch, and a failed launch is non-blocking,
+        # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
+        # rejects that stub and falls through to `python`, then `py -3`.
+        # `${CLAUDE_PLUGIN_ROOT}` is the only substitution a skill-frontmatter
+        # hook receives. Never ${CLAUDE_PLUGIN_DATA} or
+        # ${user_config.*}, either of which makes Claude Code refuse the launch.
+        # The single-quoted YAML scalar is the same value hooks.json spells with
+        # \" escapes; every path placeholder must stay double-quoted, because the
+        # shell re-tokenizes the string and plugin roots contain spaces.
         - type: command
-          command: node
-          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
+          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
+          shell: bash
           timeout: 60
 metadata:
   workflow-stage: anytime
@@ -58,25 +67,23 @@ both modes, so read per-child detail and the coverage gaps there and pass `--qui
 whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
-`--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
-it never walks that root recursively. The same flags also select immediate children of any other
-target, so after a depth-1 home audit the operator can re-inventory the approved directories
-without walking the rest of the home. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate children (on an OS-managed volume
-root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-regular types are
-withheld, and regular files use the same admission ladder as directories; on a non-OS target, only
-directories are admitted, and hidden and volume-OS-named directories stay selectable so approved
-home children can be named). With one
-or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
-root-children row, it audits only those admitted children into one snapshot. A general "clean
-everything" is not selection. With no target, ask once. Reject an
-OS-managed root (unless `--root-children` on the volume root itself), a non-root mount target, a protected shell-folder root
-or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
-is not OS-managed (a Windows Dev Drive) is a valid target, but
-as a known-large root it is gated like a home target (see step 1): the scan returns
+`--root-children` is how to fan out without walking a whole home or OS-managed volume root (for
+example `C:\Users\<user>` or `C:\`): <!-- portability-ok: placeholder angle bracket in a path example, not a shell redirection --> it never walks the parent recursively. Without `--root-child`
+names the engine returns `root-children-selection-required` listing admitted immediate
+directories (on a volume root, OS-owned, hidden, system, reparse, mount, protected-shell-folder,
+and non-directory entries are withheld; on a non-volume target such as a home directory,
+dot-prefixed profile folders are admitted). With one or more explicit `--root-child <name>` flags,
+after the human clears the confirmation gate's root-children row, it audits only those admitted
+children into one snapshot. A general "clean everything" is not selection. With no target, ask once.
+Reject an OS-managed root (unless `--root-children`), a non-root mount target, a protected
+shell-folder root or descendant, a missing directory, a symlink, or a Windows reparse point. A
+whole-volume root that is not OS-managed (a Windows Dev Drive) is a valid target, but as a
+known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
-`--confirmed-large-scan`. `--root-children` on an OS-managed path that is not a volume root is
-invalid; scan a non-OS target with or without the flag. `root-children-selection-required` and
+`--confirmed-large-scan`. `--root-children` on a volume root is only valid when that root is
+OS-managed; on other targets use it directly against the home (or subtree parent) path. After a
+depth-1 home pass, re-run with `--root-children` and each approved top-level directory name to
+inventory that subtree for `handoff-verify` without a whole-home walk. `root-children-selection-required` and
 `large-target-confirmation-required` name the next step, not a failure, so `scan` exits 0 for them
 and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
 blocked target, 3 when elevation is needed or filesystem state could not be verified.
@@ -148,8 +155,8 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the volume root itself |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown; on the manual handoff, also **recycle** or **permanent** (permanent named irreversible) |
 
 ## 1. Create a read-only snapshot
 
@@ -160,14 +167,9 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
+  [--max-depth <N>] [--confirmed-large-scan] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
-
-For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
-`--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
-when the walk completed; depth-limited sizing runs mark `rollup_precision: partial`. Pasteable
-fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -175,9 +177,7 @@ coverage gap, not a clean result. (Derivation and its fail-closed rationale: `re
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
 start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
-then fan out deeper scans per subtree that the evidence justifies. After that depth-1 pass, re-inventory
-the directories the operator approved with `--root-children` and one `--root-child <name>` per approved
-immediate child: one snapshot, paths relative to the original target, no whole-home walk. The engine backs this with a
+then fan out deeper scans per subtree that the evidence justifies. The engine backs this with a
 deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root (a
 Windows Dev Drive, an OS-managed root still cannot be walked as a whole, and reaches the engine only via
 `--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
@@ -195,9 +195,18 @@ root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdo
 the snapshot the list); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
-fan-out worker receives a bounded subtree and returns evidence only (see
-[fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
+fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
+The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
+subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
+`curl` without the belt. **Basis:** #4228 audit on Claude Code 2.1.278 (Windows 11); the hooks
+page describes skill-hook lifetime and is silent on subagent reach
+(https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
+**Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
+note names that reach. Enforcing "workers return evidence only" in a hook that fires for
+subagents is parked with this close: a plugin-level gate that reached subagents would be a new
+hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
+belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -214,8 +223,7 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
-A hint annotation is not the only trigger for triage: at a user-home target or an OS-managed
-volume root addressed through `--root-children`, treat any loose
+A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
 root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too, the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
@@ -430,8 +438,15 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
   apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
-  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+  interpreter. The same denial text also admits literal-form read-only supporting commands whose
+  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
+  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
+  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
+  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
+  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
+  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
+  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
+  exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

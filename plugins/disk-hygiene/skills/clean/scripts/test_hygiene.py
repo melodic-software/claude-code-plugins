@@ -286,6 +286,107 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
+        # Relative `tree/**` matches only when the scan target is the parent.
+        # An absolute glob matches the file under `tree` even when `tree` itself
+        # is the scan target.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            tree = root / "tree"
+            tree.mkdir(parents=True)
+            (tree / "a.tmp").write_text("hold", encoding="utf-8")
+            (tree / "other.txt").write_text("keep", encoding="utf-8")
+            abs_glob = tree.resolve().as_posix() + "/**"
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [
+                            {"glob": abs_glob, "reason": "counsel hold"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            policy = hygiene.load_policy(policy_path)
+            self.assertEqual(
+                [{"glob": abs_glob, "reason": "counsel hold"}],
+                policy["additional_protected_path_globs"],
+            )
+            snapshot = hygiene.scan_tree(tree.resolve(), policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "consumer-protected-path",
+                entries["a.tmp"]["protected_reasons"],
+            )
+            self.assertEqual(
+                [abs_glob],
+                hygiene.snapshot_protection_globs(snapshot),
+            )
+            self.assertEqual(
+                [{"glob": abs_glob, "reason": "counsel hold"}],
+                snapshot["policy"]["additional_protected_path_globs"],
+            )
+
+    def test_relative_protection_glob_still_matches_target_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            kept = root / "client-deliverables"
+            kept.mkdir(parents=True)
+            (kept / "brief.txt").write_text("hold", encoding="utf-8")
+            (root / "scratch.tmp").write_text("junk", encoding="utf-8")
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [
+                            "client-deliverables/**"
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(policy_path))
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "consumer-protected-path",
+                entries["client-deliverables/brief.txt"]["protected_reasons"],
+            )
+            self.assertNotIn(
+                "consumer-protected-path",
+                entries["scratch.tmp"]["protected_reasons"],
+            )
+
+    def test_policy_rejects_malformed_protection_glob_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [{"reason": "no glob"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "protection globs"):
+                hygiene.load_policy(policy_path)
+
+    def test_protection_glob_is_absolute_accepts_posix_and_drive_letter(self) -> None:
+        self.assertTrue(hygiene.protection_glob_is_absolute("/Users/shared/keep/**"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("C:/eSupport"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
+        self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))
+        self.assertFalse(hygiene.protection_glob_is_absolute("client-deliverables/**"))
+
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
         managed["owner"] = "fixture-manager"
@@ -415,7 +516,7 @@ class HygieneTests(unittest.TestCase):
     def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
         # The OneDrive for Business sync root embeds the organization name, so
         # no exact name can cover it and a consumer overlay cannot either:
-        # additional_protected_path_globs match relative to the scan target.
+        # relative additional_protected_path_globs match the scan target.
         names = hygiene.baseline_protected_names()
         for spelling in ("OneDrive - Contoso", "onedrive - contoso"):
             self.assertTrue(hygiene.has_protected_name(Path(spelling), names))
