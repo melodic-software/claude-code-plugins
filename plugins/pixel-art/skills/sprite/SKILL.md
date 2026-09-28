@@ -14,16 +14,17 @@ Produce a static sprite the user can drop into a game or project, and show it to
 
 ## 1. Brief
 
-Pin down, from the request or by asking (ask only for what changes the output):
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md). That file is the only copy of the
+fields: subject, style references, proportions, size, palette, view, mood, target, and 2 to 6 done
+criteria. Ask only what changes the output. State every unspecified field as a default in one line.
 
-- **Subject and design**: what it is, key features, mood, reference styles.
-- **Size**: grid per frame (16, 24, 32, 48, 64). Engine layouts dictate it when named.
-- **Palette**: a named retro palette, a color count, or free choice. Fewer colors read better.
-- **View**: front, side, three-quarter, top-down, isometric.
-- **Target**: engine or format (RPG Maker MZ, Godot, Aseprite, plain PNG) from
-  [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md).
+Write `brief.md` beside the spec before the first render. A later run that finds it there reads it
+and does not ask again.
 
-Vague request → pick defaults, state them in one line, proceed. Iteration beats interrogation.
+When the request is vague or high-stakes, offer `/planning:interview` (if the planning plugin is
+installed). Planning owns a numbered-question brief. If planning is not installed, or the user does
+not accept, continue with the in-skill brief, which is the default and works alone. Do not start
+the interview unless the user accepts.
 
 ## 2. Choose the backend
 
@@ -56,14 +57,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 Output directory, first match wins: an explicit path in the request; an assets location the
 project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded
 means unset); otherwise ask. Keep the
-spec (and generator) beside the output so the next iteration edits source, not pixels.
+spec, `brief.md`, and the generator beside the output so the next iteration edits source, not pixels.
 
 ## 5. Review loop
 
-Read `preview.png` with the Read tool and critique it against the brief and the craft rules:
-silhouette at 1x, part separation, light consistency, outline, stray pixels, palette discipline.
-Fix the spec or generator, re-render, re-read. Stop when it reads well at 1x or after the user's
-direction says so; typically 2 to 4 rounds. Name the remaining weaknesses honestly.
+Read `preview.png` with the Read tool. Every round, list each done criterion in `brief.md` as pass
+or fail with a one-line reason, and check [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md)
+where a criterion does not already cover it: silhouette at 1x, part separation, light consistency,
+outline, stray pixels, palette discipline. Fix the spec or generator, re-render, re-read. Stop when
+every done criterion passes, or after the round budget (typically 2 to 4) with the failing criteria
+named. The user's direction can end the loop earlier.
 
 ## 6. Deliver
 

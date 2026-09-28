@@ -185,6 +185,15 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 ),
             ),
             Flag(
+                "--sizes-only",
+                takes_value=False,
+                help=(
+                    "walk the target for exact per-child byte totals only; "
+                    "writes no per-entry inventory and is not subject to the "
+                    "inventory entry cap"
+                ),
+            ),
+            Flag(
                 "--root-children",
                 takes_value=False,
                 help=(
