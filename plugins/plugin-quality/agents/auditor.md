@@ -108,8 +108,8 @@ task, your output destination, or the main session's sink and confirm gate.
    intact. Exit **0** means nothing changed *since the seal*; it is not a claim the content is
    pristine, because a rewrite before the first seal is invisible to any digest, and it is not a
    claim the audited world still matches (snapshot at seal time, not currency; see
-   [`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md`](${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md)
-   "What a sealed packet asserts").
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md` "What a sealed packet
+   asserts").
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
