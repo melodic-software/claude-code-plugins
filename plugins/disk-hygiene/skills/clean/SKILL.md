@@ -288,7 +288,9 @@ is available in this session. Do not invoke it for an entry that already has an 
 
 End the report with one question per entry whose owner is still unknown. Until the operator
 answers, disposition stays `keep`. Write the answer to `catalog-answers.json` and sync again.
-The record is stored with `source: human` and is not asked again while identity holds. An
+The record is stored with `source: human` and is not asked again while identity holds.
+Do not re-run this local procedure for a `source: human` entry while its identity and
+descendant set are unchanged; still re-check that identity. An
 identity or descendant-set change drops the old conclusion and asks again.
 
 ## 3. Classify and report
