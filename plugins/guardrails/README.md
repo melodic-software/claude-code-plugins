@@ -519,6 +519,8 @@ only while it is strictly newer than every manifest, so a same-tick rewrite is
 read again. A failed history walk is not cached. Shallow clones are still
 detected from `.git/shallow`.
 
+**0.41.2, the remaining PostToolUse execs (#4390).** The cold finding fire's incidental `awk`, `tr`, and `cut` are gone: 25 process creations and execs to 19, and 19 to 13 on the second edit at the same HEAD. What remains on that fire is the shell, the dispatcher, and five `git` processes. The goal, the floor, and why the ideal k × S wall is below that floor are in [`reference/edit-write-guards/PLAN.md`](reference/edit-write-guards/PLAN.md).
+
 The three report-only rows stay synchronous.
 
 - **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`.

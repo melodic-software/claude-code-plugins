@@ -180,6 +180,29 @@ spv_word_occurrences() {
   ' "$2"
 }
 
+# spv_anchor_occurrences <anchor> <file>: how many times <anchor> starts in
+# <file>, overlapping starts included. The advance is one byte past each start,
+# awk's `p = p + i` when `i` is the 1-based index() of an ASCII anchor. No
+# process: the previous counter was an awk over the whole file on every
+# non-word anchor, including a path that contains `/`.
+spv_anchor_occurrences() {
+  local anchor="$1" file="$2" line rest prefix n=0
+  [[ -n "$anchor" && -f "$file" ]] || {
+    printf '0'
+    return 0
+  }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rest=$line
+    while [[ -n "$rest" ]]; do
+      prefix=${rest%%"$anchor"*}
+      [[ "$prefix" == "$rest" ]] && break
+      n=$((n + 1))
+      rest=${rest:$((${#prefix} + 1))}
+    done
+  done <"$file"
+  printf '%s' "$n"
+}
+
 # spv__lines <text>: SPV_LINES = <text>'s non-empty lines.
 # shellcheck disable=SC2329 # reached through hook::_c_locale
 spv__lines() {
@@ -520,19 +543,13 @@ reconstruct_partial_edit() {
     # 5, but the two spans overlap and `grep -o` reports 1 — the anchor passes a
     # uniqueness gate it should fail, and reconstruction then scans a line it
     # cannot attribute, recreating the false STALE_PATH this gate exists to
-    # prevent. `index()` walks every start position, overlapping or not.
-    # The anchor crosses into awk via the environment, not `-v`: `-v` processes
-    # escape sequences in the value, so an anchor containing a backslash would
-    # be silently transformed before the comparison.
+    # prevent. The counter walks every start, overlapping or not, and advances
+    # one byte past each start.
     #
-    # A word anchor (awk's own `word` test below, decided here under C so its
-    # ranges are ASCII as awk's are) is counted by splitting each line on
-    # non-word bytes: the same maximal [A-Za-z0-9_] runs the character walk
-    # below finds, in one regex pass per line instead of a regex per character
-    # (a 33 KB file costs ~14 ms by the walk, ~2 by the split). Under C a
-    # non-ASCII byte is a separator, as a non-ASCII character is to the walk.
-    # A `.` or `-` can never sit inside such a run, so an anchor carrying one
-    # counts 0 and needs no awk at all.
+    # A word anchor is counted by splitting each line on non-word bytes: the
+    # same maximal [A-Za-z0-9_] runs a character walk finds. Under C a
+    # non-ASCII byte is a separator. A `.` or `-` can never sit inside such a
+    # run, so an anchor carrying one counts 0 and needs no counter at all.
     if hook::_c_locale spv__word_anchor "$anchor"; then
       [[ "$anchor" != *[.-]* ]] || continue
       occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
@@ -540,32 +557,7 @@ reconstruct_partial_edit() {
       ctx+="${hits[0]}"$'\n'
       continue
     fi
-    occ=$(HOOK_ANCHOR="$anchor" awk '
-      BEGIN {
-        n = 0
-        a = ENVIRON["HOOK_ANCHOR"]
-        word = (index(a, " ") == 0 && a ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-      }
-      {
-        p = 1
-        while (p <= length($0)) {
-          if (word) {
-            if (substr($0, p, 1) !~ /[A-Za-z0-9_]/) { p++; continue }
-            if (p > 1 && substr($0, p - 1, 1) ~ /[A-Za-z0-9_]/) { p++; continue }
-            end = p
-            while (end <= length($0) && substr($0, end, 1) ~ /[A-Za-z0-9_]/) end++
-            if (substr($0, p, end - p) == a) { n++; p = end; continue }
-            p++
-          } else {
-            i = index(substr($0, p), a)
-            if (i == 0) break
-            n++
-            p = p + i
-          }
-        }
-      }
-      END { print n + 0 }
-    ' "$FILE" 2>/dev/null)
+    occ=$(spv_anchor_occurrences "$anchor" "$FILE")
     ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'
   done
@@ -804,7 +796,9 @@ for raw in "${RAW_TOKENS[@]}"; do
   # Exempting on presence alone therefore suppressed the finding for a real removal
   # a user had not committed yet. Only the skip-worktree letter, in either case,
   # earns the exemption.
-  ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null | tr -d '\r' | cut -c1)
+  ls_line=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null) || ls_line=""
+  ls_line=${ls_line//$'\r'/}
+  ls_tag=${ls_line:0:1}
   [[ "$ls_tag" == [Ss] ]] && continue
 
   MISSING+=("$cand")

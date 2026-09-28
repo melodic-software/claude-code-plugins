@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **PostToolUse path adjudication no longer starts awk, tr, or cut** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). A non-word anchor, including a path that contains `/`, is counted in-process, overlapping starts included. The skip-worktree tag is the first character of `git ls-files -v` after carriage returns are stripped in the shell. A cold finding fire fell from 25 to 19 process creations and execs, and the same fire at that HEAD from 19 to 13. The seven successful execs on the cold finding fire are the shell, the dispatcher, and five git processes. Those five are the check: repo root, the tracked list, HEAD, the deleted-path walk, and the skip-worktree tag. Verdicts are unchanged. The k × S goal is recorded in `reference/edit-write-guards/PLAN.md`.
+
 ## [0.41.1] - 2026-09-28
 
 ### Changed

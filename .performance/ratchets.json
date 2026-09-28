@@ -53,8 +53,8 @@
       "name": "guardrails-posttooluse-run-guards-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 25,
-      "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows. The count includes every process git, jq, grep, sed and awk start themselves, so a runner image that changes one of them can move it: measured 103 on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8, and 103 in an ubuntu:24.04 container with git 2.43.0 and mawk. The row's leading `bash` (#4442) removed the `/usr/bin/env` exec: 102 on the same ubuntu-24.04 runner. Parsing the payload once (#4418) brought it to 38. Reusing the deleted-path set and reading anchor lines in-process (#4390) brought the cold finding fire to 25. The ratchet step prints the current versions."
+      "ceiling": 19,
+      "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows. The count includes every process git starts itself, so a runner image that changes git can move it. Parsing the payload once brought a Linux census to 38. Reusing the deleted-path set brought the cold finding fire to 25. Counting a non-word anchor in-process and reading the skip-worktree tag without tr or cut brought it to 19: the shell, the dispatcher, and five git processes. The ratchet step prints the current versions."
     },
     {
       "name": "guardrails-posttooluse-run-guards-nofinding-spawns",
@@ -74,8 +74,8 @@
       "name": "guardrails-posttooluse-run-guards-warm-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --seed --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 19,
-      "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run. The cold fire of the same edit is ceiling 25. Measured on this host with bash 5.2.21, dash as sh, strace 6.8. #4390."
+      "ceiling": 13,
+      "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run, and the anchor count and skip-worktree tag start no awk, tr, or cut. The cold fire of the same edit is ceiling 19. Measured on this host with bash 5.2.21, dash as sh, strace 6.8. #4390."
     }
   ]
 }

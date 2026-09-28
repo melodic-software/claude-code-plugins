@@ -811,6 +811,36 @@ else
   bad "word-anchor split counter differs from the character walk: $OCC_OUT"
 fi
 
+# The non-word counter replaced awk's index() walk. Same advance: one byte past
+# each start, so `docs/docs` against `docs/docs/docs` is 2, not grep -o's 1.
+FIXED_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
+{ p = 1
+  while (p <= length($0)) {
+    i = index(substr($0, p), a)
+    if (i == 0) break
+    n++
+    p = p + i } }
+END { print n + 0 }'
+FIXED_FILE="$REPO/fixed-occ.txt"
+printf 'docs/docs/docs\ndocs/old.md and docs/old.md\né docs/old.md\nsee docs/docs\n' >"$FIXED_FILE"
+FIXED_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  for loc in C.UTF-8 C; do
+    for a in 'docs/docs' 'docs/old.md' 'docs/docs/docs' 'nope'; do
+      want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$FIXED_WALK" "$FIXED_FILE" 2>/dev/null)
+      got=$(LC_ALL=$loc spv_anchor_occurrences "$a" "$FIXED_FILE" 2>/dev/null)
+      [[ "$want" == "$got" ]] || printf 'bad %s %s awk=%s bash=%s\n' "$loc" "$a" "$want" "$got"
+    done
+  done
+  echo fixed-ok
+)
+if [[ "$FIXED_OUT" == fixed-ok ]]; then
+  ok "non-word anchor counter matches awk index(), including an overlapping path"
+else
+  bad "non-word anchor counter differs from awk index(): $FIXED_OUT"
+fi
+
 # A second fire at the same HEAD must not walk history again. The finding stays.
 SPV_GIT_LOG="$TEST_TMPDIR/stale-git.log"
 SPV_REAL_GIT=$(type -P git)
