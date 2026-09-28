@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.23] - 2026-09-28
+
+### Changed
+
+- **Keep the Opus 5 and Opus 4.8 adaptation chapters (#4349).** They remain
+  fallback targets. model-config "Automatic model fallback" (fetched 2026-09-28)
+  still routes biology-flagged Fable 5.1 / Fable 5 / Opus 5.5 requests to Opus 5
+  and cybersecurity-flagged requests to Opus 4.8. Recheck when that section no
+  longer names them.
+
 ## [0.13.22] - 2026-09-28
 
 ### Added
