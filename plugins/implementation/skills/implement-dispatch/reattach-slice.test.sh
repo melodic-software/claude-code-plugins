@@ -31,6 +31,7 @@ assert_gate() {
 }
 
 assert_gate 'One git writer per worktree, under either authority.'
+# shellcheck disable=SC2016  # intentional literal phrase with backticks
 assert_gate 'An `INCONCLUSIVE` return'
 assert_gate 'Major divergence (fundamental assumption wrong) still STOPS'
 assert_gate 'Never accept a worker'"'"'s green claim as the build signal'
