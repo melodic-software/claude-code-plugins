@@ -4,6 +4,13 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Wave-2 escape helper, 2026-09-28
+
+- **Parked until the helper and review-plugin PR explainer are funded
+  (#3605).** Instruction-level baseline stays. Attack-controlled lanes stay
+  gated. Loop-closure `esc` and ai-briefing `escape()` are not the wave-2
+  helper. No boundary-rule, genre, or cascade-key change.
+
 ## Interactive userConfig smoke test, 2026-09-28
 
 - **Parked until a CLI host funds the interactive smoke (#3604).** The

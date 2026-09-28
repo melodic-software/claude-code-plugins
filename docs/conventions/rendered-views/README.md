@@ -163,6 +163,31 @@ rather than escaping, so an asset whose job is to carry copied helpers also carr
 behavioral suite: `scripts/check-loop-closure-helpers.test.sh` executes the shipped
 helpers of the loop-closure reference and fails on a dropped case that lints clean.
 
+## Wave-2 escape helper and review-plugin PR explainer (parked)
+
+**Decision.** Park the checked-in deterministic escape helper (registry sync
+cluster, generator-marker, validator) and the review-plugin HTML PR explainer
+until that code is funded. The instruction-level baseline stays in force.
+Attack-controlled lanes stay gated on this helper.
+
+The loop-closure `esc` helper
+(`plugins/visualization/reference/html-loop-closure.html`, #3607) and
+`plugins/ai-briefing/skills/generate/output/build/build-sections.js`'s
+`escape()` are not that helper: neither is a registry cluster, neither emits
+a generator-marker a validator can check, and neither is the review-plugin
+lane.
+
+- **Claim:** wave-2 helper plus HTML PR explainer stay unshipped. Code is
+  unpaid; this record is the docs settle.
+- **Basis:** #3605. `scripts/cross-plugin-source-registry.txt` has no
+  html-chrome, html-loop-closure, or escape-helper cluster. No
+  generator-marker string in-tree. `plugins/review` has no PR-explainer
+  skill. The convention's third security bullet still names the wave-2
+  issue as the gate.
+- **As of:** 2026-09-28.
+- **Recheck:** a maintainer funds the helper with marker and validator, or
+  files the review-plugin PR explainer as its own bounded issue.
+
 ## Accessibility floor
 
 The floor (contrast pairings, focus visibility, color-scheme and reduced-motion behavior,
@@ -314,4 +339,6 @@ which is another cost of copying.
   separately, gated on the userConfig smoke test.
 - It does not run the interactive userConfig smoke test: see Interactive
   userConfig smoke test (parked).
+- It does not ship the wave-2 escape helper or the review-plugin HTML PR
+  explainer: see Wave-2 escape helper and review-plugin PR explainer (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.
