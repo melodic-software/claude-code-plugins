@@ -288,8 +288,12 @@ done
 LEVERS=()
 for i in "${!SCOPES[@]}"; do
   for key in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
+    # Compact JSON, not tostring: true stays a boolean and an array stays an
+    # array. strictPluginOnlyCustomization is true or a per-surface array
+    # ("skills", "agents", "hooks", "mcp"). Stringifying the array made every
+    # value look like a hook lock.
     # shellcheck disable=SC2016  # $k is a jq --arg binding, not a shell variable
-    val="$(jqs -r --arg k "$key" 'if has($k) then (.[$k] | tostring) else empty end' "${SCOPES[$i]}")"
+    val="$(jqs -c --arg k "$key" 'if has($k) then .[$k] else empty end' "${SCOPES[$i]}")"
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
   done
 done
@@ -596,7 +600,11 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     for l in ${LEVERS+"${LEVERS[@]}"}; do
       IFS=$'\t' read -r sc lk lv <<<"$l"
       printf '%s\n    ' "$sep"
-      jqn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
+      if printf '%s' "$lv" | jq -e . >/dev/null 2>&1; then
+        jqn --arg s "$sc" --arg k "$lk" --argjson v "$lv" '{scope:$s,key:$k,value:$v}'
+      else
+        jqn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
+      fi
       sep=","
     done
     printf '\n  ],\n'

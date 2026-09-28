@@ -95,34 +95,16 @@ URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
 REGISTRY="$ROOT/plugins/claude-ops/hooks/hook-events.registry.json"
 HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
-# The producer row is SHELL FORM carrying its own kill switch, so a consumer who
-# has not turned the log on pays one process (the shell Claude Code runs the
-# command in) per event instead of three: that shell, the `env` of the script's
-# shebang, and the bash it execs. A consumer who has turned it on skips the
-# `env` too: `exec bash` replaces the shell with bash directly (the
-# check-hook-slow-shapes.sh ENV SHEBANG rule). The RETENTION row carries the
-# same gate, so a disabled install starts no bash at SessionEnd either.
-# hooks.json has no other way to read the switch: `if` takes one permission
-# rule and is evaluated only on tool events, so it cannot see a plugin option,
-# and the option reaches a hook only as $CLAUDE_PLUGIN_OPTION_<KEY> in the
-# environment.
-#
-# regen_rows pins every row it writes to `"shell": "bash"`. The Hooks reference
-# documents that field as "Defaults to `bash`, or to `powershell` on Windows
-# when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the
-# `shell` field, verified 2026-09-15), under which this command's `[ ... ]`,
-# `$VAR` and `exec` all error: an unpinned row would error on every fire on
-# such a host instead of gating. Pinning removes that fallthrough; the sibling
-# markdown-format and disk-hygiene hooks.json files pin the same field for the
-# same reason. The gate stays POSIX-compatible syntax regardless (valid under
-# sh and under bash alike), and the option is spelled without braces
-# so no `${...}` substitution pass can touch it, unlike ${CLAUDE_PLUGIN_ROOT},
-# which Claude Code is meant to expand. The script keeps its own line-41
-# switch: it is what a direct invocation reads.
-# shellcheck disable=SC2016  # the literal hooks.json command text; Claude Code expands it, not this script
-PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+# The producer row is EXEC FORM. `"command"` is `node`; args are the shared
+# launcher, `--require-true SESSION_EVENT_LOG_ENABLED`, then the script.
+# The launcher exits 0 before it resolves bash when the option is not exactly
+# `true`, so a default-off install does not start Git Bash. `if` cannot carry
+# this gate: it takes one permission rule and is evaluated only on tool events.
+# The script keeps its own switch for a direct invocation.
+# shellcheck disable=SC2016  # the literal hooks.json path; Claude Code expands it, not this script
+PRODUCER='${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
-RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
+RETENTION='${CLAUDE_PLUGIN_ROOT}/hooks/session-retention.sh'
 RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
@@ -206,13 +188,26 @@ build_registry() {
 # their order are untouched.
 regen_rows() {
   jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --slurpfile reg "$1" '
-    def strip: map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not));
+    def is_log: ((.args // []) | index($prod)) != null or .command == $prod or ((.command // "") | endswith("/hooks/session-event-log.sh"));
+    def is_ret: ((.args // []) | index($ret)) != null or .command == $ret or ((.command // "") | endswith("/hooks/session-retention.sh"));
+    def log_row($event): {
+      type: "command",
+      command: "node",
+      args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "SESSION_EVENT_LOG_ENABLED", $prod],
+      timeout: 5,
+      statusMessage: ("Logging the " + $event + " event...")
+    };
+    def ret_row: {
+      type: "command",
+      command: "node",
+      args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "SESSION_EVENT_LOG_ENABLED", $ret],
+      statusMessage: "Pruning the session event log..."
+    };
+    def strip: map(select(any(.hooks[]?; is_log or is_ret) | not));
     .hooks |= (with_entries(.value |= strip) | with_entries(select(.value | length > 0)))
     | reduce ($reg[0][] | select(.producer == "observe")) as $e (.;
-        .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [{type: "command", command: $prod, shell: "bash",
-          timeout: 5, statusMessage: ("Logging the " + $e.name + " event...")}]}]))
-    | .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $ret, shell: "bash",
-        statusMessage: "Pruning the session event log..."}]}])
+        .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [log_row($e.name)]}]))
+    | .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [ret_row]}])
   ' "$2"
 }
 

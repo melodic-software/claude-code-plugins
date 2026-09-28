@@ -1,5 +1,63 @@
 # Changelog: session-flow plugin
 
+## [0.38.24] - 2026-09-28
+
+### Fixed
+
+- **A handoff written outside any repository lands in the plugin data dir without hand-deriving
+  it (#4295).** `save_point.py new` run with no `--memory-dir` from a directory with no git top
+  level now resolves `<plugin data>/topic-docs` instead of a bare `.work` under the current
+  directory. It reads `CLAUDE_PLUGIN_DATA` when set and otherwise derives the dir from its own
+  installed cache path, since Claude Code does not export that variable to Bash-tool commands.
+  With neither available it refuses and asks for `--memory-dir`. The existing self-ignore guard
+  still applies to the fallback, and inside a git work tree the `.work` default is unchanged.
+  `reference/topic-docs.md` no longer says "nothing persisted" of that fallback: the handoff file
+  is written there, and only the resolution goes unpersisted. `reference/structure.md` documents
+  the no-project-root branch of the write procedure. A new `save_point.py memory-root` prints
+  that same resolved root, and find-handoff's rung 1 globs `<memory-root>/handoffs/` on the
+  no-project-root branch instead of `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`, so it finds the
+  handoffs the writer saves.
+
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
+
+## [0.38.22] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.38.21] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.38.20] - 2026-09-28
+
+### Changed
+
+- **`hop_chain.py` passes `--permission-prompts none` on Claude Code 2.1.259+** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The harness keeps `bypassPermissions` and the pinned `--tools` list. The flag denies only what would still have prompted. Older CLIs omit it. Basis: the headless page, fetched 2026-09-28.
+
+## [0.38.15] - 2026-09-28
+
+### Changed
+
+- **Observer analysis passes `--permission-prompts none`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The unattended `claude -p` run keeps `--permission-mode dontAsk` and adds the print-mode flag that denies anything still waiting on a person and tells the model not to retry it. Basis: the headless page's unattended-runs section.
+
+## [0.38.12] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
 ## [0.38.11] - 2026-09-28
 
 ### Changed

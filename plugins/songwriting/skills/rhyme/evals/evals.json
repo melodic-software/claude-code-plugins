@@ -28,6 +28,19 @@
         "Returns an exact syllable count, not a guess",
         "If the script is unavailable (no bash/curl/jq), degrades gracefully and says so rather than fabricating a count"
       ]
+    },
+    {
+      "id": 3,
+      "name": "identity-rhyme-is-rejected-before-datamuse",
+      "prompt": "/songwriting:rhyme rhymes for 'night' \u2014 start with 'knight' and 'nite'",
+      "expected_output": "Loads rhyme-generation.md first. Rejects knight/nite as identity or spelling variants where the pre-vowel consonant does not differ, and does not lead with Datamuse for this common word.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Loads rhyme-generation.md before any Datamuse call",
+        "Rejects identity or spelling-variant partners that do not change the pre-vowel consonant",
+        "Does not treat Datamuse as the primary generator for a common monosyllable"
+      ]
     }
   ]
 }
