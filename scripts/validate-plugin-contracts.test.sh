@@ -1310,6 +1310,61 @@ else
   ok "\$ARGUMENTS without an indexed placeholder passes"
 fi
 
+# --- 8d. argument-hint house style (#3542). --------------------------------
+# Empty fails; over budget and malformed warn without a failure bullet; a
+# conforming hint is silent. write_arg_body's "-" omits the key, so empty
+# hints are written as the literal quoted string.
+HINT_DOC='docs/conventions/argument-hint/README.md'
+HINT_MALFORMED='argument-hint is malformed'
+
+hint_case() {
+  reset_fixture
+  make_plugin hintfix ""
+  printf 'Body.\n' | write_arg_body hintfix "$1" "$2"
+  out="$(run_fixture)"
+}
+
+hint_case ok "[weekly|on-demand] [--dry-run] | <path>"
+if grep -q 'hintfix/skills/ok/SKILL.md' <<<"$out"; then
+  fail "a conforming argument-hint should be silent: $out"
+else
+  ok "a conforming argument-hint draws neither a failure nor a warning"
+fi
+
+hint_case empty ""
+if has_fail_line 'argument-hint must be omitted' && grep -q "$HINT_DOC" <<<"$out" &&
+  grep -q 'hintfix/skills/empty/SKILL.md' <<<"$out"; then
+  ok "an empty-string argument-hint fails and names the owner doc"
+else
+  fail "an empty-string argument-hint should fail: $out"
+fi
+
+hint_case long "$(printf 'x%.0s' {1..101})"
+if grep -q "^warning: .*hintfix/skills/long/SKILL.md.*101 characters, over the 100-character budget.*$HINT_DOC" <<<"$out" &&
+  ! has_fail_line 'budget'; then
+  ok "an over-budget argument-hint warns and does not fail"
+else
+  fail "an over-budget argument-hint should warn without failing: $out"
+fi
+
+hint_case edge "$(printf 'x%.0s' {1..100})"
+if grep -q 'hintfix/skills/edge/SKILL.md' <<<"$out"; then
+  fail "a 100-character argument-hint is inside the budget: $out"
+else
+  ok "a 100-character argument-hint is inside the budget"
+fi
+
+for shape in "check — apply" "check (e.g., apply)" "check (for example apply)" \
+  "check. Default: apply" "check|apply"; do
+  hint_case bad "$shape"
+  if grep -q "^warning: .*hintfix/skills/bad/SKILL.md.*$HINT_MALFORMED" <<<"$out" &&
+    ! has_fail_line "$HINT_MALFORMED"; then
+    ok "a malformed argument-hint warns: $shape"
+  else
+    fail "a malformed argument-hint should warn without failing ($shape): $out"
+  fi
+done
+
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?
@@ -1317,6 +1372,11 @@ if [[ $rc -eq 0 ]]; then
   ok "the shipping plugins/ tree still validates end to end"
 else
   fail "the shipping tree should stay green (rc=$rc): $out"
+fi
+if grep -q '^warning: ' <<<"$out"; then
+  fail "the shipping tree should draw zero argument-hint warnings: $out"
+else
+  ok "the shipping tree draws zero argument-hint warnings"
 fi
 
 test_harness::report
