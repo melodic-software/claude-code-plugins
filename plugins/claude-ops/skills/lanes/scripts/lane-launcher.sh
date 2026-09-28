@@ -838,6 +838,8 @@ launch_lane() {
   # first prompt. Never bypassPermissions. From Claude Code 2.1.259,
   # --permission-prompts none denies only what would have prompted and leaves
   # the auto-mode classifier in place. Older CLIs reject the flag, so omit it.
+  # Probed 2026-09-28 on Claude Code 2.1.282: the flag together with --bg and
+  # --permission-mode auto backgrounded a session, which was then stopped.
   local -a cmd=(claude --bg -n "$name" --permission-mode auto)
   cli_version
   if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then

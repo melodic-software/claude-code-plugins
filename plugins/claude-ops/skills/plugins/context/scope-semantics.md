@@ -319,6 +319,14 @@ Never recommend `--force` pre-emptively alongside every reload. It exists specif
 real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
 warning.
 
+**Headless sessions can run `/reload-plugins`.** Claim: the command is available in non-interactive
+`-p` sessions, the Agent SDK, and the desktop app, from Claude Code 2.1.260. In those sessions it
+runs only on input typed into the session, it does not apply plugin MCP server changes, and a copy
+that arrives over Remote Control or a relayed message is refused. Basis:
+<https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins> and the `/reload-plugins`
+row of <https://code.claude.com/docs/en/commands>. As of: 2026-09-28. Recheck: that section stops
+listing headless sessions, or changes the typed-input and MCP limits.
+
 ## `pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules
 
 This skill reads both surfaces, and they do not agree on which scopes count. Getting this backwards

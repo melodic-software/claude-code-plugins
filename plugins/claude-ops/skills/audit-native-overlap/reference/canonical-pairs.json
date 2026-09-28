@@ -30,7 +30,7 @@
     {
       "native": { "name": "doctor", "class": "bundled-skill" },
       "component": { "plugin": "claude-ops", "skill": "audit-install-state", "kind": "skill" },
-      "why": "Both look at the health of a Claude Code installation. Claude Code 2.1.257 also warns from /doctor about stale sandbox mask files left by a killed session. The mask-file location is undocumented, so audit-install-state routes that class here instead of growing a pattern it cannot ground. Nominated 2026-09-28 for a human store verdict; this file does not write records.json."
+      "why": "Both look at the health of a Claude Code installation. Claude Code 2.1.257 warns from /doctor about stale sandbox mask files, the 0-byte placeholders a killed session leaves on Linux and WSL2. The mask-file location is undocumented, so audit-install-state routes that class here instead of growing a pattern it cannot ground, and this audit does not reimplement that warning. Nominated 2026-09-28 for a human store verdict; this file does not write records.json. Basis: https://code.claude.com/docs/en/sandboxing (Troubleshooting, the 0-byte placeholder bullet). Not a verdict."
     },
     {
       "native": { "name": "doctor", "class": "bundled-skill" },

@@ -92,15 +92,23 @@ Two rules follow from the same reasoning:
 - **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
   produced nothing.
 
-Keep a brace group that contains `git` free of `$`. The worktree command-shape check blocks a
-command when it cannot verify from the text that any git the command runs stays inside the
-worktree. A `$` expansion in a block that never runs git is not that check. The compose gate
+Keep a brace group that contains `git` free of `$`. The worktree-isolation guard blocks a Bash command when it
+cannot verify from the command text that any git the command runs stays inside the worktree: a
+command name computed at runtime, syntax it cannot parse, or an expansion such as `${!name}` or
+`${ command; }` that could run a command the text does not spell out. Claude Code 2.1.257 stopped
+refusing loops, `$VAR` reads, `"$(…)"`, and heredocs that never touch git, and 2.1.259 stopped
+refusing common loops, xargs pipelines, and launcher-wrapped commands that cannot reach the main
+checkout. A `$` expansion in a block that never runs git is not that check. The compose gate
 (`scripts/check-skill-precompute-compose.sh`) already fires only when a pre-compute block holds a
-git command and more than one injection line. **Claim, basis, as of, recheck:** the four checks
-and the git scope,
-[worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) and
-`plugins/source-control/skills/worktree/reference/gather-block.md`, 2026-09-28, and a re-fetch of
-that section that stops scoping the command-shape check to git.
+git command and more than one injection line. A composed pre-compute block still leaves `$` out, other than a bare `$HOME` a probe has
+shown the guard accepts, because a block that expands anything else is the shape the page still
+refuses when the expansion can hide a command.
+
+**Record.** Claim: the refusal cases in the paragraph above, including the two changelog fixes and the git-only scope of the compose gate.
+Basis: <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> (Command
+shape), `plugins/source-control/skills/worktree/reference/gather-block.md`, and the Claude Code 2.1.257 and 2.1.259 changelog items for worktree-isolated Bash.
+As of: 2026-09-28. Recheck: the Command shape bullet changes which expansions are refused, or a
+release note again changes which Bash forms an isolated session accepts.
 
 ### `pipefail` is an open question; the brace group is correct either way
 
