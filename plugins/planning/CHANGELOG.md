@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.6] - 2026-09-28
+## [0.45.7] - 2026-09-28
 
 ### Added
 
@@ -18,6 +18,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `/Users/<name>` or `/home/<name>` path (any case) unless the line carries `<!-- path-example -->`, since a
   committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
   carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 
