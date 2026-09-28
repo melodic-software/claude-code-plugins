@@ -135,6 +135,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `bash_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED` | Lint and format shell scripts on edit via ShellCheck + shfmt |
+| `bash_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
 ### How to set these
 
