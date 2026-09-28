@@ -1401,7 +1401,9 @@ assert_absent "message: python lane never names the scratch-roots option" \
   "$GUARD_ERR" "block_hook_bypass_scratch_roots"
 
 # Bash echo lane, quoted scratchpad target, project outside the temp tree: the
-# quoted reason, then the roots that WOULD have exempted a bare target.
+# quoted reason, then the roots that WOULD have exempted an unquoted literal
+# target. The quoted reason already says quoting is never exempt, so the roots
+# line does not repeat it.
 guard_invoke --command "echo x > \"/tmp/claude-0/-srv-repo/abc/scratchpad/probe.txt\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_exit "message: quoted scratchpad target blocks" 2 "$GUARD_RC"
@@ -1409,7 +1411,7 @@ assert_eq "message: quoted scratchpad stderr is exactly lines 1 to 5 and the poi
   "BLOCKED: echo/printf > file write bypasses Write/Edit hooks
 $MSG_USE
 A quoted or escaped target is never scratch-exempt.
-A bare target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory.
+An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory.
 $MSG_REMEDY_SCRATCH
 $MSG_POINTER" "$GUARD_ERR"
 assert_contains "message: the latch-less block still emits the operator notice" \
@@ -1438,6 +1440,18 @@ reason_is "variable under an absolute prefix" \
 reason_is "absolute target outside every root" \
   "The target is not under an exempt root." \
   "echo x > /srv/repo/notes.md" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+# A literal target outside every root is told that a literal path under the
+# temp tree is exempt with no configuration, and that a variable-carried or
+# quoted operand is not (#4118).
+assert_eq "reason: literal target outside every root names the temp route and the residual" \
+  "An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory; a quoted or variable-carried one never is." \
+  "$(sed -n 4p <<<"$GUARD_ERR")"
+# A variable-carried target's reason already names the residual; the roots line
+# does not repeat it.
+guard_invoke --command "echo x > /tmp/\$f" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_eq "reason: variable-carried target's roots line carries no repeat" \
+  "An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory." \
+  "$(sed -n 4p <<<"$GUARD_ERR")"
 # A temp-rooted project turns the temp default off; that is the reason, not "not
 # under an exempt root", and the root list no longer offers the temp tree.
 reason_is "temp-rooted project" \
@@ -1452,7 +1466,7 @@ reason_is "staged move destination outside every root" \
   "jq . f > /tmp/scratch/x && mv /tmp/scratch/x /srv/out.json" \
   "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
 assert_contains "reason: staged lane's root list names the move destination" \
-  "$GUARD_ERR" "A bare move destination under these roots is exempt: /tmp/scratch."
+  "$GUARD_ERR" "An unquoted literal move destination under these roots is exempt: /tmp/scratch; a quoted or variable-carried one never is."
 # An earlier refusal that did not block (a quoted destination with no staged
 # source) must not become the blocking segment's reason.
 reason_is "the blocking destination's reason wins over an earlier refusal" \

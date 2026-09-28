@@ -40,6 +40,13 @@ source "$HOOK_DIR/rewrite-guard.sh"
 # before the jq gate so a non-shell edit never triggers the jq notice.
 hook::begin bash-format PostToolUse '*.sh' '*.bash'
 
+# A file the repository gitignores is neither rewritten nor reported unless
+# bash_format_lint_gitignored is set: a rewrite there has no `git checkout`
+# to undo it.
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
+  hook::finish skipped findings array '[]'
+fi
+
 # A section header governs shell files when it names a shell extension —
 # `[*.sh]` / `[*.bash]` (incl. path prefixes like `[**/*.sh]`) or a brace list
 # naming sh or bash (`[*.{sh,bash}]`). A bare `[*]` catch-all is intentionally
