@@ -35,6 +35,7 @@
     "attribution@melodic-software": true,
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
+    "gopls-host@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false
   },
