@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.9] - 2026-09-28
+
+### Changed
+
+- **Worktree facts have one producer.** `scripts/lib/worktree-facts.sh` parses
+  `git worktree list --porcelain -z`, encodes and decodes the lock reason, and
+  prints TSV rows whose empty columns are `-`. `landed-work.sh`,
+  `worktree-claim.sh`, and `worktree-create.sh` call it. The worktree skill
+  points at that module instead of describing a hand parse.
+
 ## [0.62.8] - 2026-09-28
 
 ### Changed

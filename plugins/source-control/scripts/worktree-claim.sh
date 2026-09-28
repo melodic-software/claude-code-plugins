@@ -76,6 +76,9 @@ EOF
   exit "$EX_USAGE"
 }
 
+# shellcheck source=lib/worktree-facts.sh
+source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh"
+
 git_unlocated() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
@@ -147,93 +150,32 @@ valid_session_id() {
   [[ "$1" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]
 }
 
-# New lock reason for a non-helper worktree. Session id is required so two
-# concurrent sessions on one host produce different reasons. The helper's
-# reason string uses a different prefix (`worktree-create.sh:`) and is never
-# written here. Existing helper-created trees keep their reason (#2882 AC4).
-# Ownership is the `session <sid> since` token, not the prefix: a helper
-# reason that carries this session's token is ours, and a helper reason
-# with no session token is foreign to every session.
-claim_reason() {
-  local sid="$1"
-  local host="${HOSTNAME:-}"
-  if [[ -z "$host" ]]; then
-    host="$(hostname 2>/dev/null || printf 'unknown-host')"
-  fi
-  printf 'worktree-claim.sh: lane active on %s session %s since %s; unlock when the owning lane is done' \
-    "$host" "$sid" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-
-# True when <reason> names <sid> as the owning session. Anchored on
-# `session <sid> since` so `s1` does not match `s10`.
-reason_is_ours() {
-  local reason="$1" sid="$2"
-  [[ -n "$sid" && "$reason" == *"session ${sid} since"* ]]
-}
-
-# Decode a porcelain `locked` value. Unquoted reasons are used as-is; quoted
-# reasons (core.quotePath) drop the wrapping quotes and unescape \\ and \n.
-decode_lock_reason() {
-  local raw="$1"
-  if [[ "$raw" == \"*\" ]]; then
-    raw="${raw#\"}"
-    raw="${raw%\"}"
-    raw="${raw//\\n/$'\n'}"
-    raw="${raw//\\\\/\\}"
-  fi
-  printf '%s' "$raw"
-}
-
 # parse_worktrees <repo>
-# Fills WT_PATHS / WT_REASONS / WT_IS_LINKED (parallel arrays). Linked means
-# "not the main worktree and not bare" — the main checkout being unlocked is
-# normal and is not this check's subject.
+# Fills WT_PATHS / WT_REASONS / WT_IS_LINKED from the shared fact record.
+# Linked means "not the main worktree and not bare".
 parse_worktrees() {
-  local repo="$1"
+  local repo="$1" porcelain i
   WT_PATHS=()
   WT_REASONS=()
   WT_IS_LINKED=()
-  local porcelain path="" reason="" bare=0 first=1 line
-  porcelain="$(git_unlocated -C "$repo" worktree list --porcelain | tr -d '\r')" || return 1
-
-  flush_record() {
-    if [[ -n "$path" && "$bare" -eq 0 ]]; then
-      # The first non-bare record git emits is the MAIN worktree; every later
-      # one is linked.
-      WT_PATHS+=("$path")
-      WT_REASONS+=("$reason")
-      WT_IS_LINKED+=("$((first ? 0 : 1))")
-      first=0
-    elif [[ "$bare" -eq 1 ]]; then
-      first=0
+  porcelain="$(mktemp)" || return 1
+  if ! git_unlocated -C "$repo" worktree list --porcelain -z >"$porcelain"; then
+    rm -f "$porcelain"
+    return 1
+  fi
+  worktree_facts_parse_z "$porcelain"
+  rm -f "$porcelain"
+  [[ ${#WT_FACT_PATH[@]} -gt 0 ]] || return 0
+  for i in "${!WT_FACT_PATH[@]}"; do
+    [[ "${WT_FACT_BARE[$i]}" == "yes" ]] && continue
+    WT_PATHS+=("$(canonicalize_path "${WT_FACT_PATH[$i]}")")
+    WT_REASONS+=("${WT_FACT_LOCKED[$i]}")
+    if [[ "${WT_FACT_LINKED[$i]}" == "yes" ]]; then
+      WT_IS_LINKED+=(1)
+    else
+      WT_IS_LINKED+=(0)
     fi
-    path=""
-    reason=""
-    bare=0
-  }
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ -z "$line" ]]; then
-      flush_record
-      continue
-    fi
-    case "$line" in
-    worktree\ *)
-      path="$(canonicalize_path "${line#worktree }")"
-      ;;
-    bare)
-      bare=1
-      ;;
-    locked)
-      reason=""
-      ;;
-    locked\ *)
-      reason="$(decode_lock_reason "${line#locked }")"
-      ;;
-    *) ;;
-    esac
-  done <<<"$porcelain"
-  flush_record
+  done
 }
 
 # Longest worktree-path prefix of <target>, or empty. <target> must already
@@ -414,7 +356,7 @@ ensure_claim_session() {
 lock_one() {
   local wt_path="$1" existing="$2"
   if [[ -n "$existing" ]]; then
-    if reason_is_ours "$existing" "$session_id"; then
+    if worktree_reason_is_ours "$existing" "$session_id"; then
       printf '%s\n' "$existing"
       return "$EX_OK"
     fi
@@ -422,7 +364,7 @@ lock_one() {
     return "$EX_FOREIGN"
   fi
   local reason
-  reason="$(claim_reason "$session_id")"
+  reason="$(worktree_lock_reason worktree-claim.sh "$session_id")"
   if ! git_unlocated -C "$repo_dir" worktree lock --reason "$reason" "$wt_path" >&2; then
     printf '%s: git worktree lock failed for %s\n' "$PROG" "$wt_path" >&2
     return "$EX_ENV"
@@ -483,7 +425,7 @@ do_check_enter() {
     printf '  claim it first: %s claim %s --session-id <session-id>\n' "$PROG" "$wt" >&2
     return "$EX_UNCLAIMED"
   fi
-  if reason_is_ours "$reason" "$session_id"; then
+  if worktree_reason_is_ours "$reason" "$session_id"; then
     printf 'CLAIMED: %s\n' "$reason"
     return "$EX_OK"
   fi
