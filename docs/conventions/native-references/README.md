@@ -213,7 +213,8 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
 | `/testing:run-e2e` | `## Boundary` section for the bundled `run` skill (verdict `complementary`, a look versus evidenced verification); detail in the skill's context file; no description phrase |
 | `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
-| `/visualization:visualize`, `/prototype:explore-directions` | `## Boundary` sections for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway page or mockup); detail in the catalog spoke and the skill's `reference/` file; no description phrase |
+| `/visualization:visualize` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus a chosen form and medium); detail in the catalog spoke |
+| `/prototype:explore-directions` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway mockup); detail in the skill's `reference/` file |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
 unit, each running apply, verify, PR, close, never a single fleet-wide edit, because each phrase
