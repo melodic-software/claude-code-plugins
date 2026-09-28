@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] - 2026-09-28
+
+### Changed
+
+- The shim README points at attribution's restated-frontmatter-fact detector (#3525).
+
 ## [0.6.1] - 2026-09-28
 
 ### Changed
