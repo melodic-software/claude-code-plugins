@@ -58,6 +58,15 @@ Always run the tests before committing.
 
 Always run the tests before committing.
 EOF
+cat >"$REPO/skills/demo/reference/commented.md" <<'EOF'
+# Spoke
+
+<!--
+## note
+-->
+
+Always run the tests before committing.
+EOF
 cat >"$REPO/skills/demo/reference/plain.md" <<'EOF'
 # Spoke
 
@@ -138,6 +147,9 @@ AFTER_FENCE="$(field "$(printf '%s\n' 'skills/demo/reference/spoke.md:12:I6' | i
 PLAIN="$(field "$(printf '%s\n' 'skills/demo/reference/plain.md:3:I6' | ids)" 4)"
 assert_eq "a body line after the fence is anchored under # Spoke alone, not the fenced ## line" \
   "${PLAIN#*=}" "${AFTER_FENCE#*=}"
+AFTER_COMMENT="$(field "$(printf '%s\n' 'skills/demo/reference/commented.md:7:I6' | ids)" 4)"
+assert_eq "a heading-shaped line inside a block HTML comment is not in the heading path" \
+  "${PLAIN#*=}" "${AFTER_COMMENT#*=}"
 FM_A="$(printf '%s\n' 'skills/demo/SKILL.md:10:I6' | ids)"
 sed -i.bak 's/^description: Demo skill\.$/description: Demo skill, reworded./' \
   "$REPO/skills/demo/SKILL.md"

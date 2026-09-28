@@ -345,7 +345,7 @@ LC_ALL=C awk \
   # emitted.
   function in_rule_surfaces(id, loc) {
     if (id == "I31") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
-    if (id == "I33") return (loc ~ /(^|\/)(context|reference)\/[^\/]+$/)
+    if (id == "I33") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
     return 1
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
@@ -574,7 +574,7 @@ LC_ALL=C awk \
   }
 
   # Which marker fired, in the run own values (never the rule definition restated).
-  function fired_marker(id, text,   i, pats_a, pats_b, n) {
+  function fired_marker(id, text,   i, pats_a, pats_b, n, t) {
     if (id == "I28-a") {
       n = split("CRITICAL:|IMPORTANT:|You MUST|you MUST|MANDATORY|ALWAYS use|NEVER skip", pats_a, "|")
       for (i = 1; i <= n; i++) if (index(text, pats_a[i]) > 0) return "marker=\"" pats_a[i] "\""
@@ -589,7 +589,11 @@ LC_ALL=C awk \
     if (id == "I30") return "shape=\"stamp-without-recheck-trigger\""
     if (id == "I31") return "shape=\"migration-relative-phrasing\""
     if (id == "I32") {
-      if (match(text, /\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/))
+      # With more than one candidate the writer cannot tell which one is absent.
+      t = text
+      if (gsub(/\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/, "", t) + gsub(/`[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`/, "", t) > 1)
+        return "shape=\"route-to-absent-skill\""
+      if (match(text,/\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/))
         return "target=\"" substr(text, RSTART, RLENGTH) "\""
       if (match(text, /`[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`/))
         return "target=\"" substr(text, RSTART + 1, RLENGTH - 2) "\""
@@ -722,7 +726,7 @@ LC_ALL=C awk \
     report_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
     report_declined(declined_scanner_fed, "scanner-fed-rule (admitted only through --from)")
     report_declined(declined_lane_fed, "lane-fed-rule (admitted only through --from-lane)")
-    report_declined(declined_scope, "outside-rule-surfaces (I31 and I33 apply to context/ and reference/ spokes)")
+    report_declined(declined_scope, "outside-rule-surfaces (I31 and I33 apply to context/, reference/, and references/ spokes)")
     report_declined(declined_identity, "identity-unresolved (finding-ids.sh refused the row)")
     report_declined(declined_frontmatter, "frontmatter (body-scope fence)")
     report_declined(declined_trigger, "quoted-trigger-phrase (body-scope fence)")

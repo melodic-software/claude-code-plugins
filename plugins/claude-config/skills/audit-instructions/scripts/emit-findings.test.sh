@@ -815,6 +815,34 @@ assert_contains "a clock time is not an I32 target" "$DUPROWS" 'shape="route-to-
 assert_not_contains "no target is read from 10:30" "$DUPROWS" 'target="10:30"'
 assert_contains "a backticked bare plugin:skill is an I32 target" "$DUPROWS" 'target="fleet:reachx"'
 
+# --- Case 17: I33 in a references/ spoke; I32 with two candidate targets -----
+REFREPO="$TEST_TMPDIR/ref-repo"
+mkdir -p "$REFREPO/skills/multi/references"
+git -C "$REFREPO" init -q
+cat >"$REFREPO/skills/multi/SKILL.md" <<'EOF'
+---
+name: multi
+description: Multi fixture.
+---
+
+# Multi
+
+Use /fleet:reach for a live host, or /fleet:reachx for a dead one.
+EOF
+cat >"$REFREPO/skills/multi/references/spoke.md" <<'EOF'
+# Spoke
+
+This file is loaded by the hub when the release names a breaking change.
+EOF
+REFLANE="$TEST_TMPDIR/ref-lane.txt"
+printf '%s\n' "skills/multi/SKILL.md:8:I32" "skills/multi/references/spoke.md:3:I33" >"$REFLANE"
+REFOUT="$( (cd "$REFREPO" && bash "$EMIT" --from-lane "$REFLANE" --out "$TEST_TMPDIR/refs.md" --branch x) >/dev/null 2>&1
+  cat "$TEST_TMPDIR/refs.md" 2>/dev/null)"
+assert_contains "I33 on a references/ spoke opener is emitted" "$REFOUT" \
+  "| skills/multi/references/spoke.md:3 |"
+assert_contains "an I32 line with two candidate targets names no target" \
+  "$(printf '%s\n' "$REFOUT" | grep 'skills/multi/SKILL.md:8')" 'shape="route-to-absent-skill"'
+
 # --- Summary -----------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then

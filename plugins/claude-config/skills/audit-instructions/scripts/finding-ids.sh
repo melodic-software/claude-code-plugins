@@ -206,6 +206,10 @@ line_context() {
     }
     NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
     infm { if (/^---[[:space:]]*$/) infm = 0; next }
+    # Block HTML comments outside a fence do not affect anchors, so a
+    # heading-shaped line inside one never enters the path.
+    incomment { if (/-->/) incomment = 0; next }
+    !infence && /^[ \t]*<!--/ && !/-->/ { incomment = 1; next }
     /^[ \t]*(```|~~~)/ { infence = !infence; next }
     !infence && /^#{1,6}[ \t]/ {
       level = match($0, /[^#]/) - 1
