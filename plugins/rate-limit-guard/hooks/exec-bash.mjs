@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 // Exec-form entry for a bash-scripted hook (#3686).
 //
-// hooks.json spells `"command": "node"` and puts this file, then the
-// shell script and that script's own arguments, in `args`. Bare `bash`
+// hooks.json spells `"command": "node"` and puts this file, then an
+// optional option gate, then the shell script and that script's own
+// arguments, in `args`. `--require-true NAME` exits 0 unless
+// CLAUDE_PLUGIN_OPTION_NAME is exactly `true`. `--run-if-unset-or-true NAME`
+// exits 0 only when that variable is set to something other than `true`.
+// A closed gate does not resolve or spawn bash. Bare `bash`
 // is not a legal exec-form command: on Windows it resolves to the WSL
 // relay and a failed hook launch does not block. This process finds a
 // real bash and spawns it with the script path as argv, stdin inherited,
@@ -56,6 +60,43 @@ function firstExisting(candidates, platform, exists) {
   return null;
 }
 
+export function parseLaunchArgs(argv) {
+  const gates = [];
+  let i = 0;
+  while (i < argv.length) {
+    const flag = argv[i];
+    if (flag !== "--require-true" && flag !== "--run-if-unset-or-true") break;
+    const name = argv[i + 1];
+    if (!name || name.startsWith("-") || !/^[A-Z0-9_]+$/.test(name)) {
+      return { error: `${flag} needs the CLAUDE_PLUGIN_OPTION_ suffix (A-Z, digits, underscore)` };
+    }
+    gates.push({ flag, name });
+    i += 2;
+  }
+  const script = argv[i];
+  if (!script) {
+    return {
+      error: "usage: node exec-bash.mjs [--require-true NAME | --run-if-unset-or-true NAME] <script> [args...]",
+    };
+  }
+  return { gates, script, args: argv.slice(i + 1) };
+}
+
+// A closed gate exits 0 before bash is resolved. --require-true matches a
+// default-off option (unset is off). --run-if-unset-or-true matches a
+// default-on option (only an explicit non-true value skips).
+export function optionGateOpen(gates, env) {
+  for (const gate of gates) {
+    const value = env[`CLAUDE_PLUGIN_OPTION_${gate.name}`];
+    if (gate.flag === "--require-true") {
+      if (value !== "true") return false;
+    } else if (value !== undefined && value !== "" && value !== "true") {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function resolveBash(env, platform, exists) {
   if (platform === "win32") {
     const fromEnv = env.CLAUDE_CODE_GIT_BASH_PATH;
@@ -81,17 +122,16 @@ function fail(message) {
 }
 
 function main() {
-  const script = process.argv[2];
-  if (!script) {
-    fail("usage: node exec-bash.mjs <script> [args...]");
-  }
+  const parsed = parseLaunchArgs(process.argv.slice(2));
+  if (parsed.error) fail(parsed.error);
+  if (!optionGateOpen(parsed.gates, process.env)) process.exit(0);
   const bash = resolveBash(process.env, process.platform, existsSync);
   if (!bash) {
     fail(
       "no bash resolved. On Windows set CLAUDE_CODE_GIT_BASH_PATH to Git's bash.exe. System32\\bash.exe is the WSL relay and is not used.",
     );
   }
-  const child = spawn(bash, [script, ...process.argv.slice(3)], {
+  const child = spawn(bash, [parsed.script, ...parsed.args], {
     stdio: "inherit",
     windowsHide: true,
     shell: false,
