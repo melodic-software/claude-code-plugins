@@ -32,7 +32,9 @@ dispatcher line for its event, so the registration stays readable per guard. Wha
 dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
 were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
 PostToolUse where there were three), the exit code (2 if any guard blocks, and every
-guard still runs so a command that trips two guards shows both reasons), and the merge
+guard still runs so a command that trips two guards shows both reasons; that
+is deliberate, not leftover work, so a dual-blocked PowerShell sink prints both
+denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236))), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
 emit. On the Bash/PowerShell row it also refuses (exit 2) a command holding more than
 256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair, counted as
@@ -158,6 +160,14 @@ out of scope until such a signal exists.
   Which of them, if either, a hook payload reaches has not been traced. Refusing
   is the one verdict correct under all of them, and needs no such trace. A NUL is
   treated as malformed input rather than as an exotic-but-valid command.
+- **Read-only git inside PowerShell grouping is refused.** A PowerShell command
+  carrying a construct the git guards cannot tokenize (`{}` / `()`, a backtick,
+  `--%`, a subexpression) goes to a fail-closed sink, including
+  `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }`.
+  Unroll the loop into flat statements (`git -C <path> status; git -C <path>
+  log --oneline -3`). Related: #4235 (open) lets some interrogation forms
+  through that sink; this note documents the rewrite that already works
+  ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)).
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
@@ -217,6 +227,15 @@ out of scope until such a signal exists.
   as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
   human has confirmed that notice renders on a block, stderr also ends with a
   one-line pointer to this README.
+- **`block-hook-bypass` reads a PowerShell `& $var` call with two positionals
+  as a file write.** A call through a variable (`& $sh x.sh record dir`,
+  `& $py tool.py run x`) whose leading operands hold two or more positionals,
+  at least one a bare word, has the shape of `Set-Content <path> <value>`,
+  because the guard cannot tell what `$sh` names. It blocks. Rewrite it as
+  `& 'C:/literal/path.exe' script args`, or put a flag first (`& $sh -File
+  x.sh record dir`). An alias or function named like the program is not seen
+  ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236);
+  the binding-to-literal relief is #4234).
 - **Every hook says so when it could not run.** A hook has three outcomes,
   not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
   hook and the dispatcher install the shared abort boundary
