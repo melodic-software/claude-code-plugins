@@ -71,8 +71,12 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
 - `context-budget.snapshot/1` is one measured run: `mode`, `precision`, `sessionKind: "headless"`,
   `binary {path, version}`, `sdk {version, entry} | null`, `model`, `cwd`, `deny[]`,
   `categories {name: tokens}`, `totalTokens`, `maxTokens`, `tools[]` (live enumeration, sdk mode),
-  `agents[]`, `mcpTools[]`, `memoryFiles[]`,
-  `skillListing {totalSkills, includedSkills, tokens, signature, rows}`, `caveats[]`.
+  `agents[]`, `mcpTools[]`, `memoryFiles[]`, `slashCommands[]` (sdk mode keeps the
+  control-protocol list; cli-parse records `[]` because `/context` markdown does not carry it),
+  `skillListing {totalSkills, includedSkills, collapsedSkills, tokens, signature, rows, frontmatter}`.
+  `collapsedSkills` is `totalSkills - includedSkills` when both are numbers, else null. Each
+  `frontmatter` row keeps `name` and `source`, and in sdk mode also `tokens` and `pluginName` when
+  the control protocol sent them. `caveats[]`.
 - `context-budget.attribution/1` holds `baseline` (summary), ranked `perTool[]` rows
   `{tool, prefixDelta, deferredDelta, savedTokens, comparable, reasons}`, optional `additivity`
   (`--verify-additivity`: one combined-deny run checked against the sum of parts, with its own
@@ -88,8 +92,12 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   do not compose alike: the deferred side adds, the prefix side double-counts.
   `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
-  run because they are structurally unreachable from a headless inventory, not silent zeros),
-  plus the binary stamp and `skillListingSignature`. A deny can empty a
+  run because they are structurally unreachable from a headless inventory, not silent zeros).
+  `knownUncovered.deniedAbsent` lists names from that file that were also passed in
+  `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
+  labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
+  never enters either attributed headless bucket, and a bare-name deny cannot remove it while any
+  other tool remains, plus the binary stamp and `skillListingSignature`. A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in
@@ -111,7 +119,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   every settings key and env name the catalogue row names. The binary is the authority on *existence
   at the measured version*; a fresh docs fetch remains the authority on *semantics*. Rows with
   no extractable key/env name are `skipped`. Absence is a finding in the record (`absent[]`,
-  `missing`), not an invented number and not a degradation.
+  `missing`), not an invented number and not a degradation. `--find-unstored` adds `unstored[]`:
+  env names of the `CLAUDE_CODE_` / `ENABLE_` / `DISABLE_` shape found in the binary that no row
+  cites. The catalogue's purpose is the recorded set, not a proof of completeness. Without the
+  flag the field is omitted.
 - `context-budget.error/1` is the degradation record: `error`, `detail`, `remediation`. Exit 3.
 
 ## Ledger layout

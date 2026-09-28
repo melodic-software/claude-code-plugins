@@ -125,7 +125,7 @@ function sha12(text) {
 // ---------------------------------------------------------------------------
 
 // Flags that take no value; everything else consumes the next argv element.
-const FLAG_ONLY = ['help', 'verify-additivity', 'list'];
+const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored'];
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -152,12 +152,14 @@ Usage:
   measure.mjs snapshot [--deny <T1,T2>] [--binary <path>] [--sdk-dir <dir>]
                        [--label <text>] [--out <file>]
   measure.mjs attribute --tools <T1,T2,...|from-baseline> [--binary <path>]
-                       [--sdk-dir <dir>] [--verify-additivity] [--out <file>]
+                       [--sdk-dir <dir>] [--verify-additivity]
+                       [--operator-deny <T1,T2>] [--out <file>]
   measure.mjs compare --before <file> --after <file> [--lever <name>]
                        [--emitted-config <text>]
   measure.mjs ledger (--append <row-file>|--list) --dir <data-dir>
   measure.mjs parse-context --file <captured-context.md>
-  measure.mjs verify-catalogue [--binary <path>] [--catalogue <file>] [--out <file>]
+  measure.mjs verify-catalogue [--binary <path>] [--catalogue <file>]
+                       [--find-unstored] [--out <file>]
 
 Exit: 0 success; 2 usage error; 3 measurement unavailable/unparsable
       (stdout then carries a ${ERROR_SCHEMA} record with a remediation).
@@ -354,6 +356,24 @@ function listingSignature(rows) {
   return sha12(JSON.stringify(canon));
 }
 
+function skillFrontmatterRow(entry) {
+  const row = { name: entry?.name ?? null, source: entry?.source ?? null };
+  if (typeof entry?.tokens === 'number') row.tokens = entry.tokens;
+  if (typeof entry?.pluginName === 'string' && entry.pluginName.length) row.pluginName = entry.pluginName;
+  return row;
+}
+
+function collapsedSkillCount(total, included) {
+  if (typeof total !== 'number' || typeof included !== 'number') return null;
+  if (total < included) return null;
+  return total - included;
+}
+
+function splitCsv(value) {
+  if (!value) return [];
+  return String(value).split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 // ---------------------------------------------------------------------------
 // Measurement — sdk mode
 // ---------------------------------------------------------------------------
@@ -410,7 +430,9 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   }
 
   const skillFrontmatter = usage.skills?.skillFrontmatter ?? [];
-  const skillRows = skillFrontmatter.map((s) => ({ name: s.name, source: s.source }));
+  const skillRows = skillFrontmatter.map(skillFrontmatterRow);
+  const totalSkills = usage.skills?.totalSkills ?? null;
+  const includedSkills = usage.skills?.includedSkills ?? null;
 
   return {
     schema: SNAPSHOT_SCHEMA,
@@ -431,12 +453,15 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
     agents: usage.agents ?? [],
     mcpTools: usage.mcpTools ?? [],
     memoryFiles: usage.memoryFiles ?? [],
+    slashCommands: usage.slashCommands ?? [],
     skillListing: {
-      totalSkills: usage.skills?.totalSkills ?? null,
-      includedSkills: usage.skills?.includedSkills ?? null,
+      totalSkills,
+      includedSkills,
+      collapsedSkills: collapsedSkillCount(totalSkills, includedSkills),
       tokens: usage.skills?.tokens ?? categories.Skills ?? null,
       signature: listingSignature(skillRows),
       rows: skillRows.length,
+      frontmatter: skillRows,
     },
     caveats,
   };
@@ -481,12 +506,15 @@ function cliSnapshot({ bin, deny, label }) {
     agents: parsed.agents,
     mcpTools: [],
     memoryFiles: [],
+    slashCommands: [],
     skillListing: {
       totalSkills: null,
       includedSkills: null,
+      collapsedSkills: null,
       tokens: parsed.categories.Skills ?? null,
       signature: listingSignature(parsed.skillRows),
       rows: parsed.skillRows.length,
+      frontmatter: parsed.skillRows,
     },
     caveats: [
       'cli-parse mode: values are display-rounded, not exact integers',
@@ -716,11 +744,20 @@ function loadInteractiveOnly() {
   return data;
 }
 
-function knownUncoveredRecord(candidates, listing) {
+function knownUncoveredRecord(candidates, listing, operatorDeny) {
   const seen = new Set(candidates);
+  const denied = new Set(operatorDeny);
+  const tools = [];
+  const deniedAbsent = [];
+  for (const tool of listing.tools || []) {
+    if (seen.has(tool)) continue;
+    if (denied.has(tool)) deniedAbsent.push(tool);
+    else tools.push(tool);
+  }
   return {
     reason: 'interactive-only — structurally unreachable from a headless candidate list',
-    tools: (listing.tools || []).filter((t) => !seen.has(t)),
+    tools,
+    deniedAbsent,
     notes: listing.notes || [],
   };
 }
@@ -806,6 +843,7 @@ async function runAttribute(args) {
     knownUncovered: knownUncoveredRecord(
       [...tools, ...(baseline.tools || [])],
       loadInteractiveOnly(),
+      splitCsv(args['operator-deny']),
     ),
     // Baseline-only caveats dropped every deny run's disclosures, including the
     // synthesized-zero note sdk mode writes when it fills an omitted bucket.
@@ -948,8 +986,13 @@ function runVerifyCatalogue(args) {
 
   const rows = [];
   const absent = [];
+  const storedEnv = new Set();
   for (const lever of cat.levers ?? []) {
-    const tokens = catalogueTokens(lever).map((name) => {
+    const names = catalogueTokens(lever);
+    for (const name of names) {
+      if (/^(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+$/.test(name)) storedEnv.add(name);
+    }
+    const tokens = names.map((name) => {
       const hits = countTokenHits(buf, name);
       const present = hits > 0;
       if (!present) absent.push({ id: lever.id, name });
@@ -962,6 +1005,16 @@ function runVerifyCatalogue(args) {
     });
   }
 
+  let unstored = null;
+  if (args['find-unstored']) {
+    const seen = new Set();
+    const text = buf.toString('latin1');
+    for (const match of text.matchAll(/\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g)) {
+      if (!storedEnv.has(match[0])) seen.add(match[0]);
+    }
+    unstored = [...seen].sort();
+  }
+
   const caveats = [
     'binary scan is the authority on existence of each key/env name at this binary version',
     'docs fetch remains the authority on semantics',
@@ -970,6 +1023,9 @@ function runVerifyCatalogue(args) {
     caveats.push('scanned a Windows command shim; a sibling .exe was not found, so absence findings may be the wrapper rather than the payload');
   } else if (scanned.viaShim) {
     caveats.push(`resolved Windows command shim ${bin} to sibling ${scanned.path}`);
+  }
+  if (unstored) {
+    caveats.push('unstored lists env names found in the binary that no catalogue row cites; existence only, not a claim that each is an operator switch');
   }
 
   return {
@@ -985,6 +1041,7 @@ function runVerifyCatalogue(args) {
     checked: rows.reduce((n, r) => n + r.tokens.length, 0),
     missing: absent.length,
     absent,
+    ...(unstored ? { unstored } : {}),
     caveats,
   };
 }

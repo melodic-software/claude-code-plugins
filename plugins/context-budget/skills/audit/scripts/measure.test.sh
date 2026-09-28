@@ -428,8 +428,27 @@ if attr control "$actl" --tools AlphaTool,BetaTool --verify-additivity; then
     "a per-tool deny run's caveat reaches the attribution record" "deny-run caveat discarded"
   assert_eq "$(jsonget "$actl" 'j.caveats.includes("deny-run disclosure for AlphaTool+BetaTool")')" "true" \
     "the combined deny run's caveat reaches the attribution record" "combined-run caveat discarded"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("EndConversation")')" "true" \
+    "EndConversation is known-uncovered in a headless sweep" "EndConversation omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'JSON.stringify(j.knownUncovered.deniedAbsent)')" "[]" \
+    "no operator deny leaves deniedAbsent empty" "deniedAbsent populated without --operator-deny"
 else
   fail "attribute --verify-additivity (control scenario) exited nonzero"
+fi
+
+adeny="$WORK/attr-operator-deny.json"
+if attr control "$adeny" --tools AlphaTool,BetaTool --operator-deny AskUserQuestion,EnterPlanMode; then
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.tools.includes("AskUserQuestion")')" "false" \
+    "an operator-denied interactive tool is not labeled structurally unreachable" \
+    "AskUserQuestion stayed in knownUncovered.tools under --operator-deny"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.deniedAbsent.includes("AskUserQuestion")')" "true" \
+    "operator-denied AskUserQuestion is recorded as deniedAbsent" "AskUserQuestion missing from deniedAbsent"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.deniedAbsent.includes("EnterPlanMode")')" "true" \
+    "operator-denied EnterPlanMode is recorded as deniedAbsent" "EnterPlanMode missing from deniedAbsent"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.tools.includes("Artifact")')" "true" \
+    "an interactive tool the operator did not deny stays known-uncovered" "Artifact dropped without a deny"
+else
+  fail "attribute --operator-deny exited nonzero"
 fi
 
 # A product interactive-only name that WAS a candidate this run is not
@@ -597,8 +616,23 @@ if node "$ENGINE" verify-catalogue --binary "$WORK/fake-strings-bin" --catalogue
     "missing count includes detection-only absent key" "missing count wrong"
   assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="detection-only").tokens.find((t)=>t.name==="enabledMcpjsonServers").present')" "false" \
     "camelCase in detection is extracted (not silently skipped)" "detection-only key not extracted"
+  assert_eq "$(jsonget "$vcat" 'Object.prototype.hasOwnProperty.call(j, "unstored")')" "false" \
+    "verify-catalogue omits unstored unless --find-unstored" "unstored present without the flag"
 else
   fail "verify-catalogue exited nonzero on a readable fake binary"
+fi
+
+printf 'padding CLAUDE_CODE_DISABLE_CRON CLAUDE_CODE_ENABLE_DESIGN_SYNC CLAUDE_CODE_DISABLE_WORKFLOWS' >"$WORK/fake-strings-bin"
+vunstored="$WORK/verify-unstored.json"
+if node "$ENGINE" verify-catalogue --find-unstored --binary "$WORK/fake-strings-bin" --catalogue "$minicat" --out "$vunstored" >/dev/null; then
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_DISABLE_CRON")')" "true" \
+    "find-unstored reports an env name no row cites" "CLAUDE_CODE_DISABLE_CRON missing from unstored"
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_ENABLE_DESIGN_SYNC")')" "true" \
+    "find-unstored reports the second uncited env name" "CLAUDE_CODE_ENABLE_DESIGN_SYNC missing from unstored"
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_DISABLE_WORKFLOWS")')" "false" \
+    "find-unstored does not report an env name a row already cites" "cited env name listed as unstored"
+else
+  fail "verify-catalogue --find-unstored exited nonzero"
 fi
 
 # ReDoS-shaped title (long same-case run then _) must finish, not hang.

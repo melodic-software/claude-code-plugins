@@ -43,9 +43,9 @@ The audit skill and its engine are the single source of truth for what this plug
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header of
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the pre-computed
-`node` and `claude` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
-one remediation line per FAIL. Do not modify anything.
+**Read it first.** The requirement list lives there. Do not copy it into the report as a second
+inventory. Then read the pre-computed `node` and `claude` rows, run the remaining probes, and
+report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 Install nothing.
 
@@ -60,7 +60,14 @@ Install nothing.
      That silent gap is exactly what a native configuration prompt cannot tell you: the option can
      read `true` while the hook it gates never runs.
 
-   FAIL when absent. The checkpoint is a checkpoint either way, never a guarantee. A
+   FAIL when absent. On Windows, `command -v node` is not the hook's environment. A version
+   manager can return a per-call path whose directory name contains a process id (fnm's
+   `fnm_multishells\<pid>_<timestamp>\node` is the usual shape). That path is ephemeral: it is
+   not the persisted Machine or User PATH the hook process inherits. FAIL when the only hit is
+   an ephemeral shim, and say so. Report the persisted resolution separately, from
+   `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`, not from the current
+   process PATH. An in-process hit that is not ephemeral is INFO beside that persisted result,
+   not a PASS by itself. The checkpoint is a checkpoint either way, never a guarantee. A
    `PermissionRequest` hook can allow the call and `disableAllHooks` removes non-managed hooks.
 2. **The Claude Code CLI**. The pre-computed `claude` rows (path and `--version`). The engine
    measures a pinned binary. PASS when one resolves; report the absolute path and version, because
@@ -72,8 +79,9 @@ Install nothing.
    defect. The engine degrades to parsing headless `/context` output (display-rounded, resting on
    an undocumented surface, and the record carries both caveats), and to a structured error rather
    than a wrong number when neither mode works.
-4. **Settings-write-ask toggle**. Report the effective `${user_config.settings_write_ask_enabled}`
-   (an unexpanded token or an empty value means the manifest default `true`). INFO. The rendered
+4. **Settings-write-ask toggle**. Report the effective value of the settings-write-ask toggle
+   (`${user_config.settings_write_ask_enabled}`, `true` or `false`; an unexpanded token or an
+   empty value means the manifest default `true`). INFO. The rendered
    value is injected when this skill loads, so a change made now is observed only in a **fresh
    session**; say so rather than re-reading it mid-session. When it reads `false`, note that the
    checkpoint is deliberately off and step 1's `node` finding downgrades to INFO for the hook (it
@@ -87,14 +95,20 @@ native-`userConfig` classes), so `check` closes by pointing at each resolution r
 writing. Re-running it after everything passes changes nothing and reports "already configured":
 
 - **Missing `node`:** the platform's own install channel (<https://nodejs.org/en/download>). This
-  plugin never downloads a runtime. On Windows, confirm the hook's environment resolves the same
-  `node` this check did.
+  plugin never downloads a runtime. On Windows, step 1's persisted-PATH check is the one that
+  applies, including when `command -v node` succeeded on an ephemeral shim.
 - **Missing CLI:** install the Claude Code CLI, or run the audit with an explicit `--binary` path.
 - **Exact mode wanted:** print this one-time install, marked as the operator's. It needs network
   access, so this skill offers it and never runs it:
 
   ```shell
   mkdir -p "${CLAUDE_PLUGIN_DATA}/sdk" && npm install --prefix "${CLAUDE_PLUGIN_DATA}/sdk" @anthropic-ai/claude-agent-sdk
+  ```
+
+  On Windows, print this PowerShell form instead:
+
+  ```powershell
+  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk
   ```
 
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
@@ -109,7 +123,9 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. A rejected value prints a warning yet exits 0,
+  value itself always lands in user settings. When the working directory is the home directory,
+  project scope and user scope are the same settings file, so `claude plugin list` can label
+  that one file as both `user` and `project`; pass `user`. A rejected value prints a warning yet exits 0,
   so read the output. This skill never writes user settings or
   `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered token is
   injected at skill load, so a same-session `check` still reports the OLD value; report the
