@@ -328,7 +328,7 @@ emit_file_rules() {
 #   autoModePresent    whether an autoMode section exists at all — the classifier
 #                      does not read it from project or local settings, so its
 #                      mere presence there is a dead-config finding
-#   defaultMode        `auto` is ignored in project and local settings
+#   defaultMode        `auto` and `bypassPermissions` are ignored in project and local settings
 #   useAutoModeDuringPlan   not read from shared project settings
 #   disableAutoMode / permissions.disableAutoMode
 #                      accepted at BOTH key paths, and must be the STRING
