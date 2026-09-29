@@ -1,0 +1,11 @@
+// expect: rule-zero-assertion
+// Adds an item and never checks the cart.
+import { describe, it } from 'vitest';
+import { createCart } from '../src/cart';
+
+describe('cart', () => {
+  it('adds an item', () => {
+    const cart = createCart();
+    cart.add({ sku: 'A1', qty: 2 });
+  });
+});

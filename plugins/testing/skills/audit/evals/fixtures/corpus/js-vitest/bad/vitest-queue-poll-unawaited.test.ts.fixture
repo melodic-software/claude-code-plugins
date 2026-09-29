@@ -1,0 +1,13 @@
+// expect: rule-inert-assertion
+// expect.poll returns a promise; unawaited, the test ends before it polls.
+import { describe, expect, it } from 'vitest';
+import { createQueue } from '../src/queue';
+
+describe('queue', () => {
+  it('drains after flush', async () => {
+    const queue = createQueue();
+    queue.push('a');
+    queue.flush();
+    expect.poll(() => queue.size()).toBe(0);
+  });
+});

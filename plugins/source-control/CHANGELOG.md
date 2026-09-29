@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
+## [0.62.23] - 2026-09-29
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, and `setup` `**Arguments.**` lines lead with the argument hint,** so each hint and line agree.
+
+## [0.62.22] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.62.21] - 2026-09-29
 
 ### Fixed

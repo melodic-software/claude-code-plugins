@@ -1,0 +1,15 @@
+// expect: rule-recomputed-derived
+// The expected total is summed from the same lines the code sums.
+using System.Linq;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderLinesSumTests
+{
+    [TestMethod]
+    public void Total_AddsTheLines()
+    {
+        var lines = new[] { new OrderLine(10m), new OrderLine(5m) };
+        Assert.AreEqual(lines.Sum(l => l.Price), Order.Total(lines));
+    }
+}

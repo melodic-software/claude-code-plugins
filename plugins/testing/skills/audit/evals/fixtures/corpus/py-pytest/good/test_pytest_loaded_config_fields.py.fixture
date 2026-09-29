@@ -1,0 +1,13 @@
+# good-for: rule-constant-restatement
+# Uppercase attributes of objects the test built by calling the code.
+from app.config import Settings, load_config
+
+
+def test_load_config_reads_the_port():
+    cfg = load_config("port: 8080")
+    assert cfg.PORT == 8080
+
+
+def test_settings_default_to_no_debug():
+    s = Settings()
+    assert s.DEBUG == False

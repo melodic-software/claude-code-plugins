@@ -85,6 +85,20 @@
         "The 'TODO(#123): tighten the upper bound' marker is NOT flagged; a marker comment is exempt from this shape even when it carries an origin cue",
         "The output is a classification report with tiers and treatments; no file is edited"
       ]
+    },
+    {
+      "id": 8,
+      "name": "weak-history-cues-are-tier-2-and-wrapped-lines-join",
+      "prompt": "Audit a file with the comments `# keeps the order exactly as before`, `# now uses the old shared group`, and a wrapped pair `# grouped for speed (ci-perf Phase` / `# 6b) and nothing else`, plus `# phase 2 of the build parses the header`. Classify them.",
+      "expected_output": "Reports history-narration-weak at Tier 2 (Review, not Delete) for the 'exactly as before' comment, for the 'the old shared group' comment, and once for the wrapped 'Phase 6b' pair, at the first line's number. The 'phase 2 of the build' comment is not a finding. It explains the weak cues also open ordinary prose, which is why a person reviews them. No edits are applied.",
+      "files": [],
+      "expectations": [
+        "'exactly as before' and 'the old shared group' are classified as history-narration-weak at Tier 2 with a review treatment",
+        "The wrapped 'Phase 6b' comment is found once, at the line where it starts",
+        "The 'phase 2 of the build' comment is NOT flagged",
+        "Output explains that the weak cues can be ordinary prose, so they are reviewed rather than deleted",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
     }
   ]
 }

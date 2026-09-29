@@ -924,7 +924,7 @@ assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+# #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -938,17 +938,35 @@ else
   printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+assert_not_contains_file "all-fail withholds per-repo merged-remote-branch rows" \
   "Finding: merged-remote-branch" "$all_fail_out"
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out")" == 1 ]]; then
+  printf 'PASS: all-fail emits the fleet finding exactly once\n'
+else
+  printf 'FAIL: all-fail emits the fleet finding exactly once\n' >&2
+  failures=$((failures + 1))
+fi
+all_fail_medium_rows="$(grep -c -F 'Confidence: MEDIUM' "$all_fail_out")"
+assert_contains_file "all-fail tally drops the withheld MEDIUM rows" \
+  " medium=$all_fail_medium_rows " "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+# at another repository cannot stand in for the pinned remote, so every probe counts as a failure
+# and only the fleet finding remains.
 instead_of_out="$TMP/instead-of.txt"
-for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|withheld'; do
   FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
     HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
     bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
-  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+  if [[ "${rewrite#*|}" == withheld ]]; then
+    if ! grep -Fq "Finding: merged-remote-branch" "$instead_of_out" &&
+      grep -Fq "Finding: ls-remote-fleet-unavailable" "$instead_of_out"; then
+      printf 'PASS: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}"
+    else
+      printf 'FAIL: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}" >&2
+      failures=$((failures + 1))
+    fi
+  elif grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
     grep -Fq "Confidence: ${rewrite#*|}"; then
     printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
   else
@@ -1230,7 +1248,8 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 STALEONLY
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" --detail >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
-  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
+  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out" &&
+  grep -Fq "Fleet verdict: BLOCKED" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
 else
   printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
@@ -1371,6 +1390,12 @@ if [[ "$husk_status" -ne 2 ]] &&
 else
   printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
   sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+if grep -Fq "Fleet verdict: CLEAN" "$husk_out"; then
+  printf 'PASS: a discovery-skip alone does not block the fleet\n'
+else
+  printf 'FAIL: a discovery-skip alone does not block the fleet\n%s\n' "$(cat "$husk_out")" >&2
   failures=$((failures + 1))
 fi
 # The operator named this path directly, so the typo-stops-the-run rule still holds.
@@ -2456,7 +2481,7 @@ else
       grep -Fq "Windows directory junctions" "$sym_mid_out" &&
       grep -Fq "/repo-fleet-hygiene:setup apply --extend-skip via-link" "$sym_mid_out" &&
       grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
-      grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
+      ! grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
       ! grep -Fq "buried-repo" "$sym_mid_out"; then
       printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
     else
@@ -2465,6 +2490,31 @@ else
     fi
   else
     printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+
+  # A disclosed skip alone does not BLOCK the fleet next to a clean repo; a genuine evidence gap
+  # still does.
+  mkdir -p "$sym_mid_root/repo-b/.git"
+  sym_gap_out="$TMP/sym-gap-out.txt"
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1
+  if grep -Fq "Repo: $TMP/repo-b" "$sym_mid_out" &&
+    grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+    grep -Fq "Fleet verdict: CLEAN" "$sym_mid_out"; then
+    printf 'PASS: a symlink skip beside a clean repository does not block the fleet\n'
+  else
+    printf 'FAIL: a symlink skip beside a clean repository does not block the fleet\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+  FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --root "$sym_mid_root" --repo "$TMP/canonical-a" --detail >"$sym_gap_out" 2>&1 || true
+  if grep -Fq "Finding: discovery-symlink-skip" "$sym_gap_out" &&
+    grep -Fq "Finding: ls-remote-fleet-unavailable" "$sym_gap_out" &&
+    grep -Fq "Fleet verdict: BLOCKED" "$sym_gap_out"; then
+    printf 'PASS: a genuine evidence gap still blocks the fleet beside a symlink skip\n'
+  else
+    printf 'FAIL: a genuine evidence gap still blocks the fleet beside a symlink skip\n%s\n' "$(cat "$sym_gap_out")" >&2
     failures=$((failures + 1))
   fi
 fi

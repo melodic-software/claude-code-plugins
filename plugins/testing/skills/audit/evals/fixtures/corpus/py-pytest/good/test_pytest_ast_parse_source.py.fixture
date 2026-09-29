@@ -1,0 +1,10 @@
+# good-for: rule-source-text-read
+# reads: src/models.py
+# The source is parsed, not searched as text: the test walks the syntax tree.
+import ast
+
+
+def test_every_model_declares_a_table():
+    tree = ast.parse(open("src/models.py").read())
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
+    assert "Order" in [c.name for c in classes]

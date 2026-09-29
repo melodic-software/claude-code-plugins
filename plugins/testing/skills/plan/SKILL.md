@@ -115,6 +115,14 @@ Present the test plan to the user. Then suggest:
 - `/testing:run-e2e` for UI/API verification scenarios
 - `/testing:write organize` if new test projects are needed
 
+For each planned test, name where its expected value will come from: `testing:test-value` (if installed).
+
+## Next
+
+/testing:write
+
+Writes the tests the plan names.
+
 ## What this skill does NOT do
 
 - **Does not write tests**. `/testing:write`

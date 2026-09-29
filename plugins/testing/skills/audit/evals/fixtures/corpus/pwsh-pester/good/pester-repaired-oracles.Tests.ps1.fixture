@@ -1,0 +1,28 @@
+# good-for: rule-inert-assertion
+# good-for: rule-source-text-read
+# The repaired twins: the value is piped to Should, a comparison inside a
+# ParameterFilter script block is that block's return value, and the module is
+# imported rather than read as text.
+BeforeAll {
+    . $PSScriptRoot/Sum.ps1
+    Import-Module "$PSScriptRoot/../src/Mod.psm1" -Force
+}
+
+Describe 'repaired' {
+    It 'adds two numbers' {
+        $result = Get-Sum 2 3
+        $result | Should -Be 5
+    }
+
+    It 'logs the sum' {
+        Mock Write-Log {}
+        Get-Sum 2 3 -Log | Should -Be 5
+        Should -Invoke Write-Log -ParameterFilter {
+            $Message -eq 'sum: 5'
+        }
+    }
+
+    It 'exports its members' {
+        (Get-Command -Module Mod).Name | Should -Contain 'Get-Thing'
+    }
+}

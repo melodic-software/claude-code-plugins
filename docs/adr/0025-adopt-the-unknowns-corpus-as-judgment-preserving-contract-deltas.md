@@ -45,8 +45,12 @@ anti-premature-codification warning treated as a binding constraint:
   graduates it to an owner doc).
 - The corpus's context-engineering companion routes to the incumbent effort recorded in
   [ADR 0004](0004-rightsize-instruction-surfaces-by-incumbent-first-arbitration.md)
-  rather than a parallel lane; its three candidate inputs are tracked on the issue
-  tracker since that effort's contract slice has graduated.
+  rather than a parallel lane. Its three candidate inputs are absorbed as planning inputs
+  to that effort, and each is decided build or decline at check-design time: a
+  genericness check owned by `skill-quality:check`; a widening of the I29 duplication
+  check (I29-a and I29-b, the repetition-myth lens) owned by
+  `claude-config:audit-instructions`; and a `/doctor` cross-reference (prerequisite
+  contract, absence classification, coverage disclosure) owned by `claude-memory`.
 
 ## Consequences
 

@@ -151,8 +151,8 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    (`core.sshCommand`, `credential.helper`, proxies). It runs only when the remote URL names the
    same github.com repository with and without that config; otherwise it counts as a failure.
    When every attempted probe in the run fails (non-zero status; empty success does not count),
-   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding. The per-repository
-   MEDIUM findings stay; they are not independent live-probe failures.
+   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding and withhold the
+   per-repository `MEDIUM` rows, because no live probe succeeded.
    Remote-only heads (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
@@ -204,7 +204,9 @@ Default output is screen-scale:
 
 1. Fleet header (config, scope, discovery counts).
 2. **Repository rollup**. One row per repository with `CLEAN` / `N candidates` /
-   `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
+   `BLOCKED (evidence gap)`, plus counts by finding kind. Every UNKNOWN kind except the
+   disclosure-only `discovery-skip` and `discovery-symlink-skip` makes a repository, and so the fleet,
+   BLOCKED. Fleet-level findings (stale config,
    duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
 3. **Fleet action plan**. Recommended skill invocations **once per repository** (not once per
    finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
@@ -217,7 +219,8 @@ same-named branches across repositories.
 `ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly
 as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
 candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
-repository, not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
+repository (`discovery-skip` and `discovery-symlink-skip` are disclosure-only and do not count), not
+"GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
@@ -267,7 +270,8 @@ Related fleet contracts that remain separate:
   subsequent run until the config is edited).
 - A path discovered under `--root` that is unreadable or not a Git working tree (despite a `.git`
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
-  rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
+  rest of the fleet is still audited. The finding is disclosure-only: it does not make the fleet
+  BLOCKED. An explicitly named `--repo` that is not a working tree still
   hard-fails.
 - A directory that itself carries a `.git` marker (directory or file) is treated as a nested
   repository: discovery `add_target`s it and **returns without descending into its children**. A
@@ -275,7 +279,8 @@ Related fleet contracts that remain separate:
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed
   as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
-  Windows directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
+  Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. Windows
+  directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
   discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
@@ -306,7 +311,7 @@ Related fleet contracts that remain separate:
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
 | `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
 | `worktree-root-unconfigured` | Set `worktreeroot.path` (git config) or source-control `worktree_root`, then rerun |
-| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun. Per-repository MEDIUM `merged-remote-branch` findings are not independent |
+| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |

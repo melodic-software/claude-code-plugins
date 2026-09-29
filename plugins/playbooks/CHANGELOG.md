@@ -4,6 +4,34 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.3] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `compress` step runs `audit` first** ([#5193](https://github.com/melodic-software/claude-code-plugins/issues/5193)).
+  The step now runs `/docs-hygiene:compress audit`, excludes always-loaded instruction files from
+  its targets, and is ticked `not-applicable` when no targets remain, instead of compressing every
+  markdown file.
+
+## [0.14.2] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `coupling` step stays on the sweep branch** ([#5188](https://github.com/melodic-software/claude-code-plugins/issues/5188)).
+  `coupling:reduce` creates its own branch, commits per reduction and opens a pull request, which
+  conflicts with the sweep's one-branch, one-commit model. The catalog entry now carries an
+  `#### Override` that keeps the work on the current branch, leaves changes uncommitted for the step
+  commit, and files tracker items only with approval.
+
+## [0.14.1] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `lint` step covers the whole repository** ([#5201](https://github.com/melodic-software/claude-code-plugins/issues/5201)).
+  The catalog entry passed only `--fix`, so `toolchain:lint` linted the changed files, which on a
+  clean sweep tree are the earlier steps' edits. The entry now passes `all --fix` and a note
+  directs a following `/toolchain:lint all` check-mode run, since `--fix` runs only format commands.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added
