@@ -243,6 +243,10 @@ creates; this hook is the route for the adds that bypass the helper.
 Existing reasons are never rewritten. The lock is a claim other agents
 can read; it does not block concurrent writes (git-worktree(1)).
 
+The worktree scripts (`worktree-claim.sh`, `landed-work.sh`, `worktree-facts.sh list`)
+require git 2.36.0 or newer for `git worktree list --porcelain -z`; on older git they
+fail closed with a message naming the floor and the installed version.
+
 `scripts/worktree-claim.sh report` lists unclaimed linked worktrees;
 `check-enter <path> --session-id <id>` surfaces a foreign live claim and
 stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
