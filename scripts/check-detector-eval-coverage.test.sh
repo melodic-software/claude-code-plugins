@@ -1118,6 +1118,7 @@ wrapper_unresolved 'a computed option before the emitter' 'command "$opt" emit e
 wrapper_unresolved 'the first of two emit names' 'command -p emit emit_b'
 wrapper_unresolved 'a wrapped call with one argument' 'command -p emit error'
 wrapper_unresolved 'a wrapped call with a forwarder after the id' 'command -p emit error P1 "$@"'
+wrapper_unresolved 'a wrapped call with a word after a forwarder' 'command -- emit "$@" error P1 SRC "message"'
 
 # unresolved_case <label> <line>... — every line is a real call the walk cannot
 # resolve, so each must be named as its own unparsed site (lines 4, 5, ...).
@@ -1190,6 +1191,11 @@ unresolved_case 'a modified or longer $@ is not a forwarder' \
   'emit error ${@:1}' 'emit error ${@:-x}' 'emit error ${#@}' 'emit error ${@/a/b}' \
   'emit error ${!@}' 'emit error "${!*}"' 'emit error "$@"x' 'emit error $@x' 'emit error "$@$x"' \
   "emit error '\$@'"
+# A forwarder stands in for the severity or the id only as the LAST argument. A
+# word after it makes the id computed (with an empty `$@` it is the literal
+# `P1`), so the call is a site and stays unresolved.
+unresolved_case 'a word after a forwarder' \
+  'emit error "$@" P1' 'emit "$@" error P1' 'emit "$@" "$src"'
 unresolved_case 'an id that is only partly static' 'emit error P1$x' 'emit error "P1$x"'
 unresolved_case 'an id the row pattern matches only in part' 'emit error xP1' 'emit error P1xx'
 unresolved_case 'a computed severity or id' 'emit "$sev" P4' 'emit error ${id}'

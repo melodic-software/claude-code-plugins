@@ -140,8 +140,10 @@
 # redirection stay on the statement and do not hide the call.
 #
 # A call with no arguments is not a site. A forwarder (`emit error "$@"`,
-# `$*`, `$@`, or the `${@}` / `${*}` spellings) is not a site: the ids enter
-# at the wrapper's own calls. A site whose severity or id is not one static
+# `$*`, `$@`, or the `${@}` / `${*}` spellings) as the last argument, standing
+# in the severity or the id, is not a site: the ids enter at the wrapper's own
+# calls. A word after it (`emit error "$@" P1`) makes the call a site again,
+# and an unresolved one. A site whose severity or id is not one static
 # literal, whose severity is not a plain word, or whose id does not match the
 # row pattern, is UNRESOLVED. The candidate count is compared with the ids
 # actually resolved. Any mismatch is exit 2, and the unparsed sites are named.
@@ -167,7 +169,7 @@
 # where a later word of one of those, or of `env` or `xargs`, is an emit name
 # is counted as a candidate and reported UNRESOLVED (exit 2, site named), not
 # dropped. The exclusions above still hold: `command -v emit` (or `-pv`) is a
-# lookup, and a call with no arguments or a forwarder is not a site. Any later
+# lookup, and a call with no arguments or a trailing forwarder is not a site. Any later
 # word that is an emit name counts, even as an argument (`env -u emit printf
 # ok`), which reads UNRESOLVED: the safe side.
 #
@@ -344,6 +346,12 @@ def is_forward:
     )
   );
 
+# The words of a call (after the command word) end in a forwarder that stands in
+# the severity or the id: `emit "$@"`, `emit error "$@"`. A word after the
+# forwarder (`emit error "$@" P1`) leaves the id computed, not forwarded.
+def forwards:
+  (length == 1 and (.[0] | is_forward)) or (length == 2 and (.[1] | is_forward));
+
 def emit_words:
   . as $c
   | ($c.Args[0] | static) as $w0
@@ -373,8 +381,7 @@ def hidden_wrapped_emit:
           (.Args[1:][$i + 1:]) as $after
           | if ($w0 == "command" and ($ws[:$i] | any(. != null and test("^-[pvV]*[vV][pvV]*$"))))
               or ($after | length) == 0
-              or (($after[0] | is_forward) // false)
-              or (($after[1] // null | is_forward) // false)
+              or ($after | forwards)
             then null
             else $w0 + " ... " + $ws[$i]
             end
@@ -399,7 +406,7 @@ def hidden_wrapped_emit:
       else
         ($args[1:] | map(select(. != null))) as $rest
         | if ($rest | length) == 0 then .
-          elif (($rest[0] | is_forward) // false) or (($rest[1] // null | is_forward) // false) then .
+          elif ($rest | forwards) then .
           else
             .candidates += 1
             | ($rest[0] | static) as $sev
