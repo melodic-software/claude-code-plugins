@@ -870,6 +870,53 @@ for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
     "$file" '"The sibling verifier, stated once"'
 done
 
+# One table owns the verification: value set (#4274, #4231). skipped (cost) is
+# the parent choosing not to pay, unverified (none, <date>) is it being unable
+# to dispatch, and the table is the one place that says so. artifact-shape.md
+# keeps a one-line list, which must match the table's first column.
+values_heading='^### The `verification:` values$'
+assert_present 'the parent contract owns the verification: values table' \
+  'reference/parent-contract.md' "$values_heading"
+values_owners="$(surface | xargs grep -lE -- "$values_heading" 2>/dev/null | wc -l | tr -d ' ')"
+values_count="$(grep -cE -- "$values_heading" "$PLUGIN_ROOT/reference/parent-contract.md")"
+if [[ "$values_owners" -eq 1 && "$values_count" -eq 1 ]]; then
+  pass 'the verification: values heading exists exactly once'
+else
+  fail "the verification: values heading exists exactly once — $values_owners files carry it, $values_count times in the parent contract"
+fi
+values_table="$(awk '/^### The `verification:` values$/ {on=1; next} on && /^#/ {exit} on' \
+  "$PLUGIN_ROOT/reference/parent-contract.md")"
+for value in 'pass (research-verifier, <date>)' \
+  'fail rows <n>[,<n>…] (research-verifier, <date>)' \
+  'skipped (cost)' 'unverified (none, <date>)' 'pending'; do
+  if [[ "$values_table" == *"| \`$value\` |"* ]]; then
+    pass "the values table has a row for $value"
+  else
+    fail "the values table has a row for $value"
+  fi
+  if grep -qF -- "\`$value\`" "$PLUGIN_ROOT/skills/research/context/artifact-shape.md"; then
+    pass "artifact-shape.md lists $value as the table does"
+  else
+    fail "artifact-shape.md lists $value as the table does"
+  fi
+done
+
+# verdict: is the report contract's run outcome (complete | partial | stopped),
+# so the explore and trace-intent verifier's pass or fail line is result:.
+assert_absent 'no file has a verifier return pass or fail on a verdict: line' \
+  'verdict: (pass|fail)'
+assert_present 'the explore and trace-intent verifier returns result: pass or result: fail' \
+  'reference/parent-contract.md' '^Return: first line `result: pass` or `result: fail`'
+
+# The intro lists what the contract owns without counting it, so adding a
+# statement cannot stale a number.
+intro_flat="$(sed '/^## The pre-dispatch envelope$/q' "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ')"
+if grep -qiE '(^|[^[:alpha:]])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|[0-9]+) statements' <<<"$intro_flat"; then
+  fail 'the parent contract intro spells out no count before statements'
+else
+  pass 'the parent contract intro spells out no count before statements'
+fi
+
 # ---------------------------------------------------------------------------
 # 17. References follow the content that moved into the spokes
 # ---------------------------------------------------------------------------

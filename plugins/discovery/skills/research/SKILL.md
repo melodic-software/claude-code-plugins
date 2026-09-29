@@ -59,7 +59,7 @@ Agent({
 })
 ```
 
-Write its `verification_line` into the index frontmatter in place of `verification: pending`; a FAIL row sends the run back to the phase that row names. **When you choose not to pay for the verifier** (the cost path), write `verification: skipped (cost)` instead; never leave `pending` once this boundary closes. Brief, write-back and project-fit rules: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase. **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
