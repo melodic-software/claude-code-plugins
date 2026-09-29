@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.9] - 2026-09-29
+
+### Fixed
+
+- **The onboard-adapter generator handles the seam's `release` verb.** It no longer refuses a spec that carries `release` or requires specs to omit it: `release` is in the generated verb set, the claim usage and parsing accept `--ttl-minutes`, and `features.leases` is required only when `release` is true. The bundled gitea and linear specs declare `release: false`, the generated `capabilities.test.sh` covers it, and a drift test pins the generator's verbs to the dispatcher's public verbs plus `list-items`
+  ([#4690](https://github.com/melodic-software/claude-code-plugins/issues/4690),
+  [#4609](https://github.com/melodic-software/claude-code-plugins/issues/4609)).
+- **The work-loop cycle report says which closing PR holds an item in flight, and for how long.** The github adapter's open-linked-PRs query also emits each open closing PR as `{number, isDraft, createdAt}`, and the report line reads `in flight: #<item> (PR #<pr>, draft|ready, open <age>)`. The gate stays boolean. The skill states that the exclusion has no age bound
+  ([#4610](https://github.com/melodic-software/claude-code-plugins/issues/4610)).
+
+### Changed
+
+- The work-loop background-job paragraph reports the `#4598` refusal as observed and conditional on the session not yet being isolated in a worktree, marks itself interim, and carries a verification record. `reference/escalation-marker.md` points at it, and its sections are back in writer/reader order
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+- `work_dispatch_concurrency_cap`, the README, and the `work` and `work-loop` skills say that `/implementation:implement-dispatch` owns the wave cap and that the cap does not bind under worker authority, where rows in one worktree run one per wave
+  ([#4262](https://github.com/melodic-software/claude-code-plugins/issues/4262)).
+- The triage exits point at the lane-barred branch, and the `0.41.1` entry lists the trigger phrases and routing pointers that release dropped
+  ([#4605](https://github.com/melodic-software/claude-code-plugins/issues/4605),
+  [#4657](https://github.com/melodic-software/claude-code-plugins/issues/4657)).
+- Argument hints on `decompose`, `triage`, `scan-todos`, `work`, and `attend-queue` are grammar-only, and each skill states its arguments once, in Variables
+  ([#4051](https://github.com/melodic-software/claude-code-plugins/issues/4051)).
+- Eight skills gain a one-line `## Next` section naming their successor.
+
 ## [0.41.8] - 2026-09-28
 
 ### Fixed
