@@ -294,13 +294,16 @@ Name each human-facing file explicitly. Never pass agent-instruction files.
 ### compress
 
 - skill: docs-hygiene:compress
-- args: <markdown files>
+- args: audit <markdown files>
 - applies-when: repo has prose markdown the be-concise step did not cover
 - checked: false
 
 #### Notes
 
+Exclude always-loaded instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/rules/**`, `**/SKILL.md`) from the file list.
 Run only on files the be-concise step did not edit.
+When no files remain, skip the step and report it as skipped at plan time.
+The audit scan classifies each file; only COMPRESS-classified targets go on to compression.
 
 ### ai-slop
 
