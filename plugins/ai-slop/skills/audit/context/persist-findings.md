@@ -85,5 +85,22 @@ the section's line form. The script writes all of it. Omit `tier:`,
 ## Re-running
 
 A re-run writes what it currently finds and never replays: never re-emit a previous file, never
-copy rows forward. After this skill's own `fix` action completes, re-run the detector and emit a
-fresh file so no stale findings file survives its own remediation.
+copy rows forward. Writing a fresh file does not retire the old one: `review:fanout fix` skips a
+findings file only when a `type: fix-pass-record` for the same branch names it by file name and
+content digest (`plugins/review/skills/fanout/context/fix-pass-mode.md` Step 1). After this
+skill's own `fix` action completes, in this order:
+
+1. **Retire the consumed file.** Run
+   `${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh --out-dir <findings home> --consumed <file>`
+   once per findings file of this branch the fix consumed (`--consumed` repeats): the file(s)
+   this audit run emitted, in the directory the emit wrote to. The script stages the record,
+   names it `<TS>-fix-pass-applied-<sha256-12 of the staged bytes>.md`, and prints the path.
+   Pass `--rows` and `--outcome` for the fixed count and the fixed/suppressed/reverted totals, and
+   `--not-applied-rows` with one table row (`Location | Finding | Why not applied | Source file`)
+   per reverted or suppressed finding. A fix with no prior findings file has nothing to retire and
+   writes no record. A pass that stops partway writes none either; the next run then re-admits the
+   file.
+2. **Re-run the detector and emit a fresh file** for what remains, per "Compose by script".
+
+The fresh file is then the only candidate left, and states only what remains. A non-repository
+target wrote no file, so it writes neither.

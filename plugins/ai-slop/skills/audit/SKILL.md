@@ -3,7 +3,7 @@ description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-
 argument-hint: "[audit|fix] [target | user-scope [memory]]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -251,10 +251,12 @@ Per file, worst-first:
    reverted-with-reason. Report per file as you go on long runs.
 
 After the last file: build the fixed set's list with `detect.sh --list-targets`, run the
-detector over it with `--paths-file`, redirecting both outputs to files in the run directory,
-and re-emit the findings file per [`context/persist-findings.md`](context/persist-findings.md)
-"Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
-non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
+detector over it with `--paths-file`, redirecting both outputs to files in the run directory.
+Then, per [`context/persist-findings.md`](context/persist-findings.md) "Re-running", retire the
+findings file this run consumed with a `fix-pass-record` (`scripts/emit-fix-record.sh`), and
+re-emit a fresh findings file for what remains, in that order: `review:fanout fix` skips a
+file only when a record names it by name and digest, so the fresh file is then the only
+candidate left. Skip both for a non-repository target, which never wrote a file. Then run `cross-check.sh --targets <list>
 --detector <detector output>`: it finds em-dash lines with its own parse, so an em dash the
 detector's parse missed still shows up. A `Disagree:` row names the lines only one side
 counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ; a row
