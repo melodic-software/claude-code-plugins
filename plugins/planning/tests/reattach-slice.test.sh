@@ -4,6 +4,9 @@
 # bytes. A phrase that also appears after that cut is a gate the re-attach can
 # drop. The interview hub is not asserted here: its gate lines are pinned to
 # other positions by interview-defenses.test.sh.
+#
+# shellcheck disable=SC2016  # single quotes are deliberate: assert_gate phrases are verbatim
+# markdown lines that hold literal backticks, and expanding them would break the match.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

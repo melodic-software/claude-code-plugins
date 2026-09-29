@@ -564,7 +564,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
-  "## Composition with other skills" \
+  "## Next" \
   "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
