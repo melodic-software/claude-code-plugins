@@ -201,8 +201,11 @@ validates the probe schema and runs the harness tests; `score` and `compare` are
 Model-graded `claude plugin eval` cases are emitted on demand. Contract:
 [reference/invocation-probes.md](../../reference/invocation-probes.md).
 
-1. Resolve the probes directory: `${CLAUDE_PLUGIN_ROOT}/probes` when present, else the
-   marketplace path `plugins/skill-quality/probes`.
+1. Resolve the probes directory. Use a directory the user supplied. Otherwise use
+   `${CLAUDE_PLUGIN_ROOT}/probes` only when its `skill_dir` paths resolve in the current repo, which
+   they do inside the marketplace checkout. Otherwise stop and ask for a probes directory. The
+   shipped seed set is this marketplace's own skills; it is not a general default, and `score`
+   exits 2 when none of its `skill_dir` paths resolve.
 2. Run, in this order unless the user named one sub-action:
 
    ```shell
@@ -250,6 +253,11 @@ tool. This gate does not automate that reachability check; author and review aga
 - `measure-invocation`'s default `listing-overlap` method is a lexical floor. A 1.0 positive
   trigger rate means the description already contains the request's nouns, not that live
   auto-invocation saturates. Report both splits and name the method.
+- The shipped probes are this marketplace's skills, and two positives of
+  `probes/skill-quality.check.json` quote the `check` description nearly verbatim, so a 1.0
+  positive rate there is close to true by construction. Outside the marketplace checkout `score`
+  needs your own probes directory; no script turns `plugin-eval` or `claude -p` results into a
+  report for `compare`.
 - A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor
   byte-identity, stale-tracking metadata, committed-artifact scan) skip with a note when cwd
   is outside a repo. Marketplace plugin-cache installs are plain trees. Set
