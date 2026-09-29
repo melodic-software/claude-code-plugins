@@ -9,7 +9,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **`batch-simplify` composes the bundled `simplify` skill.** When it resolves and passes the
   identity check, Phase 6 runs it on each group's files in place of the simplifier agent (`docs`
-  mode keeps the agent), flags any change outside the run's file set as mutation, and the Phase 8
+  mode keeps the agent), flags any change outside the group's files as mutation, and the Phase 8
   report opens with a Native step result block. A skip names its state, the axis line, and the
   enable path. Native-step groups run one at a time. An `unattended` token runs the step without
   asking, only when its identity is confirmed by description.
