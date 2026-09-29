@@ -45,11 +45,11 @@ runs only when your repo has opted into Biome.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **Biome** available to the repo. Installed in the repo's `node_modules`
   (the hook runs `node_modules/.bin/biome`) or on `PATH`. Biome is never
   downloaded on the fly; if it is not present while a Biome config governs the
-  repo, the hook skips with a visible once-per-session notice.
+  repo, the hook skips with a visible notice, once per session and agent, renewed every eighth skip.
   **Biome 2.x is recommended** (tested against 2.5.1): the hook invokes
   `check --write --error-on-warnings --reporter=github`, and on much older
   releases those flags may be absent, in which case the run is reported as a
