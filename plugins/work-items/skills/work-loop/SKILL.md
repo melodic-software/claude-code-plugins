@@ -352,8 +352,12 @@ as written, through the bound adapter's "Open linked PRs" operation: the closing
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
 binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
 nor escalated, and this cycle changes none of its labels. The cycle report lists it as
-`in flight: #<item> (PR #<pr>)`, the PR number read from the same query's `number` field, or as
-`in-flight check failed: #<item>` when the query errored. `/work-items:work`'s own dispatch-time
+`in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first, or as
+`in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for a
+candidate it has already excluded, a second query with the adapter's reporting reduction supplies
+the PR number, draft state, and age from `createdAt`. The exclusion has no age bound, so an
+abandoned, red, or stale-draft closing PR keeps its item out of every cycle and out of the
+no-progress counter; the age on this line is the operator's only signal until a bound exists. `/work-items:work`'s own dispatch-time
 staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
 queued or escalated item never reaches it.
 
