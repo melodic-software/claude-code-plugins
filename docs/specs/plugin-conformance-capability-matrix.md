@@ -46,7 +46,7 @@ Existing:
 | `check-skill.sh:609` (check 1) | A declared `name` must equal its directory | script | same |
 | `scripts/check-docs-naming.sh` | Lower-kebab `docs/` file names, case collisions | script | `ci.yml:788` |
 | `scripts/check-adr-numbers.sh` + `scripts/adr-numbers-baseline.txt` | No two `docs/adr/` records share a number, beyond the baselined pairs | script | `ci.yml`, step `adr_numbers` |
-| `scripts/check-spoke-plugin-root.sh` + `scripts/spoke-plugin-root-baseline.txt` | No skill spoke (`context/`, `reference/`, `references/`) contains `${CLAUDE_PLUGIN_ROOT}`, beyond the baselined files | script | `ci.yml`, step `spoke_plugin_root` |
+| `scripts/check-spoke-plugin-root.sh` + `scripts/spoke-plugin-root-baseline.txt` | No skill spoke (`context/`, `reference/`, `references/`) contains `${CLAUDE_PLUGIN_ROOT}`, beyond the per-file counts in the baseline | script | `ci.yml`, step `spoke_plugin_root` |
 | `plugins/naming/skills/name-it-better/SKILL.md:61,103-104,127-135` | Generates names: verb for an action, a "collision vocabulary" in the brief, three blind generators | judgment | no |
 | `docs/glossary.md` + `/domain-driven-design:curate-language` | The repo's resolved vocabulary (`glossary.md:1-10`) | curated doc | no |
 

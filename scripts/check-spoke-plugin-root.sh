@@ -7,10 +7,11 @@
 #
 # The rule: a file under plugins/*/skills/*/{context,reference,references}/
 # (recursive) that contains the literal ${CLAUDE_PLUGIN_ROOT} is an offender
-# unless it is listed in scripts/spoke-plugin-root-baseline.txt. The baseline is
-# keyed on file path, not line, and is stale-guarded: an entry whose file is
-# gone, or no longer holds the token, is an offender too, so the list only
-# shrinks.
+# unless scripts/spoke-plugin-root-baseline.txt lists it as `<path> <count>` and
+# the file holds exactly <count> occurrences. A count above the baseline is a
+# new hit; a count below it, or a file that is gone or no longer holds the
+# token, is stale. Either way the entry must be updated or removed, so the
+# baseline only shrinks.
 #
 # WHY. The Read tool substitutes no variables. A spoke is read, not executed, so
 # a ${CLAUDE_PLUGIN_ROOT}/skills/... path in it reaches the model verbatim and
@@ -42,43 +43,53 @@ baseline=()
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
 read_list::into baseline "$BASELINE" --comments inline || exit 2
 
-SPOKE_RE='^plugins/[^/]+/skills/[^/]+/(context|reference|references)/.+$'
+ENTRY_RE='^(plugins/[^/]+/skills/[^/]+/(context|reference|references)/.+) ([1-9][0-9]*)$'
+declare -A listed=()
 for entry in ${baseline+"${baseline[@]}"}; do
-  if [[ ! "$entry" =~ $SPOKE_RE ]]; then
-    printf 'check-spoke-plugin-root: %s: %s is not a spoke file (plugins/<plugin>/skills/<skill>/{context,reference,references}/...)\n' \
+  if [[ ! "$entry" =~ $ENTRY_RE ]]; then
+    printf 'check-spoke-plugin-root: %s: "%s" is not "<spoke path> <count>" (plugins/<plugin>/skills/<skill>/{context,reference,references}/... <positive integer>)\n' \
       "$BASELINE" "$entry" >&2
     exit 2
   fi
+  listed["${BASH_REMATCH[1]}"]="${BASH_REMATCH[3]}"
 done
 
 shopt -s nullglob
 dirs=(plugins/*/skills/*/context plugins/*/skills/*/reference plugins/*/skills/*/references)
 shopt -u nullglob
 
-hits=()
+declare -A hits=()
 if ((${#dirs[@]} > 0)); then
   rc=0
   # shellcheck disable=SC2016  # the token is literal text, never expanded
-  found="$(LC_ALL=C grep -rIlF -- '${CLAUDE_PLUGIN_ROOT}' "${dirs[@]}")" || rc=$?
+  found="$(LC_ALL=C grep -rIoHF -- '${CLAUDE_PLUGIN_ROOT}' "${dirs[@]}")" || rc=$?
   if ((rc > 1)); then
     printf 'check-spoke-plugin-root: grep failed (rc=%d) while searching the spokes\n' "$rc" >&2
     exit 2
   fi
-  [[ -z "$found" ]] || mapfile -t hits < <(LC_ALL=C sort -u <<<"$found")
+  # -o -H prints one `<file>:<token>` line per occurrence.
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    f="${line%:*}"
+    hits["$f"]=$((${hits["$f"]:-0} + 1))
+  done <<<"$found"
 fi
 
-declare -A is_hit=() is_listed=()
-for f in ${hits+"${hits[@]}"}; do is_hit["$f"]=1; done
-for f in ${baseline+"${baseline[@]}"}; do is_listed["$f"]=1; done
-
 offenders=()
-for f in ${hits+"${hits[@]}"}; do
-  [[ -z "${is_listed[$f]:-}" ]] || continue
-  # shellcheck disable=SC2016  # the token is literal text in the message
-  offenders+=("$f: contains \${CLAUDE_PLUGIN_ROOT}; cite <skill-dir>/... and render <skill-dir> in SKILL.md, or list the file in $BASELINE")
+for f in "${!hits[@]}"; do
+  n="${hits[$f]}"
+  if [[ -z "${listed[$f]:-}" ]]; then
+    # shellcheck disable=SC2016  # the token is literal text in the message
+    offenders+=("$f: contains \${CLAUDE_PLUGIN_ROOT}; cite <skill-dir>/... and render <skill-dir> in SKILL.md, or list the file in $BASELINE")
+  elif ((n > listed[$f])); then
+    # shellcheck disable=SC2016  # the token is literal text in the message
+    offenders+=("$f: has $n occurrence(s) of \${CLAUDE_PLUGIN_ROOT}, $BASELINE allows ${listed[$f]}; cite <skill-dir>/... for the new ones")
+  elif ((n < listed[$f])); then
+    offenders+=("$f: has $n occurrence(s), $BASELINE lists ${listed[$f]}; lower the count to $n")
+  fi
 done
-for f in ${baseline+"${baseline[@]}"}; do
-  [[ -z "${is_hit[$f]:-}" ]] || continue
+for f in "${!listed[@]}"; do
+  [[ -z "${hits[$f]:-}" ]] || continue
   if [[ -f "$f" ]]; then
     offenders+=("$f: $BASELINE lists it, but it no longer contains the token; remove the entry")
   else
@@ -88,7 +99,7 @@ done
 
 if ((${#offenders[@]} == 0)); then
   printf 'check-spoke-plugin-root: no unbaselined skill spoke names a path through the plugin-root token (%d baselined).\n' \
-    "${#baseline[@]}"
+    "${#listed[@]}"
   exit 0
 fi
 

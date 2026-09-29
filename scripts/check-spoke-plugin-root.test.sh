@@ -31,7 +31,7 @@ mk_tree() {
     printf 'run ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/a.sh\n' >"$dir/$SKILL/SKILL.md"
   }
   printf 'run <skill-dir>/scripts/a.sh\n' >"$dir/$SKILL/context/new.md"
-  printf '# spokes that predate the gate\n%s/context/old.md  # justified: prose\n' "$SKILL" \
+  printf '# spokes that predate the gate\n%s/context/old.md 1  # justified: prose\n' "$SKILL" \
     >"$dir/scripts/spoke-plugin-root-baseline.txt"
 }
 
@@ -100,9 +100,27 @@ run_case "an empty baseline passes on a tree with no offender" 0 \
 run_case "a tree with no skills passes" 0 \
   "rm -r plugins && : >scripts/spoke-plugin-root-baseline.txt"
 
+# shellcheck disable=SC2016
+run_case "an added hit in a baselined spoke fails and names the counts" 1 \
+  "printf 'run \${CLAUDE_PLUGIN_ROOT}/b.sh and \${CLAUDE_PLUGIN_ROOT}/c.sh\n' >>$SKILL/context/old.md" \
+  "$SKILL/context/old.md: has 3 occurrence(s)" "allows 1"
+
+# shellcheck disable=SC2016
+run_case "two hits on one line count as two" 1 \
+  "printf 'run \${CLAUDE_PLUGIN_ROOT}/a \${CLAUDE_PLUGIN_ROOT}/b\n' >$SKILL/context/old.md" \
+  "$SKILL/context/old.md: has 2 occurrence(s)"
+
+run_case "a baselined spoke with fewer hits than listed fails as stale" 1 \
+  "printf '%s/context/old.md 3\n' $SKILL >scripts/spoke-plugin-root-baseline.txt" \
+  "$SKILL/context/old.md: has 1 occurrence(s)" "lower the count to 1"
+
+run_case "a baseline entry without a count is an environment error" 2 \
+  "printf '%s/context/old.md\n' $SKILL >scripts/spoke-plugin-root-baseline.txt" \
+  "is not \"<spoke path> <count>\""
+
 run_case "a baseline entry that is not a spoke path is an environment error" 2 \
-  "printf 'plugins/alpha/skills/audit/SKILL.md\n' >>scripts/spoke-plugin-root-baseline.txt" \
-  "is not a spoke file"
+  "printf 'plugins/alpha/skills/audit/SKILL.md 1\n' >>scripts/spoke-plugin-root-baseline.txt" \
+  "is not \"<spoke path> <count>\""
 
 run_case "a missing baseline is an environment error" 2 \
   "rm scripts/spoke-plugin-root-baseline.txt"
