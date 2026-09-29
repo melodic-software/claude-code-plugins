@@ -151,7 +151,9 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
    when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
    carries a machine fact or procedure the model cannot derive; `behavioral` when all are
    convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
-   overlay candidate. A plugin force-enabled by managed settings cannot be disabled from project
+   overlay candidate. When the components disagree (a policy or non-derivable component beside
+   behavioral ones), the plugin is `hybrid`: kept whole and recorded `unstripped-mixed-plugin`,
+   the same rule as for hook-wiring plugins. A plugin force-enabled by managed settings cannot be disabled from project
    scope; record it kept. Managed settings are never edited.
 4. Write `manifest.json` and an empty `stumbles.md` under `.claude/unhobble/<experiment-id>/`
    with the Write or Edit tool. Do not write them with a shell redirect or a heredoc. Present the
