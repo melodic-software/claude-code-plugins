@@ -1,5 +1,16 @@
 # Changelog: discovery plugin
 
+## [0.25.10] - 2026-09-29
+
+### Added
+
+- **`scripts/turns-to-complete.py` measures how many turns a discovery subagent takes.** It reads
+  `subagents/agent-*.jsonl` session transcripts, counts distinct assistant message ids per
+  dispatch, and reports per-agent-type n, min, p50, p90, max and runs at the turn ceiling, as a
+  table or `--json`. The parent contract's `maxTurns` record names the command and one machine's
+  measured distribution; whether to resize the research lanes stays the owner's decision
+  ([#5304](https://github.com/melodic-software/claude-code-plugins/issues/5304)).
+
 ## [0.25.9] - 2026-09-29
 
 ### Fixed
