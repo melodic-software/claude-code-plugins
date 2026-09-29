@@ -3,12 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "name": "only-jq-is-fail-class-here",
+      "name": "jq-and-node-are-the-fail-class",
       "prompt": "/powershell-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq the only FAIL-class prerequisite and everything else classified not-applicable rather than missing.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq and Node.js the only FAIL-class prerequisites and everything else classified not-applicable rather than missing.",
       "files": [],
       "expectations": [
-        "Reports missing jq as FAIL and names it as the only FAIL-class prerequisite in this plugin",
+        "Reports missing jq as FAIL and names jq and node as the only FAIL-class prerequisites in this plugin",
+        "Probes node via Bash and reports it FAIL when absent, because every hook handler launches through `node hooks/exec-bash.mjs`; on Windows treats a version-manager shim whose path holds a process id (fnm_multishells) as ephemeral and FAIL, reporting the persisted Machine/User PATH resolution separately",
         "Reports an absent pwsh as INFO, never FAIL, and states the hook probes pwsh only — never legacy powershell.exe",
         "Chains the PSScriptAnalyzer module probe behind the pwsh probe so it never errors on a pwsh-less box",
         "Runs the pwsh probes read-only with -NoProfile -NonInteractive, and states that Get-Module -ListAvailable inspects without formatting, linting, or mutating"

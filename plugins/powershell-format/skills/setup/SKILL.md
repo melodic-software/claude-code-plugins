@@ -27,8 +27,8 @@ module are resolved from the environment (never bundled, never downloaded), and 
 installs nothing, so `apply` is guidance-only with **no write path**. It never modifies
 the repository, user settings, or the plugin cache.
 
-Note the deliberate asymmetry vs the sibling formatter plugins: only `jq` absence is a
-prerequisite defect here. A machine without PowerShell, or without the PSScriptAnalyzer
+Note the deliberate asymmetry vs the sibling formatter plugins: only `jq` and `node` absence
+are prerequisite defects here. A machine without PowerShell, or without the PSScriptAnalyzer
 module, or a repo without a settings file, is treated as **not-applicable, not missing**: the
 hook stays quiet by design, so `check` reports these as INFO, never FAIL.
 
@@ -53,19 +53,29 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of running. This is the only FAIL-class prerequisite.
-3. **`pwsh` (PowerShell 7+).** Probe read-only:
+   once-per-session notice instead of running.
+3. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
+   absent: every handler in `hooks/hooks.json` launches through `node hooks/exec-bash.mjs`, so
+   without `node` the hook never starts and says nothing (README Requirements). The hook process
+   resolves bare `node` from the persisted Machine/User PATH, not from this shell. On Windows a
+   version manager can return a per-call path whose directory name contains a process id (fnm's
+   `fnm_multishells\<pid>_<timestamp>\node`); that path is ephemeral, so FAIL when it is the only <!-- portability-ok: Windows path, not a shell regex -->
+   hit, say so, and report the persisted resolution separately from
+   `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. A non-ephemeral in-shell
+   hit is INFO beside that result, not a PASS by itself. `jq` and `node` are the only FAIL-class
+   prerequisites.
+4. **`pwsh` (PowerShell 7+).** Probe read-only:
    `pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'`. INFO,
    not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and stays quiet when
    it is absent. A machine without PowerShell is not-applicable by design. Report the version
    when present.
-4. **PSScriptAnalyzer module.** Probe **only when `pwsh` resolved** (chain behind step 3 so
+5. **PSScriptAnalyzer module.** Probe **only when `pwsh` resolved** (chain behind step 4 so
    the probe never errors on a pwsh-less box):
    `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`.
    INFO, not FAIL: absent → the hook is a clean quiet no-op (same not-applicable
    classification). This probe is read-only. `Get-Module -ListAvailable` inspects, it does
    not format, lint, or mutate.
-5. **`PSScriptAnalyzerSettings.psd1` opt-in.** INFO: the hook runs **only when a
+6. **`PSScriptAnalyzerSettings.psd1` opt-in.** INFO: the hook runs **only when a
    `PSScriptAnalyzerSettings.psd1` governs the edited file** (walking up from the file to the
    repo root, bounded by `CLAUDE_PROJECT_DIR` when set, stopping at the closest one). Absence
    is the opt-out and is **by design, not a defect**. The plugin is inert until a repo adopts
@@ -75,17 +85,17 @@ restores the FAIL semantics.
    analysis, so the hook gates such a settings state on an explicit per-content trust
    approval (marker under `${CLAUDE_PLUGIN_DATA}/trust-approvals`; any settings change
    revokes it). It carries the same trust as build/CI configuration.
-6. **Hook toggle.** Report the effective `powershell_format_enabled` value:
+7. **Hook toggle.** Report the effective `powershell_format_enabled` value:
    `${user_config.powershell_format_enabled}` (unexpanded or empty means default `true`; any
    value other than `true` disables the hook).
-7. **Hook registration.** INFO: confirm the plugin is enabled for this project
+8. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)
 
 Run `check`, then for each finding point at the resolution. This skill installs nothing:
 
-- missing `jq` / Bash: platform install instructions from the README Requirements section;
+- missing `jq` / `node` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - `pwsh` absent (and PowerShell support is wanted): point at installing
   [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell);
