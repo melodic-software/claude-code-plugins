@@ -1683,7 +1683,9 @@ jobs:
         with:
           python-version-file: .python-version
           cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+          cache-dependency-path: |
+            .github/requirements-ci.txt
+            .github/requirements-ci-animation.txt
       - name: Install and verify ShellCheck toolchain
         if: needs.changes.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
@@ -1720,7 +1722,8 @@ jobs:
         run: |
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
-            --requirement .github/requirements-ci.txt
+            --requirement .github/requirements-ci.txt \
+            --requirement .github/requirements-ci-animation.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       # The claude-ops observability suites (prune-otel-store, hook-latency) query
@@ -1786,6 +1789,8 @@ jobs:
           # Empty on every event but a dispatch that asked for the lanes, which
           # is what the gate in the bench suite reads as "stay deferred".
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
+          # The animation suites fail on a missing numpy or opencv here instead of skipping green.
+          ANIMATION_REQUIRE_DEPS: '1'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
