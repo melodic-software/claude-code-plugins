@@ -5,7 +5,7 @@
 #
 #   audit-coverage.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [--artifacts <path>]... [<path>...]
 #
-# Prints the markdown report; `--json` prints the `code-metrics/v1` document
+# Prints the markdown report; `--json` prints the `code-metrics/v2` document
 # instead. Artifacts come from every `--artifacts` and from
 # `coverage.artifacts` in the config; with none named, well-known names are
 # looked for under the repository root, at most two directory levels deep.
@@ -179,8 +179,10 @@ for entry in ${SEARCHED[@]+"${SEARCHED[@]}"}; do
 done
 
 # The complexity rows come uncollapsed so every copy of a replicated file
-# gets its coverage looked up; the joined document is collapsed below.
-bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
+# gets its coverage looked up; the joined document is collapsed below. They
+# come cwd-relative too, because the join keys them against the artifacts and
+# the scope; the joined document is anchored once, after the collapse.
+bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse --no-anchor ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
 rc=$?
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"
@@ -216,5 +218,6 @@ bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --con
 source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
 cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/report.json" || exit 2
 
+cm_anchor_document "$WORK/report.json" || exit 2
 cm_emit_document audit-coverage "$JSON" "$WORK/report.json" || exit 2
 exit "$rc"
