@@ -110,6 +110,40 @@ class ProduceTest(unittest.TestCase):
             self.assertEqual(bad.returncode, 1)
             self.assertIn('duration', bad.stdout)
 
+    def test_review_names_one_pack_command_per_shot_when_packs_are_mixed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prod = Path(tmp) / 'film'
+            run(['init', str(prod)])
+            fill(prod)
+            brief = prod / 'brief.md'
+            brief.write_text(brief.read_text(encoding='utf-8').replace('Packs: woodcut-ink', 'Packs: woodcut-ink, other-pack'), encoding='utf-8')
+            (prod / 'scenes/s2.js').write_text('window.DURATION = 2\n', encoding='utf-8')
+            shots = json.loads((prod / 'shots.json').read_text(encoding='utf-8'))
+            shots['shots'] = [
+                {'id': 's1', 't0': 0, 't1': 1, 'scene': 'scenes/s1.js', 'pack': 'woodcut-ink'},
+                {'id': 's2', 't0': 1, 't1': 2, 'scene': 'scenes/s2.js', 'pack': 'other-pack'},
+            ]
+            (prod / 'shots.json').write_text(json.dumps(shots), encoding='utf-8')
+            run(['approve', str(prod), '--note', 'yes'])
+            frames = prod / 'frames'
+            frames.mkdir()
+            (frames / 'render.json').write_text(json.dumps({
+                'scene': str(prod / 'scenes/s1.js'), 'adapter': 'native', 'adapter_version': '0.2.0',
+                'browser_build': 'test', 'fps': 24, 'size': [64, 48], 'frames': 48, 'duration': 2,
+            }) + '\n', encoding='utf-8')
+            out = run(['review', str(prod)])
+            self.assertEqual(out.returncode, 0, out.stdout)
+            lines = [line for line in out.stdout.splitlines() if 'inkstats.py' in line]
+            self.assertEqual(len(lines), 2, out.stdout)
+            self.assertIn(f'--t 0-1 --pack {HERE.parent / "styles" / "woodcut-ink"}', lines[0])
+            self.assertIn('--t 1-2 --pack other-pack', lines[1])
+            self.assertNotIn('--cuts', out.stdout)
+            shots['shots'][1]['pack'] = 'absent-pack'
+            (prod / 'shots.json').write_text(json.dumps(shots), encoding='utf-8')
+            bad = run(['review', str(prod)])
+            self.assertEqual(bad.returncode, 1, bad.stdout)
+            self.assertIn('absent-pack is not in the brief Packs', bad.stdout)
+
     def test_pack_is_shell_quoted_and_names_only_resolve_inside_styles(self):
         sys.path.insert(0, str(HERE))
         import produce

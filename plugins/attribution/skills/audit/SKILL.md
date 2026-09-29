@@ -27,6 +27,9 @@ contains git.
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh" --show-config 2>/dev/null | head -10`
 Stamp config: !`"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh" --show-config 2>/dev/null | tail -3`
 
+An empty config line, or the text `detector unavailable`, means the detector did not run: report it
+as such in the audit's declined/limits section, never read it as an empty configuration.
+
 ## Purpose
 
 Find prose in tracked markdown that restates content an external source owns, and convert it

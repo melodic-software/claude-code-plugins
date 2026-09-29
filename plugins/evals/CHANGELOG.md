@@ -1,12 +1,23 @@
 # Changelog: evals
 
+## [0.3.5] - 2026-09-29
+
+### Fixed
+
+- **Changelog accuracy** for `0.3.4`, corrected in place. The entry said the `validate` argument-hint
+  examples and defaults "now live in the skill body". The `argument-hint` was only shortened from
+  `[eval-dir (default: evals/ under the plugin root)]` to `[eval-dir]`; the default it carried now sits in
+  a new `**Arguments.**` line, and the Run it section already stated it.
+
 ## [0.3.4] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `validate` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
-  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+  The `argument-hint` was shortened from `[eval-dir (default: evals/ under the plugin root)]` to
+  `[eval-dir]`; the default it carried now sits in a new `**Arguments.**` line, and the Run it section
+  already stated it.
 
 ## [0.3.3] - 2026-09-28
 
