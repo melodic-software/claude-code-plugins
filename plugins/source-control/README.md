@@ -113,6 +113,12 @@ report), `cleanup`
 destructive branch deletion for the user), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
+Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out
+an existing local branch into a new worktree instead of creating one, and cannot be
+combined with `--base-ref`. Exit codes are listed in the script header. Known
+consumer: `/repo-fleet-hygiene:sync`. A consumer outside this plugin must locate the
+script through the installed plugin root, never a monorepo-relative path.
+
 ### `/source-control:setup`
 
 `check` (read-only, default) reports the effective commit-subject / PR-title

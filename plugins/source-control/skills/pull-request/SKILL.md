@@ -8,7 +8,7 @@ metadata:
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `<action> [args]`. e.g., /pull-request prep, /pull-request create, /pull-request monitor, /pull-request merge, /pull-request full, /pull-request status
+**Arguments.** `<action> [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>
 
 ## Repository context. Gather first
 

@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `check | apply [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
+**Arguments.** Full form: check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
 
 ## Purpose
 
