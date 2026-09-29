@@ -120,7 +120,7 @@ schtasks /create /tn "ClaudeCodeOtelPrune" /sc daily /st 04:00 /rl limited /f /t
 With `CC_OTEL_STORE` set (the prerequisite above) the working directory is irrelevant. Every
 resolved path is absolute. To override the retention windows for this task, use the `setx`
 recipe above (user env vars are the only surface the task sees).
-**Verify:** `bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/scripts/probe-observability-state.sh --otel-store`
+**Verify:** `bash <skill-dir>/scripts/probe-observability-state.sh --otel-store`
 prints five lines: the three hot files, `cold:<bytes>B (<n> files)`, and `last-prune:<UTC time> (<age>)`.
 Every successful non-dry prune writes `<store>/.last-prune`; `last-prune:never` or an age of `2d` or
 more means the task is not firing. Also `schtasks /query /tn "ClaudeCodeOtelPrune"`;
