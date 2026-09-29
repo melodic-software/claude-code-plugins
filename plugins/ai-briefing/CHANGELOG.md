@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.47] - 2026-09-29
+
+### Fixed
+
+- **`generate` argument hint lists the `retro` and `search` subcommands again, action first.** The `--since`
+  choices shorten to `1d|7d|30d` to stay within the 100-character budget
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)). The duplicate
+  `**Arguments.**` paragraph in the skill body is gone; the Arguments table carries the full flag list.
+- **A ticket back-reference is removed from a code comment** in `emit-slides-data.js`.
+
 ## [0.7.46] - 2026-09-29
 
 ### Changed
