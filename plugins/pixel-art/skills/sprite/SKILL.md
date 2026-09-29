@@ -29,9 +29,11 @@ the interview unless the user accepts.
 ## 2. Choose the backend
 
 Read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native` is the default and
-always available. Honor `${user_config.backend}` when it names another backend and that backend
-is present; when it is absent, say so and fall back to `native`. Every backend honors the same
-artifact contract: the spec and the files in step 4.
+always available. Honor `${user_config.backend}` when it names another backend. `${CLAUDE_PLUGIN_ROOT}/scripts/backends.py`
+detects that backend, uses it when it is present, and otherwise prints one line and renders with
+`native`. PixelLab and Retro Diffusion spend money: the first run omits `--confirm`. If the notice
+says confirmation is required, ask the user, and pass `--confirm` only after they accept. Every
+backend honors the same artifact contract: the spec and the files in step 4.
 
 ## 3. Author
 
@@ -56,9 +58,14 @@ no dithering on small sprites.
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 8
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 8
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
+
+`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
+names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
+relying on the environment to carry it. A `generate` object on the spec is how PixelLab and Retro Diffusion get a prompt; Aseprite
+builds `source.aseprite` from the frame rows.
 
 Output directory, first match wins: an explicit path in the request; an assets location the
 project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded
