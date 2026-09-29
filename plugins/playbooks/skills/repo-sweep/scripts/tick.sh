@@ -9,6 +9,7 @@
 #   tick.sh <id> not-applicable <evidence>                records no skill version
 #   tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
 #   tick.sh <id> [--partial <detail>] declined <n> <skill@version>...
+#   tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...
 #
 # Reads the body with `gh pr view --json body`, writes it with `gh pr edit --body-file -`,
 # re-reads it, and prints the new line. Only the first line for <id> between the repo-sweep
@@ -25,6 +26,7 @@ usage() {
   printf '       tick.sh <id> not-applicable <evidence>\n' >&2
   printf '       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...\n' >&2
   printf '       tick.sh <id> [--partial <detail>] declined <n> <skill@version>...\n' >&2
+  printf '       tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...\n' >&2
   exit 2
 }
 (($# >= 2)) || usage
@@ -32,7 +34,7 @@ id=$1 mode=$2
 shift 2
 cover=""
 if [[ $mode == --partial ]]; then
-  [[ ${1-} == ?* && $1 != *","* && ${2-} =~ ^(committed|report-only|declined)$ ]] || usage
+  [[ ${1-} == ?* && $1 != *","* && ${2-} =~ ^(committed|report-only|declined|filed)$ ]] || usage
   cover=", partial coverage: $1" mode=$2
   shift 2
 fi
@@ -65,6 +67,11 @@ declined)
   suffix=", findings declined ($1)$cover"
   shift
   ;;
+filed)
+  [[ ${1-} =~ ^https?://[^[:space:],]+$ ]] || usage
+  suffix=", filed $1$cover"
+  shift
+  ;;
 *) usage ;;
 esac
 versions=""
@@ -88,7 +95,7 @@ printf '%s\n' "$body" | awk -v id="$id" -v mode="$mode" -v done_text="$versions$
     rest = substr($0, 7); i = index(rest, ": ")
     if (i && substr(rest, 1, i - 1) == id) {
       hit = 1; tail = substr(rest, i + 2)
-      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$|(^|, )not applicable: .+$/) { done = 1; exit }
+      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\)|, filed [^ ,]+)(, partial coverage: .+)?$|(^|, )not applicable: .+$/) { done = 1; exit }
       $0 = mode == "in-progress" ? "- [~] " id ": " tail : "- [x] " id ": " done_text
       print > newf
     }
