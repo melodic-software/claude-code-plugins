@@ -151,7 +151,7 @@ One compact macro map, then the recommendation:
 
 ## Next
 
-The next item: `/work-items:work`.
+`/work-items:work` for the next item.
 
 ## What this skill does NOT do
 

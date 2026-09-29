@@ -267,7 +267,7 @@ user request" the hard-stop rule anticipates).
 
 ## Next
 
-The autonomous drain that picks up what this flipped: `/work-items:work-loop`.
+`/work-items:work-loop` is the autonomous drain that picks up what this flipped.
 
 ## Gotchas
 

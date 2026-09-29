@@ -202,7 +202,7 @@ After publishing, present summary: N items created, dependency graph, which are 
 
 ## Next
 
-A slice ready to build: `/work-items:work`.
+`/work-items:work` for a slice ready to build.
 
 ## Re-decompose (rerouting)
 

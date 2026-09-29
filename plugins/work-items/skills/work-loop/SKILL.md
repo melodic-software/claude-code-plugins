@@ -474,7 +474,7 @@ blocking drain exit.
 
 ## Next
 
-Escalations and first-drain ratification items wait in `/work-items:attend-queue`.
+`/work-items:attend-queue` for the escalations and first-drain ratification items that wait.
 
 ## Gotchas
 

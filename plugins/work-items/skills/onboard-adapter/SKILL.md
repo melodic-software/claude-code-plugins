@@ -180,7 +180,7 @@ them, that is a finding to raise, not a guard to delete.
 
 ## Next
 
-Bind the generated adapter: `/work-items:setup`.
+`/work-items:setup` to bind the generated adapter.
 
 ## Gotchas
 

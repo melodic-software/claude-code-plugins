@@ -50,7 +50,7 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 
 ## Next
 
-The raw items it filed: `/work-items:triage`.
+`/work-items:triage` for the raw items it filed.
 
 ## Workflow
 
