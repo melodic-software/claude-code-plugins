@@ -179,9 +179,24 @@
       "narration": true,
       "expectations": [
         "Renders in-repo findings before any out-of-repo content in the inline report",
-        "Gives each out-of-repo owner at most one row in the report (count, verdict mix, pointer to artifact rows)",
+        "Gives each out-of-repo owner at most one row in the report, protected items aside (count, verdict mix, pointer to artifact rows)",
+        "Applies the inline cap to in-repo findings shown in full when the artifact was written, leaving the rest to the artifact",
         "Leaves the findings artifact rows and finding ids unchanged",
         "Does not skip out-of-repo layers and does not introduce a custody-scope argument"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "no-artifact-run-keeps-protected-out-of-repo-row-inline",
+      "prompt": "/overengineering:audit unattended - this is a detached checkout with no logical ref, so there is no branch identity. The findings include a security-class hook manifest at user scope, outside this repo, that the walk marked FLAG-FOR-HUMAN.",
+      "expected_output": "States that no branch identity resolved, so no findings artifact is written, and that this summary is the only record. Emits every finding inline with no cap and does not collapse out-of-repo findings to a count per owner, because nothing else would carry them. Lists the protected out-of-repo hook manifest row individually and ranks it first, ahead of in-repo findings. Writes no file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that no branch identity resolved, so no findings artifact is written",
+        "Emits every finding inline rather than collapsing out-of-repo findings to a count per owner",
+        "Lists the protected out-of-repo FLAG-FOR-HUMAN row individually and ranks it first",
+        "Writes no file"
       ]
     }
   ]
