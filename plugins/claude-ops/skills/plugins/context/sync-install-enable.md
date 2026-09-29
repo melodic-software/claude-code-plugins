@@ -148,10 +148,22 @@ Check `rc` before looping the file, for the reason Step 4 gives.
 Take `fleet-state.sh`'s `missing_from_enabled` from that projection: ids
 installed somewhere but never mentioned (true
 or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with
-`defaultEnabled: false`. That field is a publisher's deliberate opt-in-required default (it takes
-precedence over the plugin's own `plugin.json` field, see
-[scope-semantics.md](scope-semantics.md)); no explicit `enabledPlugins` entry for one of those ids is
-the *intended* state, not a completeness gap. Never run `enable` for it. This only catches the
+`defaultEnabled: false`. Every id left on that list is not loading today: Claude Code loads an
+installed plugin only when an `enabledPlugins` scope sets it `true`, whatever its `defaultEnabled`.
+So each enable below closes a real load gap. Verification record. Claim: an installed marketplace
+plugin no `enabledPlugins` scope names does not load, even with `defaultEnabled: true`. Basis: a
+`claude plugin list --json` fixture probe on Claude Code 2.1.280 reported every such plugin disabled
+(full record in [audit-skill-visibility](../../audit-skill-visibility/SKILL.md)); the settings
+reference agrees, saying an unlisted marketplace plugin starts `false`
+(<https://code.claude.com/docs/en/settings-reference#enabledplugins>), while the manifest reference
+still says `defaultEnabled` decides it and defaults to `true`
+(<https://code.claude.com/docs/en/plugins-reference#defaultenabled>). As of 2026-09-28. Recheck
+trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
+plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
+entry's value overrides the plugin's own `plugin.json` field, per
+[metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence));
+no explicit `enabledPlugins` entry for one of those ids is the *intended* state, not a completeness
+gap. Never run `enable` for it. This only catches the
 default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).

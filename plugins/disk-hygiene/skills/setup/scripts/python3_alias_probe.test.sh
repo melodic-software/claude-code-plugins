@@ -43,4 +43,7 @@ fi
 # Execute the test file directly (its unittest.main() guard) rather than via
 # `-m unittest <abs path>`, which resolves the path as a module name relative
 # to the caller's cwd and breaks when invoked from outside the checkout.
-"$PYTHON" "$SCRIPT_DIR/test_python3_alias_probe.py" -v
+# Convert with cygpath -m so a native Windows Python can open a Git Bash path.
+PYFILE=""
+test_wrapper::python_file_to PYFILE "$SCRIPT_DIR/test_python3_alias_probe.py"
+"$PYTHON" "$PYFILE" -v

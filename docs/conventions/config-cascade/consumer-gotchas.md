@@ -31,6 +31,9 @@ Gotchas prose section participates.
 
 Loads **only when the skill loads** (instruction-placement doctrine).
 
+The **failure-driven-only rule binds consumer layers too**: a consumer line records a failure the
+model actually hit in that repository, never speculative advice.
+
 ### Rejected alternatives (why not)
 
 - **Setup writes consumer `CLAUDE.md` / `CLAUDE.local.md`:** session-wide cost; wrong loading scope.
@@ -42,12 +45,12 @@ Loads **only when the skill loads** (instruction-placement doctrine).
 
 | Plugin | Consumer path | Status on `main` |
 |---|---|---|
-| `bugs` | `.claude/bugs.md` `## Gotchas` (proposed) | convention ratified; reader wiring tracked in #3547 follow-up |
+| `bugs` | `.claude/bugs.md` `## Gotchas` | wired: `/bugs:scan` and `/bugs:write` pre-compute `scripts/concat-gotchas.sh` |
 
 Plugins with an existing config surface (`source-control`, `codebase-health`) adopt the same shape
 in their owner docs when wired.
 
 ## Authoring
 
-`playbooks:skill-authoring` documents the bundled gotchas discipline; consumer extension uses this
-file for the cascade tier and promotion path.
+`playbooks:skill-authoring` documents the bundled gotchas discipline and points here for the
+cascade tier and promotion path.
