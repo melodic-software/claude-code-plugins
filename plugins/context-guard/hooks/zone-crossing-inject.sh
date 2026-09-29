@@ -30,7 +30,10 @@
 #
 # Cadence contract: the session's zone is resolved from the plugin's
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
-# authority — this hook never re-implements band logic). The last-seen zone
+# authority for every zones.json state; the hook holds only the shipped band
+# edges and the staleness window for its reuse arms, the percentage arm is off
+# whenever zones.json exists, and the parity test in zone-crossing-inject.test.sh
+# pins those copies to the resolver). The last-seen zone
 # is kept per session in a private state file; injection fires only when the
 # rank worsens past the highest rank already REPORTED this session (smart →
 # acceptable/dumb, acceptable → dumb, or a first observation already past
@@ -491,7 +494,7 @@ COMPACTED_FILE=""
 # used_percentage change reuses it only when that number is the sole
 # difference, both values are plain integers, no zones.json is present, and
 # both fall in the same shipped band (smart <= 50 < acceptable <= 75 < dumb).
-# The band edges live in the resolver; this comparison only proves the
+# The resolver owns the band edges; this comparison only proves the
 # percentage shape did not move, and every other input is byte-identical, so
 # the combined word cannot have moved either.
 # STRICTLY newer, not `! -nt`. An equal timestamp is not proof the file is
@@ -565,9 +568,17 @@ cg_iso_to_epoch() {
   CG_EPOCH=$((days * 86400 + h * 3600 + mi * 60 + s))
 }
 
-# 0 when <ts> is inside the resolver's window: not more than 60s in the
-# future, not older than 600s. A clock this bash cannot format is not proof,
-# and the caller resolves instead.
+# Copies of the resolver's shipped band edges and staleness window, for the
+# reuse arms only. The parity test in zone-crossing-inject.test.sh pins each to
+# scripts/context-zone.sh.
+CG_SMART_MAX=50
+CG_ACCEPTABLE_MAX=75
+CG_STALE_MAX=600
+CG_FUTURE_SLACK=60
+
+# 0 when <ts> is inside the resolver's window: not more than CG_FUTURE_SLACK
+# seconds in the future, not older than CG_STALE_MAX. A clock this bash cannot
+# format is not proof, and the caller resolves instead.
 cg_ts_fresh() {
   local now_epoch="" snap_epoch="" delta
   printf -v now_epoch '%(%s)T' -1 2>/dev/null || return 1
@@ -575,7 +586,7 @@ cg_ts_fresh() {
   cg_iso_to_epoch "$1" || return 1
   snap_epoch=$CG_EPOCH
   delta=$((now_epoch - snap_epoch))
-  ((delta >= -60 && delta <= 600))
+  ((delta >= -CG_FUTURE_SLACK && delta <= CG_STALE_MAX))
 }
 
 # The tee writes captured_at first. SNAP_BODY is every byte after that member,
@@ -631,9 +642,9 @@ cg_pct_placeholder() {
 
 cg_shipped_band() {
   local v=$1
-  if ((v <= 50)); then
+  if ((v <= CG_SMART_MAX)); then
     CG_BAND=smart
-  elif ((v <= 75)); then
+  elif ((v <= CG_ACCEPTABLE_MAX)); then
     CG_BAND=acceptable
   else
     CG_BAND=dumb
