@@ -1317,7 +1317,7 @@ class DetectTests(unittest.TestCase):
             report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
         )
 
-    def test_an_inventory_without_lanes_keeps_the_old_behaviour(
+    def test_an_inventory_without_lanes_keeps_the_old_behavior(
         self,
     ):  # identifier, not prose # spellchecker:disable-line
         self.write_inventory()
