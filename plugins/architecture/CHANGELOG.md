@@ -3,6 +3,16 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-09-29
+
+### Added
+
+- `map-data` reads an Entity Framework chain whose `HasForeignKey` takes a lambda, whose entity
+  is configured in an `IEntityTypeConfiguration<T>` class, or whose one-to-many navigations are
+  lambdas resolved from the entity classes. Requiredness falls back to the foreign-key
+  property's declared type when `IsRequired` is absent, so `int?` is optional and `int` is
+  required. A chain still outside the subset refuses the record and names the property on stderr.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added
