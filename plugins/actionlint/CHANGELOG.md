@@ -21,7 +21,7 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- `hook-utils.sh` sync (notice class); no behavior change (#4240).
 
 ## [0.9.4] - 2026-09-28
 
