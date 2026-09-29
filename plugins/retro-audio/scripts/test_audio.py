@@ -77,6 +77,14 @@ class AudioTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             mml.render_mml(score, "gameboy")
 
+    def test_presets_cap_channels_and_noise_but_not_the_voice_mix(self):
+        self.assertTrue(mml.render_mml("@1 c | @1 d | @1 e | @1 f", "gameboy", rate=22050))
+        for chip in ("gameboy", "nes", "pico-8"):
+            with self.assertRaises(ValueError):
+                mml.render_mml("c | d | e | f | g", chip)
+            with self.assertRaises(ValueError):
+                mml.render_mml("n | n", chip)
+
     def test_stray_closing_bracket_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "unmatched"):
             mml.render_mml("c d ] e f", "gameboy")

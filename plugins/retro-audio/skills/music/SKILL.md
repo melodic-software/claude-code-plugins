@@ -19,7 +19,8 @@ octave, `l` length, `v` volume 1-15, `@0` bass, `@1` to `@4` pulse duties 12.5, 
 (claim = those four duties; basis = [`chips.md`](${CLAUDE_PLUGIN_ROOT}/reference/chips.md); as of
 2026-09-28; recheck when that file's Pan Docs or NESDev basis changes), `<` and
 `>` for octave, `[` `]` repeats, `|` between parts, `n` for noise. Notes are `a` through `g` and
-`r`. A dot after a length is 1.5 times. Pick `--chip gameboy`, `nes`, or `pico-8`. Four parts at
+`r`. Presets cap channels and noise parts only, not the hardware voice mix, and pico-8 shares the
+Game Boy and NES duties. A dot after a length is 1.5 times. Pick `--chip gameboy`, `nes`, or `pico-8`. Four parts at
 most, and only one part may use `n`.
 
 A worked loop is `${CLAUDE_PLUGIN_ROOT}/examples/campfire.mml`.
