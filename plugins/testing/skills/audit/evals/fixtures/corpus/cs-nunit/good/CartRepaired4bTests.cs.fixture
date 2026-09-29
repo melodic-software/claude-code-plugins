@@ -1,0 +1,46 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the throw is asserted with its type and message, the
+// total is a literal, the receipt snapshot sits beside a literal, and the
+// null check sits beside the restored contents.
+using System;
+using System.Threading.Tasks;
+using NUnit.Framework;
+using NUnit.Framework.Legacy;
+using VerifyNUnit;
+
+[TestFixture]
+public class CartRepaired4bTests
+{
+    [Test]
+    public void PlaceOrder_RejectsAnEmptyCart()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => new Cart().PlaceOrder());
+        Assert.That(ex.Message, Is.EqualTo("cart is empty"));
+    }
+
+    [Test]
+    public void Total_AddsThePrices()
+    {
+        var items = new[] { new Item(10m), new Item(5m) };
+        ClassicAssert.AreEqual(15m, Cart.Total(items));
+    }
+
+    [Test]
+    public async Task Receipt_ListsTheItems()
+    {
+        var receipt = new Cart().Add("tea", 4m).Receipt();
+        Assert.That(receipt, Does.Contain("tea"));
+        await Verifier.Verify(receipt);
+    }
+
+    [Test]
+    public void Restore_ReturnsTheCart()
+    {
+        var cart = Cart.Restore("session-1");
+        Assert.That(cart, Is.Not.Null);
+        Assert.That(cart.Items, Has.Count.EqualTo(1));
+    }
+}

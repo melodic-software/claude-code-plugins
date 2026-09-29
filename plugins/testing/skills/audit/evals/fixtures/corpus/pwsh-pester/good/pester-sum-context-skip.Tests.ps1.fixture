@@ -1,0 +1,14 @@
+# good-for: rule-zero-assertion
+# -Skip on the Context skips every test inside it, so none is judged.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    Context 'on arrays' -Skip {
+        It 'sums every element' {
+            Get-Sum -A @(1, 2) -B @(3, 4)
+        }
+    }
+}

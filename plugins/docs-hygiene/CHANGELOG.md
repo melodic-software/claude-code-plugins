@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.16] - 2026-09-29
+
+### Changed
+
+- **The plugin contract is ratified.** `reference/plugin-contract.md` drops the proposed status.
+  Boundary 5 now matches the shipped skills: writes are opt-in and confirmation-gated per
+  invocation or per batch, and file-name renames are gated per file. The listing-budget rule is
+  the 8,000 default in `check-listing-budget.sh` alone, and the decision record is a four-part
+  claim, basis, as-of, recheck. The file-name skills are slated to move to a `docs-naming` plugin
+  ([#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142),
+  [#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348)).
+
 ## [0.23.15] - 2026-09-29
 
 ### Fixed

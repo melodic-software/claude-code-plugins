@@ -1,0 +1,13 @@
+// good-for: rule-source-text-read
+// reads: src/userscript.js
+// The userscript runs in a sandbox and its effect is checked: the read feeds vm.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import vm from 'node:vm';
+
+test('the userscript hides the banner', () => {
+  const sandbox = { hidden: [] };
+  vm.runInNewContext(readFileSync('src/userscript.js', 'utf8'), sandbox);
+  assert.ok(sandbox.hidden.includes('#banner'));
+});
