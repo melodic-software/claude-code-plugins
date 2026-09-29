@@ -145,6 +145,33 @@
 # https://go.dev/ref/mod#workspaces Verified 2026-09-29. Recheck when either
 # page changes what a replace target or a use directive may hold.
 #
+# The Python adapter (lib/python-references.sh): every pyproject.toml, every
+# setup.py with no pyproject.toml beside it, and every requirements*.txt with
+# neither beside it is a project node whose id is its repo-relative path. A
+# requirements file beside a pyproject.toml or setup.py is read as that
+# project. An edge is read from [project] dependencies (and
+# optional-dependencies and dependency-groups), [tool.poetry.dependencies]
+# entries that carry path =, [tool.uv.sources] entries that carry path =, and
+# requirements lines. A [tool.uv.workspace] members glob (minus exclude) is an
+# internal project edge to each pyproject.toml it matches under the workspace
+# root folder; a literal member holding none is "unresolved". A path (a
+# "name @ file:" URL, a path =, a -e line, or a plain ./ or ../ line) naming a
+# folder inside the root that holds a pyproject.toml, else a setup.py, is an
+# internal project edge citing the declaration; a missing or out-of-root path
+# is status "unresolved". A named requirement is an external edge to
+# "pkg:python:<normalized name>" unless the
+# same file gives that name a path. -r includes are followed only inside the
+# root. setup.py is never executed or parsed: each is an unread-manifest
+# finding, and so are dynamic dependencies, a uv workspace = true source, a
+# multi-line inline table, and an include that is missing or leaves the root.
+# Basis: https://packaging.python.org/en/latest/specifications/dependency-specifiers/
+# https://packaging.python.org/en/latest/specifications/pyproject-toml/
+# https://pip.pypa.io/en/stable/reference/requirements-file-format/ and
+# https://docs.astral.sh/uv/concepts/projects/dependencies/#path and
+# https://docs.astral.sh/uv/concepts/projects/workspaces/ Verified
+# 2026-09-29. Recheck when any page changes what a dependency string, a
+# requirements line, or a path source may hold.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -172,6 +199,8 @@ source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 source "$SCRIPT_DIR/../../../lib/node-references.sh"
 # shellcheck source=../../../lib/go-references.sh
 source "$SCRIPT_DIR/../../../lib/go-references.sh"
+# shellcheck source=../../../lib/python-references.sh
+source "$SCRIPT_DIR/../../../lib/python-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -530,6 +559,9 @@ node_files=()
 pnpm_files=()
 go_files=()
 gowork_files=()
+py_files=()
+req_files=()
+setup_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -545,7 +577,9 @@ for rel in "${files[@]+"${files[@]}"}"; do
   global.json) has_global_json=1 ;;
   package.json) node_files+=("$rel") ;;
   pnpm-workspace.yaml) pnpm_files+=("$rel") ;;
-  pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
+  pyproject.toml) py_files+=("$rel") ;;
+  requirements*.txt) req_files+=("$rel") ;;
+  setup.py) setup_files+=("$rel") ;;
   go.mod) go_files+=("$rel") ;;
   go.work) gowork_files+=("$rel") ;;
   Cargo.toml) OTHER[rust]="$rel" ;;
@@ -563,7 +597,7 @@ done
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
 # lists the shipped readers, in the order they run. A reader parses in its own
 # file, lib/<name>-references.sh, sourced above.
-READERS=(dotnet node go)
+READERS=(dotnet node go python)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
@@ -933,6 +967,174 @@ read_go() {
         add_edge "$rel" "pkg:go:$mod" "package" "resolved" "$rel: $decl"
       fi
     done <<<"${mod_recs[$rel]}"
+  done
+}
+
+has_python() { [[ ${#py_files[@]} -gt 0 || ${#req_files[@]} -gt 0 || ${#setup_files[@]} -gt 0 ]]; }
+
+read_python() {
+  local -A is_pyproject=() is_setup=() seen=() named_path=() recs=()
+  local rel dir base name label owner rec kind a b c
+  local us=$'\x1f'
+
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do is_pyproject[$rel]=1; done
+  for rel in "${setup_files[@]+"${setup_files[@]}"}"; do is_setup[$rel]=1; done
+
+  # The project a manifest in the same folder belongs to: pyproject.toml, else
+  # setup.py, else the requirements file itself.
+  py_owner() {
+    local pre
+    pre="$(proj_dir_of "$1")"
+    pre="${pre:+$pre/}"
+    if [[ -n "${is_pyproject[${pre}pyproject.toml]+x}" ]]; then
+      printf '%s\n' "${pre}pyproject.toml"
+    elif [[ -n "${is_setup[${pre}setup.py]+x}" ]]; then
+      printf '%s\n' "${pre}setup.py"
+    else
+      printf '%s\n' "$1"
+    fi
+  }
+
+  # The project a path names: the pyproject.toml, else setup.py, in that folder.
+  py_target() {
+    local n
+    n="$(normalize_within_root "$1" "$2")" || return 1
+    n="${n:+$n/}"
+    if [[ -n "${is_pyproject[${n}pyproject.toml]+x}" ]]; then
+      printf '%s\n' "${n}pyproject.toml"
+    elif [[ -n "${is_setup[${n}setup.py]+x}" ]]; then
+      printf '%s\n' "${n}setup.py"
+    else
+      return 1
+    fi
+  }
+
+  # An edge from project $1 for the path $3 written in file $2 as declaration $4.
+  py_path_edge() {
+    local id
+    if id="$(py_target "$(proj_dir_of "$2")" "$3")"; then
+      [[ "$id" == "$1" ]] || add_edge "$1" "$id" "project" "resolved" "$2: $4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$2: $4"
+    fi
+  }
+
+  py_pkg_edge() {
+    add_node "pkg:python:$2" "$2" "" "package"
+    add_edge "$1" "pkg:python:$2" "package" "resolved" "$3: $4"
+  }
+
+  # Every manifest folder is one project node; setup.py is reported, not read.
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    recs[$rel]="$(py_project_records "$root/$rel")"
+    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+  for rel in "${setup_files[@]+"${setup_files[@]}"}"; do
+    add_unread_manifest "$rel" "setup.py is not executed or parsed"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${label##*/}" "$rel" "project"
+  done
+  for rel in "${req_files[@]+"${req_files[@]}"}"; do
+    [[ "$(py_owner "$rel")" == "$rel" ]] && add_node "$rel" "${rel##*/}" "$rel" "project"
+  done
+
+  # A named requirement whose entry names a local path is that internal edge
+  # only, not also an external package.
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c <<<"$rec"
+      case "$kind" in
+      path)
+        [[ -z "$c" ]] || named_path[$rel$us$c]=1
+        py_path_edge "$rel" "$rel" "$a" "$b"
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b <<<"$rec"
+      [[ "$kind" == pkg && -z "${named_path[$rel$us$a]+x}" ]] && py_pkg_edge "$rel" "$a" "$rel" "$b"
+    done <<<"${recs[$rel]}"
+  done
+
+  # A [tool.uv.workspace] members glob names the pyproject.toml files this run
+  # found in the folders it matches, under the workspace root's folder. An
+  # exclude removes the folders it matches. A glob node_glob_regex refuses is
+  # unread. A literal member holding no pyproject.toml is an unresolved edge.
+  py_read_workspace() {
+    local rel="$1" wdir kind glob decl re cand cdir under ex
+    local -a excl=() mems=()
+    wdir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind glob decl; do
+      case "$kind" in
+      exclude)
+        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
+        ;;
+      member) mems+=("$glob$us$decl") ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    local m
+    for m in "${mems[@]+"${mems[@]}"}"; do
+      glob="${m%%"$us"*}"
+      decl="${m#*"$us"}"
+      if ! re="$(node_glob_regex "$glob")"; then
+        add_unread_manifest "$rel" "$decl"
+        continue
+      fi
+      local hit=0
+      for cand in "${py_files[@]+"${py_files[@]}"}"; do
+        cdir="$(proj_dir_of "$cand")"
+        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
+        if [[ -z "$wdir" ]]; then
+          under="$cdir"
+        else
+          [[ "$cdir" == "$wdir"/* ]] || continue
+          under="${cdir#"$wdir"/}"
+        fi
+        [[ "$under" =~ $re ]] || continue
+        hit=1
+        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      done
+      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
+        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
+      fi
+    done
+  }
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do py_read_workspace "$rel"; done
+
+  # A requirements file, and the files it includes with -r that sit inside the
+  # root, belong to its folder's project. An include that is missing or leaves
+  # the root is unread.
+  py_read_req() {
+    local file="$1" owner="$2" inc rec kind a b c
+    seen[$file]=1
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c <<<"$rec"
+      case "$kind" in
+      pkg) py_pkg_edge "$owner" "$a" "$file" "$b" ;;
+      path) py_path_edge "$owner" "$file" "$a" "$b" ;;
+      include)
+        if inc="$(normalize_within_root "$(proj_dir_of "$file")" "$a")" && [[ -f "$root/$inc" ]]; then
+          [[ -n "${seen[$inc]+x}" ]] || py_read_req "$inc" "$owner"
+        else
+          add_unread_manifest "$file" "$b"
+        fi
+        ;;
+      unread) add_unread_manifest "$file" "$a" ;;
+      *) ;;
+      esac
+    done <<<"$(py_requirements_records "$root/$file")"
+  }
+  for rel in "${req_files[@]+"${req_files[@]}"}"; do
+    seen=()
+    py_read_req "$rel" "$(py_owner "$rel")"
   done
 }
 

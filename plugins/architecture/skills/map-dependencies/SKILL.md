@@ -105,8 +105,27 @@ The Go adapter:
 - Any other directive the reader cannot parse, a `go.work` `replace`, and a `use` line
   naming no `go.mod` in the root are `unread-manifest` findings.
 
-Other ecosystems stay unread. The message names them. Python, Rust, and JVM
-adapters are not this skill yet.
+The Python adapter:
+
+- Every `pyproject.toml` is a project node, id its repo-relative path. A `setup.py` or
+  `requirements*.txt` with no manifest beside it is a node too; one beside a manifest is
+  read as that project.
+- A path reference is an internal project edge when it names a folder inside the root
+  holding a `pyproject.toml` (else a `setup.py`), and the evidence cites the declaration.
+  Path references are a `name @ file:` dependency string, a poetry or uv `path =` entry,
+  and a `-e`, `./` or `../` requirements line. A missing or out-of-root path is
+  `unresolved`.
+- A `[tool.uv.workspace]` `members` glob, minus `exclude`, is an internal project edge from
+  the workspace root to each `pyproject.toml` it matches; a literal member holding none is
+  `unresolved`.
+- Every other named requirement is an external edge to `pkg:python:<normalized name>`.
+  `-r` includes are followed only inside the root.
+- `setup.py` is never executed or parsed; each one is an `unread-manifest` finding. So
+  are dynamic dependencies, a uv `workspace = true` source, a multi-line inline table, and
+  an include that is missing or outside the root.
+
+Other ecosystems stay unread. The message names them. Rust and JVM adapters are not this
+skill yet.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
 above which the human diagram aggregates to directories. The JSON stays at project

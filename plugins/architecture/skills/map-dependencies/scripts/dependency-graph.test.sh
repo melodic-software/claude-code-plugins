@@ -800,5 +800,95 @@ gomix_json="$(bash "$GRAPH" "$gomix")"
 assert_contains "go beside node: ecosystem is mixed" "$gomix_json" '"ecosystem": "mixed"'
 assert_contains "go: a single-line require is an external edge" "$gomix_json" '"from":"svc/go.mod","to":"pkg:go:github.com/pkg/errors"'
 
+# Python: path references are internal, names are external, setup.py is unread.
+pytree="$(make_tree pytree)"
+put "$pytree/pyproject.toml" '[project]
+name = "acme-app"
+dependencies = [
+  "requests>=2",
+  "acme-lib @ file:./libs/lib",
+  "gone @ file:./nope",
+  "away @ file:../../elsewhere",
+]'
+put "$pytree/libs/lib/pyproject.toml" '[project]
+name = "acme-lib"'
+put "$pytree/svc/pyproject.toml" '[project]
+dependencies = ["shared>=1", "extra"]
+[tool.poetry.dependencies]
+lib = { path = "../libs/lib" }
+[tool.uv.sources]
+shared = { path = "../shared" }'
+put "$pytree/shared/setup.py" 'from setuptools import setup'
+put "$pytree/tools/requirements.txt" '-r requirements/base.txt
+-e ../libs/lib
+flask
+-r ../../outside.txt'
+put "$pytree/tools/requirements/base.txt" 'django
+-e ../../shared'
+put "$pytree/app/setup.py" 'from setuptools import setup'
+put "$pytree/app/requirements.txt" '-e .
+click'
+put "$pytree/dyn/pyproject.toml" '[project]
+name = "d"
+dynamic = ["dependencies"]'
+put "$TEST_TMPDIR/elsewhere/pyproject.toml" '[project]
+name = "escape"'
+py_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pytree")"
+assert_contains "python: ecosystem python" "$py_json" '"ecosystem": "python"'
+assert_contains "python: a pyproject is a project node named by [project] name" "$py_json" '{"id":"libs/lib/pyproject.toml","name":"acme-lib","path":"libs/lib/pyproject.toml","ecosystem":"python","kind":"project"}'
+assert_contains "python: a requirements file with no manifest beside it is a node" "$py_json" '{"id":"tools/requirements.txt","name":"requirements.txt","path":"tools/requirements.txt","ecosystem":"python","kind":"project"}'
+assert_contains "python: name @ file: is an internal edge citing the declaration" "$py_json" '{"from":"pyproject.toml","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"pyproject.toml: \"acme-lib @ file:./libs/lib\""}'
+assert_not_contains "python: a path requirement is not also external" "$py_json" '"to":"pkg:python:acme-lib"'
+assert_contains "python: a missing path is unresolved and keeps the declared path" "$py_json" '"to":"./nope","kind":"project","status":"unresolved","evidence":"pyproject.toml: \"gone @ file:./nope\""'
+assert_contains "python: a path outside the root is unresolved" "$py_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "python: the outside project is never matched" "$py_json" 'elsewhere/pyproject.toml'
+assert_contains "python: a named requirement is an external edge" "$py_json" '{"from":"pyproject.toml","to":"pkg:python:requests","kind":"package","status":"resolved","evidence":"pyproject.toml: \"requests>=2\""}'
+assert_contains "python: a poetry path entry is an internal edge" "$py_json" '{"from":"svc/pyproject.toml","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"svc/pyproject.toml: lib = { path = \"../libs/lib\" }"}'
+assert_contains "python: a uv path source reaches a setup.py project" "$py_json" '{"from":"svc/pyproject.toml","to":"shared/setup.py","kind":"project","status":"resolved","evidence":"svc/pyproject.toml: shared = { path = \"../shared\" }"}'
+assert_not_contains "python: a requirement with a uv path source is not also external" "$py_json" '"to":"pkg:python:shared"'
+assert_contains "python: setup.py is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"shared/setup.py","evidence":"shared/setup.py: setup.py is not executed or parsed"}'
+assert_contains "python: dynamic dependencies is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"dyn/pyproject.toml","evidence":"dyn/pyproject.toml: dynamic = [\"dependencies\"]"}'
+assert_contains "python: -e is an internal edge citing the requirements line" "$py_json" '{"from":"tools/requirements.txt","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"tools/requirements.txt: -e ../libs/lib"}'
+assert_contains "python: a -r include inside the root is followed and cited" "$py_json" '{"from":"tools/requirements.txt","to":"shared/setup.py","kind":"project","status":"resolved","evidence":"tools/requirements/base.txt: -e ../../shared"}'
+assert_contains "python: a named requirement in an included file is external" "$py_json" '"from":"tools/requirements.txt","to":"pkg:python:django"'
+assert_contains "python: a -r include outside the root is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"tools/requirements.txt","evidence":"tools/requirements.txt: -r ../../outside.txt"}'
+assert_contains "python: a requirements file beside setup.py belongs to it" "$py_json" '{"from":"app/setup.py","to":"pkg:python:click","kind":"package","status":"resolved","evidence":"app/requirements.txt: click"}'
+assert_not_contains "python: -e . is not an edge to itself" "$py_json" '"evidence":"app/requirements.txt: -e ."'
+py_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$pytree")"
+assert_equals "python: two runs are byte-identical" "$py_again" "$py_json"
+
+# Python uv workspace: members expand against the pyproject.toml files found.
+uvws="$(make_tree uvws)"
+put "$uvws/pyproject.toml" '[project]
+name = "root"
+[tool.uv.workspace]
+members = ["packages/*", "tools/cli", "missing/one", "pkgs/{a,b}"]
+exclude = ["packages/legacy"]'
+put "$uvws/packages/a/pyproject.toml" '[project]
+name = "a"'
+put "$uvws/packages/legacy/pyproject.toml" '[project]
+name = "legacy"'
+put "$uvws/packages/a/sub/pyproject.toml" '[project]
+name = "nested"'
+put "$uvws/tools/cli/pyproject.toml" '[project]
+name = "cli"'
+uvws_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$uvws")"
+assert_contains "python: a uv members glob is an internal edge citing the declaration" "$uvws_json" '{"from":"pyproject.toml","to":"packages/a/pyproject.toml","kind":"project","status":"resolved","evidence":"pyproject.toml: members \"packages/*\""}'
+assert_contains "python: a literal uv member is an internal edge" "$uvws_json" '"from":"pyproject.toml","to":"tools/cli/pyproject.toml","kind":"project","status":"resolved"'
+assert_not_contains "python: a uv exclude removes the member" "$uvws_json" '"to":"packages/legacy/pyproject.toml"'
+assert_not_contains "python: a single-star glob does not cross folders" "$uvws_json" '"to":"packages/a/sub/pyproject.toml"'
+assert_contains "python: a literal uv member with no pyproject.toml is unresolved" "$uvws_json" '"to":"missing/one","kind":"project","status":"unresolved"'
+assert_contains "python: a member glob the reader cannot resolve is unread" "$uvws_json" '{"kind":"unread-manifest","path":"pyproject.toml","evidence":"pyproject.toml: members \"pkgs/{a,b}\""}'
+uvws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$uvws")"
+assert_equals "python: uv workspace runs are byte-identical" "$uvws_again" "$uvws_json"
+
+# Python beside Go is one mixed record.
+pymix="$(make_tree pymix)"
+put "$pymix/svc/go.mod" 'module example.com/svc'
+put "$pymix/app/requirements.txt" 'click'
+pymix_json="$(bash "$GRAPH" "$pymix")"
+assert_contains "python beside go: ecosystem is mixed" "$pymix_json" '"ecosystem": "mixed"'
+assert_contains "python beside go: each node keeps its own ecosystem" "$pymix_json" '"id":"app/requirements.txt","name":"requirements.txt","path":"app/requirements.txt","ecosystem":"python"'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
