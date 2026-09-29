@@ -121,7 +121,7 @@ for bad in "four declined x p:q@1" "four declined p:q@1" "four declined 2" "four
   assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
 done
 
-for bad in "four --partial x no-findings p:q@1""four --partial x in-progress" "four --partial x partial y p:q@1" \
+for bad in "four --partial x no-findings p:q@1" "four --partial x in-progress" "four --partial x partial y p:q@1" \
   "four --partial x not-applicable y p:q@1" "four --partial a,b committed abc1234 p:q@1" "four --partial x" "four --partial"; do
   read -ra args <<<"$bad"
   run "${args[@]}"
