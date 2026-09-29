@@ -53,8 +53,8 @@ restores the FAIL semantics.
    opt-in telemetry envelope is skipped while notifications still fire, a degrade, not a
    failure.
 2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
-   notification nor emit its terminal sequence, so it surfaces a once-per-session
-   `systemMessage` notice and drops every notification for the session.
+   notification nor emit its terminal sequence, so it surfaces a `systemMessage` notice, once per session and
+   agent and renewed every eighth skip, and drops every notification for the session.
 3. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is

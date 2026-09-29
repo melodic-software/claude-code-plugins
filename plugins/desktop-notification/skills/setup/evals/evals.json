@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Detects the OS family with `uname -s` and probes only that family's requirement, mirroring the hook's own case statement — it does not probe notify-send on macOS or osascript on Linux",
-        "Reports missing jq as FAIL and states the consequence precisely: the hook can neither classify the notification nor emit its terminal sequence, so it surfaces a once-per-session systemMessage notice and drops every notification for the session",
+        "Reports missing jq as FAIL and states the consequence precisely: the hook can neither classify the notification nor emit its terminal sequence, so it surfaces a systemMessage notice, once per session and agent and renewed every eighth skip, and drops every notification for the session",
         "Reports a Bash below 5.0 as INFO, not FAIL — EPOCHREALTIME is unset there so the opt-in telemetry envelope is skipped while notifications still fire",
         "Reports the effective value of all four native booleans and treats unexpanded or empty as the default true"
       ]
