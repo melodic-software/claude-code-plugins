@@ -300,13 +300,14 @@ Fleet audits check, per wired producer hook:
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
-  presence. Not mechanically gated, but reviewed per hook. As of this writing two sites in the
-  fleet are admitted this way: `context-guard`'s `zone-crossing-inject.sh`, and `guardrails`'
-  `block-hook-bypass.sh` operator-lever notice (#4679). That notice lists switches only the operator
-  may flip (condition 1); stderr separately carries the verdict and the agent's remedy, names an
-  operator option only as the operator's to set, and never says the operator has seen anything
-  (condition 2 and the delivery rule); and it fires once
-  per session and agent, with the latch's renewal declined (condition 3). Every other call site is
+  presence. Not mechanically gated, but reviewed per hook. One site in the fleet meets all three:
+  `context-guard`'s `zone-crossing-inject.sh`. One further site is admitted by owner-approved
+  exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
+  switches only the operator may flip (condition 1); stderr separately carries the verdict and the
+  agent's remedy, names an operator option only as the operator's to set, and never says the
+  operator has seen anything (condition 2 and the delivery rule). It fires once per session and
+  agent, with the latch's renewal declined, which limits repetition but is not a state transition,
+  so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
   a prerequisite skip or a content-mutation notice, so a third one is a signal to re-read the three
   conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
