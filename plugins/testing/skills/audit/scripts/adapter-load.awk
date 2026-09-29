@@ -22,7 +22,11 @@
 # indent for python, brace or file for bash (file: the whole file is one test,
 # for harnesses with no per-case marker), and brace for the rest. advisory:
 # true keeps the adapter's findings out of the --check gate unless --strict.
-# test_skip matches the start line (or a decorator or attribute above it);
+# assertion.calls, mock.verify and assertion.fail also count one level down: a
+# test that calls a function defined in the same file whose body matches one
+# (or throws, raises or rejects) has an assertion (cant-fail-scan.awk,
+# "Same-file helpers"). test_skip matches the start line (or a decorator or
+# attribute above it);
 # body_skip matches inside the body, as in t.Skip. assertion.idioms and
 # delegation match RAW text, strings and comments included, over a window of
 # three consecutive body lines, so `echo "FAIL"` then `exit 1` counts.
