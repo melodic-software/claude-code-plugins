@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.21] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` create.md states the `Refs: #N` linkage contract.** The pre-create body gate accepts a line that is only `Refs: #N` or `Relates to: #N` as non-closing linkage, matching `pr-linkage-validator.sh`; a bare `Refs #N` without the colon is still rejected.
+- **`pull-request` monitor.md** treats a queued job as stuck only when no free matching runner exists, and CI polling loops use REST only.
+- **`worktree` prose and evals** point at `worktree-facts.sh list`. Lock reasons are read raw, and the git 2.36 floor for `worktree list -z` is stated.
+- **PR-linkage MCP gate** also matches plugin-bundled GitHub servers (`mcp__plugin_*_github__create_pull_request` and `update_pull_request`).
+- **Nesting-invariant heading** is renamed "The nesting invariant, dated measurement", and its expired marker is time-bound.
+- **Promotion-evidence plan** is marked proposed and cites its basis; `config-resolution.md` cites ADR 0039 by filename instead of restating its merge modes.
+- **Config-root resolver** moves into `lib/config-root.sh` (`classify`), which `commit`, `pull-request` and `setup` call before reading team or overlay layers, with two setup evals for the home-root check and apply.
+- **Docs:** `babysit-loop` points at the background-launch caveat, the README lists `worktree-create.sh --existing-branch`, and duplicated argument hints are dropped.
+- **Tests:** `worktree-root-doctor.test.sh` and `worktree-add-containment-gate.test.sh` skip with a counted host line on Windows Git Bash.
+
 ## [0.62.20] - 2026-09-28
 
 ### Changed
