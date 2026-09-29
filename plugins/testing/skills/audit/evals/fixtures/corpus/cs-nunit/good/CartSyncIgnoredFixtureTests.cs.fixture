@@ -1,0 +1,14 @@
+// good-for: rule-zero-assertion
+// An ignored fixture does not run, so none of its tests is judged.
+using NUnit.Framework;
+
+[TestFixture]
+[Ignore("the ERP sandbox is down")]
+public class CartSyncIgnoredFixtureTests
+{
+    [Test]
+    public void Sync_PushesTheCart()
+    {
+        new CartSync(new ErpClient()).Run(new Cart());
+    }
+}

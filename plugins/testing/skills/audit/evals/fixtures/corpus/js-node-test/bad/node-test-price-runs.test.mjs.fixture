@@ -1,0 +1,9 @@
+// expect: rule-zero-assertion
+// Formats a price and prints it; nothing checks the output.
+import { test } from 'node:test';
+import { formatPrice } from '../src/price.mjs';
+
+test('formats cents as dollars', () => {
+  const label = formatPrice(1999, 'USD');
+  console.log(label);
+});

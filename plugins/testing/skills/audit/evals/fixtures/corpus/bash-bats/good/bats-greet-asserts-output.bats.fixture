@@ -1,0 +1,15 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# bats-assert checks the status and the output that run captured.
+
+setup() {
+  load 'test_helper/bats-support/load'
+  load 'test_helper/bats-assert/load'
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet prints a greeting for the given name" {
+  run greet world
+  assert_success
+  assert_output 'Hello, world'
+}

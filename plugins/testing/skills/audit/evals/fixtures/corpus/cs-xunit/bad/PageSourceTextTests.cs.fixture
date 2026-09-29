@@ -1,0 +1,15 @@
+// expect: rule-source-text-read
+// reads: src/Page.razor
+// Reads the component's markup source rather than rendering it.
+using System.IO;
+using Xunit;
+
+public class PageSourceTextTests
+{
+    [Fact]
+    public void Videos_FollowContentPlan()
+    {
+        var src = File.ReadAllText("../src/Page.razor");
+        Assert.True(src.IndexOf("Videos") > src.IndexOf("ContentPlan"));
+    }
+}

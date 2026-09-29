@@ -1,0 +1,11 @@
+# good-for: rule-zero-assertion
+# The assertRaises context manager is the assertion.
+import unittest
+
+from prices import parse_price
+
+
+class ParsePriceTests(unittest.TestCase):
+    def test_parse_price_rejects_words(self):
+        with self.assertRaises(ValueError):
+            parse_price("four dollars")

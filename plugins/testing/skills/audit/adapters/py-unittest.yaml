@@ -1,0 +1,39 @@
+# unittest: py-pytest's vocabulary plus unittest's skip forms, the
+# assert*Equal family and AsyncMock's await asserts. Claimed by a
+# TestCase subclass or a unittest.main() call, never by importing
+# unittest.mock alone. Schema and YAML subset: scripts/adapter-load.awk.
+id: py-unittest
+extends: py-pytest
+detect:
+  any_regex:
+    - '^[[:space:]]*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(([^)]*,)?[[:space:]]*([A-Za-z_][A-Za-z0-9_]*[[:space:]]*\.[[:space:]]*)*(IsolatedAsyncio)?TestCase[[:space:]]*[,)]'
+    - '^[[:space:]]*unittest[[:space:]]*\.[[:space:]]*main[[:space:]]*\('
+# Decorators on the lines above a test_start. expectedFailure is absent: the
+# test still runs, and an unexpected success fails the run.
+test_skip:
+  - '^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\.[[:space:]]*mark[[:space:]]*\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*@[[:space:]]*(unittest[[:space:]]*\.[[:space:]]*)?skip(If|Unless)?([^A-Za-z0-9_]|$)'
+body_skip:
+  - '(^|[^A-Za-z0-9_.])self[[:space:]]*\.[[:space:]]*skipTest[[:space:]]*\('
+  - '(^|[^A-Za-z0-9_])raise[[:space:]]+(unittest[[:space:]]*\.[[:space:]]*)?SkipTest([^A-Za-z0-9_]|$)'
+mock:
+  verify:
+    - 'assert_called'
+    - 'assert_any_call'
+    - 'assert_has_calls'
+    - 'assert_not_called'
+    - 'assert_awaited'
+    - 'assert_any_await'
+    - 'assert_has_awaits'
+    - 'assert_not_awaited'
+    - 'call_count'
+    - 'await_count'
+    - 'mock_calls'
+    - '\.called([^A-Za-z0-9_]|$)'
+  strip:
+    - '\.assert_(called|any_call|has_calls|not_called|awaited|any_await|has_awaits|not_awaited)[a-z_]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - 'assert[[:space:]][^\n]*([^A-Za-z0-9_](call_count|await_count|mock_calls)([^A-Za-z0-9_]|$)|\.called([^A-Za-z0-9_]|$))[^\n]*'
+# assertIs is absent: two evaluations of one expression need not be the same
+# object, so assertIs(f(), f()) is not a recomputed expectation.
+equality:
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, assertCountEqual, assertListEqual, assertTupleEqual, assertSetEqual, assertDictEqual, assertSequenceEqual, assertMultiLineEqual]

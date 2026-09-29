@@ -1,0 +1,16 @@
+// expect: rule-conditional-assertion
+// The only assertion runs once per line; an invoice with no lines passes.
+using Xunit;
+
+public class InvoiceLinesLoopTests
+{
+    [Fact]
+    public void Lines_AllCarryTax()
+    {
+        var lines = InvoiceBuilder.Build("order-7").Lines;
+        foreach (var line in lines)
+        {
+            Assert.True(line.Tax > 0m);
+        }
+    }
+}
