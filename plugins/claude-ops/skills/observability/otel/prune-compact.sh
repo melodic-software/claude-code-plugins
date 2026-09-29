@@ -22,6 +22,19 @@ sql_path() {
   printf '%s\n' "${p//\'/\'\'}"
 }
 
+# Run a command with stdout discarded; on failure pass its stderr to err() so the cause is
+# visible instead of a bare "failed". A duckdb -init load also reports the expected hot-view bind
+# errors (see compact_dropped); the failing statement's error comes last.
+run_reporting() {
+  local out label=("$@")
+  [[ "${label[0]}" == env ]] && label=("${label[@]:1}")
+  while [[ "${label[0]}" == *=* ]]; do label=("${label[@]:1}"); done
+  if ! out="$("$@" 2>&1 >/dev/null)"; then
+    err "${label[0]} failed: $out"
+    return 1
+  fi
+}
+
 # Verify a trimmed temp parses as newline-delimited OTLP-JSON. An empty temp (all records aged
 # out) is a valid zero-record store. Overridable via CC_OTEL_VERIFY_CMD (test seam).
 verify_temp() {
@@ -35,9 +48,8 @@ verify_temp() {
     err "duckdb not found — cannot verify the trimmed store; aborting (original untouched)"
     return 2
   fi
-  duckdb -c \
-    "SELECT count(*) FROM read_json_auto('$(sql_path "$temp")', format='newline_delimited', maximum_object_size=$DUCKDB_MAX_OBJECT_SIZE, sample_size=-1);" \
-    >/dev/null 2>&1
+  run_reporting duckdb -c \
+    "SELECT count(*) FROM read_json_auto('$(sql_path "$temp")', format='newline_delimited', maximum_object_size=$DUCKDB_MAX_OBJECT_SIZE, sample_size=-1);"
 }
 
 # Compact one store file's aged-out (dropped) lines to a cold Parquet file BEFORE the hot trim
@@ -112,13 +124,13 @@ compact_dropped() {
     # those binds fail instantly; cc-otel.sql's `.bail off` keeps the load going (macros
     # still defined), so compaction works on any store shape — including a store missing one
     # of the two files, and the very first compaction (empty cold/).
-    if ! CC_OTEL_STORE="$store_dir/.prune-in-progress" \
+    if ! run_reporting env CC_OTEL_STORE="$store_dir/.prune-in-progress" \
       duckdb -init "$(sql_path "$SCRIPT_DIR/cc-otel.sql")" \
-      -c "COPY ($select_sql) TO '$dst_sql' (FORMAT PARQUET, COMPRESSION ZSTD);" >/dev/null 2>&1; then
+      -c "COPY ($select_sql) TO '$dst_sql' (FORMAT PARQUET, COMPRESSION ZSTD);"; then
       rm -f "$cold_tmp"
       return 1
     fi
-    if ! duckdb -c "SELECT count(*) FROM read_parquet('$dst_sql');" >/dev/null 2>&1; then
+    if ! run_reporting duckdb -c "SELECT count(*) FROM read_parquet('$dst_sql');"; then
       rm -f "$cold_tmp"
       return 1
     fi
@@ -152,7 +164,9 @@ surgery_file() {
     err "jq not found — cannot strip aged body records; aborting (original untouched)"
     return 1
   fi
-  if ! jq -c "$SURGERY_JQ_FILTER" "$surgery_src" >"$out_tmp" 2>/dev/null; then
+  local jq_err
+  if ! jq_err="$(jq -c "$SURGERY_JQ_FILTER" "$surgery_src" 2>&1 >"$out_tmp")"; then
+    err "jq failed: $jq_err"
     rm -f "$out_tmp"
     return 1
   fi
