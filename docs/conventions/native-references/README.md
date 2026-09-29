@@ -207,7 +207,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Surface | What it carries |
 |---|---|
-| `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
+| `/claude-ops:audit-install-state` | `## Boundary` section for the bundled `doctor` skill (verdict `complementary`); no description phrase |
 | `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
 
 | `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; no description phrase |
@@ -216,7 +216,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/review:code-review`, `/review:security-review` | Description phrase + `## Boundary` section for the bundled `code-review` skill and the plugin-backed built-in `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file |
 | `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
 | `/testing:run-e2e` | description phrase, `## Boundary` section and `## Native step` for the bundled `run` skill (verdict `complementary`, integration `wrap`; a look versus evidenced verification); detail in the skill's context file |
-| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
+| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase for `/skill-doctor`; detail in each skill's `reference/` file |
 | `/visualization:visualize` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus a chosen form and medium); detail in the catalog spoke |
 | `/prototype:explore-directions` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway mockup); detail in the skill's `reference/` file |
 
