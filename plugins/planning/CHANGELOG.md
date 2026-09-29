@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-09-29
+
+### Added
+
+- **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
+
 ## [0.47.0] - 2026-09-29
 
 ### Added
