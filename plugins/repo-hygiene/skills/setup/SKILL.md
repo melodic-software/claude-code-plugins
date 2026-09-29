@@ -73,6 +73,11 @@ Install nothing, and run no mutating tier.
    through Bash, so it works without the launcher. FAIL when absent: every hook row runs
    `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
    without it the guard does not launch and is not enforced.
+   Claim: Claude Code's native binary neither ships nor uses Node.
+   Basis: https://code.claude.com/docs/en/setup.
+   As of: 2026-09-29.
+   Recheck: that page says the native binary bundles Node, or stops saying the native install needs
+   no Node.
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
    - It registers from the `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`
