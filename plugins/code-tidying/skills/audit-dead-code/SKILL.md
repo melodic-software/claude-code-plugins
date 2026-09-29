@@ -190,7 +190,7 @@ Summary lanes: ran=3 skipped=1 degraded=0 scanned-zero-files=2 no-manifest=0
 Summary coverage: covered=19 uncovered=2
 Summary candidates: total=370 emitted=15 dropped-by-cap=355 cap=15
 Summary total: files-with-findings=15 T1=0 T2=15 T3=0
-Note: uncovered scripts/standalone.mjs — no manifest root
+Note: uncovered cmd/tool/main.go — no manifest root
 Note: uncovered src/main.rs — no lane for the language
 ```
 
