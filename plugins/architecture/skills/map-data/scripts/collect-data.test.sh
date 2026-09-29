@@ -464,6 +464,195 @@ assert_contains "ef dbml names a declared principal key" "$ef11dbml" 'Ref: "Post
 assert_contains "ef dbml keeps an unknown referenced column as a comment" "$ef11dbml" '// Ref: "Note"."UserId" > "User" (referenced column not declared)'
 assert_not_contains "ef dbml does not invent an id column" "$ef11dbml" '"User"."id"'
 
+# --- SQL replay: ALTER TABLE, column-level REFERENCES, root migrations/ -----
+repo14="$TEST_TMPDIR/sql-alter"
+init_repo "$repo14"
+mkdir -p "$repo14/migrations/001" "$repo14/migrations/002" "$repo14/migrations/003"
+cat >"$repo14/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "User" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "email" TEXT NOT NULL
+);
+CREATE TABLE "Post" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "authorId" INTEGER NOT NULL
+);
+CREATE TABLE "Comment" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "postId" INTEGER NOT NULL REFERENCES "Post"("id") ON DELETE CASCADE
+);
+CREATE TABLE "Tag" (
+    "id" INTEGER NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE "Legacy" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "userId" INTEGER NOT NULL,
+    CONSTRAINT "Legacy_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id")
+);
+EOF
+cat >"$repo14/migrations/002/migration.sql" <<'EOF'
+ALTER TABLE "Post"
+    ADD CONSTRAINT "Post_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id");
+ALTER TABLE "Tag" ADD COLUMN "postId" INTEGER REFERENCES "Post"("id"), ADD COLUMN "label" TEXT NOT NULL;
+ALTER TABLE "Legacy" DROP CONSTRAINT "Legacy_userId_fkey";
+ALTER TABLE "Comment" ADD COLUMN "note" TEXT;
+EOF
+cat >"$repo14/migrations/003/migration.sql" <<'EOF'
+ALTER TABLE "Comment" DROP COLUMN "postId";
+EOF
+commit_all "$repo14"
+bash "$COLLECT" --repo "$repo14" --out "$TEST_TMPDIR/s14.json" --generated-on 2026-09-28
+s14="$(cat "$TEST_TMPDIR/s14.json")"
+assert_contains "root migrations directory is matched" "$s14" '"source_tool": "sql-migration"'
+assert_contains "sql tier is drawn" "$s14" '"status": "drawn"'
+assert_contains "alter add constraint foreign key is a relationship" "$s14" '"from":"migrations/Post","to":"migrations/User","cardinality":"||--o{","columns":"authorId"'
+assert_contains "alter add column with REFERENCES is a relationship" "$s14" '"from":"migrations/Tag","to":"migrations/Post","cardinality":"|o--o{","columns":"postId"'
+assert_contains "alter add column is an attribute" "$s14" '"name":"label"'
+assert_not_contains "alter drop constraint removes the foreign key" "$s14" '"from":"migrations/Legacy"'
+assert_not_contains "alter drop column removes its foreign key" "$s14" '"from":"migrations/Comment"'
+assert_not_contains "alter drop column removes the attribute" "$s14" '"name":"postId","type":"INTEGER","nullable":"no"'
+assert_contains "a column added later is kept" "$s14" '"name":"note"'
+assert_contains "one module, the root directory" "$s14" '{"id":"migrations"}'
+
+repo15="$TEST_TMPDIR/sql-colref"
+init_repo "$repo15"
+mkdir -p "$repo15/db/migrations/001"
+cat >"$repo15/db/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "User" (
+    "id" INTEGER NOT NULL PRIMARY KEY
+);
+CREATE TABLE "Profile" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "userId" INTEGER UNIQUE REFERENCES "User"
+);
+EOF
+commit_all "$repo15"
+bash "$COLLECT" --repo "$repo15" --out "$TEST_TMPDIR/s15.json" --generated-on 2026-09-28
+s15="$(cat "$TEST_TMPDIR/s15.json")"
+assert_contains "column-level unique REFERENCES is an optional one-to-one" "$s15" '"from":"db/Profile","to":"db/User","cardinality":"|o--o|"'
+assert_contains "column-level REFERENCES without a column list leaves references empty" "$s15" '"references":""'
+
+repo15b="$TEST_TMPDIR/sql-oneline"
+init_repo "$repo15b"
+mkdir -p "$repo15b/db/migrations/001"
+cat >"$repo15b/db/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "User" ("id" INTEGER NOT NULL PRIMARY KEY, "score" NUMERIC(10,2));
+CREATE TABLE "Post" ("id" INTEGER NOT NULL PRIMARY KEY, "authorId" INTEGER NOT NULL, FOREIGN KEY ("authorId") REFERENCES "User"("id"));
+CREATE TABLE "Late" (
+    "id" INTEGER NOT NULL PRIMARY KEY
+);
+EOF
+commit_all "$repo15b"
+bash "$COLLECT" --repo "$repo15b" --out "$TEST_TMPDIR/s15b.json" --generated-on 2026-09-28
+s15b="$(cat "$TEST_TMPDIR/s15b.json")"
+assert_contains "single-line CREATE TABLE reads its foreign key" "$s15b" '"from":"db/Post","to":"db/User","cardinality":"||--o{","columns":"authorId"'
+assert_contains "single-line CREATE TABLE reads its columns" "$s15b" '"name":"score"'
+assert_contains "a table after a single-line CREATE TABLE is still read" "$s15b" '"name":"Late"'
+
+for form in 'ALTER TABLE "User" RENAME TO "Account";' 'ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;' 'ALTER TABLE "User" DROP CONSTRAINT "unknown_key";'; do
+  repo16="$TEST_TMPDIR/sql-unreadable"
+  rm -rf "$repo16"
+  init_repo "$repo16"
+  mkdir -p "$repo16/db/migrations/001" "$repo16/db/migrations/002"
+  printf 'CREATE TABLE "User" (\n    "id" INTEGER NOT NULL PRIMARY KEY,\n    "email" TEXT\n);\n' >"$repo16/db/migrations/001/migration.sql"
+  printf '%s\n' "$form" >"$repo16/db/migrations/002/migration.sql"
+  commit_all "$repo16"
+  bash "$COLLECT" --repo "$repo16" --out "$TEST_TMPDIR/s16.json" --generated-on 2026-09-28
+  s16="$(cat "$TEST_TMPDIR/s16.json")"
+  assert_contains "unreadable ALTER refuses the sql tier: $form" "$s16" '"reason": "sql-alter-unreadable"'
+  assert_not_contains "unreadable ALTER draws no entity: $form" "$s16" '"name":"User"'
+done
+
+# --- a losing tier does not block or inflate the winner ---------------------
+repo17="$TEST_TMPDIR/losers"
+init_repo "$repo17"
+mkdir -p "$repo17/orders/migrations/001" "$repo17/tests"
+cat >"$repo17/orders/schema.prisma" <<'EOF'
+model User {
+  id    Int    @id
+  posts Post[]
+}
+
+model Post {
+  id       Int  @id
+  author   User @relation(fields: [authorId], references: [id])
+  authorId Int
+}
+EOF
+cat >"$repo17/orders/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "User" (
+    "id" INTEGER NOT NULL PRIMARY KEY
+);
+CREATE TABLE "Post" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "authorId" INTEGER NOT NULL,
+    FOREIGN KEY ("authorId") REFERENCES "User"("id")
+);
+EOF
+cat >"$repo17/tests/Sample.cs" <<'EOF'
+modelBuilder.Entity<Post>().HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId);
+EOF
+commit_all "$repo17"
+bash "$COLLECT" --repo "$repo17" --out "$TEST_TMPDIR/s17.json" --generated-on 2026-09-28
+s17="$(cat "$TEST_TMPDIR/s17.json")"
+assert_contains "prisma wins beside an unreadable EF file" "$s17" '"source_tool": "prisma"'
+assert_contains "unreadable EF file is reported as not compared" "$s17" '"kind":"not-compared"'
+assert_not_contains "a dropped tier makes no missing-in-other claim" "$s17" 'missing-in-other'
+assert_contains "only the winning tier's module is listed" "$s17" '"modules": [
+    {"id":"orders"}
+  ]'
+set +e
+sum17="$(bash "$RENDER" --record "$TEST_TMPDIR/s17.json" --out "$TEST_TMPDIR/s17-out" --dialect mermaid)"
+rc17=$?
+assert_equals "default scope draws the only module, exit 0" "$rc17" "0"
+assert_contains "the diagram is drawn" "$sum17" "status=drawn"
+assert_contains "the diagram follows prisma" "$(cat "$TEST_TMPDIR/s17-out/data-model.md")" 'User ||--o{ Post'
+
+# The same fixture with a readable migration and an EF file that reads still compares.
+printf 'modelBuilder.Entity<Post>().HasOne<User>().WithMany().HasForeignKey("authorId").IsRequired();\n' >"$repo17/tests/Sample.cs"
+commit_all "$repo17"
+bash "$COLLECT" --repo "$repo17" --out "$TEST_TMPDIR/s17b.json" --generated-on 2026-09-28
+s17b="$(cat "$TEST_TMPDIR/s17b.json")"
+assert_not_contains "a readable losing tier is compared, not skipped" "$s17b" '"kind":"not-compared"'
+assert_contains "the readable EF tier keeps its mechanism row" "$s17b" '"name":"ef-fluent"'
+
+# An unreadable losing SQL migration is reported the same way.
+printf 'ALTER TABLE "Post" RENAME TO "Article";\n' >"$repo17/orders/migrations/001/migration.sql"
+printf 'model Note {\n  id Int @id\n}\n' >"$repo17/orders/schema.prisma"
+commit_all "$repo17"
+bash "$COLLECT" --repo "$repo17" --out "$TEST_TMPDIR/s17c.json" --generated-on 2026-09-28
+s17c="$(cat "$TEST_TMPDIR/s17c.json")"
+assert_contains "prisma still wins beside an unreadable migration" "$s17c" '"source_tool": "prisma"'
+assert_contains "the unreadable migration is reported as not compared" "$s17c" 'sql-migration was not compared with prisma'
+
+# EF that would win still refuses.
+repo18="$TEST_TMPDIR/ef-wins"
+init_repo "$repo18"
+mkdir -p "$repo18/src"
+printf 'modelBuilder.Entity<Post>().HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId);\n' >"$repo18/src/Map.cs"
+commit_all "$repo18"
+bash "$COLLECT" --repo "$repo18" --out "$TEST_TMPDIR/s18.json" --generated-on 2026-09-28
+assert_contains "an unreadable EF chain refuses when EF would win" "$(cat "$TEST_TMPDIR/s18.json")" '"reason": "ef-fluent-unreadable"'
+
+# --- the same short name in two modules stays two nodes ---------------------
+repo19="$TEST_TMPDIR/same-name"
+init_repo "$repo19"
+mkdir -p "$repo19/orders" "$repo19/billing"
+printf 'model User {\n  id Int @id\n  notes Note[]\n}\nmodel Note {\n  id Int @id\n  user User @relation(fields: [userId], references: [id])\n  userId Int\n}\n' >"$repo19/orders/schema.prisma"
+printf 'model User {\n  id Int @id\n  invoices Invoice[]\n}\nmodel Invoice {\n  id Int @id\n  user User @relation(fields: [userId], references: [id])\n  userId Int\n}\n' >"$repo19/billing/schema.prisma"
+commit_all "$repo19"
+bash "$COLLECT" --repo "$repo19" --out "$TEST_TMPDIR/s19.json" --generated-on 2026-09-28
+bash "$RENDER" --record "$TEST_TMPDIR/s19.json" --out "$TEST_TMPDIR/s19-all" --dialect mermaid --scope all >/dev/null
+s19md="$(cat "$TEST_TMPDIR/s19-all/data-model.md")"
+assert_contains "scope all qualifies the orders node" "$s19md" '"orders/User" ||--o{ "orders/Note"'
+assert_contains "scope all qualifies the billing node" "$s19md" '"billing/User" ||--o{ "billing/Invoice"'
+bash "$RENDER" --record "$TEST_TMPDIR/s19.json" --out "$TEST_TMPDIR/s19-dbml" --dialect dbml --scope all >/dev/null
+s19dbml="$(cat "$TEST_TMPDIR/s19-dbml/data-model.dbml")"
+assert_contains "dbml keeps orders/User as its own table" "$s19dbml" 'Table "orders/User"'
+assert_contains "dbml keeps billing/User as its own table" "$s19dbml" 'Table "billing/User"'
+bash "$RENDER" --record "$TEST_TMPDIR/s19.json" --out "$TEST_TMPDIR/s19-one" --dialect mermaid --scope orders >/dev/null
+assert_contains "one module in scope keeps the short name" "$(cat "$TEST_TMPDIR/s19-one/data-model.md")" 'User ||--o{ Note'
+
 # --- reformatted record -----------------------------------------------------
 printf '%s\n' '{"schema_version":1,"entities":[]}' >"$TEST_TMPDIR/flat.json"
 set +e

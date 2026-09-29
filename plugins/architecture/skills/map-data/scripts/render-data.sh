@@ -104,6 +104,11 @@ summary="$(
       gsub(/\|/, "/", s)
       return s
     }
+    function mm(s) {
+      s = safe(s)
+      if (s ~ /^[A-Za-z0-9_]+$/) return s
+      return "\"" s "\""
+    }
     function mtype(t,    x) {
       x = tolower(t)
       if (x ~ /^(int|integer|bigint|smallint|serial)$/) return "int"
@@ -150,6 +155,8 @@ summary="$(
         return "A Prisma schema declares a many-to-many with no foreign-key fields. Cardinality was not guessed. No diagram was drawn."
       if (r == "ef-fluent-unreadable")
         return "An Entity Framework fluent chain is present but not in the shipped shape (Entity<T>, HasOne<T> or HasMany<T>, HasForeignKey(\"Column\"), IsRequired or IsRequired(false)). No diagram was drawn."
+      if (r == "sql-alter-unreadable")
+        return "A SQL migration uses an ALTER TABLE action or foreign-key clause outside the readable subset (ADD COLUMN, DROP COLUMN, ADD FOREIGN KEY, UNIQUE or PRIMARY KEY, and DROP CONSTRAINT of one the migrations declared). Replaying it would leave the schema wrong. No diagram was drawn."
       if (r == "unsupported")
         return "A Prisma schema contains a block comment or another construct this adapter does not read. No diagram was drawn."
       if (r == "unknown-cardinality")
@@ -266,6 +273,11 @@ summary="$(
           in_scope[scope_arg] = 1
         }
       }
+      # Two modules can declare the same short name. With more than one module
+      # in scope a node carries its module (orders/User), so none merge.
+      nscope = 0
+      for (m in in_scope) nscope++
+      if (nscope > 1) for (i = 1; i <= ne; i++) { ename[i] = eid[i]; name_of[eid[i]] = eid[i] }
       print "# Data model" > md
       print "" > md
       print "Generated on " generated "." > md
@@ -362,9 +374,9 @@ summary="$(
             if (columns) {
               any = 0
               for (a = 1; a <= na; a++) if (aent[a] == id) any = 1
-              if (!any) print "  " safe(ename[ei]) > md
+              if (!any) print "  " mm(ename[ei]) > md
               else {
-                print "  " safe(ename[ei]) " {" > md
+                print "  " mm(ename[ei]) " {" > md
                 for (a = 1; a <= na; a++) if (aent[a] == id) {
                   mark = ""
                   if (apk[a] == "yes" && afk[a] == "yes") mark = " PK, FK"
@@ -375,12 +387,12 @@ summary="$(
                 print "  }" > md
               }
             } else {
-              print "  " safe(ename[ei]) > md
+              print "  " mm(ename[ei]) > md
             }
           }
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            print "  " safe(name_of[rel_to[ri]]) " " rcard[ri] " " safe(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
+            print "  " mm(name_of[rel_to[ri]]) " " rcard[ri] " " mm(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
           }
           print "```" > md
           print "" > md
