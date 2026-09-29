@@ -45,9 +45,10 @@ source "$HOOK_DIR/hook-utils.sh"
 MD_CHANGED=""
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
-# document. This hook takes no rewrite verdict, because markdownlint-cli2's own
-# fix count is authoritative. The verdict arrives on --changed, and a skip arm
-# that passes none omits the key rather than guessing one.
+# document. This hook never calls hook::rewrite_guard_begin, because
+# markdownlint-cli2's own fix count is authoritative. The verdict arrives on
+# --changed, and a skip arm that passes none omits the key rather than guessing
+# one.
 emit_skipped() {
   hook::finish skipped findings array '[]'
 }

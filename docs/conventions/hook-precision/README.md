@@ -45,7 +45,7 @@ them turns every next over-fire into a committed regression test. A hook is prec
    Fail toward acting: git absent, no repository, or a `check-ignore` error runs the hook as before,
    because a skip that fired on an error would disable the hook invisibly. The counter-case, a developer
    who wants an ignored local script formatted, is what the opt-in is for. The shared implementation for
-   rewriting hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. The nine hooks skip a
+   the nine hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
    gitignored file by default and run on it only with the `<plugin>_lint_gitignored` opt-in; that is the
    maintainer's decision on #4671.
 
@@ -135,8 +135,10 @@ never stands in for the gate.
 | `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
 
-The helpers live in `lib/hook-utils.sh`. The six rewriting hooks also carry `rewrite-guard.sh`, for the
-snapshot and disclosure guard only; the three non-rewriting hooks do not.
+The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
+(`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
+carry `rewrite-guard.sh`. `actionlint`, `markdown-format` and `typos-format` do not, because they never
+call `hook::rewrite_guard_begin`.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
 guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different
