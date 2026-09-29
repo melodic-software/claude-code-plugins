@@ -12,6 +12,7 @@ shell: bash
 tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 - `goimports`: !`{ command -v goimports 2>/dev/null || echo "absent"; }`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
@@ -52,17 +53,19 @@ restores the FAIL semantics.
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of formatting.
-3. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
+3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
+   `node hooks/exec-bash.mjs`, so without node the hooks do not start and nothing is enforced.
+4. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
    `.venv`-style per-repo convention). Report the resolved path and `goimports -h`'s first line
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
    when absent. The hook then emits a visible once-per-session skip notice instead of running.
-4. **Hook toggle.** Report the effective `go_format_enabled` value:
+5. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
-5. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
+6. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
    `${user_config.go_format_lint_gitignored}` (unexpanded or empty means default `false`). At
    `false` the hook skips files the repository gitignores; a tracked file matching an ignore
    pattern stays in scope.
-6. **Hook registration.** INFO: confirm the plugin is enabled for this project
+7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook has
@@ -82,18 +85,24 @@ re-verifying. For everything else `apply` only points:
 
 - missing `goimports`: `go install golang.org/x/tools/cmd/goimports@latest` (requires a Go
   toolchain: https://go.dev/dl/).
-- missing `jq` / Bash: platform install instructions from the README Requirements section;
+- missing `node` / `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
   the measured CLI behavior (including that a rerun against an already-installed plugin still
   writes the value) and its verification record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
   Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
-  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
+  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
   (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
   - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
     resets every option to its manifest default.
-  - Pass `-s user`. Do not copy a scope from `claude plugin list`.
+  - Scope. Pass the scope `claude plugin list` reports for the plugin, and for a `project` or
+    `local` scope run from that project's directory, so the rerun matches the existing install
+    record. `-s` places the install record and the `enabledPlugins` entry in that scope's settings
+    file; the option value always lands in user settings. A rerun at another scope adds an install
+    record at that scope and enables the plugin there (measured in both directions). When the
+    working directory is the home directory, project scope and user scope are the same settings
+    file, so the list can label that one file as both `user` and `project`: pass `user`.
   - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
     `check` in a **fresh session** and report the observed effective value, never an unobserved
     change.

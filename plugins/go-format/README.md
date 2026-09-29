@@ -56,6 +56,8 @@ surfaces the syntax error back to Claude as advisory context.
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`. Without
+  node the hooks do not start and nothing is enforced.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. Like `typos-format`, `goimports` has no
