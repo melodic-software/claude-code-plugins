@@ -52,12 +52,12 @@ surfaces the syntax error back to Claude as advisory context.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. Like `typos-format`, `goimports` has no
   per-repo dependency-manager convention. It is conventionally
   `go install`ed to the machine-global `$GOPATH/bin`. It is never
   downloaded on the fly; if it is not present, the hook skips with a
-  visible once-per-session notice.
+  visible notice, once per session (a `prerequisite` notice), renewed with the install route every eighth skip.
   [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
   `go install golang.org/x/tools/cmd/goimports@latest` (requires a
   [Go toolchain](https://go.dev/dl/)).

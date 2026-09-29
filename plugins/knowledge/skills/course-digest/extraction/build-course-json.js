@@ -13,6 +13,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
+import { invokedAsCli } from "./lib/cli-main.js";
+
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { resolveAuthStatePath } from "./lib/auth-store.js";
@@ -29,13 +31,16 @@ const SCRAPE_REGEX_SOURCES = {
 };
 const INSTRUCTOR_CLASS_FRAGMENT = "instructor";
 
-const { values: args } = parseArgs({
-  options: {
-    "course-url": { type: "string" },
-    "output-dir": { type: "string" },
-  },
-  strict: false,
-});
+function parseBuildArgs() {
+  const { values } = parseArgs({
+    options: {
+      "course-url": { type: "string" },
+      "output-dir": { type: "string" },
+    },
+    strict: false,
+  });
+  return values;
+}
 
 /**
  * @typedef {Object} ScrapedLesson
@@ -154,6 +159,7 @@ function logCurriculumSummary(courseData) {
 }
 
 async function main() {
+  const args = parseBuildArgs();
   if (!args["course-url"] || !args["output-dir"]) {
     writeStderr("Usage: node build-course-json.js --course-url <url> --output-dir <path>");
     process.exit(1);
@@ -241,7 +247,9 @@ async function main() {
   await closeBrowser(context, browser);
 }
 
-main().catch((e) => {
-  writeStderr("Fatal:", e);
-  process.exit(1);
-});
+if (invokedAsCli(import.meta.url)) {
+  main().catch((e) => {
+    writeStderr("Fatal:", e);
+    process.exit(1);
+  });
+}

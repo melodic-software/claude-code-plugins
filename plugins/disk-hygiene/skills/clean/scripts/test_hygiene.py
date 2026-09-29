@@ -5206,6 +5206,216 @@ class HandoffVerifyTests(unittest.TestCase):
                 verdict["reasons"],
             )
 
+    @staticmethod
+    def create_throwaway(root: Path, *, commit: bool, name: str = "checkout") -> Path:
+        """A local repository with no remote and an untracked file (#4227)."""
+        checkout = root / name
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+        if commit:
+            for key, value in (("user.email", "test@example.com"), ("user.name", "T")):
+                subprocess.run(
+                    ["git", "-C", str(checkout), "config", key, value], check=True
+                )
+            (checkout / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(checkout), "add", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(checkout), "commit", "-qm", "local"], check=True
+            )
+        (checkout / "untracked.txt").write_text("scratch\n", encoding="utf-8")
+        return checkout
+
+    @staticmethod
+    def unpublished_configuration(*, accept: bool):
+        entry: dict[str, Any] = {"path": "checkout", "remote": None, "stash_copies": []}
+        if accept:
+            entry |= {"accept_unpublished": True, "reason": "throwaway test repo"}
+        return {"checkout": entry}
+
+    def verify_throwaway(
+        self,
+        *,
+        commit: bool,
+        accept: bool,
+        before_scan=None,
+        after_scan=None,
+        handle=("clear", None),
+        mounted=False,
+    ):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_throwaway(target, commit=commit)
+            if before_scan:
+                before_scan(checkout)
+            snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+            if after_scan:
+                after_scan(checkout)
+            mount = (
+                mock.patch.object(
+                    hygiene,
+                    "mount_state",
+                    side_effect=lambda path, *_: (path.name == "checkout", None),
+                )
+                if mounted
+                else nullcontext()
+            )
+            with (
+                mock.patch.object(hygiene, "handle_state", return_value=handle),
+                mock.patch.object(hygiene, "verify_github_remote_head") as remote,
+                mount,
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot,
+                    ["checkout"],
+                    self.unpublished_configuration(accept=accept),
+                )
+            remote.assert_not_called()
+            self.assertTrue(checkout.exists(), "handoff-verify must remain read-only")
+            return result["verdicts"][0]
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_accept_unpublished_clears_a_throwaway_repository(self) -> None:
+        for commit in (False, True):
+            with self.subTest(commit=commit):
+                verdict = self.verify_throwaway(commit=commit, accept=True)
+                self.assertEqual("clear", verdict["verdict"], verdict["reasons"])
+                evidence = verdict["vcs_evidence"]
+                self.assertEqual("verified", evidence["status"])
+                self.assertEqual(
+                    [{"repository": "checkout", "reason": "throwaway test repo"}],
+                    evidence["accept_unpublished"],
+                )
+                gates = evidence["gates"]
+                self.assertEqual(
+                    "accepted-unpublished",
+                    gates["git-status-porcelain-empty"]["status"],
+                )
+                self.assertEqual(
+                    "accepted-unpublished" if commit else "passed",
+                    gates["all-local-heads-on-remote"]["status"],
+                )
+                self.assertEqual("passed", gates["all-stashes-duplicated"]["status"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_throwaway_without_acknowledgement_stays_contested(self) -> None:
+        verdict = self.verify_throwaway(commit=True, accept=False)
+        self.assertEqual("contested", verdict["verdict"])
+        self.assertIn("vcs-evidence-status-not-clean", verdict["reasons"])
+        self.assertIn("vcs-evidence-remote-not-declared", verdict["reasons"])
+        self.assertNotIn("accept_unpublished", verdict["vcs_evidence"])
+        self.assertEqual(
+            "failed",
+            verdict["vcs_evidence"]["gates"]["git-status-porcelain-empty"]["status"],
+        )
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_accept_unpublished_leaves_every_other_check_categorical(self) -> None:
+        def stash(checkout: Path):
+            (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(checkout), "stash", "push", "-qm", "wip"], check=True
+            )
+
+        def add_file(checkout: Path):
+            (checkout / "late.txt").write_text("added after scan\n", encoding="utf-8")
+
+        def rewrite_file(checkout: Path):
+            (checkout / "tracked.txt").write_text("rewritten\n" * 3, encoding="utf-8")
+
+        def add_link(checkout: Path):
+            (checkout / "link").symlink_to(checkout / "untracked.txt")
+
+        cases = {
+            "link": (
+                {"before_scan": add_link},
+                "contested",
+                "symlink-junction-or-reparse-point",
+            ),
+            "stash": (
+                {"before_scan": stash},
+                "contested",
+                "vcs-evidence-stash-not-duplicated",
+            ),
+            "live-handle": (
+                {"handle": ("open", "pid 1")},
+                "contested",
+                "live-handle: pid 1",
+            ),
+            "mount": ({"mounted": True}, "drifted", "nested-mount-point"),
+            "descendants": ({"after_scan": add_file}, "drifted", "changed-since-scan"),
+            "identity": ({"after_scan": rewrite_file}, "drifted", "changed-since-scan"),
+        }
+        for name, (options, expected, reason) in cases.items():
+            with self.subTest(case=name):
+                verdict = self.verify_throwaway(commit=True, accept=True, **options)
+                self.assertEqual(expected, verdict["verdict"], verdict["reasons"])
+                self.assertIn(reason, verdict["reasons"])
+
+    def test_skill_requires_handoff_verify_and_loss_warning(self) -> None:
+        text = " ".join((SCRIPT_DIR.parent / "SKILL.md").read_text("utf-8").split())
+        for phrase in (
+            "never delete it outside the engine",
+            "run `handoff-verify`, and delete only on a `clear` verdict",
+            "tell the operator plainly that unpushed commits and untracked or "
+            "ignored files in that checkout will be lost",
+        ):
+            self.assertIn(phrase, text)
+
+    def verify_evidence(self, target: Path, approved: list[str], evidence):
+        snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
+        with mock.patch.object(hygiene, "handle_state", return_value=("clear", None)):
+            result = hygiene.handoff_verify(snapshot, approved, evidence)
+        return {item["path"]: item for item in result["verdicts"]}
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_accept_unpublished_covers_only_its_own_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            for name in ("acked", "plain"):
+                self.create_throwaway(target, commit=True, name=name)
+            evidence = {
+                name: {"path": name, "remote": None, "stash_copies": []}
+                for name in ("acked", "plain")
+            }
+            evidence["acked"] |= {"accept_unpublished": True, "reason": "scratch"}
+            verdicts = self.verify_evidence(target, ["acked", "plain"], evidence)
+        self.assertEqual("clear", verdicts["acked"]["verdict"])
+        self.assertEqual("contested", verdicts["plain"]["verdict"])
+        self.assertIn("vcs-evidence-status-not-clean", verdicts["plain"]["reasons"])
+        self.assertNotIn("accept_unpublished", verdicts["plain"]["vcs_evidence"])
+
+    @unittest.skipUnless(
+        shutil.which("git"), "git is required for the VCS evidence fixture"
+    )
+    def test_accept_unpublished_does_not_cover_a_nested_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            checkout = self.create_throwaway(target, commit=True)
+            self.create_throwaway(checkout, commit=True, name="sub")
+            evidence = self.unpublished_configuration(accept=True)
+            evidence["checkout/sub"] = {
+                "path": "checkout/sub",
+                "remote": None,
+                "stash_copies": [],
+            }
+            verdict = self.verify_evidence(target, ["checkout"], evidence)["checkout"]
+        self.assertEqual("contested", verdict["verdict"])
+        self.assertIn("vcs-evidence-status-not-clean", verdict["reasons"])
+        self.assertEqual(
+            "failed",
+            verdict["vcs_evidence"]["gates"]["git-status-porcelain-empty"]["status"],
+        )
+
     def test_clear_verdict_is_read_only_and_ignores_platform_blockers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -5575,6 +5785,35 @@ class HandoffVerifyTests(unittest.TestCase):
                 },
                 "absolute paths",
             ),
+        ]
+        base = {"remote": None, "stash_copies": []}
+        acknowledgement_cases = [
+            (
+                {"path": "checkout/nested", "accept_unpublished": True, "reason": "x"},
+                "exact approved path",
+            ),
+            (
+                {"path": "*", "accept_unpublished": True, "reason": "x"},
+                "outside approved",
+            ),
+            (
+                {"path": "checkout", "accept_unpublished": "true", "reason": "x"},
+                "accept_unpublished must be true",
+            ),
+            (
+                {"path": "checkout", "accept_unpublished": False, "reason": "x"},
+                "accept_unpublished must be true",
+            ),
+            (
+                {"path": "checkout", "accept_unpublished": True, "reason": " "},
+                "non-empty reason",
+            ),
+            ({"path": "checkout", "accept_unpublished": True}, "exactly"),
+            ({"path": "checkout", "reason": "x"}, "exactly"),
+        ]
+        cases += [
+            ({"version": 1, "repositories": [base | entry]}, message)
+            for entry, message in acknowledgement_cases
         ]
         for payload, message in cases:
             with self.subTest(payload=payload):

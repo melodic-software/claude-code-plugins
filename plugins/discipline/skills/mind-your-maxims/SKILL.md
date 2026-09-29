@@ -27,7 +27,7 @@ second copy that drifts):
 
 - Grice's Cooperative Principle and its four maxims. Quantity, Quality,
   Relation, Manner. In
-  [Grice, "Logic and Conversation"](https://www.sas.upenn.edu/~haroldfs/dravling/grice.html)
+  [Grice, "Logic and Conversation"](https://web.archive.org/web/20210117181544/https://www.sas.upenn.edu/~haroldfs/dravling/grice.html)
   and [Cooperative principle](https://en.wikipedia.org/wiki/Cooperative_principle).
 - The AI-augmented maxims for human-AI dialogue. Transparency and
   Benevolence. In Miehling et al., "Language Models in Dialogue:
