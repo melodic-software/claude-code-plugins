@@ -34,12 +34,16 @@
 #   generation (highest N by numeric value), labelled GEN-MATCH / GEN-CHANGED /
 #   GEN-MISSING, so a second edit of an already-diverged file is still caught.
 #   A file in neither manifest is UNSEALED. Once a generation exists an ordinary
-#   `record` is refused (it would launder the acknowledged divergence); `record
-#   --acknowledge-divergence` writes the next generation, also after the altered
-#   file was restored. When a generation exists verify prints `ACKNOWLEDGED
-#   generation=<N>` on every run, including when a restore made every digest
-#   match and the exit is 0: verify reports what the bytes are, and the visible
-#   line, not a permanent nonzero exit, keeps the incident in front of a reader.
+#   `record` is refused (it would launder the acknowledged divergence), and
+#   `record --acknowledge-divergence` writes the next generation, also after the
+#   altered file was restored. It names (GEN-MISSING) any file the previous
+#   generation sealed that is now gone, because the next generation stops
+#   listing it.
+#
+#   With a generation, verify prints `ACKNOWLEDGED generation=<N>` on every run,
+#   including when a restore made every digest match and the exit is 0: verify
+#   reports what the bytes are, and the visible line, not a permanent nonzero
+#   exit, keeps the incident in front of a reader.
 #
 #   NOT COVERED — the FIRST in-place rewrite. PostToolUse runs after the write
 #   succeeds, so by the time any subsequent tool call can hash the file, the
@@ -144,8 +148,11 @@ latest_generation() {
   printf '%s' "$latest"
 }
 
-# note_divergence <manifest> <label>: prints `<label> <name>` for each entry
-# whose file still exists with different bytes, and adds each to `relaundered`.
+# note_divergence <manifest> <label> [<missing-label>]: prints `<label> <name>`
+# for each entry whose file still exists with different bytes, and adds each to
+# `relaundered`. A missing file is skipped unless <missing-label> is given: the
+# original manifest reports it as MISSING on every verify, but a new generation
+# stops listing it, so acknowledging one is the last time it is named.
 note_divergence() {
   local line prev_digest prev_name now_digest
   while IFS= read -r line; do
@@ -153,7 +160,13 @@ note_divergence() {
     prev_digest="${line%% *}"
     prev_name="${line#* }"
     prev_name="${prev_name# }"
-    [[ -e "$packet/$prev_name" ]] || continue
+    if [[ ! -e "$packet/$prev_name" ]]; then
+      if [[ -n "${3:-}" ]]; then
+        echo "$3 $prev_name"
+        relaundered=$((relaundered + 1))
+      fi
+      continue
+    fi
     now_digest="$(digest_of "$packet/$prev_name")" || continue
     if [[ "$now_digest" != "$prev_digest" ]]; then
       echo "$2 $prev_name"
@@ -243,7 +256,7 @@ if [[ "$action" == record ]]; then
   if [[ -f "$manifest" ]]; then
     relaundered=0
     note_divergence "$manifest" CHANGED
-    [[ -z "$latest" ]] || note_divergence "$packet/packet.sha256.$latest" GEN-CHANGED
+    [[ -z "$latest" ]] || note_divergence "$packet/packet.sha256.$latest" GEN-CHANGED GEN-MISSING
     # With a generation in place nothing has to differ: restoring the altered
     # bytes and then adding notes leaves only notes to seal, and they belong in
     # the next generation. Without one, acknowledging needs a divergence.
@@ -272,10 +285,7 @@ if [[ "$action" == record ]]; then
         exit 2
       }
       for name in ${files[@]+"${files[@]}"}; do
-        case "$name" in
-        packet.sha256 | packet.sha256.*) continue ;;
-        *) ;;
-        esac
+        ! is_manifest_name "$name" || continue
         file="$packet/$name"
         if [[ -L "$file" ]]; then
           rm -f -- "$gen_tmp"

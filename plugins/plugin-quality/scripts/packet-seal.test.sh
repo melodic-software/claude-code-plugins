@@ -311,13 +311,33 @@ lacks "GEN-CHANGED" "generation 9 is not consulted"
 run 0 "acknowledge numbers the next generation after the latest" record --acknowledge-divergence "$packet"
 has "generation=11" "the next generation is 11"
 
-# A name that only resembles a generation is a stray file, not a manifest.
+# A name that only resembles a generation is a stray file, not a manifest: it is
+# unsealed content until a generation seals it.
 packet="$(fresh_packet)"
 run 0 "record before the look-alike case" record "$packet"
 printf 'stray\n' >"$packet/packet.sha256.2x"
 run 3 "a look-alike name is unsealed content" verify "$packet"
 has "UNSEALED packet.sha256.2x" "the look-alike is reported"
 lacks "ACKNOWLEDGED" "the look-alike is not a generation"
+printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
+run 0 "acknowledge seals the look-alike as packet content" record --acknowledge-divergence "$packet"
+run 1 "verify grades the look-alike against the generation" verify "$packet"
+has "GEN-MATCH packet.sha256.2x" "the look-alike is sealed into the generation"
+lacks "UNSEALED packet.sha256.2x" "a sealed look-alike is no longer unsealed"
+
+# The next generation stops listing a file that is gone, so the acknowledging
+# run is the last one to name it.
+make_acked_packet
+cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
+rm -f "$packet/audit-notes-2.md"
+run 0 "acknowledge after deleting a generation-sealed file" record --acknowledge-divergence "$packet"
+has "GEN-MISSING audit-notes-2.md" "the deleted generation-sealed file is named"
+has "acknowledged=2" "the deletion is counted with the restored file"
+if ! grep -qF 'audit-notes-2.md' "$packet/packet.sha256.3"; then
+  pass "generation 3 no longer lists the deleted file"
+else
+  fail "generation 3 still lists the deleted file"
+fi
 
 # --- symlinks are visible, and escaping ones are refused --------------------
 #
