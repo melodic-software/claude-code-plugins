@@ -33,6 +33,13 @@ run() {
   expect "$label" "$expected" --command "$command" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
+# --- wsl / wsl.exe run their command line in a Linux distro (#4242) ----------
+run "wsl.exe -e bash -c redirect (blocked)" 'wsl.exe -e bash -c "echo secret > f"' 2
+run "wsl bash -c redirect (blocked)" "wsl bash -c 'echo secret > f'" 2
+run "wsl -d Ubuntu -- bash -c redirect (blocked)" 'wsl -d Ubuntu -- bash -c "echo secret > f"' 2
+run "wsl echo hi (allowed)" 'wsl echo hi' 0
+run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
+
 # --- Core bypass forms ------------------------------------------------------
 run "cat > file (blocked)" "cat > foo.txt" 2
 run "cat>file no space (blocked)" "cat>foo.txt" 2
