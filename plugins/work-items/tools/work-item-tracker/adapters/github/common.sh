@@ -277,6 +277,10 @@ wit_emit_item() {
     jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
   else
     wit_run_gh read api "repos/$owner/$repo/issues/$number"
+    if jq -e 'has("pull_request")' <<<"$WIT_GH_OUT" >/dev/null; then
+      echo "wit_emit_item: $owner/$repo#$number is a pull request, not an issue" >&2
+      exit "$EX_NOT_FOUND"
+    fi
     jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$rest_to_view | $WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
   fi
 }

@@ -104,6 +104,17 @@ EOF
     "api repos/o/r/issues/1"
   assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
 
+  PR_STUB="$(mktemp -d)"
+  cat >"$PR_STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "--version" ]] && { echo "gh version 2.45.0 (test)"; exit 0; }
+echo '{"number":2,"pull_request":{}}'
+EOF
+  chmod +x "$PR_STUB/gh"
+  (PATH="$PR_STUB:$PATH" wit_emit_item o r 2 >/dev/null 2>&1)
+  assert_eq "wit_emit_item on gh 2.45 rejects a pull request with not found" "5" "$?"
+  rm -rf "$PR_STUB"
+
   : >"$EMIT_STUB/calls.log"
   GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1 >/dev/null
   CALLS="$(<"$EMIT_STUB/calls.log")"
