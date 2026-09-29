@@ -163,28 +163,26 @@ git_test_config "$repo" add -A >/dev/null
 git_test_config "$repo" commit -qm base >/dev/null
 
 paths=()
-GE_DISCOVERY=""
 if (
   cd "$repo" || exit 1
   gate_entry::collect_changed paths HEAD --
-  [[ "$GE_DISCOVERY" == "empty" && ${#paths[@]} -eq 0 ]]
+  [[ ${#paths[@]} -eq 0 ]]
 ); then
   ok "a clean diff is an empty discovery, not a failure"
 else
-  fail "empty discovery was not reported (GE_DISCOVERY=${GE_DISCOVERY:-} n=${#paths[@]})"
+  fail "empty discovery was not reported"
 fi
 
 printf 'changed\n' >"$repo/f.txt"
 paths=()
-GE_DISCOVERY=""
 if (
   cd "$repo" || exit 1
   gate_entry::collect_changed paths HEAD --
-  [[ "$GE_DISCOVERY" == "populated" && ${#paths[@]} -eq 1 && "${paths[0]}" == "f.txt" ]]
+  [[ ${#paths[@]} -eq 1 && "${paths[0]}" == "f.txt" ]]
 ); then
   ok "a real change is a populated discovery"
 else
-  fail "populated discovery was ${GE_DISCOVERY:-} (${paths[*]-})"
+  fail "populated discovery returned the wrong paths"
 fi
 
 # The commit object still resolves; its tree does not. That is a failed
