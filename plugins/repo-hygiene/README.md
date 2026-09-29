@@ -13,7 +13,7 @@ guard.
 `/repo-hygiene:clean <action>` routes every action below. Bare invocation infers
 intent from the conversation, or presents a menu and falls back to the safe `scan`.
 `/repo-hygiene:setup` is the separate, read-only prerequisite check. It verifies
-`git`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
+`git`, `node`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
 nothing.
 
 | Action | What it does | Risk |
@@ -44,6 +44,20 @@ ad-hoc loop. A skip entry that matches nothing is reported, never silently ignor
 ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
 ```
 
+### Multi-repo audits (read-only)
+
+The branch and stash audits take the same repo selection as the batch tiers
+(`--repo`, `--repos-from`, `--skip`, `--skip-from`) and print one `Repo: <path>`
+block per repository. Linked worktrees of one repository are audited once, a
+failing repo is reported without stopping the rest, and each repo writes its own
+branch-tip capture (`--capture-file` is refused with more than one repo).
+Deletion is not batched: run the delete from inside the audited repo, with that
+repo's `TipCapture:` path.
+
+```shell
+ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from -
+```
+
 ## Safety model
 
 - **Dry-run-first, always.** No tier applies on the first invocation; the agent
@@ -62,9 +76,9 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   `git checkout --`, recursive `Remove-Item`, the clean scripts when the command
   contains `--apply`, and `git worktree remove` with a force flag. A dry-run is
   not blocked. The confirmed command runs only through the skill's own gate.
-  It does not match `git branch -D` or
-  `git push --delete` (#3852); local branch deletion goes through
-  `git-branch-delete.sh` after the confirmation gate. Kill switch: the `clean_destructive_guard_enabled`
+  As of 2026-09-29 it does not match `git branch -D` or `git push --delete`;
+  whether it should is an open owner decision on #3852. The skill deletes local
+  branches with `git-branch-delete.sh` after the confirmation gate. Kill switch: the `clean_destructive_guard_enabled`
   userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or
   `claude plugin install repo-hygiene@<marketplace> --config clean_destructive_guard_enabled=false`),
   both user-scoped. To disable per repository, disable the plugin in that project's
@@ -81,6 +95,15 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   assumes a specific repo's directory structure.
 - Conservative by default: the protected-path and preserve lists err toward
   keeping a consumer's dependencies, credentials, and IDE state.
+
+## Requirements
+
+- `git` on PATH.
+- Node.js on PATH. Every hook row runs `node hooks/exec-bash.mjs`, and Claude Code's native binary
+  neither ships nor uses Node, so without it the destructive guard does not launch and is not
+  enforced.
+- `bash`: found on PATH, then `/bin/bash` and `/usr/bin/bash`; on Windows, Git Bash.
+- `ghq` (optional) for the fleet batch actions' repository enumeration.
 
 ## Install
 
