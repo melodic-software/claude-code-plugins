@@ -75,7 +75,7 @@ import argparse
 import json
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NoReturn, cast
@@ -133,6 +133,16 @@ def _as_list(value: Any) -> list[Any]:
     return cast(list[Any], value) if isinstance(value, list) else []
 
 
+_PLUGIN_PATH_RE = re.compile(r"/plugins/(?:cache|marketplaces)/[^/]+/([^/]+)/")
+
+
+def _record_hook_event(metrics: dict[str, Any], event_name: Any, command: Any) -> None:
+    """Count one hook event under the plugin its command path names, if any."""
+    match = _PLUGIN_PATH_RE.search(command) if isinstance(command, str) else None
+    if match:
+        metrics["plugin_hooks"][match.group(1)][str(event_name or "unknown")] += 1
+
+
 def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) -> None:
     """Single-pass: count tool uses and extract file paths from Write/Edit."""
     for raw_item in content:
@@ -143,6 +153,10 @@ def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) 
             continue
         name = str(item.get("name", "unknown"))
         metrics["tool_usage"][name] += 1
+        if name == "Skill":
+            skill = _as_dict(item.get("input")).get("skill")
+            if isinstance(skill, str) and re.fullmatch(r"[^:\s]+:[^:\s]+", skill):
+                metrics["plugin_skills"][skill] += 1
         if name in _FILE_MODIFYING_TOOLS:
             fp_candidate = _as_dict(item.get("input")).get("file_path")
             if isinstance(fp_candidate, str) and fp_candidate:
@@ -179,6 +193,8 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
         "queued_messages": 0,
+        "plugin_skills": Counter(),
+        "plugin_hooks": defaultdict(Counter),
     }
 
     with filepath.open(encoding="utf-8", errors="replace") as f:
@@ -296,6 +312,19 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
                                     "hook_errors": event.get("hookErrors", []),
                                 }
                             )
+                            for info in _as_list(event.get("hookInfos")):
+                                _record_hook_event(
+                                    metrics, "Stop", _as_dict(info).get("command")
+                                )
+
+                case "attachment":
+                    att = _as_dict(event.get("attachment"))
+                    if str(att.get("type", "")).startswith("hook_"):
+                        _record_hook_event(
+                            metrics,
+                            att.get("hookEvent") or att.get("hookName"),
+                            att.get("command"),
+                        )
 
                 case "queue-operation":
                     if event.get("operation") == "enqueue":
@@ -475,6 +504,13 @@ def build_session_data(
             "hook_errors": sum(
                 len(h["hook_errors"]) for h in metrics["hook_summaries"]
             ),
+        },
+        "plugin_usage": {
+            "skills": dict(metrics["plugin_skills"].most_common()),
+            "hooks": {
+                plugin: dict(events.most_common())
+                for plugin, events in sorted(metrics["plugin_hooks"].items())
+            },
         },
         "files_modified": sorted(metrics["files_modified"]),
         "subagents": subagents,
