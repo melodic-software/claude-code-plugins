@@ -41,8 +41,11 @@ save-point engine, different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional:
+`$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
 
+- **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
+  changes only the `/export` step (record the suggestion in output, do not ask) and is never read as
+  the topic or a method; the Method rule below then applies to the next token.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").

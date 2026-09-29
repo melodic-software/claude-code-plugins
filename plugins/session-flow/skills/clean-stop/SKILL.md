@@ -27,6 +27,11 @@ save-point, and a save-point that dies with the disk is no save-point.
 clean-stop leaves the resumable state where it survives the machine, in the
 PR and issue bodies on the remote.
 
+## Arguments
+
+`unattended` is the only argument. It only gates the `/export` step (record the suggestion in
+output, do not ask); remote artifacts are always created without prompting, as step 3 states.
+
 ## Steps
 
 1. **Inspect first, never assume.** Enumerate every repository and worktree
