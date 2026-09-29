@@ -166,9 +166,10 @@
     {
       "id": 14,
       "name": "routing-only-root-claude-md-is-already-a-pointer",
-      "prompt": "Run a sweep whose only document is evals/fixtures/root-claude-md-routing.md relative to the skill directory. Treat it as the repository's root CLAUDE.md, which loads at session start. Its git log shows only ordinary edits, no commit that records a decision about it. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
+      "prompt": "Run a sweep whose only document is the repository's root CLAUDE.md, which loads at session start. Its full text is: \"# acme-billing. Where to look. This file states no rules and no rationale. Build, test, and lint commands: README.md, 'Development'. CI checks and what each one gates: the header comment of .github/workflows/ci.yml. Pull request title and body format: .claude/rules/pr-body-contract.md. Service settings and their values: config/settings.json. Module layout: the src/ directory tree.\" Every pointer target exists. Its git log shows only ordinary edits, no commit that records a decision about it. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
       "expected_output": "Grades the file on the routing row of Factor 1, not as derivable-from-code: it holds pointers only ('fact X lives at Y'), and because it loads at launch it is what tells the agent where to look. Verdict `convert-to-pointer (already satisfied)`: no new pointer to write, not actionable, never `delete`. Checks git log first and finds no recorded decision. The aggregate line counts the file (1 convert-to-pointer) and the confirmed-actionable subset is empty. A spot-test, if run, uses an Explore or Plan agent (the file is launch-loaded) and asks for the substantive conclusions the pointer targets own, not the trigger question 'what does this file tell you to read?'.",
-      "files": ["evals/fixtures/root-claude-md-routing.md"],
+      "files": [],
+      "narration": true,
       "expectations": [
         "The verdict is `convert-to-pointer (already satisfied)`, not `delete` and not `keep-owns-facts`",
         "The file is excluded from the confirmed-actionable subset, and no work-item routing is offered for it",
