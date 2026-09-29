@@ -1,0 +1,12 @@
+// source: pocock T1
+// expect: rule-constant-restatement
+// "The test essentially reasserted the implementation": the limit is compared
+// to its own literal, so a rename fails the test and a broken validator does not.
+import { describe, expect, it } from 'vitest';
+import { X_POST_CHARACTER_LIMIT } from '../src/post';
+
+describe('post limits', () => {
+  it('caps a post at 280 characters', () => {
+    expect(X_POST_CHARACTER_LIMIT).toBe(280);
+  });
+});

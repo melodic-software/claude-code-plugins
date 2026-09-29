@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.18] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.24.17] - 2026-09-29
 
 ### Fixed

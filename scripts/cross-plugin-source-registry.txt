@@ -73,6 +73,15 @@ context/recommendation-basis.md
 # identical; copy any one of them over the others to fix a drift failure.
 hooks/probe-prerequisite.sh
 
+# No dedicated check: the telemetry-sink test helper each carrying plugin
+# ships, because only the plugin directory installs. Canonical copy:
+# lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
+hooks/hook-test-sink.sh
+
+# No dedicated check: cluster line for the duplication audit. Canonical copy:
+# lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
+lib/hook-test-sink.sh -> plugins/*/hooks/hook-test-sink.sh
+
 # Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
 lib/spawn_noise.py
 

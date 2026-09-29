@@ -1,12 +1,9 @@
 # docs-hygiene plugin contract
 
-Status: proposed. Not yet ratified by the owner;
-[#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142)
-is open for that decision. The Decision below records what an unattended agent
-chose and binds nothing until ratified.
-
-Once ratified, a future skill is measured against this charter, not against
-whether it feels adjacent.
+Status: ratified by the owner on
+[#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142).
+A future skill is measured against this charter, not against whether it feels
+adjacent.
 
 ## What the plugin is
 
@@ -44,26 +41,34 @@ tracked markdown a repository maintains.
 4. **Not a commit or PR authoring tool.** `source-control` owns commit-message
    shape and the marketplace owns PR-body sections.
 5. **Not an auto-applier.** Every skill here that changes a file does it
-   behind a human gate, per file. The file-name findings artifact does not
-   declare `type: review-findings`, because that type is auto-applicable by
+   only when the user opts in, behind a confirmation per invocation or per
+   batch. File-name renames are gated per file: `realign-file-names` accepts
+   one file at a time. The file-name findings artifact does not declare
+   `type: review-findings`, because that type is auto-applicable by
    construction.
 
 ## Listing budget and the file-name set
 
-**Decision.** Accept the five-concern charter and the five boundaries.
-Do not split the file-name set into a `docs-naming` plugin in this change.
-Hold the line on adding a listed skill until a separately briefed extraction
-exists. Do not grow by name-only listing: discovery that depends on a
-`## Next` chain is how a skill becomes unloadable.
+**Decision.** Accept the five-concern charter and the five boundaries. The
+only listing-budget rule is the 8,000 default in
+`plugins/skill-quality/scripts/check-listing-budget.sh`. Do not grow by
+name-only listing: discovery that depends on a `## Next` chain is how a skill
+becomes unloadable.
+
+The four file-name skills (`setup`, `audit-file-names`, `realign-file-names`,
+`generate-file-name-gate`) move to a `docs-naming` plugin, tracked in
+[#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348).
+The extraction is not part of this change; the shared audit router is decided
+with the split.
 
 - **Claim:** the five-concern charter and five boundaries above are the
-  plugin's contract; a `docs-naming` extraction is not this issue's work.
-- **Basis:** #4142's own proposal (five concerns, five boundaries, three ways
-  out of the listing-budget squeeze). After #4661,
-  `check-listing-budget.sh plugins/docs-hygiene/skills` reads 5,234 / 8,000, so
-  the 2026-09 squeeze that motivated an immediate split is no longer the
-  design authority.
-- **As of:** 2026-09-28.
-- **Recheck:** a listed-skill addition that would push this plugin's
-  listing-budget estimate back over 7,500, or a briefed `docs-naming`
-  extraction PR.
+  plugin's contract, and the listing budget is governed only by
+  `check-listing-budget.sh` at 8,000.
+- **Basis:** the owner decision comment on
+  [#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142)
+  (2026-09-29); `check-listing-budget.sh plugins/docs-hygiene/skills` reads
+  5,234 / 8,000.
+- **As of:** 2026-09-29.
+- **Recheck:** a listed-skill addition that makes `check-listing-budget.sh`
+  report over budget at 8,000 (`WARN`; the script exits 0), or the `docs-naming`
+  extraction PR landing.

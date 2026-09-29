@@ -1,0 +1,9 @@
+// expect: rule-snapshot-only
+// The stored snapshot is the only oracle: a wrong receipt approved once
+// stays green.
+import { renderReceipt } from '../src/receipt';
+
+test('renders the receipt', () => {
+  const tree = renderReceipt({ id: 3, lines: [['tea', 4]] });
+  expect(tree).toMatchSnapshot();
+});
