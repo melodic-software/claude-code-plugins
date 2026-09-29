@@ -3,7 +3,7 @@
 # picks the adapter for each file, and aggregates; this program judges ONE test
 # file per invocation.
 #
-# Invocation: awk -v ADAPTER=<id> -v ADAPTER_TABLE=<path> -f mask-js.awk -f cant-fail-scan.awk <file>
+# Invocation: awk -v ADAPTER=<id> -v ADAPTER_TABLE=<path> [-v SCOPE=<n[-m],...>] -f mask-js.awk -f cant-fail-scan.awk <file>
 #
 # ADAPTER_TABLE is adapter-load.awk's output over the adapters/ directory. All
 # framework vocabulary (test starts, skips, assertion tokens, mocks, equality
@@ -44,6 +44,11 @@ BEGIN {
   sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only  # spellchecker:disable-line
   sr_depth = 0
   last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
+  NS = split(SCOPE, scope_parts, ",")
+  for (i = 1; i <= NS; i++) {
+    S_LO[i] = S_HI[i] = scope_parts[i] + 0
+    if (scope_parts[i] ~ /-/) S_HI[i] = substr(scope_parts[i], index(scope_parts[i], "-") + 1) + 0
+  }
   load_adapter()
 }
 
@@ -273,8 +278,20 @@ function split_top_eq(s,    i, n, c, d, q, hits, pos) {
   return 1
 }
 
-function emit(kind, slug, line, detail) {
-  printf "%s\t%s\t%d\t%s\n", kind, slug, line, clean_detail(detail)
+# SCOPE (driver --lines) keeps only findings whose test block overlaps one of
+# its ranges. A line-scoped finding inside an open block waits in PEND until
+# the block closes and its extent is known.
+function in_scope(lo, hi,    i) {
+  for (i = 1; i <= NS; i++) if (S_LO[i] <= hi && S_HI[i] >= lo) return 1
+  return 0
+}
+
+function emit(kind, slug, line, detail,    rec) {
+  rec = sprintf("%s\t%s\t%d\t%s\n", kind, slug, line, clean_detail(detail))
+  if (SCOPE == "") printf "%s", rec
+  else if (closing) { if (in_scope(block_line, FNR)) printf "%s", rec }
+  else if (in_test) PEND = PEND rec
+  else if (in_scope(line, line)) printf "%s", rec
 }
 
 # ---------------------------------------------------------------------------
@@ -375,7 +392,12 @@ function append_block(m, r) {
   if (r ~ R_EXEMPT) block_exempt = 1
 }
 
-function close_block() { in_test = 0; eval_block() }
+function close_block() {
+  in_test = 0
+  if (PEND != "" && in_scope(block_line, FNR)) printf "%s", PEND
+  PEND = ""
+  closing = 1; eval_block(); closing = 0
+}
 
 # A C# test body starting on this line: a "{" opens a brace body, a "=>" opens
 # an expression body that a trailing ";" closes on the same line.

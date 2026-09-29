@@ -90,7 +90,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--file <path>] [--check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | --findings | --count | --help]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
   --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
@@ -102,6 +102,8 @@ Usage: cant-fail-scan.sh [--file <path>] [--check [--strict] | --findings | --co
               refuses (exit 2) when no test file was examined or no branch is checked out
   --count     integer finding count on stdout, coverage block on stderr
   --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
+  --lines <l> with --file: report only findings whose test block overlaps these lines
+              (a list like 12,20-24), for an edit hook scoped to what the edit changed
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
 testing/audit/rule-mock-only-oracle, and over each Playwright config found,
@@ -115,6 +117,7 @@ EOF
 mode="report"
 strict=0
 FILE=""
+LINES=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
@@ -132,6 +135,14 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     FILE="$2"
+    shift
+    ;;
+  --lines)
+    if [[ $# -lt 2 || ! "$2" =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]]; then
+      printf 'ERROR: --lines needs a list like 12,20-24\n' >&2
+      exit 2
+    fi
+    LINES="$2"
     shift
     ;;
   *)
@@ -163,6 +174,10 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
+if [[ -n "$LINES" && -z "$FILE" ]]; then
+  printf 'ERROR: --lines needs --file\n' >&2
+  exit 2
+fi
 ROOT_SOURCE=""
 if [[ -n "$FILE" ]]; then
   if [[ ! -f "$FILE" ]]; then
@@ -383,7 +398,7 @@ scan_one() {
     E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
     *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
-  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" \
+  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" \
     -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
 }
 

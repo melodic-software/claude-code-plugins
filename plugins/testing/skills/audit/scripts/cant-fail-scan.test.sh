@@ -753,6 +753,23 @@ assert_exit "--file on a missing path refuses (exit 2)" 2 "$rc"
 run_file --file
 assert_exit "--file without a value refuses (exit 2)" 2 "$rc"
 
+# --lines: report only findings whose test block overlaps the named lines, so an
+# edit hook stays quiet on blocks the edit never touched (hook-precision rule 1).
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12
+assert_contains "--lines keeps the finding of the block it touches" "$out" "cant-fail-js.test.js:11: test 'adds numbers'"
+assert_not_contains "--lines drops a finding in an untouched block" "$out" "cant-fail-js.test.js:8:"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 7
+assert_contains "--lines keeps a line-scoped finding when its block is touched elsewhere" "$out" "cant-fail-js.test.js:8:"
+assert_not_contains "--lines keeps only that block" "$out" "cant-fail-js.test.js:11:"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 3,25-26 --count
+assert_matches "--lines takes a list of lines and ranges" "$out" '^1$'
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 1-4 --count
+assert_matches "--lines outside every block reports nothing" "$out" '^0$'
+run_file --lines 12
+assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x
+assert_exit "--lines with a malformed list refuses (exit 2)" 2 "$rc"
+
 # --- adapter-load.awk: the YAML-subset adapter loader --------------------------
 # Driven through awk directly. Output is one `id<TAB>key<TAB>value` record per
 # scalar and per list item; anything outside the subset exits 2 naming the file
