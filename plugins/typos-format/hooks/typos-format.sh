@@ -152,8 +152,8 @@ fi
 # No binary available → visible once-per-session skip notice, not a silent gap
 # (dim-9 doctrine).
 if [[ -z "$TYPOS_BIN" ]]; then
-  if hook::notice_once "typos-format-typos" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/crate-ci/typos#install
+  if hook::notice_once "typos-format-typos" "$INPUT" prerequisite; then
+    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; this notice latches once per session, shared by every agent, and is renewed every eighth skip with the install route kept). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/crate-ci/typos#install
 PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped

@@ -3,11 +3,18 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **The missing-`typos` notice uses the `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** It latches once per session, shared by every agent, instead of once per session and agent, and the renewal on every eighth skip keeps the install route. The notice text says so. The missing-`jq` notice keeps its per-session-and-agent latch.
+- CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship.
+
 ## [0.7.5] - 2026-09-28
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `typos-format` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `biome-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
 
 ## [0.7.4] - 2026-09-28
 

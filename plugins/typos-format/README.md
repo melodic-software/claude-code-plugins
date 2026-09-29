@@ -114,7 +114,8 @@ the tools reference).
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session and agent, renewed every eighth skip.
+  present, the hook skips with a visible notice, once per session (all agents share the latch),
+  renewed every eighth skip with the install route kept.
   [Install typos](https://github.com/crate-ci/typos#install).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
@@ -354,7 +355,7 @@ per-edit critical path, but it gives up more than it saves:
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session and agent, renewed every eighth skip) that `typos` is not on `PATH`. An async hook's
+  mode) and for the notice (once per session, shared by all agents, renewed every eighth skip with the install route kept) that `typos` is not on `PATH`. An async hook's
   `systemMessage` is not shown to you, so that notice would reach only Claude, once, and the skip
   would be invisible to the person who can install the binary.
 
