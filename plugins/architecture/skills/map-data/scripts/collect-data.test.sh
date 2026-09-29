@@ -236,6 +236,79 @@ bash "$RENDER" --record "$TEST_TMPDIR/ef.json" --out "$TEST_TMPDIR/ef-out" --dia
 efmd="$(cat "$TEST_TMPDIR/ef-out/data-model.md")"
 assert_contains "ef diagram" "$efmd" 'User ||--o{ Post'
 
+# --- EF docs standard shape: entity classes plus IEntityTypeConfiguration ----
+mk_ef_docs_repo() {
+  local dir="$1" fk_type="$2" required="$3"
+  init_repo "$dir"
+  mkdir -p "$dir/src"
+  cat >"$dir/src/Blog.cs" <<'CS'
+public class Blog
+{
+    public int BlogId { get; set; }
+    public ICollection<Post> Posts { get; set; }
+}
+CS
+  cat >"$dir/src/Post.cs" <<CS
+public class Post
+{
+    public int PostId { get; set; }
+    public $fk_type BlogId { get; set; }
+    public Blog Blog { get; set; }
+}
+CS
+  cat >"$dir/src/PostConfiguration.cs" <<CS
+public class PostConfiguration : IEntityTypeConfiguration<Post>
+{
+    public void Configure(EntityTypeBuilder<Post> builder)
+    {
+        builder.HasOne(e => e.Blog).WithMany(e => e.Posts).HasForeignKey(e => e.BlogId)$required;
+    }
+}
+CS
+  commit_all "$dir"
+}
+
+mk_ef_docs_repo "$TEST_TMPDIR/ef-docs-req" "int" ".IsRequired()"
+bash "$COLLECT" --repo "$TEST_TMPDIR/ef-docs-req" --out "$TEST_TMPDIR/ef-docs-req.json" --generated-on 2026-09-28
+efreq="$(cat "$TEST_TMPDIR/ef-docs-req.json")"
+assert_contains "ef config class tier" "$efreq" '"source_tier": "orm"'
+assert_contains "ef config class cardinality" "$efreq" '"cardinality":"||--o{"'
+assert_contains "ef config class direction" "$efreq" '"from":"src/Post","to":"src/Blog"'
+bash "$RENDER" --record "$TEST_TMPDIR/ef-docs-req.json" --out "$TEST_TMPDIR/ef-docs-req-out" --dialect mermaid >/dev/null
+assert_contains "ef config class diagram" "$(cat "$TEST_TMPDIR/ef-docs-req-out/data-model.md")" 'Blog ||--o{ Post'
+
+mk_ef_docs_repo "$TEST_TMPDIR/ef-docs-nullable" "int?" ""
+bash "$COLLECT" --repo "$TEST_TMPDIR/ef-docs-nullable" --out "$TEST_TMPDIR/ef-docs-nullable.json" --generated-on 2026-09-28
+efnull="$(cat "$TEST_TMPDIR/ef-docs-nullable.json")"
+assert_contains "ef nullable fk cardinality" "$efnull" '"cardinality":"|o--o{"'
+assert_contains "ef nullable fk optional" "$efnull" '"optional":"yes"'
+
+mk_ef_docs_repo "$TEST_TMPDIR/ef-docs-nonnull" "int" ""
+bash "$COLLECT" --repo "$TEST_TMPDIR/ef-docs-nonnull" --out "$TEST_TMPDIR/ef-docs-nonnull.json" --generated-on 2026-09-28
+efnn="$(cat "$TEST_TMPDIR/ef-docs-nonnull.json")"
+assert_contains "ef non-nullable fk cardinality" "$efnn" '"cardinality":"||--o{"'
+assert_contains "ef non-nullable fk optional" "$efnn" '"optional":"no"'
+
+repo_efx="$TEST_TMPDIR/ef-docs-refused"
+init_repo "$repo_efx"
+mkdir -p "$repo_efx/src"
+cat >"$repo_efx/src/PostConfiguration.cs" <<'CS'
+public class PostConfiguration : IEntityTypeConfiguration<Post>
+{
+    public void Configure(EntityTypeBuilder<Post> builder)
+    {
+        builder.HasOne(e => e.Blog).WithMany(e => e.Posts).HasForeignKey(e => new { e.A, e.B });
+        builder.HasOne(e => e.Author).WithMany().HasForeignKey(e => e.AuthorId);
+    }
+}
+CS
+commit_all "$repo_efx"
+bash "$COLLECT" --repo "$repo_efx" --out "$TEST_TMPDIR/ef-docs-refused.json" --generated-on 2026-09-28
+efref="$(cat "$TEST_TMPDIR/ef-docs-refused.json")"
+assert_contains "ef unreadable chain refused" "$efref" '"status": "refused"'
+assert_contains "ef unreadable chain reason" "$efref" 'ef-fluent-unreadable'
+assert_not_contains "ef unreadable chain emits no relationship" "$efref" '"tool":"ef-fluent"'
+
 # --- dialect resolver -------------------------------------------------------
 # shellcheck disable=SC2016 # the fence is literal markdown, not a command substitution
 printf '```yaml\ndiagram_dialect:\n  data: dbml\n```\n' >"$TEST_TMPDIR/formats.md"
