@@ -52,10 +52,16 @@ line. Do not pretty-print it. A reader given another layout exits 1.
 The message says which manifests were found. That is the answer. Do not draw a diagram,
 and do not fill the arrays by hand. An empty graph is `result` `ok` with project nodes
 and no edges. Read it as a repository that declares no references only when no
-`unread-reference-tags` finding exists; that finding means the collector skipped reference
-tags in a file, and the edge list is short by that count.
+`unread-reference-tags` or `unread-manifest` finding exists. The first means the collector
+skipped reference tags in a file, and the edge list is short by that count. The second
+means a manifest holds a declaration whose shape no reader handles; its evidence is the
+file, a colon, and the declaration skipped, one finding per declaration.
 
-The first adapter is .NET:
+Every shipped adapter whose manifests are present runs, and their nodes, edges and
+findings are one record. `ecosystem` is the adapter's name when one ran, `mixed` when
+more than one ran, and `unknown` when none did. Each node carries its own `ecosystem`.
+
+The .NET adapter:
 
 - `ProjectReference` is a directed internal edge. The target is the `Include` path
   relative to the project file. A target that is missing, or that resolves outside the
@@ -107,8 +113,9 @@ says it aggregated to directory level.
 - **Counts**: quote the summary line. Do not count nodes by hand.
 - **Unresolved**: how many project references and solution memberships did not resolve,
   and that none of them were matched by file name.
-- **Unread**: the `unread_files` count, and each file and tag count from the
-  `unread-reference-tags` findings.
+- **Unread**: the `unread_files` count, each file and tag count from the
+  `unread-reference-tags` findings, and each skipped declaration from the
+  `unread-manifest` findings.
 - **Cycles**: the cycle lines, or none. Each line is one witness cycle for a group of
   projects that depend on each other, not every cycle in the group.
 - **Aggregation**: `no`, or `yes` with the threshold the artifact states.
@@ -158,7 +165,8 @@ The component view reads dependency-graph.json.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and
   devcontainer directories are not walked. A project that lives only there is absent.
 - **A solution folder is not a project.** Only paths ending in `.csproj` or `.fsproj`
-  are membership.
+  are membership. A member with another project extension (`.vbproj`, `.sqlproj`) is an
+  `unread-manifest` finding.
 - **Aggregation is a view.** `dependency-graph.json` stays one node per project. The
   markdown says when the flowchart collapsed to directories.
 - **The flowchart does not follow `landscape_dialect`.** That key is the system landscape.

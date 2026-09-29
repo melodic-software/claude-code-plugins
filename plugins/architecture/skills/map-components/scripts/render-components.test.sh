@@ -439,6 +439,37 @@ assert_contains "unknown: the writer's message names the manifest" "$unk" 'packa
 assert_not_contains "unknown: no diagram" "$unk" '@startuml'
 assert_contains "unknown: summary is thin" "$(cat "$TEST_TMPDIR/node-only.out")" 'thin=yes'
 
+# Any ecosystem name other than unknown renders, including mixed; each node
+# names its own ecosystem as the component technology.
+cat >"$TEST_TMPDIR/mixed.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "result": "ok",
+  "message": "",
+  "ecosystem": "mixed",
+  "node_threshold": 40,
+  "cycles_truncated": false,
+  "nodes": [
+    {"id":"svc/Api.csproj","name":"Api","path":"svc/Api.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"svc/Core.csproj","name":"Core","path":"svc/Core.csproj","ecosystem":"dotnet","kind":"project"}
+  ],
+  "edges": [
+    {"from":"svc/Api.csproj","to":"svc/Core.csproj","kind":"project","status":"resolved","evidence":"svc/Api.csproj: <ProjectReference Include=\"Core.csproj\" />"}
+  ],
+  "cycles": [],
+  "findings": [
+    {"kind":"unread-manifest","path":"App.sln","evidence":"App.sln: Project(\"{F184B08F}\") = \"Db\", \"db\\Db.vbproj\", \"{1}\""}
+  ]
+}
+JSON
+render mixed --graph "$TEST_TMPDIR/mixed.json"
+assert_equals "mixed: exits 0" "$?" "0"
+assert_contains "mixed: charts the components" "$(cat "$TEST_TMPDIR/mixed.out")" 'components=2'
+assert_contains "mixed: a component names its node ecosystem" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'Component('
+# shellcheck disable=SC2016
+assert_not_contains "mixed: is not the unknown result" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'ecosystem `unknown`'
+
 # Test projects are not deployables. The layered fixture is the one the
 # grouping cases below use: Api <- Application <- Domain, Domain.Events beside
 # Domain, and two test projects that reference the host and the library.

@@ -57,7 +57,8 @@
 #
 # A single project with no internal edges is a thin result: components.md says
 # so and names the neighboring rungs, and no one-box diagram is written.
-# ecosystem "unknown" writes the record's message and no diagram.
+# ecosystem "unknown" writes the record's message and no diagram. Any other
+# ecosystem name, including "mixed" (more than one reader ran), is charted.
 #
 # Prints one summary line on stdout:
 #

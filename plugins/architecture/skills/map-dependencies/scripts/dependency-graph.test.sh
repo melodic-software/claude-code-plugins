@@ -282,6 +282,61 @@ assert_contains "global.json alone: result unknown" "$sdk_json" '"result": "unkn
 assert_contains "global.json alone: names the file" "$sdk_json" "global.json"
 assert_contains "global.json alone: does not invent an empty graph" "$sdk_json" "did not invent an empty graph"
 
+# A solution member the .NET reader does not handle is an unread-manifest
+# finding that cites the solution file and the skipped declaration; a solution
+# folder is not one.
+unread="$(make_tree unread-manifest)"
+mkdir -p "$unread/src/App" "$unread/db"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"></Project>' >"$unread/src/App/App.csproj"
+printf '%s\n' '<Project></Project>' >"$unread/db/Db.vbproj"
+cat >"$unread/App.sln" <<'SLN'
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App", "src\App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "Db", "db\Db.vbproj", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B6356EE}") = "Setup", "setup\Setup.wixproj", "{33333333-3333-3333-3333-333333333333}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{44444444-4444-4444-4444-444444444444}"
+EndProject
+SLN
+unread_json="$(bash "$GRAPH" "$unread")"
+unread_findings="$(printf '%s\n' "$unread_json" | grep '"kind":"unread-manifest"')"
+assert_contains "unread-manifest: the skipped project type is a finding" "$unread_findings" '"kind":"unread-manifest","path":"App.sln"'
+assert_contains "unread-manifest: evidence is the file and the declaration" "$unread_findings" 'App.sln: Project(\"{F184B08F-C81C-45F6-A57F-5ABD9991F28F}\") = \"Db\", \"db\\Db.vbproj\"'
+assert_equals "unread-manifest: one finding per skipped declaration" "$(printf '%s\n' "$unread_findings" | grep -c .)" "2"
+assert_not_contains "unread-manifest: a solution folder is not a finding" "$unread_findings" '\"src\", \"src\"'
+assert_contains "unread-manifest: the supported member is still a node" "$unread_json" '"id":"src/App/App.csproj"'
+assert_not_contains "unread-manifest: the skipped project is not a node" "$unread_json" '"id":"db/Db.vbproj"'
+assert_equals "unread-manifest: a rerun is byte-identical" "$(bash "$GRAPH" "$unread")" "$unread_json"
+mkdir -p "$TEST_TMPDIR/out-unread"
+printf '%s\n' "$unread_json" >"$TEST_TMPDIR/out-unread/dependency-graph.json"
+unread_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/dependency-graph.json" --out "$TEST_TMPDIR/out-unread")"
+assert_contains "unread-manifest: the summary counts the file once" "$unread_summary" "unread_files=1"
+assert_contains "unread-manifest: the artifact lists the skipped declaration" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" 'Db.vbproj'
+
+# A record of more than one ecosystem names them.
+cat >"$TEST_TMPDIR/out-unread/mixed.json" <<'EOF'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "result": "ok",
+  "message": "",
+  "ecosystem": "mixed",
+  "node_threshold": 40,
+  "cycles_truncated": false,
+  "nodes": [
+    {"id":"a/A.csproj","name":"A","path":"a/A.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node","kind":"project"}
+  ],
+  "edges": [],
+  "cycles": [],
+  "findings": []
+}
+EOF
+mixed_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/mixed.json" --out "$TEST_TMPDIR/out-unread")"
+assert_contains "mixed: summary names the ecosystem" "$mixed_summary" "ecosystem=mixed"
+assert_contains "mixed: artifact lists the ecosystems read" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" "- Ecosystems read: dotnet, node"
+
 mkdir -p "$TEST_TMPDIR/out-bad"
 cat >"$TEST_TMPDIR/pretty.json" <<'EOF'
 {

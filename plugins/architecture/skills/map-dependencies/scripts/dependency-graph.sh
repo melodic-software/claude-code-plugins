@@ -36,7 +36,7 @@
 #     "generated_on": "YYYY-MM-DD" | "unknown",
 #     "result": "ok" | "unknown",
 #     "message": "...",
-#     "ecosystem": "dotnet" | "unknown",
+#     "ecosystem": "<name>" | "mixed" | "unknown",
 #     "node_threshold": 40,
 #     "cycles_truncated": false,
 #     "nodes": [ <one node object per line> ],
@@ -47,8 +47,11 @@
 #
 #   node     {"id","name","path","ecosystem","kind"} plus, on a project, the
 #            optional "namespace" and "test" fields.
+#            ecosystem is the name of the reader that produced the node.
 #            kind is "project" or "package". id of a project is its
 #            repo-relative path. id of a package is "pkg:" plus the Include.
+#            Nodes with the same id are one node, so a reader other than .NET
+#            puts its ecosystem name after the colon ("pkg:<ecosystem>:<name>").
 #            namespace is the project file's RootNamespace, else its
 #            AssemblyName, and is omitted when neither is a literal value.
 #            test is "yes" on a test project (IsTestProject true, or a
@@ -72,17 +75,30 @@
 #            reference tags this run did not turn into an edge. evidence is the
 #            file, a colon, and the count. A graph with this finding is not a
 #            complete list of that file's references.
+#            kind "unread-manifest" is a declaration in a manifest whose shape
+#            a reader does not handle. path is the manifest. evidence is that
+#            file, a colon, and the declaration it skipped, one finding per
+#            declaration. A graph with this finding is not a complete list of
+#            that manifest's dependencies.
+#
+# Every shipped reader whose manifests are present runs, and their nodes, edges
+# and findings are merged into one record. The top-level ecosystem is the name
+# of the one reader that ran, "mixed" when more than one ran, and "unknown"
+# when none did. A reader of schema_version 1 that does not know a new
+# ecosystem name or finding kind still finds every field it reads.
 #
 # result "unknown" means this run did not read a shipped adapter. The arrays
 # are empty and message says why. That is not an empty graph: an empty graph
 # is result "ok" with project nodes and no edges.
 #
-# The first shipped adapter is .NET. ProjectReference is a directed internal
+# The .NET adapter: ProjectReference is a directed internal
 # edge whose target is the Include path relative to the project file.
 # PackageReference is an external package edge. A ProjectReference that is
 # missing or escapes the repository root is status "unresolved" and is never
 # matched to a similarly named project elsewhere. Solution files
-# (*.sln, *.slnx) contribute membership, not dependency edges.
+# (*.sln, *.slnx) contribute membership, not dependency edges. A member whose
+# path ends in another project extension (.vbproj, .sqlproj, ...) is an
+# unread-manifest finding.
 #
 # A Directory.Build.props or Directory.Build.targets reference is an edge from
 # every project whose nearest such file, walking up from the project, is that
@@ -110,6 +126,8 @@
 #
 # Exit: 0 = a document was emitted (result ok or unknown); 1 = the path is
 # not a readable directory or --out cannot be written; 2 = usage.
+
+# shellcheck disable=SC2329 # the readers and their helpers are called as "read_$eco".
 set -uo pipefail
 
 NODE_THRESHOLD=40
@@ -281,6 +299,10 @@ node_ids=()
 node_names=()
 node_paths=()
 node_kinds=()
+node_ecos=()
+
+# The reader that is running; the dispatch below sets it.
+CUR_ECO=""
 
 add_node() {
   local id="$1" name="$2" path="$3" kind="$4"
@@ -290,6 +312,7 @@ add_node() {
   node_names+=("$name")
   node_paths+=("$path")
   node_kinds+=("$kind")
+  node_ecos+=("$CUR_ECO")
 }
 
 declare -A EDGE_SEEN=()
@@ -320,6 +343,8 @@ finding_evidence=()
 add_finding() {
   local kind="$1" path="$2" evidence="$3" key
   key="${kind}"$'\x1f'"${path}"
+  # One unread-manifest finding per skipped declaration, not per file.
+  [[ "$kind" == "unread-manifest" ]] && key+=$'\x1f'"$evidence"
   [[ -n "${FINDING_SEEN[$key]+x}" ]] && return 0
   FINDING_SEEN[$key]=1
   finding_kind+=("$kind")
@@ -327,9 +352,14 @@ add_finding() {
   finding_evidence+=("$evidence")
 }
 
+# A declaration in manifest $1 whose shape the running reader does not handle.
+add_unread_manifest() {
+  add_finding "unread-manifest" "$1" "$1: $2"
+}
+
 json_node() {
-  local id="$1" name="$2" path="$3" kind="$4" namespace="${5:-}" test="${6:-}"
-  local e_id e_name e_path e_kind extra=""
+  local id="$1" name="$2" path="$3" kind="$4" eco="$5" namespace="${6:-}" test="${7:-}"
+  local e_id e_name e_path e_kind e_eco extra=""
   json_escape "$id"
   e_id="$JSON_ESC"
   json_escape "$name"
@@ -338,13 +368,15 @@ json_node() {
   e_path="$JSON_ESC"
   json_escape "$kind"
   e_kind="$JSON_ESC"
+  json_escape "$eco"
+  e_eco="$JSON_ESC"
   if [[ -n "$namespace" ]]; then
     json_escape "$namespace"
     extra+=",\"namespace\":\"$JSON_ESC\""
   fi
   [[ -n "$test" ]] && extra+=',"test":"yes"'
-  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"%s}' \
-    "$e_id" "$e_name" "$e_path" "$e_kind" "$extra"
+  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"%s","kind":"%s"%s}' \
+    "$e_id" "$e_name" "$e_path" "$e_eco" "$e_kind" "$extra"
 }
 
 # Optional node fields, read from the project file itself: namespace is
@@ -481,6 +513,21 @@ for rel in "${files[@]+"${files[@]}"}"; do
   esac
 done
 
+# Readers. A reader is a pair of functions. has_<name> succeeds when the
+# manifests it reads are present. read_<name> adds their nodes, edges and
+# findings through add_node, add_edge, add_finding and add_unread_manifest.
+# <name> is the ecosystem name that lands in each node's "ecosystem" field, and
+# it is the key a manifest gets in OTHER above once a reader ships. READERS
+# lists the shipped readers, in the order they run.
+READERS=(dotnet)
+readers_list="${READERS[*]}"
+readers_list="${readers_list// /, }"
+
+# A manifest whose ecosystem has a shipped reader is that reader's to read.
+for eco in "${READERS[@]}"; do
+  unset "OTHER[$eco]"
+done
+
 other_msg=""
 if [[ ${#OTHER[@]} -gt 0 ]]; then
   while IFS= read -r eco; do
@@ -490,26 +537,12 @@ if [[ ${#OTHER[@]} -gt 0 ]]; then
   done < <(printf '%s\n' "${!OTHER[@]}" | LC_ALL=C sort)
 fi
 
-result="ok"
-ecosystem="dotnet"
-message=""
-if [[ ${#proj_files[@]} -eq 0 ]]; then
-  result="unknown"
-  ecosystem="unknown"
-  if [[ -n "$other_msg" ]]; then
-    message="Found build manifests for $other_msg and no .NET project file (*.csproj, *.fsproj). That adapter is not shipped, so this run did not invent an empty graph."
-  elif [[ "$has_global_json" -eq 1 ]]; then
-    message="Found global.json and no .NET project file (*.csproj, *.fsproj). global.json names an SDK and declares no project graph, so this run did not invent an empty graph."
-  else
-    message="No recognized build manifest. This run did not invent an empty graph."
-  fi
-else
-  if [[ -n "$other_msg" ]]; then
-    message="Not read: $other_msg. The first adapter is .NET; an unread ecosystem is left unread rather than drawn as an empty graph."
-  fi
+declare -A FILE_RECORDS=()
+declare -A FILE_CONSUMED=()
 
-  declare -A FILE_RECORDS=()
-  declare -A FILE_CONSUMED=()
+has_dotnet() { [[ ${#proj_files[@]} -gt 0 ]]; }
+
+read_dotnet() {
   # Cache one file's reference records in FILE_RECORDS (not in a subshell, so
   # the cache survives).
   load_records() {
@@ -601,7 +634,11 @@ else
       [[ -n "$rec" ]] || continue
       declared="${rec%%$'\t'*}"
       citation="${rec#*$'\t'}"
-      is_proj_suffix "$declared" || continue
+      if ! is_proj_suffix "$declared"; then
+        # Another project type (.vbproj, .sqlproj, ...); a solution folder has no such extension.
+        case "${declared,,}" in *.*proj) add_unread_manifest "$sln_rel" "$citation" ;; *) ;; esac
+        continue
+      fi
       normalized=""
       if normalized="$(normalize_within_root "$sln_dir" "$declared")" &&
         [[ -n "$normalized" && -f "$root/$normalized" ]]; then
@@ -611,6 +648,34 @@ else
       fi
     done < <(sln_declared_projects "$root/$sln_rel")
   done
+}
+
+ecos_read=()
+for eco in "${READERS[@]}"; do
+  "has_$eco" || continue
+  CUR_ECO="$eco"
+  "read_$eco"
+  ecos_read+=("$eco")
+done
+
+result="ok"
+message=""
+case "${#ecos_read[@]}" in
+0) ecosystem="unknown" ;;
+1) ecosystem="${ecos_read[0]}" ;;
+*) ecosystem="mixed" ;;
+esac
+if [[ "$ecosystem" == "unknown" ]]; then
+  result="unknown"
+  if [[ -n "$other_msg" ]]; then
+    message="Found build manifests for $other_msg and none that a shipped adapter reads ($readers_list). Those adapters are not shipped, so this run did not invent an empty graph."
+  elif [[ "$has_global_json" -eq 1 ]]; then
+    message="Found global.json and none that a shipped adapter reads ($readers_list). global.json names an SDK and declares no project graph, so this run did not invent an empty graph."
+  else
+    message="No recognized build manifest. This run did not invent an empty graph."
+  fi
+elif [[ -n "$other_msg" ]]; then
+  message="Not read: $other_msg. No adapter for it is shipped; an unread ecosystem is left unread rather than drawn as an empty graph."
 fi
 
 cycle_lines=()
@@ -708,7 +773,7 @@ for i in "${!node_ids[@]}"; do
     node_ns="$(node_namespace "${node_paths[$i]}")"
     dotnet_is_test_project "$root/${node_paths[$i]}" && node_test=yes
   fi
-  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "$node_ns" "$node_test")")
+  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "${node_ecos[$i]}" "$node_ns" "$node_test")")
 done
 edge_json=()
 for i in "${!edge_from[@]}"; do
