@@ -90,7 +90,7 @@ and clarity is what grounds 2 to 4 test for.
 
 | Skill | `argument-hint` | Why it conforms |
 |---|---|---|
-| `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. |
+| `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. |
 | `repo-hygiene:clean` | `[scan\|caches\|build\|git\|…] (bare → menu or auto-detect)` (action list abridged) | Action words only; each selects a named routine, so none needs a flag. The bare form is stated. |
 
 ## `argument-hint` is bound to the shape
