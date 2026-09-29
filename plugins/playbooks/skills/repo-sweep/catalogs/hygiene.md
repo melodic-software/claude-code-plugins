@@ -40,11 +40,10 @@ Stays primed: it spawns agents for each wave.
 #### Notes
 
 One step: the residue audit's Tier 1 rows are the dissolve pass's input, so run both in the same
-session without `/clear` between them. `dissolve-comments` does not edit CI workflows unless the
-operator lifts that exclusion by hand (for example `dissolve-comments override
-.github/workflows/ci.yml`). Findings on files synced from another repository are fixed upstream,
-never in this sweep; filter them out before fixing. When the only commented in-scope paths are CI
-workflows, pass `dissolve-comments override <path>` for each workflow the operator wants edited.
+session without `/clear` between them. CI workflows stay excluded unless the operator lifts them
+by hand, for example `dissolve-comments override .github/workflows/ci.yml`; the skill's Hard rules
+section owns the exclusion and its lift channels. Findings on files synced from another repository
+are fixed upstream, never in this sweep; filter them out before fixing.
 
 ### testing-audit
 

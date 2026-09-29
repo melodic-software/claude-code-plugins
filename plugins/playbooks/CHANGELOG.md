@@ -37,6 +37,10 @@ only after that version increases.
 - **`skill-authoring` points the argument guidance at the owner convention.** The "read
   `$ARGUMENTS` whole" rule and the `arguments` field description are removed from the skill; the
   skill argument shape convention owns them.
+- **The hygiene catalog's `residue-dissolve` note points at `dissolve-comments`** for the CI
+  workflow exclusion and its lift channels instead of restating the override instruction.
+- **`boris` eval prompts carry no em dash.** Cases 1 and 3 in `evals/evals.json` drop the
+  escaped em dashes left by the #4838 re-serialization.
 - **`boris` effort amendment re-verified.** The Opus 5.5 sentence names "one of those sources"
   from the model-config resolution order, and `--effort` at launch counts as an explicit choice.
 - **Released-entry edits.** The 0.13.22 entry repeated 0.13.19 and 0.13.21; it now states that it

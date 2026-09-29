@@ -246,8 +246,8 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 > non-interactive `-p` mode "applies to the current session only and isn't saved as your
 > default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
 > and "holds it across sessions until you make an explicit effort choice". Opus 5 has no such
-> hold (superseded by the amendment below). That page owns the current level names, persistence rules, and per-model availability;
-> read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
+> hold (superseded by the amendment below). That page owns the current level names, persistence
+> rules, and per-model availability; read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
 > page finds it no longer matching this record.
 
 > **Amended (verified 2026-09-29 against
