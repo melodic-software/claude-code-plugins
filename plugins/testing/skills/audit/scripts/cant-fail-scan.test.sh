@@ -765,6 +765,19 @@ run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 3,25-26 --count
 assert_matches "--lines takes a list of lines and ranges" "$out" '^1$'
 run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 1-4 --count
 assert_matches "--lines outside every block reports nothing" "$out" '^0$'
+printf '%s\n' "import { test, expect } from 'vitest';" "" "test('adds', () => {" \
+  "  sum(1, 2);" "  expect(sum(1, 2)).toBe(sum(1, 2)); });" >"$TMP_ROOT/closing.test.ts"
+run_file --file "$TMP_ROOT/closing.test.ts" --lines 4 --count
+assert_matches "--lines keeps a finding on the block's closing line" "$out" '^1$'
+printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "    => Assert.Equal(Sum(1, 2), Sum(1, 2));" "}" \
+  >"$TMP_ROOT/ClosingTests.cs"
+run_file --file "$TMP_ROOT/ClosingTests.cs" --lines 3 --count
+assert_matches "--lines keeps a C# expression body's finding when the signature line is touched" "$out" '^1$'
+printf '%s\n' "def test_a():" "    foo()" "" "def test_b():" "    assert foo() == 1" >"$TMP_ROOT/test_ranges.py"
+run_file --file "$TMP_ROOT/test_ranges.py" --lines 4 --count
+assert_matches "--lines does not stretch a Python block onto the next def" "$out" '^0$'
+run_file --file "$TMP_ROOT/test_ranges.py" --lines 2 --count
+assert_matches "--lines reports the Python block it touches" "$out" '^1$'
 run_file --lines 12
 assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
 run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x

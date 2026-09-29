@@ -289,9 +289,9 @@ function in_scope(lo, hi,    i) {
 function emit(kind, slug, line, detail,    rec) {
   rec = sprintf("%s\t%s\t%d\t%s\n", kind, slug, line, clean_detail(detail))
   if (SCOPE == "") printf "%s", rec
-  else if (closing) { if (in_scope(block_line, FNR)) printf "%s", rec }
+  else if (closing) { if (in_scope(block_line, block_hi)) printf "%s", rec }
   else if (in_test) PEND = PEND rec
-  else if (in_scope(line, line)) printf "%s", rec
+  else if (FNR == closed_at && LEXER != "python" ? in_scope(closed_lo, block_hi) : in_scope(line, line)) printf "%s", rec
 }
 
 # ---------------------------------------------------------------------------
@@ -381,7 +381,7 @@ function eval_block(    blk, stripped, mocka_n, kind) {
 
 function open_block(line, name) {
   in_test = 1
-  block_line = line
+  block_line = block_last = line
   block_name = name
   block_masked = ""
   block_exempt = (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT)
@@ -389,12 +389,17 @@ function open_block(line, name) {
 
 function append_block(m, r) {
   block_masked = block_masked m "\n"
+  block_last = FNR
   if (r ~ R_EXEMPT) block_exempt = 1
 }
 
 function close_block() {
   in_test = 0
-  if (PEND != "" && in_scope(block_line, FNR)) printf "%s", PEND
+  # A brace block ends on its closing line; an indent block closes on the
+  # next dedented line, so its extent ends at the last line it took.
+  block_hi = LEXER == "python" ? block_last : FNR
+  closed_lo = block_line; closed_at = FNR
+  if (PEND != "" && in_scope(block_line, block_hi)) printf "%s", PEND
   PEND = ""
   closing = 1; eval_block(); closing = 0
 }
