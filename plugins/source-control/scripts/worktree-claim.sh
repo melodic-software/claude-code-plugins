@@ -528,7 +528,14 @@ do_stale() {
     return "$EX_UNCLAIMED_REPORT"
   fi
   projects="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
-  hit="$(find "$projects" -mindepth 2 -maxdepth 2 -name "$sid.jsonl" -mmin "-$idle_minutes" -print -quit 2>/dev/null)"
+  if [[ ! -d "$projects" || ! -r "$projects" ]]; then
+    printf 'not provable: transcript directory %s is unreadable\n' "$projects"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
+  if ! hit="$(find "$projects" -mindepth 2 -maxdepth 2 -name "$sid.jsonl" -mmin "-$idle_minutes" -print -quit 2>/dev/null)"; then
+    printf 'not provable: scanning %s failed\n' "$projects"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
   if [[ -n "$hit" ]]; then
     printf 'not provable: transcript %s changed within %s minutes\n' "$hit" "$idle_minutes"
     return "$EX_UNCLAIMED_REPORT"

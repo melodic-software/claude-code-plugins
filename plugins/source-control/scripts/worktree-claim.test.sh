@@ -323,6 +323,10 @@ run_stale wt-st-nosess
 assert_exit "stale: a reason without a session id is not provable (exit 1)" 1 "$?"
 
 git -C "$REPO" worktree add -q "$EXT/wt-st-bare" -b feat/st-bare
+CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-such-config" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+assert_exit "stale: an unreadable transcript directory is not provable (exit 1)" 1 "$?"
+assert_contains "stale: the refusal names the directory" "$OUT" "unreadable"
+
 run_stale wt-st-bare
 assert_exit "stale: an unlocked tree is not provable (exit 1)" 1 "$?"
 
