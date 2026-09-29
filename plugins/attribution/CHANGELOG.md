@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.2] - 2026-09-29
+
+### Fixed
+
+- `audit` pre-computed `--show-config` probes stay plain invocations (worktree-isolated sessions
+  accept them), and the `detector unavailable` guard from 0.1.1 is restored inside `list-corpus.sh`
+  and `check-stamps.sh`: with `--show-config` and an unloadable `lib.sh` each prints
+  `detector unavailable` and exits 0, and without it each exits 2. SKILL.md says an empty config
+  line or `detector unavailable` means the detector did not run. A script file that is missing
+  entirely cannot print anything, so that case shows as an empty line and is covered by the SKILL.md
+  sentence, not by the script (#4580).
+- `audit` rubric carve-out 4 cites a checkable source in its Basis
+  (`melodic-software/.github#153`) (#4577).
+
 ## [0.6.1] - 2026-09-28
 
 ### Fixed
