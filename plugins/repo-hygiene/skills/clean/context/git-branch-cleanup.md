@@ -92,14 +92,14 @@ Map script output to a table:
 ```markdown
 ## Branch Audit
 
-| Branch | Tier | Age | PR | Unpushed | Loss | Reason |
-|--------|------|-----|----|----------|------|--------|
-| main | PROTECTED | 0d | none | 0 ahead of origin/<default> | not assessed | default branch |
-| feat/parked | WORKTREE | 3d | none | 0 ahead of origin/feat/parked | not assessed | checked out in worktree, clean up the worktree first |
-| feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | not assessed | PR merged |
-| refactor/x | LIKELY-SAFE | 12d | none | no upstream (no origin/<default> to compare) | not assessed | upstream gone |
-| draft/local | LOSSY | 4d | none | no upstream, 5 commits not on origin/<default> | 5 commits only on this branch | no upstream, 5 commits not on origin/<default> |
-| experiment | REVIEW | 120d | none | 0 ahead of origin/experiment | none | stale (120d), orphaned |
+| Branch | Tier | Age | PR | Unpushed | Loss | Reason | Family |
+|--------|------|-----|----|----------|------|--------|--------|
+| main | PROTECTED | 0d | none | 0 ahead of origin/<default> | not assessed | default branch | none |
+| feat/parked | WORKTREE | 3d | none | 0 ahead of origin/feat/parked | not assessed | checked out in worktree, clean up the worktree first | none |
+| feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | not assessed | PR merged | none |
+| refactor/x | LIKELY-SAFE | 12d | none | no upstream (no origin/<default> to compare) | not assessed | upstream gone | none |
+| draft/local | LOSSY | 4d | none | no upstream, 5 commits not on origin/<default> | 5 commits only on this branch | no upstream, 5 commits not on origin/<default> | none |
+| experiment | REVIEW | 120d | none | 0 ahead of origin/experiment | none | stale (120d), orphaned | none |
 
 **Summary:** N protected, W worktree, M safe, P likely-safe, L lossy, Q review
 **Deletion candidates (M+P):** <SAFE + LIKELY-SAFE branches only, never WORKTREE, LOSSY or REVIEW>

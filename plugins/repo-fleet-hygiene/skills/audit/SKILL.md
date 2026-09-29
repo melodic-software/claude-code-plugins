@@ -179,6 +179,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | `stranded` | `stranded/*` | named by hand |
    | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
 
+   | Claim | Basis | As of | Recheck |
+   |---|---|---|---|
+   | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
+   | `claude/*` branches come from Claude Code on the web. | Observed on fleet remotes; <https://code.claude.com/docs/en/claude-code-on-the-web> names no branch prefix. | 2026-09-29 | That page names a branch prefix, or a `claude/*` branch turns up with another origin. |
+
 5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
