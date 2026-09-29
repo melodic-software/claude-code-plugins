@@ -142,10 +142,8 @@ drops in silence, and no amount of detail elsewhere replaces it.
 On the full path this is body section 1, `Original goal` ([`structure.md`](structure.md)), which
 also owns the immutability rule and the disk-read copy step a successor handoff runs.
 **Prompt-only writes no body sections, so it carries the verbatim goal inline between the rails**,
-above its remaining-work bullets, and below an active `/goal` re-arm when one holds the first
-line: the re-arm keeps that line ("Combining both", below), the goal quote comes next, the bullets
-after. It has no file to point at, and a prompt-only save-point listing only the follow-ups is the
-exact shape that loses the goal.
+above its remaining-work bullets. It has no file to point at, and a prompt-only save-point listing
+only the follow-ups is the exact shape that loses the goal.
 
 **Amendments travel too.** A bare single goal line is valid only while the goal has no recorded
 amendment (`Amended: None.` on the full path). Once an amendment exists, the prompt-only form
@@ -224,8 +222,8 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   keyed by slot name, in a single write, and prints nothing on success. An inline prefix on a
   slot's line (`**Amended:**`, `**Next action serves it by:**`, `did:`, the `left:` separator) is
   preserved; a multi-line value is one JSON string with escaped newlines and lands as those lines
-  in place, each taking the file's own line terminator; an optional slot (`goal-rearm`,
-  `below-rail`, `<section>-new`) left out of the object has its line deleted. It exits 1 on a
+  in place, each taking the file's own line terminator; an optional slot (`goal-first`,
+  `goal-after`, `below-rail`, `<section>-new`) left out of the object has its line deleted. It exits 1 on a
   required slot absent from the object, a key naming no slot in this file, a slot name occurring
   twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
   fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a target that is
@@ -374,21 +372,64 @@ Where the panel sits in the response belongs to the citing skill, which owns its
 
 ## Emit the copy/paste resume prompt
 
-**Copy-region clarity (both paths), two dashed rails, no fence:**
+**Copy-region clarity (both paths), dashed rails per region, no fence:**
 
-- The prompt sits between two full-width `─` (U+2500) rails: top rail, prompt, bottom rail. Use
+- Each region sits between two full-width `─` (U+2500) rails: top rail, text, bottom rail. Use
   literal `─`, NOT markdown `---` (turns the adjacent line into a heading) and NOT a code fence
   (the user copies the text between the rails, not fence markers).
-- The ONLY thing between the rails is the prompt, with no labels and no padding lines. Commentary sits
-  above the top rail or below the bottom rail, never between.
-- One plain-language instruction sits directly ABOVE the top rail: "`/clear`, then copy everything
-  between the dashed lines."
-- **Goal-aware re-arm:** if a `/goal` is active this session, the FIRST line between the rails
-  starts with literal `/goal <condition>`, because `/clear` destroys an active goal and the pasted
-  block must re-arm it. Active means a `/goal` establishing or re-arming call earlier in this
-  conversation with no later stop/completion, not "infer from conversation" prose. When no such call
-  is found, omit it and note below the bottom rail: "if a goal was active, prepend
-  `/goal <condition>`."
+- The ONLY thing between a region's rails is its text, with no labels and no padding lines.
+  Commentary sits above the top rail or below the bottom rail, never between.
+- One plain-language instruction sits directly ABOVE each region's top rail. The resume region's is
+  "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
+- **Goal region:** when a goal applies, the prompt holds a second railed region for it. A goal
+  applies when the user asked for a fresh goal, or when a `/goal` is active in the producing
+  session. Active means a `/goal` establishing or re-arming call earlier in this conversation with
+  no later stop/completion, not "infer from conversation" prose; `/clear` destroys an active goal,
+  so this region is how the next session gets it back. With no goal, the prompt is the single
+  resume region and nothing in this bullet applies.
+
+  The region, top to bottom:
+
+  1. The fixed instruction line, on one line: ``Type `/goal ` (with a trailing space), then paste
+     everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you
+     send it; if it is missing, redo it:``
+  2. The top rail.
+  3. The goal's condition text, verbatim from the `/goal` call or the user's request. No line
+     between any rails starts with `/goal`: the user types the command, and the region holds the
+     condition only.
+  4. Full path: the resume region's `Read @…` directive line, byte for byte. Setting a goal starts
+     a turn at once with the condition as the directive, so the goal paste has to carry the resume
+     pointer itself. Prompt-only: the verbatim goal quote with its dated amendment lines
+     ("Original goal, mandatory on BOTH paths") in its place, since there is no file to point at
+     and so no `Read @` line.
+  5. The bottom rail.
+
+  Everything between the goal region's rails, lines joined by newlines, stays within the documented
+  condition limit. Over it, shorten the condition text; the directive line stays whole. Record:
+  the claims are that a condition holds up to 4,000 characters, that setting a goal starts a turn
+  at once with the condition as the directive, and that a `◎ /goal active` indicator shows while it
+  is active; basis <https://code.claude.com/docs/en/goal> ("The condition can be up to 4,000
+  characters"; "Setting a goal starts a turn immediately, with the condition itself as the
+  directive"); as of 2026-09-29; recheck when that page changes the limit, the start-a-turn
+  behavior, or the indicator text. This is the one place the limit is stated.
+
+  **Order follows what the user asked for.** The region for the payload the user asked for comes
+  first, so a fresh-goal request puts the goal region above the resume region. When the user asked
+  only for a handoff and the goal is merely carried over from an active `/goal`, the resume region
+  comes first and the goal region second. The file cannot record which was asked, so order is a
+  producer rule, not a validated one. The regions are alternatives, one paste per fresh session:
+  the goal region arms the goal and starts the continuation in one message, the resume region
+  continues without a goal. Each has its own instruction line, and a blank line separates the two.
+
+  **Prompt-only emits the same two regions.** The goal region carries the condition and the inline
+  goal quote and no `Read @` line; the resume region is the prompt-only prompt as before.
+
+  On the full path the file's `## Resume prompt` section stores both regions in the emitted order,
+  through the optional slots `goal-first` (above the resume region) and `goal-after` (below it).
+  Fill the one the order calls for with the whole region, and leave the other out.
+
+  When no `/goal` call is found and the user asked for no fresh goal, omit the region and note
+  below the bottom rail: "if a goal was active, type /goal and a space, then paste the condition."
 - **Loop-aware re-arm:** running under `/loop` means this session's own
   `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, or
   a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
@@ -470,19 +511,26 @@ Where the panel sits in the response belongs to the citing skill, which owns its
 - **Combining both:** a command is recognized only at the start of a message
   (<https://code.claude.com/docs/en/commands>), so neither re-arm can ride inside the other's prompt
   argument. Text after the command name is just more of that argument, not a second command
-  invocation, and would silently fail to arm. Each is therefore its own message. `/goal` keeps its
-  place as the first line between the rails (it is session-scoped and evaluated after every
-  subsequent turn regardless of what invoked it, so arming it there covers the loop's later
-  iterations too); the `/loop` re-arm follows as the separate message described above. On
-  prompt-only, the verbatim goal quote, with its dated amendment lines, per "Original goal,
-  mandatory on BOTH paths", sits directly BELOW the `/goal` line and above the remaining-work
-  bullets: an active `/goal` keeps the first line, the quote never displaces it, and with no active
-  `/goal` the quote itself opens the block.
+  invocation, and would silently fail to arm. Each is therefore its own message. The `/goal` is the
+  user's own typed command followed by the goal region's paste (a goal is session-scoped and
+  evaluated after every subsequent turn regardless of what invoked it, so arming it first covers
+  the loop's later iterations too); the `/loop` re-arm follows as the separate message described
+  above. Where a loop note says "the block above", a two-region prompt means whichever region was
+  pasted. On prompt-only, the verbatim goal quote, with its dated amendment lines, sits above the
+  remaining-work bullets in the resume region, per "Original goal, mandatory on BOTH paths".
 
 Full-path shape (live: bare `─` rails, no fence; shown inside a fence here for display; the
-`Next:` headlines are illustrative):
+`Next:` headlines and the goal condition are illustrative; the goal region appears only when a goal
+applies, and with no goal the output starts at the `/clear` line):
 
 ```text
+Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:
+
+──────────────────────────────────────────────────────────
+Every call site of OrderReader uses the retry policy and `dotnet test` exits 0 with the cancellation edge cases covered.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
+──────────────────────────────────────────────────────────
+
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
@@ -512,9 +560,9 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region, so
   the detection contract below holds), mark the checklist box `validate: FAILED`, and still emit
   the rails from the file's `## Resume prompt` section. Never green-silent.
-- **The on-screen block is the `emit <file>` output pasted verbatim.** Copy instruction, top rail,
-  prompt, bottom rail, the below-rail `claude --resume` line, and any re-arm notes, exactly as
-  printed, never retyped, reflowed, or regenerated from the conversation. The file's
+- **The on-screen block is the `emit <file>` output pasted verbatim.** Each region's copy
+  instruction, top rail, text and bottom rail, the below-rail `claude --resume` line, and any
+  notes, exactly as printed, never retyped, reflowed, or regenerated from the conversation. The file's
   `## Resume prompt` section and the screen are byte-equal by construction, which is what lets
   `find-handoff` rung 1 recover the prompt from the file alone and `continue-in-background` launch
   from it. Python absent: emit the section by hand from the file, still verbatim.
@@ -544,8 +592,9 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   sixth line, a bullet, and a `Then:` that is not last.
 - **Below the bottom rail, first line:** the sentence `Or reopen the producing session in place:`
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
-  `/clear`-and-paste when the producing session is still worth reopening. The `/goal` and `/loop` re-arm notes the rules above prescribe follow
-  it, unchanged in shape; it is outside the copy region and outside the detection contract.
+  `/clear`-and-paste when the producing session is still worth reopening. The no-goal-found note
+  and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
+  outside the copy regions and outside the detection contract.
 
 ### The directive path is ROOTED, and that is the whole point
 
@@ -646,8 +695,10 @@ The output shape above is a **stable detection contract**, not merely a display 
 `/session-flow:find-handoff` keys off it to recover a handoff whose resume prompt was written but
 never copied (operator ran `/clear` before copying it). The keyed signals, in precision
 order, are (1) the `Read @…-handoff-*.md` directive, the exact path to recover, for a file-based
-handoff; (2) the two `─` (U+2500) rails plus the `` `/clear`, then copy everything between the
-dashed lines `` instruction line, the primary key for a prompt-only handoff, which writes no file;
+handoff, which appears in both regions when a goal region exists and names one path; (2) the
+`─` (U+2500) rail pair headed by the `` `/clear`, then copy everything between the dashed lines ``
+instruction line (the resume region), the primary key for a prompt-only handoff, which writes no
+file;
 and (3) the `Prior session: <UUID>` line, which, together with the `type: handoff` frontmatter
 ([`structure.md`](structure.md)), pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
@@ -681,16 +732,21 @@ UNRESOLVED treatment**; a consumer that reports it as a missing file reintroduce
 new path. The line is emitted by the file-mode shape only and only from this version on, so its
 absence disqualifies nothing: prompt-only never emits it, and no handoff written before this has it.
 
-**The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
-element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
-contract, `/goal` included, since it is the first line inside the block. The `/loop` re-arm is the
-one exception, and not by choice: a command is recognized only at a message's start
-(<https://code.claude.com/docs/en/commands>), so the re-arm must be its own message and therefore
-lives below the bottom rail, outside the copy region. A recovery that surfaces only the block
-between the rails hands back a continuation that runs once and drops the recurring behavior, the
-exact failure the re-arm rule exists to prevent, reintroduced one layer down. So the re-arm note
-that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
-discard. Nor is one of them enough: the rule above emits one re-arm message per loop left standing,
+**The recoverable unit is the resume region PLUS the goal region PLUS every below-rail `/loop`
+re-arm message.** The goal region, when a goal applies, is a second rail pair headed by its own
+instruction line (the fixed goal-region line under "Emit the copy/paste resume prompt"), placed
+above or below the resume region. It is not a keyed signal, since the resume region is always
+present and keys the recovery, but a recovery that returns only the resume region hands back a
+continuation whose goal is gone, the failure the goal region exists to prevent, reintroduced one
+layer down. So a consumer expects two or four rails and recovers every region, in the emitted
+order. A file stores both regions, so `save_point.py emit <file>` returns them. The `/loop`
+re-arm is the other element outside the resume region, and not by choice: a command is recognized
+only at a message's start (<https://code.claude.com/docs/en/commands>), so the re-arm must be its
+own message and therefore lives below the bottom rail, outside every copy region. A recovery that
+surfaces only the regions between the rails hands back a continuation that runs once and drops the
+recurring behavior, the exact failure the re-arm rule exists to prevent, reintroduced one layer
+down. So the re-arm note that directly follows the bottom rail is part of what a recovery must
+surface, not commentary it may discard. Nor is one of them enough: the rule above emits one re-arm message per loop left standing,
 so the recoverable unit is however many the producer wrote, and a consumer that stops at the first
 loses the rest exactly as quietly.
 
