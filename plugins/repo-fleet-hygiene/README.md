@@ -103,8 +103,10 @@ fast-forwards it. Bare invocation prints a dry-run plan and changes nothing.
 agreeing to it. `--apply` without a terminal and without `--yes` exits 3. A dirty checkout is parked
 in a linked worktree by the helper named with `--worktree-create <path to worktree-create.sh>`;
 `--worktree-root <dir>` optionally overrides the root the helper resolves. Without
-`--worktree-create`, a dirty checkout is skipped and reported. See
-[the sync skill](skills/sync/SKILL.md) for the scope ladder and skip rules.
+`--worktree-create`, a dirty checkout is skipped and reported. Every plan and skipped line ends with
+`rung=<rung>` naming the scope source that produced the repository (`repo`, `repos-from`, `root`,
+`config`, `named`, `ghq`, `cwd`, `ancestor`). See [the sync skill](skills/sync/SKILL.md) for the
+scope ladder and skip rules.
 
 ## Fleet cleanup plan
 

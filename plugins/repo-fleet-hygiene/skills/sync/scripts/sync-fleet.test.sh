@@ -489,6 +489,39 @@ expect "a non-fast-forward skip exits 1" "code=$code" is "$code" 1
 expect "a non-fast-forward skip line carries git-exit and a remedy" "$skipped" \
   has "$skipped" $'skipped\t'"$diverge"$'\tnon-fast-forward\tgit-exit=128\tremedy='
 
+# The plan names the scope rung that produced each repository, on plan and skipped lines alike.
+rung_home="$TMP/rung-home"
+mkdir -p "$rung_home"
+rung_of() { printf '%s\n' "$1" | awk -F'\t' -v r="$2" '$2 == r { print $NF }'; }
+r_repo="$(HOME="$rung_home" bash "$SCRIPT" --repo "$clone")"
+expect "--repo plans rung=repo" "$r_repo" is "$(rung_of "$r_repo" "$clone")" "rung=repo"
+r_from="$(HOME="$rung_home" bash "$SCRIPT" --repos-from "$TMP/repos.list")"
+expect "--repos-from plans rung=repos-from" "$r_from" is "$(rung_of "$r_from" "$clone")" "rung=repos-from"
+r_root="$(HOME="$rung_home" bash "$SCRIPT" --root "$TMP/skipdrive")"
+expect "--root plans rung=root for a discovered repo" "$r_root" is "$(rung_of "$r_root" "$TMP/skipdrive/app")" "rung=root"
+r_bare="$(HOME="$rung_home" bash "$SCRIPT" "$TMP/skipdrive")"
+expect "a bare path plans rung=root" "$r_bare" is "$(rung_of "$r_bare" "$TMP/skipdrive/app")" "rung=root"
+printf '[fleet]\n\trepo = %s\n' "$clone" >"$TMP/rung.conf"
+r_conf="$(HOME="$rung_home" bash "$SCRIPT" --config "$TMP/rung.conf")"
+expect "fleet config plans rung=config" "$r_conf" is "$(rung_of "$r_conf" "$clone")" "rung=config"
+r_named="$(HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --named "$clone")"
+expect "--named plans rung=named" "$r_named" is "$(rung_of "$r_named" "$clone")" "rung=named"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$TMP/skipdrive" >"$TMP/ghq-stub"
+chmod +x "$TMP/ghq-stub"
+r_ghq="$(cd "$TMP/bare-cwd" && HOME="$rung_home" REPO_FLEET_GHQ_BIN="$TMP/ghq-stub" bash "$SCRIPT")"
+expect "ghq root --all plans rung=ghq" "$r_ghq" is "$(rung_of "$r_ghq" "$TMP/skipdrive/app")" "rung=ghq"
+r_cwd="$(cd "$clone" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$clone")" "rung=cwd"
+mkdir -p "$TMP/anc/one" "$TMP/anc/two" "$TMP/anc/plain/deep"
+git -C "$TMP/anc/one" init -q
+git -C "$TMP/anc/two" init -q
+r_anc="$(cd "$TMP/anc/plain/deep" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" 2>&1)"
+expect "an ancestor holding repositories plans rung=ancestor" "$r_anc" is "$(rung_of "$r_anc" "$TMP/anc/one")" "rung=ancestor"
+r_skip="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir")"
+expect "a skipped plan line carries the rung" "$r_skip" has "$r_skip" $'skip\t'"$TMP/no-such-dir"$'\t\tnot-a-directory\trung=repo'
+r_skipped="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir" --apply --yes)"
+expect "a skipped result line ends with the rung" "$r_skipped" has "$r_skipped" $'\tremedy=check the path, then fix or remove it in the fleet config or the --repo and --root arguments\trung=repo'
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0

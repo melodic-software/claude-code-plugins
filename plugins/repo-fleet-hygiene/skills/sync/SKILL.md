@@ -2,7 +2,7 @@
 description: "Move every canonical checkout in a fleet onto the remote default branch and fast-forward it. Divergent dirty work is parked in a linked worktree. Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation. Use when: 'sync the fleet', 'update all repos to main', 'fast-forward canonical checkouts', 'park my dirty branches and pull'."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--config <file>] [--apply] [--yes]"
+argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--repos-from <file|->] [--skip <name>] [--extend-skip <name>] [--skip-from <file>] [--config <file>] [--apply] [--yes]"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh:*)
 metadata:
@@ -23,7 +23,8 @@ non-default branch, and a dirty default branch, is parked in a linked worktree b
 
 First hit wins:
 
-1. Explicit `--repo`, `--root`, or a bare path. `--root`, `--repo`, and `--named` repeat.
+1. Explicit `--repo`, `--root`, a bare path, or `--repos-from <file|->` (one checkout path per line,
+   `-` reads stdin, blank lines ignored). `--root`, `--repo`, and `--named` repeat.
 2. Fleet config (`--config`, else the project file, else `~/.claude/repo-fleet-hygiene.conf`).
 3. `--named` paths from the conversation.
 4. `ghq root --all` (every root), when `ghq` is installed.
@@ -32,6 +33,20 @@ First hit wins:
 7. Exit 3. The message names the rungs. The project directory is not an implicit repo.
 
 `/repo-fleet-hygiene:audit` uses the same fallback when it has no explicit or config scope.
+
+Every plan line and every skipped line ends with `rung=<rung>`, the rung that produced that
+repository: `repo`, `repos-from`, `root` (a bare path counts as `--root`), `config`, `named`, `ghq`,
+`cwd`, or `ancestor`. A repository found by walking a root carries that root's rung. Read the rung
+before applying: `ghq`, `cwd`, and `ancestor` mean no scope was given.
+
+## Skip flags
+
+`--skip`, `--extend-skip`, and `--skip-from <file>` (one name per line, blank lines ignored, CRLF
+stripped, a missing file exits 2) and the config keys `fleet.skip` and `fleet.skipAppend` prune
+directories during discovery with the same semantics as
+[`/repo-fleet-hygiene:audit`](../audit/SKILL.md): an explicit `--skip` set replaces the default,
+`--extend-skip` adds to whichever set is in effect, and names are bare directory names.
+The skip set does not filter `--repo` or `--repos-from` paths.
 
 ## Confirmation
 
