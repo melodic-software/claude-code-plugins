@@ -195,6 +195,9 @@ parse_counts() {
   SURGERY="${SURGERY%% *}"
 }
 
+# The probe reads this stamp to show the scheduled prune is firing.
+stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
+
 main() {
   local dry_run=false
   while [[ $# -gt 0 ]]; do
@@ -294,6 +297,7 @@ main() {
 
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
+    stamp_last_prune "$store_dir"
     printf 'action=noop-nothing-to-prune\n'
     return 0
   fi
@@ -393,6 +397,7 @@ main() {
       "$f" "$KEPT" "$DROPPED" "$TOTAL" "$surgery_kept" "$surgery_dropped"
   done
 
+  stamp_last_prune "$store_dir"
   printf 'action=pruned total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
   # cleanup (EXIT trap) removes the sentinel and starts the Collector service.
 }

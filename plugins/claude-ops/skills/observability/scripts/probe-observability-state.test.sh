@@ -24,6 +24,8 @@
 #     - CC_OTEL_STORE used verbatim when set; an EMPTY value falls through
 #     - one line per store file, in fixed order, `<name>:<bytes>B` / `<name>:absent`
 #     - mixed present/absent across the three files
+#     - cold tier `cold:<bytes>B (<n> files)` / `cold:absent`; `last-prune:` with
+#       hour or day age from the stamp, `never` when absent or unparsable
 #   --pipeline
 #     - six fixed lines; guard ok / absent / operator-edited / not a checkout;
 #       newest session by mtime; shared count; prune-pending age WARN; option
@@ -134,7 +136,7 @@ ALT_STORE_LINES="$(printf 'cc-logs.json:absent\ncc-metrics.json:%sB\ncc-traces.j
 # run_both <label> <mode> <original-script> <expected-literal>
 run_both() {
   local label="$1" mode="$2" original="$3" expected="$4" got orig
-  got="$(bash "$SCRIPT" "$mode" 2>/dev/null)"
+  got="$(bash "$SCRIPT" "$mode" 2>/dev/null | head -n 3)"
   orig="$(bash "$original" 2>/dev/null)"
   assert_eq "$label" "$expected" "$got"
   assert_eq "$label (matches the original inline line byte-for-byte)" "$orig" "$got"
@@ -205,8 +207,32 @@ cd "$START_DIR" || exit 1
 
 export STUB_GIT_TOPLEVEL="$WIRED" STUB_GIT_CRLF=1
 assert_eq "CRLF toplevel is stripped (--otel-store)" "$WIRED_STORE_LINES" \
-  "$(bash "$SCRIPT" --otel-store 2>/dev/null)"
+  "$(bash "$SCRIPT" --otel-store 2>/dev/null | head -n 3)"
 unset STUB_GIT_CRLF
+
+# Cold tier and last-prune lines follow the three original lines.
+export STUB_GIT_TOPLEVEL="$WIRED"
+assert_eq "no cold dir and no stamp → cold:absent, last-prune:never" \
+  "$(printf 'cold:absent\nlast-prune:never')" "$(bash "$SCRIPT" --otel-store 2>/dev/null | tail -n 2)"
+assert_eq "output is the three original lines plus two" "5" \
+  "$(bash "$SCRIPT" --otel-store 2>/dev/null | wc -l | tr -d ' ')"
+
+COLD="$TMP/coldstore"
+mkdir -p "$COLD/cold"
+printf 'aaaa' >"$COLD/cold/cc-logs-20260101T000000Z.parquet"
+printf 'bbbbbb' >"$COLD/cold/cc-metrics-20260101T000000Z.parquet"
+printf 'ignored' >"$COLD/cold/cc-logs-20260102T000000Z.parquet.tmp"
+export CC_OTEL_STORE="$COLD"
+assert_eq "cold present → summed bytes and file count, .tmp ignored" "cold:10B (2 files)" \
+  "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 4p)"
+printf '%s\n' "$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)" >"$COLD/.last-prune"
+assert_contains "fresh stamp prints iso and hour age" "last-prune:" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
+assert_contains "3h-old stamp ages as 3h" "(3h)" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
+printf '%s\n' "$(date -u -d '5 days ago' +%Y-%m-%dT%H:%M:%SZ)" >"$COLD/.last-prune"
+assert_contains "5-day-old stamp ages as 5d" "(5d)" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
+printf 'garbage\n' >"$COLD/.last-prune"
+assert_eq "unparsable stamp reads as never" "last-prune:never" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
+unset CC_OTEL_STORE
 
 # --- --pipeline ---------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"

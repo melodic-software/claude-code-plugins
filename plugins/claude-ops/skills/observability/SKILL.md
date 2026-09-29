@@ -40,6 +40,11 @@ root is not the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
+The OTEL store lines are the three hot files (`<name>:<bytes>B` or `absent`), then `cold:<bytes>B (<n> files)`
+or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`. A report states hot size (sum of
+the three files), cold size and last-prune age, and flags `last-prune:never` or an age over about 2 days
+(`2d` or more): the scheduled prune is not firing (see [context/operator-setup-retention.md](context/operator-setup-retention.md)).
+
 ## Purpose
 
 **Single place to read Claude Code observability**, where to read telemetry, how the

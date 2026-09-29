@@ -191,6 +191,7 @@ if [[ -d "$S/cold" ]]; then
 else
   pass "--dry-run creates no cold dir"
 fi
+[[ -e "$S/.last-prune" ]] && fail "--dry-run writes no last-prune stamp" "absent" "present" || pass "--dry-run writes no last-prune stamp"
 
 # --- 4. footgun: OLD timeUnixNano + RECENT observedTimeUnixNano -> counted DROPPED ---
 S="$(new_store footgun-log)"
@@ -221,6 +222,8 @@ if [[ -f "$TMP/stopped.marker" ]]; then pass "real run stopped the Collector"; e
 if [[ -f "$TMP/restarted.marker" ]]; then pass "real run restarted the Collector"; else fail "real run restarted the Collector" "restarted.marker" "absent"; fi
 if [[ -f "$TMP/concurrent-blocked.marker" ]]; then pass "restart runs while sentinel still blocks a concurrent prune"; else fail "restart runs while sentinel still blocks a concurrent prune" "concurrent-blocked.marker" "absent"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "sentinel removed after run" "absent" "present"; else pass "sentinel removed after run"; fi
+stamp="$(cat "$S/.last-prune" 2>/dev/null)"
+if [[ "$stamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then pass "real run writes an ISO-8601 UTC last-prune stamp"; else fail "real run writes an ISO-8601 UTC last-prune stamp" "ISO-8601 Z" "$stamp"; fi
 
 # --- 5a. stop denial/failure: abort before mutation and do not attempt a start ---
 S="$(new_store stopfail)"
@@ -789,6 +792,7 @@ out="$(CC_OTEL_HOT_MAX_MB=8 run_prune "$S")"
 rc=$?
 assert_eq "under-cap run exits 0" "0" "$rc"
 assert_contains "under-cap run is a no-op" "$out" "action=noop-nothing-to-prune"
+assert_eq "no-op run still writes the last-prune stamp" "yes" "$([[ -s "$S/.last-prune" ]] && echo yes || echo no)"
 assert_not_contains "under-cap file not reported as size-pruned" "$out" "size_prune"
 assert_eq "under-cap file byte-identical" "$(cksum <"$BIG_SRC")" "$(cksum <"$S/cc-logs.json")"
 assert_eq "under-cap run never stopped the Collector" "no" "$([[ -e "$TMP/stopped.marker" ]] && echo yes || echo no)"
