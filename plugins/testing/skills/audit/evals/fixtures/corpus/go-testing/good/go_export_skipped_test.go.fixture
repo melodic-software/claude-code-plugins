@@ -1,0 +1,12 @@
+// good-for: rule-zero-assertion
+// A test that skips itself from its body does not run, so it is not judged.
+package export
+
+import "testing"
+
+func TestExportLargeReport(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow: renders a 10k-row report")
+	}
+	ExportReport(sampleRows(10000))
+}

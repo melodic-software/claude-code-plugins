@@ -1,0 +1,12 @@
+# good-for: rule-inert-assertion
+# A comparison continued onto the next line, with a backtick or with a
+# PowerShell 7 leading pipe, is piped to Should: it is not a bare comparison.
+Describe 'Add-Numbers' {
+    It 'adds two numbers' {
+        $result = Add-Numbers 2 3
+        $result -eq 5 `
+            | Should -BeTrue
+        $result -eq 5
+            | Should -BeTrue
+    }
+}

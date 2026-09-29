@@ -1,0 +1,20 @@
+// good-for: rule-snapshot-only
+// The file imports VerifyXunit, but its own Verify helper hides Verifier's:
+// the call asserts a literal, not a snapshot.
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceVerifyHelperTests
+{
+    [Fact]
+    public void Invoice_IsTotaled()
+    {
+        var invoice = Billing.Total(new Invoice(2));
+        Verify(invoice);
+    }
+
+    private static void Verify(Invoice i)
+    {
+        Assert.Equal(20m, i.Total);
+    }
+}

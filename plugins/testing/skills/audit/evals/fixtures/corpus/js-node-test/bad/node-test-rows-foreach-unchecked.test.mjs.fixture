@@ -1,0 +1,12 @@
+// expect: rule-conditional-assertion
+// The only assertion runs once per exported row; no rows, no assertion.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { exportRows } from '../src/export.mjs';
+
+test('exports every row with an id', () => {
+  const rows = exportRows([]);
+  rows.forEach((row) => {
+    assert.ok(row.id > 0);
+  });
+});

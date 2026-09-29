@@ -1,0 +1,16 @@
+#!/usr/bin/env bats
+# expect: rule-zero-assertion
+# run captures the exit status and output, and nothing checks either, so the
+# test passes whatever greet does.
+
+setup() {
+  load 'test_helper/bats-support/load'
+  load 'test_helper/bats-assert/load'
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet prints a greeting for the given name" {
+  run greet world
+  echo "status: $status"
+  echo "output: $output"
+}

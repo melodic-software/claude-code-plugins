@@ -1,0 +1,27 @@
+# Hand-rolled Bash test scripts: no per-case marker, so the whole file is one
+# test. Advisory in Release 1: its findings never gate --check without
+# --strict. Schema and YAML subset: scripts/adapter-load.awk.
+id: bash-harness
+language: bash
+block_model: file
+advisory: true
+files: ['*.test.sh']
+assertion:
+  calls:
+    - '(^|[^A-Za-z0-9_])(pass|fail|assert_[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)'
+  # Raw text over three lines: a FAIL message, then a non-zero exit.
+  # A failure counter the script exits on, and the same shape in an embedded
+  # node driver.
+  idioms:
+    - '(echo|printf).*FAIL.*exit[[:space:]]+[1-9]'
+    - 'FAIL"?[[:space:]]*(-eq|==)[[:space:]]*0'
+    - 'process\.exit\([A-Za-z_]*fail'
+# The assertions live in the suite this script runs or the helpers it loads.
+delegation:
+  - 'gate_test::run_suite'
+  - '(^|[[:space:];&|])(source|\.)[[:space:]].*test-(helpers|harness)'
+  - '(^|[[:space:];&|])(node|python3?|pytest|exec|pwsh)[[:space:]].*(test|spec)'
+  - '(^|[[:space:];&|])"\$(PYTHON|PY)"[[:space:]]'
+equality:
+  call2: [assert_eq, assert_equal, assert_equals, assert_same]
+suppress_marker: 'cant-fail-ok:'

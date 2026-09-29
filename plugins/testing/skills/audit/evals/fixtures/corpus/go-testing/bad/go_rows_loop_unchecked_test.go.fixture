@@ -1,0 +1,14 @@
+// expect: rule-conditional-assertion
+// The only checks run once per row the query returned; no rows, no checks.
+package store
+
+import "testing"
+
+func TestActiveUsersAreActive(t *testing.T) {
+	rows := ActiveUsers()
+	for _, row := range rows {
+		if !row.Active {
+			t.Errorf("row %d is not active", row.ID)
+		}
+	}
+}

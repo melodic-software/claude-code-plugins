@@ -1,0 +1,14 @@
+// good-for: rule-constant-restatement
+// An uppercase field of a response the test received; C# constants are
+// PascalCase, so an uppercase name says nothing about constness here.
+using Xunit;
+
+public class HttpStatusFieldTests
+{
+    [Fact]
+    public void Ping_ReturnsOk()
+    {
+        var r = Client.Ping();
+        Assert.Equal(200, r.HTTP_STATUS);
+    }
+}

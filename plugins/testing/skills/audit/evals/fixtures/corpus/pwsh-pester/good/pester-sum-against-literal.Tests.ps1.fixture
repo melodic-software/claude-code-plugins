@@ -1,0 +1,12 @@
+# good-for: rule-recomputed-expectation
+# The expected side is stated as a literal.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds a negative number' {
+        Get-Sum -A 7 -B -2 | Should -Be 5
+    }
+}
