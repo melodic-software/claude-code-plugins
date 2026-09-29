@@ -266,6 +266,11 @@ sweep_stale_tee_temps() {
 # not a safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers
 # both succeed. In-process rather than in a subshell, so it costs no fork on
 # the render path; nothing else in this script leaves noclobber on.
+#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
+#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
+#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
+#   As of: 2026-09-28.
+#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
 _rlg_lock_create() {
   local rc=0
   set -o noclobber

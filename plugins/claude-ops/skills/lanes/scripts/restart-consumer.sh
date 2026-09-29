@@ -583,6 +583,11 @@ lock_owner_alive() {
 # everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both succeed, so the
 # token decides, the same way on GNU, uutils, macOS and Git Bash (which has no
 # flock). The subshell keeps noclobber off for every later write.
+#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
+#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
+#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
+#   As of: 2026-09-28.
+#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
 take_lock_dir() {
   mkdir "$LOCK_DIR" 2>/dev/null &&
     (set -o noclobber && printf '%s\n' "$$" >"$LOCK_DIR/owner-pid") 2>/dev/null
