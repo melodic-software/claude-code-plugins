@@ -202,8 +202,8 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
 - Fields: `id`, `extends`, `language`, `block_model`, `advisory`, `files`, `detect.any_regex`,
   `test_start`, `test_skip`, `body_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`,
-  `delegation`, `mock.create`, `mock.verify`, `mock.strip`, `snapshot`, `equality.call2`,
-  `equality.receiver`, `equality.pipeline`, `suppress_marker`.
+  `assertion.async`, `assertion.inert`, `delegation`, `mock.create`, `mock.verify`,
+  `mock.strip`, `snapshot`, `equality.call2`, `equality.receiver`, `equality.pipeline`, `suppress_marker`.
   - `language` names the lexer: `js`, `cs`, `python`, `bash`, `pwsh`, `go`.
   - `block_model` is `brace`, `indent` (Python only) or `file` (Bash only: the whole file is one
     test, for a harness with no per-case marker). C# `brace` uses the attribute-then-signature
@@ -220,13 +220,14 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
     file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
     otherwise the first claimant in load order, whether or not it has a `detect` list.
-- `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
-  each until engine code reads it, so a value is never dropped silently. `delegation` unreserves
-  when Phase 3 merges; no phase unreserves `equality.pipeline` yet. The semantics above describe
-  each field once it is unreserved.
-- `advisory` and `body_skip` are planned, not yet in the loader: `adapter-load.awk` rejects each as
-  an unknown key. The phase that first relies on one adds it to the loader schema in the same
-  change.
+- `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
+  value is never dropped silently.
+- `assertion.async` matches the start of a statement that asserts nothing unless it is awaited or
+  returned (an unawaited `expect(p).resolves`, a Playwright web-first matcher, `Assert.ThrowsAsync`
+  in xUnit). `assertion.inert` matches the start of a statement that looks like an assertion and
+  never asserts (Python `m.called_once_with(`, a bare `.Should();`). Both feed
+  `rule-inert-assertion`; language-syntax forms (the Python tuple assert, bats `run` and `!`) stay
+  in the engine.
 - `astgrep_rules` is reserved and not implemented. It is research switch SW1: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
@@ -513,7 +514,12 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 - `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-zero-assertion.*\.test\.sh'` equals the true-positive count recorded in `docs/topics/tautological-tests/precision-run.md` "This repo, Bash".
 - `bash plugins/testing/scripts/gen-hook-filters.sh --check` exits 0.
 
-### Phase 4a: Pocock mapping, planted split, first three rules [TODO]
+### Phase 4a: Pocock mapping, planted split, first three rules [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. `rule-constant-restatement` is `n/a` for
+`cs-xunit`, `cs-nunit`, `cs-mstest`, `go-testing` and `pwsh-pester`: their constants are not
+SCREAMING_SNAKE, so a finding needs a declaration lookup the engine does not have. NUnit
+`Assert.ThrowsAsync` is not in `assertion.async`, because it returns a Task only from NUnit 5.
 
 Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping),
 `.work/tautological-tests/pocock-critique/RESEARCH.md` with its `RESEARCH-gaps.md` (G1-G11) and
