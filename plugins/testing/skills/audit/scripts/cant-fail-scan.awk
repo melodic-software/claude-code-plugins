@@ -1566,6 +1566,9 @@ function helper_mark(i) {
 
 # Whether definition i calls its own name while another definition of that
 # name in its scope asserts: an overload delegating to one that asserts.
+# ponytail: calls carry a name, not an arity, so an overload that only
+# recurses on itself is credited too (a miss, never a false finding); record
+# call arity if that shape shows up in a precision run.
 # Plain statements on purpose: gawk 5.2.1 double-frees on this test written
 # as one return of joined && and || terms (Ubuntu 24.04, 2026-09-29).
 function delegates_to_overload(i,    key, calls, name) {
