@@ -96,8 +96,8 @@ present), grade whatever criteria the script can speak to, mark the rest fail wi
 Report the HTML path, the gallery `index.html`, and when capture wrote one, `scene.webm`, as full
 paths, converted to a host path when the session runs in WSL (`wslpath -w`). A GIF export of a
 scene is not produced here: GIF carries no audio and the scene is code. When the scene sets
-`window.__pixelScene.audio` to its WAV URL, `--record` loops that WAV under the recording on the
-seek clock with `ffmpeg`. Without `ffmpeg` the WebM is video only and `capture.py` prints a note.
+`window.__pixelScene.audio` to its WAV URL, `--record` loops that WAV from scene time 0 under the
+recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the WebM is video only and `capture.py` prints a note.
 `audioStream` is the live `MediaRecorder` path and is not aligned to the seek clock.
 
 ## Next

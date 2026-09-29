@@ -72,7 +72,8 @@ This plugin does not synthesize sound. `embed.py` inlines a WAV you place next t
 (`/*WAV:file.wav*/null`), and the scene plays it on the first click. `examples/campfire/campfire.wav`
 is that file for the example. It was rendered from the score in `examples/campfire/AUDIO.txt`.
 The renderer that produced it lives in the `retro-audio` plugin and is not imported here. The
-`--record` WebM for the example has no audio track.
+`--record` WebM for the example carries the WAV as its audio track when `ffmpeg` is present and is
+video only otherwise.
 
 ## Example
 

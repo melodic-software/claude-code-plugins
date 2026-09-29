@@ -108,7 +108,7 @@ brackets; "(judgment)" marks a rule no source states.
   `audioStream` is the live `MediaRecorder` path and is not aligned to `seek`.
 - `window.__pixelScene.audio` is an optional WAV URL (the scene's inlined `data:audio/wav` URL). It
   starts at scene time 0 and loops. When `audioStream` supplies no track, `capture.py` loops it
-  under the recorded frames on the seek clock with `ffmpeg`. Without `ffmpeg` the WebM is video
+  from scene time 0 under the recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the WebM is video
   only and `capture.py` prints a note.
 - Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
   (judgment). Do not describe the picture as reviewed.
