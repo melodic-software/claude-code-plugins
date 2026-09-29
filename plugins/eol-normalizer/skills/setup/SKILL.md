@@ -95,12 +95,13 @@ tool, so `apply` installs nothing and writes nothing. It only points:
   (repeatable per key). Against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Pass `-s user`. `-s` places the install record and `enabledPlugins`; the
-  option value lands in user settings either way. Do not copy a scope from `claude plugin list`:
-  a rerun at another scope adds an install record at that scope and enables the plugin there. A
-  rejected value prints a warning yet exits 0, so read the output. Basis: that convention's
-  Verified-version record. Verified 2026-09-27 on Claude Code 2.1.283. Recheck when that section
-  is updated for a newer release. This skill never writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
+  to its manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
+  `project` or `local` scope run from that project's directory, so the rerun matches the existing
+  install record; from the home directory pass `user`. `-s` places the install record and
+  `enabledPlugins`; the option value lands in user settings either way, and a rerun at another
+  scope adds an install record at that scope and enables the plugin there. A rejected value prints
+  a warning yet exits 0, so read the output. This skill never writes user settings or
+  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
   still reports the OLD value; report the observed effective value, never an unobserved change.
