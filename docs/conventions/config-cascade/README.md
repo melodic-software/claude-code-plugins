@@ -237,6 +237,15 @@ A plugin implementing this contract:
    layer were absent. Unknown keys are inert. A consuming repo may validate its own files in a gate;
    plugins do not hard-fail on them.
 
+`fleet-state.sh` (claude-ops `plugins` skill) does not adopt the resolver. Its root answers a
+different question: which project-scope install records and `.claude/settings*.json` map belong to
+the session. It excludes `$HOME` only in the cwd fallback used when `CLAUDE_PROJECT_DIR` is unset
+and no git toplevel exists, spells both sides of that comparison alike, and never treats a
+team layer as user-global. `permission-state.sh` (claude-config `audit-permission-state`) does not
+adopt it either: at a home or non-repo root it falls back to the start directory and labels the
+basis (`start directory (repository root is the home directory)`) instead of reporting the layer as
+not applicable, because the local settings file it reports is read from the start directory in that case.
+
 ### Per-layer verification verdicts
 
 The same tracked/ignored question produces opposite correct answers per layer, so a single shared
@@ -407,6 +416,29 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 | `authoring-formats` | convention doc at the consumer's convention home, `<home>/authoring-formats/README.md` (the pointer line binds `<home>`) | team, via pointer line | declared under the expression doctrine as a new surface, not a migration: no retired dedicated file, no retirement record, no dual-read window. One layer, no overlay channel, unknown keys inert. Keys (`acceptance_criteria_format`, `diagram_dialect.data`, `diagram_dialect.system`) owned by [`authoring-formats`](../authoring-formats/README.md#c4-dialect-surfaces), which also states the ladder consuming skills restate and maps the system key against architecture's `landscape_dialect` rather than restating mermaid fitness here. `diagram_dialect.system` deliberately has no default, so an absent surface emits no C4 container view. No policy-floor class: both keys are team format choices, and the doctrine gives this class no personal layer to weaken them from. **Read on `main` by `/planning:interview` and `/planning:prd` (`acceptance_criteria_format`), by `/planning:design` (`diagram_dialect.data`, `diagram_dialect.system`), by `/architecture:map-data` (`diagram_dialect.data`), and by `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, and `/architecture:map-deployment` (`diagram_dialect.system`)**, each resolving `<home>` through its plugin's bundled `lib/resolve-convention-home.sh`. Any further consuming slice lands per skill and updates that doc's Consumers table in the same change |
 | `instruction-placement` | `.claude/instruction-placement.md` | all three | conforms; per-key override (suppression entries merge per `finding_id`), plus policy-floor inversion: the team layer wins a direct conflict and a personal-only entry is reported `personal-only, not applied`, since a decline removes a placement proposal from every future report and a personal layer hiding one the team never accepted is the weakening this class prevents. `suppressions` is the surface's only key today; the plugin's `userConfig` dials stay personal and are never keys here. Written (team layer only) by `/instruction-placement:realign` behind its per-item gate, read by `/instruction-placement:audit` and `/instruction-placement:delta`. Keys owned by the plugin's `reference/consumer-config.md`; suppression-entry keys by [`finding-suppression`](../finding-suppression/README.md) |
 | `overengineering` | `.claude/overengineering.md` | all three | conforms; per-key override, plus policy-floor inversion on two key groups: the protected-categories set and the suppression entries (which merge per `finding_id`). On both, the team layer wins a direct conflict, personal layers may extend or tighten only, and a personal contribution is named in the report: a gitignored overlay emptying the protected set would defeat the plugin's FLAG-FOR-HUMAN cap on security-class artifacts, and a personal-only suppression is the same weakening `audit-pass` prevents above. Narrowing or emptying the protected set stays available on the tracked layer, spelled one category at a time so the diff names each protection dropped. The threshold and observation-window keys take ordinary refinement. Keys owned by the plugin's `reference/consumer-config.md`; suppression-entry keys by [`finding-suppression`](../finding-suppression/README.md) |
+
+### Root rule by surface
+
+Each row states whether the surface implements Resolution algorithm step 2 on `main`: classifies the
+root through `plugins/source-control/lib/config-root.sh` and skips team and overlay at a `home` or
+`non-repo` root. "Not yet" names the reader and its anchor. "Prose only" means a model-run skill
+with no reader script, so the rule lives in the skill text.
+
+| Surface | Step 2 | Reader and anchor |
+|---|---|---|
+| `source-control` | implements | `parse-branch-issue.sh` sources the resolver; the `commit` and `pull-request` skills classify before their layer probes; setup `apply layer=team` / `layer=local` refuse at a `home` or `non-repo` root |
+| `toolchain` / `ecosystem-commands` | prose only | `/toolchain:check`, `/toolchain:lint`, `/toolchain:setup`; no reader script |
+| `codebase-health`, `github`, `standards`, `rendered-views`, `testing` (`run-e2e`), `instruction-placement`, `overengineering`, `claude-config` (`audit-pass`) | prose only | model-run skills; no layer-reader script |
+| `bugs` | not yet | `scripts/concat-gotchas.sh`: `CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel` |
+| `docs-hygiene` | not yet | `scripts/resolve-config.sh`: `git rev-parse --show-toplevel` from the current directory unless a root is passed |
+| `ai-slop` | not yet | `skills/audit/scripts/detect.sh`: `CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`, else `pwd` |
+| `code-metrics` | not yet | `scripts/resolve-config.py`: `git rev-parse --show-toplevel`, else the current directory; `CLAUDE_PROJECT_DIR` is not consulted |
+| `disk-hygiene` | not yet | the clean engine takes the team file from `--project-dir`; no root classification |
+| `repo-fleet-hygiene` | not yet | `audit-fleet.sh`: `--project-dir`, else `CLAUDE_PROJECT_DIR`; `setup-config.sh`: `CLAUDE_PROJECT_DIR`, else `$PWD` |
+| `work-items` | not yet | `tools/work-item-tracker/lib/binding.sh` (`wit_project_root`): `CLAUDE_PROJECT_DIR`, else git toplevel; no user-global layer, so the home-root collision does not arise for the binding file |
+| `autonomy` | not yet | hooks anchor at `CLAUDE_PROJECT_DIR` (`hooks/hook-utils.sh`); `binding.json` has no shared reader script |
+| `plugin-quality`, `architecture`, `authoring-formats` | not yet | each plugin's `lib/resolve-convention-home.sh`: `--root`, else `CLAUDE_PROJECT_DIR`, else git toplevel, else the current directory; team-only via pointer line, no user-global layer to collide with |
+| `ai-briefing`, `code-tidying` | prose only | team-only surfaces read by model-run skills |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
 sweep, and each migration updates its own row in the same change.
