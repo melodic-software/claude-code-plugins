@@ -1927,6 +1927,65 @@ else
   fail "kill switch failed (rc=$RC_K out=$OUT_K)"
 fi
 
+# --- SessionStart probe: the kill switch closes the launcher gate ------------
+# markdown_format_enabled=false must silence the prerequisite probe as well as
+# the format hook. The gate sits in the launcher (exec-bash.mjs
+# --run-if-unset-or-true), so probe-prerequisite.sh stays the shared,
+# byte-identical manifest reader and a closed gate never resolves bash.
+PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"]]'
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]?.args]' "$HOOKS_JSON")"
+  if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
+    ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
+  else
+    fail "hooks.json SessionStart args: got $PROBE_ARGS_GOT, want $PROBE_ARGS_WANT"
+  fi
+else
+  fail "hooks.json SessionStart assertions need jq and $HOOKS_JSON"
+fi
+
+# A PATH with node and the system tools but no markdownlint-cli2; env -i drops
+# any CLAUDE_PLUGIN_OPTION_* the calling session exported.
+if command -v node >/dev/null 2>&1; then
+  PROBE_BIN="$WORK/probe-bin"
+  mkdir -p "$PROBE_BIN"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PROBE_BIN/$base" ]] || continue
+      ln -s "$exe" "$PROBE_BIN/$base"
+    done
+  done
+  ln -sf "$(command -v node)" "$PROBE_BIN/node"
+  run_probe_launcher() {
+    local data
+    data="$(mktemp -d "$WORK/pd.XXXXXX")"
+    (cd "$UNRELATED" && env -i PATH="$PROBE_BIN" CLAUDE_PLUGIN_DATA="$data" "$@" \
+      node "$HOOK_DIR/exec-bash.mjs" --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED \
+      "$HOOK_DIR/probe-prerequisite.sh" <<<'{"session_id":"s1"}')
+  }
+  OUT_PROBE_OFF="$(run_probe_launcher CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
+  RC_PROBE_OFF=$?
+  if [[ $RC_PROBE_OFF -eq 0 && -z "$OUT_PROBE_OFF" ]]; then
+    ok "SessionStart probe: kill switch off -> exit 0, no notice"
+  else
+    fail "SessionStart probe with the kill switch off (rc=$RC_PROBE_OFF out=$OUT_PROBE_OFF)"
+  fi
+  OUT_PROBE_ON="$(run_probe_launcher)"
+  RC_PROBE_ON=$?
+  CTX_PROBE_ON="$(ctx_of "$OUT_PROBE_ON")"
+  if [[ $RC_PROBE_ON -eq 0 &&
+    "$CTX_PROBE_ON" == *markdownlint-cli2* &&
+    "$CTX_PROBE_ON" == */markdown-format:check* &&
+    "$CTX_PROBE_ON" == *"npm i -D markdownlint-cli2"* ]]; then
+    ok "SessionStart probe: kill switch unset -> notice names the tool, the check skill and the install"
+  else
+    fail "SessionStart probe with the kill switch unset (rc=$RC_PROBE_ON out=$OUT_PROBE_ON)"
+  fi
+else
+  skip "SessionStart probe kill-switch run" "node not on PATH"
+fi
+
 # ============================================================================
 # Phase 2: hook telemetry tests
 # ============================================================================
