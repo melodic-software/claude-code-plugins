@@ -1283,32 +1283,36 @@ name is not the same underlying value across models):
   fetched 2026-09-28, 45,082 bytes; recheck trigger: that section drops the Opus 5.5 / Fable 5.1
   exception or changes which providers it excludes).
 
-**Pinned `effort: high` agents (recorded decision, #4253).** Option A: keep the pins. Document
-the operator cost. Do not unpark a funded sweep that drops or lowers them.
+**Pinned `effort: high` agents.**
 
-- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
-  silently cheapen consequential workers. There is no per-invocation `effort` on Agent-tool
-  dispatch, so a frontmatter pin is the only supported way to hold the lane, and the only
-  supported way to lower it is to edit the definition. That is the operator cost: the cheapest
-  lever (lower effort) is unavailable on those workers without a source change. Keep the pins.
-  A funded sweep that drops or lowers some of them, or exposes a `userConfig` effort key, stays
-  parked.
-- **Basis:** The eleven defs on origin/main (2026-09-28): `implementation` `implementer` and
-  `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`; `review`
-  `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
-  `ecosystem-specialist`, and `security-reviewer`. The Agent-tool gap in this section
-  ("a generic Agent-tool dispatch carries no effort control"). Upstream: lowering effort beat
-  an architecture change, and `low` is named for simpler subagent tasks
-  ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
-  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Issue
-  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253). Also pinned
-  `high`, outside the filed eleven: `plugin-quality` `auditor`, `songwriting` `object-writer`.
-  Not in the eleven: `discovery` `research-verifier` and `planning` `plan-reviewer` pin
-  `medium`.
-- **As of:** 2026-09-28.
-- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer funds a
-  sweep that drops or lowers a named pin, or a plugin ships a `userConfig` effort key that
-  actually reaches the worker.
+- **Claim:** Thirteen named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers, and two more pin `effort: medium`. There is no
+  per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
+  agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable lowers every pin at once for
+  the whole session (the environment variable still wins, per above), and a `maxEffortLevel` or
+  organization effort cap limits them the same way. Neither cited page documents a per-lane or
+  per-plugin lever; lowering one agent's pin alone means editing its definition.
+- **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
+  `implementer` and `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`;
+  `review` `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
+  `ecosystem-specialist`, and `security-reviewer`; `plugin-quality` `auditor`; `songwriting`
+  `object-writer`. `effort: medium`: `discovery` `research-verifier` and `planning`
+  `plan-reviewer`. Issue [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253)
+  is the source of the filed list of eleven, which omits `auditor` and `object-writer`. The
+  Agent-tool gap in this section ("a generic Agent-tool dispatch carries no effort control").
+  Upstream, fetched 2026-09-29 from the raw `.md` channel:
+  [model config](https://code.claude.com/docs/en/model-config#set-the-effort-level) (109,282
+  bytes), "Frontmatter effort applies when that skill or subagent is active, overriding the
+  session level but not the environment variable. A `maxEffortLevel` or organization effort cap
+  still limits the level the skill or subagent runs at";
+  [sub-agents](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) (107,466
+  bytes), `effort`: "Effort level when this subagent is active. Overrides the session effort
+  level." Lowering effort beat an architecture change, and `low` is named for simpler subagent
+  tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
+- **As of:** 2026-09-29.
+- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer lowers or
+  drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
