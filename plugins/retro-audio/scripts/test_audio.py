@@ -104,7 +104,7 @@ class AudioTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "at least 1"):
             mml.render_mml("[c]0", "gameboy")
 
-    def test_repeat_count_defaults_to_two_and_honours_an_explicit_count(self):
+    def test_repeat_count_defaults_to_two_and_uses_an_explicit_count(self):
         for score in ("[c]", "[c]2"):
             samples = mml.render_mml(f"t120 l4 {score}", "gameboy", rate=22050)
             self.assertAlmostEqual(len(samples) / 22050, 1.0, delta=0.01)
