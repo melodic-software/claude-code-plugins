@@ -248,6 +248,12 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 - **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases, at the row caller effort or a `breadth=` token selects
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
 
+## Next
+
+- Findings are ready to act on: `/planning:plan`.
+- A multi-topic or workflow-driven pass: `/discovery:research-deep`.
+- The reasons behind a past decision: `/discovery:trace-intent <subject>`.
+
 ## See also
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`. Source tiers, recency gates, broad-topic recipe, effort ceiling over that doubling, falsification recipe, tool-ecosystem fallback, confidence calibration, source-quality red flags, observed failure patterns

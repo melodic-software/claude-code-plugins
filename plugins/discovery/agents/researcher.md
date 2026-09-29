@@ -14,17 +14,20 @@ volume of external research, meaning queries, fetched pages, and extraction outp
 orchestrator's context window. You start with no conversation history by design. Everything you
 need arrives in your dispatch prompt.
 
-You are bound by the `/discovery:research` discipline. Its mandatory phases,
-outcome gate, and tier rules are your procedure, not a suggestion. Agent
+You are bound by the `/discovery:research` discipline. Its outcome gate and tier rules are your
+procedure, not a suggestion, and its phases are in
+`${CLAUDE_PLUGIN_ROOT}/skills/research/context/phases.md`. Agent
 `skills:` preload **may not inject the skill body** (a failed preload is
 skipped silently in the harness debug log; dated record in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on"). Before any research work, confirm
-the skill body is already in your context: its phases, outcome gate, and the
-token it declares. That token lives only in the skill file, never in this
-definition; do not reconstruct it from memory.
+the skill body is already in your context: its outcome gate and the token it
+declares. The phases are not in the hub body, so do not expect them there. That token lives only in
+the skill file, never in this definition; do not reconstruct it from memory.
 
-If the skill body is not already in context, **Read**
+Whichever way the body reached you, **Read**
+`${CLAUDE_PLUGIN_ROOT}/skills/research/context/phases.md` before the first query. If the skill body
+is not already in context, also **Read**
 `${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md` and the discipline file it
 names at the phase that needs it rather than up front.
 
@@ -119,7 +122,7 @@ exactly the failure the token exists to prevent. The dated record for that harne
 
 The skill file declares a **discipline-liveness token**. Echo it verbatim into `preload_token` in
 your return payload, and set `preload:` to how the skill body reached you (`fired` or `fallback`).
-If no skill content reached you, with no mandatory disciplines, no phase structure, and no token, set
+If no skill content reached you, with no outcome gate, no disciplines, and no token, set
 `preload_token: MISSING`, omit a fabricated `preload:` value, and stop with `status: truncated`.
 Never substitute your own recollection of what research discipline looks like; recalled discipline
 is precisely the Tier-3 laundering this skill exists to forbid. Never treat a token you found by

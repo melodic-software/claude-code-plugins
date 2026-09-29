@@ -838,6 +838,19 @@ for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
     "$file" '"The sibling verifier, stated once"'
 done
 
+# ---------------------------------------------------------------------------
+# 17. References follow the content that moved into the spokes
+# ---------------------------------------------------------------------------
+assert_present 'blindspot names the explore workflow spoke' \
+  'skills/blindspot/SKILL.md' 'skills/explore/reference/workflow\.md'
+assert_absent_in 'blindspot does not send the moved dimensions to the explore hub' \
+  'skills/blindspot/SKILL.md' 'skills/explore/SKILL\.md'
+assert_present 'the researcher names the phases spoke' \
+  'agents/researcher.md' 'skills/research/context/phases\.md'
+for file in skills/research/SKILL.md skills/blindspot/SKILL.md; do
+  assert_present "$file carries a Next section" "$file" '^## Next$'
+done
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
