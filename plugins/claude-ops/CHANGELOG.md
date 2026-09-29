@@ -10,7 +10,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
   directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
   `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
-  removal stays with `/disk-hygiene:clean`. A missing or unparseable registry yields an empty list
+  removal stays with `/disk-hygiene:clean`. A missing or unparsable registry yields an empty list
   and a note, so an empty list reads as "not checked". The report schema is now
   `claude-install-state/3`, and `content_read_paths` lists only the registry and markers actually
   opened. Marker reads refuse symlinks and non-regular files.

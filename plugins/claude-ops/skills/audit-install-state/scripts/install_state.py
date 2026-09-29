@@ -1654,7 +1654,7 @@ def unreferenced_versions(
 
     Reuses the bytes already measured in `rows`. Reads only the registry and each
     candidate's `.orphaned_at` marker, and never writes. When the registry cannot
-    vouch for the cache (missing, unparseable, or no path in it lands under this
+    vouch for the cache (missing, unparsable, or no path in it lands under this
     root's cache), the result is an empty list and a note: a missing registry is
     not evidence that every directory is unreferenced. Each file it opens is added
     to `opened` when given.

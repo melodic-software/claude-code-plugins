@@ -1195,7 +1195,7 @@ class TestUnreferencedVersions(unittest.TestCase):
             self.assertIn("installed_plugins.json", note)
             self.assertEqual(_scan(root)["unreferenced_versions"], [])
 
-    def test_an_unparseable_registry_reports_nothing_and_says_why(self) -> None:
+    def test_an_unparsable_registry_reports_nothing_and_says_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._cache(root, ("1.0.0", self._ms(30), 10))

@@ -155,7 +155,7 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
 `.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
 days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
-sweep is documented as starting from the marker, so it has no removal date. When the registry is missing, unparseable, or belongs to another root, the
+sweep is documented as starting from the marker, so it has no removal date. When the registry is missing, unparsable, or belongs to another root, the
 list is empty and `unreferenced_versions_note` says why; an empty list then means "not checked",
 not "none". The list is a report, not a deletion list, and removing anything stays with
 `/disk-hygiene:clean`. That skill treats the cache as managed state and leaves version directories
