@@ -168,6 +168,11 @@ printf '{"permissions":{"deny":"Bash(x)","defaultMode":"plan"}}\n' >"$SHAPE/home
 OUT_SCALAR_BAD=$(run_tree "$SHAPE")
 assert_contains "a string rule list is invalid-json whatever follows it" "$OUT_SCALAR_BAD" "user settings invalid-json"
 
+# A scalar key of the wrong type is a malformed scope, not a healthy one.
+printf '{"permissions":{"defaultMode":{},"allow":["Bash(ls)"]}}\n' >"$SHAPE/home/.claude/settings.json"
+OUT_SCALAR_OBJ=$(run_tree "$SHAPE")
+assert_contains "an object defaultMode is invalid-json" "$OUT_SCALAR_OBJ" "user settings invalid-json"
+
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.
 # Reporting it twice would claim two live rule sources where there is one.

@@ -70,8 +70,11 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   rejected as invalid JSON.** `{"permissions":{"defaultMode":"bypassPermissions"}}` is now scanned,
   so `C2-defaultMode` and `C5-disableType` fire on real files. Both `C2-defaultMode` findings say to
   remove the value from the named file and state the masking claim only where no higher-ranked
-  settings file or `--permission-mode` sets a mode. The unsourced auto version boundary is removed
+  settings file or `--permission-mode` sets a mode. The unsourced auto version boundary is removed.
+  A `defaultMode` that is not a string is now invalid-json too
   ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+- **`audit-instructions`: the 200000-token lane-window fallback carries a recheck trigger.** The
+  claim, basis, as-of date and trigger sit beside the fallback in `SKILL.md`.
 
 In-place changelog corrections:
 

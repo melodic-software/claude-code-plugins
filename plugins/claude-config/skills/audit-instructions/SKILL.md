@@ -252,7 +252,9 @@ line figure is derived per run from the bytes per line measured over the in-scop
 `<lane model window>` is the `--window-tokens` value: the context window in tokens of the model the
 lane runs on, per <https://code.claude.com/docs/en/model-config> (fetched 2026-09-29). When the
 lane's model resolves to no documented window, pass 200000, the smaller standard window: a smaller
-budget only adds lanes.
+budget only adds lanes. **Claim:** 200000 is the smallest documented window. **Basis:** the
+model-config page above. **As of:** 2026-09-29. **Recheck:** when that page documents a smaller
+window for a supported model.
 
 Partition deterministically, feeding every in-scope file as `<group>\t<unit>\t<path>`, where the
 group is its plugin (or the memory layer) and the unit is its skill (or the file itself):
