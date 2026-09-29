@@ -136,6 +136,7 @@ WINDOWS_OS_ROOT_FILE_NAMES = {
 }
 LINUX_OS_ROOT_FILE_NAMES = {
     "swapfile",
+    "swap.img",
 }
 LINUX_OS_ROOT_FILE_GLOBS = (
     "vmlinuz*",

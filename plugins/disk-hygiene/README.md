@@ -303,7 +303,7 @@ admission ladder as directories.
 |---|---|
 | The volume root itself | Whole-root recursive walk is refused |
 | OS-owned directory names (`Windows`, `/usr`, `Users`/`home`, …) | Per-platform directory set |
-| OS-owned file names (`pagefile.sys`, `/swapfile`, `vmlinuz*`, `.file`, …) | Per-platform file set |
+| OS-owned file names (`pagefile.sys`, `/swapfile`, `/swap.img`, `vmlinuz*`, `.file`, …) | Per-platform file set |
 | Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
 | Symlinks, reparse points, cloud placeholders | Ambiguous identity |
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |

@@ -1585,6 +1585,22 @@ class HygieneTests(unittest.TestCase):
                     hygiene.root_child_skip_reason(path, exact_names=set()),
                 )
 
+    def test_linux_swap_img_is_os_owned_by_name(self) -> None:
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("swap.img", "linux")
+        )
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("Swap.IMG", "linux")
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "swap.img"
+            path.write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "os_key", return_value="linux"):
+                self.assertEqual(
+                    "os-owned",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
     def test_root_child_selected_file_appears_in_entries_and_rollup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -1660,105 +1676,79 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("withheld (hidden)", payload["error"])
             self.assertNotIn("not-a-directory", payload["error"])
 
+    def _selected_root_file_case(
+        self, root: Path
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Snapshot and plan for a selected root file `log.txt` under `root`.
+
+        Declares `root` an OS-managed volume root, the one property a temp
+        directory cannot have. Nothing else is stubbed: the platform gate,
+        mount state, system roots and handle probe run for real.
+        """
+        root.mkdir()
+        (root / "log.txt").write_text("x", encoding="utf-8")
+        target = root.resolve()
+
+        def is_target(path: Path) -> bool:
+            try:
+                return Path(path).resolve() == target
+            except OSError:
+                return False
+
+        self.enterContext(
+            mock.patch.object(hygiene, "is_volume_root", side_effect=is_target)
+        )
+        self.enterContext(
+            mock.patch.object(
+                hygiene,
+                "is_os_managed_target",
+                side_effect=lambda path, roots=None, markers=None: is_target(path),
+            )
+        )
+        snapshot = hygiene.scan_tree(
+            target, hygiene.load_policy(None), root_children=["log.txt"]
+        )
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("log.txt")]}
+        return snapshot, plan
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux" and shutil.which("lsof"),
+        "the real Linux execution gate and the lsof handle probe are required",
+    )
     def test_preview_of_selected_root_file_clears_on_linux(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "os-root"
-            root.mkdir()
-            (root / "log.txt").write_text("x", encoding="utf-8")
-            snapshot = hygiene.scan_tree(
-                root.resolve(),
-                hygiene.load_policy(None),
-                root_children=["log.txt"],
-            )
-            snapshot["root_children_skipped"] = []
-            plan = {
-                "version": 1,
-                "tier": "high",
-                "candidates": [candidate("log.txt")],
-            }
-            target = root.resolve()
-
-            def is_target(path: Path) -> bool:
-                try:
-                    return Path(path).resolve() == target
-                except OSError:
-                    return False
-
-            with (
-                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
-                mock.patch.object(
-                    hygiene,
-                    "is_os_managed_target",
-                    side_effect=lambda path, roots=None, markers=None: is_target(path),
-                ),
-                mock.patch.object(
-                    hygiene,
-                    "mount_state",
-                    side_effect=lambda path, *a, **k: (is_target(path), None),
-                ),
-                mock.patch.object(hygiene, "system_roots", return_value=[]),
-                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
-                mock.patch.object(
-                    hygiene, "handle_state", return_value=("clear", None)
-                ),
-            ):
-                result = hygiene.preview(snapshot, plan)
+            snapshot, plan = self._selected_root_file_case(Path(temporary) / "os-root")
+            result = hygiene.preview(snapshot, plan)
             self.assertEqual("ready-for-explicit-approval", result["status"])
             self.assertEqual(
                 ["log.txt"], [item["path"] for item in result["candidates"]]
             )
+            self.assertEqual([], result["candidates"][0]["blockers"])
 
     def test_preview_of_selected_root_file_is_unsupported_on_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "os-root"
-            root.mkdir()
-            (root / "log.txt").write_text("x", encoding="utf-8")
-            snapshot = hygiene.scan_tree(
-                root.resolve(),
-                hygiene.load_policy(None),
-                root_children=["log.txt"],
-            )
-            snapshot["root_children_skipped"] = []
-            plan = {
-                "version": 1,
-                "tier": "high",
-                "candidates": [candidate("log.txt")],
-            }
-            target = root.resolve()
-
-            def is_target(path: Path) -> bool:
-                try:
-                    return Path(path).resolve() == target
-                except OSError:
-                    return False
-
-            with (
-                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
-                mock.patch.object(
-                    hygiene,
-                    "is_os_managed_target",
-                    side_effect=lambda path, roots=None, markers=None: is_target(path),
-                ),
-                mock.patch.object(
-                    hygiene,
-                    "mount_state",
-                    side_effect=lambda path, *a, **k: (is_target(path), None),
-                ),
-                mock.patch.object(hygiene, "system_roots", return_value=[]),
-                mock.patch.object(
-                    hygiene,
-                    "execution_blockers",
-                    return_value=["execution-platform-unsupported"],
-                ),
-                mock.patch.object(
-                    hygiene, "handle_state", return_value=("clear", None)
-                ),
-            ):
+            snapshot, plan = self._selected_root_file_case(Path(temporary) / "os-root")
+            with mock.patch.object(hygiene, "os_key", return_value="windows"):
                 result = hygiene.preview(snapshot, plan)
+            self.assertEqual("blocked", result["status"])
             self.assertIn(
                 "execution-platform-unsupported",
                 result["candidates"][0]["blockers"],
             )
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux" and shutil.which("lsof"),
+        "the real Linux execution gate and the lsof handle probe are required",
+    )
+    def test_apply_of_selected_root_file_removes_it_on_linux(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            snapshot, plan = self._selected_root_file_case(root)
+            result = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual("completed", result["status"])
+            self.assertEqual(["log.txt"], [item["path"] for item in result["removed"]])
+            self.assertEqual([], result["skipped"])
+            self.assertFalse((root / "log.txt").exists())
 
     def test_preview_blocks_selected_root_file_with_open_handle(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
