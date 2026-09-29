@@ -33,13 +33,14 @@
     {
       "id": 3,
       "name": "title-action-does-not-skip-constraints",
-      "prompt": "/songwriting:co-write title develop 'last call at the diner' into a country verse",
-      "expected_output": "Routes to the title action, not the title-game cascade. Loads the title-development materials and holds POV, genre, and stress constraints before drafting lines. It does not start the 10-15 title cascade.",
+      "prompt": "/songwriting:co-write title candidates for 'last call at the diner', country, first person",
+      "expected_output": "Routes to the title action, not the title-game cascade. Loads hook.md 'title generation', idea-to-title.md and templates/title-generation-prompt.md. Returns several labeled title candidates from the idea, holding the genre and POV constraints. Does not run the 10-15 chained-title cascade.",
       "files": [],
       "expectations": [
         "Does not run the Title Game cascade of 10-15 chained titles",
-        "Loads title-development materials for a single title",
-        "Keeps genre/POV constraints in view before drafting"
+        "Loads the title-generation materials (hook 'title generation', idea-to-title, title-generation-prompt) via the title action",
+        "Returns multiple title candidates rather than a single title or a drafted verse",
+        "Keeps the stated genre/POV constraints in view"
       ]
     }
   ]
