@@ -1,9 +1,12 @@
 # docs-hygiene plugin contract
 
-Recorded decision for
-[#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142).
-A future skill is measured against this charter, not against whether it feels
-adjacent.
+Status: proposed. Not yet ratified by the owner;
+[#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142)
+is open for that decision. The Decision below records what an unattended agent
+chose and binds nothing until ratified.
+
+Once ratified, a future skill is measured against this charter, not against
+whether it feels adjacent.
 
 ## What the plugin is
 
