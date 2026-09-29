@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.39.0] - 2026-09-29
+
+### Changed
+
+- **A new `/goal` arrives as its own railed region in the handoff resume prompt** ([#4337](https://github.com/melodic-software/claude-code-plugins/issues/4337)). When the user asked for a fresh goal, or a `/goal` is active in the producing session, `## Resume prompt` holds two railed regions, each with its own copy line: the goal region first (type `/goal` and a space, paste the condition, confirm the `◎ /goal active` indicator), then the resume region. The condition carries no leading `/goal`, ends with the `Read @` directive, and stays within the 4,000-character limit. With no goal the output is unchanged.
+- **`save_point.py` emits, fills and validates the goal region.** The `goal-rearm` slot is replaced by `goal-first` and `goal-after`. `check` fails a `/goal` line between rails, a second goal region, a goal region without its copy line or `Read @` directive, and an over-limit condition.
+- **`handoff`, `continue-in-background` and `find-handoff` follow the new contract.** The recoverable unit is the resume region, the goal region and every below-rail re-arm message, so `find-handoff` recovers a goal from a file or a transcript.
+
 ## [0.38.29] - 2026-09-29
 
 ### Fixed
