@@ -6,6 +6,14 @@
 
 - The `extract-ssot` orchestrated-mode context carries the guard floor's new `Account switch` bullet, byte-for-byte with the reader contract.
 
+### Fixed
+
+- **`audit-file-names` no longer reads an empty scan root as a clean tree.** `inventory.sh` warns
+  on stderr when it scans no files, and `emit-findings.sh` exits 3 when the inventory scanned zero
+  files over an existing plan that holds findings, unless `--replace` is passed, so a re-audit
+  cannot drop recorded decisions. `SKILL.md` and `reference/config.md` define `SCANNED 0` as an
+  empty root and direct the zero-offender run to a `findings: 0` plan.
+
 ## [0.23.16] - 2026-09-29
 
 ### Changed
