@@ -9,6 +9,10 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/typos-format:check` reports whether the binary resolves without installing.
 
+### Changed
+
+- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`typos-format-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/typos-format:check`.
+
 ## [0.7.8] - 2026-09-29
 
 ### Changed
