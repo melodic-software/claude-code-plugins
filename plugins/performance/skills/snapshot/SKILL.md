@@ -57,12 +57,16 @@ Before any timed arm runs, record the **measuring tool's identity** for every ex
 metric command names (harness scripts, summarizers, census wrappers): resolved path, `git rev-parse
 HEAD` or content hash when the tree is a checkout, and `--version` output when the tool provides it.
 Check that **every flag** the goal's metric command uses appears in that copy's `--help` (or is
-exercised in a dry run). A stale checkout, wrong plugin root, or missing flag support **stops the
-run** and names the fix (update the tool, point at the installed plugin copy, or change the goal's
-command). Carry the record in the report:
+exercised in a dry run). Check whether the checkout is behind its upstream, when determinable from
+local refs (`git rev-list --count HEAD..@{u}`, never a fetch); with no upstream ref, report `not
+determinable`. Check that the output column or field the goal's metric names is produced (a dry run
+or sample output contains it). A stale checkout, wrong plugin root, missing flag support, a copy
+behind its upstream, or a missing output column **stops the run**, names both fixes (update the
+tool, point at the installed plugin copy, or change the goal's metric command), and reports no
+partial numbers. Carry the record in the report:
 
 ```text
-Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing>
+Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>
 ```
 
 ### 2. Capture the drift-immune counter first
@@ -127,6 +131,10 @@ size, so report both and never infer one from the other. No evidence yet means `
 guess. See [prove the proxy](../../reference/techniques.md#d-prove-the-proxy).
 
 ## Comparing before and after
+
+A post snapshot records the same `Tool:` line and flags any difference in path, revision or hash,
+or version from the baseline's recorded line. A pair measured with two tool copies is not a
+comparison of the change alone, so its ratio is not reported.
 
 **Never compare two separate passes on a drifting host.** A bare `bash -c true` can cost 1825 ms and
 283 ms in the same hour on the same machine at ~10% CPU. Any two-pass comparison attributes that 6x
@@ -195,15 +203,17 @@ repeats hides the cost a first-time user pays.
 
 ## The override
 
-Gates here hard-block. A named per-gate override exists, and using it **records itself in the
-report**:
+Gates here hard-block. A named per-gate override exists for each gate, and using it **records itself
+in the report**:
 
 ```text
 OVERRIDE: unmeasurable-host  reason: <stated by the human>  gate: is_measurable
+OVERRIDE: tool-identity  reason: <stated by the human>  gate: tool-identity
 ```
 
-An override without a recorded reason is not available. A report carrying an override says so at the
-top, not in a footnote.
+The second gate is the step 1b stop and the post-versus-baseline tool comparison. An override
+without a recorded reason is not available, for either gate. A report carrying an override says so at
+the top, not in a footnote.
 
 ## Storage
 

@@ -20,6 +20,7 @@ reliable than the thing it checks.
 | 4 | discrimination check (repeat) | "NOT DISCRIMINATING" | Same trap, a second harness. Fixing the path form immediately showed FAIL-without / PASS-with. |
 | 5 | discrimination check (python) | "NOT DISCRIMINATING" | Restored via `git checkout --` while the fix under test was **uncommitted**. The restore silently reverted the fix, so the "with fix" arm ran without it, and the work was destroyed. |
 | 6 | hand-rolled interleaving harness (python) | 63 ms per sample, every sample | A bare `bash` under `subprocess` resolved by `PATH` order, per that run's own notes to WSL's `bash.exe` in the Windows `System32` directory, which cannot see a drive-letter path. Every sample exited 127 and was timed as a fast, clean run. Caught only by checking exit codes. The bundled `scripts/ab.sh` would have refused it. |
+| 7 | benchmark run through a stale harness copy (instrument identity unchecked) ([#4436](https://github.com/melodic-software/claude-code-plugins/issues/4436)) | plausible numbers, run completed | The copy was nine commits behind origin and lacked the transcript-size arm and the process counter. Nothing errored. Caught only by a missing output column. |
 
 None of these are knowledge gaps. They are all "the measurement was wrong in a way that looked
 right". A workflow that measures without enforcing the rules below mostly generates confident
@@ -119,6 +120,19 @@ Path spelling is behind failures 3 and 4 in the table above, and path resolution
 
 On a mixed MSYS/native host this is not an edge case. It is the default hazard.
 
+### 7. Instrument identity is verified, not assumed
+
+A harness copy that is behind its source, or a different copy from the one that took the baseline,
+produces numbers that look like measurements. Failure 7 completed with plausible values.
+
+- Record the identity of every measuring tool before timing: resolved path, revision or content
+  hash, and version when it reports one.
+- Check that the copy is not behind its upstream, from local refs only (no fetch), and that the
+  output column or field the goal's metric names is actually produced.
+- A post snapshot repeats the baseline's identity line and flags any difference in path, revision
+  or version. A before/after pair taken with two tool copies does not isolate the change, so its
+  ratio is not reported.
+
 ## Process counting on MSYS/Cygwin (Git Bash)
 
 **Claim:** On Git Bash under MSYS, many Windows-side process counters (Job Object child counts,
@@ -177,5 +191,8 @@ Before reporting any number:
       invoked by absolute path, never by bare name.
 - [ ] No sample exited 127 or 126. A timing that is fast and identical across every sample is
       failure 6's signature until the exit codes say otherwise.
+- [ ] Instrument identity is verified: the measuring tool's path, revision and version were
+      recorded, the copy is not behind its upstream, the goal's metric column is produced, and a
+      post snapshot matches the baseline's recorded tool.
 - [ ] The bundled harness in `scripts/` ran where one exists for the job (`ab.sh`,
       `run-spawn-census.sh`, `differential.py`, `discriminate.py`), rather than a reimplementation.
