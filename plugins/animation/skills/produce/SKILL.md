@@ -32,7 +32,7 @@ overwrites one that is already there.
 | `boards/style-guide.md` | you | `Pack:` equal to `palette.json` `pack`. Under `Differs from the pack:`, each bullet says `measured` or `judgment` |
 | `boards/palette.json` | you | `pack`, `ink` and `paper` as `#rrggbb`, `tones` as `{lv, color}` objects, optional `tolerance` |
 | `boards/vibe.md` | you | reference images, each with a credit. A film with none still says `Credit:` |
-| `boards/models/<name>.md` `.js` `.png` | you | at least one character sheet. The `.js` is the ink.js element; the `.png` is its turnaround |
+| `boards/models/<name>.md` `.js` `.png` | you | at least one character sheet. The `.js` is a scene module (see step 2); the `.png` is its turnaround |
 | `boards/elements/<name>.md` `.js` `.png` | you | the same shape, only for elements you actually need |
 | `boards/storyboard.json` | you | `panels`: `{shot, panel, t, png, action, camera, caption?}`. `png` is a relative path to a real file |
 | `boards/approval.json` | `produce.py approve` | `{approved, note, boards_digest}`. You do not hand-write this |
@@ -46,9 +46,12 @@ Paths in those files are relative to the production directory and stay inside it
 1. Write `brief.md` from the request. Unspecified length, audience, or delivery becomes one
    defaults line, not a list of questions. `Packs:` names style packs that already exist
    (`styles/<name>/` or a pack the user points at).
-2. Fill the boards. Render each model and element sheet with `render.py <element.js> <out>
-   --drawings 0` (or the poses that sheet needs) and copy the PNG into `boards/models/` or
-   `boards/elements/`. Those stills are boards, not the film.
+2. Fill the boards. A model or element `.js` is a scene module: it sizes `canvas#c` and defines
+   `window.DURATION`, `window.renderFrame(t)` and `window.renderDrawing(k)`, and `--drawings` fails
+   without `renderDrawing`. `skills/rotoscope/fixtures/synthetic.js` is a working per-drawing scene.
+   Render each sheet with `render.py <scene.js> <out> --drawings 0` (or the poses that sheet
+   needs) and copy the PNG into `boards/models/` or `boards/elements/`. Those stills are boards,
+   not the film.
 3. `produce.py boards <dir>` must exit 0. Fix every line it prints.
 4. Stop. Show the boards and ask the user to approve them. Do not write `shots.json`, do not
    render a shot, and do not encode a file in this step.
@@ -84,5 +87,13 @@ When the review shows the film is a different style than the pack, that is a new
 - `audio.path` is optional. When present it has to be a file inside the production directory, and
   `audio.start` is seconds into that file. `render.py --encode` does not mux it: the delivered
   file is silent until the audio is muxed in with ffmpeg.
+- The approval gate is soft and prompt-level. Only `produce.py shots` and `review` consult the
+  digest; `render.py` and writing `shots.json` are not gated, and `approve --note` carries no proof
+  that the note came from the user. The gate holds only when step 5 is followed.
+- A board set has one `palette.json` and one style-guide `Pack:` line, so in a film with several
+  packs approval covers that one pack's board. `review` prints one check per shot for mixed packs.
 - A style pack's bands were learned on films of at least about a third of the source. A much
   shorter film can fail a row the pictures do not deserve; say so, and do not edit the pack.
+  Verified 2026-09-29 against `skills/learn-style/reference/statistics.md` "Short films" (at least
+  a third of the source, about 10 s) and the `FLOOR` constant in
+  `skills/learn-style/scripts/learn.py` (`1 / 3`). Recheck when that section or `FLOOR` changes.
