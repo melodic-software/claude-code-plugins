@@ -125,7 +125,7 @@ limit. `/discovery:research-deep` splits only topics that share no claims, so ga
 source stay in one run by design. This step is where those gaps fan out.
 
 **When.** All three hold: the dispatch prompt says `Capability flags: nested spawning available`,
-the `Agent` tool is actually present, and the Phase 1 list (or the brief) carries 3 or more
+the `Agent` tool is actually present, and the Phase 1 list (or the brief) carries two or more
 numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
 
 1. **Group, then assign.** Gaps that point at the same primary go to one worker; every other gap
@@ -137,7 +137,9 @@ numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
    version, the source categories to try, and the fetch recipe under "Primary-source-first
    protocol", with `<scratch>` set to a directory inside this run's memory slice. It returns, per
    gap, each source's URL, its on-disk artifact path, the quoted span, and what the source measures.
-   It returns no verdict. Done when every worker is dispatched in one turn.
+   It returns no verdict. The brief also carries one line: `Credentials: verify presence only, never
+   read or print a value; rule and forbidden commands: ${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md,
+   Credentials stay unread`. Done when every worker is dispatched in one turn.
 3. **Keep the falsification query yourself.** It tests the leading hypothesis the whole run rests
    on, so it never goes to a gap worker.
 4. **Merge, then confirm.** Append each worker's fetches to the fetch log. A worker's return is

@@ -3,6 +3,23 @@
 All notable changes to the `retro-audio` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-09-29
+
+### Fixed
+
+- `music` rejects an unmatched `]`, a zero tempo (`t0`), a zero default or per-note length, and a
+  zero repeat count (`[c]0`) with an `mml.py:` error and exit 1; before, a stray `]` dropped the rest
+  of the score silently, `t0` and `l0` raised `ZeroDivisionError`, and `[c]0` repeated twice.
+- `sfx` rejects a `--params` value that is not a JSON object, and a null or wrongly typed field, with
+  an `sfx.py:` error and exit 1 instead of a traceback.
+
+### Changed
+
+- The docs and the plugin description state what chip presets enforce: the channel count, the noise
+  part count, and the `@0` bass waveform, not the hardware voice mix. The `pico-8` preset shares the
+  Game Boy and NES pulse duties, which the PICO-8 manual does not document, so the description no
+  longer calls them PICO-8 duties.
+
 ## [0.1.0] - 2026-09-28
 
 ### Added
