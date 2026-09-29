@@ -214,7 +214,7 @@ tooling sweeping the directory expects them:
   is a shard key derived from `session_id` and reduced to `misc` unless it matches
   `^[A-Za-z0-9._-]{1,64}$` without a leading dot. It is **never** trusted as a path. `spool/.last-drain`
   holds the epoch seconds of the last flush and is what elects the next draining refresh; a stale
-  `spool/.drain.lock` file (a directory from versions before 0.8.35) can appear if a drain is
+  `spool/.drain.lock` file (a directory from versions before 0.8.36) can appear if a drain is
   killed and is stolen after two minutes.
   Records older than 15 minutes are swept, on a 5-minute cadence rather than on every drain.
   Readers consume none of this: the contract file above is still the only proactive surface.
