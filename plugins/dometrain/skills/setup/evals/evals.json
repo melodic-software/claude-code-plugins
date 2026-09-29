@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Never reads settings, environment variables, credential storage, logs, or the API key",
-        "Checks both mcp__plugin_dometrain-mcp_dometrain__* and mcp__dometrain__* tool names",
+        "Matches Dometrain tools by server segment and tool name in the runtime inventory, not a fixed full prefix",
         "Names both supported setups: install dometrain-mcp, or add a user-scope dometrain server per the README",
         "Warns that installing dometrain-mcp next to a user-scope server at the same URL produces a duplicate-server warning",
         "Distinguishes no server present from a configured server whose tools do not resolve",
@@ -21,10 +21,10 @@
       "id": 2,
       "name": "already-enabled-server-is-reported-reachable",
       "prompt": "/dometrain:setup \u2014 mcp__dometrain__search_dometrain already appears in my tool list (my own user-scope server).",
-      "expected_output": "Treats the user-scope tools as present, reports connected naming the mcp__dometrain__ prefix, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
+      "expected_output": "Treats the user-scope tools as present, reports connected as a user-scope server, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
       "files": [],
       "expectations": [
-        "Reports connected under the mcp__dometrain__ prefix and does not ask for dometrain-mcp",
+        "Reports connected as a user-scope server and does not ask for dometrain-mcp",
         "Reports the server as reachable from tool inventory, not from reading the key",
         "Does not prompt to re-enter or rotate the API key",
         "Never reads settings, environment variables, or credential storage"

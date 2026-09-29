@@ -12,10 +12,13 @@ or writing any API key. This plugin ships skills only. The tools come from one o
 setups, both described in the README's
 [Getting the MCP server](../../README.md#getting-the-mcp-server):
 
-- the `dometrain-mcp` plugin, whose tools are named `mcp__plugin_dometrain-mcp_dometrain__<tool>`
-  and whose key lives in that plugin's `dometrain_api_key` option;
-- a user-scope `dometrain` MCP server the user registered, whose tools are named
-  `mcp__dometrain__<tool>`.
+- the `dometrain-mcp` plugin, whose key lives in that plugin's `dometrain_api_key` option;
+- a user-scope `dometrain` MCP server the user registered.
+
+Both expose the same tool names under a `dometrain` server segment. This skill matches on the
+server segment and tool name in the runtime inventory and never on a fixed prefix, because Claude
+Code owns the prefix format and can change it. A plugin-provided server's name carries its
+plugin's name before the server segment; a user-scope server's does not.
 
 Check-only per the uniform setup contract's carve-out for a plugin with no options: `check`
 (default and only action) verifies and reports. Both setups keep their credentials outside this
@@ -39,16 +42,17 @@ Official contracts:
 ## Task
 
 1. Check whether a Dometrain tool (e.g. `list_courses`, `search_dometrain`) is present in the
-   current tool inventory under either prefix: `mcp__plugin_dometrain-mcp_dometrain__<tool>`
-   (the `dometrain-mcp` plugin) or `mcp__dometrain__<tool>` (a user-scope server). Do not inspect
+   current tool inventory, matched by the `dometrain` server segment and the tool name, whether
+   the name shows a plugin (`dometrain-mcp`) or none (a user-scope server). Do not inspect
    settings files, environment variables, process arguments, debug logs, credential stores, or
    any key.
-2. When a Dometrain tool resolves under either prefix (via direct tool-list presence or a
-   successful `ToolSearch` match), report **connected**, naming which prefix resolved. Do not
+2. When a Dometrain tool resolves (via direct tool-list presence or a successful `ToolSearch`
+   match), report **connected**, naming the source: the `dometrain-mcp` plugin or a user-scope
+   server, per the name shown. Do not
    claim the credential has valid API access beyond that. A connection-layer 401/403/429 rejection
    (per Dometrain's own README Troubleshooting section) would prevent the tool from resolving at
    all, so resolution itself is the strongest signal this skill can observe.
-3. When no Dometrain tool resolves under either prefix and `ToolSearch` returned no connection
+3. When no Dometrain tool resolves and `ToolSearch` returned no connection
    error for a `dometrain` server, report **disabled**: no supported setup is present. Name the two
    supported setups and how to get each:
    - Install and enable `dometrain-mcp` (`claude plugin enable dometrain-mcp` or the `/plugin`
@@ -59,8 +63,8 @@ Official contracts:
      [Adding your own server](../../README.md#adding-your-own-server). In that case the user
      installs `dometrain` alone; installing `dometrain-mcp` too produces a duplicate-server warning
      in `/plugin`.
-4. When `dometrain-mcp` is enabled or a user-scope server is registered but no tool resolves
-   under either prefix, report **failed or unverified**:
+4. When `dometrain-mcp` is enabled or a user-scope server is registered but no tool resolves,
+   report **failed or unverified**:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
    - Otherwise do not assert why. Claude Code does not report failed connections to Claude in a
      configuration without tool search, and this skill cannot inspect the environment to tell

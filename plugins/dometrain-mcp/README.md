@@ -79,7 +79,12 @@ manifest default. The verified-version record lives in the
 
 Plugin-provided tools are named `mcp__plugin_<plugin>_<server>__<tool>`, so this plugin's tools
 appear as `mcp__plugin_dometrain-mcp_dometrain__<tool>`. A server you configure yourself appears
-as `mcp__dometrain__<tool>`. Write permission rules against the prefix of the setup you use.
+as `mcp__dometrain__<tool>`. Write permission rules against the prefix of the setup you use. The skills do not depend on the
+prefix; they match the `dometrain` server segment and tool name.
+
+Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP tool names",
+and a live tool inventory showing a hyphenated plugin name kept as-is, as of 2026-09-29. Recheck
+when Claude Code changes how it names MCP tools.
 
 ## Tools
 

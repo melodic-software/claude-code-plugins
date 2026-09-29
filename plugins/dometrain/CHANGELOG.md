@@ -12,10 +12,9 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   `pluginConfigs` between plugins. A user-scope `dometrain` server needs no change, and installing
   `dometrain` alone with it produces no duplicate-server warning in `/plugin`
   ([#5209](https://github.com/melodic-software/claude-code-plugins/issues/5209)).
-- **`/dometrain:setup` and `/dometrain:grounding` work under either tool prefix.**
-  `mcp__plugin_dometrain-mcp_dometrain__*` (the `dometrain-mcp` plugin) and `mcp__dometrain__*` (a
-  user-scope server) both report connected. With neither present, setup names the two supported
-  setups.
+- **`/dometrain:setup` and `/dometrain:grounding` find the tools by the `dometrain` server segment
+  and tool name, not a fixed prefix.** Tools from the `dometrain-mcp` plugin and from a user-scope
+  server both report connected. With neither present, setup names the two supported setups.
 - **README:** the key-from-environment and `vault-exec` recipes moved to the `dometrain-mcp` README
   and now describe skipping `dometrain-mcp`. The README adds a "Getting the MCP server" section
   and an "Upgrading from 0.4.x" section. Permission rules written against

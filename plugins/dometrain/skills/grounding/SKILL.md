@@ -16,10 +16,11 @@ Usage guidance adapted from Dometrain's own official Claude Code plugin
 (github.com/Dometrain/mcp, MIT licensed). Cite what shaped the answer with a timestamped deep link
 so the user can watch the source.
 
-The tools below come from a Dometrain MCP server that this plugin does not ship. They appear as
-`mcp__plugin_dometrain-mcp_dometrain__<tool>` when the `dometrain-mcp` plugin supplies the server,
-or `mcp__dometrain__<tool>` for a user-scope `dometrain` server; use whichever is present. When
-neither is, say so and point to `/dometrain:setup`.
+The tools below come from a Dometrain MCP server that this plugin does not ship: the
+`dometrain-mcp` plugin supplies one, or the user configures a user-scope server named `dometrain`.
+Find them in the tool inventory by the `dometrain` server segment of the name and the tool name
+(for example `search_dometrain`), whatever prefix Claude Code gives them. When no such tool is
+present, say so and point to `/dometrain:setup`.
 
 The Dometrain MCP server exposes curated documents for Dometrain's video-course lessons:
 summaries, key concepts, cleaned lesson notes, and the exact code shown on screen, each with a

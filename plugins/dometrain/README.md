@@ -15,8 +15,8 @@ Two supported setups. Pick one:
 | No Dometrain MCP server yet | `dometrain` and [`dometrain-mcp`](../dometrain-mcp) | Zero setup beyond entering the key |
 | Your own user-scope `dometrain` server | `dometrain` only | Skills use your server; no duplicate-server warning |
 
-The skills work under either tool prefix: `mcp__plugin_dometrain-mcp_dometrain__*` when
-`dometrain-mcp` supplies the server, `mcp__dometrain__*` for a server you configured.
+The skills find the tools by the `dometrain` server segment and tool name, so they work whether
+`dometrain-mcp` supplies the server or you configured your own.
 
 Claude Code matches plugin servers to already-configured servers by endpoint, so installing
 `dometrain-mcp` next to your own server at the same URL produces a duplicate-server warning in
