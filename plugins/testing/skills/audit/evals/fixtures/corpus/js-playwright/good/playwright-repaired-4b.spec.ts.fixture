@@ -1,0 +1,32 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the banner is asserted visible first, the aria snapshot
+// sits beside a literal, the token is checked for its shape, and a screenshot
+// comparison is an image oracle, never a snapshot finding.
+import { expect, test } from '@playwright/test';
+
+test('the cookie banner names the policy', async ({ page }) => {
+  await page.goto('/');
+  const banner = page.getByRole('dialog');
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText(/cookie policy/);
+});
+
+test('the navigation lists the sections', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Orders' })).toBeVisible();
+  await expect(page.getByRole('navigation')).toMatchAriaSnapshot();
+});
+
+test('login stores a token', async ({ page }) => {
+  await page.goto('/login');
+  const token = await page.evaluate(() => localStorage.getItem('token'));
+  expect(token).toBeTruthy();
+  expect(token).toMatch(/^ey/);
+});
+
+test('the dashboard looks the same', async ({ page }) => {
+  await page.goto('/dashboard');
+  await expect(page).toHaveScreenshot();
+});

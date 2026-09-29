@@ -1,0 +1,7 @@
+# expect: rule-constant-restatement
+# The constant compared to its declared literal; nothing validates a post.
+from app.limits import LIMIT
+
+
+def test_limit_is_280():
+    assert LIMIT == 280

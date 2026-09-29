@@ -1,0 +1,15 @@
+// good-for: rule-zero-assertion
+// A test call with an options object, split over lines before its body
+// brace: the body is the test's, and it asserts.
+import { expect, it } from 'vitest';
+import { createCart } from '../src/cart';
+
+it(
+  'adds an item',
+  { retry: 2 },
+  () => {
+    const cart = createCart();
+    cart.add({ sku: 'A1', qty: 2 });
+    expect(cart.lines()).toHaveLength(1);
+  },
+);

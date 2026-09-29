@@ -1,0 +1,12 @@
+// good-for: rule-zero-assertion
+// The repaired twin: the result is compared with a stated value.
+package slug
+
+import "testing"
+
+func TestSlugify(t *testing.T) {
+	got := Slugify("Hello, World!")
+	if want := "hello-world"; got != want {
+		t.Errorf("Slugify() = %q, want %q", got, want)
+	}
+}
