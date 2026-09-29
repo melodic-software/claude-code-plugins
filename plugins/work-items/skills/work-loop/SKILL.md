@@ -413,11 +413,12 @@ apply the manifest default:
 the convention. The streak counter and cap persist in durable state.
 
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
-by `/implementation:implement-dispatch`, that skill's resolved cap (argument, operator option,
-or internal default), which includes the `${user_config.work_dispatch_concurrency_cap}` ceiling
+by `/implementation:implement-dispatch`, that skill's resolved cap (`--wave-cap` argument, then
+`implement_dispatch_wave_cap`, then the internal default), which includes the `${user_config.work_dispatch_concurrency_cap}` ceiling
 `/work-items:work` threads through as `--wave-cap` when the operator sets it. This loop body's
-arithmetic over those two factors is an upper bound only: under worker authority the effective
-wave is one row.
+arithmetic over those two factors is an upper bound only: `/work-items:work` dispatches into one worktree, so the wave cap
+changes behavior only under commit authority `orchestrator`; under worker authority the
+effective wave is one row.
 
 ## No-progress detector
 
