@@ -65,8 +65,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
 Output location resolves as in `/pixel-art:sprite`. `backends.py` follows the same backend rule as
-`/pixel-art:sprite` (native unless `${user_config.backend}` or `--backend` says otherwise, and no
-`--confirm` until the user accepts a paid call). It writes one GIF per animation.
+`/pixel-art:sprite` (native unless `${user_config.backend}` or `--backend` says otherwise). It writes one GIF per animation.
 
 ## 5. Review loop
 

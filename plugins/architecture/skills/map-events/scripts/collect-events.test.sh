@@ -24,6 +24,10 @@ cat >"$REPO/src/Shipping/Contracts/OrderPlaced.cs" <<'EOF'
 namespace Shipping.Contracts;
 public record OrderPlaced;
 EOF
+cat >"$REPO/src/Billing/Contracts/NobodySent.cs" <<'EOF'
+namespace Billing.Contracts;
+public record NobodySent;
+EOF
 cat >"$REPO/src/Billing/Contracts/ChargeCard.cs" <<'EOF'
 namespace Billing.Contracts;
 public record ChargeCard;
@@ -82,9 +86,9 @@ assert_equals "render exits 0" "$?" "0"
 md="$(cat "$OUT/events.md")"
 assert_contains "broadcast is dotted" "$md" "-.->"
 assert_contains "point-to-point is solid" "$md" "-->"
-assert_contains "handoff form for map-flow" "$md" "handoff: map-events contract=Billing.Contracts.OrderPlaced direction=publish file=src/Api/Publisher.cs line="
+assert_contains "handoff line is keyed by file and line" "$md" "handoff: map-events contract=Billing.Contracts.OrderPlaced direction=publish file=src/Api/Publisher.cs line="
 assert_contains "findings survive the diagram" "$md" "orphan-consumer"
-assert_contains "summary counts only used messages" "$(cat "$OUT/render.out")" "events: messages=3 publishers=3 consumers=3 unresolved=1"
+assert_contains "summary counts only used messages" "$(cat "$OUT/render.out")" "events: messages=4 publishers=3 consumers=3 unresolved=1"
 bash "$RENDER" --record "$OUT/events.json" --out "$OUT" --unrouted-only >"$OUT/unrouted.out"
 assert_contains "unrouted filter is reported" "$(cat "$OUT/unrouted.out")" "unrouted_only=yes"
 assert_contains "findings remain when filtered" "$(cat "$OUT/events.md")" "orphan-publisher"
@@ -164,6 +168,97 @@ assert_not_contains "an unused type is not a message" "$shop" '{"id":"Legacy'
 assert_contains "dynamic send is an unresolved edge" "$shop" '{"from":"src/Orders/OrderService.cs","to":"-","kind":"send","resolution":"unresolved","file":"src/Orders/OrderService.cs","line":8,'
 assert_contains "an ambiguous short name stays unresolved" "$shop" '"detail":"unresolved publish OrderPlaced src/Orders/Ambiguous.cs:4"'
 assert_contains "dynamic send is a finding" "$shop" '{"kind":"unresolved","contract":"-","detail":"unresolved send X src/Orders/OrderService.cs:8"}'
+
+# Dotted names resolve against declared types, never verbatim.
+DOTS="$TEST_TMPDIR/dots"
+mkdir -p "$DOTS/src"
+cat >"$DOTS/src/Contracts.cs" <<'EOF'
+namespace Shop.Contracts;
+public record OrderPlaced;
+public record Refund;
+EOF
+cat >"$DOTS/src/Publisher.cs" <<'EOF'
+namespace Shop;
+public class Publisher
+{
+    public void Run(IBus bus)
+    {
+        bus.Publish<Contracts.OrderPlaced>(new Contracts.OrderPlaced());
+        bus.Publish<global::Shop.Contracts.Refund>(new global::Shop.Contracts.Refund());
+        bus.Publish<global::Contracts.OrderPlaced>(new Contracts.OrderPlaced());
+        bus.Publish<Vendor.Sdk.Ping>(new Vendor.Sdk.Ping());
+    }
+}
+EOF
+cat >"$DOTS/src/Consumers.cs" <<'EOF'
+using Shop.Contracts;
+namespace Shop.Worker;
+public class OrderHandler : IConsumer<OrderPlaced> {}
+public class RefundHandler : IConsumer<Refund> {}
+public class PingHandler : IConsumer<Vendor.Sdk.Ping> {}
+EOF
+git -C "$DOTS" init -q
+git -C "$DOTS" config user.email "fixture@example.invalid"
+git -C "$DOTS" config user.name "Fixture"
+git -C "$DOTS" config commit.gpgsign false
+git -C "$DOTS" add -A
+git -C "$DOTS" commit -q -m fixture
+bash "$COLLECT" --repo "$DOTS" --generated-on 2026-09-28 --out "$OUT/dots.json"
+assert_equals "dots collect exits 0" "$?" "0"
+dots="$(cat "$OUT/dots.json")"
+assert_contains "a dotted name resolves through the enclosing namespace" "$dots" '"to":"Shop.Contracts.OrderPlaced","kind":"publish","resolution":"static"'
+assert_contains "the short-name consumer joins the same contract" "$dots" '"to":"Shop.Contracts.OrderPlaced","kind":"consume","resolution":"static"'
+assert_contains "a global:: name resolves as written" "$dots" '"to":"Shop.Contracts.Refund","kind":"publish","resolution":"static"'
+assert_contains "global:: skips namespace prefixes" "$dots" '"detail":"unresolved publish global::Contracts.OrderPlaced src/Publisher.cs:8"'
+assert_contains "an undeclared dotted publish is unresolved" "$dots" '"detail":"unresolved publish Vendor.Sdk.Ping src/Publisher.cs:9"'
+assert_contains "an undeclared dotted consumer is unresolved" "$dots" '"detail":"unresolved consume Vendor.Sdk.Ping src/Consumers.cs:5"'
+assert_not_contains "no orphan from a dotted name" "$dots" '"kind":"orphan-'
+assert_not_contains "an undeclared dotted name is not a message" "$dots" '{"id":"Vendor'
+
+# A ReceiveEndpoint queue holds for its own call only.
+QUEUES="$TEST_TMPDIR/queues"
+mkdir -p "$QUEUES/src"
+cat >"$QUEUES/src/Setup.cs" <<'EOF'
+namespace Shop;
+public static class Setup
+{
+    public static void Add(IBusRegistrationConfigurator x, IBus bus)
+    {
+        x.AddConsumer<AuditHandler>();
+        x.UsingRabbitMq((ctx, cfg) =>
+        {
+            cfg.ReceiveEndpoint("orders", e =>
+            {
+                e.ConfigureConsumer<OrderHandler>(ctx);
+                e.ConfigureConsumer<BillingHandler>(ctx);
+                bus.Publish<OrderPlaced>(new OrderPlaced());
+            });
+            cfg.ReceiveEndpoint("audit", e => e.ConfigureConsumer<AuditHandler>(ctx));
+            x.AddConsumer<LateHandler>();
+        });
+    }
+}
+public class OrderHandler : IConsumer<OrderPlaced> {}
+public class BillingHandler : IConsumer<OrderPlaced> {}
+public class AuditHandler : IConsumer<OrderPlaced> {}
+public class LateHandler : IConsumer<OrderPlaced> {}
+public record OrderPlaced;
+EOF
+git -C "$QUEUES" init -q
+git -C "$QUEUES" config user.email "fixture@example.invalid"
+git -C "$QUEUES" config user.name "Fixture"
+git -C "$QUEUES" config commit.gpgsign false
+git -C "$QUEUES" add -A
+git -C "$QUEUES" commit -q -m fixture
+bash "$COLLECT" --repo "$QUEUES" --generated-on 2026-09-28 --out "$OUT/queues.json"
+assert_equals "queues collect exits 0" "$?" "0"
+queues="$(cat "$OUT/queues.json")"
+assert_equals "two consumers sit on the orders endpoint" "$(grep '"kind":"consume"' "$OUT/queues.json" | grep -c '"queue":"orders"')" "2"
+assert_equals "one consumer sits on the audit endpoint" "$(grep '"kind":"consume"' "$OUT/queues.json" | grep -c '"queue":"audit"')" "1"
+assert_equals "a registration after the endpoint gets no queue" "$(grep '"kind":"consume"' "$OUT/queues.json" | grep -c '"queue":"-"')" "1"
+assert_equals "a publish inside an endpoint carries no queue" "$(grep '"kind":"publish"' "$OUT/queues.json" | grep -c '"queue":"-"')" "1"
+assert_contains "competing consumers share a message and a queue" "$queues" '{"kind":"competing","contract":"Shop.OrderPlaced","detail":"2 consumers on queue orders"}'
+assert_not_contains "the audit queue has one consumer" "$queues" 'on queue audit'
 
 cat >"$TEST_TMPDIR/bad.json" <<'EOF'
 { "schema_version": 1, "messages": [{"id":"a"}], "edges": [], "findings": [] }

@@ -25,6 +25,7 @@
         "Verifies the rewritten file with a fresh-context semantic-diff subagent and reverts flagged hunks",
         "Preserves every claim the fixture makes — that the cache invalidates on write, that the reader never sees a stale entry, that writes are rare, and that the policy is least-recently-used",
         "Re-runs the detector and re-emits the findings file after the last fixed file, on the stated premise that the audited file is tracked — persistence is live for this run, so a pass that rewrites and re-runs but persists nothing does not satisfy this case",
+        "Writes a `type: fix-pass-record` (via `scripts/emit-fix-record.sh`) naming the findings file this run consumed, after the last fixed file and before the re-emit, so the consumed file is retired and only the fresh post-fix file remains a candidate for `review:fanout fix`",
         "Leaves `evals/fixtures/fix-guarded-rewrite.md` byte-identical after the run — the rewrites land on a copy"
       ]
     },
@@ -130,6 +131,7 @@
       "files": ["evals/fixtures/cross-batch-a.md", "evals/fixtures/cross-batch-b.md"],
       "expectations": [
         "Runs `rubric-fanout.sh plan` with a budget that puts each fixture in its own batch, and dispatches one subagent per batch",
+        "Resolves the rubric working directory (a gitignored `.work/ai-slop-rubric/<TS>/` under the repo, else the scratchpad) before running `plan`, without fetching the producer contract or resolving the findings home first",
         "Passes the batch directory's cues.txt path to both subagents, and cues.txt marks load-bearing saturated=no",
         "Both batches report the shared load-bearing sentence under rule-abstract-metaphor-jargon; neither declines it as saturated",
         "Both batches treat the terse rule line as out of rule-colon-crutch scope and report no colon-crutch finding for it",
