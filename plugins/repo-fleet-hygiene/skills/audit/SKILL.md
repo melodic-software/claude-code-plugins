@@ -72,9 +72,12 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
-shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the current
-working directory when it is a Git checkout, then the nearest of the 4 parents above it that directly holds 2 or more Git repositories, else exit 3 naming every rung. A Git checkout in the
-working directory is a rung; the session project directory is not one on its own. Pass that guidance
+shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the
+nearest of the 4 parents above the working directory's checkout (above the working directory itself
+outside a checkout) that directly holds 2 or more Git repositories, so a run inside one checkout
+covers its sibling fleet, then the checkout holding the working directory, else exit 3 naming every
+rung. A Git checkout in the working directory is a rung; the session project directory is not one
+on its own. Pass that guidance
 through rather than re-deriving a root yourself. Config resolution is the script's own ladder. Do not
 pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes

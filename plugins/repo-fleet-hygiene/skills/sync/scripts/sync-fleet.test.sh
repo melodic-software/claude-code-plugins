@@ -55,7 +55,7 @@ else
   if [[ "$code" -eq 3 ]]; then pass "no scope exits 3"; else fail "no scope exits 3" "exit $code"; fi
 fi
 noscope_err="$(cat "$TMP/noscope.err")"
-for want in "--repo/--root: none given" "ghq not installed" "ghq root --all" "is not a Git checkout" "6. ancestor" "remedy: cd into or beside your checkouts" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
+for want in "--repo/--root: none given" "ghq not installed" "ghq root --all" "5. ancestor" "6. working directory" "is not in a Git checkout" "remedy: cd into or beside your checkouts" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
   expect "the no-scope message carries: $want" "$noscope_err" has "$noscope_err" "$want"
 done
 
@@ -510,8 +510,41 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$TMP/skipdrive" >"$TMP/ghq
 chmod +x "$TMP/ghq-stub"
 r_ghq="$(cd "$TMP/bare-cwd" && HOME="$rung_home" REPO_FLEET_GHQ_BIN="$TMP/ghq-stub" bash "$SCRIPT")"
 expect "ghq root --all plans rung=ghq" "$r_ghq" is "$(rung_of "$r_ghq" "$TMP/skipdrive/app")" "rung=ghq"
-r_cwd="$(cd "$clone" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
-expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$clone")" "rung=cwd"
+# Four directories above solo hold no other repository, so the ancestor probe finds nothing.
+solo="$TMP/iso/a/b/c/solo"
+mkdir -p "$TMP/iso/a/b/c"
+git clone -q "$bare" "$solo"
+r_cwd="$(cd "$solo" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$solo")" "rung=cwd"
+expect "a lone checkout plans only itself" "$r_cwd" has "$r_cwd" $'repos: 1\n'
+
+# A bare run inside one checkout plans the checkout's sibling fleet, from the checkout root or below it.
+mkdir -p "$TMP/fleet"
+for name in one two three; do git clone -q "$bare" "$TMP/fleet/$name"; done
+mkdir -p "$TMP/fleet/one/sub/dir"
+for from in "$TMP/fleet/one" "$TMP/fleet/one/sub/dir"; do
+  r_sib="$(cd "$from" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+  expect "a bare run in ${from#"$TMP"/} plans every sibling checkout" "$r_sib" \
+    is "$(printf '%s\n' "$r_sib" | awk -F'\t' '/^[a-z-]+\t/ { printf "%s:%s ", $2, $NF }')" \
+    "$TMP/fleet/one:rung=ancestor $TMP/fleet/three:rung=ancestor $TMP/fleet/two:rung=ancestor "
+  expect "a bare run in ${from#"$TMP"/} reports 3 repos" "$r_sib" has "$r_sib" $'repos: 3\n'
+done
+
+# Discovery is the walker audit uses: it honors fleet.maxDepth and stops at a checkout.
+printf '[fleet]\n\tmaxDepth = 1\n' >"$TMP/depth1.conf"
+depth1="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth1.conf")"
+expect "fleet.maxDepth 1 finds a repository one level down" "$depth1" has "$depth1" "$TMP/skipdrive/app"
+expect "fleet.maxDepth 1 does not descend two levels" "$depth1" \
+  is "$([[ "$depth1" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+printf '[fleet]\n\tmaxDepth = 13\n' >"$TMP/depth-bad.conf"
+bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth-bad.conf" >/dev/null 2>&1
+expect "fleet.maxDepth outside 1 through 12 exits 2" "code=$?" is "$?" 2
+mkdir -p "$TMP/nest"
+git clone -q "$bare" "$TMP/nest/outer"
+git clone -q "$bare" "$TMP/nest/outer/inner"
+nested="$(bash "$SCRIPT" --root "$TMP/nest")"
+expect "discovery stops at a checkout, so a repository nested in one is not planned" "$nested" \
+  is "$(printf '%s\n' "$nested" | awk -F'\t' '/^[a-z-]+\t/ { printf "%s ", $2 }')" "$TMP/nest/outer "
 mkdir -p "$TMP/anc/one" "$TMP/anc/two" "$TMP/anc/plain/deep"
 git -C "$TMP/anc/one" init -q
 git -C "$TMP/anc/two" init -q

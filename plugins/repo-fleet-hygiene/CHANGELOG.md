@@ -7,19 +7,27 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Added
 
-- **`sync` accepts `--skip`, `--skip-from` and `--repos-from`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
-  `--skip` and `--skip-from` add directory names to the skip list, and `--repos-from` restricts the
-  run to the listed repositories. Every plan line, and every skipped line, ends with a tab-separated
-  `rung=<rung>` field naming the scope rung that found the repository.
+- **`sync` accepts `--skip`, `--extend-skip`, `--skip-from` and `--repos-from`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+  An explicit `--skip` or `--skip-from` set replaces the default skip names (`vendor`,
+  `node_modules`, ...), as it does in `audit`, and `--extend-skip` adds names to whichever set is in
+  effect. `--repos-from` restricts the run to the checkouts listed one per line. Every plan line, and
+  every skipped line, ends with a tab-separated `rung=<rung>` field naming the scope rung that found
+  the repository.
 - **Scope resolution probes every `ghq root` and an ancestor rung.** `scope-resolve.sh` reads
-  `ghq root --all`, and walks up to 4 levels from the working directory, accepting an ancestor only
-  when it holds 2 or more repositories.
+  `ghq root --all`, and walks up to 4 levels from the working directory's checkout, accepting an
+  ancestor only when it directly holds 2 or more repositories.
 
 ### Changed
 
+- **A bare `audit` or `sync` run inside a checkout covers its sibling fleet.** When a parent up to 4
+  levels above the checkout holds 2 or more repositories, that parent is the root; the checkout
+  alone is the scope only when no such parent exists. Both verbs share this ladder, so a bare
+  `audit` inside a checkout now audits the siblings too.
 - **`audit` and `sync` share one discovery script**, `scripts/fleet-discovery.sh`, for the default
-  skip list, fleet config scope loading and repository discovery. `sync` now honors `fleet.skip` and
-  `fleet.skipAppend`, and the skip-list drift-guard test is removed.
+  skip list, fleet config scope and depth loading, and the repository walker. `sync` now honors
+  `fleet.skip`, `fleet.skipAppend` and `fleet.maxDepth`, stops at the first checkout on each path
+  instead of also reporting repositories nested inside it, and reaches one level deeper by default.
+  The skip-list drift-guard test is removed.
 
 ## [0.24.2] - 2026-09-29
 

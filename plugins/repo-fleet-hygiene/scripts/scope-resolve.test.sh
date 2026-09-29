@@ -14,10 +14,10 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/deep/1/2/3/empty" "$TMP/named"; EMPTY="$TMP/deep/1/2/3/empty"
-git -C "$TMP" init -q -b main "$TMP/repo"
-git -C "$TMP/repo" config user.email t@t.t
-git -C "$TMP/repo" config user.name t
-git -C "$TMP/repo" config commit.gpgsign false
+# Four directories above SOLO hold no other repository, so the ancestor probe never leaves the fixture.
+SOLO="$TMP/iso/a/b/c/repo"
+mkdir -p "$SOLO"
+git -C "$SOLO" init -q -b main
 
 out="$(SCOPE_CWD="$EMPTY" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
 code=$?
@@ -51,11 +51,19 @@ else
   fail "ghq root is the next rung" "$out"
 fi
 
-out="$(SCOPE_CWD="$TMP/repo" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
-if [[ "$out" == *"repo"*"$TMP/repo"* && "$out" == *provenance$'\t'cwd* ]]; then
-  pass "cwd git checkout is the last rung"
+out="$(SCOPE_CWD="$SOLO" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
+if [[ "$out" == "repo"$'\t'"$SOLO"$'\n'"provenance"$'\t'"cwd" ]]; then
+  pass "cwd git checkout is the rung when no ancestor holds 2 repos"
 else
-  fail "cwd git checkout is the last rung" "$out"
+  fail "cwd git checkout is the rung when no ancestor holds 2 repos" "$out"
+fi
+
+mkdir -p "$SOLO/src/x"
+out="$(SCOPE_CWD="$SOLO/src/x" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
+if [[ "$out" == "repo"$'\t'"$SOLO"$'\n'"provenance"$'\t'"cwd" ]]; then
+  pass "a subdirectory of a checkout resolves the checkout top"
+else
+  fail "a subdirectory of a checkout resolves the checkout top" "$out"
 fi
 
 # Ancestor rung: parents of a non-repo cwd.
@@ -73,6 +81,28 @@ if [[ "$out" == "root"$'\t'"$TMP/a2"$'\n'"provenance"$'\t'"ancestor" ]]; then
   pass "parent holding 2 repos is emitted as ancestor"
 else
   fail "parent holding 2 repos is emitted as ancestor" "$out"
+fi
+
+# A working directory inside one checkout resolves that checkout's parent as the root.
+mkdir -p "$TMP/fleet"
+git -C "$TMP/fleet" init -q -b main "$TMP/fleet/one"
+git -C "$TMP/fleet" init -q -b main "$TMP/fleet/two"
+git -C "$TMP/fleet" init -q -b main "$TMP/fleet/three"
+want="root"$'\t'"$TMP/fleet"$'\n'"provenance"$'\t'"ancestor"
+out="$(SCOPE_CWD="$TMP/fleet/one" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
+if [[ "$out" == "$want" ]]; then
+  pass "cwd at a checkout root resolves its sibling fleet as ancestor"
+else
+  fail "cwd at a checkout root resolves its sibling fleet as ancestor" "$out"
+fi
+
+# 4 directories below the checkout top: counting from the working directory would stop inside the checkout.
+mkdir -p "$TMP/fleet/one/a/b/c/d"
+out="$(SCOPE_CWD="$TMP/fleet/one/a/b/c/d" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
+if [[ "$out" == "$want" ]]; then
+  pass "the ancestor probe counts from the checkout top, not the working directory"
+else
+  fail "the ancestor probe counts from the checkout top, not the working directory" "$out"
 fi
 
 out="$(SCOPE_CWD="$TMP/a1/w1/w2/w3/work" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"

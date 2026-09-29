@@ -1296,10 +1296,10 @@ fi
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
-  grep -Fq "Scope: cwd" "$ladder_out"; then
-  printf 'PASS: cwd checkout is the no-scope fallback\n'
+  grep -Fq "Scope: ancestor" "$ladder_out"; then
+  printf 'PASS: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n'
 else
-  printf 'FAIL: cwd checkout is the no-scope fallback\n' >&2
+  printf 'FAIL: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -2609,12 +2609,11 @@ fi
 # for it: the result is never consumed for `.git`, because the nested-repository early return fires
 # first on the identical path and predicate, so the child loop that calls this never runs for a
 # directory holding a .git marker. Driving the collector instead would be green with or without the
-# arm. Extracted the same way as the helpers above, since the function lives after the
-# source-early-return guard. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
+# arm. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
 # omits it, while node_modules/vendor prove the configurable half still decides everything else.
 skip_name_probe="$(
-  SCRIPT="$SCRIPT" bash -c '
-    eval "$(sed -n "/^should_skip_dir_name()/,/^}/p" "$SCRIPT")"
+  DISCOVERY="$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" bash -c '
+    source "$DISCOVERY"
     SKIP_NAMES=(node_modules)
     for name in .git node_modules vendor; do
       if should_skip_dir_name "$name"; then printf "%s-skip\n" "$name"; else printf "%s-walk\n" "$name"; fi

@@ -19,6 +19,8 @@
 # --skip NAME (repeatable, a bare directory name) replaces the default discovery skip set;
 # --extend-skip NAME adds to whichever set is in effect; --skip-from FILE reads one --skip name
 # per line, blank lines ignored and CRLF stripped. A missing FILE exits 2.
+# Discovery is scripts/fleet-discovery.sh, the walker audit uses: it honors the config's fleet.skip,
+# fleet.skipAppend and fleet.maxDepth, and stops at the first .git marker on each path.
 # Exit status: 0 when no repo was skipped, 1 when any was, 2 usage, 3 refused.
 set -uo pipefail
 
@@ -170,6 +172,7 @@ if [[ -n "$CONFIG" ]]; then
   fleet_load_config_skip "$CONFIG"
 fi
 fleet_finalize_skip_names
+fleet_resolve_max_depth "" "$CONFIG"
 
 if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
   fallback="$(mktemp)"
@@ -196,10 +199,10 @@ Error: no scope resolved. Probed, in order:
        remedy: pass --repo or --root instead
   4. ghq root --all: $ghq_probe
        remedy: install ghq, or pass --root <dir>
-  5. working directory: ${SCOPE_CWD:-$PWD} is not a Git checkout
-       remedy: cd into a checkout, or pass --repo <checkout>
-  6. ancestor: none of the 4 parents of ${SCOPE_CWD:-$PWD} directly holds 2 or more Git repositories
+  5. ancestor: none of the 4 parents of ${SCOPE_CWD:-$PWD} (or of the checkout holding it) directly holds 2 or more Git repositories
        remedy: cd into or beside your checkouts, or pass --root <dir>
+  6. working directory: ${SCOPE_CWD:-$PWD} is not in a Git checkout
+       remedy: cd into a checkout, or pass --repo <checkout>
 EOF
     exit 3
   fi

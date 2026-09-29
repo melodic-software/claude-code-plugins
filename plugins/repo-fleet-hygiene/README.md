@@ -35,7 +35,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Capability | Owner | Availability in this release |
 |---|---|---|
 | Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
-| No-argument scope: the ladder in [audit's SKILL.md](skills/audit/SKILL.md) (`--named` paths, `ghq root --all`, a Git checkout in the working directory, an ancestor directory holding 2 or more repositories, else exit 3) | `repo-fleet-hygiene` | Shipped for `audit` and `sync`. Not shipped: agent state and a bounded machine sweep as rungs. Remaining contract work, not an open issue |
+| No-argument scope: the ladder in [audit's SKILL.md](skills/audit/SKILL.md) (`--named` paths, `ghq root --all`, an ancestor directory of the working directory's checkout holding 2 or more repositories, that checkout alone, else exit 3) | `repo-fleet-hygiene` | Shipped for `audit` and `sync`. Not shipped: agent state and a bounded machine sweep as rungs. Remaining contract work, not an open issue |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |

@@ -1465,12 +1465,7 @@ else
   CONFIG_DIR=""
 fi
 
-if [[ -z "$MAX_DEPTH" && -n "$CONFIG_FILE" ]]; then
-  MAX_DEPTH="$(run_git_probe config --file "$CONFIG_FILE" --get fleet.maxDepth 2>/dev/null || true)"
-fi
-MAX_DEPTH="${MAX_DEPTH:-5}"
-[[ "$MAX_DEPTH" =~ ^[0-9]+$ && "$MAX_DEPTH" -ge 1 && "$MAX_DEPTH" -le 12 ]] ||
-  fail "max depth must be an integer from 1 through 12"
+fleet_resolve_max_depth "$MAX_DEPTH" "$CONFIG_FILE"
 
 # Entries before these counts came from the command line; entries appended from config below sit
 # at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
@@ -1509,26 +1504,6 @@ fi
 [[ -z "$CONFIG_FILE" ]] || fleet_load_config_skip "$CONFIG_FILE"
 fleet_finalize_skip_names
 
-should_skip_dir_name() {
-  local name="$1" skip
-  # This arm is defense in depth, not a live guard: no input reaching the sole caller
-  # (discover_repositories' child loop) can match it. `.` and `..` can never BE a child basename —
-  # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
-  # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
-  # identical path and predicate, so the loop never runs for a directory holding one. The arm is
-  # kept so a future refactor of that early return cannot silently start walking `.git` internals.
-  # Its contract is asserted directly in audit-fleet.test.sh, because no discovery-level test can
-  # observe it (#2844).
-  case "$name" in
-  . | .. | .git) return 0 ;;
-  *) ;;
-  esac
-  for skip in "${SKIP_NAMES[@]}"; do
-    [[ -n "$skip" && "$name" == "$skip" ]] && return 0
-  done
-  return 1
-}
-
 is_acked() {
   local key
   key="$(lower "$1")"
@@ -1544,7 +1519,7 @@ PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
 PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   # Explicit args and fleet config produced nothing. The shared ladder tries
-  # named paths, ghq roots, the working directory, then an ancestor. The project directory
+  # named paths, ghq roots, an ancestor, then the working directory. The project directory
   # is still not an implicit repo (#2599).
   fallback_file="$(mktemp)"
   if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
@@ -1892,7 +1867,7 @@ No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give 
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
 
-Also tried, and none resolved: --named paths, ghq root --all when ghq is installed, the current working directory when it is a Git checkout, and an ancestor of it holding 2 or more Git repositories. The project directory is not a scope.
+Also tried, and none resolved: --named paths, ghq root --all when ghq is installed, an ancestor of the current working directory's checkout holding 2 or more Git repositories, and the current working directory when it is a Git checkout. The project directory is not a scope.
 EOF
     fi
     exit 3
@@ -2007,51 +1982,24 @@ for repo in "${REPO_ARGS[@]:-}"; do
   repo_index=$((repo_index + 1))
 done
 
-discover_repositories() {
-  local dir="$1" depth="$2" child name
-  [[ -d "$dir" && ! -L "$dir" ]] || return 0
-  # Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN).
-  # Count and move on; never abort the walk. A .git marker that is somehow still visible is recorded
-  # as a discovery skip so the header's unreadable count is not the only signal.
-  if [[ ! -r "$dir" || ! -x "$dir" ]]; then
-    if [[ -e "$dir/.git" ]]; then
-      reject_target discovery "not a Git working tree: $dir"
-      record_rejected_target discovery "$dir" "" "discovered path is not readable"
-    else
-      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
-    fi
-    return 0
+# Discovery hooks for the shared walker in fleet-discovery.sh. It stops descending at a .git marker,
+# so a repo buried inside another repo's tree never appears as its own audit target (#2712), and a
+# husk that fails a prerequisite degrades per-entry in add_target.
+fleet_on_repo() { add_target "$1" discovery; }
+
+# Symlinked/junctioned intermediate dirs are not followed, but each is disclosed (#2711).
+fleet_on_symlink() { DISCOVERY_SYMLINK_PATHS+=("$1"); }
+
+# Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN). Count
+# and move on; never abort the walk. A .git marker that is somehow still visible is recorded as a
+# discovery skip so the header's unreadable count is not the only signal.
+fleet_on_unreadable() {
+  if [[ "$2" == 1 ]]; then
+    reject_target discovery "not a Git working tree: $1"
+    record_rejected_target discovery "$1" "" "discovered path is not readable"
+  else
+    DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
   fi
-  if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    # Nested-repository early return: a .git marker means this directory is a repository (or a husk
-    # that degrades per-entry below). Discovery stops descending here — children under a nested
-    # checkout are never walked, so a repo buried inside another repo's tree never appears as its
-    # own audit target (#2712).
-    add_target "$dir" discovery
-    return 0
-  fi
-  [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
-  for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
-    # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
-    [[ -e "$child" || -L "$child" ]] || continue
-    name="$(basename "$child")"
-    # Configurable skip list (--skip / fleet.skip): names come from SKIP_NAMES (defaults, or an
-    # explicit replace list). See usage() for replace semantics. should_skip_dir_name also carries
-    # an unconditional . / .. / .git arm, but no child basename reaching here can match it — see
-    # the note on that arm. It is defense in depth, not what keeps discovery out of .git internals;
-    # the nested-repository early return above does that.
-    if should_skip_dir_name "$name"; then
-      continue
-    fi
-    # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
-    # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
-    if [[ -L "$child" && -d "$child" ]]; then
-      DISCOVERY_SYMLINK_PATHS+=("$child")
-      continue
-    fi
-    [[ -d "$child" ]] || continue
-    discover_repositories "$child" $((depth + 1))
-  done
 }
 
 ROOT_LABELS=()
@@ -2071,7 +2019,7 @@ for root in "${ROOT_ARGS[@]:-}"; do
     root_index=$((root_index + 1))
     continue
   fi
-  # discover_repositories deliberately skips symlinks (-L). Accepting a symlink root here would
+  # fleet_discover_root deliberately skips symlinks (-L). Accepting a symlink root here would
   # record ROOT_LABELS and exit "0 repositories" even when the target tree is full of repos (#2599).
   # Non-readable/non-executable directories are the same false-empty class.
   if [[ -L "$root" ]]; then
@@ -2093,7 +2041,7 @@ for root in "${ROOT_ARGS[@]:-}"; do
   # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
   # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
   root_before=${#TARGETS[@]}
-  discover_repositories "$root" 0
+  fleet_discover_root "$root"
   ROOT_LABELS+=("$root")
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done

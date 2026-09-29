@@ -28,8 +28,10 @@ First hit wins:
 2. Fleet config (`--config`, else the project file, else `~/.claude/repo-fleet-hygiene.conf`).
 3. `--named` paths from the conversation.
 4. `ghq root --all` (every root), when `ghq` is installed.
-5. The current working directory, when it is a Git checkout.
-6. The nearest of the 4 parents above the working directory that directly holds 2 or more Git repositories.
+5. The nearest of the 4 parents above the working directory's checkout (above the working directory
+   itself outside a checkout) that directly holds 2 or more Git repositories. A run inside one
+   checkout therefore covers its sibling fleet.
+6. The checkout holding the working directory, when no such parent exists.
 7. Exit 3. The message names the rungs. The project directory is not an implicit repo.
 
 `/repo-fleet-hygiene:audit` uses the same fallback when it has no explicit or config scope.
@@ -47,6 +49,11 @@ directories during discovery with the same semantics as
 [`/repo-fleet-hygiene:audit`](../audit/SKILL.md): an explicit `--skip` set replaces the default,
 `--extend-skip` adds to whichever set is in effect, and names are bare directory names.
 The skip set does not filter `--repo` or `--repos-from` paths.
+
+Discovery under a root is the walker `/repo-fleet-hygiene:audit` runs
+(`scripts/fleet-discovery.sh`): it stops at the first checkout on each path, does not follow
+symlinked directories, and goes 5 levels deep unless the config's `fleet.maxDepth` (1 through 12)
+says otherwise.
 
 ## Confirmation
 
