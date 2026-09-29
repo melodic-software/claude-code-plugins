@@ -5,6 +5,26 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.52.1] - 2026-09-29
+
+### Added
+
+- **`draft-auto-mode-rules` carries a Boundary section for the built-in command
+  `/auto-mode-setup`.** The command drafts and saves `autoMode.environment` entries; this skill
+  interviews for every section and prints only. The model offers the person-run command at the
+  start of the run rather than invoking it.
+- **`audit-permission-state` carries a Boundary section for the bundled skill
+  `fewer-permission-prompts` and the built-in command `/permissions`.** When
+  `fewer-permission-prompts` resolves in the session it is preferred for writing an allowlist, and
+  this skill for seeing what is in effect; the model offers the person-run `/permissions` for
+  interactive editing rather than invoking it.
+- **`audit-instructions` carries a Boundary section for the bundled skill `doctor`.** The model
+  offers the person-run `/doctor prompt-audit` at the end of the run as an addition to this
+  report-only audit, rather than invoking it.
+- **`audit` carries a Boundary section for the bundled skill `update-config`.** When it resolves in
+  the session it is preferred for making a requested settings change, and this skill for auditing
+  configuration.
+
 ## [0.52.0] - 2026-09-29
 
 ### Added

@@ -368,6 +368,32 @@ CC settings schema, MCP server shape, hook event names, and permission glob synt
 invariants resolved against their own official pages when a check needs them, rather than asserted
 as fixed patterns here.
 
+## Boundary, the bundled `update-config` skill
+
+Both surfaces handle `settings.json` files, so a request about settings can mean either.
+
+- **`update-config` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
+  It edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+  automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
+  the person can both invoke it.
+- **This skill (marketplace plugin).** Audits the configuration that exists for correctness,
+  security, and drift against current official docs, across settings, MCP, hooks, plugins, and
+  permissions. It reports only, unless `--fix` is passed.
+
+**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making
+a settings change the person requested; prefer this skill for auditing what is configured. A
+request such as "allow npm commands" or "add a hook that runs when Claude stops" is a change, not
+an audit.
+
+**Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
+Phase 5, under `--fix`, one confirmed fix at a time, and never chains into `update-config` on its
+own behalf.
+
+**Availability is never assumed.** Bundled skills are gated by settings such as
+`disableBundledSkills` and vary by version and host; this section states what to do when the
+surface resolves, never that it is present. The four-part records live in
+[reference/native-update-config.md](reference/native-update-config.md).
+
 ## Next
 
 - A finding is a permission grant that auto mode drops or a hardcoded path:
