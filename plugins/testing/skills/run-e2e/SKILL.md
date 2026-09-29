@@ -34,8 +34,11 @@ after a scoped invocation**: the run exits degraded and the report names the pat
 not named.
 
 **Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
-launch meets that requirement, so Step 1 does not stop on a missing app. When a healthy instance
-is already reachable, the step is skipped, so `run` never starts a second one.
+launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, the
+drive subagent probes the URL or port the scenario or the project's documented start command
+names (`curl -fsS --max-time 5 <url>`, or a connect to the port). A response skips the step, so
+`run` never starts a second instance. No named URL or port, or no response, means not running and
+the step proceeds.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
@@ -165,8 +168,9 @@ Mutation).
 **One launch path per verification.** When the project's orchestrator configuration governs the
 start (Aspire, docker-compose, tilt, a dev-server script), the Native step is skipped with
 `skipped (orchestrator governs the start)` and the orchestrator path runs unchanged. Otherwise,
-when `run` resolves, `run` launches the app. Never both. The launch, on either path, happens inside
-the Step 3 drive subagent.
+when `run` resolves, `run` launches the app. Never both. When the app is already running, nothing
+launches: the step records `skipped (app already running)`. The launch, on either path, happens
+inside the Step 3 drive subagent.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
 host; this section states what to do when one resolves, never that it is present. The four-part

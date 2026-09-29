@@ -70,6 +70,20 @@
         "Does not invoke run",
         "Launches through the orchestrator path only, one launch path"
       ]
+    },
+    {
+      "id": 7,
+      "name": "native-step-skipped-app-already-running",
+      "prompt": "/testing:run-e2e the login flow. No orchestrator governs the start, the bundled run skill resolves in this session, and the app already answers at http://localhost:5000.",
+      "expected_output": "No orchestrator governs the start and run resolves, but the drive subagent probes the named URL before invoking run and gets a response. The Native step is skipped, run is never invoked, and the result block records the skip so no second instance starts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Probes the named URL or port before invoking run",
+        "Records 'skipped (app already running)' in the result block",
+        "Does not invoke run",
+        "Drives the existing instance and launches nothing"
+      ]
     }
   ]
 }

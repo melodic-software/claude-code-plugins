@@ -25,7 +25,8 @@ The integration is wrap: where the app's start is not governed by the consuming 
 orchestrator configuration, this skill composes `run` for the launch (the Native step in
 [SKILL.md](../SKILL.md)) and layers the evidence contract on top. Where an orchestrator governs the
 start, or the target has no app to launch, the step is skipped and the orchestrator path runs
-unchanged. One launch path runs per verification, never both.
+unchanged. One launch path runs per verification, never both, and an app that is already
+running is not launched again.
 
 ## Presence
 
