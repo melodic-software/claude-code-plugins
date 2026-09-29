@@ -4,7 +4,7 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Loss, Reason; then the LossBlock (LossBlock / LossBranch / LossCommit /
+# Loss, Reason (plus Worktree, the checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
 # map is NOT the same as a repo with no PRs, and the two are distinguishable
 # here on purpose: PR state is what detects a squash merge, so without it a
@@ -63,7 +63,8 @@ Usage:
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason.
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a WORKTREE
+branch adds `Worktree: <path>`, the worktree that has it checked out.
 Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
 that is deletable but whose deletion loses commits present on no remote ref and
 no tag; its `Loss:` line carries the count. A loss that cannot be determined is
@@ -368,6 +369,7 @@ classify_branch() {
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
+  [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "$(clean_worktree_path "$REPO_ROOT" "$branch")"
 
   if [[ -n "$local_tip" ]]; then
     capture_line "$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \

@@ -59,6 +59,15 @@ clean_worktree_branches() {
   git -C "$1" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r' || true
 }
 
+# clean_worktree_path <repo_root> <branch>: print the path of the worktree that
+# has <branch> checked out (empty when none does). Reads the same porcelain
+# listing as clean_worktree_branches, so the audit's WORKTREE verdict and the
+# path it reports cannot disagree.
+clean_worktree_path() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | tr -d '\r' |
+    awk -v ref="branch refs/heads/$2" '/^worktree /{p=substr($0,10)} $0==ref{print p; exit}'
+}
+
 # clean_loss_count <repo_root> <branch>: print the number of commits on
 # refs/heads/<branch> reachable from no remote-tracking ref and no tag; exit
 # non-zero when git could not count. `--not --remotes --tags` is git's own idiom

@@ -156,6 +156,9 @@ wt_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$WT_REPO' && bash '$AUDIT'")"
 assert_contains "worktree branch own tier" "$wt_out" "Tier: WORKTREE"
 assert_contains "worktree branch reason" "$wt_out" "clean up the worktree first"
 assert_contains "summary counts worktree bucket" "$wt_out" "worktree=1"
+wt_real="$(cd "$TEST_TMPDIR/wt-linked" && pwd -P)"
+assert_contains "worktree branch reports its linked worktree path" "$wt_out" "Worktree: $wt_real"
+assert_not_contains "only WORKTREE branches carry a Worktree line" "$(printf '%s\n' "$wt_out" | awk '/^Tier: /{t=$2} /^Worktree: /&&t!="WORKTREE"{print}')" "Worktree:"
 
 # No-upstream classification: a never-pushed branch with commits not on
 # origin/<default> is surfaced as its own class and Unpushed line, not left
