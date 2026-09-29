@@ -104,6 +104,7 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
+VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 
 if os.name == "nt":
@@ -301,7 +302,7 @@ def add_question(doc, q):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids that name no question here."""
+    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         rec = q.get("recommendation") or ""
@@ -319,7 +320,11 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if tok not in ids and tok not in seen:
+                if (
+                    tok not in ids
+                    and tok not in seen
+                    and not VERSION_LABEL.fullmatch(tok)
+                ):
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "

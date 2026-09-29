@@ -288,6 +288,12 @@ class TestRefusals(DirCase):
         self.assertNotIn("Q1,", err)
         self.assertNotIn("names Q1", err)
 
+    def test_version_label_is_not_a_bare_id(self):
+        q = question("Q4", title="Ship the V1 release on K8s?")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("V1", err)
+
     def test_apply_add_round_warns(self):
         ops = {
             "ops": [
