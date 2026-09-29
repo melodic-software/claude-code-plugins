@@ -10,10 +10,11 @@ shell: bash
 
 ## Pre-computed context
 
-`check`'s `jq` probe and OS-family detection ran at load time. Read these rows instead of
-re-issuing them. The `jq` row shows the tool's path, or `absent` when missing; the `uname -s` row
-shows the kernel name, or `unknown` when it fails to run:
+`check`'s `node` and `jq` probes and OS-family detection ran at load time. Read these rows instead
+of re-issuing them. The `node` and `jq` rows show the tool's path, or `absent` when missing; the
+`uname -s` row shows the kernel name, or `unknown` when it fails to run:
 
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
 - `uname -s`: !`{ uname -s 2>/dev/null || echo "unknown"; }`
 
@@ -40,7 +41,7 @@ plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notifi
 `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the pre-computed
-`jq` and `uname -s` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
+`node`, `jq` and `uname -s` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
 one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
@@ -55,7 +56,11 @@ restores the FAIL semantics.
 2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
    notification nor emit its terminal sequence, so it surfaces a `systemMessage` notice, once per session and
    agent and renewed every eighth skip, and drops every notification for the session.
-3. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
+3. **Node.js**. The pre-computed `node` row. FAIL if absent: every hook row launches through
+   `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
+   without it the hook does not launch and no notification fires. The probe runs through the Bash
+   tool, so it works when the launcher cannot.
+4. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
      enabled and it is absent; otherwise INFO. Absent → the `os_toast` channel is a
@@ -66,14 +71,14 @@ restores the FAIL semantics.
    - **Windows / other**. INFO: the hook has no `os_toast` branch on this platform (a
      fire-and-forget process leaves no live activator host for a WinRT toast). The
      `terminal_notify` OSC 9 channel carries attention here; nothing to install.
-4. **Channel toggles**. Report the effective value of all four native booleans (unexpanded
+5. **Channel toggles**. Report the effective value of all four native booleans (unexpanded
    or empty means the default `true`): master `${user_config.desktop_notification_enabled}`,
    `${user_config.desktop_notification_bell_enabled}`,
    `${user_config.desktop_notification_terminal_notify_enabled}`, and
    `${user_config.desktop_notification_os_toast_enabled}`. Call out when the master toggle is
    off (the whole hook is muted) or when the only channel that would fire on this OS is
    disabled.
-5. **Hook registration**. INFO: confirm the plugin is enabled for this project
+6. **Hook registration**. INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)
@@ -81,7 +86,7 @@ restores the FAIL semantics.
 Run `check`, then for each FAIL or actionable INFO offer the resolution. This skill installs
 nothing and writes nothing, so every remediation is a pointer the user acts on:
 
-- **missing `jq` / old Bash**. The platform install instructions from the README Requirements
+- **missing Node.js / `jq` / old Bash**. The platform install instructions from the README Requirements
   section. This skill never installs system packages.
 - **missing `notify-send`** (Linux, `os_toast` enabled). `sudo apt install libnotify-bin`
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
@@ -113,7 +118,7 @@ configured".
 
 ## What this skill does NOT do
 
-- Install `jq`, `libnotify`, or any system package. `apply` is guidance-and-verify with no
+- Install Node.js, `jq`, `libnotify`, or any system package. `apply` is guidance-and-verify with no
   write path.
 - Fire a notification. A `permission_prompt` or `idle_prompt` exercises the hook end-to-end.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the hook scripts.
