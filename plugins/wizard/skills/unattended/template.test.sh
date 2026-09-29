@@ -496,6 +496,193 @@ else
   fail "Invoke-NativeUtf8 restores the prior variable and encoding when the block throws" "$msg"
 fi
 
+code="$(run_pwsh moderun "
+  \$dir = '$TEST_TMPDIR/moderun'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  Complete-UnattendedResult -Status ok
+  \$json = Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json
+  'mode=' + \$json.mode
+  'planned=' + (\$json.PSObject.Properties.Name -contains 'planned')
+  'delta=' + (\$json.PSObject.Properties.Name -contains 'delta')
+")"
+msg="$(cat "$TEST_TMPDIR/moderun.out")"
+if [[ "$msg" == *'mode=run'* && "$msg" == *'planned=False'* && "$msg" == *'delta=False'* ]]; then
+  pass "a real run records mode run and no dry-run fields"
+else
+  fail "a real run records mode run and no dry-run fields" "$msg"
+fi
+
+# Dry runs launch a copy of the template with a small stages block, as the operator would.
+# Every mutating block writes under DRY_MARKER, so a leftover file proves a block ran.
+DRY_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Irreversible 'wipe' -Stages {
+    Assert-Elevation -Mode Forbidden
+    Add-Preflight -Name 'dep' -Test { $true } -Fix 'none'
+    Invoke-IdempotentStep -Name 'make marker' -Done { Test-Path -LiteralPath $env:DRY_MARKER } -Action { Set-Content -LiteralPath $env:DRY_MARKER -Value ran }
+    Invoke-IdempotentStep -Name 'already there' -Done { $true } -Action { Set-Content -LiteralPath "$env:DRY_MARKER.done" -Value ran }
+    Use-GuardedResource -Name 'fleet' -Take { Set-Content -LiteralPath "$env:DRY_MARKER.take" -Value took } -Prove { Set-Content -LiteralPath "$env:DRY_MARKER.prove" -Value proved; $true } -Release { Set-Content -LiteralPath "$env:DRY_MARKER.release" -Value released }
+    $null = Wait-ForState -Name 'gone' -TimeoutSeconds ([int] $env:DRY_WAIT) -Predicate { $false }
+    $null = Resolve-UnattendedSecret -Name 'DRY_SET_SECRET'
+    $null = Resolve-UnattendedSecret -Name 'DRY_UNSET_SECRET'
+    Confirm-Irreversible -Name 'wipe'
+}
+PS
+)"
+
+# run_launch <name> <stages> [script flags...]: prints the exit code; output lands in $TEST_TMPDIR/<name>/{out,err}.
+# -NonInteractive makes a reached Read-Host throw, so a prompt shows up as a failure.
+run_launch() {
+  local name="$1" stages="$2" dir
+  shift 2
+  dir="$TEST_TMPDIR/$name"
+  mkdir -p "$dir"
+  { sed '/^# STAGES$/,$d' "$TEMPLATE"; printf '%s\n' "$stages"; } >"$dir/copy.ps1"
+  (
+    cd "$dir" || exit 99
+    DRY_DIR="$dir" DRY_MARKER="$dir/marker" DRY_WAIT="${DRY_WAIT:-20}" DRY_SET_SECRET=sekret \
+      pwsh -NoProfile -NonInteractive -File copy.ps1 "$@" >out 2>err
+  )
+  printf '%s' "$?"
+}
+
+# summarize <result json>: one line of the fields the tests compare.
+summarize() {
+  pwsh -NoProfile -Command "
+    \$json = Get-Content -Raw '$1' | ConvertFrom-Json
+    'mode=' + \$json.mode + ' status=' + \$json.status + ' steps=' + \$json.planned.steps + ' resources=' + \$json.planned.resources + ' irreversible=' + \$json.planned.irreversible + ' delta=' + ((\$json.delta | ForEach-Object name) -join '|') + ' held=' + (\$json.held_resources -join ',')
+  "
+}
+
+DRY_DELTA='delta=make marker|guard fleet|wait gone|secret DRY_UNSET_SECRET|irreversible wipe held='
+for mode in whatif test; do
+  flag="-WhatIf"
+  [[ "$mode" == test ]] && flag="-Test"
+  dir="$TEST_TMPDIR/dry-$mode"
+  code="$(run_launch "dry-$mode" "$DRY_STAGES" "$flag")"
+  summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
+  outside="$(cd "$dir" && find . -type f -not -path './results/*' | sort | tr '\n' ' ')"
+  leftovers="$(ls "$dir"/marker* 2>/dev/null | tr '\n' ' ')"
+  if [[ "$code" == 0 ]] \
+    && [[ "$summary" == "mode=$mode status=ok steps=5 resources=1 irreversible=1 $DRY_DELTA" ]] \
+    && [[ -z "$leftovers" ]] \
+    && [[ "$outside" == './copy.ps1 ./err ./out ' ]] \
+    && [[ ! -e "$dir/results/result-latest.json" ]] \
+    && ! grep -Fq 'NonInteractive' "$dir/err"; then
+    pass "$flag runs no block, prompts nothing, reports the plan and writes only the dry result"
+  else
+    fail "$flag runs no block, prompts nothing, reports the plan and writes only the dry result" "code=$code summary=$summary leftovers=$leftovers outside=$outside err=$(head -c 300 "$dir/err")"
+  fi
+done
+
+out="$(cat "$TEST_TMPDIR/dry-whatif/out")"
+if [[ "$out" == *'What if: dep [ok] preflight'* && "$out" == *'What if: make marker [would-run]'* && "$out" == *'What if: already there [skipped] already done'* \
+  && "$out" == *'What if: blast radius: 5 step(s) would run, 1 resource(s) would be taken out of service, 1 declared irreversible action(s)'* ]]; then
+  pass "-WhatIf narrates every step, done ones included, and ends with the blast radius counts"
+else
+  fail "-WhatIf narrates every step, done ones included, and ends with the blast radius counts" "$out"
+fi
+
+out="$(cat "$TEST_TMPDIR/dry-test/out")"
+if [[ "$(printf '%s\n' "$out" | grep -c .)" == 1 && "$out" == 'Test: 5 step(s) would run, 1 resource(s) would be taken out of service, 1 declared irreversible action(s). Delta: '* ]]; then
+  pass "-Test prints one final line and no narration"
+else
+  fail "-Test prints one final line and no narration" "$out"
+fi
+
+code="$(run_launch dry-both "$DRY_STAGES" -Test -WhatIf)"
+if [[ "$code" == 0 && "$(summarize "$TEST_TMPDIR/dry-both/results/result-dry-latest.json")" == mode=test* && "$(cat "$TEST_TMPDIR/dry-both/out")" != *'What if:'* ]]; then
+  pass "-Test wins over -WhatIf"
+else
+  fail "-Test wins over -WhatIf" "code=$code $(cat "$TEST_TMPDIR/dry-both/out")"
+fi
+
+# The same stages without a flag do the work; the wait times out after 1s, which stops the run.
+code="$(DRY_WAIT=1 run_launch real "$DRY_STAGES")"
+dir="$TEST_TMPDIR/real"
+summary="$(summarize "$dir/results/result-latest.json" 2>&1)"
+if [[ "$code" != 0 && "$summary" == mode=run\ status=failed* ]] \
+  && [[ -f "$dir/marker" && -f "$dir/marker.take" && -f "$dir/marker.prove" && -f "$dir/marker.release" && ! -e "$dir/marker.done" ]] \
+  && grep -Fq 'timed out waiting for gone' "$dir/err" \
+  && [[ ! -e "$dir/results/result-dry-latest.json" ]]; then
+  pass "a run without flags executes the blocks and writes result-latest.json"
+else
+  fail "a run without flags executes the blocks and writes result-latest.json" "code=$code summary=$summary err=$(head -c 300 "$dir/err")"
+fi
+
+BARE_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Stages {
+    Set-Content -LiteralPath $env:DRY_MARKER -Value bare
+}
+PS
+)"
+for flag in -WhatIf -Test ''; do
+  code="$(run_launch "bare$flag" "$BARE_STAGES" $flag)"
+  dir="$TEST_TMPDIR/bare$flag"
+  if [[ "$flag" == '' && -f "$dir/marker" ]] || [[ "$flag" != '' && "$code" == 0 && ! -e "$dir/marker" ]]; then
+    pass "a cmdlet outside a helper honors dry mode with '${flag:-no flag}'"
+  else
+    fail "a cmdlet outside a helper honors dry mode with '${flag:-no flag}'" "code=$code $(head -c 300 "$dir/err")"
+  fi
+done
+
+FAILING_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Stages {
+    Add-Preflight -Name 'dep' -Test { $false } -Fix 'install it'
+    Invoke-IdempotentStep -Name 'make marker' -Done { $false } -Action { Set-Content -LiteralPath $env:DRY_MARKER -Value ran }
+}
+PS
+)"
+code="$(run_launch dry-preflight "$FAILING_STAGES" -Test)"
+dir="$TEST_TMPDIR/dry-preflight"
+summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
+if [[ "$code" != 0 && "$summary" == 'mode=test status=failed steps=0 resources=0 irreversible=0 delta=dep held=' && ! -e "$dir/marker" ]] \
+  && grep -Fq 'preflight failed: dep. Fix: install it' "$dir/err"; then
+  pass "-Test lists a failed preflight in the delta and stops before later steps"
+else
+  fail "-Test lists a failed preflight in the delta and stops before later steps" "code=$code summary=$summary err=$(head -c 300 "$dir/err")"
+fi
+
+UNDECLARED_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Irreversible 'wipe' -Stages {
+    Confirm-Irreversible -Name 'other'
+}
+PS
+)"
+code="$(run_launch dry-undeclared "$UNDECLARED_STAGES" -WhatIf)"
+dir="$TEST_TMPDIR/dry-undeclared"
+if [[ "$code" != 0 && "$(summarize "$dir/results/result-dry-latest.json" 2>&1)" == mode=whatif\ status=failed* ]] \
+  && grep -Fq 'irreversible step other was not declared' "$dir/err" && ! grep -Fq 'NonInteractive' "$dir/err"; then
+  pass "a dry run still refuses an undeclared irreversible step, before any prompt"
+else
+  fail "a dry run still refuses an undeclared irreversible step, before any prompt" "code=$code $(head -c 300 "$dir/err")"
+fi
+
+ELEVATED_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Stages {
+    Assert-Elevation -Mode Required
+    Invoke-IdempotentStep -Name 'make marker' -Done { $false } -Action { Set-Content -LiteralPath $env:DRY_MARKER -Value ran }
+}
+PS
+)"
+code="$(run_launch dry-elevation "$ELEVATED_STAGES" -Test)"
+dir="$TEST_TMPDIR/dry-elevation"
+if [[ "$code" != 0 && "$(summarize "$dir/results/result-dry-latest.json" 2>&1)" == mode=test\ status=failed* && ! -e "$dir/marker" ]] \
+  && grep -Fq 'refusing to run unelevated' "$dir/err"; then
+  pass "a dry run still enforces the elevation guard"
+else
+  fail "a dry run still enforces the elevation guard" "code=$code $(head -c 300 "$dir/err")"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0

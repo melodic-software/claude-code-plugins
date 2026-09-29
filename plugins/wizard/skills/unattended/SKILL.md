@@ -53,8 +53,8 @@ these helpers:
   stages and writes the result. `-Irreversible` is the declared list of
   irreversible steps, for example `'wsl --unregister Ubuntu-26.04'`. It is
   printed to the transcript before the stages run (`irreversible actions:
-  none` when empty) and recorded as `irreversible_actions`, on success and on
-  failure.
+  none` when empty; not under `-Test`) and recorded as `irreversible_actions`,
+  on success and on failure.
 - `Assert-Elevation -Mode Required` or `Forbidden`. Elevation is a constraint
   with two failure directions.
 - `Assert-NotInside -Name <distro-or-service>`. The script must not be running
@@ -77,7 +77,8 @@ these helpers:
   predicate that throws counts as not yet, because ephemeral targets race. The
   predicate must first assert a non-empty observation (`$pools.Count -gt 0 -and
   ...`): a vacuous pass is the author's bug, so a drain proof that sees no pools
-  must fail, not pass. It records a `wait <Name>` step.
+  must fail, not pass. It records a `wait <Name>` step. It emits `$true`, so
+  standing alone it is written `$null = Wait-ForState ...`.
 - `Use-GuardedResource -Name -Take -Prove -Release [-TolerateTakeExit]`. Take a
   shared resource out of service and release it only after proof. `Prove` must
   throw on failure or emit a truthy value as its last output; `$false`, no
@@ -104,10 +105,10 @@ these helpers:
 
 Set the result directory to a path the agent can read after the human runs the
 script. The envelope is `cutover.result/1`: per-step `status` and `detail`,
-`warnings`, `held_resources`, `irreversible_actions`, `transcript`, and a
-`result-latest.json` copy. The schema string is unchanged and
-`irreversible_actions` is an additive field, so read its absence in an older
-result as an empty list.
+`mode`, `warnings`, `held_resources`, `irreversible_actions`, `transcript`, and
+a `result-latest.json` copy. The schema string is unchanged, and
+`irreversible_actions` and `mode` are additive fields: read their absence in an
+older result as an empty list and `run`.
 
 #### Order and unknowns
 
@@ -124,12 +125,50 @@ result as an empty list.
   distro is gone, the port is closed). The destructive command's exit code is
   not that proof.
 
+#### Dry run
+
+The script takes `-WhatIf` and `-Test`. Neither invokes a mutating block, and
+both write only the result directory, as `result-dry-latest.json`, so a
+preview never replaces a real run's `result-latest.json`.
+
+- `-WhatIf` narrates the plan: one `What if:` line per step, including steps
+  already done, then the blast radius as counts: steps that would run,
+  resources that would be taken out of service, declared irreversible actions.
+- `-Test` reports the delta: nothing is printed but one final line. The result's
+  `delta` array holds only the steps that would run plus failed preflights.
+  With both switches, `-Test` wins.
+- The result gains `mode` (`run`, `whatif`, `test`) and, in a dry run,
+  `planned` with the counts `steps`, `resources` and `irreversible`.
+
+Read-only helpers run in every mode, so a missing prerequisite fails a dry run
+with no side effects: `Assert-Elevation`, `Assert-NotInside`,
+`Assert-PriorResult`, `Add-Preflight`, `Assert-ParsedState`,
+`Invoke-NativeUtf8`, and the `-Done` probe of `Invoke-IdempotentStep`. Each
+probe, preflight test and wrapped read must only read.
+
+Mutating helpers skip their blocks and record a `would-run` step, or `skipped`
+when `-Done` is already true: `Invoke-IdempotentStep -Action`,
+`Use-GuardedResource` (Take, Prove and Release), `Confirm-Irreversible` (no
+prompt), `Wait-ForState` (no polling), and `Resolve-UnattendedSecret` (no prompt
+and no hidden read; it records `would prompt` when neither the environment nor
+the file resolves).
+
+A dry run does not exercise success detection inside a step: no Prove block or
+`Wait-ForState` predicate runs, so it checks the plan and the prerequisites, not
+that the state is reached, and it does not replace `Wait-ForState`. Put every
+effect inside a helper's block: a bare native command in `-Stages` runs in every
+mode.
+
 ### 3. Hand off
 
-Do not run the script. Print the `# STAGES` block and get explicit approval
-before telling the human to launch it. Say which elevation mode it demands
-and the result path. After they run it, read `result-latest.json`. Do not ask
-them to paste the transcript.
+Do not launch the script. The agent's own entry is `pwsh -File <script> -Test`,
+which changes nothing: read `result-dry-latest.json` (`status`, `delta`,
+`planned`) and fix what it reports before asking. Then print the `# STAGES`
+block and get explicit approval before telling the human to launch it. Say
+which elevation mode it demands and the result path. Tell the human to run
+`-WhatIf` first, read its narration and blast radius, and only then make the
+real launch. After the real run, read `result-latest.json`. Do not ask them to
+paste the transcript.
 
 ## Next
 
@@ -137,8 +176,22 @@ them to paste the transcript.
 
 ## Gotchas
 
-- The agent never executes the script. A pipeline or an agent shell is the
-  wrong principal.
+- The agent never launches the real run. A pipeline or an agent shell is the
+  wrong principal. `-Test` is the one exception, because it invokes no mutating
+  block. It also sets `-WhatIf`, so a cmdlet outside a helper that honors
+  `-WhatIf` is skipped too; a native command outside a helper is not.
+- Dry-run behavior worth knowing: a standalone `Wait-ForState` is not polled,
+  because the state it waits for follows a mutation the dry run skipped;
+  `Use-GuardedResource` never lists the resource
+  in `held_resources`, because nothing was taken; `Resolve-UnattendedSecret`
+  returns the placeholder `<NAME>` when it would prompt; `Confirm-Irreversible`
+  still refuses an undeclared name, before it would prompt. A `-Done` probe that
+  throws fails a dry run as it fails a real one, so write probes that tolerate a
+  target that does not exist yet.
+- `-Test` from the agent's own shell stops at `Assert-Elevation -Mode Required`
+  with status `failed` and `refusing to run unelevated`: the shell lacks the
+  privilege, and that is the expected result. The human's elevated `-WhatIf`
+  reaches the rest of the script.
 - A `Take` that asks a system to reach a state (a drain with `--wait`) can exit
   nonzero while the state is reached. Do not trust that exit code either way:
   pass `-TolerateTakeExit` and prove the state with `Wait-ForState`.
