@@ -35,6 +35,7 @@ BASE_SPEC='{
   },
   "verbs": {
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
+    "release": false,
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "capabilities": true
   },
@@ -128,7 +129,7 @@ assert_file "generated the conformance binding" "$B/acmetracker.sh"
 # Declared-false verbs get NO script: the core capability gate answers them with
 # exit 6 before any script would run, and shipping an inert file invites someone to
 # fill it in without flipping the manifest.
-for f in claim.sh renew-lease.sh reclaim.sh link-blocks.sh add-sub-item.sh list-sub-items.sh; do
+for f in claim.sh renew-lease.sh release.sh reclaim.sh link-blocks.sh add-sub-item.sh list-sub-items.sh; do
   if [[ -e "$A/$f" ]]; then
     fail "declared-false verb $f not generated" "absent" "present"
   else
@@ -366,6 +367,25 @@ assert_eq "the full lease set is coherent" "0" \
 lease_err="$(gen_err "$(with '.verbs.claim = true')")"
 assert_contains "lease incoherence explains itself" "$lease_err" "features.leases"
 
+# `release` is optional relative to leases (CONTRACT.md "Release"): declaring it needs
+# leases, and leases do not need it. The full lease set above omits it and is coherent.
+LEASES_NO_RELEASE='.features.leases = true | .verbs.claim = true | .verbs["renew-lease"] = true | .verbs.reclaim = true'
+assert_eq "release=true with leases=false → exit 3" "3" "$(gen "$(with '.verbs.release = true')")"
+release_err="$(gen_err "$(with '.verbs.release = true')")"
+assert_contains "release incoherence names the verb" "$release_err" 'verbs["release"]=true but features.leases=false'
+assert_eq "a spec missing the release key → exit 3" "3" "$(gen "$(with 'del(.verbs.release)')")"
+assert_eq "release=true with leases=true is coherent" "0" \
+  "$(gen "$(with "$LEASES_NO_RELEASE"' | .verbs.release = true')")"
+assert_file "release=true emits a release.sh scaffold" \
+  "$(last_root)/tools/work-item-tracker/adapters/acmetracker/release.sh"
+assert_eq "release=false with leases=true generates" "0" "$(gen "$(with "$LEASES_NO_RELEASE")")"
+LEASES_NO_RELEASE_A="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
+assert_eq "release=false survives into the manifest" "false" "$(jq -r '.verbs.release' "$LEASES_NO_RELEASE_A/capabilities.json")"
+assert_eq "release=false emits no release.sh" "absent" \
+  "$([[ -e "$LEASES_NO_RELEASE_A/release.sh" ]] && echo present || echo absent)"
+assert_contains "the generated capabilities test checks release" \
+  "$(cat "$LEASES_NO_RELEASE_A/capabilities.test.sh")" " release "
+
 assert_eq "sub-item verb with sub_items=false → exit 3" "3" \
   "$(gen "$(with '.verbs["list-sub-items"] = true')")"
 assert_eq "sub_items=false with a non-zero ceiling → exit 3" "3" \
@@ -447,14 +467,14 @@ assert_contains "basic auth documents the identity key" "$(cat "$BASIC_A/README.
 # Generated code lands in a consumer's repo and goes through their CI; emitting code
 # that trips the linters would make the generator a source of busywork.
 
-rc="$(gen "$(with '.features.leases = true | .verbs.claim = true | .verbs["renew-lease"] = true | .verbs.reclaim = true | .features.sub_items = true | .verbs["list-sub-items"] = true | .verbs["add-sub-item"] = true | .limits.sub_items_per_parent = 100 | .limits.sub_item_depth = 8 | .verbs["link-blocks"] = true | .limits.dependencies_per_type = 50')")"
+rc="$(gen "$(with '.features.leases = true | .verbs.claim = true | .verbs["renew-lease"] = true | .verbs.release = true | .verbs.reclaim = true | .features.sub_items = true | .verbs["list-sub-items"] = true | .verbs["add-sub-item"] = true | .limits.sub_items_per_parent = 100 | .limits.sub_item_depth = 8 | .verbs["link-blocks"] = true | .limits.dependencies_per_type = 50')")"
 assert_eq "full-surface spec generates" "0" "$rc"
 FULL_ROOT="$(last_root)"
 FULL_A="$FULL_ROOT/tools/work-item-tracker/adapters/acmetracker"
 FULL_B="$FULL_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
 
 # Every verb of the adapter surface is emitted when all are declared.
-for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item list-items list-sub-items; do
+for v in create-item get-item claim renew-lease release reclaim link-blocks add-sub-item list-items list-sub-items; do
   assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
 
@@ -496,6 +516,14 @@ verb "$FULL_A/get-item.sh" "github:o/r#1"
 assert_eq "scaffold rejects a foreign-provider id → exit 2" "2" "$?"
 verb "$FULL_A/renew-lease.sh" "acmetracker:acme/webapp#1"
 assert_eq "scaffold enforces a required flag → exit 2" "2" "$?"
+verb "$FULL_A/release.sh" "acmetracker:acme/webapp#1"
+assert_eq "release scaffold requires --lease-comment-id → exit 2" "2" "$?"
+verb "$FULL_A/release.sh" "acmetracker:acme/webapp#1" --lease-comment-id abc
+assert_eq "release scaffold rejects a non-numeric --lease-comment-id → exit 2" "2" "$?"
+verb "$FULL_A/claim.sh" "acmetracker:acme/webapp#1" --ttl-minutes 60
+assert_eq "claim scaffold rejects --ttl-minutes above 59 → exit 2" "2" "$?"
+assert_contains "claim scaffold documents --ttl-minutes" "$(cat "$FULL_A/claim.sh")" "[--ttl-minutes <n>]"
+assert_contains "release scaffold documents its usage" "$(cat "$FULL_A/release.sh")" "<id> --lease-comment-id <n>"
 
 # Without the export and without a vendored seam, a verb fails as a SETUP error (3)
 # naming the fix — not as a sourcing crash or a malformed record.
@@ -503,5 +531,29 @@ bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" >/dev/null 2>&1
 assert_eq "no seam lib reachable → config exit 3" "3" "$?"
 seam_err="$(bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" 2>&1 >/dev/null)"
 assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DIR"
+
+# --- the verb set cannot drift from the seam ---
+# ADAPTER_VERBS is a hand-kept copy of the dispatcher's public verb list. A verb the
+# dispatcher gains but the generator lacks yields adapters whose spec cannot declare it
+# and whose manifest the seam then reads as false (release did exactly this).
+
+ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
+# The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier
+# (core-derived) and list-items (adapter-only).
+DISPATCH_VERB_LIST="$({
+  awk '/case "\$verb" in/ { getline; print; exit }' "$SEAM/work-item-tracker.sh" | sed 's/).*//' | tr -d ' ' | tr '|' '\n'
+  echo list-items
+} | sort)"
+assert_eq "the generator's verb set is non-empty" "true" "$([[ -n "$ADAPTER_VERB_LIST" ]] && echo true || echo false)"
+assert_eq "ADAPTER_VERBS equals the dispatcher's verbs plus list-items" "$DISPATCH_VERB_LIST" "$ADAPTER_VERB_LIST"
+
+for f in "$SEAM"/adapters/*/capabilities.json "$SEAM"/adapters/*/adapter-spec.json; do
+  [[ -f "$f" ]] || continue
+  label="${f#"$SEAM"/adapters/}"
+  assert_eq "$label carries exactly the adapter verbs" "$ADAPTER_VERB_LIST" \
+    "$(jq -r '.verbs | keys[]' "$f" | tr -d '\r' | sort)"
+  assert_eq "$label declares every verb as a boolean" "boolean" \
+    "$(jq -r '[.verbs[] | type] | unique | join(",")' "$f" | tr -d '\r')"
+done
 
 [[ $FAILED -eq 0 ]] || exit 1

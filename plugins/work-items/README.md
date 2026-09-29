@@ -68,7 +68,7 @@ bundled with this plugin. The skills resolve the seam dispatcher plugin-dir
 canonical with a project-root fallback (`"$TRACKER" <verb>`) and the bound
 provider adapter executes it (contract + resolution:
 `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). Coordination operations use
-seam verbs directly: create, claim (assignee + lease), renew/reclaim lease,
+seam verbs directly: create, claim (assignee + lease), renew/release/reclaim lease,
 dependency links, sub-items, frontier selection, and single-item fetch. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
