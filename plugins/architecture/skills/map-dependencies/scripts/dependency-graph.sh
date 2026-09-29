@@ -53,10 +53,18 @@
 #            "unresolved". evidence is the repo-relative file, a colon, and
 #            the matched declaration text.
 #   cycle    {"id"}  project ids joined by " -> ", rotated to start at the
-#            smallest id, first id repeated at the end.
+#            smallest id, first id repeated at the end. One witness cycle per
+#            strongly connected group of projects, and one per self-reference.
+#            The search is linear in projects plus edges, so it always
+#            finishes; cycles_truncated stays in the record for readers of
+#            schema_version 1 and is always false.
 #   finding  {"kind","path","evidence"}
 #            kind "unresolved-membership" is a solution project whose declared
 #            path is missing or outside the repository root.
+#            kind "unread-reference-tags" is a project or MSBuild file with
+#            reference tags this run did not turn into an edge. evidence is the
+#            file, a colon, and the count. A graph with this finding is not a
+#            complete list of that file's references.
 #
 # result "unknown" means this run did not read a shipped adapter. The arrays
 # are empty and message says why. That is not an empty graph: an empty graph
@@ -68,6 +76,18 @@
 # missing or escapes the repository root is status "unresolved" and is never
 # matched to a similarly named project elsewhere. Solution files
 # (*.sln, *.slnx) contribute membership, not dependency edges.
+#
+# A Directory.Build.props or Directory.Build.targets reference is an edge from
+# every project whose nearest such file, walking up from the project, is that
+# one; a relative Include resolves from the project's folder and the edge cites
+# the props file. A project never gets an edge to itself from those files. Any
+# other *.props or *.targets file, and Directory.Packages.props, is imported by
+# a path this collector does not evaluate: its references are counted in an
+# unread-reference-tags finding, not drawn. Basis:
+# https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
+# and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
+# Verified 2026-09-29. Recheck when either page changes the lookup rule or the
+# base of a relative Include in an imported file.
 #
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
@@ -86,8 +106,6 @@
 set -uo pipefail
 
 NODE_THRESHOLD=40
-CYCLE_STEP_CAP=200000
-CYCLE_LIST_CAP=50
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
@@ -401,6 +419,7 @@ done < <(
     -o -name node_modules -o -name vendor -o -name bin -o -name obj \) -prune -o \
     -type f \( \
     -name '*.csproj' -o -name '*.fsproj' -o -name '*.sln' -o -name '*.slnx' \
+    -o -name '*.props' -o -name '*.targets' \
     -o -name 'global.json' \
     -o -name 'package.json' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
@@ -414,6 +433,8 @@ done < <(
 
 proj_files=()
 sln_files=()
+msbuild_files=()
+declare -A BUILD_FILE=()
 has_global_json=0
 declare -A OTHER=()
 
@@ -422,6 +443,11 @@ for rel in "${files[@]+"${files[@]}"}"; do
   case "$base" in
   *.csproj | *.fsproj) proj_files+=("$rel") ;;
   *.sln | *.slnx) sln_files+=("$rel") ;;
+  Directory.Build.props | Directory.Build.targets)
+    msbuild_files+=("$rel")
+    BUILD_FILE[$rel]=1
+    ;;
+  *.props | *.targets) msbuild_files+=("$rel") ;;
   global.json) has_global_json=1 ;;
   package.json) OTHER[node]="$rel" ;;
   pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
@@ -461,8 +487,38 @@ else
     message="Not read: $other_msg. The first adapter is .NET; an unread ecosystem is left unread rather than drawn as an empty graph."
   fi
 
-  for proj_rel in "${proj_files[@]}"; do
-    add_node "$proj_rel" "$(proj_name "$proj_rel")" "$proj_rel" "project"
+  declare -A FILE_RECORDS=()
+  declare -A FILE_CONSUMED=()
+  # Cache one file's reference records in FILE_RECORDS (not in a subshell, so
+  # the cache survives).
+  load_records() {
+    [[ -n "${FILE_RECORDS[$1]+x}" ]] || FILE_RECORDS[$1]="$(dotnet_reference_records "$root/$1")"
+  }
+
+  # Nearest ancestor file called $2, from directory $1 up to the root.
+  nearest_build_file() {
+    local dir="$1" name="$2" cand
+    while :; do
+      cand="${dir:+$dir/}$name"
+      if [[ -n "${BUILD_FILE[$cand]+x}" ]]; then
+        printf '%s\n' "$cand"
+        return 0
+      fi
+      [[ -n "$dir" ]] || return 1
+      case "$dir" in
+      */*) dir="${dir%/*}" ;;
+      *) dir="" ;;
+      esac
+    done
+  }
+
+  # Edges that the references in source file $3 give project $1. $2 is that
+  # file's records. A relative Include resolves from the project's folder even
+  # when the tag sits in an imported file. $4 is "props" when the file is not
+  # the project itself: such a file cannot make a project reference itself.
+  add_reference_edges() {
+    local proj_rel="$1" records="$2" source_rel="$3" via="$4"
+    local proj_dir rec rec_kind rec_rest rec_inc rec_decl normalized
     proj_dir="$(proj_dir_of "$proj_rel")"
     while IFS= read -r rec; do
       [[ -n "$rec" ]] || continue
@@ -474,21 +530,48 @@ else
       case "$rec_kind" in
       package)
         add_node "pkg:$rec_inc" "$rec_inc" "" "package"
-        add_edge "$proj_rel" "pkg:$rec_inc" "package" "resolved" "$proj_rel: $rec_decl"
+        add_edge "$proj_rel" "pkg:$rec_inc" "package" "resolved" "$source_rel: $rec_decl"
         ;;
       project)
         normalized=""
         if normalized="$(normalize_within_root "$proj_dir" "$rec_inc")" &&
           [[ -n "$normalized" && -f "$root/$normalized" ]]; then
+          [[ "$via" == "props" && "$normalized" == "$proj_rel" ]] && continue
           add_node "$normalized" "$(proj_name "$normalized")" "$normalized" "project"
-          add_edge "$proj_rel" "$normalized" "project" "resolved" "$proj_rel: $rec_decl"
+          add_edge "$proj_rel" "$normalized" "project" "resolved" "$source_rel: $rec_decl"
         else
-          add_edge "$proj_rel" "$rec_inc" "project" "unresolved" "$proj_rel: $rec_decl"
+          add_edge "$proj_rel" "$rec_inc" "project" "unresolved" "$source_rel: $rec_decl"
         fi
         ;;
       *) ;;
       esac
-    done < <(dotnet_reference_records "$root/$proj_rel")
+    done <<<"$records"
+  }
+
+  for proj_rel in "${proj_files[@]}"; do
+    add_node "$proj_rel" "$(proj_name "$proj_rel")" "$proj_rel" "project"
+    load_records "$proj_rel"
+    add_reference_edges "$proj_rel" "${FILE_RECORDS[$proj_rel]}" "$proj_rel" "self"
+    proj_dir="$(proj_dir_of "$proj_rel")"
+    for build_name in Directory.Build.props Directory.Build.targets; do
+      if build_rel="$(nearest_build_file "$proj_dir" "$build_name")"; then
+        load_records "$build_rel"
+        FILE_CONSUMED[$build_rel]=1
+        add_reference_edges "$proj_rel" "${FILE_RECORDS[$build_rel]}" "$build_rel" "props"
+      fi
+    done
+  done
+
+  # Reference tags that are not an edge in this record are counted, so an
+  # empty or short edge list never reads as "declares no references".
+  for unread_rel in "${proj_files[@]}" "${msbuild_files[@]+"${msbuild_files[@]}"}"; do
+    unread_n="$(dotnet_reference_unmatched_count "$root/$unread_rel")"
+    if ! is_proj_suffix "$unread_rel" && [[ -z "${FILE_CONSUMED[$unread_rel]+x}" ]]; then
+      load_records "$unread_rel"
+      [[ -n "${FILE_RECORDS[$unread_rel]}" ]] &&
+        unread_n=$((unread_n + $(printf '%s\n' "${FILE_RECORDS[$unread_rel]}" | grep -c .)))
+    fi
+    [[ "$unread_n" -gt 0 ]] && add_finding "unread-reference-tags" "$unread_rel" "$unread_rel: $unread_n reference tag(s) not read"
   done
 
   for sln_rel in "${sln_files[@]+"${sln_files[@]}"}"; do
@@ -510,7 +593,7 @@ else
 fi
 
 cycle_lines=()
-cycles_truncated_json="false"
+cycles_truncated_json="false" # kept for schema_version 1 readers; the search cannot truncate
 if [[ ${#edge_from[@]} -gt 0 ]]; then
   cycle_feed=""
   for i in "${!edge_from[@]}"; do
@@ -519,65 +602,75 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
     fi
   done
   if [[ -n "$cycle_feed" ]]; then
-    cycle_raw="$(printf '%s' "$cycle_feed" | awk -v step_cap="$CYCLE_STEP_CAP" -v list_cap="$CYCLE_LIST_CAP" '
-      function dfs(u,    rest, v, nl, k, from, min, minpos, rotated) {
-        if (truncated) return
-        if (steps > step_cap) { truncated = 1; return }
-        steps++
-        on[u] = 1
-        stack[++sp] = u
-        rest = adj[u]
-        while (rest != "") {
-          nl = index(rest, "\n")
-          if (nl == 0) { v = rest; rest = "" }
-          else { v = substr(rest, 1, nl - 1); rest = substr(rest, nl + 1) }
-          if (v == "") continue
-          if (on[v]) {
-            from = 0
-            for (k = 1; k <= sp; k++) if (stack[k] == v) from = k
-            if (from == 0) continue
-            min = ""
-            minpos = from
-            for (k = from; k <= sp; k++) if (min == "" || stack[k] < min) { min = stack[k]; minpos = k }
-            rotated = ""
-            for (k = minpos; k <= sp; k++) rotated = rotated (rotated == "" ? "" : " -> ") stack[k]
-            for (k = from; k < minpos; k++) rotated = rotated " -> " stack[k]
-            rotated = rotated " -> " min
-            if (!(rotated in seen_cycle)) {
-              if (cycn >= list_cap) { truncated = 1; break }
-              seen_cycle[rotated] = 1
-              cycn++
-              found[cycn] = rotated
+    # Tarjan's strongly connected components, then one shortest witness cycle
+    # through the smallest id of each component with more than one project or a
+    # self-reference. O(projects + edges). The recursion depth is the longest
+    # dependency chain.
+    cycle_raw="$(printf '%s' "$cycle_feed" | LC_ALL=C awk '
+      function strong(v,    k, w, c) {
+        idx[v] = ++counter
+        low[v] = idx[v]
+        stk[++sp] = v
+        onstk[v] = 1
+        for (k = 1; k <= adjn[v]; k++) {
+          w = adjv[v, k]
+          if (!(w in idx)) {
+            strong(w)
+            if (low[w] < low[v]) low[v] = low[w]
+          } else if (onstk[w] && idx[w] < low[v]) low[v] = idx[w]
+        }
+        if (low[v] == idx[v]) {
+          c = ++ncomp
+          do {
+            w = stk[sp--]
+            onstk[w] = 0
+            comp[w] = c
+            size[c]++
+            if (!(c in cmin) || w < cmin[c]) cmin[c] = w
+          } while (w != v)
+        }
+      }
+      function witness(c,    s, head, tail, u, k, w, path, x) {
+        s = cmin[c]
+        split("", seen)
+        split("", par)
+        queue[1] = s
+        seen[s] = 1
+        head = 1
+        tail = 1
+        while (head <= tail) {
+          u = queue[head++]
+          for (k = 1; k <= adjn[u]; k++) {
+            w = adjv[u, k]
+            if (comp[w] != c) continue
+            if (w == s) {
+              path = u
+              for (x = u; x != s; ) { x = par[x]; path = x " -> " path }
+              return path " -> " s
             }
-          } else {
-            dfs(v)
-            if (truncated) break
+            if (!(w in seen)) { seen[w] = 1; par[w] = u; queue[++tail] = w }
           }
         }
-        on[u] = 0
-        sp--
+        return ""
       }
-      BEGIN { FS = "\t"; steps = 0; truncated = 0; cycn = 0; sp = 0; nn = 0 }
+      BEGIN { FS = "\t" }
       {
         if ($1 == "" || $2 == "") next
         key = $1 "\t" $2
         if (key in seen_edge) next
         seen_edge[key] = 1
-        if (!($1 in started)) { started[$1] = 1; nodes[++nn] = $1 }
-        if (!($2 in started)) { started[$2] = 1; nodes[++nn] = $2 }
-        adj[$1] = adj[$1] $2 "\n"
+        if (!($1 in known)) { known[$1] = 1; nodes[++nn] = $1 }
+        if (!($2 in known)) { known[$2] = 1; nodes[++nn] = $2 }
+        adjv[$1, ++adjn[$1]] = $2
+        if ($1 == $2) selfloop[$1] = 1
       }
       END {
-        for (i = 1; i <= nn; i++) if (!truncated) dfs(nodes[i])
-        if (truncated) print "TRUNCATED"
-        for (i = 1; i <= cycn; i++) print found[i]
+        for (i = 1; i <= nn; i++) if (!(nodes[i] in idx)) strong(nodes[i])
+        for (c = 1; c <= ncomp; c++) {
+          if (size[c] > 1 || (cmin[c] in selfloop)) print witness(c)
+        }
       }
     ')"
-    if [[ "$cycle_raw" == TRUNCATED* ]]; then
-      cycles_truncated_json="true"
-      cycle_raw="${cycle_raw#TRUNCATED}"
-      cycle_raw="${cycle_raw#$'\n'}"
-    fi
     if [[ -n "$cycle_raw" ]]; then
       while IFS= read -r line; do
         [[ -n "$line" ]] || continue
