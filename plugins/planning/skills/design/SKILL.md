@@ -259,6 +259,10 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Product intent**. That's `/planning:prd` (problem, users, success metrics)
 - **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)
 
+## Next
+
+/planning:design-handoff gates the finished design for /planning:plan.
+
 ## Relationship to other skills
 
 | Skill | Relationship |

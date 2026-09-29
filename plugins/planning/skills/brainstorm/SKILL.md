@@ -32,6 +32,12 @@ Rough problem: $ARGUMENTS (if empty, infer from conversation; if nothing rough i
 
 Session output has no persisted artifact by default (ideation is conversation output, and divergence usually precedes the work having a home). When a topic slice already exists for the effort, offer to persist the candidate list + reactions to the topic's memory slice as `<memory_dir>/<topic-slug>/brainstorm.md` (default `.work/`). Opt-in only, never a default write, never the contract slice (roots resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
+## Next
+
+- Engineering contract: /planning:interview.
+- Product intent: /planning:prd.
+- Type and module decisions: /planning:design.
+
 ## What this skill does NOT do
 
 - **Does not decide**. User reactions drive selection; the skill recommends, marked (RECOMMENDED) with basis

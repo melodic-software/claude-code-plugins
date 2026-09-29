@@ -336,6 +336,10 @@ Write the plan even for small changes. A cleared session or a fresh agent has on
 - **Does not block execution**. It advises and gates on user approval. The user can always override
 - **Does not make decisions**. It structures the decision for the user. The user approves or rejects
 
+## Next
+
+/implementation:implement executes the approved plan.
+
 ## Gotchas
 
 - **The Step 3 reviewer brief is the lever, not the step.** If the user finds a gap in 5 seconds that the fresh-context reviewer missed, tighten the reviewer brief rather than adding an inline self-critique

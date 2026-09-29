@@ -458,3 +458,8 @@ the recommendation from this summary.
 **Mid-interview composition (`me` mode):** research, exploration, prototyping, and handoff are not only downstream. Invoke them *during* the interview when a recommendation needs external/codebase grounding, when a question needs something built to react to, or when branches outgrow the session. Return to the open branch after. **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking. The user has to see the thing to know what they think. Stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if installed. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off. The detour leaves an active workflow. Checkpointing is persistence the interview already owes: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in, which is what lets the open branch survive the detour. Then come back and answer the question in one line. The prototype is the instrument that produces the answer, not a deliverable; it is thrown away.
 
 `/planning:interview` is sister to `/planning:plan`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.
+
+## Next
+
+- Contract locked: /planning:plan.
+- Design-significant threads remain: /planning:design.
