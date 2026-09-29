@@ -142,7 +142,7 @@
     {
       "id": 12,
       "name": "flags-a-post-snapshot-measured-with-a-different-tool-revision",
-      "prompt": "/performance:snapshot post. The baseline report's Tool line reads `/home/me/.local/share/chezmoi/harness/ab.sh @ 3f9a1c2 (1.4.0)`. This run resolved the harness to `/home/me/.claude/plugins/cache/performance/harness/ab.sh @ 8be07d4 (1.6.0)`. Report the before/after ratio.",
+      "prompt": "/performance:snapshot post. The baseline report's Tool line reads `<repo-root>/harness/ab.sh @ 3f9a1c2 (1.4.0)`. This run resolved the harness to `<plugin-cache>/performance/harness/ab.sh @ 8be07d4 (1.6.0)`. Report the before/after ratio.",
       "expected_output": "Records the post snapshot's Tool line, compares it with the baseline's recorded line, and flags the difference in path, revision and version. States that a pair measured with two tool copies does not isolate the change and reports no before/after ratio. Names re-measuring both arms with one tool copy as the way forward.",
       "files": [],
       "expectations": [
