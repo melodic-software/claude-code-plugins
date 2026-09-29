@@ -27,6 +27,11 @@ save-point, and a save-point that dies with the disk is no save-point.
 clean-stop leaves the resumable state where it survives the machine, in the
 PR and issue bodies on the remote.
 
+## Arguments
+
+`unattended` is the only argument. It only gates the `/export` step (record the suggestion in
+output, do not ask); remote artifacts are always created without prompting, as step 3 states.
+
 ## Steps
 
 1. **Inspect first, never assume.** Enumerate every repository and worktree
@@ -53,7 +58,7 @@ PR and issue bodies on the remote.
    The conversation itself is another machine-local, non-durable item:
    transcripts live only in this machine's `~/.claude` tree and are
    retention-swept besides. When the session is worth keeping:
-   If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
+   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
    That destination is machine-local, so when the machine may go away, also
    surface copying the export off the machine as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR
@@ -120,6 +125,13 @@ pushed and needs none), nothing strandable left only on local disk, including
 non-reproducible ignored state a plain status hides, say so and give the
 free-and-clear verdict directly. A clean session is a valid, common outcome;
 do not manufacture work to look thorough.
+
+## Verification record: `/export`
+
+- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu.
+- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
 
 ## What this skill does NOT do
 

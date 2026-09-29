@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.13] - 2026-09-29
+
+### Fixed
+
+- **The interview defenses suite re-pins the `SKILL.md` frontmatter digest.** The 0.45.11 argument-hint change altered only the `argument-hint` key, which states neither defense, so the stale digest failed the suite. Test-only.
+
 ## [0.45.12] - 2026-09-28
 
 ### Fixed

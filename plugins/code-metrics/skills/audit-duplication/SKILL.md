@@ -46,12 +46,12 @@ continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
 table (lane, collector, status, reason), then one row per clone group, largest first, listing
 every instance as `file:start-end`, then a rollup per lane and per directory, then the summary
-lines: files with clones, the duplicated-line total, how many groups a registry excluded (and how
-many files hold nothing but excluded groups, which files with clones leaves out while the scope's
-count keeps them), and which lanes were partial. When the report opens with `No clone detector ran in any lane`, offer
-the user the install command that headline carries (`npm install -g jscpd`, or a devDependency)
-and run it only when they confirm; never install silently and never `npx`-fetch it. Keep the
-`--json` document when the numbers feed a comparison:
+lines: files with clones, the duplicated-line total, how many groups a registry excluded, and
+which lanes were partial. Files with clones leaves out any file holding nothing but excluded
+groups; the scope's count keeps it. When the report opens with `No clone detector ran in any
+lane`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
+devDependency) and run it only when they confirm; never install silently and never `npx`-fetch it.
+Keep the `--json` document when the numbers feed a comparison:
 `/verification:measure metrics` consumes it when the `verification` plugin is installed (treat a
 report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise keep the JSON beside
 your notes and compare by hand.

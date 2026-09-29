@@ -9,10 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { detectContentClass, outcomeFloors } from "../evals/check-watch-outcomes.js";
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { readJsonFile } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
