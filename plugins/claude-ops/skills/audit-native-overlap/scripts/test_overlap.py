@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import discover  # noqa: E402  - path shim above must run first
 import overlap  # noqa: E402  - path shim above must run first
 
 FIXTURE_CLI_VERSION = "2.1.232"
@@ -617,6 +618,18 @@ class SelfCheckTests(unittest.TestCase):
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("never `wrap`" in problem for problem in problems))
 
+    def test_bundled_workflow_rejects_wrap(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {
+            "name": "deep-research",
+            "class": "bundled-workflow",
+            "markers": [],
+        }
+        row["integration"] = "wrap"
+        row["baked"]["boundary_section"] = False
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("never `wrap`" in problem for problem in problems))
+
     def test_builtin_command_allows_suggest_with_invocation_evidence(self):
         row = deep_copy(BASE_ROW)
         row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
@@ -631,7 +644,9 @@ class SelfCheckTests(unittest.TestCase):
         row["integration"] = "suggest"
         row["observation"]["class"] = "live-roster"
         row["baked"]["boundary_section"] = False
-        row["evidence"] = ["invocation mode: session roster, not a bundled registration"]
+        row["evidence"] = [
+            "invocation mode: session roster, not a bundled registration"
+        ]
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("session-skill" in problem for problem in problems))
 
@@ -1302,7 +1317,9 @@ class DetectTests(unittest.TestCase):
             report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
         )
 
-    def test_an_inventory_without_lanes_keeps_the_old_behaviour(self):  # identifier, not prose # spellchecker:disable-line
+    def test_an_inventory_without_lanes_keeps_the_old_behaviour(
+        self,
+    ):  # identifier, not prose # spellchecker:disable-line
         self.write_inventory()
         out = self.repo.root / "candidates.json"
         self.assertEqual(self.detect(out), 0)
@@ -1556,7 +1573,9 @@ class SuggestAndNativeStepParityTests(unittest.TestCase):
     def test_native_step_forward_parity_wants_the_heading(self):
         row = deep_copy(BASE_ROW)
         row["integration"] = "wrap"
-        row["evidence"] = ["invocation mode: model-invocable, no disableModelInvocation"]
+        row["evidence"] = [
+            "invocation mode: model-invocable, no disableModelInvocation"
+        ]
         row["baked"]["native_step"] = True
         self.repo.write_store(make_store([row]))
         self.repo.generate()
@@ -1595,6 +1614,264 @@ class ScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             found = overlap.scan_components(Path(tmp))
             self.assertEqual(found, {"skills": [], "agents": []})
+
+
+def surface(name, klass="bundled-skill", **fields):
+    lane = overlap.LANE_OF_CLASS[klass]
+    return discover.Surface.build(name, klass, lane, [{"name": name, **fields}])
+
+
+class DiscoveryScoringTests(unittest.TestCase):
+    def test_tokenize_stems_expands_and_stoplists(self):
+        self.assertEqual(discover.tokenize("verify"), discover.tokenize("verification"))
+        self.assertEqual(discover.tokenize("pr"), ["pr", "pull", "request"])
+        self.assertIn("agent", discover.tokenize("subagents"))
+        self.assertEqual(discover.tokenize("the skill for Claude Code"), [])
+        self.assertNotEqual(discover.tokenize("states"), discover.tokenize("stats"))
+
+    def test_a_name_match_outscores_an_unrelated_component(self):
+        native = surface("commit", description="Create a git commit")
+        ours = discover.Component.build(
+            "source-control", "commit", "skill", "Create a git commit with a trailer."
+        )
+        other = discover.Component.build(
+            "songwriting", "rhyme", "skill", "Find rhymes for a lyric line."
+        )
+        found = discover.discover([native], [ours, other], threshold=0.0, top_k=5)
+        ranked = [(c.plugin, c.name) for _s, c, _score, _m in found]
+        self.assertEqual(ranked[0], ("source-control", "commit"))
+        self.assertNotIn(("songwriting", "rhyme"), ranked)  # no shared token at all
+        self.assertIn("commit", found[0][3])
+
+    def test_threshold_and_top_k_bound_the_result(self):
+        native = surface("pr", description="Create a pull request")
+        corpus = [
+            discover.Component.build(
+                "vcs", f"pull-request-{n}", "skill", "Open a pull request."
+            )
+            for n in range(5)
+        ]
+        self.assertEqual(len(discover.discover([native], corpus, top_k=2)), 2)
+        self.assertEqual(
+            discover.discover([native], corpus, threshold=1.01, top_k=5), []
+        )
+
+    def test_invocability_maps_every_combination(self):
+        cases = [
+            ({"model_invocable": True, "user_invocable": True}, "model+user"),
+            ({"model_invocable": False, "user_invocable": True}, "user-only"),
+            ({"model_invocable": True, "user_invocable": False}, "model-only"),
+            ({"user_invocable": True}, "unknown"),
+            ({}, "unknown"),
+            ({"disable_model_invocation": True, "user_invocable": True}, "user-only"),
+        ]
+        for fields, expected in cases:
+            with self.subTest(fields=fields):
+                self.assertEqual(
+                    discover.invocability([fields])["invocable_by"], expected
+                )
+
+    def test_disagreeing_registrations_are_unknown(self):
+        who = discover.invocability(
+            [
+                {"model_invocable": True, "user_invocable": True},
+                {"model_invocable": False, "user_invocable": True},
+            ]
+        )
+        self.assertIsNone(who["model_invocable"])
+        self.assertEqual(who["invocable_by"], "unknown")
+
+    def test_recommended_integration_is_a_label_per_invocability(self):
+        rec = discover.recommended_integration
+        self.assertEqual(rec("bundled-skill", "user-only"), "suggest")
+        self.assertEqual(rec("bundled-skill", "model+user"), "route-or-wrap")
+        self.assertEqual(rec("builtin-command", "model+user"), "route")
+        self.assertIsNone(rec("bundled-skill", "unknown"))
+
+
+class DiscoveryDetectTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = TempRepo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write_skill(
+            "source-control",
+            "commit",
+            description="Create a git commit with a trailer.",
+        )
+        self.repo.write_skill(
+            "songwriting", "rhyme", description="Find rhymes for a lyric."
+        )
+        self.pairs_path = self.repo.root / "pairs.json"
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": []}), encoding="utf-8"
+        )
+        self.inventory_path = self.repo.root / "inventory.json"
+        self.out = self.repo.root / "candidates.json"
+
+    def write_inventory(self, **overrides):
+        payload = {
+            "schema": 1,
+            "builtin_commands": {},
+            "bundled_skills": {
+                "commit": {"name": "commit", "description": "Create a git commit"}
+            },
+            "plugin_backed": {},
+            "integrity": {"status": "ok"},
+        }
+        payload.update(overrides)
+        self.inventory_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def detect(self, *extra):
+        code = overlap.main(
+            [
+                "detect",
+                "--repo",
+                str(self.repo.root),
+                "--inventory",
+                str(self.inventory_path),
+                "--pairs",
+                str(self.pairs_path),
+                "--out",
+                str(self.out),
+                *extra,
+            ]
+        )
+        return code, json.loads(self.out.read_text(encoding="utf-8"))
+
+    def discovered(self, report):
+        return [c for c in report["candidates"] if c["origin"] == "discovered"]
+
+    def test_a_discovered_candidate_carries_score_tokens_and_no_verdict(self):
+        self.write_inventory()
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["component"]["skill"], "commit")
+        self.assertGreater(candidate["score"], 0.3)
+        self.assertIn("commit", candidate["matched_tokens"])
+        self.assertIsNone(candidate["verdict"])
+        self.assertIsNone(candidate["store_verdict"])
+        self.assertEqual(report["discovery"]["discovered"], 1)
+
+    def test_a_high_threshold_or_zero_top_k_discovers_nothing(self):
+        self.write_inventory()
+        self.assertEqual(self.discovered(self.detect("--threshold", "1.01")[1]), [])
+        self.assertEqual(self.discovered(self.detect("--top-k", "0")[1]), [])
+
+    def test_a_seeded_pair_is_not_repeated_as_discovered(self):
+        self.write_inventory()
+        pair = {
+            "native": {"name": "commit", "class": "bundled-skill"},
+            "component": {
+                "plugin": "source-control",
+                "skill": "commit",
+                "kind": "skill",
+            },
+        }
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": [pair]}), encoding="utf-8"
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        [seeded] = report["candidates"]
+        self.assertEqual(seeded["origin"], "seeded")
+        self.assertIsNotNone(seeded["score"])
+
+    def test_a_pair_already_in_the_store_is_reported_as_existing(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        self.repo.write_store(make_store([row]))
+        self.write_inventory()
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        [existing] = report["discovery"]["existing"]
+        self.assertEqual(existing["store_verdict"], "complementary")
+
+    def test_internal_commands_are_never_scored(self):
+        self.write_inventory(
+            bundled_skills={},
+            builtin_commands={
+                "commit": {"name": "commit", "description": "Commit", "internal": True}
+            },
+        )
+        _code, report = self.detect()
+        self.assertEqual(report["discovery"]["surfaces_scored"], 0)
+        self.assertEqual(self.discovered(report), [])
+
+    def test_the_workflow_lane_is_optional(self):
+        self.write_inventory()
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertNotIn("bundled_workflows", report["discovery"]["lanes_scored"])
+        self.repo.write_skill(
+            "discovery", "research-deep", description="Dispatch deep external research."
+        )
+        self.write_inventory(
+            bundled_workflows={
+                "deep-research": {
+                    "name": "deep-research",
+                    "description": "Deep research",
+                }
+            }
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertIn("bundled_workflows", report["discovery"]["lanes_scored"])
+        classes = {
+            c["native"]["name"]: c["native"]["class"] for c in self.discovered(report)
+        }
+        self.assertEqual(classes.get("deep-research"), "bundled-workflow")
+
+    def test_missing_invocability_fields_degrade_to_unknown(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "unknown")
+        self.assertIsNone(candidate["native"]["model_invocable"])
+        self.assertIsNone(candidate["native"]["argument_hint"])
+        self.assertIsNone(candidate["recommended_integration"])
+
+    def test_a_user_only_surface_recommends_suggest_and_carries_the_marker(self):
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a git commit",
+                    "model_invocable": False,
+                    "user_invocable": True,
+                    "argument_hint": "[message]",
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "user-only")
+        self.assertEqual(candidate["native"]["argument_hint"], "[message]")
+        self.assertIn("model-invocation-disabled", candidate["native"]["markers"])
+        self.assertEqual(candidate["recommended_integration"], "suggest")
+        self.assertIn("model invocation: disabled", candidate["evidence"])
+
+    def test_a_model_invocable_skill_recommends_route_or_wrap(self):
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a git commit",
+                    "model_invocable": True,
+                    "user_invocable": True,
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "model+user")
+        self.assertEqual(candidate["native"]["markers"], [])
+        self.assertEqual(candidate["recommended_integration"], "route-or-wrap")
 
 
 if __name__ == "__main__":

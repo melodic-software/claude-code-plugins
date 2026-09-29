@@ -236,6 +236,7 @@ at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
 | `builtin-command` | `route` or `suggest`. Never `wrap`: a built-in command is not invoked by the Skill tool |
 | `bundled-skill` | `route` or `wrap` |
 | `bundled-skill` carrying `model-invocation-disabled` | `suggest` only. The model never lists the surface, so a route phrase is dead text. The marker is set from the registration the row's evidence names, never from the bare name |
+| `bundled-workflow` | `route` or `suggest`. Never `wrap`: the Native step invokes through the Skill tool, and a workflow is not a skill |
 | `plugin-backed-builtin` | `route` or `wrap` |
 | `marketplace-plugin` | `route` or `wrap`. The wrap grammar for this class is seam-phrasing's, not the Native step below |
 | `session-skill` | `route` only |

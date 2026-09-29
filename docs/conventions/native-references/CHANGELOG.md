@@ -6,6 +6,15 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.1.0] - 2026-09-29
+
+Minor: additive guidance.
+
+- **`bundled-workflow` is a provenance class.** Claude Code bundles workflows (`deep-research`)
+  beside its skills, and the overlap store can now record a row against one. Its runtime
+  relationship is `route` or `suggest`, never `wrap`, because the Native step invokes through the
+  Skill tool and a workflow is not a skill.
+
 ## [3.0.0] - 2026-09-28
 
 Major: the canonical route-gate token changes, which the Versioning section names as a major change.
