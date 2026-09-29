@@ -65,9 +65,12 @@ proceeds, so a target-agnostic run is not blocked.
    harness used), and whether a worktree override, `--plugin-dir`, or project-scope install path
    was in play.
 2. Record **what is deployed** where the user actually runs: read `installed_plugins.json` under
-   the plugins root (`~/.claude/plugins` unless `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves it) and quote
-   the `version` and `installPath` of the record for the plugin under test, choosing the record
-   whose `scope` the subject runs under. A plugin loaded only through `--plugin-dir` has no record.
+   the plugins root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins`, or `CLAUDE_CODE_PLUGIN_CACHE_DIR`
+   when set) and quote the `version` and `installPath` of the record for the plugin under test.
+   Choose the record whose `scope` the subject runs under; for a project-scope record also require
+   its `projectPath` to equal the subject project's root, since one plugin can hold project records
+   for several repositories, and fall back to the user-scope record when none matches. A plugin
+   loaded only through `--plugin-dir` has no record.
 3. **Set the disposition.** Versions agree: `Deployed: same as measured`. Versions differ:
    `Deployed: differs: <installed version/path>, re-measure after install`, plus an `Open
    follow-up:` line (install the measured build, then `/performance:snapshot post` and
