@@ -3,6 +3,13 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7] - 2026-09-29
+
+### Fixed
+
+- **`teach` argument hint** lists the closed action set (`topic`, `codebase`, `mission`, `glossary`, `resources`, `explain`, `primer`, `exercise`, `assess`, `resume`, `status`) instead of `<action>`, still inside the 100-character house style.
+- In-place corrections to released entries: `[0.11.6]` reworded to say only that the examples moved into the skill body; `[0.11.3]` issue reference linked.
+
 ## [0.11.6] - 2026-09-28
 
 ### Changed
