@@ -55,9 +55,9 @@ Every item below comes from the live installs reported in #4592 (Alien: Isolatio
 Legendary Edition) and none is confirmed by the Feeder README. `assess` does not read
 `dlss5-feed.log`, so it surfaces none of them.
 
-- **Alien: Isolation as a 32-bit example, working with OptiScaler as `host64\winmm.dll`.** The
-  README describes that layout in general (OptiScaler renamed `winmm.dll` in `host64\` for a 32-bit
-  game) but names no such game.
+- **Alien: Isolation as a 32-bit example, working with OptiScaler as `winmm.dll` inside the
+  `host64` folder.** The README describes that layout in general (OptiScaler renamed `winmm.dll`
+  in the `host64` folder for a 32-bit game) but names no such game.
 - **Luma add-on on the 64-bit route.** In Mass Effect Legendary Edition the log showed
   `NVSDK_NGX_D3D12_Init raised exception 0xC0000005` in the Luma add-on; a RenoDX HDR consumer
   worked instead. The README documents a different Luma crash (Metro 2033 Redux under Smooth
