@@ -3,6 +3,49 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh --tier scan` inventories many repositories read-only (#3346).** It runs
+  `scan.sh` per selected repo with the shared repo selection and skip list, prints
+  `Outcome: scanned` per repo, and closes with `Summary: repos=N planned=0 bytes=K`. It writes
+  no plan; `--apply` and `--batch-plan` with it are usage errors. `resolve-clean-action.sh`
+  gains `scan-batch`, `scan-fleet`, and `inventory-batch`.
+- **`git-branch-audit.sh` and `git-stash-audit.sh` audit many repositories (#3346).** Both take
+  `--repo`, `--repos-from`, `--skip`, and `--skip-from`, print a `Repo: <path>` block per repo,
+  audit linked worktrees that share a git common dir once, report a skipped or failing repo
+  without stopping the rest, and close with `FleetSummary:`. `--capture-file` with more than one
+  repo is a usage error. Deletion stays per repo.
+- **The branch audit reports a WORKTREE branch's checkout path on a `Worktree:` line (#3346).**
+  The `git` action hands those branches to `/source-control:worktree cleanup --dry-run` and
+  re-audits; a clone blocked by being off the default branch is pointed at
+  `/repo-fleet-hygiene:sync`, shown as a command, not run.
+
+### Changed
+
+- **`git-branch-audit.sh` reads its facts in bulk (#3346).** One `for-each-ref`, two
+  `rev-list --stdin` passes, and one worktree read replace about six git processes per branch
+  (1404 to 110 git calls on a 242-branch fixture, stdout unchanged). A branch whose bulk record
+  cannot be trusted, or a pass that fails, takes the per-branch commands, so a verdict does not
+  depend on the path.
+
+### Fixed
+
+- **The clean skill's single-repo apply steps carry the `CLEAN_GUARD_ACK` prefix (#3346).**
+  `git-prune.sh`, `git-tree-reset.sh`, `remove-path.sh`, and the tree-batch step were shown
+  bare although the guard blocks `--apply` without it. `git-tree-reset.md` now says so, and the
+  duplicated argument list in `SKILL.md` points at the action router.
+
+### Documentation
+
+- **The guard's header, `SKILL.md`, and README state what the guard matches and leave the
+  branch-deletion question open (#3852).** They no longer call `git branch -D`/`-d` and
+  `git push --delete` a settled gap or make unsourced claims about them. Guard behavior and its
+  assertions are unchanged.
+- **The clean skill documents the host permission layer that sits above the ack prefix (#3346).**
+- **Reflowed the 0.10.55 bullet** on the `clean-batch.sh` preflight (whitespace only).
+
 ## [0.10.57] - 2026-09-28
 
 ### Fixed
