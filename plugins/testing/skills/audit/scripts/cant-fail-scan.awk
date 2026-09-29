@@ -135,6 +135,17 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     }
     close(ARGV[1])
   }
+  # C#: RunAsync on an object initializer is Microsoft.CodeAnalysis.Testing's
+  # analyzer or code-fix harness, which asserts the diagnostics and fixed
+  # code, only in a file that imports that harness or aliases one of its types.
+  if (LEXER == "cs" && ARGV[1] != "") {
+    while ((getline line < ARGV[1]) > 0)
+      if (line ~ /^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+([A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*)?Microsoft\.CodeAnalysis(\.[A-Za-z]+)*\.Testing([^A-Za-z0-9_]|$)/) {
+        R_ANY = R_ANY "|\\}[[:space:]]*\\.[[:space:]]*RunAsync[[:space:]]*\\("
+        break
+      }
+    close(ARGV[1])
+  }
 
   # Two-argument equality helpers, matched by substring in list order.
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
@@ -1237,13 +1248,14 @@ function bind_scan(m, r,    s, rl) {
   if (LEXER == "js" && AS_RHS ~ /Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\($/) PM_NAME = AS_NAME
 }
 
-# js: a map over an array literal, or over a name the test bound to one,
-# optionally awaited through Promise.all, has one entry per literal element.
+# js: a map over a nonempty array literal, or over a name the test bound
+# to one, optionally awaited through Promise.all, has one entry per literal
+# element.
 function mapped_literal(v,    e) {
   if (LEXER != "js") return 0
   e = v
   sub(/^(await[[:space:]]+)?(Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\([[:space:]]*)?/, "", e)
-  if (e ~ /^\[[^]]*\][[:space:]]*\.[[:space:]]*map[[:space:]]*\(/) return 1
+  if (e ~ /^\[[^]]*\][[:space:]]*\.[[:space:]]*map[[:space:]]*\(/) return e !~ /^\[[[:space:]]*\]/
   if (!match(e, /^[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*map[[:space:]]*\(/)) return 0
   sub(/[[:space:]]*\..*$/, "", e)
   return RES[BID, e] == "l"
@@ -1482,13 +1494,26 @@ function helper_scan(m,    name, ind, k) {
   ind = indent_of(m)
   name = def_name(m)
   while (HK > 0 && HI[HK] >= ind && (name != "" || m !~ /^[[:space:]]*([])]|\{)/)) HK--
-  if (name != "") { HK++; HN[HK] = name; HI[HK] = ind }
+  if (name != "") { HK++; HI[HK] = ind; HD[HK] = ++DEF_N; DEF_NAME[DEF_N] = name; DEF_CLS[DEF_N] = CLS_K ? CLS_NAME[CLS_K] : "" }
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
-    for (k = 1; k <= HK; k++) ASSERTS[HN[k]] = 1
+    for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
 }
 
-# The names blk calls bare or on self, this or cls, space-separated, the
-# test's own name left out: os.write( is not a call to the file's write.
+# The class a line sits in, by indentation as helper_scan tracks functions:
+# the innermost open class is CLS_NAME[CLS_K].
+function cls_scan(m,    ind, re) {
+  if (m ~ /^[[:space:]]*$/) return
+  ind = indent_of(m)
+  while (CLS_K > 0 && CLS_I[CLS_K] >= ind && m !~ /^[[:space:]]*([])]|\{)/) CLS_K--
+  if (LEXER == "cs") re = "^[[:space:]]*([a-z]+[[:space:]]+)*(class|record|struct)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*"
+  else if (LEXER == "python" || LEXER == "js") re = "^[[:space:]]*(export[[:space:]]+(default[[:space:]]+)?)?(abstract[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*"
+  else return
+  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = substr(m, RSTART, RLENGTH); sub(/^.*[^A-Za-z0-9_$]/, "", CLS_NAME[CLS_K]) }
+}
+
+# The names blk calls bare or on self, this or cls, space-separated, a call
+# on self, this or cls marked with a leading dot, the test's own name left
+# out: os.write( is not a call to the file's write.
 function called_names(blk,    out, t, pre) {
   out = ""
   if (SHELL_LEX) return out
@@ -1497,16 +1522,39 @@ function called_names(blk,    out, t, pre) {
     pre = substr(blk, 1, RSTART - 1)
     blk = substr(blk, RSTART + RLENGTH)
     sub(/[[:space:]]*(<[^<>()]*>)?[[:space:]]*\($/, "", t)
-    if (pre ~ /\.[[:space:]]*$/ && pre !~ /(^|[^A-Za-z0-9_$.])(self|this|cls)[[:space:]]*\.[[:space:]]*$/) continue
-    if (t != block_name) out = out " " t
+    if (t == block_name) continue
+    if (pre ~ /\.[[:space:]]*$/) {
+      if (pre !~ /(^|[^A-Za-z0-9_$.])(self|this|cls)[[:space:]]*\.[[:space:]]*$/) continue
+      t = "." t
+    }
+    out = out " " t
   }
   return out
 }
 
-function calls_helper(calls,    n, c, i) {
+# Whether a test in class cls that makes these calls reaches an asserting
+# helper. A call on self or this, and a bare C# call, names the method of the
+# test's own class, a bare Python or JS call a module function; when that
+# scope defines the name, every definition of it there (C# overloads) must
+# assert. A name the scope does not define, as a base class's method, counts
+# when any definition of it in the file asserts.
+function calls_helper(calls, cls,    n, c, i, name, key) {
   n = split(calls, c, " ")
-  for (i = 1; i <= n; i++) if (c[i] in ASSERTS) return 1
+  for (i = 1; i <= n; i++) {
+    name = c[i]; sub(/^\./, "", name)
+    key = (c[i] ~ /^\./ || LEXER == "cs" ? cls : "") SUBSEP name
+    if (key in SCOPE_DEFS) { if (SCOPE_ASSERTS[key] == SCOPE_DEFS[key]) return 1 }
+    else if (name in NAME_ASSERTS) return 1
+  }
   return 0
+}
+
+function helper_verdicts(    i, key) {
+  for (i = 1; i <= DEF_N; i++) {
+    key = DEF_CLS[i] SUBSEP DEF_NAME[i]
+    SCOPE_DEFS[key]++
+    if (i in DEF_ASSERTS) { SCOPE_ASSERTS[key]++; NAME_ASSERTS[DEF_NAME[i]] = 1 }
+  }
 }
 
 function eval_block(    blk, stripped, mocka_n, kind, calls) {
@@ -1523,7 +1571,7 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
     # for END, when every function in the file has been read.
     if ((calls = called_names(blk)) == "") emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
     else if (!INVENTORY && !index(RULES_OFF, "|zero-assertion|") && (SCOPE == "" || in_scope(block_line, block_hi))) {
-      ZA_N++; ZA_CALLS[ZA_N] = calls
+      ZA_N++; ZA_CALLS[ZA_N] = calls; ZA_CLS[ZA_N] = block_cls
       ZA_REC[ZA_N] = sprintf("%s\tzero-assertion\t%d\t%s\n", kind, block_line, clean_detail("test '" block_name "' has 0 assertion tokens"))
     }
     return
@@ -1550,6 +1598,7 @@ function open_block(line, name) {
   in_test = 1
   block_line = block_last = line
   block_name = name
+  block_cls = CLS_K ? CLS_NAME[CLS_K] : ""
   block_masked = ""
   block_exempt = (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT)
   block_raw = 0; BW1 = BW2 = ""
@@ -1768,6 +1817,7 @@ function brace_decl() {
   if (SHELL_LEX) sh_assign(masked)
   if (LEXER == "bash") sh_file_facts()
 
+  if (!SHELL_LEX) cls_scan(masked)
   if (MODEL == "file") whole_file()
   else if (MODEL == "indent") indent()
   else if (LEXER == "cs") brace_decl()
@@ -1783,6 +1833,7 @@ END {
   if (INVENTORY && (mask_open() || S_bc || S_tpl || S_triple || S_verb)) print INVENTORY "\tunjudged"
   else if (mask_open()) print "L\t1"
   else if (in_test) close_block()
-  for (i = 1; i <= ZA_N; i++) if (!calls_helper(ZA_CALLS[i])) printf "%s", ZA_REC[i]
+  helper_verdicts()
+  for (i = 1; i <= ZA_N; i++) if (!calls_helper(ZA_CALLS[i], ZA_CLS[i])) printf "%s", ZA_REC[i]
   if (!INVENTORY) printf "B\t%d\n", blocks
 }

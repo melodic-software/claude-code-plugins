@@ -200,14 +200,14 @@ False-positive shapes, each a good corpus fixture that fired before its fix:
 
 | Shape | Rule | Findings cleared | Fix | Good fixture |
 |---|---|---|---|---|
-| `new AnalyzerTest { ... }.RunAsync()` from `Microsoft.CodeAnalysis.Testing` | `rule-zero-assertion` | medley 34 | `cs-xunit` assertion tokens `}.RunAsync(` and `CSharp(Analyzer\|CodeFix\|CodeRefactoring\|SourceGenerator)Test<`; `cs-nunit` and `cs-mstest` inherit them | `cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs` |
-| Expression-bodied test calling a same-file helper that asserts | `rule-zero-assertion` | medley 5 | same-file helpers, one level deep (engine) | `cs-xunit/good/SameFileAssertingHelperTests.cs`, and the `RunAsync(string)` case in `AnalyzerHarnessRunAsyncTests.cs` |
+| `new AnalyzerTest { ... }.RunAsync()` from `Microsoft.CodeAnalysis.Testing` | `rule-zero-assertion` | medley 34 | `cs-xunit` assertion token `CSharp(Analyzer\|CodeFix\|CodeRefactoring\|SourceGenerator)Test<`, which `cs-nunit` and `cs-mstest` inherit, and `}.RunAsync(` in a file that imports the harness (engine prescan) | `cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs` |
+| Expression-bodied test calling a same-file helper that asserts | `rule-zero-assertion` | medley 5 | same-file helpers, one level deep, a method call resolved to the test's own class when it defines the name (engine) | `cs-xunit/good/SameFileAssertingHelperTests.cs`, and the `RunAsync(string)` case in `AnalyzerHarnessRunAsyncTests.cs` |
 | `self.refused(...)`, `self.roundtrip(...)` on a method that asserts | `rule-zero-assertion` | ccp 6 | the same | `py-unittest/good/test_unittest_self_helper_asserts.py` |
 | Module helper calling `check_returncode()` | `rule-zero-assertion` | ccp 1 | the same | `py-pytest/good/test_pytest_helper_check_returncode.py` |
 | Awaited helper that rejects on timeout | `rule-zero-assertion` | none here: medley's helper throws one level further down | the same, with throw, raise and reject counting in a helper's body | `js-vitest/good/vitest-poll-helper-rejects.test.ts` |
 | `node:test` helper calling `assert.*` | `rule-zero-assertion` | ci-runner 1 | the same | `js-node-test/good/node-test-helper-asserts.test.cjs` |
 | `exit "$((FAIL > 0))"` failure counter | `rule-zero-assertion` | ccp 1 | `bash-harness` idiom for the arithmetic exit | `bash-harness/good/failure-counter-arith-exit.test.sh` |
-| Loop over `await Promise.all(<literal array>.map(...))`, on one line or two | `rule-conditional-assertion` | medley 1 | a map over an array literal, or over a name the test bound to one, is a literal collection | `js-vitest/good/vitest-loop-over-literal-probes.test.ts` |
+| Loop over `await Promise.all(<literal array>.map(...))`, on one line or two | `rule-conditional-assertion` | medley 1 | a map over a nonempty array literal, or over a name the test bound to one, is a literal collection | `js-vitest/good/vitest-loop-over-literal-probes.test.ts` |
 | `f(x) == f(x)` determinism check | `rule-recomputed-expectation` | none: kept firing, annotated | `cant-fail-ok: determinism contract`; a trailing annotation on a Python `assert` line no longer drops the finding silently | `py-unittest/good/test_unittest_deterministic_call.py`, `py-pytest/good/test_pytest_deterministic_report.py`, each asserted exempt |
 
 The helper rule reads a function's text from its definition to the first code line indented no

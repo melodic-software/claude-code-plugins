@@ -244,8 +244,14 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   test whose text holds an assertion token, a mock verification, an `assertion.fail` call, or a
   throw, raise or reject. A helper's text runs from its definition to the first code line indented
   no deeper than it; a line starting with `)`, `]` or `{` does not close it, and a deeper
-  definition nests. One level deep: the helper's own calls are not followed. Bash and PowerShell
-  are not tracked.
+  definition nests. A call on `self` or `this`, and a bare C# call, resolves to the test's own
+  class when that class defines the name, and then every definition of it there (C# overloads)
+  must assert; a bare Python or JavaScript call resolves to a module function; a name the scope
+  does not define counts when any definition of it in the file asserts. One level deep: the
+  helper's own calls are not followed. Bash and PowerShell are not tracked.
+- C#: `}.RunAsync(` counts as an assertion only in a file that imports
+  `Microsoft.CodeAnalysis.Testing` (any `Microsoft.CodeAnalysis.*.Testing` namespace) or aliases
+  one of its types, found by a file prescan, as Verify's snapshot import is.
 - `property_markers` match any raw line of a file whose tests derive expected values on purpose
   (Hypothesis `@given`, fast-check, FsCheck, `testing/quick`); such a file never reports
   `rule-recomputed-derived`. `rules_off` lists rule slugs an adapter never reports:

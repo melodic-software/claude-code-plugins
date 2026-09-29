@@ -1070,6 +1070,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
@@ -1159,6 +1160,7 @@ corpus_files=(
   js-vitest/bad/vitest-duration-itself.test.ts.fixture
   js-vitest/bad/vitest-invoice-inline-snapshot.test.ts.fixture
   js-vitest/bad/vitest-limit-against-itself.test.ts.fixture
+  js-vitest/bad/vitest-loop-over-empty-mapped-literal.test.ts.fixture
   js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture
   js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture
   js-vitest/bad/vitest-post-limit-restated.test.ts.fixture
@@ -1242,6 +1244,7 @@ corpus_files=(
   py-unittest/bad/test_unittest_deliver_awaits.py.fixture
   py-unittest/bad/test_unittest_limit_restated.py.fixture
   py-unittest/bad/test_unittest_notify_called_once_with.py.fixture
+  py-unittest/bad/test_unittest_other_class_helper.py.fixture
   py-unittest/bad/test_unittest_parse_except_only.py.fixture
   py-unittest/bad/test_unittest_parse_raises_exception.py.fixture
   py-unittest/bad/test_unittest_render_snapshot.py.fixture
