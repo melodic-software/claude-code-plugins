@@ -29,7 +29,7 @@ globs="$(awk -f "$AUDIT/scripts/adapter-load.awk" "$AUDIT"/adapters/*.yaml |
 json="$(jq -R . <<<"$globs" | jq -s '{
   description: "Scans a test file for tests that cannot fail after Claude writes or edits it (opt-in: test_guards_enabled).",
   hooks: {PostToolUse: [{
-    matcher: "Write|Edit|MultiEdit",
+    matcher: "Write|Edit",
     hooks: [.[] as $g | ("Write", "Edit") | {
       type: "command",
       command: "node",

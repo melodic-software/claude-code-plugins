@@ -36,12 +36,13 @@ spawn floor S in the same loop.
 | Host | S (median) | test-scan p50 | test-scan p95 | p95 in S |
 |---|---|---|---|---|
 | WSL2, 2026-09-28 | 0.86 ms | 86 ms | 89 ms | 104 S |
-| Windows fleet machine | not measured (needs approval to run over `/fleet:reach`) | | | |
+| Windows 11 Git Bash (`melo-desk-001`, via WSL interop), 2026-09-28 | 17.5 ms | 716 ms | 743 ms | 42 S |
 
 Components on the same host, one run each of three: `node -e 0` 16-20 ms, the launcher running
 `/bin/true` 23-31 ms, `cant-fail-scan.sh --file --lines` 34-45 ms, sourcing `hook-utils.sh`
 3-4 ms, `jq` and `git check-ignore` 1-2 ms each.
 
-The plan's budget of p95 at most 3 S does not hold on WSL. There a bash spawn costs under 1 ms, but
-the node launcher that every exec-form hook needs costs 20 to 30 ms. The budget is open for a
-decision; see the Phase 2 handoff.
+Both p95 figures are within the Phase 2 budget: at most 150 ms on WSL and 1 s on Windows. That
+budget replaced an earlier 3 S one (user decision, 2026-09-28). A budget in S cannot hold on WSL,
+where a bash spawn costs under 1 ms but the node launcher that every exec-form hook needs costs 20
+to 30 ms.
