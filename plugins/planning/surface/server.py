@@ -16,6 +16,7 @@ until the lease expires or POST /api/lease {"action": "release"} clears it.
 import argparse
 import ctypes
 import hashlib
+import html
 import json
 import os
 import secrets
@@ -27,7 +28,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 HERE = Path(__file__).resolve().parent
 SCHEMA_VERSION = "1.0"
@@ -52,6 +53,22 @@ MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 # A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
+IMAGE_TYPES = {
+    ".png": "png",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+    ".webp": "webp",
+    ".svg": "svg+xml",
+}
+# A new-tab link (/api/visual-open) works once, within this many seconds of its mint.
+OPEN_SECONDS = 10
+PAGE_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
+    "form-action 'none'; base-uri 'none'"
+)
 # A visual may never name a runtime file: the session files and their transient temp copies
 # hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
@@ -364,6 +381,47 @@ def find_visual(doc, vid):
     return None
 
 
+def visual_format(v):
+    """The visual's format, with `kind` as its alias; the page reads a missing one as html."""
+    return v.get("format") or v.get("kind") or "html"
+
+
+def open_body(data_dir, v):
+    """(status, body, content type) for visual v opened in a tab of its own.
+
+    Content comes inline or through read_visual_file, under its rules. The type follows the
+    format, never the file name: html is text/html, svg is image/svg+xml, and markdown, mermaid
+    and chart are text/plain. An image file needs an image extension (415 otherwise); inline
+    image content that is a data:image/ or http(s) URL is wrapped in an <img> page, as the panel
+    shows it, and anything else is text.
+    """
+    f, c = visual_format(v), v.get("content")
+    if c is None:
+        c = read_visual_file(data_dir, v.get("file"))
+        if c is None:
+            return 404, {"error": "not found"}, None
+        if len(c) > MAX_VISUAL_FILE:
+            limit = f"file is over the {MAX_VISUAL_FILE // 2**20} MB limit"
+            return 413, {"error": limit}, None
+        if f == "image":
+            t = IMAGE_TYPES.get(Path(v["file"]).suffix.lower())
+            if not t:
+                return (
+                    415,
+                    {"error": "not an image type (png, jpg, gif, webp or svg)"},
+                    None,
+                )
+            return 200, c, "image/" + t
+    elif f == "image" and str(c).lower().startswith(
+        ("data:image/", "http://", "https://")
+    ):
+        return 200, f'<img alt="" src="{html.escape(c)}">'.encode("utf-8"), "text/html"
+    if not isinstance(c, bytes):
+        c = c if isinstance(c, str) else json.dumps(c, ensure_ascii=False)
+        c = c.encode("utf-8")
+    return 200, c, {"html": "text/html", "svg": "image/svg+xml"}.get(f, "text/plain")
+
+
 def read_visual_file(data_dir, file):
     """Bytes of the regular file `file` names inside data_dir (at most MAX_VISUAL_FILE + 1 of them).
 
@@ -609,6 +667,21 @@ class Hub:
         self._last_state = None
         # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
         self.lease = None
+        self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
+
+    def mint_open(self, vid):
+        """A one-time nonce that opens visual vid for OPEN_SECONDS; expired ones are dropped."""
+        now, nonce = time.monotonic(), secrets.token_urlsafe(16)
+        with self.cond:
+            self.opens = {k: o for k, o in self.opens.items() if o[1] > now}
+            self.opens[nonce] = (vid, now + OPEN_SECONDS)
+        return nonce
+
+    def take_open(self, nonce, vid):
+        """True when nonce was minted for vid and is still live; any use spends it."""
+        with self.cond:
+            got = self.opens.pop(nonce, None)
+        return got is not None and got[0] == vid and time.monotonic() < got[1]
 
     def lease_timeout(self):
         return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
@@ -1007,7 +1080,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):  # noqa: A002  # matches the base signature
         pass
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code, body, ctype="application/json", csp=None):
         raw = (
             body
             if isinstance(body, bytes)
@@ -1018,22 +1091,16 @@ class Handler(BaseHTTPRequestHandler):
                 True  # an unread request body must not become the next request
             )
         self.send_response(code)
-        self.send_header(
-            "Content-Type", ctype if ctype == OCTET else ctype + "; charset=utf-8"
-        )
+        text = ctype.startswith("text/") or ctype == "application/json"
+        self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        if ctype == "text/html":
-            self.send_header(
-                "Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-                "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-                "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
-                "form-action 'none'; base-uri 'none'",
-            )
+        csp = csp or (PAGE_CSP if ctype == "text/html" else None)
+        if csp:
+            self.send_header("Content-Security-Policy", csp)
         self.end_headers()
         try:
             self.wfile.write(raw)
@@ -1125,6 +1192,20 @@ class Handler(BaseHTTPRequestHandler):
                     {"error": f"file is over the {MAX_VISUAL_FILE // 2**20} MB limit"},
                 )
             return self.send(200, raw, OCTET)
+        if url.path == "/api/visual-open":
+            # A tab navigation cannot send the token header, so a one-time nonce stands in; the
+            # sandbox CSP makes the document an opaque origin that cannot reach the page's token.
+            vid = (query.get("id") or [""])[0]
+            if not hub.take_open((query.get("t") or [""])[0], vid):
+                return self.send(403, {"error": "open link expired or already used"})
+            v = find_visual(load_json(hub.questions, {}), vid)
+            if not v or v.get("archived"):
+                return self.send(404, {"error": "not found"})
+            code, body, ctype = open_body(hub.dir, v)
+            if code != 200:
+                return self.send(code, body)
+            flags = " allow-scripts" if visual_format(v) == "html" else ""
+            return self.send(200, body, ctype, f"sandbox{flags}; {PAGE_CSP}")
         if url.path == "/api/ping":
             return self.send(
                 200,
@@ -1223,6 +1304,15 @@ class Handler(BaseHTTPRequestHandler):
                     "contentRev": crev,
                     "listener": self.hub.listener(),
                 },
+            )
+        if url.path == "/api/visual-open":
+            vid = msg.get("id")
+            v = find_visual(load_json(self.hub.questions, {}), vid)
+            if not isinstance(vid, str) or not v or v.get("archived"):
+                return self.send(404, {"error": "not found"})
+            t = self.hub.mint_open(vid)
+            return self.send(
+                200, {"url": f"/api/visual-open?id={quote(vid, safe='')}&t={t}"}
             )
         if url.path == "/api/lease":
             if msg.get("action") != "release":
