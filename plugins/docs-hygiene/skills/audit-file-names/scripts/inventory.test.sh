@@ -110,6 +110,18 @@ assert_eq "an empty root still exits 0" "0" "$rc"
 assert_contains "an empty root still prints the SCANNED row" "$out" "SCANNED	0	nowhere"
 assert_contains "an empty root warns on stderr" "$(cat "$TEST_TMPDIR/err")" "this is an empty root, not a clean tree"
 
+root="$(new_fixture)"
+git -C "$root" rm -rq docs
+out="$(bash "$SUT" --root "$root" 2>"$TEST_TMPDIR/err")"
+rc=$?
+assert_eq "a configured root with every tracked file removed exits 0" "0" "$rc"
+assert_contains "a configured root with no tracked files reports zero scanned" "$out" "SCANNED	0	docs"
+assert_contains "a configured root with no tracked files warns on stderr" "$(cat "$TEST_TMPDIR/err")" "this is an empty root, not a clean tree"
+
+root="$(new_fixture)"
+bash "$SUT" --root "$root" >/dev/null 2>"$TEST_TMPDIR/err"
+assert_lacks "the clean fixture does not warn about an empty root" "$(cat "$TEST_TMPDIR/err")" "empty root"
+
 # --- an explicit --config file -----------------------------------------------
 
 root="$(new_fixture)"
