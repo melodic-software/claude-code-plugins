@@ -35,7 +35,7 @@
   ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
 - **The credential read boundary covers every shell-holding agent**, including the per-gap workers
   and the sibling verifier, and `research-verifier` bars a credential file from `Read`. The sandbox
-  settings detail is a pointer to the `claude-config` required-permissions reference
+  settings detail is a link to the `claude-config` required-permissions reference on GitHub
   ([#4244](https://github.com/melodic-software/claude-code-plugins/issues/4244)).
 - **`explorer`, `researcher`, `intent-tracer` and `research-verifier` no longer preload
   `discovery:report`.** Each defines its own return block, so the preload gave two final-message
