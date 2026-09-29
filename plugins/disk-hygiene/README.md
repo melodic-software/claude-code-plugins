@@ -146,7 +146,7 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | Plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | Plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
 
-The last row is the one fail-open left, and it is deliberate. Those are the commands the guard would
+The last row is the one fail-open left. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
 missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
 stop work (and deny outright under `-p`) on a host whose only fault is having no Python. The
@@ -473,9 +473,9 @@ measurements below carry the conditions they were taken under.
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
   path. The conversion does not change the guard's no-interpreter behavior: the belt denies every
-  call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
-  answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
-  destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
+  call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does
+  not read the toggle and answers only to the engine's own preview/approval-token gate. The toggle
+  can only narrow the destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
   evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
   Policy comes from an explicit invocation
