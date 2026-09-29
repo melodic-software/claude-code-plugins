@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.18] - 2026-09-29
+
+### Fixed
+
+- **`resolve-config.sh`** treats a `--root` that is the home directory (or an ancestor of it) or is
+  not inside a git working tree as having no team or overlay layer: `paths` reports both as
+  not-applicable and only the user-global file is read. A team or overlay path that is the
+  user-global file is reported as such and read once. The classifier is `lib/config-root.sh`, a
+  synced copy of the source-control resolver.
+
 ## [0.23.17] - 2026-09-29
 
 ### Fixed
