@@ -453,7 +453,12 @@ if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
 else
-  PLAN_DIR="$(mktemp -d 2>/dev/null)" || PLAN_DIR="${TMPDIR:-/tmp}/clean-batch.$$"
+  # Default under the invoking repo's gitignored .work/, else a per-user state dir:
+  # never /tmp, which the guardrails block-windows-drive-tmp hook blocks on Windows.
+  PLAN_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)/.work"
+  [[ "$PLAN_ROOT" != /.work ]] || PLAN_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene"
+  mkdir -p "$PLAN_ROOT" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_ROOT"
+  PLAN_DIR="$(mktemp -d "$PLAN_ROOT/clean-batch.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $PLAN_ROOT"
   PLAN="$PLAN_DIR/plan"
 fi
 # Refuse to truncate an unrelated file: a typo'd --batch-plan path must not

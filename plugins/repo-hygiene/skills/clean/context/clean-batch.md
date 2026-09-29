@@ -104,6 +104,12 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
+Default location: a fresh `clean-batch.XXXXXX` directory under the invoking repo's
+gitignored `.work/` when the working directory is inside a repo, otherwise under
+`${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene/`. It is never under `/tmp`, so it
+also works where the guardrails `block-windows-drive-tmp` hook rejects a temp-dir path
+(Windows). `--batch-plan FILE` overrides it: pass a path outside `/tmp` there too.
+
 Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
 `preflight.sh` again before confirming. `planned=` bytes can exceed `removed=`
@@ -173,9 +179,9 @@ gated plan after confirming:
 ```bash
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
-# → BatchPlan: /tmp/…/plan  — confirm, then:
+# → BatchPlan: <repo>/.work/clean-batch.…/plan  — confirm, then:
 CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
-  --tier caches --apply --batch-plan /tmp/…/plan
+  --tier caches --apply --batch-plan <repo>/.work/clean-batch.…/plan
 ```
 
 Dry-run a git prune across an explicit set including worktrees (each shared store

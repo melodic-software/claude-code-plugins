@@ -15,6 +15,10 @@ BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
+# Run from a non-repo cwd so default plans land under the per-user state dir in
+# TEST_TMPDIR and are cleaned up with it.
+export XDG_STATE_HOME="$TEST_TMPDIR/state"
+cd "$TEST_TMPDIR" || exit 1
 
 mkrepo() {
   # mkrepo <name> — a repo with a removable cache + build dir.
@@ -83,6 +87,21 @@ printf 'REPO\t/x\tcaches\t/x/m.manifest\nGITDIR\t/y\tkey\n' >"$VALIDPLAN"
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent4)" --batch-plan "$VALIDPLAN" 2>&1)" || rc=$?
 assert_exit "existing batch plan is overwritable (resumable)" 0 "$rc"
+
+# --- 1b. default plan location: never /tmp; explicit --batch-plan wins ---
+RD="$(mkrepo defplan)"
+out="$(cd "$RD" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
+P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "in-repo default plan lands under the repo .work/" "$P" "$RD/.work/"
+assert_file_exists "in-repo default plan written" "$P"
+NOREPO="$TEST_TMPDIR/norepo"; mkdir -p "$NOREPO"
+out="$(cd "$NOREPO" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
+P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "out-of-repo default plan lands under the state dir" "$P" "$TEST_TMPDIR/state/repo-hygiene/"
+assert_file_exists "out-of-repo default plan written" "$P"
+EXPLICIT="$TEST_TMPDIR/explicit/plan"
+out="$(cd "$RD" && bash "$BATCH" --tier caches --repo "$RD" --batch-plan "$EXPLICIT" 2>&1)"
+assert_contains "explicit --batch-plan overrides the default" "$out" "BatchPlan: $EXPLICIT"
 
 # --- 2. caches dry-run over 2 repos: one plan, aggregate summary ---
 R1="$(mkrepo r1)"
