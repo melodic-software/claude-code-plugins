@@ -11,8 +11,8 @@
   line or `detector unavailable` means the detector did not run. A script file that is missing
   entirely cannot print anything, so that case shows as an empty line and is covered by the SKILL.md
   sentence, not by the script (#4580).
-- `audit` rubric carve-out 4 cites a checkable source in its Basis
-  (`melodic-software/.github#153`) (#4577).
+- `audit` rubric carve-out 4 marks its Basis `judgment` with a recheck trigger, since no source
+  shows the carve-out behavior (#4577).
 
 ## [0.6.1] - 2026-09-28
 
