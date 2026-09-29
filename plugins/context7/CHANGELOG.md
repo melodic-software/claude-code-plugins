@@ -21,6 +21,10 @@ All notable changes to the `context7` plugin are documented here. Format follows
   The decision (keep the removal or keep the clause) is open on #4120.
 - **`lookup` states its default action as a sentence.** The `**Arguments.**` line now ends with
   "Default action is lookup, e.g. /context7:lookup react "useEffect cleanup"." No behavior change.
+- **Declared in-place correction to the released `## [0.5.10]` section (#2388 sanction).** Its body
+  described the claude-ops prerequisites mechanism, not what context7 shipped. It now reads "Declares the
+  `ctx7` CLI in `prerequisites.json` so `/claude-ops:prerequisites` can report it when missing." The heading
+  is unchanged.
 
 ## [0.5.11] - 2026-09-28
 
