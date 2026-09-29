@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
