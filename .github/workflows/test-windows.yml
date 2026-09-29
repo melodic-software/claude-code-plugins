@@ -158,7 +158,7 @@ jobs:
   # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
   # PowerShell commands, so Linux tests it faithfully.
   #
-  # Four surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
+  # Five surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
   # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
   # the Windows filesystem, and `cygpath` short-name (8.3) resolution. #2774's
   # disk-hygiene read-only Bash allowlist is NT-specific (MSYS path mapping,
@@ -168,7 +168,10 @@ jobs:
   # runner those cases report NOT EXERCISED and the suite is green having
   # proved nothing about them. And the gaming plugin's DLSS 5 script is
   # Windows-only by its own header (backslash paths, Authenticode), so its
-  # selftest SKIPs on every other OS and ran in no CI before this lane.
+  # selftest SKIPs on every other OS and ran in no CI before this lane. And
+  # the exec-form bash launcher (#3686) resolves a real Git Bash, refuses the
+  # System32 WSL relay and spawns bash from node.exe with no shell, none of
+  # which a Linux runner does.
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
@@ -286,3 +289,12 @@ jobs:
         env:
           EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN: "1"
         run: bash scripts/check-exec-form-windows-probe.sh
+      # The resolver test hands resolveBash a win32 platform and a fake
+      # `exists`, so a Linux run already covers its logic; here it runs under
+      # the real node.exe. The launcher test is the one that spawns a real Git
+      # Bash through node.exe, with stdin, an argument and exit 2 passed
+      # through, and reads every hooks.json row for the node exec form.
+      - name: Test the exec-form bash launcher resolver on Windows
+        run: node --test lib/exec-bash.resolver.test.mjs
+      - name: Test the guardrails exec-bash launcher on Windows
+        run: bash plugins/guardrails/hooks/exec-bash.test.sh
