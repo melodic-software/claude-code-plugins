@@ -156,7 +156,9 @@ only after that version increases.
   A remainder, a phrase, a variadic tail, or a position-independent flag stays in `$ARGUMENTS`.
   `planning:prd` and `session-flow:workflow` name their ordered slots;
   `knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` do not
-  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)). The named-slots
+  pilot on `planning:prd` and `session-flow:workflow` was reversed in 0.13.29: the convention
+  declines `arguments:`, and #5212 removed the frontmatter.
 
 ## [0.13.11] - 2026-09-28
 
