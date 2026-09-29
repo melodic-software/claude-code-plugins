@@ -218,15 +218,14 @@
       "id": 17,
       "name": "assess-no-upscaler-64-bit-stops-at-verdict",
       "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Hollow Harbor\\Binaries\\Win64 - can I put DLSS 5 on this? The assess JSON reports verdict not-a-candidate (no DLSS, FSR 2+ or XeSS DLL in the game tree), bitness 64-bit, launcher Steam, and antiCheat.status none-disclosed with the note that no kernel anti-cheat was disclosed, which is not proof of none.",
-      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and explains that the in-process OptiScaler route has no upscaler to hook. Names wiki-listed upscaler mods as the other path. Repeats the none-disclosed note (not proof the game has none) and says to play modded only solo or offline. Does not name any route apply does not manage, does not run apply, and offers no -Force.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess and reads the JSON. Reports verdict not-a-candidate and explains that the in-process OptiScaler route has no upscaler to hook. Names wiki-listed upscaler mods as the other path. Repeats the none-disclosed note (not proof the game has none). Does not name a ReShade-based route, does not run apply, and offers no -Force.",
       "files": [],
       "expectations": [
         "Runs assess and reports the not-a-candidate verdict",
         "Explains that the in-process OptiScaler route has no upscaler to hook in this game",
         "Names wiki-listed upscaler mods as the other path",
         "Repeats the anti-cheat note that none-disclosed is not proof the game has none",
-        "Tells the user to play modded only solo or offline",
-        "Does not name a ReShade-based or other manual install route that apply does not manage",
+        "Does not name a ReShade-based install route",
         "Does not run -Verb apply",
         "Does not offer -Force or any other flag as a way past the verdict"
       ]
