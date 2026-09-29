@@ -33,11 +33,11 @@
 # destructive-guard.test.sh. Recheck: the owner answers #3852, or
 # is_destructive() changes.
 #
-# Apply scripts and forced worktree removal. #3346 (#5130) added the seven
-# mutating scripts of the clean skill (clean-caches, clean-build, git-prune,
-# git-tree-reset, git-tree-reset-batch, remove-path, clean-batch) in their
-# --apply spelling, and `git worktree remove` with a force flag. Claim: as of
-# 2026-09-29 a dry-run of those scripts is allowed so the confirmation gate can
+# Apply scripts and forced worktree removal. Claim: as of 2026-09-29 the guard
+# matches the seven mutating scripts of the clean skill (clean-caches,
+# clean-build, git-prune, git-tree-reset, git-tree-reset-batch, remove-path,
+# clean-batch) in their --apply spelling, and `git worktree remove` with a
+# force flag. A dry-run of those scripts is allowed so the confirmation gate can
 # still run, and the ack prefix lifts either block after the gate. Basis:
 # is_destructive() below and section 2e of destructive-guard.test.sh. Recheck:
 # is_destructive() changes.

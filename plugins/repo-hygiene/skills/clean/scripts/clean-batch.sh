@@ -60,7 +60,7 @@ git-tree-reset-batch.sh):
           --batch-plan are usage errors. Prints `Outcome: scanned` per repo and
           `Summary: repos=N planned=0 bytes=K skipped=S blocked=B`, K the summed
           `Total reclaimable`.
-  caches remove tool/linter caches per repo (clean-caches.sh)
+  caches  remove tool/linter caches per repo (clean-caches.sh)
   build   remove build output + caches per repo (clean-build.sh --include-caches)
   git     prune/gc each unique shared object store once (git-prune.sh)
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
