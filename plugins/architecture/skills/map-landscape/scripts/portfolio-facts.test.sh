@@ -118,8 +118,23 @@ cat >"$dotnet_repo/src/Billing.csproj" <<'CSPROJ'
   </ItemGroup>
 </Project>
 CSPROJ
+cat >"$dotnet_repo/src/Legacy.csproj" <<'CSPROJ'
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference
+        Include="Polly" Version="8.0.0" />
+    <PackageReference Include='Dapper' Version="2.1.0" />
+    <!-- <PackageReference Include="RetiredPackage" Version="1.0.0" /> -->
+    <PackageReference Update="OverrideOnly" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+CSPROJ
 commit_repo "$dotnet_repo"
 out="$(bash "$SCRIPT" "$dotnet_repo")"
+assert_contains "dotnet: PackageReference with Include on a later line collected (Polly)" "$out" '"Polly"'
+assert_contains "dotnet: single-quoted Include collected (Dapper)" "$out" '"Dapper"'
+assert_not_contains "dotnet: a commented-out reference is not a dependency" "$out" 'RetiredPackage'
+assert_not_contains "dotnet: an Update= override is not a dependency" "$out" 'OverrideOnly'
 assert_equals "dotnet: name" "$(field "$out" name)" "dotnet-svc"
 assert_contains "dotnet: path is the resolved absolute path" "$(field "$out" path)" "dotnet-svc"
 assert_equals "dotnet: runtime" "$(field "$out" runtime)" "dotnet"
