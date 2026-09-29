@@ -47,6 +47,7 @@ issue | repo)
 api)
   case "$*" in
   *"--method POST"*) printf '42\n' ;;
+  *"/labels?"*) printf '%b' "${GH_STUB_LABELS-type: bug\ntype: feature\ntype: task\n}" ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
   *) printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n' ;;
   esac
@@ -94,6 +95,17 @@ EOF
     "$(<"$TYPED_ERR")" "type: task"
   assert_contains "create-item --type on gh 2.45 sends the type label" "$(<"$STUB/calls.log")" \
     "labels[]=type: task"
+  assert_contains "create-item --type on gh 2.45 reads the repo labels" "$(<"$STUB/calls.log")" \
+    "repos/o/r/labels?per_page=100"
+
+  GH_STUB_VERSION=2.45.0 GH_STUB_LABELS='bug\nenhancement\n' \
+    run_create --title t --type Task --repo o/r >/dev/null 2>"$TYPED_ERR"
+  rc=$?
+  assert_eq "create-item --type without the repo label → exit 0" "0" "$rc"
+  assert_not_contains "create-item --type without the repo label sends no type label" \
+    "$(<"$STUB/calls.log")" "labels[]=type:"
+  assert_contains "create-item --type without the repo label notes the drop" \
+    "$(<"$TYPED_ERR")" "dropped the type"
   rm -f "$TYPED_ERR"
 
   GH_STUB_VERSION=2.45.0 run_create --title t --parent github:o/r#1 --repo o/r >/dev/null 2>&1

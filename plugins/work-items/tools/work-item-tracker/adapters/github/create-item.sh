@@ -67,10 +67,17 @@ if [[ -n "$type" ]] && ((!native)); then
   feature | feat) type_label="type: feature" ;;
   *) type_label="type: task" ;;
   esac
-  printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
-    "$type_label" >&2
-  if [[ ",${labels}," != *",${type_label},"* ]]; then
-    labels="${labels:+$labels,}$type_label"
+  # A label the repo lacks makes the REST create fail or file the issue unlabeled.
+  wit_run_gh read api --paginate "repos/$target_repo/labels?per_page=100" --jq '.[].name'
+  if grep -qxF -- "$type_label" <<<"$WIT_GH_OUT"; then
+    printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
+      "$type_label" >&2
+    if [[ ",${labels}," != *",${type_label},"* ]]; then
+      labels="${labels:+$labels,}$type_label"
+    fi
+  else
+    printf 'create-item.sh: --type requires gh >= 2.94; dropped the type because %s defines no "%s" label\n' \
+      "$target_repo" "$type_label" >&2
   fi
 fi
 
