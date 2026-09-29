@@ -10,8 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **`plugin-disable` lever states the observed `enabledPlugins` rule.** A plugin no scope names
-  does not load, whatever its `defaultEnabled`; the settings reference still says it falls back to
-  `defaultEnabled`, and the lever now says both. Two caveats carry the verification records
+  does not load, whatever its `defaultEnabled`; the settings reference agrees, the plugins reference
+  still says it falls back to `defaultEnabled`, and the lever now says so. Two caveats carry the verification records
   (Claude Code 2.1.280): the no-fallback rule, and a non-Boolean value making Claude Code skip every
   `enabledPlugins` entry in its file. The lever cites the `settings-reference#enabledplugins`,
   `plugins-reference#defaultenabled`, and `settings#fix-a-broken-settings-file` anchors (#4660).

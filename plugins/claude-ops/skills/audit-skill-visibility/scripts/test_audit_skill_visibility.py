@@ -966,6 +966,28 @@ class BudgetArithmeticTest(unittest.TestCase):
         # The other key is untouched by scopes that do not define it.
         self.assertEqual(merged["skillListingBudgetFraction"]["provenance"], "default")
 
+    def test_a_rejected_file_contributes_no_listing_settings(self):
+        """Claude Code skips a file whose enabledPlugins holds a non-Boolean
+        value, so its listing keys must not reach the budget either."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp,
+                user={"skillListingBudgetFraction": 0.02},
+                project={
+                    "skillListingBudgetFraction": 0.05,
+                    "skillListingMaxDescChars": 200,
+                    "enabledPlugins": {"a@m": "yes"},
+                },
+            )
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        self.assertEqual(merged["skillListingBudgetFraction"]["value"], 0.02)
+        self.assertEqual(merged["skillListingMaxDescChars"]["provenance"], "default")
+        self.assertEqual(len(merged["ignored"]), 1)
+        self.assertIn("'a@m' is 'yes'", merged["ignored"][0])
+
     def test_a_key_absent_everywhere_reports_default_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             project_root, config_root = self._scopes(tmp, project={"other": 1})

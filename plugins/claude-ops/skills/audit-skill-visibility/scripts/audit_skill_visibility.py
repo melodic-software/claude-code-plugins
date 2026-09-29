@@ -873,7 +873,9 @@ def merge_listing_settings(layers: list[dict]) -> dict:
     Each layer is `{"scope", "path", "status", "settings"}`; only a layer whose
     `settings` is a dict contributes. Returns, per listing key, the winning
     value and the provenance that supplied it: `settings:<path>` or `default`.
-    Pure, so the precedence rule is testable without a settings tree.
+    Pure, so the precedence rule is testable without a settings tree. A file
+    Claude Code rejects for a non-Boolean `enabledPlugins` value contributes
+    nothing (record at `merge_enabled_plugins`).
     """
     merged = {
         key: {"value": None, "provenance": "default"} for key in LISTING_SETTINGS_KEYS
@@ -882,6 +884,16 @@ def merge_listing_settings(layers: list[dict]) -> dict:
     for layer in layers:
         settings = layer.get("settings")
         if not isinstance(settings, dict):
+            continue
+        offending = _non_boolean_plugins(settings)
+        if offending:
+            if any(key in settings for key in LISTING_SETTINGS_KEYS):
+                ignored.append(
+                    f"listing settings in {layer.get('path')} left out of the "
+                    f"merge: Claude Code rejects the file, whose "
+                    f"{ENABLED_PLUGINS_KEY} holds a non-Boolean value "
+                    f"({', '.join(offending)})"
+                )
             continue
         for key in LISTING_SETTINGS_KEYS:
             if key not in settings or settings[key] is None:
@@ -901,6 +913,14 @@ def merge_listing_settings(layers: list[dict]) -> dict:
 
 
 ENABLED_PLUGINS_KEY = "enabledPlugins"
+
+
+def _non_boolean_plugins(settings: dict) -> list[str]:
+    """Each non-Boolean `enabledPlugins` entry, as `'key' is value`."""
+    block = settings.get(ENABLED_PLUGINS_KEY)
+    if not isinstance(block, dict):
+        return []
+    return [f"{k!r} is {v!r}" for k, v in block.items() if not isinstance(v, bool)]
 
 
 def merge_enabled_plugins(layers: list[dict]) -> dict:
@@ -971,11 +991,7 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
                 "the merge"
             )
             continue
-        offending = [
-            f"{key!r} is {value!r}"
-            for key, value in block.items()
-            if not isinstance(value, bool)
-        ]
+        offending = _non_boolean_plugins(settings)
         if offending:
             note = f"{path}, where {', '.join(offending)}"
             ignored.append(
@@ -1009,7 +1025,7 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
 NEVER_ENABLED = "no enabledPlugins scope names this plugin"
 NEVER_ENABLED_PROVENANCE = (
     "observed: claude plugin list --json fixture probe, Claude Code 2.1.280; "
-    "the docs state otherwise"
+    "the plugins reference's defaultEnabled states otherwise"
 )
 UNREAD_MARKER = "; scopes not read: "
 REJECTED_FILE = "named only in a settings file Claude Code rejects: "
@@ -1034,8 +1050,9 @@ def enablement_for(merged: dict, key: str) -> dict:
     Basis: a fixture probe of `claude plugin list --json` on Claude Code
     2.1.280 reported disabled every installed plugin no scope named, including
     one whose marketplace entry and one whose `plugin.json` set
-    `defaultEnabled: true`; the settings reference `#enabledplugins` and the
-    plugins reference `#defaultenabled` state the opposite. Verified
+    `defaultEnabled: true`; the settings reference `#enabledplugins` agrees
+    for marketplace plugins, the plugins reference `#defaultenabled` states
+    the opposite. Verified
     2026-09-23, re-measured 2026-09-28. Recheck trigger: a release that changes `claude plugin list`'s
     `enabled` answer for an absent key, or either doc section changing. The
     evidence names any scope that could not be read at all.

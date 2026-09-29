@@ -11,14 +11,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   settings file holding one (`"yes"`, `1`) now contributes none of its `enabledPlugins` keys, so
   its `true` siblings read disabled too, and the other scopes still decide each key. A key only such
   a file names makes its plugin's skills `hidden` with the new cause `settings-file-rejected`; the
-  evidence names the file and the offending key. The JSON model's `schema_version` is `1.4.0`.
+  evidence names the file and the offending key. Such a file's `skillListingBudgetFraction` and
+  `skillListingMaxDescChars` are left out of the listing budget too. The JSON model's `schema_version` is `1.4.0`.
   Measured with `claude plugin list --json` and `claude doctor` on Claude Code 2.1.280 in a fixture
   config directory; the verification record is in the skill. The `defaultEnabled` record now cites
   the live `settings-reference#enabledplugins` and `plugins-reference#defaultenabled` anchors
   (#4660).
 - **`plugins` sync Step 5** cites plugins-reference `#metadata-precedence` for a marketplace entry's
   `defaultEnabled` overriding `plugin.json`, instead of `scope-semantics.md`, which has no such
-  content. It also says an id on `missing_from_enabled` is not loading today (#4660).
+  content. It also says an id on `missing_from_enabled` is not loading today, with a verification
+  record (#4660).
 
 ## [0.63.26] - 2026-09-28
 
