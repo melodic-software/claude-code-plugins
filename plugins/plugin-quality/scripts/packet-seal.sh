@@ -165,12 +165,23 @@ seal_moment() {
 
 # The highest generation number in the packet, compared numerically (10 sorts
 # after 9), or empty when there is none. `10#` keeps a leading zero from being
-# read as octal.
+# read as octal. Returns 2, naming the file, for a generation that cannot be
+# trusted: a symlink (verify would read its target, outside the packet) or a
+# number past 18 digits (Bash arithmetic would wrap it).
 latest_generation() {
   local f n latest=""
   for f in "$1"/packet.sha256.*; do
     n="${f##*/packet.sha256.}"
-    [[ "$n" =~ ^[0-9]+$ && -f "$f" ]] || continue
+    [[ "$n" =~ ^[0-9]+$ ]] || continue
+    if [[ -L "$f" ]]; then
+      echo "error: generation manifest is a symlink: packet.sha256.$n" >&2
+      return 2
+    fi
+    [[ -f "$f" ]] || continue
+    if [[ "$n" =~ ^0*[1-9][0-9]{18,}$ ]]; then
+      echo "error: generation number is too large to read: packet.sha256.$n" >&2
+      return 2
+    fi
     if [[ -z "$latest" ]] || ((10#$n > 10#$latest)); then
       latest="$n"
     fi
@@ -277,7 +288,7 @@ if [[ "$action" == record ]]; then
   # An acknowledged divergence is permanent: once a generation manifest exists,
   # an ordinary reseal is refused even if the altered bytes were restored.
   # Later notes are sealed into the next generation instead.
-  latest="$(latest_generation "$packet")"
+  latest="$(latest_generation "$packet")" || exit 2
   if [[ "$acknowledge" -eq 0 && -n "$latest" ]]; then
     echo "error: this packet has an acknowledged divergence (packet.sha256.$latest exists) — refusing to reseal packet.sha256" >&2
     echo "       later notes are sealed into a generation: record --acknowledge-divergence writes the next one, and verify reads the latest." >&2
@@ -436,7 +447,7 @@ matched=$v_matched
 changed=$v_changed
 missing=$v_missing
 
-latest="$(latest_generation "$packet")"
+latest="$(latest_generation "$packet")" || exit 2
 if [[ -n "$latest" ]]; then
   echo "ACKNOWLEDGED generation=$latest"
   verify_manifest "$packet/packet.sha256.$latest" "GEN-"

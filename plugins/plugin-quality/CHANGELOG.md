@@ -27,7 +27,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generation in place it writes the next generation over the current bytes instead of exiting 2,
   so notes added after the altered file is restored can be sealed. An ordinary `record` is still
   refused once a generation exists, and its message says later notes are sealed into a
-  generation. A look-alike name such as `packet.sha256.2x` is now sealed, and a file the previous
+  generation. A symlinked generation manifest, or one whose number is past 18 digits, exits 2
+  instead of being read or wrapped. A look-alike name such as `packet.sha256.2x` is now sealed, and a file the previous
   generation sealed that has since been deleted is reported as `GEN-MISSING`.
 
 ### Changed

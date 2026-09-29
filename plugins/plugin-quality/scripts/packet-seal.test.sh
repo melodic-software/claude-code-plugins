@@ -508,6 +508,29 @@ else
   echo "SKIP - symlink visibility case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
 fi
 
+# --- a generation manifest that cannot be trusted fails closed --------------
+
+genpkt="$WORK/untrusted-generation"
+rm -rf "$genpkt"
+mkdir -p "$genpkt"
+printf 'notes\n' >"$genpkt/audit-notes.md"
+run 0 "record seals the packet for the generation cases" record "$genpkt"
+: >"$WORK/empty-target"
+if ln -s "$WORK/empty-target" "$genpkt/packet.sha256.2" 2>/dev/null && [[ -L "$genpkt/packet.sha256.2" ]]; then
+  run 2 "verify refuses a symlinked generation manifest" verify "$genpkt"
+  has "generation manifest is a symlink" "the refusal names the reason"
+  run 2 "record refuses a symlinked generation manifest" record --acknowledge-divergence "$genpkt"
+  rm -f "$genpkt/packet.sha256.2"
+else
+  echo "SKIP - symlinked generation case (cannot create symlinks here)"
+fi
+big="packet.sha256.9999999999999999999999999999999999999999"
+: >"$genpkt/$big"
+run 2 "verify refuses a generation number that overflows Bash arithmetic" verify "$genpkt"
+has "too large to read" "the refusal names the reason"
+run 2 "record refuses a generation number that overflows Bash arithmetic" record --acknowledge-divergence "$genpkt"
+rm -f "$genpkt/$big"
+
 # --- fail closed ------------------------------------------------------------
 
 packet="$(fresh_packet)"
