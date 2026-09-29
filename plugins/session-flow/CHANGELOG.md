@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.38.29] - 2026-09-29
+
+### Added
+
+- **`orient` carries a Boundary section for the built-in `/recap` command.** It keeps the durable and off-thread briefing and offers the person-run `/recap` for a one-line conversation recap rather than invoking it.
+- **`continue-in-background` carries a Boundary section for the built-in `/subtask`, `/fork`, and `/background` commands.** It keeps the save-point plus fresh `claude --bg` launch and offers the person-run native commands as alternatives or additions rather than invoking them.
+- **`retro` carries a Boundary section for the built-in `/insights` command.** It keeps the single-session scored retrospective and offers the person-run `/insights` for a cross-session usage report rather than invoking it.
+
 ## [0.38.28] - 2026-09-29
 
 ### Fixed

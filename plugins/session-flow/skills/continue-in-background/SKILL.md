@@ -200,6 +200,35 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `/clear`-then-paste
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
+## Boundary, native Claude Code surfaces
+
+Three built-in commands also keep work moving off this terminal, so "continue in the background"
+can mean any of them.
+
+- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`).** Ship with Claude Code
+  rather than as a marketplace plugin. `/subtask <task>` sends a subagent off with the full
+  conversation and returns its result here. `/fork` copies the conversation into a new background
+  session while this one keeps working. `/background [prompt]` detaches this session itself and
+  frees the terminal. None writes a save-point. All three are reserved for the person to run; the
+  model does not invoke them.
+- **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
+  tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
+  the continuation carries no conversation history and survives on disk.
+
+**Routing.** At the start of the run, offer them to the person: you can run `/background` to
+detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
+side task whose result should come back here, instead of or alongside this skill. Prefer this
+skill when the continuation should start clean from a durable save-point. An unattended run
+records the offer in its output instead of asking.
+
+**Mutation gate.** This skill writes the save-point and launches one session, only on explicit
+request. It never runs a native command on the person's behalf.
+
+**Availability is never assumed.** All three are gated; `/subtask` is absent when agent view is
+turned off, and `/fork` then behaves differently. This section states what to do when they
+resolve, never that they are present. The four-part records live in
+[reference/native-surfaces.md](reference/native-surfaces.md).
+
 ## Gotchas
 
 Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory
