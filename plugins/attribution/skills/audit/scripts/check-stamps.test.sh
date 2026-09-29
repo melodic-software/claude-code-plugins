@@ -375,6 +375,18 @@ assert_contains "the attributed value is the effective one" "$OUT" "stamp_expiry
 assert_contains "an unset key is still attributed to the defaults" "$OUT" "trigger_less_stamp_check=false (bundled default)"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 
+# The script alone, with no lib.sh beside it: the pre-computed --show-config
+# probe reads "detector unavailable", never an empty configuration.
+ALONE="$TEST_TMPDIR/alone"
+mkdir -p "$ALONE"
+cp "$CHECK" "$ALONE/check-stamps.sh"
+OUT_NL="$(bash "$ALONE/check-stamps.sh" --show-config 2>/dev/null)"
+assert_exit "--show-config without lib.sh exits 0" "$?" "0"
+assert_eq "--show-config without lib.sh prints the unavailable marker" "$OUT_NL" "detector unavailable"
+ERR_NL="$(bash "$ALONE/check-stamps.sh" 2>&1 >/dev/null)"
+assert_exit "a real run without lib.sh exits 2" "$?" "2"
+assert_contains "a real run without lib.sh explains itself on stderr" "$ERR_NL" "cannot read"
+
 # --- Inputs ----------------------------------------------------------------------
 
 PATHS="$TEST_TMPDIR/paths.txt"
