@@ -47,29 +47,8 @@ git -C "$FAKE_REPO" config user.email t@t.t
 git -C "$FAKE_REPO" config user.name t
 git -C "$FAKE_REPO" commit --allow-empty -m init -q
 
-# make_sink <body> → path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, so tests point it at a stub script under $WORK.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# Block until <file> is non-empty (fire-and-forget sink flushed) or bound elapses.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 build_input() {
   local type="$1" message="${2:-Needs your attention}"

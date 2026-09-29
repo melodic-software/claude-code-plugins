@@ -3,6 +3,37 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:changelog diff` emits decisions grouped by owner surface, not a triage of items.**
+  Each row carries one of five action lenses (`correct`, `replace`, `adopt`, `note`, `skip`) and
+  the sentence its lens requires: the false-versus-true pair for `correct`, the problem solved for
+  `replace` and `adopt`. `skip` items leave no row and count toward the read. A docs-lag section
+  lists where the changelog and the docs page disagree, with the changelog cited as the newer
+  source.
+- **Decisions have named homes.** Corrections go in the owning plugin's CHANGELOG, replace
+  candidates are nominated to the `audit-native-overlap` gate and never written by a run, and
+  adoptions, declines and the read marker live in `docs/upstream/claude-code.md`.
+- **`diff` saves its working set** under `<memory_dir>/claude-code-changelog/<range>/`, and `apply`
+  reads it back, re-fetching only what a recheck trigger names.
+- **New `context/decisions.md` spoke** for decision rows, decision homes, the fan-out shape and
+  persistence. An eval covers decisions grouped by owner surface, with a fixture release and
+  owner-surface list.
+
+### Changed
+
+- **The classification rubric is the five action lenses** in place of the P1/P2/P3 priority tiers.
+  `adopt` gains a defer-pending-probe outcome with an evidence bar, and `replace` covers a harness
+  behavior that overlaps a component with no routable native surface.
+
 ## [0.63.36] - 2026-09-29
 
 ### Fixed

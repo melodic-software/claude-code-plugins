@@ -1,0 +1,10 @@
+# good-for: rule-zero-assertion
+# A signature split over lines: the body under `) -> None:` is the test's,
+# and it asserts.
+from slugs import slugify
+
+
+def test_slugify_lowercases(
+    tmp_path,
+) -> None:
+    assert slugify("Hello World") == "hello-world"

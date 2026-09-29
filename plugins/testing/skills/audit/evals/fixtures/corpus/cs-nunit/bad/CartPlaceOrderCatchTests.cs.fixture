@@ -1,0 +1,22 @@
+// expect: rule-conditional-assertion
+// The only assertion sits in the catch, so an order placement that stops throwing
+// passes the test.
+using System;
+using NUnit.Framework;
+
+[TestFixture]
+public class CartPlaceOrderCatchTests
+{
+    [Test]
+    public void PlaceOrder_RejectsAnEmptyCart()
+    {
+        try
+        {
+            new Cart().PlaceOrder();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.That(ex.Message, Is.EqualTo("cart is empty"));
+        }
+    }
+}

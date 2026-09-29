@@ -71,7 +71,7 @@ routes rather than halting unconditionally.
 Adapters resolve the opposite way, **consumer-local-first, plugin-bundled fallback**
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Adapter resolution"), so a repo can add
 an unshipped provider or shadow a bundled one without forking the plugin. Coordination uses seam verbs
-directly: create, claim (assignee + lease), lease renew/reclaim, dependency links, sub-items, child
+directly: create, claim (assignee + lease), lease renew/release/reclaim, dependency links, sub-items, child
 enumeration, frontier selection, single-item fetch. Operations without a core verb (listing with arbitrary filters,
 search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter
 their mechanics live in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`. The
@@ -84,7 +84,7 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination**: create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), frontier selection (incl. `--parent`-scoped), single-item fetch (identity/state/`parent_id`, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), frontier selection (incl. `--parent`-scoped), single-item fetch (identity/state/`parent_id`, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,

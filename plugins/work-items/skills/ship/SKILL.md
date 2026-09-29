@@ -8,11 +8,9 @@ metadata:
   summary: Route a spec container's macro journey. Status, execution shape, next step
 ---
 
-**Arguments.** `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker.
 
 ## Shared tracker context
 
@@ -150,6 +148,10 @@ One compact macro map, then the recommendation:
 - Execution shape: `<shape>` (recorded | defaulted-loudly) + the one-line discipline for it
 - Frontier: the workable items, blockers-first ordering preserved
 - Next: the single routed action from Step 4
+
+## Next
+
+`/work-items:work` for the next item.
 
 ## What this skill does NOT do
 

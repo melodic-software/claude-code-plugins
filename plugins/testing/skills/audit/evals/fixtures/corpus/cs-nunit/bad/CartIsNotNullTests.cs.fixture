@@ -1,0 +1,14 @@
+// expect: rule-weak-oracle
+// Any cart passes Is.Not.Null, an empty one included.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartIsNotNullTests
+{
+    [Test]
+    public void Restore_ReturnsTheCart()
+    {
+        var cart = Cart.Restore("session-1");
+        Assert.That(cart, Is.Not.Null);
+    }
+}

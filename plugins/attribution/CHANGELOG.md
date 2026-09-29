@@ -26,6 +26,17 @@
   records, conforming pointers and distilling files. The restated-fact gate prints report-only
   until it has enough cases.
 
+## [0.6.3] - 2026-09-29
+
+### Fixed
+
+- The provenance design-threads spec no longer says the first no-breadcrumb case validates the
+  searched-surfaces listing: the listing is a prose requirement the reader verifies, and
+  `emit-findings.sh` checks presence only. `reference/source-fetch.md` now names where a
+  completeness floor would have to live (a machine-written log of visited surfaces, compared
+  against the sidecar's `searched` array by `emit-findings.sh`) and says no such log exists
+  (Refs #3465).
+
 ## [0.6.2] - 2026-09-29
 
 ### Fixed

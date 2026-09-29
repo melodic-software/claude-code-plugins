@@ -1,0 +1,13 @@
+# expect: rule-recomputed-expectation
+# The expected side calls Get-Sum with the same arguments as the actual side,
+# so the assertion passes whatever Get-Sum returns.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds a negative number' {
+        Get-Sum -A 7 -B -2 | Should -Be (Get-Sum -A 7 -B -2)
+    }
+}
