@@ -833,7 +833,7 @@ skip_case "case 31: the stat/diskutil fstype fallback that sends apfs and hfs to
 
 # The seam: EMIT_STUBS_ASSUME_NORMALIZING=1 replaces the probe verdict, so the
 # NFC fold and the fence refusal run on any runner. This proves the fold and
-# may_be_within honour a normalizing verdict for an absent NFC versus NFD pair.
+# may_be_within honor a normalizing verdict for an absent NFC versus NFD pair.
 # It does not prove what a real APFS or HFS Plus volume reports.
 NORM31C="$TEST_TMPDIR/norm31-forced"
 mkdir -p "$NORM31C"

@@ -498,11 +498,11 @@
       "id": 40,
       "name": "caller-finding-shape-keeps-confidence",
       "prompt": "[Scenario: leaf dispatch straight to the code-reviewer agent for a small diff with two findings. One is certain: a null dereference on a value the diff itself just set to null, verified at the cited line. The other is uncertain: a possible race on a cache write that depends on call sites the reviewer cannot see. The caller's prompt says: report each finding as `path:line: severity: problem. fix.` and nothing else.]",
-      "expected_output": "Reports both findings in the caller's `path:line: severity: problem. fix.` shape with the caller's own severity words, and keeps a `Confidence:` value inside each finding. The certain finding carries high; the uncertain one is reported and labelled medium or low rather than omitted, per the agent's output-format rule and context/severity.md \"Confidence axis\". A caller's shape replaces the layout, never the confidence field.",
+      "expected_output": "Reports both findings in the caller's `path:line: severity: problem. fix.` shape with the caller's own severity words, and keeps a `Confidence:` value inside each finding. The certain finding carries high; the uncertain one is reported and labeled medium or low rather than omitted, per the agent's output-format rule and context/severity.md \"Confidence axis\". A caller's shape replaces the layout, never the confidence field.",
       "files": [],
       "expectations": [
         "Each of the two findings appears in the `path:line: severity: problem. fix.` shape and carries a Confidence value (high, medium or low) inside that shape",
-        "The uncertain finding is present and labelled medium or low, not omitted and not given high",
+        "The uncertain finding is present and labeled medium or low, not omitted and not given high",
         "The severity field uses the caller's vocabulary; no CRITICAL, IMPORTANT or SUGGESTION tier label replaces it"
       ]
     }

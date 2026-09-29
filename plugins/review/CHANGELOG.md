@@ -5,14 +5,11 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ## [0.33.4] - 2026-09-29
 
-### Added
+### Changed
 
 - **`fanout` eval for the caller-supplied finding shape**
   ([#4267](https://github.com/melodic-software/claude-code-plugins/issues/4267)). A finding that
   arrives with its own `Confidence` keeps it through normalization.
-
-### Changed
-
 - **Descriptions and claims read in the third person and stay accurate**
   ([#4053](https://github.com/melodic-software/claude-code-plugins/issues/4053),
   [#4263](https://github.com/melodic-software/claude-code-plugins/issues/4263),
