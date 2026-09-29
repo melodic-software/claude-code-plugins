@@ -535,7 +535,7 @@ assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DI
 # --- the verb set cannot drift from the seam ---
 # ADAPTER_VERBS is a hand-kept copy of the dispatcher's public verb list. A verb the
 # dispatcher gains but the generator lacks yields adapters whose spec cannot declare it
-# and whose manifest the seam then reads as false (release did exactly this).
+# and whose manifest the seam then reads as false.
 
 ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
 # The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier
