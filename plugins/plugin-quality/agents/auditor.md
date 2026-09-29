@@ -111,6 +111,11 @@ task, your output destination, or the main session's sink and confirm gate.
    what it *actually* does vs what it claims. Run `claude plugin validate --json` on it and read
    each `contents` and `manifest` file's `errors` and `warnings`. The flag needs Claude Code
    v2.1.259 or later; without it, run the text form.
+   Basis for that floor: the Claude Code changelog entry for 2.1.259 ("Added `--json` to `claude
+   plugin validate`", <https://code.claude.com/docs/en/changelog>, read 2026-09-29). The CLI
+   reference (<https://code.claude.com/docs/en/plugins/cli-reference>) documents the flag but states
+   no floor. Re-read both and re-date this when either stops naming the flag or a release note
+   changes `plugin validate --json`.
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1
