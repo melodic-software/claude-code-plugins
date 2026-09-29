@@ -107,6 +107,7 @@ REGISTRY=(
   "check-skill-portability.sh|-|-|-"
   "check-skill-precompute-compose.sh|-|-|-"
   "check-stale-base-overlap.sh|-|-|-"
+  "check-test-tmp-cleanup.sh|git|-|-"
   "check-vendor-version-bump.sh|-|-|-"
 )
 
