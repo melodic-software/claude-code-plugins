@@ -40,10 +40,11 @@ BEGIN {
   in_test = 0
   pending_skip = 0
   pending_attr = 0
+  skip_cls = -1
   file_mock = 0
   prev_raw = ""
   FATAL = 0
-  sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only  # spellchecker:disable-line
+  sr = 0        # inside a skipped suite (describe.skip / xdescribe) or C# class  # spellchecker:disable-line
   sr_depth = 0
   last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
   NS = split(SCOPE, scope_parts, ",")
@@ -294,6 +295,17 @@ function brace_delta(s,    i, n, c, d) {
     c = substr(s, i, 1)
     if (c == "{") d++
     else if (c == "}") d--
+  }
+  return d
+}
+
+# Net opens over closes in s, for the given opening and closing characters.
+function delta(s, opens, closes,    i, n, c, d) {
+  d = 0; n = length(s)
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (index(opens, c)) d++
+    else if (index(closes, c)) d--
   }
   return d
 }
@@ -627,16 +639,18 @@ function cs_method_name(s,    t) {
 
 # ---------------------------------------------------------------------------
 # Block models. brace_call: a test_start call opens a brace block on its own
-# line (js). brace_decl: test_start attributes, then a method signature opens a
-# brace or expression body (cs). indent: a test_start def opens a block its
-# indentation closes (python).
+# line (js) that closes once its braces and the call's parentheses both have, so
+# a call split before its body brace keeps its body. brace_decl: test_start
+# attributes, then a method signature opens a brace or expression body (cs).
+# indent: a test_start def opens a block its indentation closes (python).
 # ---------------------------------------------------------------------------
 
 function brace_call() {
   if (in_test) {
     append_block(masked, raw)
     depth += brace_delta(masked)
-    if (depth <= 0) close_block()
+    call_depth += delta(masked, "(", ")")
+    if (depth <= 0 && call_depth <= 0) close_block()
     taut_scan(raw, masked)
   } else if (sr) {
     # inside a skipped suite: consume braces until the suite closes; open
@@ -654,7 +668,8 @@ function brace_call() {
       open_block(FNR, LEXER == "go" ? cs_method_name(substr(masked, RSTART)) : first_quoted(substr(raw, RSTART)))
       append_block(masked, raw)
       depth = brace_delta(substr(masked, RSTART))
-      if (depth <= 0) close_block()
+      call_depth = delta(substr(masked, RSTART), "(", ")")
+      if (depth <= 0 && call_depth <= 0) close_block()
     }
     taut_scan(raw, masked)
   }
@@ -670,10 +685,18 @@ function whole_file(    n, parts) {
   taut_scan(raw, masked)
 }
 
-# test_skip here matches a decorator on a line above the def.
-function indent() {
-  if (in_test && masked !~ /^[[:space:]]*$/ && indent_of(raw) <= def_indent) close_block()
-  if (!in_test) {
+# test_skip here matches a decorator on a line above the def, or above a class,
+# which skips every test indented under it (skip_cls is that class's indent).
+# A line inside open brackets continues the one before it, so it never dedents:
+# a signature split over lines closes on its ") -> None:", not the block.
+function indent(    code) {
+  code = masked !~ /^[[:space:]]*$/
+  if (skip_cls >= 0 && code && indent_of(raw) <= skip_cls) skip_cls = -1
+  if (in_test && code && bracket_depth <= 0 && indent_of(raw) <= def_indent) close_block()
+  if (in_test) {
+    append_block(masked, raw)
+    bracket_depth += delta(masked, "([{", ")]}")
+  } else if (skip_cls < 0) {
     if (has(masked, R_SKIP)) pending_skip = 1
     if (has(masked, R_START)) {
       if (pending_skip) pending_skip = 0
@@ -683,9 +706,12 @@ function indent() {
         sub(/^[[:space:]]+/, "", block_name)
         def_indent = indent_of(raw)
         append_block(masked, raw)
+        bracket_depth = delta(masked, "([{", ")]}")
       }
-    } else if (masked !~ /^[[:space:]]*@/ && masked !~ /^[[:space:]]*$/) pending_skip = 0
-  } else append_block(masked, raw)
+    } else if (pending_skip && masked ~ /^[[:space:]]*class[[:space:]]/) {
+      skip_cls = indent_of(raw); pending_skip = 0
+    } else if (masked !~ /^[[:space:]]*@/ && code) pending_skip = 0
+  }
   taut_scan(raw, masked)
 }
 
@@ -693,7 +719,16 @@ function indent() {
 # attribute. An attribute is a line opening with "["; a signature is a line
 # with a C# modifier or return type before its "(".
 function brace_decl() {
-  if (in_test) {
+  # A skip in the attribute stack of a class skips every test in it: consume
+  # the class's braces, open nothing and judge nothing.
+  if (pending_skip && masked ~ /(^|[^A-Za-z0-9_])class[[:space:]]/) {
+    sr = 1; sr_open = sr_depth = pending_attr = pending_skip = 0
+  }
+  if (sr) {
+    sr_depth += brace_delta(masked)
+    if (index(masked, "{")) sr_open = 1
+    if (sr_open && sr_depth <= 0) sr = 0
+  } else if (in_test) {
     if (expr_body) {
       append_block(masked, raw)
       if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }

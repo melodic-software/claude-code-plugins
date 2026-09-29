@@ -993,17 +993,20 @@ corpus_files=(
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderPlacementTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
+  cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
   cs-nunit/bad/CartPurchaseTests.cs.fixture
+  cs-nunit/bad/CartRefundTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
   cs-nunit/good/CartPurchaseAssertedTests.cs.fixture
+  cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
@@ -1022,8 +1025,10 @@ corpus_files=(
   go-testing/good/go_slugify_checked_test.go.fixture
   js-jest/bad/jest-discount-runs.test.ts.fixture
   js-jest/bad/jest-slug-itself.test.js.fixture
+  js-jest/bad/jest-split-call-runs.test.ts.fixture
   js-jest/good/jest-discount-checked.test.ts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
+  js-jest/good/jest-split-call.test.ts.fixture
   js-node-test/bad/node-test-csv-itself.test.mjs.fixture
   js-node-test/bad/node-test-price-runs.test.mjs.fixture
   js-node-test/good/node-test-context-assert.test.mjs.fixture
@@ -1046,6 +1051,7 @@ corpus_files=(
   js-vitest/bad/vitest-duration-itself.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
+  js-vitest/good/vitest-split-call-options.test.ts.fixture
   pwsh-pester/bad/pester-report-invoke-only.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-against-itself.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-writes-host.Tests.ps1.fixture
@@ -1058,17 +1064,22 @@ corpus_files=(
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
   py-pytest/bad/test_pytest_price_recomputed.py.fixture
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
+  py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
   py-pytest/good/test_pytest_raises.py.fixture
   py-pytest/good/test_pytest_skip_marker.py.fixture
+  py-pytest/good/test_pytest_skipped_class.py.fixture
   py-pytest/good/test_pytest_slugify.py.fixture
+  py-pytest/good/test_pytest_split_signature.py.fixture
   py-pytest/good/test_pytest_unittest_mock.py.fixture
+  py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture
   py-unittest/bad/test_unittest_deliver_awaits.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_raises.py.fixture
   py-unittest/good/test_unittest_skiptest.py.fixture
+  py-unittest/good/test_unittest_skipped_class.py.fixture
   py-unittest/good/test_unittest_skipunless.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
 )
