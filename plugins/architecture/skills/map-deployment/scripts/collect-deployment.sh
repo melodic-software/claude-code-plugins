@@ -650,6 +650,17 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       if (in_env && raw ~ /^[[:space:]]+-[[:space:]]*name:[[:space:]]*/) {
         ek = trim(substr(raw, index(raw, ":") + 1)); next
       }
+      # A valueFrom reference (a Secret, ConfigMap, or field) has no value here: its presence is
+      # recorded as a redacted parameter and never compared beyond that.
+      if (in_env && ek != "" && raw ~ /^[[:space:]]+valueFrom:/) {
+        e = env_for(ns, path)
+        printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"value\":\"\",\"redacted\":\"yes\",\"evidence\":\"%s\"}\n", \
+          jesc(ek), jesc(e), jesc(cname), jesc(path) >> params
+        secret_val[e SUBSEP cname SUBSEP ek] = "valueFrom"
+        param_seen[e SUBSEP cname SUBSEP ek] = 1
+        ek = ""
+        next
+      }
       if (in_env && ek != "" && raw ~ /^[[:space:]]+value:[[:space:]]*/) {
         val = trim(substr(raw, index(raw, ":") + 1))
         gsub(/^["'\'']|["'\'']$/, "", val)

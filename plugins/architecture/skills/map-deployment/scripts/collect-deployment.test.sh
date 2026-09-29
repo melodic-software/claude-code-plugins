@@ -112,6 +112,7 @@ assert_not_contains "no staging secret" "$rec" "$leak_staging"
 assert_not_contains "no prod secret" "$rec" "$leak_prod"
 assert_not_contains "no env secret" "$rec" "SuperSecretFromEnv"
 assert_contains "secret differs" "$rec" "secret parameter PASSWORD differs"
+assert_contains "secret differs is its own kind" "$rec" '"change":"secret-differs"'
 assert_contains "image differs" "$rec" "ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"
 assert_contains "replicas differ" "$rec" '"change":"replicas"'
 assert_contains "cron added" "$rec" "present only in prod"
@@ -536,7 +537,12 @@ k8s_ns_manifest staging ghcr.io/acme/api:1.0.0 1 8080 info "$ns_pw_a" "         
 k8s_ns_manifest prod ghcr.io/acme/api:1.4.0 3 9090 warn "$ns_pw_b" "            - name: SIGNING_KEY
               value: ${ns_pw_only}
             - name: FEATURE_X
-              value: on" >"$repo7/deploy/prod.yaml"
+              value: on
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: url" >"$repo7/deploy/prod.yaml"
 commit_all "$repo7"
 bash "$COLLECT" --repo "$repo7" --out "$TEST_TMPDIR/k8s-ns.json" --generated-on 2026-09-28
 assert_equals "k8s namespace collect exits 0" "$?" "0"
@@ -552,6 +558,9 @@ assert_contains "k8s parameter only in prod is removed" "$nsrec" '"change":"para
 assert_contains "k8s removed parameter names it" "$nsrec" "FEATURE_X on present only in prod"
 assert_contains "k8s parameter only in staging is added" "$nsrec" "STAGING_ONLY yes present only in staging"
 assert_contains "k8s secret differs" "$nsrec" "secret parameter PASSWORD differs"
+assert_contains "k8s secret differs is its own kind" "$nsrec" '"change":"secret-differs"'
+assert_contains "k8s valueFrom reference in one namespace is reported" "$nsrec" "secret parameter DB_URL present only in prod"
+assert_not_contains "k8s valueFrom secret name is not read as a parameter" "$nsrec" "\"parameter\":\"db-creds\""
 assert_contains "k8s secret only in one namespace is removed" "$nsrec" "secret parameter SIGNING_KEY present only in prod"
 for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
   assert_not_contains "k8s record has no secret value" "$nsrec" "$v"

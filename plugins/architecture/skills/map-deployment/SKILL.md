@@ -120,7 +120,8 @@ two secret values says that the parameter differs and does not print either valu
 A diff compares two environments over these kinds, for Compose and Kubernetes alike: a container
 present in one environment only, image, replicas, ports, a parameter present in one environment
 only, a plain parameter value, and a secret parameter that differs. A Kubernetes container port
-(`containerPort`) is the placement's ports. Networks and Ingress hosts are not compared. The
+(`containerPort`) is the placement's ports. A Kubernetes `valueFrom` reference counts as a secret
+parameter whose presence is compared; `envFrom` is not read. Networks and Ingress hosts are not compared. The
 report's diff section lists these kinds, and an empty diff reads `No differences of these kinds:
 ...` so a clean diff is never mistaken for a full comparison.
 

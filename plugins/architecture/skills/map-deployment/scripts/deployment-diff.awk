@@ -32,7 +32,7 @@ function param_port_diffs(a, b, tool,    sk, sp, c, k, ka, kb, pa, pb, sa, sb, e
     else if (kb && !ka)
       emit_diff("parameter-added", a, b, tool, c, (sb ? "secret parameter " k : k " " plain_val[eb]) " present only in " b)
     else if (sa != sb || (sa && secret_val[ea] != secret_val[eb]))
-      emit_diff("secret", a, b, tool, c, "secret parameter " k " differs")
+      emit_diff("secret-differs", a, b, tool, c, "secret parameter " k " differs")
     else if (!sa && plain_val[ea] != plain_val[eb])
       emit_diff("parameter", a, b, tool, c, k " " plain_val[ea] " -> " plain_val[eb])
   }
