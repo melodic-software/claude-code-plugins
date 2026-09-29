@@ -99,7 +99,8 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   routing such content to `additionalContext` anyway is the mirror-image defect, because an
   instruction the model cannot act on still shapes what it does.
 
-  **Carve-out, admitted only on all three conditions together.** This is a conjunction, never a
+  **Carve-out, admitted only on all three conditions together (one owner-approved exception is
+  recorded under Conformance).** This is a conjunction, never a
   judgment call, because a soft "when it seems important" is exactly the drift the closing bullet
   guards:
 
@@ -299,8 +300,8 @@ Fleet audits check, per wired producer hook:
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
-  satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
-  presence. Not mechanically gated, but reviewed per hook. One site in the fleet meets all three:
+  satisfies all three carve-out conditions, or is the one owner-approved exception named below,
+  and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. One site in the fleet meets all three:
   `context-guard`'s `zone-crossing-inject.sh`. One further site is admitted by owner-approved
   exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
   switches only the operator may flip (condition 1); stderr separately carries the verdict and the
