@@ -33,16 +33,26 @@ new lexer family or block model needs a plugin release.
 
 - Location: `plugins/testing/skills/audit/adapters/<id>.yaml`. Consumer adapters live in
   directories named by `adapter_dirs` and use the same schema.
-- Format: a restricted YAML subset: block maps, block lists, one-line flow lists, and dotted keys.
-  `equality` is three lists (`equality.call2`, `equality.receiver`, `equality.pipeline`). The loader
-  strips `\r` and validates regexes against a portable ERE subset for gawk, mawk and BSD awk. The awk
-  loader parses exactly that subset and rejects anything else with exit 2, naming the file and line.
-  This adds no dependency (`jq`, `yq`, Python).
-- Fields: `id`, `extends`, `language`, `files`, `detect.any_regex`, `block_model`, `test_start`,
-  `test_skip`, `suite_skip`, `additional_test_blocks`, `assertion.calls`, `assertion.idioms`,
-  `delegation`, `mock.create`, `mock.verify`, `snapshot`, `equality` (`name`, `form`:
-  `call2` | `receiver` | `pipeline`), `suppress_marker`. They are defined in
-  `RESEARCH-recommendation.md` "Adapter schema".
+- Format: a restricted YAML subset: block maps, block lists, one-line flow lists, plain or
+  single-quoted scalars, and dotted keys. The loader strips `\r` and validates regexes against a
+  portable ERE subset for gawk, mawk and BSD awk. The awk loader parses exactly that subset and
+  rejects anything else with exit 2, naming the file and line. This adds no dependency (`jq`, `yq`,
+  Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
+- Fields: `id`, `extends`, `language`, `block_model`, `files`, `detect.any_regex`, `test_start`,
+  `test_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`, `mock.create`, `mock.verify`,
+  `mock.strip`, `snapshot`, `equality.call2`, `equality.receiver`, `suppress_marker`.
+  - `language` names the lexer and block state machine, one per language: `js`, `cs`, `python`.
+    JS and C# need different comment/string maskers, so they do not share a family key. Phase 3
+    adds a key per new lexer it needs.
+  - `block_model` is `brace` or `indent`, and must suit the language.
+  - Every list field is a list of EREs, except `files` (basename globs), `equality.call2` (helper
+    names matched as substrings) and `equality.receiver` (`<wrapper>.<matcher>`, as in
+    `expect.toBe`).
+  - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
+    file, the one whose `detect.any_regex` matches wins; otherwise the first in load order
+    (sorted file names).
+- `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
+  them until engine code reads them, so a value is never dropped silently.
 - `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.

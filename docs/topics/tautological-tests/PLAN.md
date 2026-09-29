@@ -189,7 +189,7 @@ changed plugins are version-bumped with CHANGELOG entries, and the precision-run
   does not count.
 - Tests that resolve config set `HOME` to a temp directory, so the real user layer never leaks in.
 
-### Phase 1: Adapter engine, behavior-preserving [TODO]
+### Phase 1: Adapter engine, behavior-preserving [DONE]
 
 Move the JS/TS, Python and C# knowledge out of `cant-fail-scan.awk` into adapter files, with no
 change in findings.
@@ -206,10 +206,12 @@ change in findings.
   and line. It also validates adapter regexes against a portable ERE subset that works in gawk,
   mawk and BSD awk: no `\s`, no backreferences, and no intervals unless mawk passes them.
 - Schema fits the subset:
-  - `equality` becomes three lists: `equality.call2`, `equality.receiver`, `equality.pipeline`.
+  - `equality` becomes two lists, `equality.call2` and `equality.receiver`; `equality.pipeline` is
+    reserved (design-resolution section 2).
   - Adapter precedence: the adapter whose `detect.any_regex` matches wins; on a tie, the one declared
     first in load order wins. A fixture covers `*.test.ts` under Vitest versus Jest.
-- Split the engine into rules, lexer families (`c-like`, `python`) and block models (`brace`, `indent`).
+- Split the engine into rules, per-language lexers (`js`, `cs`, `python`) and block models (`brace`,
+  `indent`).
 - Write `js-vitest`, `js-jest`, `py-pytest` and `cs-xunit` adapters that reproduce today's `*_ERE` values.
 - `collect_files` (`cant-fail-scan.sh:207-221`) takes the deduplicated union of adapter `files:`.
 - `scripts/parity-check.sh`:
