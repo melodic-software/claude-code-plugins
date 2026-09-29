@@ -682,6 +682,32 @@ class TestVisualOps(DirCase):
         self.apply({"op": "archive-visual", "ids": ["v1"], "why": "old"})
         self.add(self.visual("v4", scope="all", group="g", primary=True))
 
+    def test_inline_visuals_count_toward_the_primary_rule(self):
+        q = question("Q9")
+        self.refused(
+            {
+                "op": "add",
+                "question": dict(
+                    q,
+                    visuals=[
+                        self.visual("i1", group="g", primary=True),
+                        self.visual("i2", group="g", primary=True),
+                    ],
+                ),
+            }
+        )
+        self.refused(
+            {
+                "op": "add-round",
+                "visuals": [
+                    self.visual("v1", scope="question:Q9", group="g", primary=True)
+                ],
+                "questions": [
+                    dict(q, visuals=[self.visual("i1", group="g", primary=True)])
+                ],
+            }
+        )
+
     def test_replace_cannot_create_a_second_primary(self):
         self.add(
             self.visual("v1", scope="all", group="g", primary=True),

@@ -369,6 +369,7 @@ def op_meta(d, doc, a):
 
 def op_add(d, doc, a):
     touched = add_question(doc, a.question)
+    check_primaries(doc)
     return touched, f"added {a.question['id']}"
 
 
@@ -406,11 +407,17 @@ def op_add_round(d, doc, a):
 
 
 def check_primaries(doc):
-    """Refuse a second live `primary` visual in one group of one scope."""
+    """Refuse a second live `primary` visual in one group of one scope; a question's inline visuals are in its own scope."""
     seen = {}
-    for v in doc["visuals"]:
+    inline = [
+        (f"question:{q['id']}", v)
+        for q in doc["questions"]
+        for v in q.get("visuals") or []
+        if isinstance(v, dict)
+    ]
+    for scope, v in [(v.get("scope"), v) for v in doc["visuals"]] + inline:
         if v.get("primary") and not v.get("archived"):
-            key = (v.get("scope"), v.get("group"))
+            key = (scope, v.get("group"))
             if key in seen:
                 sys.exit(
                     f"refused: visuals {seen[key]} and {v['id']} are both primary "
