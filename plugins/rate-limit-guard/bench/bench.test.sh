@@ -194,6 +194,7 @@ fi
 # --- trace-probe --count: pure-bash forks count too --------------------------
 # A subshell and a command substitution spawn no external. bash 5.2 drops a PS4
 # that is only in the environment, so the pid prefix must come from inside.
+# shellcheck disable=SC2016  # $( ) runs in the fake tee, not here
 printf '#!/usr/bin/env bash\n( : )\nx=$(printf x)\nset +o pipefail\n' >"$FAKE"
 OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count "$FAKE" 2>&1)"
 RC=$?
