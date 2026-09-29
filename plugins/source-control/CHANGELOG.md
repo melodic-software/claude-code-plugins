@@ -9,6 +9,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three string plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
 
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
 ## [0.62.24] - 2026-09-29
 
 ### Fixed
