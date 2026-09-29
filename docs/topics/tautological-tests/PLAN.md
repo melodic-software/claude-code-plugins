@@ -191,6 +191,8 @@ changed plugins are version-bumped with CHANGELOG entries, and the precision-run
 
 ### Phase 1: Adapter engine, behavior-preserving [DONE]
 
+Implemented on a branch, not yet on main: draft PR #5205 (as of 2026-09-28).
+
 Move the JS/TS, Python and C# knowledge out of `cant-fail-scan.awk` into adapter files, with no
 change in findings.
 
@@ -239,6 +241,9 @@ change in findings.
 - `bash plugins/testing/skills/audit/scripts/parity-check.sh` exits 0 and prints `examined>0` for every run.
 
 ### Phase 2: `test-scan` hook, end to end on existing rules [DONE]
+
+Implemented on a branch, not yet on main: `feat/testing-test-scan-hook`, no PR yet (as of
+2026-09-28).
 
 The integration slice: an opt-in PostToolUse hook runs `cant-fail-scan.sh --file` on the written
 test file and feeds findings back.
