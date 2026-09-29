@@ -12,7 +12,8 @@ only after that version increases.
   The catalog entry runs `realign` whenever the audit reported a finding the user decided, accepted
   or declined, so `realign` can write the `.claude/instruction-placement.md` suppression entry and
   the next sweep stops re-proposing the decline. A step with no findings records only the skills
-  that ran.
+  that ran. `reference/next.md` section 4 collects versions and `Playbook-Step` trailers only for
+  the skills that ran.
 
 ## [0.15.0] - 2026-09-29
 
