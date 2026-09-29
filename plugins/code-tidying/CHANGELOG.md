@@ -7,10 +7,11 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Changed
 
-- **`batch-simplify` composes the bundled `simplify` skill.** A `## Native step: simplify` section
-  runs it over each file group when it resolves, flags any change outside the scope as mutation,
-  and reports a skip with the axis line and the enable path. An `unattended` token runs the
-  step without asking.
+- **`batch-simplify` composes the bundled `simplify` skill.** When it resolves and passes the
+  identity check, Phase 6 runs it on each group's files in place of the simplifier agent (`docs`
+  mode keeps the agent), flags any change outside the run's file set as mutation, and the Phase 8
+  report opens with a Native step result block. A skip names its state, the axis line, and the
+  enable path. An `unattended` token runs the step without asking.
 - **`tidy` and `batch-simplify` descriptions route to `simplify`** when it resolves: current-diff
   and single-file cleanup go there.
 
