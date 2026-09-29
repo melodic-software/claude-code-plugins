@@ -188,7 +188,7 @@
       "expectations": [
         "Does not confirm the `keep-owns-facts` verdict, and does not flip straight to a confirmed `delete`",
         "Sends the doc back through the four factors with the converged result as evidence",
-        "The re-graded `delete` or `convert-to-pointer` ships provisional, labelled `keep-sample converged, verdict overturned`, and stays out of the confirmed-actionable subset",
+        "The re-graded `delete` or `convert-to-pointer` ships provisional, labeled `keep-sample converged, verdict overturned`, and stays out of the confirmed-actionable subset",
         "The aggregate line reports `keep-sample: 1 sampled, 1 overturned`",
         "States that the sampled file list is recorded beside the batch ledger when drawn, not reconstructed later"
       ]
