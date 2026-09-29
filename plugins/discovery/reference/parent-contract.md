@@ -47,7 +47,7 @@ Topic: <the resolved topic>                     # /discovery:explore → Scope: 
 Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
-Budget: <the depth this session authorized>
+Budget: <low|medium|full>, optionally followed by words on the depth this session authorized
 Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
 Capability flags: nested spawning <available|unavailable>
 ```
@@ -60,6 +60,24 @@ limit. It can only move the agent's stop turn earlier than the default its own d
 an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
 does not receive it stops gathering at that default.
 
+### `Budget:` vocabulary
+
+`Budget:` opens with one of three words; any words after it are context, not a new level. This
+is the one place the values are defined.
+
+| `Budget:` | Research: Effort row it authorizes | Explore and trace-intent |
+|---|---|---|
+| `low` | `low` | the narrowest pass their procedure allows |
+| `medium` | `medium` | a pass between `low` and `full` |
+| `full` | `high` (the full workflow) | the full procedure |
+
+A research worker runs the **lower** of `Budget:` and `Source breadth:`. Both only narrow: neither
+raises a run above the caller's effort, and neither widens any worker's `maxTurns: 40`, which is
+fixed in its definition; `Turn budget:` is that same bound as a turn number. A `Budget:` line that
+opens with no listed word is read as `full`, and the worker names that reading in
+`open_questions`. Explore and trace-intent have no Effort table, so for them the word asks for a
+narrower pass and the agent names the level it ran at.
+
 **Research adds two more labeled lines.** `Source breadth:` because source breadth is the
 caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
 only the caller knows whether the answer will be quoted outside the session:
@@ -70,7 +88,10 @@ Evidence use: <internal|publish>
 ```
 
 The parent resolves the `Source breadth:` value from `${CLAUDE_EFFORT}` in the parent skill load
-before dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+before dispatch (a literal placeholder means the body was read from disk: write `high`). A
+`breadth=low` or `breadth=medium` token in the research skill's arguments lowers that value and
+never raises it: write the lower of the token and `${CLAUDE_EFFORT}`, and write the matching
+`Budget:` word. Explore
 and trace-intent write neither line. A research worker that does not receive `Source breadth:`
 treats the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),

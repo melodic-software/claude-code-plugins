@@ -5,9 +5,14 @@ the sweep branch, worktree, and draft PR. `S` below is `${CLAUDE_SKILL_DIR}/scri
 `${CLAUDE_SKILL_DIR}/catalogs/hygiene.md`, and `W` is `.work/repo-sweep/` in the repository root
 (create it). Run from the repository's main checkout or any worktree of it.
 
+Sweeps run in worktree-isolated sessions. Call each script in `S` by its path (`S/state.sh`, not
+`bash S/state.sh`; the scripts are executable). Run each git command as its own Bash invocation,
+never combined with `&&` or other commands in one call. The record for these shapes is in
+`SKILL.md`.
+
 ## 1. Check for an existing sweep
 
-Run `bash S/state.sh` and act on its exit code:
+Run `S/state.sh` and act on its exit code:
 
 - 0, 12, or 13: this branch is already a sweep with an open PR. Say so and point to
   `/playbooks:repo-sweep next` (13: every step is done; point to `/source-control:pull-request
@@ -23,9 +28,9 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
 
 ## 2. Recommend
 
-1. `bash S/history.sh C > W/recs.tsv`. A stderr warning that `gh` failed means history came from
+1. `S/history.sh C > W/recs.tsv`. A stderr warning that `gh` failed means history came from
    trailers only; say so.
-2. For every entry, judge its `applies-when` (column 7 of `bash S/catalog.sh C`) against this
+2. For every entry, judge its `applies-when` (column 7 of `S/catalog.sh C`) against this
    repository with cheap evidence: `git ls-files`, file globs, `ls`. When it does not hold, set
    that row's recommendation in `W/recs.tsv` to `not-applicable` and the reason to the evidence
    (for example `no tracked *.test.* files`). Keep reasons to one line with no tabs.
@@ -42,13 +47,13 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
 1. Print a table in chat with every catalog id in catalog order: id, recommendation, reason,
    default checked (`checked` column, false for `not-applicable`). Every id appears, so a
    headless run still shows the full plan.
-2. `bash S/render.sh --page C W/recs.tsv > W/plan-page.html`. Give the absolute path and open it
+2. `S/render.sh --page C W/recs.tsv > W/plan-page.html`. Give the absolute path and open it
    (`wslview`, `xdg-open`, or `open`, whichever exists; otherwise the user opens it). The page
    lets the user tick, untick, and drag entries, then copy one `repo-sweep-selection:` line.
-3. Fallback when the page cannot be opened: print the output of `bash S/render.sh --checklist C
+3. Fallback when the page cannot be opened: print the output of `S/render.sh --checklist C
    "repo-sweep-selection: <default checked ids, comma-separated>" W/recs.tsv` and ask the user to
    edit it in chat; convert their edited list back to a selection line.
-4. Wait for the selection line. Validate it with `bash S/render.sh --checklist C "<line>"
+4. Wait for the selection line. Validate it with `S/render.sh --checklist C "<line>"
    W/recs.tsv > W/checklist.md`; exit 1 names the bad id.
 
 ## 4. Create the sweep (after user approval)
@@ -57,13 +62,13 @@ Show the checklist and the branch name, and ask for approval to create the branc
 open the draft PR. Then:
 
 1. Branch: `chore/repo-sweep-hygiene-<yyyymmdd>`. When that name exists locally or on origin
-   (`git ls-remote --heads origin <name>`), append `-2`, `-3`, and so on.
+   (`git ls-remote --heads origin '<name>'`), append `-2`, `-3`, and so on.
 2. Worktree: invoke `/source-control:worktree` via the Skill tool to create a worktree for that
    exact branch off the up-to-date default branch. If it cannot take an exact branch name, run
-   `git fetch origin` and `git worktree add -b <branch> <path> origin/<default-branch>` at the
-   path it would have used. All later commands run in that worktree.
+   `git fetch origin`, then `git worktree add -b '<branch>' '<path>' 'origin/<default-branch>'`
+   at the path it would have used. All later commands run in that worktree.
 3. Seed commit, since GitHub refuses a PR with no commits: `git commit --allow-empty -m
-   "chore(repo-sweep): seed hygiene sweep"`, then `git push -u origin <branch>`.
+   "chore(repo-sweep): seed hygiene sweep"`, then `git push -u origin '<branch>'`.
 4. PR body in `W/pr-body.md`, per the repository's PR body convention when it has one, else:
 
    ```markdown
