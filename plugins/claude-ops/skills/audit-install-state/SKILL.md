@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in this session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
-argument-hint: "[root] [unattended]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
+argument-hint: "[unattended] [root]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,8 @@ metadata:
   summary: Audit a Claude Code install directory. What is there, what the product manages, what is stale
   cadence: weekly
 ---
+
+**Arguments.** `[unattended] [root]`. `root` is the tree to audit and reaches the engine as `--root`; it defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Always pass `--csv` to the engine. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked.
 
 ## Purpose
 

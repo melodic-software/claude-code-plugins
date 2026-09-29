@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[--root <path>] [--session-id <id>] [--note <fact>]`. Full form: [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note
+**Arguments.** `[unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked. Full form: [unattended] [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note
 
 ## Purpose
 
