@@ -118,6 +118,10 @@ auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 
+The general portability doctrine for hardcoded consumer specifics is owned by
+`docs/plugin-philosophy.md` § Design boundary → **Hardcoded consumer specifics**. This check is the
+permission-grant detector for one slice of that doctrine only.
+
 **What**: An entry containing a concrete user-home absolute path: `/c/Users/<name>/…` (POSIX-normalized
 Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 

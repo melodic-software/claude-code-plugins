@@ -618,6 +618,64 @@ else
   fail "skip changed the crossing message: [${OUT:0:200}] != [${CTRL_OUT:0:200}]"
 fi
 
+# 13b. A refresh that only moves captured_at, and one that stays inside the
+# shipped smart band, reuse the last zone and do not start the resolver.
+# A stale captured_at is not that case: the resolver must run and answer
+# unknown, leaving the last real zone on disk.
+SBH="$WORK/home-sband"
+SBD="$WORK/data-sband"
+mkdir -p "$SBD"
+write_snapshot "$SBH" sband 10
+run "$SBH" "$SBD" sband
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "same-band: a first smart observation is silent"
+else
+  fail "same-band baseline: rc=$RC out=${OUT:0:120}"
+fi
+sleep 0.05
+write_snapshot "$SBH" sband 12
+SB_TRACE="$WORK/sband-xtrace.log"
+printf '{"session_id":"sband","hook_event_name":"PostToolBatch"}' |
+  HOME="$SBH" CLAUDE_PLUGIN_DATA="$SBD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$SB_TRACE"
+SB_BASH=$(grep -cE '^\++ bash ' "$SB_TRACE" 2>/dev/null | tr -cd '0-9')
+if [[ "$SB_BASH" == "0" ]]; then
+  ok "same-band: 10 to 12 starts no resolver"
+else
+  fail "same-band: 10 to 12 started $SB_BASH resolver(s)"
+fi
+write_snapshot "$SBH" sband 90
+run "$SBH" "$SBD" sband
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "same-band: 12 to 90 still crosses and injects"
+else
+  fail "same-band crossing: rc=$RC out=${OUT:0:160}"
+fi
+
+STH="$WORK/home-stale"
+STD="$WORK/data-stale"
+mkdir -p "$STD"
+write_snapshot "$STH" sstale 90
+run "$STH" "$STD" sstale
+if [[ $RC -eq 0 && "$OUT" == *dumb* ]]; then
+  ok "stale refresh: the baseline observation injects dumb"
+else
+  fail "stale refresh baseline: rc=$RC out=${OUT:0:120}"
+fi
+sleep 0.05
+printf '{"captured_at":"2000-01-01T00:00:00Z","session_id":"sstale","context_window":{"used_percentage":90,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
+  >"$STH/$CTX_REL/sstale.json"
+ST_TRACE="$WORK/stale-xtrace.log"
+ST_OUT=$(printf '{"session_id":"sstale","hook_event_name":"PostToolBatch"}' |
+  HOME="$STH" CLAUDE_PLUGIN_DATA="$STD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" 2>/dev/null 9>"$ST_TRACE")
+ST_BASH=$(grep -cE '^\++ bash ' "$ST_TRACE" 2>/dev/null | tr -cd '0-9')
+if [[ "$ST_BASH" == "1" && -z "$ST_OUT" && "$(cat "$STD/state/sstale.zone" 2>/dev/null)" == "dumb" ]]; then
+  ok "stale refresh: a old captured_at resolves to unknown and keeps the last zone"
+else
+  fail "stale refresh: bash=$ST_BASH out=${ST_OUT:0:80} zone=$(cat "$STD/state/sstale.zone" 2>/dev/null)"
+fi
+
 # 13a. zones.json is the second input the skip must watch: the bands can move
 # under an unchanged snapshot, and the same percentage then resolves to a
 # different word. A mark left by a resolve under the old bands may not silence
@@ -795,7 +853,10 @@ fi
 #    parse is answered by hook::jq_fields' builtin parser, the mark is compared
 #    with `-nt`, its line is read with `read`, and it is stamped with a
 #    redirection: every one of those is a shell builtin.
-# B. THE RESOLVING PATH — a fire whose snapshot has been rewritten since. Budget:
+# B. REWRITTEN, ZONE UNCHANGED — the snapshot is newer than the mark, but
+#    used_percentage is still the value the last resolve recorded and captured_at
+#    is fresh. Budget: ZERO. The resolver runs only when the zone can change.
+# C. THE RESOLVING PATH — a rewrite that crosses a band. Budget:
 #    1 bash : scripts/context-zone.sh, the single band authority this hook must
 #             not re-implement; its own execs are in that process, not this trace
 #    and NO jq, for the same reason A is free: the builtin parser answers the two
@@ -848,27 +909,47 @@ else
   fail "trace: steady path ran $TRACE_BASH bash and $TRACE_JQ jq, both budgets are 0"
 fi
 
-# B. The resolving path, on the same session: rewrite the snapshot so it is
-# newer than the mark, and the hook must do the work it skipped above — the
-# skip may only ever suppress a REPEAT.
+# B. Same percentage, new captured_at. The tee does this on a refresh. The
+# zone cannot have changed, so the resolver stays unstarted.
 sleep 0.05 # the mark and the rewrite must land on distinguishable mtimes
 write_snapshot "$TH" strace 10
-TRACE_LOG2="$WORK/inject-xtrace-resolve.log"
+TRACE_LOG2="$WORK/inject-xtrace-refresh.log"
 printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
   HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
     BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
 TRACE2_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
 TRACE2_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG2" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
-if [[ "$TRACE2_SPAWNS" == "1" ]]; then
-  ok "trace: a rewritten snapshot resolves, and spawns exactly 1 process"
+if [[ "$TRACE2_SPAWNS" == "0" ]]; then
+  ok "trace: a same-zone rewrite spawns nothing"
 else
-  fail "trace: resolving path spawns $TRACE2_SPAWNS processes, budget is 1: $TRACE2_DETAIL"
+  fail "trace: same-zone rewrite spawns $TRACE2_SPAWNS processes, budget is 0: $TRACE2_DETAIL"
 fi
 TRACE2_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
-if [[ "$TRACE2_BASH" == "1" ]]; then
-  ok "trace: exactly one resolver process (the band authority)"
+if [[ "$TRACE2_BASH" == "0" ]]; then
+  ok "trace: a same-zone rewrite does not start the resolver"
 else
-  fail "trace: $TRACE2_BASH bash processes on the resolving path, budget is 1"
+  fail "trace: same-zone rewrite started $TRACE2_BASH resolver(s), budget is 0"
+fi
+
+# C. A band crossing still resolves. 10 is smart; 90 is dumb.
+sleep 0.05
+write_snapshot "$TH" strace 90
+TRACE_LOG3="$WORK/inject-xtrace-resolve.log"
+TRACE3_OUT=$(printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" 2>/dev/null 9>"$TRACE_LOG3")
+TRACE3_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG3" 2>/dev/null | tr -cd '0-9')
+TRACE3_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG3" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$TRACE3_SPAWNS" == "1" ]]; then
+  ok "trace: a band crossing resolves, and spawns exactly 1 process"
+else
+  fail "trace: resolving path spawns $TRACE3_SPAWNS processes, budget is 1: $TRACE3_DETAIL"
+fi
+TRACE3_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG3" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE3_BASH" == "1" && "$TRACE3_OUT" == *dumb* ]]; then
+  ok "trace: exactly one resolver process, and the crossing is injected"
+else
+  fail "trace: bash=$TRACE3_BASH out=${TRACE3_OUT:0:120}"
 fi
 TRACE2_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
 if [[ "$TRACE2_JQ" == "0" ]]; then
@@ -919,8 +1000,8 @@ fi
 # keeps a Linux lane that does not skip.
 if command -v strace >/dev/null 2>&1; then
   STRACE_LOG="$WORK/inject-strace.log"
-  # The snapshot was rewritten for trace B above and the fire that followed it
-  # re-stamped the mark, so this fire is the steady one again.
+  # The crossing fire above restamped the mark, and this fire does not rewrite
+  # the snapshot, so it is the steady path again.
   printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
     HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
       strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$STRACE_LOG" \
@@ -946,6 +1027,7 @@ if command -v strace >/dev/null 2>&1; then
   fi
   STRACE_LOG2="$WORK/inject-strace-resolve.log"
   sleep 0.05
+  # 90 (dumb) back to 10 (smart) crosses a band, so this rewrite resolves.
   write_snapshot "$TH" strace 10
   printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
     HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
@@ -1111,6 +1193,37 @@ if [[ $W_OUT == '{"session_id":"s"}' ]]; then
   ok "cg::read_payload wrapper still returns the payload"
 else
   fail "cg::read_payload wrapper: expected the payload, got [$W_OUT]"
+fi
+
+# Without jq, a compacted-session fire moves no marker, so the crossing still
+# fires once jq is back. The fast path skips the eager jq check; the marker
+# writes must still wait for it.
+NJ="$WORK/nojq-bin"
+mkdir -p "$NJ"
+IFS=: read -r -a nj_dirs <<<"$PATH"
+for d in "${nj_dirs[@]}"; do
+  for f in "$d"/*; do
+    b=${f##*/}
+    [[ "$b" == jq || -e "$NJ/$b" || ! -x "$f" ]] && continue
+    ln -s "$f" "$NJ/$b" 2>/dev/null
+  done
+done
+NH="$WORK/nojq-home"
+ND="$WORK/nojq-data"
+write_snapshot "$NH" snj 10
+: >"$NH/$CTX_REL/snj.compacted"
+printf '{"session_id":"snj","hook_event_name":"PostToolBatch","cwd":"/tmp"}' |
+  PATH="$NJ" HOME="$NH" CLAUDE_PLUGIN_DATA="$ND" HOOK_TELEMETRY_SINK="" bash "$HOOK" >/dev/null 2>&1
+if [[ ! -e "$ND/state/snj.zone" && ! -e "$ND/state/snj.armed" && ! -e "$ND/state/snj.seen" ]]; then
+  ok "no jq: a compacted fire moves no marker"
+else
+  fail "no jq: markers were written: $(ls "$ND/state" 2>&1)"
+fi
+run "$NH" "$ND" snj
+if [[ "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "no jq, then jq: the compacted crossing still fires"
+else
+  fail "no jq, then jq: crossing lost: $OUT"
 fi
 
 echo

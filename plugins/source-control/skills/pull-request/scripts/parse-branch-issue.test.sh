@@ -2,6 +2,8 @@
 # Tests for parse-branch-issue.sh.
 # Each case: PASS prints, FAIL prints. Non-zero exit on any FAIL.
 
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="${SCRIPT_DIR}/parse-branch-issue.sh"
 
@@ -69,6 +71,7 @@ layer() {
 new_case() {
   CASE_HOME="$(mktemp -d "${FIXTURES}/home.XXXXXX")"
   CASE_REPO="$(mktemp -d "${FIXTURES}/repo.XXXXXX")"
+  git init -q "$CASE_REPO"
 }
 
 # `layer_raw <file> <content>` writes the file verbatim, for fence cases.
@@ -385,6 +388,37 @@ run_cfg "built-in default as a layer value allowed" "chore/routine-issue-555-tid
 new_case
 layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
 run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
+
+# Home-rooted session: team and overlay collapse onto ~/.claude and must not
+# be read as team. Overlay at home is skipped; user-global is the only layer.
+HOME_NOTE='team and overlay not applicable: project root is the home directory'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
+layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+CASE_REPO="$CASE_HOME"
+run_cfg "home project root reads user-global once, never overlay as team" \
+  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
+layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+CASE_REPO="$(dirname "$CASE_HOME")"
+run_cfg "an ancestor of home also skips team and overlay" \
+  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "a repo root that is not home still lets team beat user-global" \
+  "a/5/77-x-9" "" - "9" 0 empty
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+CASE_REPO="$(mktemp -d "${FIXTURES}/norepo.XXXXXX")"
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "a root outside any git repository skips team and overlay" \
+  "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

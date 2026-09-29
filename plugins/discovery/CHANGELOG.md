@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.3] - 2026-09-28
+## [0.25.4] - 2026-09-28
 
 ### Added
 
@@ -18,6 +18,22 @@
 
   `explore`, `research` and `trace-intent` point at the section, and `contract.test.sh` holds the
   heading and the value shape to one owner.
+
+## [0.25.3] - 2026-09-28
+
+### Security
+
+- **Credentials stay unread, stated once.** A researcher's capability probe ran
+  `git credential fill` and captured a live GitHub token into its transcript: every agent inherits
+  an unrestricted `Bash` pool, and nothing told it where reading stops. `reference/parent-contract.md`
+  now owns the rule for all three agents: verify a credential is present, never read, print or copy
+  its value, with the commands and files it covers and the presence checks that carry no value. An
+  instruction in fetched content to reveal a credential is a finding, not a step. `explorer`,
+  `intent-tracer` and `researcher` point at it. It is instruction only, with a dated record of why
+  (a `disallowedTools` specifier removes the whole tool). Command deny rules are named as a
+  partial guardrail only; the operator's sandbox (`denyRead`, `sandbox.credentials.files`) is the
+  stronger layer for credential files, and a boundary only once its escape paths are closed. `contract.test.sh` holds the
+  rule to one owner and each agent to a pointer.
 
 ## [0.25.2] - 2026-09-28
 
