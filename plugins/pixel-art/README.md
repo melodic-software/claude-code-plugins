@@ -58,11 +58,14 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 - **Backends other than `native`**: optional. `scripts/backends.py` runs Aseprite when
   `aseprite --version` works, and PixelLab or Retro Diffusion when the API token is set and the
   user has confirmed the spend. Anything missing falls back to `native` with one line. Details are
-  in `reference/backends.md`.
+  in `reference/backends.md`. The three adapters have run only against local stand-ins so far, not
+  the real tools or services.
 
 Native `sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation
 tags list frame names and per-frame durations rather than `from`/`to` ranges. The Aseprite backend
-writes Aseprite's own json-hash file instead, and still writes the native GIFs and preview.
+writes Aseprite's own json-hash file instead (frames keyed by spec name, `meta.image` set to
+`sheet.png`), and still writes the native GIFs and preview. The adapters have run only against
+stand-ins so far.
 
 ## Audio
 

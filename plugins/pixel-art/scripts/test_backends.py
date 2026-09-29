@@ -103,7 +103,7 @@ def write_fake_aseprite(directory):
 
 
 _FAKE_BODY = r"""#!{executable}
-import json, pathlib, sys, tempfile
+import json, os, pathlib, sys, tempfile
 sys.path.insert(0, {scripts!r})
 import render
 log = pathlib.Path({log!r})
@@ -137,21 +137,27 @@ with tempfile.TemporaryDirectory() as tmp:
     out = pathlib.Path(tmp)
     render.render(spec, out, 1)
     pathlib.Path(flag("--sheet")).write_bytes((out / "sheet.png").read_bytes())
-    order = [name for name in spec.get("sheet", {{}}).get("order", list(spec["frames"])) if name]
-    if not order:
-        order = list(spec["frames"])
-    index = {{name: i for i, name in enumerate(order)}}
+    # Like the generated Lua: one frame per sheet slot, null cells included. Like Aseprite: keys
+    # follow the default filename format ("<title> <frame index>.<extension>"), not the spec names,
+    # and meta.image is the absolute --sheet path.
+    order = spec.get("sheet", {{}}).get("order") or list(spec["frames"])
+    if os.environ.get("FAKE_ASEPRITE_DROP_FRAME"):
+        order = order[:-1]
+    index = {{name: i for i, name in enumerate(order) if name}}
     tags = []
     for name, anim in spec.get("animations", {{}}).items():
         slots = [index[frame] for frame in anim["frames"] if frame in index]
         if slots:
             tags.append({{"name": name, "from": min(slots), "to": max(slots), "direction": "forward"}})
     meta = {{
-        "frames": {{name: {{"frame": {{"x": 0, "y": 0, "w": 2, "h": 2}}, "duration": 250}} for name in order}},
+        "frames": {{
+            "source %d.aseprite" % i: {{"frame": {{"x": 0, "y": 0, "w": 2, "h": 2}}, "duration": 250}}
+            for i in range(len(order))
+        }},
         "meta": {{
             "app": "http://www.aseprite.org/",
             "version": "1.3.18.6",
-            "image": "sheet.png",
+            "image": str(pathlib.Path(flag("--sheet")).resolve()),
             "format": "RGBA8888",
             "size": {{"w": 2, "h": 2}},
             "scale": "1",
@@ -223,6 +229,9 @@ class BackendTest(unittest.TestCase):
             sheet = json.loads((out / "sheet.json").read_text())
             self.assertEqual(sheet["meta"]["frameTags"][0]["from"], 0)
             self.assertIn("layers", sheet["meta"])
+            self.assertEqual(list(sheet["frames"]), ["a"])
+            self.assertEqual(sheet["meta"]["image"], "sheet.png")
+            self.assertEqual(sheet["meta"]["frameTags"][0]["name"], "blink")
             self.assertTrue((out / "preview.png").is_file())
             self.assertTrue((out / "blink.gif").is_file())
             _w, _h, rows = palette_mod.read_png(out / "sheet.png")
@@ -328,6 +337,41 @@ class BackendTest(unittest.TestCase):
                 backends.run(spec, root / "out", "aseprite", 1, None, quiet_env(ASEPRITE=str(fake), PATH=tmp), False)
             self.assertIn("contiguous", buf.getvalue())
             self.assertFalse((root / "out" / "source.aseprite").exists())
+
+    def test_aseprite_frames_map_to_spec_names_across_null_cells(self):
+        spec = {
+            "palette": SPEC["palette"],
+            "frames": {"a": ["kr", "rk"], "b": ["rr", "kk"]},
+            "sheet": {"columns": 2, "order": ["a", None, "b"]},
+            "animations": {"hop": {"frames": ["a"], "fps": 4}, "land": {"frames": ["b"], "fps": 4}},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fake, _log = write_fake_aseprite(root)
+            out = root / "out"
+            with contextlib.redirect_stdout(io.StringIO()):
+                backends.run(spec, out, "aseprite", 1, None, quiet_env(ASEPRITE=str(fake), PATH=tmp), False)
+            sheet = json.loads((out / "sheet.json").read_text())
+            self.assertEqual(list(sheet["frames"]), ["a", "b"])
+            self.assertEqual(sheet["meta"]["image"], "sheet.png")
+            tags = {tag["name"]: (tag["from"], tag["to"]) for tag in sheet["meta"]["frameTags"]}
+            self.assertEqual(tags, {"hop": (0, 0), "land": (2, 2)})
+
+    def test_aseprite_frame_count_mismatch_falls_back_without_a_partial_sheet(self):
+        spec = dict(SPEC, frames={"a": ["kr", "rk"], "b": ["rr", "kk"]})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fake, _log = write_fake_aseprite(root)
+            out = root / "out"
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                backends.run(spec, out, "aseprite", 1, None,
+                             quiet_env(ASEPRITE=str(fake), PATH=tmp, FAKE_ASEPRITE_DROP_FRAME="1"), False)
+            self.assertIn("1 frames for 2 sheet cells", buf.getvalue())
+            self.assertFalse((out / "source.aseprite").exists())
+            sheet = json.loads((out / "sheet.json").read_text())
+            self.assertEqual(sheet["meta"]["app"], "pixel-art render.py")
+            self.assertEqual(list(sheet["frames"]), ["a", "b"])
 
     def test_aseprite_rerender_drops_gifs_of_removed_animations(self):
         with tempfile.TemporaryDirectory() as tmp:
