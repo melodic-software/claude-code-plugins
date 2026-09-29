@@ -17,8 +17,8 @@ It never edits `CLAUDE.md` or `AGENTS.md`. The instruction line is printed for y
 ## The config
 
 `.claude/testing.yaml` resolves across the config-cascade layers, in order: `~/.claude/testing.yaml`,
-`${CLAUDE_PROJECT_DIR}/.claude/testing.yaml` (the team file this skill writes), and
-`.claude/testing.local.yaml`. Lists concatenate across layers; a later layer's scalar overrides.
+`<root>/.claude/testing.yaml` (the team file this skill writes) and `<root>/.claude/testing.local.yaml`,
+where `<root>` is the scanned file's git toplevel, else `${CLAUDE_PROJECT_DIR}`. Lists concatenate across layers; a later layer's scalar overrides.
 The format is the adapters' YAML subset; a glob that starts with `*` must be single-quoted.
 
 ```yaml
@@ -85,9 +85,12 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
    (probed on Claude Code 2.1.284, 2026-09-29, `docs/topics/tautological-tests/probes.md` in the
    marketplace repository; recheck when a Claude Code release note says settings hooks receive
-   plugin variables), so the entry finds the most recently installed plugin under
-   `~/.claude/plugins/cache` and passes `--enabled`: adding the entry is the opt-in. Show it; the
-   user merges it into their settings.
+   plugin variables), so the entry runs the highest installed version under
+   `~/.claude/plugins/cache/<marketplace>/testing` and passes `--enabled`: adding the entry is the
+   opt-in. It pins the marketplace `check` runs from; when `check` runs outside the plugin cache the
+   entry holds a `<marketplace>` placeholder the user must replace. With no installed copy that takes
+   `--enabled`, the entry says so on stderr and exits 0. Show it; the user merges it into their
+   settings.
 
 ## `apply`
 

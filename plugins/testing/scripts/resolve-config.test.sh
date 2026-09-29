@@ -70,9 +70,11 @@ mkdir -p "$T/proj/.claude"
 printf 'paths:\n  exclude: [proj-only/**]\n' >"$T/proj/.claude/testing.yaml"
 rc=0
 out="$(CLAUDE_PROJECT_DIR="$T/proj" bash "$RESOLVE" --root "$REPO" 2>&1)" || rc=$?
-assert_contains "the team layer is read from CLAUDE_PROJECT_DIR" "$(records paths.exclude)" "proj-only/**"
-assert_eq "and the repo-root team file is not read then" \
-  "$HOME/.claude/testing.yaml $T/proj/.claude/testing.yaml $REPO/.claude/testing.local.yaml" "$(records layer)"
+assert_eq "the team layer is the root's, whatever CLAUDE_PROJECT_DIR names" \
+  "$HOME/.claude/testing.yaml $REPO/.claude/testing.yaml $REPO/.claude/testing.local.yaml" "$(records layer)"
+rc=0
+out="$(cd "$T" && CLAUDE_PROJECT_DIR="$T/proj" bash "$RESOLVE" 2>&1)" || rc=$?
+assert_contains "outside a repository with no --root, CLAUDE_PROJECT_DIR is the root" "$(records paths.exclude)" "proj-only/**"
 
 # --- validation exits ---------------------------------------------------------
 reset
@@ -99,7 +101,15 @@ assert_contains "a rule level other than off, warn or error is refused" "$rc $ou
 printf 'adapters:\n  disable: [js-nope]\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "an unknown adapter id exits 2" 2 "$rc"
-assert_contains "and names it" "$out" "unknown adapter: js-nope"
+assert_contains "and names it at its file and line" "$out" "$REPO/.claude/testing.yaml:2: unknown adapter: js-nope"
+printf 'adapters:\n  enable:\n    - js-vitest\n    - js-vitset\n' >"$REPO/.claude/testing.yaml"
+run --quick
+assert_eq "--quick still refuses an unknown adapter id" 2 "$rc"
+assert_contains "at its file and line" "$out" "$REPO/.claude/testing.yaml:4: unknown adapter: js-vitset"
+printf 'adapter_dirs: [~/adapters]\n' >"$REPO/.claude/testing.yaml"
+mkdir -p "$HOME/adapters"
+run
+assert_eq "a leading ~/ in adapter_dirs is the home directory" "0:$HOME/adapters" "$rc:$(records adapter_dirs)"
 printf 'extend:\n  js-vitest:\n    language: [js]\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "extend of a scalar field exits 2" 2 "$rc"
@@ -140,7 +150,18 @@ assert_eq "a consumer adapter and an extension resolve" 0 "$rc"
 assert_eq "adapter_dirs resolves to an absolute directory" "$REPO/tools/adapters" "$(records adapter_dirs)"
 assert_eq "extend prints one record per item" "*.it.ts *.test.ts" "$(records extend.js-vitest.files)"
 assert_eq "an id from adapter_dirs is a known adapter" "js-spec js-vitest" "$(records adapters.enable)"
-assert_eq "every consumer glob no shipped hook row matches is listed" "*.it.ts *.e2e.ts *.check.ts" "$(records hook.uncovered)"
+assert_eq "every consumer adapter or extend glob no shipped hook row matches is listed" "*.it.ts *.check.ts" "$(records hook.uncovered)"
+printf "paths:\n  include: ['legacy/**', 'tests/*.py']\n" >"$REPO/.claude/testing.yaml"
+run
+assert_eq "a paths.include glob never feeds hook.uncovered" "0:" "$rc:$(records hook.uncovered)"
+cat >"$REPO/.claude/testing.yaml" <<'EOF'
+adapter_dirs: [tools/adapters]
+adapters:
+  enable: [js-spec, js-vitest]
+extend:
+  js-vitest:
+    files: ['*.it.ts', '*.test.ts']
+EOF
 run --quick
 assert_eq "--quick prints the same records" "*.it.ts *.test.ts" "$(records extend.js-vitest.files)"
 assert_eq "without the hook coverage the scanner's hook path does not need" "" "$(records hook.uncovered)"

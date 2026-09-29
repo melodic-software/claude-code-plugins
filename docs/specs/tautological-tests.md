@@ -261,7 +261,9 @@ Java/Kotlin and Go testify.
   are generated from that union by `scripts/gen-hook-filters.sh`. A `--check` mode fails CI when the
   two drift. No bare `test/` or `tests/` folder pattern is allowed (Q6).
 - `.claude/testing.yaml` resolves through the config-cascade layers: `~/.claude/testing.yaml`, then
-  `${CLAUDE_PROJECT_DIR}/.claude/testing.yaml`, then `.claude/testing.local.yaml`. Merge semantics
+  `<root>/.claude/testing.yaml`, then `<root>/.claude/testing.local.yaml`, where `<root>` is the
+  scanned file's git toplevel, else `CLAUDE_PROJECT_DIR`, so a sibling worktree uses its own config. A
+  UTF-8 byte-order mark is accepted, and a leading `~/` in `adapter_dirs` is the home directory. Merge semantics
   are additive: lists concatenate, and a scalar in a later layer overrides an earlier one. The
   resolver is a plugin-local script modeled on `plugins/docs-hygiene/scripts/resolve-config.sh`. It
   is not imported from that plugin (shell-test-helpers convention: no cross-plugin imports).
@@ -272,10 +274,14 @@ Java/Kotlin and Go testify.
   `rules.<rule-id>` takes `testing/audit/rule-<slug>` or `rule-<slug>`. A glob that starts with `*`
   is single-quoted, because a bare leading `*` is YAML alias syntax.
 - Removals (`adapters.disable`, `paths.exclude`) apply inside the script, so hook and audit go silent
-  with no plugin change.
-- Additions (`paths.include`, consumer adapters with new globs) reach the audit at once. They reach
+  with no plugin change. A file whose adapter is off, or outside an `enable` allowlist, is not scanned;
+  it is never handed to another adapter that claims its name. An invalid config makes the audit exit
+  2 naming the file and line, and makes `test-scan` return that message as context.
+- Additions reach the audit at once. Consumer adapters and `extend.<id>.files` globs reach
   the hook only through a consumer hook entry that `/testing:setup check` prints for pasting (Q6).
-  The audit report lists any consumer glob that no hook filter covers, so a skip is never silent.
+  The audit report lists any such glob that no hook filter covers, so a skip is never silent.
+  `paths.include` never needs a hook entry: it adds no basename, and the hook rows match basenames
+  in any directory.
 
 ### 4. New scanner rules (release 1)
 
@@ -707,8 +713,10 @@ ms); the idle re-measure against the 150 ms budget moves to Phase 8.
 - Probe whether a consumer settings hook receives `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_OPTION_*`.
   Record the result in `probes.md`. If it does not, the printed consumer entry passes `--enabled` and
   locates the plugin through a stable shim `[FALLBACK]`. Taken: Claude Code 2.1.284 gives a settings
-  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and finds the newest
-  cached `testing/*/hooks/test-scan.sh`.
+  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and runs the highest version (`sort -V`) of
+  `cache/<marketplace>/testing/*/hooks/test-scan.sh`, pinned to the marketplace setup runs from (else a
+  `<marketplace>` placeholder). It runs only a copy that takes `--enabled`, otherwise prints one
+  stderr line and exits 0, and it shares the plugin hook's marker directory. No shim script was needed.
 - New `plugins/testing/skills/setup/SKILL.md`, `check | apply`, with
   `disable-model-invocation: true` (modeled on `plugins/mutation-testing/skills/setup`). `check`
   prints:
@@ -732,8 +740,8 @@ ms); the idle re-measure against the 150 ms budget moves to Phase 8.
 ### Phase 6: `test-weaken` hook [IMPLEMENTED, not on main]
 
 Implemented on branch `feat/testing-test-scan-hook`. Detection reads a new scanner mode,
-`cant-fail-scan.sh --file <path> --inventory <text>...`, so no token list is copied. `suite_skip`
-(`describe.skip`) is not yet counted as an added skip. p95 was measured only under load (194-219
+`cant-fail-scan.sh --file <path> --inventory <text>...`, so no token list is copied. Changed
+expected literals are also read from Go `if got != 3 {` and bats `[ "$output" = "3" ]`. p95 was measured only under load (194-219
 ms at load 33-36); the idle re-measure moves to Phase 8.
 
 - PreToolUse on `Write|Edit`, with the same option gate, filters and precision rules as `test-scan`.

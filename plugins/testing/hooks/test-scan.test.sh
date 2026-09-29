@@ -228,6 +228,40 @@ run Write "$REPO/src/sum.test.ts" s1 "" dup-call
 assert_contains "dedup: first run for a tool_use_id reports" "$first" "rule-zero-assertion"
 assert_empty "dedup: second run for the same tool_use_id is silent" "$out"
 
+# An invalid .claude/testing.yaml is named back to the agent, at its line, and
+# the resolver's own message is logged.
+mkdir -p "$REPO/.claude"
+printf 'adapters:\n  enable: [js-vitset]\n' >"$REPO/.claude/testing.yaml"
+run Write "$REPO/src/sum.test.ts"
+assert_contains "config error: the agent is told the config is invalid" "$out" "testing.yaml:2: unknown adapter: js-vitset"
+assert_contains "config error: in additionalContext" "$out" '"additionalContext"'
+assert_contains "config error: the log holds the resolver's message" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log")" "unknown adapter: js-vitset"
+rm -f "$REPO/.claude/testing.yaml"
+
+# The plugin hook and the consumer settings entry share one marker directory,
+# so the same call through both reports once and notes once.
+C="$HOME/.claude/plugins/cache/mk/testing"
+mkdir -p "$C"
+ln -s "$(cd "$HOOK_DIR/.." && pwd)" "$C/1.0.0"
+p="$(payload Write "$REPO/src/sum.test.ts" s-both "" call-both "$CREATE")"
+first="$(CLAUDE_PLUGIN_DATA="$HOME/.claude/plugins/data/testing-mk" bash "$C/1.0.0/hooks/test-scan.sh" <<<"$p" 2>/dev/null)"
+consumer() { env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED= bash "$C/1.0.0/hooks/test-scan.sh" --enabled 2>/dev/null; }
+out="$(consumer <<<"$p")"
+assert_contains "shared markers: the plugin path reports" "$first" "rule-zero-assertion"
+assert_empty "shared markers: the consumer entry does not report the same call again" "$out"
+payload Write "$REPO/src/sum.test.ts" s-note "" call-note-1 "$CREATE" |
+  CLAUDE_PLUGIN_DATA="$HOME/.claude/plugins/data/testing-mk" bash "$C/1.0.0/hooks/test-scan.sh" >/dev/null 2>&1
+out="$(payload Write "$REPO/src/sum.test.ts" s-note "" call-note-2 "$CREATE" | consumer)"
+assert_contains "shared markers: a later call through the consumer entry still reports" "$out" "rule-zero-assertion"
+assert_not_contains "shared markers: but does not repeat the note" "$out" "testing:test-value"
+out="$(payload Write "$REPO/src/sum.test.ts" s-state "" call-state "$CREATE" |
+  env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED= XDG_STATE_HOME="$TMP/state" bash "$HOOK" --enabled 2>/dev/null)"
+if [[ -f "$TMP/state/claude-testing/marks/call-call-state" ]]; then
+  ok "outside the plugin cache, markers go under XDG_STATE_HOME, never TMPDIR"
+else
+  fail "outside the plugin cache, markers go under XDG_STATE_HOME, never TMPDIR"
+fi
+
 echo
 echo "$PASS passed, $FAIL failed"
 ((FAIL == 0))

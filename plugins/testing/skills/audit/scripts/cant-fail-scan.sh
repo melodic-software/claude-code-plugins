@@ -121,10 +121,12 @@
 # unknown tree — a completed-looking scan of the wrong tree is
 # indistinguishable from a clean bill.
 #
-# Config: .claude/testing.yaml, resolved against the root's git toplevel by
-# ../../../scripts/resolve-config.sh, turns adapters off or on, excludes or
-# includes paths, extends adapter lists, loads consumer adapters and sets rule
-# levels (off drops a finding, warn keeps it out of the gate, error gates it).
+# Config: .claude/testing.yaml, resolved against the root's git toplevel (else
+# $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
+# off or on (a file whose adapter is off is not scanned, never handed to
+# another), excludes or includes paths, extends adapter lists, loads consumer
+# adapters and sets rule levels (off drops a finding, warn keeps it out of the
+# gate, error gates it).
 # With no layer file present the scan is exactly the shipped one.
 #
 # Every run reports a DENOMINATOR (coverage block): files enumerated and
@@ -311,9 +313,11 @@ REPO_PREFIX=""
 # file present nothing below runs, so a repository without one pays three file
 # tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
 # the test-scan hook, which runs this script, goes silent with no plugin change.
-CFG_ROOT="${TOP:-$ROOT}"
+# The team and local layers are the scanned repository's own, so a file in a
+# sibling worktree gets that worktree's config.
+CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
 tc_layers=0
-for f in ${HOME:+"$HOME/.claude/testing.yaml"} "${CLAUDE_PROJECT_DIR:-$CFG_ROOT}/.claude/testing.yaml" \
+for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/.claude/testing.yaml" \
   "$CFG_ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" ]] && tc_layers=$((tc_layers + 1))
 done
@@ -371,11 +375,13 @@ if ! awk -v EXTEND="$EXTEND_FILE" -f "$LOADER" "$ADAPTER_DIR"/*.yaml ${tc_extra[
   printf 'ERROR: adapter load failed (see above); refusing to scan.\n' >&2
   exit 2
 fi
+# A disabled adapter still loads and still claims files: pick_adapter runs over
+# every adapter, and a file whose winner is off is not scanned, rather than
+# handed to a sibling that also matches its name (js-jest for a Vitest file).
 adapter_ids=()
 declare -A a_lang=() a_globs=() a_detect=() a_advisory=()
 all_globs=()
 while IFS=$'\t' read -r id key val; do
-  adapter_on "$id" || continue
   [[ -n "${a_lang[$id]+x}" ]] || {
     adapter_ids+=("$id")
     a_lang[$id]=""
@@ -387,7 +393,7 @@ while IFS=$'\t' read -r id key val; do
     all_globs+=("$val")
     ;;
   detect.any_regex) a_detect[$id]+="$val"$'\n' ;;
-  advisory) [[ "$val" == true ]] && a_advisory[$id]=1 ;;
+  advisory) [[ "$val" == true ]] && adapter_on "$id" && a_advisory[$id]=1 ;;
   *) ;;
   esac
 done <"$ADAPTER_TABLE"
@@ -487,6 +493,8 @@ ps_files=()
 go_files=()
 tc_excluded=0
 tc_unclaimed=0
+tc_disabled=0
+tc_off_winner=""
 declare -A file_adapter=()
 while IFS= read -r f; do
   [[ -n "$f" && -z "${file_adapter[$f]+x}" ]] || continue
@@ -498,6 +506,12 @@ while IFS= read -r f; do
   id="$(pick_adapter "$f")"
   if [[ -z "$id" ]]; then
     tc_unclaimed=$((tc_unclaimed + 1))
+    file_adapter[$f]=""
+    continue
+  fi
+  if ! adapter_on "$id"; then
+    tc_disabled=$((tc_disabled + 1))
+    tc_off_winner="$id"
     file_adapter[$f]=""
     continue
   fi
@@ -945,7 +959,11 @@ coverage_block() {
   printf '  test files: %d examined of %d enumerated (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d); %d unreadable\n' \
     "$examined" "$enumerated" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$unreadable"
   if [[ -n "$FILE" ]]; then
-    printf '  adapter: %s\n' "${file_adapter[$FILE]:-none (no adapter claims this file)}"
+    if [[ -n "$tc_off_winner" ]]; then
+      printf '  adapter: none (%s claims this file and is off in .claude/testing.yaml)\n' "$tc_off_winner"
+    else
+      printf '  adapter: %s\n' "${file_adapter[$FILE]:-none (no adapter claims this file)}"
+    fi
   fi
   printf '  test blocks parsed: %d; blocks that fired a block rule: %d; exempted findings (cant-fail-ok): %d\n' \
     "$blocks" "$fired_blocks" "$exempted"
@@ -956,8 +974,8 @@ coverage_block() {
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
   fi
   if ((tc_layers)); then
-    printf '  .claude/testing.yaml: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
-      "$tc_layers" "$tc_excluded" "$tc_unclaimed" "$tc_dropped" "$tc_ungate" "$tc_gate"
+    printf '  .claude/testing.yaml: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
+      "$tc_layers" "$tc_excluded" "$tc_unclaimed" "$tc_disabled" "$tc_dropped" "$tc_ungate" "$tc_gate"
     if [[ -z "$FILE" && ${#tc_uncovered[@]} -gt 0 ]]; then
       printf '  test-scan hook: no shipped hook row matches %s, so the hook skips those files; /testing:setup check prints a hook entry to add\n' \
         "$(printf '%s, ' "${tc_uncovered[@]}" | sed 's/, $//')"
@@ -991,9 +1009,16 @@ advisory_note() {
     printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d.\n' \
       "$advisory" "$n_cf3" "$cfg_findings" "$ids" "$n_adv"
   fi
-  if [[ "$report_only" -gt 0 ]]; then
-    printf 'note: %d finding(s) are report-only and never gate --check, --strict included: inert-assertion %d, constant-restatement %d, source-text-read %d, conditional-assertion %d, recomputed-derived %d, snapshot-only %d, weak-oracle %d.\n' \
-      "$report_only" "$n_ia" "$n_cr" "$n_st" "$n_ca" "$n_rd" "$n_so" "$n_wo"
+  # A rule raised to error in .claude/testing.yaml gates, so it is not listed.
+  local pair n=0 list=""
+  for pair in "inert-assertion $n_ia" "constant-restatement $n_cr" "source-text-read $n_st" \
+    "conditional-assertion $n_ca" "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo"; do
+    [[ "${rule_level[${pair% *}]:-}" != error ]] || continue
+    n=$((n + ${pair#* }))
+    list+="${list:+, }$pair"
+  done
+  if [[ "$n" -gt 0 ]]; then
+    printf 'note: %d finding(s) are report-only and never gate --check, --strict included: %s.\n' "$n" "$list"
   fi
 }
 

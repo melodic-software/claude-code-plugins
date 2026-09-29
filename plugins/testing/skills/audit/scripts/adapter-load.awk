@@ -39,7 +39,8 @@
 # whose tests derive expected values on purpose (property-based tests), and
 # rules_off lists rule slugs (constant-restatement) the adapter never reports.
 # No double quotes, flow maps, anchors, aliases, tags, block scalars or
-# document markers. A trailing \r is stripped, so CRLF files load.
+# document markers. A trailing \r is stripped, so CRLF files load, and so is
+# a UTF-8 byte-order mark at the start of a file.
 #
 # Every regex field must use the ERE subset gawk, mawk and BSD awk agree on:
 # no \s \S \d \D \w \W \b \B \< \>, no backreferences, and no {n,m}
@@ -205,6 +206,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
 {
   line = $0
   sub(/\r$/, "", line)
+  if (FNR == 1) sub(/^\357\273\277/, "", line)
   if (line ~ /^[ ]*(#.*)?$/) next
   if (line ~ /^[ ]*\t/) die("tab in indentation")
   if (line ~ /^(---|\.\.\.)/) die("document markers are not supported")

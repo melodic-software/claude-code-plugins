@@ -138,6 +138,14 @@ assert_contains "advisory: named as a skip" "$out" "skip"
 assert_not_contains "advisory: it -> it.skip is not also called a removed test block" "$out" "removed 1 test block"
 assert_no_decision "advisory: an added skip carries no decision" "$out"
 
+# A suite skip (describe.skip, test.describe.skip) counts as an added skip.
+printf "import { describe, it, expect } from 'vitest';\n\ndescribe('sum', () => {\n  it('adds', () => {\n    expect(1 + 1).toBe(2);\n  });\n});\n" >"$REPO/src/suite.test.ts"
+run Edit "$REPO/src/suite.test.ts" "$(edit_input "describe('sum', () => {" "describe.skip('sum', () => {")"
+assert_contains "suite skip: describe.skip is named as an added skip" "$out" "added 1 skip marker(s)"
+printf "import { test, expect } from '@playwright/test';\n\ntest.describe('home', () => {\n  test('loads', async ({ page }) => {\n    await expect(page).toHaveTitle('Home');\n  });\n});\n" >"$REPO/src/home.spec.ts"
+run Edit "$REPO/src/home.spec.ts" "$(edit_input "test.describe('home', () => {" "test.describe.skip('home', () => {")"
+assert_contains "suite skip: test.describe.skip is named as an added skip" "$out" "added 1 skip marker(s)"
+
 # (b) with rules.test-weaken-block: error, an added skip is denied, and the
 # same edit carrying a test-change: marker gets context and no decision.
 block_on
@@ -155,6 +163,18 @@ assert_contains "block rule on: a removed assertion still gets context" "$out" "
 run Edit "$REPO/src/sum.test.ts" "$(edit_input '  expect(sum(1, 2)).toBe(3);' '  expect(sum(1, 2)).toBe(4);')"
 assert_contains "a changed expected literal is named" "$out" "from 3 to 4"
 assert_no_decision "block rule on: a changed literal is not denied" "$out"
+# Comparison statements with one literal side: Go's `if got != 3 {` and a
+# bats `[ "$output" = "3" ]`.
+printf 'package sum\n\nimport "testing"\n\nfunc TestSum(t *testing.T) {\n\tgot := Sum(1, 2)\n\tif got != 3 {\n\t\tt.Errorf("got %%d", got)\n\t}\n}\n' >"$REPO/src/sum_test.go"
+run Edit "$REPO/src/sum_test.go" "$(edit_input $'\tif got != 3 {' $'\tif got != 4 {')"
+assert_contains "go-testing: a changed literal in an if comparison is named" "$out" "of got from 3 to 4"
+# shellcheck disable=SC2016 # bats text, not expansions
+printf '#!/usr/bin/env bats\n\n@test "sum" {\n  run ./sum 1 2\n  [ "$output" = "3" ]\n}\n' >"$REPO/src/sum.bats"
+# shellcheck disable=SC2016 # bats text, not expansions
+run Edit "$REPO/src/sum.bats" "$(edit_input '  [ "$output" = "3" ]' '  [ "$output" = "4" ]')"
+assert_contains "bash-bats: a changed literal in a [ ] comparison is named" "$out" 'from \"3\" to \"4\"'
+run Edit "$REPO/src/sum_test.go" "$(edit_input $'\tif got != 3 {' $'\tif got != 3 && ok {')"
+assert_not_contains "go-testing: a compound condition is not read as a changed literal" "$out" "changed the expected"
 
 # A removed test block is denied with the rule on.
 run Write "$REPO/src/sum.test.ts" "$(jq -cn --arg c "$(sed '/^test(.adds zero/,$d' "$REPO/src/sum.test.ts")" '{content: $c}')"

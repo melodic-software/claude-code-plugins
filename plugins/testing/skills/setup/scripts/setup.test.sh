@@ -83,8 +83,57 @@ assert_eq "apply writes the answers as .claude/testing.yaml" "$expected" "$(cat 
 run check
 assert_line "check prints the resolved config" "$out" $'^rules\\.weak-oracle\twarn$'
 assert_contains "and a hook entry for the uncovered glob" "$out" '"if": "Write(*.it.ts)"'
-assert_contains "that runs test-scan with --enabled" "$out" 'exec bash \"$p\" --enabled"'
+assert_contains "that runs test-scan with --enabled" "$out" 'exec bash \"$p\" --enabled'
 assert_contains "with an Edit row too" "$out" '"if": "Edit(*.it.ts)"'
+assert_contains "run outside the plugin cache, the marketplace is a placeholder" "$out" 'cache/<marketplace>\"/testing/'
+assert_contains "with a note saying so" "$out" 'replace <marketplace>'
+cmd="$(sed -n '/^{/,$p' <<<"$out" | jq -r '.hooks.PostToolUse[0].hooks[0].command')"
+rc=0
+got="$(echo '{}' | bash -c "$cmd" 2>&1)" || rc=$?
+assert_eq "left unreplaced, the entry says so on stderr and exits 0" \
+  "0:testing: no installed test-scan.sh under ~/.claude/plugins/cache/<marketplace>/testing takes --enabled; this settings hook did nothing" "$rc:$got"
+
+# The entry, run from a cached copy: pinned to that copy's marketplace, the
+# highest version by sort -V whatever the mtimes, and never silent.
+C="$HOME/.claude/plugins/cache"
+mkdir -p "$C/mk/testing" "$C/other/testing/9.0.0/hooks"
+ln -s "$(cd "$(dirname "$SETUP")/../../.." && pwd)" "$C/mk/testing/0.0.1"
+for v in 1.9.0 1.10.0; do
+  mkdir -p "$C/mk/testing/$v/hooks"
+  printf 'cat >/dev/null; echo "%s $*" # --enabled\n' "$v" >"$C/mk/testing/$v/hooks/test-scan.sh"
+done
+printf 'echo other --enabled\n' >"$C/other/testing/9.0.0/hooks/test-scan.sh"
+touch -d '1 minute ago' "$C/mk/testing/1.10.0/hooks/test-scan.sh"
+rc=0
+out="$(bash "$C/mk/testing/0.0.1/skills/setup/scripts/setup.sh" check --root "$R" 2>&1)" || rc=$?
+assert_contains "run from the cache, the entry pins that marketplace" "$out" 'cache/mk\"/testing/*/hooks/test-scan.sh'
+cmd="$(sed -n '/^{/,$p' <<<"$out" | jq -r '.hooks.PostToolUse[0].hooks[0].command')"
+entry() {
+  rc=0
+  out="$(echo '{}' | bash -c "$cmd" 2>&1)" || rc=$?
+}
+entry
+assert_eq "the entry runs the highest version by sort -V, not the newest mtime" "0:1.10.0 --enabled" "$rc:$out"
+rm -rf "$C/mk/testing/1.10.0" "$C/mk/testing/0.0.1"
+printf 'echo old\n' >"$C/mk/testing/1.9.0/hooks/test-scan.sh"
+entry
+assert_contains "a copy that predates --enabled prints why on stderr" "$out" "--enabled"
+assert_eq "and exits 0" 0 "$rc"
+assert_eq "without running it" "" "$(grep -x old <<<"$out")"
+rm -rf "$C/mk"
+entry
+assert_contains "no installed copy prints why on stderr" "$out" "test-scan"
+assert_eq "and exits 0" 0 "$rc"
+rm -rf "$HOME/.claude/plugins"
+
+# A paths.include glob adds no basename to the hook's `if` rows, so it needs
+# no entry.
+cp "$R/.claude/testing.yaml" "$T/kept.yaml"
+run apply --include 'legacy/**' --include 'tests/*.py'
+run check
+assert_contains "paths.include globs print no hook entry" "$out" "none: every consumer test glob is covered"
+assert_eq "and no Write(**) or Write(*.py) row" "" "$(grep -F -e 'Write(**)' -e 'Write(*.py)' <<<"$out")"
+cp "$T/kept.yaml" "$R/.claude/testing.yaml"
 
 cp "$R/.claude/testing.yaml" "$T/kept.yaml"
 run apply --rule no-such-rule=off

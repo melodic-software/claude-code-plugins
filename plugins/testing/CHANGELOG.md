@@ -61,18 +61,26 @@ All notable changes to the `testing` plugin are documented here. Format follows
   `adapter_dirs` loads consumer adapters, and `rules.<rule>: off | warn | error` drops a rule's
   findings, keeps them out of the `--check` gate, or gates them. The scanner applies all of it, so
   an excluded file or a disabled adapter also silences the `test-scan` hook, rules note included.
-  The audit names every consumer glob no shipped hook row matches. A repository with no layer file
-  scans exactly as before.
+  A file whose adapter is off is not scanned at all, never handed to another adapter that matches
+  its name. The team and local layers are read from the scanned file's own repository, so a
+  sibling worktree uses its own config; a UTF-8 byte-order mark and a leading `~/` in
+  `adapter_dirs` are accepted. An unknown adapter id is refused at its file and line, and the
+  `test-scan` hook names an invalid config back to Claude instead of going quiet. The audit names
+  every consumer adapter or `extend` glob no shipped hook row matches. A repository with no layer
+  file scans exactly as before.
 - **setup:** `/testing:setup check | apply`. `check` prints the resolved config, which test-lint
   rules the lint config turns on per language (a missing `valid-expect`, Playwright await or
   focused-test rule, `xUnit2021`, `NUnit2009`, or ruff `PLR0124`, `PT011` or `F631` is a finding),
   an optional instruction line to paste, and a `.claude/settings.json` entry for each glob the
   shipped hook skips. `apply` writes only `.claude/testing.yaml`. The `test-scan` hook takes
   `--enabled` for that settings entry, since a settings hook receives no plugin option variables.
+  The entry runs the highest installed version of the plugin from the marketplace `check` ran
+  from, says so on stderr when no installed copy takes `--enabled`, and shares the plugin hook's
+  markers, so a file both cover is reported once.
 - **hooks:** opt-in `test-weaken` PreToolUse hook, under the same `test_guards_enabled` option and
   the same generated `if` rows as `test-scan`. Before Claude writes or edits a test file it
   compares the old text with the new and names removed test blocks, removed assertions, added skip
-  markers and changed expected values, then asks Claude for its reason. It returns no permission
+  markers (a suite skip such as `describe.skip` included) and changed expected values, then asks Claude for its reason. It returns no permission
   decision, so the user's own prompt still applies. With `rules: {test-weaken-block: error}` in
   `.claude/testing.yaml`, an added skip or a removed test block is denied until the edit carries a
   `test-change: <reason>` comment; removed assertions and changed expected values never deny. A

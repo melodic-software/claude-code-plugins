@@ -33,7 +33,7 @@
 # test start still counts (the test-weaken hook compares two of these):
 #   <n> <tab> test|assertion|skip <tab> <count> <tab> <line>   test_start, assertion
 #                                                      (calls, snapshot, mock.verify) and
-#                                                      test_skip/body_skip matches on a line
+#                                                      test_skip/body_skip/suite_skip matches on a line
 #   <n> <tab> expect <tab> <actual> <tab> <literal>    an equality with one literal side
 #   <n> <tab> unjudged                                 the lexer ended inside a string or comment
 #
@@ -513,7 +513,27 @@ function inv_line(    t, n) {
   t = clean_detail(trim(raw))
   if ((n = inv_count(masked, R_START)) > 0) printf "%s\ttest\t%d\t%s\n", INVENTORY, n, t
   if ((n = inv_count(masked, R_ANY) + inv_count(masked, R_MOCKA)) > 0) printf "%s\tassertion\t%d\t%s\n", INVENTORY, n, t
-  if ((n = inv_count(masked, R_SKIP) + inv_count(masked, R_BODY_SKIP)) > 0) printf "%s\tskip\t%d\t%s\n", INVENTORY, n, t
+  if ((n = inv_count(masked, R_SKIP) + inv_count(masked, R_BODY_SKIP) + inv_count(masked, R_SUITE_SKIP)) > 0) printf "%s\tskip\t%d\t%s\n", INVENTORY, n, t
+  inv_cmp()
+}
+
+# A comparison statement with exactly one comparison operator and no && || ;
+# the Go `if got != 3 {` and the bash `[ "$output" = "3" ]` forms. The masked
+# line gates, the raw line gives the sides; inv_eq keeps only a literal side.
+function inv_cmp(    m, n, l, r) {
+  m = masked
+  if (LEXER == "go") {
+    if (m !~ /^[[:space:]]*if[[:space:]].*\{[[:space:]]*$/ || m ~ /&&|\|\||;/) return
+    if ((n = gsub(/[!=]=/, "&", m)) != 1 || !match(m, /[!=]=/)) return
+    l = substr(raw, 1, RSTART - 1); r = substr(raw, RSTART + RLENGTH)
+    sub(/^[[:space:]]*if[[:space:]]+/, "", l); sub(/\{[[:space:]]*$/, "", r)
+  } else if (LEXER == "bash") {
+    if (m !~ /^[[:space:]]*\[\[?[[:space:]].*[[:space:]]\]\]?[[:space:]]*$/ || m ~ /&&|\|\||;/) return
+    if ((n = gsub(/[[:space:]](==?|!=|-eq|-ne)[[:space:]]/, "&", m)) != 1 || !match(m, /[[:space:]](==?|!=|-eq|-ne)[[:space:]]/)) return
+    l = substr(raw, 1, RSTART - 1); r = substr(raw, RSTART + RLENGTH)
+    sub(/^[[:space:]]*\[\[?[[:space:]]+/, "", l); sub(/[[:space:]]+\]\]?[[:space:]]*$/, "", r)
+  } else return
+  inv_eq(l, r)
 }
 
 # An equality whose one side is a literal: the other side, then the literal.

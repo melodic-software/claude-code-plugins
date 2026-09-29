@@ -2,7 +2,7 @@
 # resolve-config.sh — resolve the testing plugin's .claude/testing.yaml cascade.
 #
 # LAYERS, per the config-cascade convention, in order: user-global
-# (~/.claude/testing.yaml), team (${CLAUDE_PROJECT_DIR:-<root>}/.claude/testing.yaml)
+# (~/.claude/testing.yaml), team (<root>/.claude/testing.yaml)
 # and a gitignored personal overlay (<root>/.claude/testing.local.yaml). Lists
 # concatenate with the first occurrence kept; a scalar in a later layer
 # overrides. The format is the adapters' YAML subset, parsed by
@@ -15,12 +15,16 @@
 #   adapters.disable    adapter id; wins over enable
 #   paths.include       glob relative to <root>, normalized
 #   paths.exclude       glob relative to <root>, normalized; wins over include
-#   adapter_dirs        absolute directory of consumer adapters
+#   adapter_dirs        absolute directory of consumer adapters (a leading ~/
+#                       is $HOME)
 #   extend.<id>.<field> one item appended to that adapter's list field
 #   rules.<slug>        off | warn | error (test-weaken-block: the test-weaken
 #                       hook denies an added skip or a removed test at error)
-#   hook.uncovered      a consumer basename glob (paths.include, extend.*.files,
-#                       a consumer adapter's files:) no shipped hook row matches
+#   hook.uncovered      a consumer basename glob (extend.*.files, a consumer
+#                       adapter's files:) no shipped hook row matches. Never a
+#                       paths.include glob: it adds no basename an adapter
+#                       does not already claim, and the hook rows match
+#                       basenames in any directory.
 # No layer present prints nothing. Adapter ids and extend fields are checked
 # against the shipped adapters plus adapter_dirs.
 #
@@ -28,7 +32,8 @@
 # C:\ to /c/, a leading ./ dropped). ** matches across /, and **/ also matches
 # no directory; * and ? never match /. Other characters are literal, [ included.
 #
-# CRLF: the parser strips a trailing \r, so a layer saved on Windows loads.
+# CRLF and BOM: the parser strips a trailing \r and a leading UTF-8 byte-order
+# mark, so a layer saved on Windows loads.
 #
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
@@ -37,10 +42,12 @@
 #   source resolve-config.sh                  defines tcfg_norm, tcfg_glob_re
 #
 #   --root  the repository root the team and overlay layers and relative paths
-#           resolve against. Default: the current directory's git toplevel.
+#           resolve against. Default: the current directory's git toplevel,
+#           else $CLAUDE_PROJECT_DIR.
 #   --home  the directory holding the user-global layer. Default: $HOME.
-#   --quick skip the adapter checks and hook.uncovered: the test-scan hook path,
+#   --quick skip the adapter load and hook.uncovered: the test-scan hook path,
 #           where the scanner's own adapter load still refuses a bad extend.
+#           Adapter ids are still checked, against the adapter files' id: lines.
 #
 # Exit: 0 resolved, 2 usage error or an unreadable, unparsable or invalid
 # layer (the file and line are named on stderr).
@@ -129,7 +136,8 @@ done
 
 if [[ -z "$ROOT" ]]; then
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$ROOT" ]] || die "not inside a git repository and no --root given"
+  ROOT="${ROOT:-${CLAUDE_PROJECT_DIR:-}}"
+  [[ -n "$ROOT" ]] || die "not inside a git repository, no CLAUDE_PROJECT_DIR and no --root given"
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
@@ -141,7 +149,7 @@ LOADER="$PLUGIN/skills/audit/scripts/adapter-load.awk"
 layers=()
 declare -A layer_seen=()
 for f in ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"} \
-  "${CLAUDE_PROJECT_DIR:-$ROOT}/.claude/testing.yaml" "$ROOT/.claude/testing.local.yaml"; do
+  "$ROOT/.claude/testing.yaml" "$ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
   [[ -r "$f" ]] || die "layer is not readable: $f"
   layer_seen[$f]=1
@@ -153,8 +161,7 @@ records="$(awk -v MODE=config -f "$LOADER" "${layers[@]}")" || exit 2
 
 out=()
 dirs=()
-enable=()
-disable=()
+ids=()
 consumer_globs=()
 ext=""
 for f in "${layers[@]}"; do out+=("layer"$'\t'"$f"); done
@@ -164,18 +171,17 @@ while IFS=$'\t' read -r key val; do
   paths.include | paths.exclude)
     tcfg_norm "$val"
     val="$TCFG_NORM"
-    [[ "$key" == paths.include ]] && consumer_globs+=("${val##*/}")
     ;;
   adapter_dirs)
     tcfg_norm "$val"
     val="$TCFG_NORM"
+    [[ "$val" == \~/* ]] && val="${HOME:-}/${val#\~/}"
     [[ "$val" == /* ]] || val="$ROOT/$val"
     [[ -d "$val" ]] || die "adapter_dirs entry is not a directory: $val"
     val="$(cd "$val" && pwd)"
     dirs+=("$val")
     ;;
-  adapters.enable) enable+=("$val") ;;
-  adapters.disable) disable+=("$val") ;;
+  adapters.enable | adapters.disable) ids+=("$val") ;;
   extend.*)
     rest="${key#extend.}"
     ext+="${rest%%.*}"$'\t'"${rest#*.}"$'\t'"$val"$'\n'
@@ -185,31 +191,42 @@ while IFS=$'\t' read -r key val; do
   esac
   out+=("$key"$'\t'"$val")
 done <<<"$records"
+
+# Adapter ids come from the id: lines, so --quick checks them without a load.
+extra=()
+for d in ${dirs[@]+"${dirs[@]}"}; do
+  for f in "$d"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done
+done
+id_lines() { sed -n "s/^id:[[:space:]]*['\"]\{0,1\}\([A-Za-z0-9_.-]*\).*/\1/p" "$@"; }
+declare -A known=() shipped=()
+while read -r id; do shipped[$id]=1; done < <(id_lines "$PLUGIN"/skills/audit/adapters/*.yaml)
+while read -r id; do known[$id]=1; done < <(id_lines "$PLUGIN"/skills/audit/adapters/*.yaml ${extra[@]+"${extra[@]}"})
+for id in ${ids[@]+"${ids[@]}"}; do
+  [[ -z "${known[$id]:-}" ]] || continue
+  loc="${layers[*]}"
+  for f in "${layers[@]}"; do
+    if n="$(grep -nwF -m1 -- "$id" "$f")"; then
+      loc="$f:${n%%:*}"
+      break
+    fi
+  done
+  die "$loc: unknown adapter: $id (in adapters.enable or adapters.disable)"
+done
 if ((QUICK)); then
   printf '%s\n' "${out[@]}"
   exit 0
 fi
 
-# Load every adapter once with the extensions applied, so an unknown id or a
-# bad extension fails here, where the layer is named, not mid-scan.
-extra=()
-for d in ${dirs[@]+"${dirs[@]}"}; do
-  for f in "$d"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done
-done
+# Load every adapter once with the extensions applied, so a bad extension
+# fails here, where the layer is named, not mid-scan.
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 printf '%s' "$ext" >"$W/extend"
 table="$(awk -v EXTEND="${W}/extend" -f "$LOADER" "$PLUGIN"/skills/audit/adapters/*.yaml ${extra[@]+"${extra[@]}"})" ||
   die "adapter load failed with this config (layers: ${layers[*]})"
-declare -A known=() shipped=()
-while read -r id; do shipped[$id]=1; done < <(sed -n 's/^id: *//p' "$PLUGIN"/skills/audit/adapters/*.yaml)
 while IFS=$'\t' read -r id key val; do
-  known[$id]=1
   [[ "$key" == files && -z "${shipped[$id]:-}" ]] && consumer_globs+=("$val")
 done <<<"$table"
-for id in ${enable[@]+"${enable[@]}"} ${disable[@]+"${disable[@]}"}; do
-  [[ -n "${known[$id]:-}" ]] || die "adapters.enable or adapters.disable names an unknown adapter: $id (layers: ${layers[*]})"
-done
 
 # A consumer glob is covered when a shipped hook row names it, or when it is a
 # literal name a shipped row's glob matches.

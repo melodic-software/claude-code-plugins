@@ -255,13 +255,18 @@ check() {
     printf 'none: every consumer test glob is covered by a shipped test-scan hook row\n'
   else
     printf 'The test-scan hook skips %s. Add this PostToolUse entry to .claude/settings.json to cover them;\n' "${globs[*]}"
-    printf 'a settings hook gets no plugin variables, so it finds the installed plugin itself and passes --enabled.\n'
+    printf 'a settings hook gets no plugin variables, so it runs the highest installed version and passes --enabled;\n'
+    printf 'with no installed copy that takes --enabled it says so on stderr and exits 0.\n'
+    # Pinned to the marketplace this copy runs from, so another marketplace's
+    # plugin named testing is never picked.
+    local mkt='<marketplace>' rest="${PLUGIN#*/.claude/plugins/cache/}"
+    if [[ "$rest" != "$PLUGIN" && "$rest" == */testing/* ]]; then
+      mkt="${rest%%/*}"
+    else
+      printf 'This copy is not in the plugin cache, so replace <marketplace> with the marketplace the testing plugin is installed from.\n'
+    fi
     # shellcheck disable=SC2016 # the command is for the hook's shell, not this one
-    # Pin this copy's marketplace when it runs from the plugin cache, so another
-    # marketplace's plugin named testing is never picked.
-    local mkt='*' rest="${PLUGIN#*/.claude/plugins/cache/}"
-    [[ "$rest" != "$PLUGIN" && "$rest" == */testing/* ]] && mkt="${rest%%/*}"
-    local cmd='p=$(ls -td "$HOME"/.claude/plugins/cache/'"$mkt"'/testing/*/hooks/test-scan.sh 2>/dev/null | head -n 1); [ -z "$p" ] || exec bash "$p" --enabled'
+    local cmd='p=$(ls -d "$HOME/.claude/plugins/cache/'"$mkt"'"/testing/*/hooks/test-scan.sh 2>/dev/null | sort -V | tail -n 1); if [ -n "$p" ] && grep -q -e --enabled "$p"; then exec bash "$p" --enabled; fi; echo "testing: no installed test-scan.sh under ~/.claude/plugins/cache/'"$mkt"'/testing takes --enabled; this settings hook did nothing" >&2'
     {
       for g in "${globs[@]}"; do
         jq -n --arg g "$g" --arg c "$cmd" '("Write", "Edit") | {type: "command", command: $c, if: "\(.)(\($g))", timeout: 10}'

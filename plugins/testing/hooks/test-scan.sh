@@ -54,7 +54,19 @@ tool="${HOOK_JQ_FIELDS[0]}" session="${HOOK_JQ_FIELDS[1]}" agent="${HOOK_JQ_FIEL
 call="${HOOK_JQ_FIELDS[3]}" wtype="${HOOK_JQ_FIELDS[4]}" has_patch="${HOOK_JQ_FIELDS[5]}"
 lines="${HOOK_JQ_FIELDS[6]}"
 
-DATA="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/testing-plugin-data}"
+# The consumer settings entry gets no CLAUDE_PLUGIN_DATA; it derives the same
+# directory from this copy's cache path (~/.claude/plugins/cache/<mkt>/testing/
+# <version>/hooks), so a call through both paths shares one set of markers.
+DATA="${CLAUDE_PLUGIN_DATA:-}"
+if [[ -z "$DATA" ]]; then
+  DATA="${XDG_STATE_HOME:-${HOME:-}/.local/state}/claude-testing"
+  rest="$(cd "$HOOK_DIR/.." && pwd)"
+  rest="${rest#"${HOME:-}"/.claude/plugins/cache/}"
+  if [[ "$rest" =~ ^([^/]+)/testing/[^/]+$ ]]; then
+    mkt="${BASH_REMATCH[1]}"
+    DATA="${HOME:-}/.claude/plugins/data/testing-${mkt//[^A-Za-z0-9_-]/-}"
+  fi
+fi
 mkdir -p "$DATA/marks" 2>/dev/null
 # No -type: markers are files now, and directories the earlier mkdir scheme left.
 find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
@@ -98,8 +110,16 @@ kill "$watchdog" 2>/dev/null
 if ((rc != 0)); then
   why="scanner exited $rc"
   ((rc > 128)) && why="scanner timed out after ${TEST_SCAN_TIMEOUT:-8}s"
+  # A config the scanner refuses is the agent's to fix: log the resolver's or
+  # loader's own message and name it, at its file and line, in the context.
+  cfg_err=""
+  if grep -q -e '^ERROR: .claude/testing.yaml did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
+    cfg_err="$(grep -m1 -E '^(resolve-config|adapter-load): ' "$out_file")"
+    why="${cfg_err:-$why}"
+  fi
   printf '%s test-scan: %s: %s\n' "$(date -u +%FT%TZ)" "$FILE" "$why" >>"$DATA/test-scan.log"
   printf 'test-scan: %s: %s\n' "$FILE" "$why" >&2
+  [[ -z "$cfg_err" ]] || hook::finish --context "testing: the testing config is invalid, so test-scan did not check $FILE_BASE: $cfg_err" error findings array '[]'
   hook::finish error findings array '[]'
 fi
 

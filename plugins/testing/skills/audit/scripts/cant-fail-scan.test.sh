@@ -1661,6 +1661,51 @@ assert_not_contains "--inventory of an excluded path prints no inventory" "$out"
 cfg_set 'rules:' '  rule-no-such: off'
 cfg_scan
 assert_exit "an invalid config refuses the scan" 2 "$rc"
+# A disabled adapter's file is silenced, never handed to a sibling that also
+# claims its name: js-jest claims *.test.ts, py-unittest test_*.py.
+cfg_hook() {
+  printf '{"hook_event_name":"PostToolUse","tool_name":"Write","session_id":"s","tool_use_id":"%s","tool_input":{"file_path":"%s"},"tool_response":{"type":"create","structuredPatch":[]}}' "$1" "$2" |
+    env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CLAUDE_PLUGIN_DATA="$TMP_ROOT/cfg-data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true \
+      bash "$SCRIPT_DIR/../../../hooks/test-scan.sh" 2>&1
+}
+printf 'def test_x():\n    add(1, 2)\n' >"$CFG/src/test_x.py"
+cfg_set 'adapters:' '  disable: [js-vitest, py-pytest]'
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_contains "disable js-vitest: a vitest file is not handed to js-jest" "$out" "test files: 0 examined"
+cfg_scan --file "$CFG/src/test_x.py"
+assert_contains "disable py-pytest: a pytest file is not handed to py-unittest" "$out" "test files: 0 examined"
+cfg_scan
+assert_not_contains "and the audit reports neither" "$out" "bad.test.ts"
+assert_not_contains "nor the pytest file" "$out" "test_x.py"
+hook_out="$(cfg_hook cfg-dis-1 "$CFG/src/bad.test.ts")$(cfg_hook cfg-dis-2 "$CFG/src/test_x.py")"
+if [[ -z "$hook_out" ]]; then pass "test-scan.sh is silent on both"; else fail "test-scan.sh is silent on both" "$hook_out"; fi
+cfg_set 'adapters:' '  enable: [js-jest]'
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_contains "an enable allowlist without js-vitest silences a vitest file too" "$out" "test files: 0 examined"
+rm -f "$CFG/src/test_x.py"
+# rules error: a report-only rule that now gates is not called report-only.
+cfg_set 'rules:' '  rule-weak-oracle: error'
+cfg_scan --check
+assert_not_contains "a rule at error is left out of the report-only note" "$out" "weak-oracle 1"
+# A UTF-8 byte-order mark at the start of a layer is not part of its first key.
+printf '\357\273\277paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
+cfg_scan
+assert_exit "a layer starting with a UTF-8 BOM loads" 0 "$rc"
+assert_finding_count "and applies" 2
+# The team layer is the scanned repository's own, not CLAUDE_PROJECT_DIR's:
+# a sibling worktree or repository uses its own config.
+OTHER="$TMP_ROOT/cfg-other"
+mkdir -p "$OTHER/.claude" "$OTHER/src"
+git -C "$OTHER" init -q
+cp "$CFG/src/bad.test.ts" "$OTHER/src/bad.test.ts"
+printf 'adapters:\n  disable: [js-vitest]\n' >"$OTHER/.claude/testing.yaml"
+rm -f "$CFG/.claude/testing.yaml"
+rc=0
+out="$(CLAUDE_PROJECT_DIR="$CFG" HOME="$CFG_HOME" bash "$SCAN" --file "$OTHER/src/bad.test.ts" 2>&1)" || rc=$?
+assert_contains "a file in another repository gets that repository's team layer" "$out" "test files: 0 examined"
+rc=0
+out="$(CLAUDE_PROJECT_DIR="$OTHER" HOME="$CFG_HOME" bash "$SCAN" --file "$CFG/src/bad.test.ts" 2>&1)" || rc=$?
+assert_contains "and CLAUDE_PROJECT_DIR's layer does not leak into it" "$out" "rule-zero-assertion"
 rm -f "$CFG/.claude/testing.yaml"
 mkdir -p "$CFG_HOME/.claude"
 printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml"

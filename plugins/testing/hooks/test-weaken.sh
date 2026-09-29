@@ -6,9 +6,9 @@
 # permission prompt. Opt-in and path-scoped exactly as test-scan.sh is.
 #
 # Weakening, against the text the call replaces: fewer test blocks, fewer
-# assertion tokens, more skip markers (the adapter's test_skip and body_skip),
-# or an equality whose actual side stayed while its literal expected side
-# changed. cant-fail-scan.sh --inventory counts both sides with the file's own
+# assertion tokens, more skip markers (the adapter's test_skip, body_skip and
+# suite_skip), or an equality whose actual side stayed while its literal
+# expected side changed. cant-fail-scan.sh --inventory counts both sides with the file's own
 # adapter and config, so this hook holds no token list of its own. An Edit
 # compares old_string with new_string; a Write compares the file on disk with
 # content, and a Write that creates the file weakens nothing (hook::begin exits

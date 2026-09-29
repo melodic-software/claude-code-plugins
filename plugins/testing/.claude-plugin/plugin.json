@@ -21,7 +21,7 @@
     "test_guards_enabled": {
       "type": "boolean",
       "title": "Test guard hooks",
-      "description": "Scan each test file Claude writes or edits for tests that cannot fail, and feed the findings back to Claude. Off by default.",
+      "description": "Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
       "default": false
     },
     "stdin_read_timeout": {
