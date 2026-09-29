@@ -1,6 +1,6 @@
 ---
 description: "Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
-argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+argument-hint: "[scope] [--target-model <version>] [--opinion] [--persist-findings] [--unattended]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
@@ -120,7 +120,7 @@ subcommand set, the distribution facts behind it, and their recheck triggers are
 
 ## Arguments
 
-Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
+Full form: `[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]`; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all). Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 

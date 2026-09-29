@@ -64,8 +64,8 @@ Two override surfaces with different reach. Pick by which consumers must honor t
 
 ### Safety properties
 
-It is **lock-safe** around the machine-singleton Collector: it holds a mkdir-atomic sentinel
-(`.prune-in-progress`) so concurrent prunes cannot overlap, stops the provisioning-owned
+It is **lock-safe** around the machine-singleton Collector: it holds a sentinel directory
+(`.prune-in-progress`), claimed by an O_EXCL owner token, so concurrent prunes cannot overlap, stops the provisioning-owned
 `otelcol-contrib` Windows service, then per file: compacts aged lines
 to cold, surgically strips aged body records, verifies the trimmed temp parses (`duckdb
 read_json_auto`), and only then atomically replaces the hot file. **Compact-before-trim +

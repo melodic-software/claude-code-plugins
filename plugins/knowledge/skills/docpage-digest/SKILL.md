@@ -1,9 +1,11 @@
 ---
 description: "Ingest a single online documentation page into a verified knowledge slice with dual verification and an interview-ready handoff. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL. Book files route to /knowledge:book-distill; courses to course-digest; single videos to video-digest."
-argument-hint: "[url] (e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort)"
+argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
 ---
+
+**Arguments.** `[url]`. e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort
 
 # Docpage Digest
 

@@ -1,0 +1,7 @@
+# Vitest: Jest's vocabulary, claimed when the file imports vitest or uses vi.*.
+id: js-vitest
+extends: js-jest
+detect:
+  any_regex:
+    - '[''"]vitest[''"]'
+    - 'vi\.(fn|mock|spyOn)'

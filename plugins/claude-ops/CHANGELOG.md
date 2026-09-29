@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.33] - 2026-09-28
+
+### Fixed
+
+- **The restart consumer's lock and the OTEL prune sentinel admit one holder on uutils
+  coreutils.** uutils `mkdir` (Ubuntu 25.10+) is not atomic: two racing calls can both
+  succeed, so two runs could relaunch the same lane or two prunes could overlap. Both keep
+  their lock directory, so readers that test for it still work, and now decide the race with
+  a token file inside it (`owner-pid`, `owner`) created with bash `noclobber`, an `O_EXCL`
+  open. Stale-lock recovery is unchanged.
+
+## [0.63.32] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `audit-performance`, `audit-skill-visibility`, `changelog`, `inventory`, `known-issues`, `lanes`, `morning-brief`, `observability`, `plugins` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.63.31] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
 ## [0.63.30] - 2026-09-28
 
 ### Changed

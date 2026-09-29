@@ -1,6 +1,6 @@
 ---
 description: "Re-run the placement audit and report only what MOVED since the last run, above a noise budget. Declined findings stay declined. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only. Realign still owns every change."
-argument-hint: "[--since <ISO date>] [--noise-budget <n>]. Default: since the artifact's last run"
+argument-hint: "[--since <ISO date>] [--noise-budget <n>]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -19,6 +19,8 @@ metadata:
   workflow-stage: anytime
   summary: Report only what moved since the last placement audit
 ---
+
+**Arguments.** `[--since <ISO date>] [--noise-budget <n>]`. Default: since the artifact's last run
 
 ## Pre-computed context
 

@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "playwright-cli",
+      "check": "/playwright:setup check",
+      "install": "npm install -g @playwright/cli"
+    }
+  ]
+}

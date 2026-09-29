@@ -1,6 +1,6 @@
 ---
 description: "List every Claude Code surface this machine can invoke: built-in commands, bundled skills, and every installed plugin component. Read-only. Use when: 'what slash commands do I have', 'list all my skills', 'what agents are available', 'show me every plugin component', 'what does Claude Code ship built-in', 'is /foo a real command', 'what changed after the update', 'show me only the plugin ones', 'what does marketplace X give me'. On-disk audit: /claude-ops:audit-install-state."
-argument-hint: "[--builtin|--plugins|--bundled|--agents|--hooks] [--marketplace <name>] [--diff <file>], or just ask in words"
+argument-hint: "[--builtin|--plugins|--bundled|--agents|--hooks] [--marketplace <name>] [--diff <file>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,8 @@ metadata:
   summary: Enumerate every command, skill, agent, and plugin component this machine can invoke
   cadence: weekly
 ---
+
+**Arguments.** `[--builtin|--plugins|--bundled|--agents|--hooks] [--marketplace <name>] [--diff <file>]`. Full form: [--builtin|--plugins|--bundled|--agents|--hooks] [--marketplace <name>] [--diff <file>], or just ask in words
 
 ## Purpose
 

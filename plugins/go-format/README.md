@@ -57,7 +57,7 @@ surfaces the syntax error back to Claude as advisory context.
   per-repo dependency-manager convention. It is conventionally
   `go install`ed to the machine-global `$GOPATH/bin`. It is never
   downloaded on the fly; if it is not present, the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip.
+  visible notice, once per session (a `prerequisite` notice), renewed with the install route every eighth skip.
   [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
   `go install golang.org/x/tools/cmd/goimports@latest` (requires a
   [Go toolchain](https://go.dev/dl/)).

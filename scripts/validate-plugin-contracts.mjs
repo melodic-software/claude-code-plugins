@@ -1164,6 +1164,59 @@ for (const path of argumentSkills) {
   }
 }
 
+// argument-hint house style. The owner doc decides; this gate points at it.
+// Empty fails (omit the key instead). Over budget and malformed warn, so a
+// drifting hint does not turn the fleet red on its own; the contract test
+// asserts the shipping tree draws zero warnings.
+const ARGUMENT_HINT_DOC = "docs/conventions/argument-hint/README.md";
+const ARGUMENT_HINT_BUDGET = 100;
+const warnings = [];
+
+function argumentHintMalformed(value) {
+  if (/^[|>]/.test(value) || value.includes(String.fromCodePoint(0x2014))) return true;
+  if (/\((?:e\.g\.|for example)/i.test(value) || value.includes("Default:")) return true;
+  let depth = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    const c = value[i];
+    if (c === "[" || c === "<") depth += 1;
+    else if ((c === "]" || c === ">") && depth > 0) depth -= 1;
+    else if (c === "|" && depth === 0 && (value[i - 1] !== " " || value[i + 1] !== " ")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+for (const path of argumentSkills) {
+  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
+  if (!hint) continue;
+  // A trailing YAML comment is not part of the value: `"" # none` is empty.
+  const raw = hint[1].trim();
+  const quoted = /^(["'])(.*?)\1\s*(?:#.*)?$/.exec(raw);
+  const value = quoted ? quoted[2] : raw.replace(/(?:^|\s+)#.*$/, "");
+  if (value.trim() === "") {
+    fail(
+      path,
+      `argument-hint must be omitted when a skill takes no arguments, never declared empty (${ARGUMENT_HINT_DOC})`,
+    );
+    continue;
+  }
+  const length = [...value].length;
+  if (length > ARGUMENT_HINT_BUDGET) {
+    warnings.push(
+      `${relative(root, path)}: argument-hint is ${length} characters, over the ${ARGUMENT_HINT_BUDGET}-character budget (${ARGUMENT_HINT_DOC})`,
+    );
+  }
+  if (argumentHintMalformed(value)) {
+    warnings.push(
+      `${relative(root, path)}: argument-hint is malformed: block scalar, em dash, parenthetical example, Default: prose, or an unspaced pipe outside brackets (${ARGUMENT_HINT_DOC})`,
+    );
+  }
+}
+
+for (const warning of warnings) console.error(`warning: ${warning}`);
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

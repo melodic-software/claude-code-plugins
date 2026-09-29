@@ -243,9 +243,10 @@ main() {
     return 0
   fi
 
-  # Acquire the mkdir-atomic sentinel (lock + revival-race signal). Failure => another prune holds it.
+  # Acquire the sentinel (lock + revival-race signal). Failure => another prune holds it.
   mkdir -p "$store_dir"
-  if ! mkdir "$SENTINEL" 2>/dev/null; then
+  # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+  if ! take_sentinel; then
     err "a prune is already in progress ($SENTINEL) — exiting"
     printf 'action=noop-locked\n'
     return 0

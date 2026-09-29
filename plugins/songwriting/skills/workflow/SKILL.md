@@ -1,9 +1,11 @@
 ---
 description: "Start-here situation router for songwriting with Pat Pattison's methods. Picks the scenario for a blank page, an idea/seed, a stuck fragment, a co-write, a diagnose-only pass, or a daily habit, and runs step-by-step coaching dialog. Also applies Pat's response filter to AI-generated material and points to going-deeper resources (Coursera / Berklee / columns / podcasts). Use when: 'I want to write a new song', 'I have nothing, just want to write', 'I have an image but no title', 'this fragment is stuck', 'walk me through writing this', 'guide me', 'where do I start', 'review the rhyme list this AI gave me', 'how do I go deeper'. Craft-specific requests route to the concern skills below."
-argument-hint: "[action] [args] (e.g., /songwriting:workflow, /songwriting:workflow coach, /songwriting:workflow brainstorm). Full actions in body"
+argument-hint: "[action] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
+
+**Arguments.** `[action] [args]`. e.g., /songwriting:workflow, /songwriting:workflow coach, /songwriting:workflow brainstorm Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 

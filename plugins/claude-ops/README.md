@@ -11,7 +11,7 @@
 - [License](#license)
 
 A Claude Code plugin for running Claude Code well over time. One cohesive
-capability across twelve skills and a family of telemetry-emitter hooks, including diagnosing why
+capability across thirteen skills and a family of telemetry-emitter hooks, including diagnosing why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the

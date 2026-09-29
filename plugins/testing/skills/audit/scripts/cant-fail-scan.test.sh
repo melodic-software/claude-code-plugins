@@ -725,6 +725,172 @@ else
 fi
 chmod 600 "$CFGUNREAD/playwright.config.js" 2>/dev/null || true
 
+# --- --file: scan exactly one file ---------------------------------------------
+# One file, the same exit codes as a whole-tree scan, repo-relative Location,
+# and no evals/fixtures prune: the path was named, so it is scanned.
+run_file() {
+  rc=0
+  out="$(bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+run_file --file "$FIX/positive/cant-fail-js.test.js"
+assert_exit "--file report completes (exit 0)" 0 "$rc"
+assert_contains "--file keeps Location repo-relative" "$out" \
+  "plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js.test.js:11: test 'adds numbers' has 0 assertion tokens"
+assert_not_contains "--file scans only the named file" "$out" "test_cant_fail_py.py"
+assert_contains "--file denominator is one file" "$out" "test files: 1 examined of 1 enumerated"
+run_file --file "$FIX/positive/CantFailTests.cs" --check
+assert_exit "--file --check exits 1 on a gating finding" 1 "$rc"
+run_file --check --file "$FIX/negative/test_discriminating_py.py"
+assert_exit "--file --check exits 0 on a clean test file" 0 "$rc"
+run_file --file "$FIX/negative/test_discriminating_py.py" --count
+assert_exit "--file --count completes" 0 "$rc"
+assert_matches "--file --count prints 0" "$out" '^0$'
+run_file --check --file "$SCRIPT_DIR/cant-fail-scan.sh"
+assert_exit "--file on a file no ecosystem claims fails closed (exit 2)" 2 "$rc"
+assert_contains "--file on an unclaimed file reports 0 examined" "$out" "0 test files were examined"
+run_file --file "$TMP_ROOT/no-such.test.js"
+assert_exit "--file on a missing path refuses (exit 2)" 2 "$rc"
+run_file --file
+assert_exit "--file without a value refuses (exit 2)" 2 "$rc"
+
+# --- adapter-load.awk: the YAML-subset adapter loader --------------------------
+# Driven through awk directly. Output is one `id<TAB>key<TAB>value` record per
+# scalar and per list item; anything outside the subset exits 2 naming the file
+# and line. The shipped adapters are js-jest.yaml, js-vitest.yaml,
+# py-pytest.yaml and cs-xunit.yaml. When an engine change must not move a
+# finding, run parity-check.sh beside this suite: it diffs the scanner at a
+# base ref against the working tree under gawk and mawk.
+LOAD="$SCRIPT_DIR/adapter-load.awk"
+ADIR="$TMP_ROOT/adapters"
+mkdir -p "$ADIR"
+# load_yaml <file-name> <content>: write the adapter, load it alone, leaving
+# stdout in $out, stderr in $err and the exit code in $rc.
+load_yaml() {
+  printf '%s' "$2" >"$ADIR/$1"
+  rc=0
+  out="$(awk -f "$LOAD" "$ADIR/$1" 2>"$TMP_ROOT/load.err")" || rc=$?
+  err="$(cat "$TMP_ROOT/load.err")"
+}
+TAB=$'\t'
+load_yaml good.yaml $'# comment line\r\nid: demo\r\nlanguage: js\nblock_model: brace  # trailing comment\nfiles: [\'*.test.js\', \'*.spec.js\']\ntest_start: [x]\ndetect:\n  any_regex:\n    - \'from [\'\'"]vitest\'\n  # nested comment\nassertion.calls:\n- \'expect[[:space:]]*\\(\'\nmock:\n  create: [\'vi\\.fn\']\n  verify:\n    - toHaveBeenCalled\nsuppress_marker: \'cant-fail-ok:\'\n'
+assert_exit "loader accepts the subset (exit 0)" 0 "$rc"
+assert_contains "loader emits a scalar, CR stripped, comment dropped" "$out" "demo${TAB}block_model${TAB}brace"
+assert_contains "loader emits each flow-list item" "$out" "demo${TAB}files${TAB}*.spec.js"
+assert_contains "loader nests block maps into dotted keys and unescapes ''" "$out" "demo${TAB}detect.any_regex${TAB}from ['\"]vitest"
+assert_contains "loader accepts a dotted key and a same-indent list item" "$out" "demo${TAB}assertion.calls${TAB}expect[[:space:]]*\\("
+assert_contains "loader closes a nested map key at a sibling" "$out" "demo${TAB}mock.verify${TAB}toHaveBeenCalled"
+assert_contains "loader keeps a quoted colon" "$out" "demo${TAB}suppress_marker${TAB}cant-fail-ok:"
+load_yaml dq.yaml $'id: dq\nlanguage: js\nfiles:\n  - "*.test.js"\n'
+assert_exit "loader rejects a double-quoted scalar (exit 2)" 2 "$rc"
+assert_contains "loader names the file and line of the rejection" "$err" "dq.yaml:4:"
+load_yaml ws.yaml $'id: ws\nlanguage: js\ntest_start:\n  - \'it\\s*\\(\'\n' # portability-ok: deliberately non-portable regex the loader must reject
+assert_exit "loader rejects a GNU class escape in a regex (exit 2)" 2 "$rc"
+assert_contains "loader names the non-portable regex line" "$err" "ws.yaml:4:"
+assert_contains "loader says why a GNU class escape is refused" "$err" "non-portable regex escape"
+load_yaml iv.yaml $'id: iv\nlanguage: js\ntest_start: [\'a{2}\']\n'
+assert_exit "loader rejects an interval in a regex (exit 2)" 2 "$rc"
+assert_contains "loader says why an interval is refused" "$err" "interval"
+load_yaml br.yaml $'id: br\nlanguage: js\ntest_start: [\'(a)\\1\']\n'
+assert_exit "loader rejects a backreference in a regex (exit 2)" 2 "$rc"
+assert_contains "loader says why a backreference is refused" "$err" "non-portable regex escape \\1"
+load_yaml uk.yaml $'id: uk\nlanguage: js\ntest_starts: [x]\n'
+assert_exit "loader rejects an unknown key (exit 2)" 2 "$rc"
+assert_contains "loader names the unknown key" "$err" "uk.yaml:3: unknown key: test_starts"
+load_yaml fm.yaml $'id: fm\nlanguage: js\ntest_start:\n  - {a: b}\n'
+assert_exit "loader rejects a flow map (exit 2)" 2 "$rc"
+assert_contains "loader says a flow map is unsupported" "$err" "fm.yaml:4: unsupported YAML syntax"
+load_yaml an.yaml $'id: &a an\nlanguage: js\n'
+assert_exit "loader rejects an anchor (exit 2)" 2 "$rc"
+assert_contains "loader says an anchor is unsupported" "$err" "an.yaml:1: unsupported YAML syntax"
+load_yaml ty.yaml $'id: ty\nlanguage: js\nfiles: x\n'
+assert_exit "loader rejects a scalar where a list belongs (exit 2)" 2 "$rc"
+assert_contains "loader says files takes a list" "$err" "files takes a list"
+load_yaml nl.yaml $'id: nl\nlanguage: cobol\n'
+assert_exit "loader rejects an unknown language (exit 2)" 2 "$rc"
+assert_contains "loader names the bad language" "$err" "got: cobol"
+load_yaml noid.yaml $'language: js\n'
+assert_exit "loader rejects an adapter without an id (exit 2)" 2 "$rc"
+assert_contains "loader says the id is missing" "$err" "noid.yaml: no id"
+printf 'id: base\nlanguage: js\nfiles: [a]\ntest_start: [b]\n' >"$ADIR/base.yaml"
+printf 'id: child\nextends: base\ntest_start: [c]\n' >"$ADIR/child.yaml"
+rc=0
+out="$(awk -f "$LOAD" "$ADIR/child.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
+assert_exit "loader resolves extends across files (exit 0)" 0 "$rc"
+assert_contains "extends inherits a field the child omits" "$out" "child${TAB}files${TAB}a"
+assert_contains "extends keeps the child's own field" "$out" "child${TAB}test_start${TAB}c"
+assert_not_contains "extends does not merge a field the child sets" "$out" "child${TAB}test_start${TAB}b"
+assert_matches "load order is argument order" "$(printf '%s\n' "$out" | head -1)" "^child${TAB}"
+printf 'id: orphan\nextends: nobody\nlanguage: js\n' >"$ADIR/orphan.yaml"
+rc=0
+out="$(awk -f "$LOAD" "$ADIR/orphan.yaml" 2>&1)" || rc=$?
+assert_exit "loader rejects extends of an unknown adapter (exit 2)" 2 "$rc"
+assert_contains "loader names the unknown parent" "$out" "extends unknown adapter: nobody"
+rc=0
+out="$(awk -f "$LOAD" "$ADIR/base.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
+assert_exit "loader rejects a duplicate adapter id (exit 2)" 2 "$rc"
+assert_contains "loader names the duplicate id" "$out" "duplicate adapter id: base"
+rc=0
+out="$(awk -f "$LOAD" "$SCRIPT_DIR"/../adapters/*.yaml 2>&1)" || rc=$?
+assert_exit "every shipped adapter loads (exit 0)" 0 "$rc"
+for id in js-jest js-vitest py-pytest cs-xunit; do
+  assert_contains "shipped adapter $id loads" "$out" "$id${TAB}language${TAB}"
+done
+load_yaml rs.yaml $'id: rs\nlanguage: js\ndelegation: [x]\n'
+assert_exit "loader rejects a reserved, unimplemented field (exit 2)" 2 "$rc"
+assert_contains "loader says the field is reserved" "$err" "delegation is reserved"
+load_yaml nt.yaml $'id: nt\nlanguage: js\nfiles: [a]\n'
+assert_exit "loader rejects an adapter that claims files with no test_start (exit 2)" 2 "$rc"
+assert_contains "loader says test_start is missing" "$err" "nt.yaml: claims files but has no test_start"
+printf 'id: empty\nextends: base\ntest_start: []\n' >"$ADIR/empty.yaml"
+rc=0
+out="$(awk -f "$LOAD" "$ADIR/empty.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
+assert_exit "loader rejects an empty test_start overriding an inherited one (exit 2)" 2 "$rc"
+assert_contains "loader names the adapter left without a matcher" "$out" "empty.yaml: claims files but has no test_start"
+load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
+assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
+assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
+load_yaml oi.yaml $'id: oi\n  language: js\n'
+assert_exit "loader rejects a key indented under a scalar (exit 2)" 2 "$rc"
+assert_contains "loader names the misindented key" "$err" "oi.yaml:2: bad indentation"
+load_yaml si.yaml $'id: si\nlanguage: js\nmock:\n  create: [x]\n    verify: [y]\n'
+assert_exit "loader rejects a sibling key at a deeper indent (exit 2)" 2 "$rc"
+assert_contains "loader names the uneven sibling" "$err" "si.yaml:5: bad indentation"
+load_yaml dm.yaml $'---\nid: dm\n'
+assert_exit "loader rejects a document marker (exit 2)" 2 "$rc"
+assert_contains "loader says document markers are unsupported" "$err" "dm.yaml:1: document markers"
+
+# --- adapter precedence: two adapters claim *.test.ts ------------------------
+# js-jest and js-vitest share every glob. The one whose detect.any_regex matches
+# the file wins; with no match the first in load order (js-jest) does.
+PREC="$TMP_ROOT/prec"
+mkdir -p "$PREC"
+printf "import { it, expect } from 'vitest'\nit('a', () => { expect(1).toBe(1) })\n" >"$PREC/vi.test.ts"
+printf "const f = jest.fn()\nit('a', () => { expect(f).toBe(f) })\n" >"$PREC/je.test.ts"
+printf "it('a', () => { expect(1).toBe(1) })\n" >"$PREC/plain.test.ts"
+run_file --file "$PREC/vi.test.ts"
+assert_contains "a vitest import selects js-vitest" "$out" "adapter: js-vitest"
+run_file --file "$PREC/je.test.ts"
+assert_contains "jest.fn selects js-jest" "$out" "adapter: js-jest"
+printf "import { vi } from 'vitest'\nconst f = jest.fn()\nit('a', () => { expect(f).toBe(f) })\n" >"$PREC/both.test.ts"
+run_file --file "$PREC/both.test.ts"
+assert_contains "when both detect, the first in load order wins" "$out" "adapter: js-jest"
+run_file --file "$PREC/plain.test.ts"
+assert_contains "no detect match falls back to the first adapter in load order" "$out" "adapter: js-jest"
+run_file --file "$SCRIPT_DIR/cant-fail-scan.sh"
+assert_contains "an unclaimed file names no adapter" "$out" "adapter: none"
+
+# --- the whole suite again under mawk -----------------------------------------
+# A gawk-only pass does not count: the engine must hold under mawk as well.
+if [[ -z "${CANT_FAIL_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
+  mkdir -p "$TMP_ROOT/mawk-shim"
+  ln -sf "$(command -v mawk)" "$TMP_ROOT/mawk-shim/awk"
+  rc=0
+  mawk_out="$(CANT_FAIL_TEST_MAWK_LEG=1 PATH="$TMP_ROOT/mawk-shim:$PATH" bash "${BASH_SOURCE[0]}" 2>&1)" || rc=$?
+  assert_matches "the shim resolves awk to mawk" "$(PATH="$TMP_ROOT/mawk-shim:$PATH" awk -W version 2>&1 | head -1)" '^mawk'
+  assert_exit "the whole suite passes under mawk" 0 "$rc"
+  [[ "$rc" -eq 0 ]] || printf '%s\n' "$mawk_out" | grep -A1 '^FAIL' >&2
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

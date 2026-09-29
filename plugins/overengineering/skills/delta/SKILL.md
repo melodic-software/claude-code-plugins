@@ -1,12 +1,14 @@
 ---
 description: "Report only what changed in the enforcement surface since the last audit. Re-runs overengineering:audit, diffs the findings spine, and captures a fresh baseline. Read-only: never invokes realign, never touches the surface. Use when: 'what changed since the last audit', 'did any verdict move', or 'run the enforcement audit on a schedule'. Pass layers and unattended through to the audit."
-argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
+argument-hint: "[layer ...] [unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
+
+**Arguments.** `[layer ...] [unattended]`. Full form: [layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 

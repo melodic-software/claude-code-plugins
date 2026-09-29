@@ -131,7 +131,7 @@ unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance
 keys on session **and** agent: each subagent gets its own full first notice, because it does not
 share the parent's context and would otherwise never see why the hook skipped. After that the
 latch renews with a one-line notice every `HOOK_NOTICE_RENEW_EVERY` skips (default 8). A plugin
-README states this as "once per session and agent, renewed every eighth skip", never "once per session".
+README states this as "once per session and agent, renewed every eighth skip", never "once per session". The exception is a missing external binary: `hook::notice_once <key> <input> prerequisite` latches on the session alone and each renewal keeps the full notice with its install route, so the README states "once per session, renewed with the install route every eighth skip".
 
 **Important exit-code caveat, grounded in the fresh fetch:** on exit 0, **stderr is never shown to
 the user or the agent**, and only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
