@@ -1,5 +1,5 @@
 ---
-description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in your session, prefer it for a one-off security pass over your current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
+description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in this session, prefer it for a one-off security pass over your current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
