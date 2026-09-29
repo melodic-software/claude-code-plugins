@@ -17,6 +17,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
   can name the previous version's path after an update until the session restarts.
 
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
