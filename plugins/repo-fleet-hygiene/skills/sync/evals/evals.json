@@ -16,10 +16,12 @@
     {
       "id": 2,
       "name": "non-fast-forward-is-skipped-not-reset",
-      "prompt": "/repo-fleet-hygiene:sync --root ~/repos --apply --yes\n\nOne checkout's local main has a commit the remote main does not, so its history diverged.",
-      "expected_output": "That checkout is reported as skipped (non-fast-forward). The skill does not reset, rebase, or force the branch; the other checkouts still fast-forward.",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos\n\nOne checkout's local main has a commit the remote main does not, so its history diverged. The dry-run plan has already been shown and the user replied: go ahead and apply it.",
+      "expected_output": "The skill runs sync-fleet.sh without --apply and shows the plan, the user gives an explicit go-ahead, then it runs sync-fleet.sh --apply --yes. The diverged checkout is reported as skipped (non-fast-forward). The skill does not reset, rebase, or force the branch; the other checkouts still fast-forward.",
       "files": [],
       "expectations": [
+        "Runs sync-fleet.sh without --apply first and shows the dry-run plan",
+        "Passes --apply --yes only after the user's explicit go-ahead on that plan",
         "Reports the diverged checkout as skipped with a non-fast-forward reason",
         "Does not reset or force-update the branch",
         "Still applies the plan to the other checkouts"
@@ -74,6 +76,19 @@
         "Changes nothing in widget: no stash, no branch switch",
         "Does not search for the source-control plugin's worktree-create.sh or add --worktree-create itself",
         "Relays the remedy: pass --worktree-create <path>, or park by hand with /source-control:worktree create --existing-branch"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "yes-needs-a-shown-plan-and-a-go-ahead",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos --apply --yes\n\nNo dry-run plan has been shown in this session and the user has not said to go ahead.",
+      "expected_output": "The skill does not pass --yes on the strength of the command line alone. It runs sync-fleet.sh without --apply, shows the plan (repos count and each repo's action row), and asks the user to confirm. It runs --apply --yes only after an explicit go-ahead. A run with no terminal is not consent.",
+      "files": [],
+      "expectations": [
+        "Does not run sync-fleet.sh with --yes before a dry-run plan has been shown",
+        "Shows the dry-run plan (the repos count and each action row) first",
+        "Asks the user for an explicit go-ahead before applying",
+        "Treats the --yes typed in the command as not being the go-ahead for a plan the user has not seen"
       ]
     }
   ]

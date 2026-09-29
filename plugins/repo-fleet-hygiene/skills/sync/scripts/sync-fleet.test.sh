@@ -53,6 +53,10 @@ else
   code=$?
   if [[ "$code" -eq 3 ]]; then pass "no scope exits 3"; else fail "no scope exits 3" "exit $code"; fi
 fi
+noscope_err="$(cat "$TMP/noscope.err")"
+for want in "--repo/--root: none given" "ghq not installed" "is not a Git checkout" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
+  expect "the no-scope message carries: $want" "$noscope_err" has "$noscope_err" "$want"
+done
 
 # Advance origin, leave the clone behind.
 commit_file "$seed" REMOTE_ONLY.md
@@ -101,6 +105,18 @@ if [[ "$rooted" == *"$TMP/drive/app"* && "$rooted" != *".cargo"* ]]; then
 else
   fail "a --root walk skips package-manager cache checkouts" "$rooted"
 fi
+
+git clone -q "$bare" "$TMP/drive/app/.git/inner"
+pruned="$(bash "$SCRIPT" --root "$TMP/drive")"
+expect "a --root walk does not descend into a .git directory" "$pruned" \
+  is "$([[ "$pruned" == *"/.git/inner"* ]] && echo found)" ""
+
+# Sync keeps its own copy of audit's default skip list; the two must not drift.
+sync_skips="$(sed -n 's/^SKIP_NAMES=(\(.*\))$/\1/p' "$SCRIPT")"
+audit_skips="$(sed -n '/-eq 0 \]\]; then$/,/^fi$/{/^  SKIP_NAMES=(/,/)$/p}' "$SCRIPT_DIR/../../audit/scripts/audit-fleet.sh" |
+  sed 's/^  SKIP_NAMES=(//; s/)$//' | tr '\n' ' ' | tr -s ' ' | sed 's/ $//')"
+expect "sync's skip list matches audit's default skip list" "sync=[$sync_skips] audit=[$audit_skips]" \
+  is "$sync_skips" "$audit_skips"
 
 git clone -q --bare "$bare" "$TMP/evil.git"
 git -C "$TMP/evil.git" update-ref refs/heads/-evil refs/heads/main

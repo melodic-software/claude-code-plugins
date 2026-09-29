@@ -118,9 +118,29 @@ if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
   fallback="$(mktemp)"
   if ! scope_resolve_fallback "${NAMED[@]}" >"$fallback"; then
     rm -f "$fallback"
+    ghq_bin="${REPO_FLEET_GHQ_BIN:-ghq}"
+    if command -v "$ghq_bin" >/dev/null 2>&1; then
+      ghq_probe="'$ghq_bin root' printed no existing directory"
+    else
+      ghq_probe="ghq not installed"
+    fi
+    if [[ -n "$CONFIG" ]]; then
+      config_probe="$CONFIG has no fleet.root or fleet.repo entry"
+    else
+      config_probe="${PROJECT_DIR:+$PROJECT_DIR/.claude/repo-fleet-hygiene.conf, }${HOME:-}/.claude/repo-fleet-hygiene.conf: neither exists"
+    fi
     cat >&2 <<EOF
-Error: no scope resolved.
-Tried explicit --repo/--root, fleet config, --named paths, ghq root, and the working directory.
+Error: no scope resolved. Probed, in order:
+  1. --repo/--root: none given
+       remedy: pass --repo <checkout> or --root <dir>
+  2. fleet config: $config_probe
+       remedy: run /repo-fleet-hygiene:setup apply --root <dir>
+  3. --named: ${NAMED[*]:-none given}${NAMED[*]:+ (no existing directory)}
+       remedy: pass --repo or --root instead
+  4. ghq root: $ghq_probe
+       remedy: install ghq, or pass --root <dir>
+  5. working directory: ${SCOPE_CWD:-$PWD} is not a Git checkout
+       remedy: cd into a checkout, or pass --repo <checkout>
 EOF
     exit 3
   fi
@@ -147,7 +167,7 @@ discover_root() {
   done
   while IFS= read -r gitdir; do
     REPOS+=("$(dirname "$gitdir")")
-  done < <(find "$root" -maxdepth 5 \( "${prune[@]}" \) -prune -o -name .git -print 2>/dev/null)
+  done < <(find "$root" -maxdepth 5 \( "${prune[@]}" \) -prune -o -name .git -print -prune 2>/dev/null)
 }
 
 for root in "${ROOTS[@]}"; do
