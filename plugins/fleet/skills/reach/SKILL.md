@@ -77,7 +77,7 @@ and no credential travels in a prompt.
 ## Verbs
 
 Each verb fills `<agent-args>` in a matrix row. All but the first start an agent, and each agent
-turn costs real usage (about $0.22 to $0.31 for a one-line turn, mostly SessionStart hooks and
+turn costs real usage (about 22 to 31 US cents for a one-line turn, mostly SessionStart hooks and
 context loading). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | Status |
