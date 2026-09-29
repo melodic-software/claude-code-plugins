@@ -776,6 +776,39 @@ assert_equal "a language with no lane still yields one unreferenced file" "1" "$
 assert_contains "the unreferenced rust file is a candidate" "$rs_out" "File: src/main.rs"
 assert_not_contains "a doc path saves the other rust file" "$rs_out" "File: src/used.rs"
 
+# An extension from DC_NOLANE_EXTS and an extensionless script with a line-1
+# shebang are source; an extensionless file with no shebang is not.
+XT_REPO="$TEST_TMPDIR/unref-extra"
+init_repo "$XT_REPO"
+mkdir -p "$XT_REPO/contracts" "$XT_REPO/boot" "$XT_REPO/bin"
+printf '%s\n' 'contract A {}' >"$XT_REPO/contracts/tokenvault.sol"
+printf '%s\n' 'contract B {}' >"$XT_REPO/contracts/escrowpool.sol"
+printf '%s\n' 'nop' >"$XT_REPO/boot/kernelentry.s"
+printf '%s\n' 'nop' >"$XT_REPO/boot/bootloader.s"
+printf '%s\r\n' '#!/usr/bin/env bash' 'echo run' >"$XT_REPO/bin/runjob"
+printf '%s\n' '#! /bin/sh' 'echo sync' >"$XT_REPO/bin/syncdata"
+printf '%s\n' 'MIT License' >"$XT_REPO/LICENSE"
+printf '%s\n' 'Uses contracts/escrowpool.sol, boot/bootloader.s and bin/syncdata.' >"$XT_REPO/README.md"
+stage_repo "$XT_REPO"
+xt_out="$(cd "$XT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "three unreferenced files, one per kind" "3" "$(count_shape "$xt_out" "Finding shape: unreferenced-file")"
+assert_contains "an unreferenced .sol file is a candidate" "$xt_out" "File: contracts/tokenvault.sol"
+assert_contains "an unreferenced .s file is a candidate" "$xt_out" "File: boot/kernelentry.s"
+assert_contains "an unreferenced extensionless shell script is a candidate" "$xt_out" "File: bin/runjob"
+assert_not_contains "a referenced .sol file is not a candidate" "$xt_out" "File: contracts/escrowpool.sol"
+assert_not_contains "a referenced .s file is not a candidate" "$xt_out" "File: boot/bootloader.s"
+assert_not_contains "a referenced extensionless script is not a candidate" "$xt_out" "File: bin/syncdata"
+assert_not_contains "an extensionless file with no shebang is not scanned" "$xt_out" "File: LICENSE"
+assert_contains "coverage counts all six source files" "$xt_out" "Summary coverage: covered=6 uncovered=0"
+
+XT_OTHER="$TEST_TMPDIR/unref-other-shebang"
+init_repo "$XT_OTHER"
+mkdir -p "$XT_OTHER/bin"
+printf '%s\n' '#!/usr/bin/env python3' 'print(1)' >"$XT_OTHER/bin/pyjob"
+stage_repo "$XT_OTHER"
+xo_out="$(cd "$XT_OTHER" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_contains "a non-shell shebang is a source file with no lane" "$xo_out" "File: bin/pyjob"
+
 # A compiled unit is named by its stem, never its filename.
 CS_REPO="$TEST_TMPDIR/unref-cs"
 init_repo "$CS_REPO"
@@ -895,11 +928,14 @@ init_repo "$NOLANE_REPO"
 mkdir -p "$NOLANE_REPO/src"
 printf '%s\n' 'fn main() {}' >"$NOLANE_REPO/src/main.rs"
 stage_repo "$NOLANE_REPO"
-nolane_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
-assert_contains "rust is uncovered because no lane owns it" "$nolane_out" \
+nolane_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+assert_contains "rust is uncovered when the grep lane is not selected" "$nolane_out" \
   "Note: uncovered src/main.rs — no lane for the language"
 assert_contains "nolane coverage is one uncovered file" "$nolane_out" \
   "Summary coverage: covered=0 uncovered=1"
+nolane_grep_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_contains "the grep lane covers a file with no symbol lane" "$nolane_grep_out" \
+  "Summary coverage: covered=1 uncovered=0"
 
 # --- 14. Symbol pass for JS/TS that no package.json root owns ---
 # The grep lane extracts function, class, const, let and var declarations from those

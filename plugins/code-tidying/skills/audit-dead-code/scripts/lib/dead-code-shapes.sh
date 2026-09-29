@@ -55,27 +55,55 @@ dc_is_excluded_path() {
   return 1
 }
 
+# Lowercase extensions of source files with no symbol detector. Add one here,
+# space-separated, to classify it.
+DC_NOLANE_EXTS=" rs cs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
+
 # In-skill fallback glob table. A consumer repo that ships
 # .claude/ecosystems/<eco>.yaml has richer globs; this table is the common path
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
 #
-# `nolane` is a source file this roster has no symbol detector for (Rust, .NET,
-# and the other extensions below). The grep lane can still report it as
-# `unreferenced-file`. `other` is not source (docs, manifests, markup) and is
-# outside the coverage total.
+# `nolane` is a source file this roster has no symbol detector for: an extension
+# in DC_NOLANE_EXTS (Rust, .NET, and the rest), or an extensionless file whose
+# line-1 shebang names an interpreter other than a shell. The grep lane can still
+# report it as `unreferenced-file`. An extensionless file with a shell shebang is
+# `shell`. `other` is not source (docs, manifests, markup, an extensionless file
+# with no shebang) and is outside the coverage total.
 dc_lang_of_path() {
+  local base="${1##*/}" line word interp=''
+  local -a words
   case "${1,,}" in
   *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) printf 'ts' ;;
   *.py) printf 'py' ;;
   *.go) printf 'go' ;;
   *.sh | *.bash) printf 'shell' ;;
   *.ps1 | *.psm1) printf 'pwsh' ;;
-  *.rs | *.cs | *.fs | *.fsx | *.vb | *.java | *.kt | *.kts | *.scala | *.rb | *.php | \
-    *.c | *.h | *.cc | *.cpp | *.cxx | *.hpp | *.hh | *.hxx | *.swift | *.lua | *.ex | *.exs | \
-    *.erl | *.hs | *.ml | *.mli | *.dart | *.pl | *.pm | *.zig | *.nim | *.clj | *.cljs | \
-    *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r | *.tf | *.proto | *.m | *.mm) printf 'nolane' ;;
-  *) printf 'other' ;;
+  *)
+    if [[ "$base" == *.* ]]; then
+      base="${base,,}"
+      if [[ "$DC_NOLANE_EXTS" == *" ${base##*.} "* ]]; then printf 'nolane'; else printf 'other'; fi
+    elif [[ -f "$1" && -r "$1" ]]; then
+      { IFS= read -r line || true; } <"$1"
+      line="${line//$'\r'/}"
+      if [[ "$line" == '#!'* ]]; then
+        read -ra words <<<"${line#'#!'}"
+        for word in ${words[@]+"${words[@]}"}; do
+          interp="${word##*/}"
+          [[ "$interp" == env || "$word" == -* || "$word" == *=* ]] || break
+        done
+        case "$interp" in
+        sh | bash | dash | zsh | ksh) printf 'shell' ;;
+        '' | env) printf 'other' ;;
+        *) printf 'nolane' ;;
+        esac
+      else
+        printf 'other'
+      fi
+    else
+      printf 'other'
+    fi
+    ;;
   esac
 }
 

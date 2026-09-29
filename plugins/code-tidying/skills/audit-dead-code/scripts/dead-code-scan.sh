@@ -929,7 +929,7 @@ lane_grep() {
     sym_detail='no symbol definition matched the extractor set'
   fi
   emit_unreferenced_files
-  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"}
+  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"} ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}
   lane_line grep '.' ran "$inspected_n" \
     "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
 }
