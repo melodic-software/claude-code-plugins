@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5] - 2026-09-28
+
+### Added
+
+- **Eval case:** `quiz-me` gains a case checking that quiz questions target non-obvious behaviors (guards, ordering, failure paths), not only obvious renames ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
 ## [0.11.4] - 2026-09-28
 
 ### Added

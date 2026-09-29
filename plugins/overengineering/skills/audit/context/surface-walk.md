@@ -1,5 +1,23 @@
 # Surface walk: the enforcement-surface lane
 
+## Contents
+
+- [Preflight: run once, before layer one](#preflight-run-once-before-layer-one)
+- [The per-layer loop](#the-per-layer-loop)
+- [Granularity: aggregating containers, in every layer](#granularity-aggregating-containers-in-every-layer)
+- [Incremental artifact writes](#incremental-artifact-writes)
+- [Layer 1: `agent-hooks`](#layer-1-agent-hooks)
+- [Layer 2: `agent-instructions`](#layer-2-agent-instructions)
+- [Layer 3: `repo-hooks`](#layer-3-repo-hooks)
+- [Layer 4: `vcs-hooks`](#layer-4-vcs-hooks)
+- [Layer 5: `ci-lanes`](#layer-5-ci-lanes)
+- [Layer 6: `gate-scripts`](#layer-6-gate-scripts)
+- [Layer 7: `satellite-workflows`](#layer-7-satellite-workflows)
+- [Layer 8: `branch-protection`](#layer-8-branch-protection)
+- [Layer 9: `forge-apps`](#layer-9-forge-apps)
+- [Layer 10: `external-integrations`](#layer-10-external-integrations)
+- [Closing the walk](#closing-the-walk)
+
 The lane binding `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` asks for: the item inventory, the
 layer vocabulary with its discovery probes, the evidence sources available in this lane, and the
 lane's protected-class patterns. This document supplies the first three. The fourth is the method's

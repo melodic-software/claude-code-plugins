@@ -3,6 +3,27 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **Breaking: the MCP server moved to `dometrain-mcp`.** This plugin now ships skills only. To keep
+  the bundled server, install `dometrain-mcp` and enter the key there; Claude Code does not carry
+  `pluginConfigs` between plugins. A user-scope `dometrain` server needs no change, and installing
+  `dometrain` alone with it produces no duplicate-server warning in `/plugin`
+  ([#5209](https://github.com/melodic-software/claude-code-plugins/issues/5209)).
+- **`/dometrain:setup` and `/dometrain:grounding` find the tools by the `dometrain` server segment
+  and tool name, not a fixed prefix.** Tools from the `dometrain-mcp` plugin and from a user-scope
+  server both report connected. With neither present, setup names the two supported setups.
+- **README:** the key-from-environment and `vault-exec` recipes moved to the `dometrain-mcp` README
+  and now describe skipping `dometrain-mcp`. The README adds a "Getting the MCP server" section
+  and an "Upgrading from 0.4.x" section. Permission rules written against
+  `mcp__plugin_dometrain_dometrain__*` need the new prefix.
+
+### Removed
+
+- The bundled `.mcp.json` and the `dometrain_api_key` option, both moved to `dometrain-mcp`.
+
 ## [0.4.1] - 2026-09-28
 
 ### Added

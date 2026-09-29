@@ -3,6 +3,7 @@ description: "Produce a structured 5-field bug report (title, steps to reproduce
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 metadata:
   workflow-stage: contract
   summary: Turn an informal bug description into a structured 5-field report, read-only
@@ -24,6 +25,11 @@ Treat a failure (not a repository, git unavailable) as an unknown value and carr
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
 contains git.
+
+## Pre-computed context
+
+Consumer gotchas:
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh"`
 
 ## Variables
 
@@ -139,6 +145,7 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 - **Suggested fix location is not a patch.** Name the file path and function/class. No code, no diff, no "just change line X to Y". The fixer decides the patch.
 - **Title in present tense.** "`priceFor` returns wrong total when `discountPercent` is non-zero", not "fixed pricing bug" or "pricing was broken".
 - **When there is no bug, do not emit a report.** If the survey and Q&A reveal the behavior is correct, emit the short "No bug confirmed" summary instead (see `context/template.md`).
+- **Consumer `## Gotchas` concatenate after these bullets.** The pre-computed Consumer gotchas block is the cascade `## Gotchas` from `.claude/bugs.md` layers (user-global, team, local overlay) in layer order. Treat those lines as additional gotchas for this invocation. Missing layers are absent, not an error. Generalizable lines belong in this shipped skill via an issue, not in the consumer file.
 
 ## Cross-references
 

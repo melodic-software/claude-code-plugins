@@ -89,7 +89,20 @@ Agent content, schema files, and a fleet-wide bare organization name are **not g
 deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
 The independent `portability-lint` job stages a related publisher-token class in
 `scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
-`org-agnosticism-tokens.txt` rather than invent a third set.
+`org-agnosticism-tokens.txt` rather than invent a third set. CI enforces that alignment via
+`scripts/check-publisher-token-alignment.sh`.
+
+### Hardcoded consumer specifics
+
+A reusable plugin must not bake in one machine's paths, one org's repo names, or one project's
+layout. Values that genuinely vary per environment, operator, or consumer belong in the consumer's
+own config layers (`melodic-software/standards` `conventions/engineering/shareable-artifact-design.md`
+§ externalized configuration). This subsection is
+the doctrine owner; component-scoped audits cite it instead of restating the rule:
+
+- `plugin-quality:audit` recurring-concerns (per-component detection cues).
+- `coupling:reduce` remediation catalog (code and document altitude).
+- `claude-config:audit-permission-grants` (concrete home paths in permission grants only).
 
 Keep plugins horizontally decoupled:
 
@@ -765,6 +778,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
 | Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
+| Skill invocation-context rubric (`context: fork`, background posture) | [`docs/conventions/invocation-context/`](conventions/invocation-context/README.md) |
+| Skill argument shape: action, earned `--flag` modifiers, subject, and `argument-hint` form | [`docs/conventions/skill-argument-shape/`](conventions/skill-argument-shape/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
@@ -782,6 +797,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
 | Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
+| Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/conventions/recommendation-basis/`](conventions/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/conventions/authoring-formats/`](conventions/authoring-formats/README.md) |
 
 ## Cross-platform contract

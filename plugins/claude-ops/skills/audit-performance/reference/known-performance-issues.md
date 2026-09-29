@@ -1,5 +1,18 @@
 # Known Claude Code performance issues and fixes
 
+## Contents
+
+- [Version regressions fixed in 2.1.2xx (suspect 2)](#version-regressions-fixed-in-212xx-suspect-2)
+- [Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)](#accumulated-state-mechanisms-confirmed-at-source-level-v21228-suspect-1)
+- [The "nuke ~/.claude" folk remedy: evidence status](#the-nuke-claude-folk-remedy-evidence-status)
+- [Fan-out layer mechanisms (suspect 4)](#fan-out-layer-mechanisms-suspect-4)
+- [The host-level floor: a kernel Token-object leak (suspect 5, Windows)](#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
+- [Tested and cleared (record the negatives)](#tested-and-cleared-record-the-negatives)
+- [Measurement method](#measurement-method)
+- [Surface scope: CLI versus desktop](#surface-scope-cli-versus-desktop)
+- [Reference links](#reference-links)
+- [Windows-specific amplifiers](#windows-specific-amplifiers)
+
 Distilled evidence base for the four-suspect model this skill's report is read against.
 Compiled 2026-08-12 from the upstream issue tracker, release notes, and a source-level analysis
 of Claude Code v2.1.228. Per the upstream-drift convention: re-verify a row against the linked
@@ -37,7 +50,7 @@ before any reinstall.
 
 - **Retention sweep cost is a daily stat-walk of the whole tree.** Fires ~5 s after the first
   launch of the day (24 h sentinel: `.last-cleanup`; defers 10 min while the user was active in
-  the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an
+  the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
   unlink) per file. Async and yielding, so the harm mode is sustained background I/O, amplified
   per-operation by antivirus filter drivers, not a blocked event loop.
 - **An unparsable user `settings.json` pauses the entire sweep and warns in `/status`.** Nothing
@@ -283,7 +296,7 @@ for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/
 (`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.
 *As of:* 2026-09-11. *Recheck trigger:* a kernel release that renumbers `PF_KTHREAD`, or man-pages
 documenting `Kthread:` in `proc_pid_status(5)`, which would make the status line the citable
-primary and retire the stat fallback's role as the documented path.
+primary and retire the stat fallback's role as the documented path. <!-- portability-ok: prose names /proc pid stat, not GNU stat -c -->
 
 ## The host-level floor: a kernel Token-object leak (suspect 5, Windows)
 

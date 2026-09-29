@@ -1,7 +1,7 @@
 # review
 
 Turn what went wrong in the last step into filed issues. Nothing is filed without the user's
-approval.
+approval. `W` is `.work/repo-sweep/` in the worktree root (create it when filing).
 
 1. Dispatch a separate reviewer agent (Task tool or subagent). It must not be the session that
    ran the step. Give it only:
@@ -30,6 +30,9 @@ approval.
    has no plugin here to file against: ask the user to report it to Anthropic with `/bug`
    ([commands](https://code.claude.com/docs/en/commands), fetched 2026-09-27; recheck when that
    page drops or renames `/bug`).
-4. Show every draft (title, body, target repository). File each one with `gh issue create` only
-   after the user approves it, and print the URLs.
+4. Show every draft (title, body, target repository). For each approved draft, write the body to
+   a file under `W` (for example `W/issue-<slug>.md`) and file with `gh issue create ... --body-file
+   W/issue-<slug>.md` only after the user approves it. Do not pipe the body from stdin or a
+   heredoc: worktree-isolated sessions can refuse `gh issue create --body-file -` when the text
+   mentions git (record in `SKILL.md`). Print the URLs.
 5. Tell the user to `/clear` and run `/playbooks:repo-sweep next`.

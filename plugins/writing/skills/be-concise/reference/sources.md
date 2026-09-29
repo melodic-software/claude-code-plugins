@@ -1,5 +1,12 @@
 # Sources for the concise-writing doctrine
 
+## Contents
+
+- [Nielsen Norman Group](#nielsen-norman-group)
+- [Government and vendor writing standards](#government-and-vendor-writing-standards)
+- [Completeness-floor sources](#completeness-floor-sources)
+- [Evidence on the reader model](#evidence-on-the-reader-model)
+
 Every rule in [`doctrine.md`](doctrine.md) is paraphrased from one of the
 sources below. Nothing upstream is vendored into this repository, and no
 article is reproduced. Each entry carries the four parts this repository's

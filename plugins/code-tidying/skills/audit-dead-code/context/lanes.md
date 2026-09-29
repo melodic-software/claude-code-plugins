@@ -10,6 +10,27 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
 
 ## Lane reference
 
+### Coverage accounting
+
+Every in-scope source file is either covered or named. Covered means a lane took the file as input
+and reached `ran` or `degraded`. Uncovered files are one `Note: uncovered <path> — <reason>` line
+each, after `Summary coverage: covered=N uncovered=M`. The reasons are `no lane for the language`,
+`no manifest root`, `tool not installed`, `tool could not parse it`, and `lane not selected`.
+
+`files=` on a `Lane:` line is that input count, including `skipped` and `no-manifest`. `Summary
+total: files-with-findings=` is the number of files that emitted a candidate. A clean-result note
+is printed only when `uncovered=0`, some lane reached `ran`, and there are no candidates. Uncovered
+files suppress both that note and the scan-of-nothing note.
+
+`no-manifest` is the state when knip has no `package.json` root, or gopls has no `go.mod` root.
+`files=` is the real language count, which is zero only when no such file is in scope. A source
+file that sits outside every manifest root of its language is uncovered with `no manifest root`
+even when some other root ran. `skipped` stays the missing-or-uninvocable binary state.
+
+Source files with no lane are the extensions `dc_lang_of_path` classifies as `nolane` (Rust, .NET,
+JVM, Ruby, C and C++, and the other extensions named there). Docs, JSON, YAML, and other
+non-source paths are not in the coverage total.
+
 ### knip: TS/JS
 
 - **Invocation:** `knip --reporter json --no-progress`, run with cwd set to the **project root**,
@@ -120,6 +141,23 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
   which is acceptable for a read-only skill and the reason the lane ships as high-precision/low-recall.
 - **A hit adjacent to `$`, `-`, or `.` is never an automatic `alive`** during adjudication: inspect
   it before crediting it as a reference.
+- **`unreferenced-file` reuses this search** on two keys per source file: the basename and the
+  repo-relative path. A file in a language with no lane also gets its stem as a key, because a
+  compiled unit is named by its stem (`new Widget()`, `mod widget;`), never its filename. A hit in
+  any other tracked file saves it. That includes CI workflows, settings, manifests, and docs. A hit
+  inside the file itself does not. The input set is shell, PowerShell, Python entry points (line-1
+  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, and
+  source extensions with no lane. Go stays on the gopls lane. Knip still owns unused TS/JS files
+  inside a manifest root. The shape is tier 2: a computed path, a glob, `python -m`, or a build
+  file that never spells the path can still load the file, so the candidate is uncertain, not
+  dead. Precision of this shape is unmeasured beyond the fixture contract (a workflow reference
+  saves the script it names; a script named nowhere is the one candidate).
+- **`-H -o` attribute each match to its file, and BSD grep has both.**
+  **Claim:** BSD grep supports `-H` (always print the filename) and `-o` (print only the match).
+  **Basis:** [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1): "-H
+  Always print filename headers with output lines." and "-o, --only-matching Prints only the
+  matching part of the lines." **As of:** 2026-09-28. **Recheck:** the lane fails on a BSD or
+  macOS userland, or the man page drops either flag.
 
 ## Why Rust, .NET, and an LSP scanning lane are absent
 
@@ -127,7 +165,8 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
   `build.rs` and proc macros; the Roslyn server signals "project needs to be restored"; clangd needs
   `compile_commands.json`; jdtls needs a built classpath. Every one of them builds or executes
   project code. The exclusion trigger is a detector that does neither. That trigger is what
-  admitted Go.
+  admitted Go. Source files in those languages still enter the grep lane's `unreferenced-file`
+  search, which does not build.
 - **An LSP scanning lane**: Claude Code's `LSP` tool is model-callable only. No bash script can
   reach it, and it has no batch mode, so enumerating every symbol would cost one model turn each.
   It is retained only as an optional per-candidate assist inside the already-bounded adjudication.

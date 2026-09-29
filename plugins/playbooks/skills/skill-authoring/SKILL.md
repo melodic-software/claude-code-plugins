@@ -49,6 +49,8 @@ Claude already knows coding. Focus on information that pushes Claude off its def
 
 Highest-signal content in any skill. Build iteratively from failure points Claude hits. Add a line every time Claude trips. Day 1: 1 entry. Month 3: 10. The most valuable part of the skill.
 
+Repo-specific lines a consumer adds without forking the skill live in that plugin's config-cascade surface (`## Gotchas` in e.g. `.claude/<plugin>.md`), concatenated after bundled gotchas when the skill loads. See the [consumer-gotchas tier](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/consumer-gotchas.md). Generalizable lines still ship in the skill via an issue to this marketplace.
+
 ### 3. Use the File System & Progressive Disclosure
 
 A skill is a folder, not a markdown file. The file system is context engineering. SKILL.md is the hub (~30 lines); spoke files do the work.
@@ -171,10 +173,10 @@ validator preference order and plan-validate-execute, and diagnosing an embedded
 ## Authoring guidance and pre-share checklist (Melodic Software addition)
 
 Read [`reference/authoring-guidance.md`](reference/authoring-guidance.md) when writing a
-description, choosing a freedom level, splitting a body into spokes, pointing at scripts or MCP
-tools, or planning evals: it cross-reads Anthropic's cross-product best-practices page against what
-Claude Code enforces. Its description contract (one description, `when_to_use` optional, key use
-case first, the two caps with their sources) is the fuller form of tip 5.
+description, choosing a freedom level, shaping arguments and `argument-hint` (the [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)),
+splitting a body into spokes, pointing at scripts or MCP tools, or planning evals: it cross-reads
+Anthropic's cross-product best-practices page against what Claude Code enforces. Its description contract
+(one description, `when_to_use` optional, key use case first, the two caps with their sources) is the fuller form of tip 5.
 
 Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
 row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.
@@ -196,14 +198,11 @@ Recheck: that row changes the turn scope, the auto-mode exception, or the `conte
 
 `arguments` in frontmatter names positional slots. It is not keyword arguments. With
 `arguments: [issue, branch]`, `\$issue` is the first argument and `\$branch` is the second. A
-space-separated string and a YAML list are both accepted. Keep bare `\$ARGUMENTS` for free text
-and for a single mode word. Use names when the body parses two or more ordered slots, and write
-the body so it still reads correctly when a missing name expands to nothing. A remainder after the
-named slots, a multi-word phrase, a variadic tail, and a flag that is not tied to one position stay
-in `\$ARGUMENTS`. That is why `planning:prd` names only the tier word, and why
-`knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` keep parsing
-`\$ARGUMENTS`: a phrase topic, a purpose tail, or a flag that can sit in any position is not a
-positional alias.
+space-separated string and a YAML list are both accepted, and a missing name expands to nothing.
+The [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
+declines the field: its names are only positional aliases, and with no flag parser it adds no
+validation. Read
+`\$ARGUMENTS` whole and parse it in prose.
 
 Verification record. Claim: `\$0` is the first argument and `\$1` the second; `\$ARGUMENTS[N]` is
 the same 0-based index; an indexed placeholder with no argument stays unchanged; a named
@@ -240,6 +239,15 @@ Write `disable-model-invocation` explicitly on every skill and decide its value 
 which owns the model-invoked default, the three exception classes a `true` may claim, and the
 when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
 invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
+
+A skill's **execution context** is a separate choice: inline (omit `context`) versus
+`context: fork`, and whether a fork blocks. It is owned by the
+[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
+Read it before setting `context: fork`, for what a fork changes. The default is inline. Skill-tool targets and
+user-invoked report skills in this fleet take `background: false`; a user-invoked report may
+background only after a skill-specific confirmation that an async report is the intended UX.
+Anti-candidate classes
+(current-session measuring, mid-flow interview, mutating action variants) stay inline.
 
 ---
 

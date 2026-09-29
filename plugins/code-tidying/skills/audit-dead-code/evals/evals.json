@@ -5,7 +5,7 @@
       "id": 1,
       "name": "parse-knip-report-into-verdicts",
       "prompt": "Read the canned knip capture at evals/fixtures/knip-report.json (relative to the skill directory) together with the TypeScript sources it was captured over — evals/fixtures/ts-entry.ts, evals/fixtures/dead-and-dynamic.ts, evals/fixtures/ts-used.ts, evals/fixtures/ts-orphan.ts — and report a verdict for every candidate.",
-      "expected_output": "Parses the capture's per-file objects and their fifteen fixed category arrays, then reports: ts-orphan.ts as an orphan file (a TS/JS-only capability of the roster), formatLegacyRow as dead, and renderPanel as alive or uncertain rather than dead — knip reported the two identically, and the evidence that separates them is the template-literal dynamic import in ts-entry.ts, which no static resolver follows. formatBytes and mountPanel are absent from the capture and are not reported. No confidence figure is attached to any knip candidate, because the capture carries no confidence field. Nothing is edited.",
+      "expected_output": "Parses the capture's per-file objects and their fifteen fixed category arrays, then reports: ts-orphan.ts as an orphan file (knip's unused-file shape inside a package.json root; other languages use the grep lane's unreferenced-file shape), formatLegacyRow as dead, and renderPanel as alive or uncertain rather than dead — knip reported the two identically, and the evidence that separates them is the template-literal dynamic import in ts-entry.ts, which no static resolver follows. formatBytes and mountPanel are absent from the capture and are not reported. No confidence figure is attached to any knip candidate, because the capture carries no confidence field. Nothing is edited.",
       "files": [
         "evals/fixtures/knip-report.json",
         "evals/fixtures/ts-entry.ts",
@@ -17,7 +17,7 @@
         "Every candidate carries exactly one of the three verdicts: dead, uncertain, or alive",
         "formatLegacyRow is verdicted dead",
         "renderPanel is NOT verdicted dead, and the saving evidence cited is the template-literal dynamic import in ts-entry.ts",
-        "ts-orphan.ts is reported as an unused file, and orphaned-file coverage is stated as TS/JS only",
+        "ts-orphan.ts is reported as an unused file, and orphaned-file coverage includes knip unused files inside a package.json root plus a language-agnostic unreferenced-file candidate at tier 2",
         "formatBytes and mountPanel are not reported as candidates",
         "No per-candidate confidence percentage is attributed to knip, which emits no confidence field",
         "Findings come from parsing the canned capture rather than from reading the TypeScript sources and judging them directly",
@@ -94,7 +94,7 @@
       "id": 6,
       "name": "lane-limits-and-out-of-scope-ecosystems",
       "prompt": "Report the Go and shell lanes over evals/fixtures/gopls-hints.txt, evals/fixtures/dead-and-dynamic.go and evals/fixtures/dead-and-dynamic.sh, and say what you would do for the Rust and C# projects in the same repository.",
-      "expected_output": "Reports deadHandler from the Go capture and states the lane's coverage limit plainly: gopls hints unexported symbols only, so ExportedEntry is never a candidate however unreferenced it is — a stated limit, not a defect — and gopls exits 0 even carrying a hint, so its exit code is not run health and its degradation produces false negatives rather than knip's false positives. For the shell fixture it reports format_legacy_row as dead and does NOT condemn handle_alpha, which is invoked through the constructed name in main and is therefore invisible to a literal reference search — the grep lane's acknowledged recall limit. It declines Rust and C# outright, because every available detector for them builds or executes project code.",
+      "expected_output": "Reports deadHandler from the Go capture and states the lane's coverage limit plainly: gopls hints unexported symbols only, so ExportedEntry is never a candidate however unreferenced it is — a stated limit, not a defect — and gopls exits 0 even carrying a hint, so its exit code is not run health and its degradation produces false negatives rather than knip's false positives. For the shell fixture it reports format_legacy_row as dead and does NOT condemn handle_alpha, which is invoked through the constructed name in main and is therefore invisible to a literal reference search — the grep lane's acknowledged recall limit. It does not run a building detector for Rust or C#. Their source files can still be unreferenced-file candidates, and a computed path or glob that loads one is uncertain, not dead.",
       "files": [
         "evals/fixtures/gopls-hints.txt",
         "evals/fixtures/dead-and-dynamic.go",
@@ -106,7 +106,7 @@
         "Output states that gopls exits 0 with findings, so the exit code is not run health, and that its failure mode is false negatives",
         "format_legacy_row is reported as dead in the shell fixture",
         "handle_alpha is NOT verdicted dead, and the indirect invocation through the constructed handler name is cited",
-        "Rust and C# are declined, with the build-or-execute exclusion given as the reason"
+        "Rust and C# get no building detector; their source files can still be unreferenced-file candidates, and a computed path or glob is uncertain rather than dead"
       ]
     }
   ]

@@ -3,6 +3,26 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.14] - 2026-09-28
+
+### Changed
+
+- README: a missing-tool skip says it fires once per session and agent, renewed every eighth skip, to both Claude and the user (#4612).
+
+## [0.24.13] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename (#4527).
+
+## [0.24.12] - 2026-09-28
+
+### Changed
+
+- **The README points at the agent-run artifact attestation decision (#4703).** A one-line
+  out-of-scope note links `docs/out-of-scope/agent-run-artifact-attestation.md`, where the
+  decision recorded in 0.24.5 lives.
+
 ## [0.24.11] - 2026-09-28
 
 ### Changed

@@ -1,5 +1,15 @@
 # Dispatch contract: the parent's side
 
+## Contents
+
+- [The orchestration boundary](#the-orchestration-boundary)
+- [Discipline liveness: why a token at all](#discipline-liveness-why-a-token-at-all)
+- [The acceptance gate: why it grades the slice path, not the payload](#the-acceptance-gate-why-it-grades-the-slice-path-not-the-payload)
+- [The coverage ledger is graded separately, and its freshness is not bound](#the-coverage-ledger-is-graded-separately-and-its-freshness-is-not-bound)
+- [Recovery ladder](#recovery-ladder)
+- [Truncation](#truncation)
+- [What dispatch does and does not buy](#what-dispatch-does-and-does-not-buy)
+
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
 dispatched run **that is specific to research**, and why each obligation exists. The agent's own side
 is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).
@@ -29,7 +39,7 @@ also owes `Source breadth:` and `Evidence use:`. This table says why each is the
 | Reason the topic is being researched, meaning the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
 | Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labeled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
-| Budget | How much depth was authorized is the caller's decision, never the worker's. Carried on two lines: `Budget:` for depth and `Turn budget:` for the turn by which the worker stops gathering (degradable; absent, the worker uses its own default) |
+| Budget | How much depth was authorized is the caller's decision, never the worker's. Carried on two lines: `Budget:` for depth, as a word from the parent contract's `Budget:` vocabulary, and `Turn budget:` for the turn by which the worker stops gathering (degradable; absent, the worker uses its own default) |
 | Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
 | Evidence use | Only the parent knows where the answer goes. `publish` when it will be quoted outside this session (a pull-request review reply, an issue, a design document, a message to a third party), else `internal`. Degradable: absent, the worker records `internal` and says so. The worker copies the value into the index as `evidence_use:`, because the verifier holds no envelope, and the parent passes the same value to the applicability gate as `--expect-evidence-use`, so an index that dropped it fails rather than grading under the weaker rules |
 | Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag, because the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
@@ -82,8 +92,11 @@ against a run that produced none):
 
    Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
    index's outcome-gate result: the frontmatter's `verification: pending` becomes the verifier's
-   `verification_line` (its values are in `artifact-shape.md`), the verifier rows carry pass or the
-   criterion that failed, and project fit is recorded as its own finding
+   `verification_line` (its values are in `artifact-shape.md`; the shared write-back shape and
+   what to write when no verifier can be dispatched are in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+   "The sibling verifier, stated once"), the verifier
+   rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
    its own failure.

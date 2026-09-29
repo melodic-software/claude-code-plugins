@@ -3,6 +3,7 @@
 ## Contents
 
 - [Trust boundaries](#trust-boundaries)
+- [Tidiness, not emergency](#tidiness-not-emergency)
 - [Non-overridable checks](#non-overridable-checks)
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
@@ -28,6 +29,25 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 - deterministic checks exclude protected/changed/tracked/linked/mounted/open/unverifiable entries;
 - explicit human approval authorizes one tier and exact list;
 - the engine binds that preview to a snapshot nonce and plan digest.
+
+## Tidiness, not emergency
+
+The cleaner has no disk-full mode. Every pass is a cautious tidiness pass: bytes stay secondary,
+mutation still needs a fresh preview and one-tier approval, and a filename pattern stays a hint.
+An operator facing a full disk acts with OS tools, Recycle Bin / Trash, or the owning product's
+GC; this engine does not become more aggressive under pressure.
+
+Regenerable-but-costly state (a build cache versus an irreplaceable artifact) is not an engine
+signal. High/Medium/Low already encode provenance, not regeneration cost; ranking stays a model
+instruction per the #3858 park.
+
+**Claim:** the cleaner does not distinguish a tidiness pass from a disk-full emergency; none of
+the three rules yields, and regenerable-at-a-cost is not an engine signal. **Basis:** #3855 is
+the decision carrier and lists changing nothing as a complete answer; relaxing any of those
+rules under pressure is when a wrong deletion is most likely. Option A keeps the current
+defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28. **Recheck:** an
+operator unpark of #3855, or a funded design that names which rule yields and under what
+bounded conditions.
 
 ## Non-overridable checks
 
@@ -156,7 +176,8 @@ VCS protection remains categorical in preview, apply, and every handoff verifica
 explicitly supply `--vcs-evidence`. The evidence mode can relax only
 `vcs-tracked-content`, `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the opaque scan
 boundary at that `.git` marker. It does so only when all four live gates pass for every repository
-marker within the one approved checkout:
+marker within the one approved checkout (gates 1 and 2 may instead be waived by the
+`accept_unpublished` acknowledgement described below):
 
 1. `git status --porcelain=v1 --untracked-files=all --ignored=matching --ignore-submodules=none`
    exits successfully and emits nothing, including gitignored-but-present paths (`.env`, local
@@ -180,6 +201,19 @@ candidate shares stash refs and is not an independent backup. Only GitHub.com is
 unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
 categorical reasons.
+
+An operator who wants a throwaway checkout gone even though it fails gates 1 or 2 records that on
+the evidence entry: `"accept_unpublished": true` with a non-empty `"reason"`. The engine accepts it
+only on an entry whose `path` is itself an exact approved path, so a nested repository or a pattern
+cannot carry it. For that repository, porcelain output and local heads that are not on a
+`github.com` remote (or have no remote) stop failing gates 1 and 2; those gates report
+`accepted-unpublished` and the evidence result lists each acknowledgement with its reason under
+`accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
+repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
+the acknowledgement the verdict is unchanged. The acknowledgement exists because a categorical
+refusal did not stop the deletion in #4227: the operator had the directories removed outside the
+engine with every check skipped. Before deleting under it, tell the operator that unpushed commits
+and untracked or ignored files in the checkout will be lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
@@ -212,22 +246,25 @@ guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
 local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
 substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
-`--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last (its
-literal unsubstituted placeholder counts as absent); absent every channel the flag fails closed.
-`--data-root` is mandatory at the guard even though the engine's grammar leaves it optional: an
-otherwise exact call that omits it is denied, because the engine would then fall back to the raw
-`CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set.
+`--authorized-data-root`. The `CLAUDE_PLUGIN_DATA` environment variable is never a
+channel: a repository `settings.json` `env` block can set it, so it carries no
+provenance. A literal unsubstituted placeholder counts as absent. Absent every
+trusted channel the flag fails closed. `--data-root` is mandatory at the guard even
+though the engine's grammar leaves it optional so a state-writing subcommand can
+refuse its absence with the engine's own diagnostic; an otherwise exact call that
+omits it is denied. The engine itself never reads `CLAUDE_PLUGIN_DATA` for generated
+state: only the `--data-root` the guard validated may place it.
 
 **Handing the values over up front.** A plugin `UserPromptExpansion` hook matching
 `disk-hygiene:clean$` runs `engine_context.py` through the same launcher, with the same
 `--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
-`resolve_authorized_data_root()` results as `additionalContext`, so the skill needs no denied call to
-learn them. It grants nothing: the guard still judges every call, and a hook that fails prints
+`resolve_authorized_data_root_channel()` results as `additionalContext`, so the skill needs no denied call to
+learn them. The note names the channel that supplied the data root (`--authorized-data-root
+argument`, `plugin-cache layout`, or `local-directory marketplace install`). It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
-come from the guard's `launch_disclosure` for the probe's install root. One divergence is possible: a plugin hook receives
-`CLAUDE_PLUGIN_DATA` in its environment and a skill hook may not, so where neither derivation
-resolves, the note can name an env-supplied root the skill guard then denies. That denial names
-the fix. Verified 2026-09-27 against https://code.claude.com/docs/en/hooks ("UserPromptExpansion":
+come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
+belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
+reports `data_root: none` on both sides. Verified 2026-09-27 against https://code.claude.com/docs/en/hooks ("UserPromptExpansion":
 typing `/skillname` fires it, it matches on `command_name`, and `additionalContext` reaches Claude
 alongside the expanded prompt); recheck when that section changes, or if a release note names the
 event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
@@ -247,10 +284,11 @@ result. That coupling is acceptable only because its sole failure mode is fail-c
 unrecognized layout yields no authority, so every engine call is denied while the
 destructive-action guard stays fully active. The plugins reference documents all three path
 variables (`CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR`) as exported to hook
-processes as environment variables, so the guard's `CLAUDE_PLUGIN_DATA` env fallback should carry the
-authority wherever the runtime honors that for skill hooks, making the derivation a redundant belt.
-Not every Claude Code build exports it to a skill hook, so both channels exist and the
-derivation is the one that has to hold when the variable is absent.
+processes as environment variables. That page covers plugin `hooks.json` commands; it does not
+say whether a skill-frontmatter hook receives `CLAUDE_PLUGIN_DATA` or inherits a launch-shell
+export of it. A paid live probe of that question was not run (see the residual below). The
+guard therefore never treats the environment variable as a data-root channel: the derivation
+from `${CLAUDE_PLUGIN_ROOT}` is the belt that has to hold, and a missing derivation fails closed.
 
 **Local-directory marketplace installs.** A plugin loaded in place from a local-directory
 marketplace has a `${CLAUDE_PLUGIN_ROOT}` that is the source checkout, with no `<plugins>/cache`
@@ -279,10 +317,53 @@ authority stays inside `<home>/.claude/plugins/data/` and the kill switch reads 
 less restrictive than before.
 
 Data-root precedence, highest first: `--authorized-data-root`, the cache derivation, the
-directory-marketplace derivation, then the `CLAUDE_PLUGIN_DATA` environment variable. **Residual:** a
-repo `env` block can set that variable, so the env fallback carries no provenance. On a directory
-install the proven channel now outranks it, so a differing value there cannot win; it still decides
-where no other channel resolves.
+directory-marketplace derivation. There is no environment-variable channel. A repo `env` block
+can set `CLAUDE_PLUGIN_DATA`, so treating that value as authority would let repository content
+point generated state and the belt's admitted `--data-root` at an attacker-chosen directory.
+
+**User-scope `extraKnownMarketplaces` is declined.** The settings-reference key registers
+additional marketplaces "so that people who open the repository, or everyone your managed
+settings reach, get the marketplace without adding it themselves"
+([extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)).
+Scope is `Any file`. A `directory` source is "for development only". Project-scope entries were
+already declined because repository content is hostile to this guard. User-scope is declined too:
+the key's documented purpose is repo-or-org registration, a plugin setup skill and
+`claude plugin marketplace add` both write user settings, and distinguishing user-scope from
+project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
+need. The directory channel stays pinned to harness-written `known_marketplaces.json`.
+**Claim:** `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this
+guard, at any settings scope. **Basis:** settings-reference `extraKnownMarketplaces` (scope Any
+file; purpose "people who open the repository"; `directory` source "for development only"),
+fetched 2026-09-28 as `https://code.claude.com/docs/en/settings-reference.md`. **As of:**
+2026-09-28. **Recheck:** when that key's scope stops including project files, when a release
+note says only the user can write it, or when `known_marketplaces.json` is documented as
+derived from it.
+
+The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
+session whose checkout lies outside every registered directory marketplace, and a config relocated
+with `CLAUDE_CONFIG_DIR`. Such a `--plugin-dir` checkout has no `<plugins>/cache/<marketplace>`
+structure and no marketplace entry, so it has no stable marketplace-keyed data `<id>`. A
+`--plugin-dir` root that does sit inside a registered directory marketplace is indistinguishable
+from that install and derives the marketplace's canonical data root. `CLAUDE_CONFIG_DIR` itself is never honored, because that would
+reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
+account-home note above). Both fail closed (every engine invocation denied) while the
+destructive-action guard itself stays fully active. This is a deliberate safe-over-convenient
+tradeoff, not a security gap. The belt's denial names one recovery: run this plugin from a
+marketplace install, or register the checkout as a local-directory marketplace
+(`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
+marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
+paid `claude -p` probe of whether that export reaches a skill-frontmatter hook was not run, and
+even if it did the value would be the same repo-injectable channel the belt dropped.
+**Claim:** whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is
+unmeasured; the recovery hint therefore does not recommend it. **Basis:** decision not to run
+the paid probe in #4669; hooks.md says both hook forms export `CLAUDE_PLUGIN_DATA` on the
+spawned process (the paragraph on exec and shell form); plugins-reference "Where each
+variable resolves" lists hook commands as exporting it and skill/command/agent content as
+not applicable, and does not say a launch-shell export survives into a skill-frontmatter
+hook. Fetched 2026-09-28 as `https://code.claude.com/docs/en/hooks.md` and
+`https://code.claude.com/docs/en/plugins-reference.md`. **As of:** 2026-09-28. **Recheck:**
+a live probe with version and platform, or a hooks.md / plugins-reference sentence that
+states the skill-frontmatter inheritance.
 
 Verification records for the directory channel:
 
@@ -308,21 +389,6 @@ Verification records for the directory channel:
   `installLocation` field with the local cache path where the marketplace is stored"). The absence
   covers those two pages only. **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when either
   page documents the file's contents, or a release note names `known_marketplaces.json`.
-
-The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
-session whose checkout lies outside every registered directory marketplace, and a config relocated
-with `CLAUDE_CONFIG_DIR`. Such a `--plugin-dir` checkout has no `<plugins>/cache/<marketplace>`
-structure and no marketplace entry, so it has no stable marketplace-keyed data `<id>`. A
-`--plugin-dir` root that does sit inside a registered directory marketplace is indistinguishable
-from that install and derives the marketplace's canonical data root. `CLAUDE_CONFIG_DIR` itself is never honored, because that would
-reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
-account-home note above). Both rely on the `CLAUDE_PLUGIN_DATA`
-environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
-fail-closed there (every engine invocation denied) while the destructive-action guard itself
-stays fully active. This is a deliberate safe-over-convenient tradeoff, not a security gap. The belt's
-denial names one recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to this
-plugin's data directory (`<config>/plugins/data/<name>-<marketplace>`). Exercising the engine lane
-through a marketplace install also works.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -597,6 +663,13 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+The baseline policy therefore ships no discovery hint for another product's managed state. A hint
+for a class the engine will never act on tells the operator to look for residue the plugin has
+already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
+rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
+without that lane.
 
 ## Outcome vocabulary
 

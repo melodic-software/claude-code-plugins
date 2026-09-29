@@ -29,7 +29,7 @@
       "id": 3,
       "name": "no-static-availability-assertion",
       "prompt": "Write the description line for our install-state audit that tells people Claude Code has /doctor built in so they should use that first.",
-      "expected_output": "Refuses the static availability assertion and writes the presence-gated form instead — 'when the bundled doctor skill resolves in your session, prefer it for ...; this skill for ...' — naming the provenance class and the routing split. Explains that availability varies on settings/env, plan, platform, and host surface, so any 'Claude Code has X' sentence is wrong in some session.",
+      "expected_output": "Refuses the static availability assertion and writes the presence-gated form instead — 'when the bundled doctor skill resolves in this session, prefer it for ...; this skill for ...' — naming the provenance class and the routing split. Explains that availability varies on settings/env, plan, platform, and host surface, so any 'Claude Code has X' sentence is wrong in some session.",
       "narration": true,
       "expectations": [
         "Output declines to assert that the native surface is present or built in for the reader",

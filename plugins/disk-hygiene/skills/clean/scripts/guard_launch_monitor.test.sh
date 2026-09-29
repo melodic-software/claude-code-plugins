@@ -28,4 +28,6 @@ test_wrapper::floor_check_to FLOOR_CHECK "$FLOOR"
   echo "SKIP: Python ${FLOOR}+ required" >&2
   exit 0
 }
-"$PYTHON" -m unittest -v "$SCRIPT_DIR/test_guard_launch_monitor.py"
+PYFILE=""
+test_wrapper::python_file_to PYFILE "$SCRIPT_DIR/test_guard_launch_monitor.py"
+"$PYTHON" -m unittest -v "$PYFILE"

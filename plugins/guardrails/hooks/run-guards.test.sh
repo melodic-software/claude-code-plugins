@@ -34,6 +34,14 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+# Git Bash rewrites an argument that is entirely a POSIX path before a native
+# jq sees it. Fixture files are created at the bash spelling; if the payload
+# carries the rewritten spelling the verifiers never find the file and never
+# call git, so the rev-parse count is 0 (#4527). Exported, not a jq() function:
+# `command -v jq` would then see the function and the no-jq PATH probe could
+# not prove jq was gone.
+export MSYS_NO_PATHCONV=1
+
 # Stub guards. Each one sources the real library exactly as a shipped guard
 # does, so the dispatcher's overrides are exercised through the same seam.
 stub() {
@@ -315,7 +323,10 @@ if [[ -x "$SHIM/jq" ]]; then
   # git logs its arguments: stale-path-verify's own ls-files and log are its work, not a root read.
   printf '#!/usr/bin/env bash\nprintf "git %%s\\n" "$*" >>%q\nexec %q "$@"\n' \
     "$SPAWN_LOG" "$(type -P git)" >"$SHIM/git"
-  chmod +x "$SHIM/realpath" "$SHIM/git"
+  # Git Bash resolves `git` to `git.exe` via PATHEXT. A shim named only `git`
+  # is skipped and the rev-parse count stays 0 (#4527).
+  cp "$SHIM/git" "$SHIM/git.exe"
+  chmod +x "$SHIM/realpath" "$SHIM/git" "$SHIM/git.exe"
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" CLAUDE_PROJECT_DIR="$PV_REPO" bash "$DISPATCH" \
     cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
@@ -340,7 +351,7 @@ if [[ -x "$SHIM/jq" ]]; then
     cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
   assert_eq "post-verify dispatcher: one jq for the unprimed filters of both guards in a marketplace repo" \
     "1" "$(grep -cx jq "$SPAWN_LOG")"
-  rm -f "$SHIM/realpath" "$SHIM/git"
+  rm -f "$SHIM/realpath" "$SHIM/git" "$SHIM/git.exe"
 fi
 
 DISPATCH_SRC=$(cat "$DISPATCH")

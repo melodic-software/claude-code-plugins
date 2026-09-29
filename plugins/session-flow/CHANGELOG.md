@@ -1,5 +1,49 @@
 # Changelog: session-flow plugin
 
+## [0.38.26] - 2026-09-28
+
+### Changed
+
+- `workflow` drops the `arguments:` frontmatter field
+  ([#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001)). The body reads
+  `$ARGUMENTS` whole: the first word is the mode and, after `continue`, the second word is the
+  modifier. `argument-hint` is unchanged.
+
+## [0.38.25] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
+## [0.38.24] - 2026-09-28
+
+### Fixed
+
+- **A handoff written outside any repository lands in the plugin data dir without hand-deriving
+  it (#4295).** `save_point.py new` run with no `--memory-dir` from a directory with no git top
+  level now resolves `<plugin data>/topic-docs` instead of a bare `.work` under the current
+  directory. It reads `CLAUDE_PLUGIN_DATA` when set and otherwise derives the dir from its own
+  installed cache path, since Claude Code does not export that variable to Bash-tool commands.
+  With neither available it refuses and asks for `--memory-dir`. The existing self-ignore guard
+  still applies to the fallback, and inside a git work tree the `.work` default is unchanged.
+  `reference/topic-docs.md` no longer says "nothing persisted" of that fallback: the handoff file
+  is written there, and only the resolution goes unpersisted. `reference/structure.md` documents
+  the no-project-root branch of the write procedure. A new `save_point.py memory-root` prints
+  that same resolved root, and find-handoff's rung 1 globs `<memory-root>/handoffs/` on the
+  no-project-root branch instead of `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`, so it finds the
+  handoffs the writer saves.
+
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
+
 ## [0.38.22] - 2026-09-28
 
 ### Changed
