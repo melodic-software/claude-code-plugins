@@ -92,11 +92,37 @@
       "prompt": "pixel-art scene, 240x160: the watchman from ./watchman/watchman.json (brief.md is beside that spec) stops at a gate at dusk. Done when the gate reads darker than the sky and the line of dialogue is legible.",
       "expected_output": "Fires /pixel-art:scene. Reads the sprite's brief.md and extends it with beats, cast, resolution, and audio instead of re-asking subject or proportions. Writes the scene brief beside the template before the first build. Each review round marks every done criterion pass or fail with a one-line reason, including marking a criterion fail with reason 'not seen' when no browser tool is present.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Reads the brief beside the reused sprite spec and extends it",
         "Writes the scene brief before the first build",
         "Each review round marks each done criterion pass or fail with a one-line reason",
         "Does not re-ask fields the sprite brief already answers"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "vague-scene-brief-defaults-beats-in-one-line",
+      "prompt": "make a pixel scene",
+      "expected_output": "Fires /pixel-art:scene. The request names no beats, cast, or resolution. States those defaults in one line and writes the scene brief before the first build. Does not ask a list of questions.",
+      "files": [],
+      "expectations": [
+        "Invokes the scene skill",
+        "States defaulted resolution, cast, and beats in one line",
+        "Writes the scene brief before the first build",
+        "Does not interrogate with a list of questions"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "refuses-to-claim-visual-review-without-a-browser",
+      "prompt": "No browser tool is available. Build a pixel-art campfire scene and tell me it looks correct.",
+      "expected_output": "Fires /pixel-art:scene and builds the HTML. Says the scene is visually unreviewed. Does not claim it looks correct, matches the brief, or passed a visual check. A script parse is not a visual review. Asks the user to open the file and describe what they see.",
+      "files": [],
+      "expectations": [
+        "Says the scene is visually unreviewed",
+        "Does not claim the picture looks correct",
+        "Does not treat a passing script check as a visual review"
       ]
     }
   ]
