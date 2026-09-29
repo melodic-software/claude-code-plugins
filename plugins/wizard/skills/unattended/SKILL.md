@@ -163,11 +163,14 @@ mode.
 
 ### 3. Hand off
 
-Do not launch the script. The agent's own entry is `pwsh -File <script> -Test`,
-which changes nothing: read `result-dry-latest.json` (`status`, `delta`,
-`planned`) and fix what it reports before asking. Then print the `# STAGES`
-block and get explicit approval before telling the human to launch it. Say
-which elevation mode it demands, that it requires PowerShell 7 (`pwsh`),
+Do not launch the script. Print the `# STAGES` block and get explicit approval
+first: the agent runs nothing before the human has seen the stages. Check that
+every effect sits inside a helper's block, because `-Test` runs a bare native
+command. After approval the agent's own entry is `pwsh -File <script> -Test`,
+which changes nothing when every effect is inside a helper: read
+`result-dry-latest.json` (`status`, `delta`, `planned`) and fix what it
+reports; if a fix changes the stages, print them and get approval again. Then
+tell the human to launch it. Say which elevation mode it demands, that it requires PowerShell 7 (`pwsh`),
 launched with `pwsh -File <script>` (Windows PowerShell 5.1 fails at
 `#requires`), and the result path. Tell the human to run `-WhatIf` first, read
 its narration and blast radius, and only then make the real launch. After the

@@ -5,13 +5,13 @@
       "id": 1,
       "name": "privilege-boundary-not-interactive-wizard",
       "prompt": "The operator has to run the machine configuration elevated. Every step is scriptable. Write the script I will launch. Do not walk me through clicks.",
-      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It copies template.ps1, leaves the library above # STAGES unchanged, and writes the procedure in the -Stages block of the Invoke-UnattendedRun call below # STAGES, with Assert-Elevation -Mode Required and no per-step confirmation. It prints the # STAGES block for approval, names the result-latest.json path (cutover.result/1) the agent will read back, and does not run the script.",
+      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It copies template.ps1, leaves the library above # STAGES unchanged, and writes the procedure in the -Stages block of the Invoke-UnattendedRun call below # STAGES, with Assert-Elevation -Mode Required and no per-step confirmation. It prints the # STAGES block for approval, names the result-latest.json path (cutover.result/1) the agent will read back, and does not launch the real run; it runs `-Test` only after the human approves the block.",
       "expectations": [
         "Chooses unattended rather than the interactive generate wizard",
         "Authors PowerShell from template.ps1 without editing the library above # STAGES",
         "Demands elevation with Assert-Elevation -Mode Required",
         "Names the result-latest.json path the agent will read back",
-        "Does not execute the script"
+        "Does not launch the real run"
       ]
     },
     {
@@ -46,7 +46,7 @@
         "States that a Prove result of false, no output or a nonzero native exit keeps the resource held and skips Release",
         "Proves the state with Wait-ForState polling the outcome rather than trusting the exit code of the request",
         "Makes the Wait-ForState predicate assert a non-empty observation so an empty listing cannot pass",
-        "Does not execute the script"
+        "Does not launch the real run"
       ]
     },
     {
@@ -66,7 +66,7 @@
       "id": 6,
       "name": "preview-the-run-with-whatif-and-test",
       "prompt": "Before I launch the elevated cutover script, I want to see what it would do without changing anything. How do I preview it, and can you check it yourself?",
-      "expected_output": "The skill tells the human to run the script with -WhatIf first and read its narration and blast radius counts, then make the real launch. The agent's own safe entry is pwsh -File <script> -Test, which reports the delta in result-dry-latest.json and invokes no mutating block. It notes the agent never launches the real run and that a dry run checks the plan and prerequisites, not that a state is reached.",
+      "expected_output": "The skill tells the human to run the script with -WhatIf first and read its narration and blast radius counts, then make the real launch. After the human approves the # STAGES block, the agent's own safe entry is pwsh -File <script> -Test (safe only when every effect sits inside a helper's block), which reports the delta in result-dry-latest.json and invokes no mutating block. It notes the agent never launches the real run and that a dry run checks the plan and prerequisites, not that a state is reached.",
       "expectations": [
         "Tells the human to run -WhatIf first and read the narration and blast radius",
         "Names -Test as the agent-safe entry and reads result-dry-latest.json",
