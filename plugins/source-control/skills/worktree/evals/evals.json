@@ -161,6 +161,19 @@
         "The skill recognizes that removing a detached-HEAD worktree loses its commits immediately, with no branch ref left to recover from",
         "It does not report the worktree as having no unpushed work on the basis of a --branches query"
       ]
+    },
+    {
+      "id": 14,
+      "name": "audit-root-scan-stray-directories",
+      "prompt": "/worktree audit — find stray directories under the worktree root that no repo registers.",
+      "expected_output": "The audit runs scripts/worktree-root-scan.sh with one --repo-dir per canonical repository (Step 2c), reports rows by class, proposes only empty and husk rows for removal through cleanup's gated flow, and reports foreign, live, symlink and unknown rows without proposing removal.",
+      "files": [],
+      "expectations": [
+        "Runs worktree-root-scan.sh with --repo-dir for each canonical repository",
+        "Proposes only empty and husk directories for removal, through the cleanup flow with user confirmation",
+        "Reports foreign, live, symlink and unknown rows without proposing removal",
+        "Does not remove anything itself"
+      ]
     }
   ]
 }

@@ -172,6 +172,11 @@ root that itself sits inside a repository, and identity partials
 clean, 1 with findings. `/source-control:worktree audit` runs it as part of
 its configuration-health step.
 
+Directories under the root that no repository registers are classified by
+`scripts/worktree-root-scan.sh` (`empty`, `husk`, `foreign`, `live`, `symlink`, `unknown`).
+`/source-control:worktree audit` runs it (Step 2c); only `empty` and `husk` are proposed for
+removal, through `cleanup`.
+
 ## For consuming repositories' prose surfaces
 
 Add a pointer, not a path, e.g.:
