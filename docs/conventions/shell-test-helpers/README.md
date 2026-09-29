@@ -95,7 +95,8 @@ scripts/check-shell-portability.sh --awk-probe path/to/changed.test.sh
 ```
 
 It needs gawk and mawk installed; `SHELL_PORTABILITY_AWKS` overrides the candidate list. Exit `0` is
-clean, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. CI does not run it.
+no divergence, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. A suite that
+fails under every awk also exits `0`; it still needs the normal test run. CI does not run it.
 The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh).
 
 ## Deferred, not rejected
