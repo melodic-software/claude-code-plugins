@@ -593,7 +593,6 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "hidden")
         self.assertEqual(reach["evidence"], paths["local"])
 
-    @unittest.skipIf(shutil.which("bash") is None, "bash not on PATH")
     def test_a_bare_bash_name_not_on_path_is_unreadable_naming_path(self):
         managed = engine.enumerate_managed_scope(
             engine.managed_scope_lib_path(), bash="no-such-bash-xyz"
@@ -601,6 +600,7 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(managed["status"], "unreadable", managed)
         self.assertIn("PATH", managed["reason"])
 
+    @unittest.skipIf(shutil.which("bash") is None, "bash not on PATH")
     def test_managed_policy_false_outranks_local_true(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = os.path.join(tmp, "managed", "managed-settings.json")
