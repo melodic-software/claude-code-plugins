@@ -7,7 +7,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Changed
 
-- **`implement-dispatch` verifies behavior-changing phases and skips mechanical or one-line phases in every
+- **`implement-dispatch` verifies behavior-changing phases and skips mechanical, behavior-preserving phases in every
   mode.** The fresh-context `phase-verifier` runs for any phase beyond a mechanical, behavior-preserving
   change; the orchestrator verifies the rest from the diff plus the build/test signal, matching `implement`
   Step 4 ([#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)). The

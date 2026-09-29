@@ -75,7 +75,7 @@
         "Dispatches a separate fresh-context verifier subagent before marking the phase DONE (not the producing context self-auditing)",
         "The verifier checks acceptance criteria against the actual diff, and its result is surfaced in the response before the turn ends",
         "At a resident boundary runs plan marks, a DEVIATIONS.md entry, and mark-then-commit, keeping the full /implementation:implement Step 4 ritual (handoff, status summary, resume prompt) for a clear, a model or domain switch, or run end",
-        "A one-line or mechanical, behavior-preserving phase is verified by the orchestrator from the diff plus the build/test signal, with no verifier spawn, in every mode"
+        "A mechanical, behavior-preserving phase is verified by the orchestrator from the diff plus the build/test signal, with no verifier spawn, in every mode"
       ]
     },
     {
