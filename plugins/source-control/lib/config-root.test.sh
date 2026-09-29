@@ -92,7 +92,7 @@ differ "same leaf name in different directories differ" \
 differ "a file never equals its directory" "$HOME_DIR/.claude/source-control.md" "$HOME_DIR/.claude"
 err="$(config_root_paths_same "$HOME_DIR/.claude/source-control.md" "$HOME_DIR/.claude" 2>&1)"
 assert_silent "comparing a file with a directory prints nothing on stderr" "$err"
-same "missing paths compare after slash, case, and trailing-slash folding" "D:\\Work\\Alice\\" "d:/work/alice"
+same "missing paths compare after slash, case, and trailing-slash folding" "D:\\Repos\\Alice\\" "d:/repos/alice"
 
 if mklink "$HOME_DIR" "$TEST_TMPDIR/alias-home"; then
   same "a symlink alias of a directory equals the directory" "$TEST_TMPDIR/alias-home" "$HOME_DIR"
