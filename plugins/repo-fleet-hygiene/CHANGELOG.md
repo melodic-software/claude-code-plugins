@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.2] - 2026-09-29
+
+### Fixed
+
+- **`audit` withholds the per-repository `merged-remote-branch` `MEDIUM` rows when every live `ls-remote` probe in the run fails** ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)). The run now reports only the single fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding, whose handoff is to confirm `git ls-remote --heads` works by hand and rerun. A mixed run with at least one successful probe still reports the per-repository `MEDIUM` rows, and `HIGH` rows are unchanged.
+
 ## [0.24.1] - 2026-09-29
 
 ### Fixed

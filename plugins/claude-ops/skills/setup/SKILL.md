@@ -19,8 +19,8 @@ hook log root (`${user_config.session_event_log_dir}`, default `.observability/c
 defines that file's shape (first non-comment line is `*`), the hooks create it on their first write
 when it is missing, and a fresh clone or worktree therefore heals itself; `apply` creates the same
 file ahead of the first event so `check` can report a configured state before logging has fired.
-The consumer's root `.gitignore` is never touched (config-cascade convention: "No plugin writes the
-consumer's `.gitignore`"; the guard lives in a tree the plugin owns, the same shape the topic-docs
+The consumer's root `.gitignore` is never touched (config-cascade convention: a setup skill leaves the
+consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns, the same shape the topic-docs
 memory tier uses for its own root).
 
 Official contract (verified 2026-07-18):
