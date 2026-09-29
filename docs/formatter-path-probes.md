@@ -8,19 +8,15 @@ every `command -v` probe here (#2732; precedent #811).
 
 **Dispatch completeness is a prerequisite of this checklist.** If no `PostToolUse` hook
 completes, these probes never run and files land unformatted with no skip notice. That is a
-host or harness dispatch failure, not a PATH miss.
+host or harness dispatch failure, not a PATH miss, and
+[#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549) carries it.
 
-**Claim:** "no `PostToolUse` hook completes" is not a general property of Claude Code 2.1.x.
+**Claim:** "no `PostToolUse` hook completes" is not a general property of Claude Code 2.1.x:
 Linux 2.1.258 completes the two-line probe and a real `typos-format` `PostToolUse` with a full
-plugin fleet. Remaining diagnosis is the reporting Windows host (`claude --debug` on the
-Reproduction probe) and/or a second Windows host. Do not raise in-repo `PostToolUse` timeouts
-while no hook on the reporting host completes: that change is unfalsifiable. **Basis:**
-[#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549) (last known good
-`2026-08-12T09:07:17Z` on the reporting machine; every `PostToolUse` dispatch there ends
-`hook_cancelled` with zero `hook_success`); triage probe 2026-09-06 on a different Linux
-install at 2.1.258, isolated `CLAUDE_CONFIG_DIR` and real `~/.claude`, both `pre-` and `post-`
-lines present. **As of:** 2026-09-28. **Recheck:** the reporting Windows host's
-`claude --debug` probe log, or a second Windows host running the same two-line probe.
+plugin fleet. **Basis:** the 2026-09-06 triage probe on #3549 (both `pre-` and `post-` lines
+present, isolated `CLAUDE_CONFIG_DIR` and real `~/.claude`). **As of:** 2026-09-28.
+**Recheck:** the Windows `claude --debug` result on #3549. Until it names a cause, do not raise
+in-repo `PostToolUse` timeouts; the change cannot be tested without it.
 
 This document is the fleet checklist. Per-hook notices must:
 
