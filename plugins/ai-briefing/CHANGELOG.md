@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.46] - 2026-09-29
+
+### Changed
+
+- **Bump undici from 7.29.0 to 7.30.0 in /plugins/ai-briefing/skills/generate/output/build** (#5197).
+
 ## [0.7.45] - 2026-09-28
 
 ### Changed
