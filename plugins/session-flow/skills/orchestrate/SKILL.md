@@ -81,7 +81,8 @@ told:
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
    sentinel file appears unless something the worker launched writes it. The runtime may also leave
-   it running: a hung background shell keeps a worker that already reported listed as active. So
+   it running: a hung background shell has been observed to keep a worker that already reported
+   listed as active (`context/sources.md`, "A worker's own background work is not a wait"). So
    retiring a finished worker includes checking for its still-running background tasks and
    surfacing each one; stopping one is gated like any kill (`/session-flow:reconcile` step 3).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides

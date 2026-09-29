@@ -433,8 +433,8 @@ def main(argv=None):
     except ValueError as exc:
         print(f"capture.py: {exc}", file=sys.stderr)
         return 2
-    if args.record < 0:
-        print("capture.py: --record must be >= 0", file=sys.stderr)
+    if not math.isfinite(args.record) or args.record < 0:
+        print("capture.py: --record must be a finite number >= 0", file=sys.stderr)
         return 2
     browser = find_browser()
     if browser is None:

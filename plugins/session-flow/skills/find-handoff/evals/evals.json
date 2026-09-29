@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "The skill locates the handoff via the file directive and/or the known-location glob, not by guessing",
-        "It searches the `${CLAUDE_PLUGIN_DATA}` fallback handoff location only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
+        "It searches the fallback `<root>/handoffs/` printed by `save_point.py memory-root` only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
         "It checks a rooted directive path as given, and resolves a rootless one against the source transcript's cwd field (never the current session's cwd), before the existence check",
         "It surfaces the file path plus topic/date/session_id metadata and stops for a yes/no confirmation",
         "It does not execute the resume prompt or read the full file body before the operator confirms"

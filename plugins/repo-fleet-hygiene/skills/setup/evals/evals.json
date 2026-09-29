@@ -77,6 +77,19 @@
         "States append semantics for skipAppend versus replace semantics for skip",
         "Does not instruct the user to edit the config by hand"
       ]
+    },
+    {
+      "id": 7,
+      "name": "skip-remedy-runs-the-bundled-script",
+      "prompt": "/repo-fleet-hygiene:setup apply --extend-skip third_party\n\nThe audit reported a discovery-skip under third_party and its remedy named this command. Apply it, then run it again.",
+      "expected_output": "Setup calls the bundled scripts/setup-config.sh apply with --extend-skip third_party instead of editing the file by hand. The first run adds fleet.skipAppend = third_party. The second run reports already configured and leaves the file unchanged. An invalid name such as a/b or .. makes the script exit 2 with nothing written.",
+      "files": [],
+      "expectations": [
+        "Invokes ${CLAUDE_SKILL_DIR}/scripts/setup-config.sh apply rather than a hand edit",
+        "Writes fleet.skipAppend and not fleet.skip",
+        "Reports already configured on the second identical run",
+        "Reports a validation failure for a name containing a path separator without writing anything"
+      ]
     }
   ]
 }

@@ -42,6 +42,12 @@ skip that feature, continue with the documented reduced result.
   `preview.png` and the GIFs still come from the native renderer.
 - Adapter: `scripts/backends.py --backend aseprite`. It writes a Lua script and runs
   `aseprite --batch --script`, then `aseprite --batch <file.aseprite> --sheet --data --format json-hash --list-tags`.
+  It then rewrites `sheet.json` to the contract: `frames` keys become the spec frame names (mapped
+  by position over the sheet cells, `null` cells dropped) and `meta.image` becomes `sheet.png`;
+  `frameTags`, `layers` and `slices` stay as Aseprite wrote them. A frame count that differs from
+  the sheet cell count, or an unreadable `sheet.json`, falls back to native with one line.
+- Status: exercised only against a local stand-in (`test_backends.py`); not yet run against the real
+  Aseprite CLI. The generated Lua has never been executed by Aseprite.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
@@ -61,6 +67,12 @@ skip that feature, continue with the documented reduced result.
   [app.pixelColor.rgba](https://www.aseprite.org/api/pixelcolor),
   [json.decode](https://www.aseprite.org/api/json). As-of 2026-09-28. Recheck trigger: an Aseprite
   release whose CLI or scripting docs rename one of those options or functions.
+- Verification record: claim = the CLI documents `--filename-format` with a `{frame}` token, emits
+  empty frames unless `--ignore-empty` is given, and does not state the default `json-hash` key
+  format or the value of `meta.image`; the adapter therefore maps frames by position and sets
+  `meta.image` itself. Basis = [CLI](https://www.aseprite.org/docs/cli/). As-of 2026-09-29. Recheck
+  trigger: that page documenting the default key format or `meta.image`, or a real-Aseprite run
+  showing keys or frame counts that differ from one frame per sheet cell.
 
 ## PixelLab (API / MCP)
 
@@ -71,6 +83,8 @@ skip that feature, continue with the documented reduced result.
   `POST https://api.pixellab.ai/v1/generate-image-pixflux` with `Authorization: Bearer`, body
   `description` and `image_size` `{width, height}`. The response image is `image.base64` (a PNG
   data URL) and `usage.usd` is the reported charge. Area must be at least 32x32 and at most 400x400.
+- Status: exercised only against a local stand-in (`test_backends.py`); not yet run against the real
+  PixelLab service.
 - Detect: `PIXELLAB_API_TOKEN`. An MCP image (a session tool whose name contains `pixellab`) is not
   called again; pass that PNG to `backends.py --ingest`. The docs name a PixelLab MCP server and do
   not give a package name on the page fetched below.
@@ -91,6 +105,8 @@ skip that feature, continue with the documented reduced result.
   body `prompt`, `prompt_style`, `width`, `height`, `num_images`, then polls
   `GET /v2/inferences/tasks/{task_id}` until `status` is `succeeded`. Images are raw base64 PNG in
   `result.base64_images`. `result.balance_cost` is the USD charge.
+- Status: exercised only against a local stand-in (`test_backends.py`); not yet run against the real
+  Retro Diffusion service.
 - Detect: `RD_API_KEY` (keys start with `rdpk-`). MCP for agents is
   `https://mcp.retrodiffusion.ai/mcp` with `Authorization: Bearer`. An image that already came back
   from that server goes through `--ingest`, not a second paid call.
