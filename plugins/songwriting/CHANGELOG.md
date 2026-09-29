@@ -10,8 +10,6 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 - **`co-write` eval case 3** now asks for title candidates from an idea, the behavior the `title` action
   implements ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The prompt, expected
   output, and expectations no longer describe drafting a country verse from a single title.
-- **`rhyme` eval case 3** prompt no longer holds an escaped em dash left by an earlier re-serialization; a comma
-  replaces it.
 
 ## [1.4.37] - 2026-09-28
 
