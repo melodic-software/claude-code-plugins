@@ -26,8 +26,9 @@ locations through the three plugin options below. Claude Code reads plugin optio
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
 ([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
-fact 5). The lane takes them as plugin options and never from the `CLAUDE_PLUGIN_OPTION_*`
-environment mirror.
+fact 5). The lane takes them from the option values substituted into the babysit-loop skill body
+("Promotion-evidence bootstrap options" in [`SKILL.md`](../SKILL.md); fact 7) and never from the
+`CLAUDE_PLUGIN_OPTION_*` environment mirror.
 
 Never a source, for a location or for a surface itself:
 
@@ -128,11 +129,12 @@ absent. A set value is compliant only when it is:
   one usage line. With no root, every L2/L3 entry is unproven under a reason beginning
   `no --probe-evidence-root configured`. An evidence file that is unreadable or not a JSON array
   resolves every cell effective-unpromoted. Plugin options are read only from user settings,
-  `--settings`, and managed settings, and a repository's `env` block can populate the
-  `CLAUDE_PLUGIN_OPTION_*` variable of an unset option.
+  `--settings`, and managed settings, a repository's `env` block can populate the
+  `CLAUDE_PLUGIN_OPTION_*` variable of an unset option, and a skill body's option placeholders
+  substitute into model-visible content.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
   `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
-  `docs/conventions/hook-config-delivery/README.md` facts 4 and 5.
+  `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7.
 - **As of:** 2026-09-29.
 - **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
   plugin-option read scopes.

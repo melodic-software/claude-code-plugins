@@ -11,8 +11,10 @@ is.
    `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
    neutral-directory launch mode allows.
    **Bootstrap check (once per lane, report-only).** Skipped at `human-only`. When the resolved
-   rung is merge-capable, read the plugin options `promotion_evidence_binding`,
-   `promotion_evidence_root`, and `promotion_evidence_source`
+   rung is merge-capable, read the options `promotion_evidence_binding`,
+   `promotion_evidence_root`, and `promotion_evidence_source` from the substituted block in
+   [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; a surviving literal
+   placeholder or an empty value is unset, and the `CLAUDE_PLUGIN_OPTION_*` mirror is never read)
    ([contract](promotion-evidence-bootstrap.md)) and record, by option name, each one that is unset,
    holds a relative path, or resolves (after symlinks) inside the target checkout or a lane
    worktree, with the compliant fix the contract gives. Whether the lane can write a surface is a

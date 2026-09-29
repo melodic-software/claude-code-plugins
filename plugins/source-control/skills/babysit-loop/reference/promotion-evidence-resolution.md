@@ -43,8 +43,9 @@ supplies for the seam is in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
 option name; neither makes the seam return a read, since no cycle step invokes the checker. The
-implementation checklist and phased plan are proposed in
-[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md)
+implementation checklist and phased plan are in
+[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), Phase 1
+approved and Phases 2-3 unapproved
 ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)); recheck trigger:
 `check-security-binding.mjs --evidence` returning a qualified read through the trusted seam, and
 the repository's evidence predicates being met
