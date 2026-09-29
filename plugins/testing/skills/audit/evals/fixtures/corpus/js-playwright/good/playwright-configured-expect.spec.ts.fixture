@@ -1,0 +1,10 @@
+// good-for: rule-zero-assertion
+// An instance from expect.configure() asserts like expect itself.
+import { expect, test } from '@playwright/test';
+
+const slowExpect = expect.configure({ timeout: 10_000 });
+
+test('report finishes rendering', async ({ page }) => {
+  await page.goto('/reports/annual');
+  await slowExpect(page.getByText('Report ready')).toBeVisible();
+});

@@ -1,0 +1,20 @@
+// good-for: rule-zero-assertion
+// Benchmarks and examples are not tests: timing and printed output are their oracle.
+package hash
+
+import (
+	"fmt"
+	"testing"
+)
+
+func BenchmarkSum(b *testing.B) {
+	data := make([]byte, 4096)
+	for b.Loop() {
+		Sum(data)
+	}
+}
+
+func ExampleSum() {
+	fmt.Printf("%x\n", Sum([]byte("abc")))
+	// Output: 352441c2
+}

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# expect: rule-recomputed-expectation
+# The expected side runs the same pipeline as the actual side, so the
+# assertion passes whatever sort does.
+set -uo pipefail
+
+FAILED=0
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() {
+  FAILED=1
+  printf 'FAIL: %s\n' "$1"
+}
+assert_eq() { if [[ "$1" == "$2" ]]; then pass "$3"; else fail "$3"; fi; }
+
+assert_eq "$(printf 'b\na\n' | sort)" "$(printf 'b\na\n' | sort)" "sort orders lines"
+exit "$FAILED"

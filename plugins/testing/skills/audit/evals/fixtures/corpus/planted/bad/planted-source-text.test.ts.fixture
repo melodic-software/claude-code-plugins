@@ -1,0 +1,10 @@
+// adapter: js-jest
+// expect: rule-source-text-read
+// reads: src/limits.ts
+// Planted #4.
+import { readFileSync } from 'fs';
+
+test('source text', () => {
+  const src = readFileSync('src/limits.ts', 'utf8');
+  expect(src).toContain('280');
+});

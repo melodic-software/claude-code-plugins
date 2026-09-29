@@ -1,0 +1,13 @@
+// good-for: rule-zero-assertion
+// A test call split over lines before its body brace: the body is the
+// test's, and it asserts.
+import { applyDiscount } from '../src/pricing';
+
+test(
+  'applies a percentage coupon',
+  () => {
+    const cart = { items: [{ sku: 'A1', price: 5000 }], coupon: 'SAVE10' };
+    expect(applyDiscount(cart).total).toBe(4500);
+  },
+  10000,
+);
