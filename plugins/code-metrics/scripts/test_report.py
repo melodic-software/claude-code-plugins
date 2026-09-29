@@ -1934,6 +1934,38 @@ class AnchorTests(unittest.TestCase):
             "lib/m4.py, +2 more in the JSON",
         )
 
+    def test_a_note_that_prefixes_another_rows_note_leaves_it_intact(self) -> None:
+        doc = cwd_relative_doc()
+        doc["run"] = [
+            {
+                "lane": "a",
+                "measure": "coverage",
+                "status": "partial",
+                "reason": "partial; missing: a.py",
+                "missing": ["a.py"],
+            },
+            {
+                "lane": "b",
+                "measure": "coverage",
+                "status": "partial",
+                "reason": "partial; missing: a.py, b.py",
+                "missing": ["a.py", "b.py"],
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            anchored = self.anchor(doc, root, sub)
+        self.assertEqual(anchored["run"][1]["missing"], ["sub/a.py", "sub/b.py"])
+        self.assertEqual(
+            anchored["run"][1]["reason"], "partial; missing: sub/a.py, sub/b.py"
+        )
+
+    def test_a_filesystem_root_is_a_valid_anchor(self) -> None:
+        doc = cwd_relative_doc()
+        with tempfile.TemporaryDirectory() as tmp:
+            anchored = self.anchor(doc, "/", tmp)
+        self.assertEqual(anchored["root"]["path"], "/")
+
     def test_the_note_cap_is_the_coverage_joins(self) -> None:
         sys.path.insert(0, str(SCRIPT_DIR))
         modules = {}

@@ -297,9 +297,12 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
         return doc
     if kind not in ROOT_KINDS:
         raise SystemExit(f"anchor kind must be one of {ROOT_KINDS}, got {kind!r}")
-    root_text = root.replace("\\", "/").rstrip("/")
-    if not root_text:
+    text = root.replace("\\", "/")
+    if not text:
         raise SystemExit("anchor needs a root path")
+    root_text = text.rstrip("/")
+    if not root_text or root_text.endswith(":"):
+        root_text += "/"
 
     def one(path: Any) -> Any:
         return (
@@ -331,7 +334,9 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
         reason = row.get("reason")
         if isinstance(reason, str):
             for old, new in notes:
-                reason = reason.replace(old, new)
+                if old and reason.endswith(old):
+                    reason = reason[: -len(old)] + new
+                    break
             row["reason"] = reason
     doc["root"] = {"kind": kind, "path": root_text}
     doc["scan_root"] = root_relative(os.getcwd(), root_text)
