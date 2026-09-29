@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **run-e2e:** the Native step carries the full wrap grammar: an identity check that also accepts a
+  project skill named `run`, a mutation fingerprint, skip and refuse states that name the axis line
+  and the enable path, a result block, and an unattended run never invokes `run`.
+- **run-e2e:** one launch path per verification. An orchestrator-governed start skips the Native step.
+- **run-e2e:** the Boundary section and `context/bundled-run.md` match the compose decision.
+- **diagnose, plan, write, run-e2e:** Arguments are stated once.
+- **run-e2e:** the evals replace a duplicate case with one that covers the Native step.
+
 ## [0.9.7] - 2026-09-28
 
 ### Changed
