@@ -56,6 +56,43 @@
   recording the listing as unenforced already say this and are left as recorded (Refs #3465).
 - **`SKILL.md`'s description no longer enumerates the tier names**, so a tier added later does not
   leave it stale.
+- **Golden-set re-score against rubric version 4: the deterministic layer was re-run, the judgment
+  panel was not.** `fingerprint.mjs compare` over all ten `case.md` and `source.md` pairs reproduces
+  every figure the fixtures record, and the separation rule fires on the same six cases and stays
+  silent on the same four:
+
+  | Case | Containment | Jaccard | Longest span (words) | Rule fires |
+  |---|---|---|---|---|
+  | `c01` | 0.643 | 0.336 | 76 | yes |
+  | `c02` | 0.713 | 0.477 | 59 | yes |
+  | `c03` | 0.436 | 0.208 | 22 | yes |
+  | `c04` | 0.507 | 0.325 | 68 | yes |
+  | `c05` | 0.000 | 0.000 | 0 | no |
+  | `c06` | 0.039 | 0.014 | 7 | no |
+  | `c07` | 0.000 | 0.000 | 0 | no |
+  | `c08` | 0.570 | 0.312 | 22 | yes |
+  | `c09` | 0.413 | 0.178 | 10 | yes |
+  | `c10` | 0.000 | 0.000 | 0 | no |
+
+  **Not run: the blind judgment panel.** Version 4 is scored by the three-judge panel per case the
+  0.4.0 re-score used, thirty independent judges that see the candidate, the fetched source, the
+  containing file and the rubric and never `expected.json` or another judge's verdict. This run had
+  no subagent tool, and it had read every `expected.json` before any grading, so an inline grade
+  would be neither blind nor a panel. No tp, fp, fn or tn, and no precision or recall, is therefore
+  pinned to version 4. The version-3 table (8 tp, 0 fp, 0 fn, 2 tn) stays superseded and is not
+  restated as a version-4 claim. Running the panel and recording its table is what remains of
+  #5354.
+
+  **No verdict moved, and none could be measured as moving.** Version 4 differs from version 3 in
+  carve-out 5 and in the tier table's `vendored-snapshot` row. All ten cases are ordinary local
+  notes, none is a distilling surface with a Sources section, so the carve-out 5 qualifier has
+  nothing to act on, and no case declares the new tier. That reading predicts every expected
+  verdict holds; it is a prediction from the fixtures, not a panel result, and no `expected.json`
+  was edited.
+
+  **Every class stays below `min_n_per_class` 10:** near-verbatim n = 5, verbatim n = 2, paraphrase
+  n = 1, hard negatives n = 2 (10 cases). The class-size gate therefore holds whatever the panel
+  returns, and no class is fix-eligible (Refs #3465).
 
 ## [0.6.2] - 2026-09-29
 
