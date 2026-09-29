@@ -1,6 +1,6 @@
 ---
 name: ecosystem-specialist
-description: "Multi-language build, test, and lint specialist. Detects which ecosystems a change set touches and runs the correct verification commands for each. Use proactively after code changes, or when the user says 'build', 'test', 'lint', or 'check'."
+description: "Multi-language build, test, and lint specialist. Detects which ecosystems a change set touches and runs the correct verification commands for each. Use when the user says 'build', 'test', 'lint', or 'check'. Not after every edit."
 tools: "Bash, Read, Grep, Glob"
 model: sonnet
 effort: high

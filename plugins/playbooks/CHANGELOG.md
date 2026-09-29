@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.3] - 2026-09-29
+## [0.14.4] - 2026-09-29
 
 ### Fixed
 
@@ -13,6 +13,15 @@ only after that version increases.
   `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
   takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
   `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
+## [0.14.3] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `compress` step runs `audit` first** ([#5193](https://github.com/melodic-software/claude-code-plugins/issues/5193)).
+  The step now runs `/docs-hygiene:compress audit`, excludes always-loaded instruction files from
+  its targets, and is ticked `not-applicable` when no targets remain, instead of compressing every
+  markdown file.
 
 ## [0.14.2] - 2026-09-29
 
