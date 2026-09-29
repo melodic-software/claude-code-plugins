@@ -176,6 +176,29 @@ clean "host and port" "Cache" "cache.example.com:6380"
 clean "an empty key with a plain line" "" $'Clerk\tFiles a claim'
 secret "an empty key with a bearer line" "" $'Gate\tsends Bearer '"${fake}"
 
+# redact_local_http is opt-in: only a caller that sets it sees a bare service name or a loopback host.
+local_shape() {
+  REDACT_KEY="$1" REDACT_VALUE="$2" awk -v redact_local_http="$3" -f "$SCRIPT_DIR/redact-connection.awk" -f - <<'AWK'
+BEGIN {
+  redact_begin()
+  redact_shape(ENVIRON["REDACT_KEY"], ENVIRON["REDACT_VALUE"])
+  redact_dump("")
+}
+AWK
+}
+leak_ep_pass="EndpointPass456"
+leak_ep_tok="EndpointTok789"
+ep_url="https://user:${leak_ep_pass}@orders-api:8080/v1?token=${leak_ep_tok}"
+assert_equals "local http: a bare service name is dropped by default" "$(local_shape Services.Orders.BaseUrl "$ep_url" 0)" ""
+assert_equals "local http: loopback is dropped by default" "$(local_shape Services.Orders.BaseUrl "http://localhost:5001" 0)" ""
+assert_equals "local http: opt-in keeps the service name and port" "$(local_shape Services.Orders.BaseUrl "$ep_url" 1)" $'http\torders-api\t8080\t\t\t'
+assert_not_contains "local http: userinfo and query are dropped" "$(local_shape Services.Orders.BaseUrl "$ep_url" 1)" "Endpoint"
+assert_equals "local http: opt-in keeps loopback" "$(local_shape Services.Orders.BaseUrl "http://127.0.0.1:5001" 1)" $'http\t127.0.0.1\t5001\t\t\t'
+assert_equals "local http: opt-in reads every ;-separated URL" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 1)" $'http\tlocalhost\t7001\t\t\t\nhttp\tlocalhost\t5001\t\t\t'
+assert_equals "local http: a ;-separated list is unread by default" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 0)" ""
+assert_equals "local http: authority keys stay dotted-host only" "$(local_shape Auth.Authority "https://login/tenant" 1)" ""
+assert_equals "local http: a store kind never takes a bare name" "$(local_shape Cache "redis://cache:6379" 1)" ""
+
 exec_out="$(bash "$SCRIPT_DIR/redact-connection.sh" 2>&1)"
 assert_equals "executing the wrapper exits 2" "$?" "2"
 assert_contains "executing the wrapper says to source it" "$exec_out" "source this file"

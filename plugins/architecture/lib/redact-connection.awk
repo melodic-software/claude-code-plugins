@@ -16,6 +16,11 @@
 # Userinfo, query strings, passwords, account keys, tokens, and secret-only
 # values are dropped. A value that is only a credential produces no row.
 #
+# A caller that charts endpoints between its own deployables sets
+# redact_local_http (awk -v redact_local_http=1) so an http shape may also name
+# a bare service name, localhost, or 127.0.0.1, and a ; ends a URL authority.
+# Every other shape and every other caller still drops those hosts.
+#
 # redact_secret(key, value) is 1 when the key names a credential or the value
 # carries one. A caller that prints a raw value drops it when this is 1.
 
@@ -50,6 +55,10 @@ function redact_host_ok(h) {
   return 1
 }
 
+function redact_local_http_ok(h) {
+  return h ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/ || h == "127.0.0.1"
+}
+
 function redact_db_name(s) {
   if (length(s) < 1 || length(s) > 128 || s !~ /^[A-Za-z0-9_.-]+$/) return ""
   if (redact_secret_value(s)) return ""
@@ -60,7 +69,7 @@ function redact_emit(kind, host, port, db, scheme,    id, j) {
   host = tolower(host)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
   sub(/\.$/, "", host)
-  if (!redact_host_ok(host)) return
+  if (!redact_host_ok(host) && !(redact_local_http + 0 && kind == "http" && redact_local_http_ok(host))) return
   if (port != "" && port !~ /^[0-9]+$/) port = ""
   id = host SUBSEP port SUBSEP db SUBSEP scheme
   if (id in redact_at) {
@@ -155,7 +164,8 @@ function redact_server(raw, kind, db,    port, host) {
   redact_emit(kind, host, port, db, "")
 }
 
-function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db) {
+function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, stop) {
+  stop = (redact_local_http + 0) ? "[/?#; \t\r\n]" : "[/?# \t\r\n]"
   rest = value
   guard = 0
   while (match(rest, /[A-Za-z][A-Za-z0-9+.-]*:\/\//)) {
@@ -163,7 +173,7 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     if (guard > 20) return
     scheme = tolower(substr(rest, RSTART, RLENGTH - 3))
     rest = substr(rest, RSTART + RLENGTH)
-    if (match(rest, /[\/?# \t\r\n]/)) cut = RSTART
+    if (match(rest, stop)) cut = RSTART
     else cut = length(rest) + 1
     if (cut <= 1) {
       if (length(rest) > 0) rest = substr(rest, 2)

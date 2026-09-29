@@ -14,7 +14,7 @@
 # refused, as the convention refuses it for that key.
 #
 # containers.md carries one fenced likec4 or plantuml block (none when the
-# dialect is none), then the shared-infrastructure, findings, and evidence
+# dialect is none), then the uses, shared-infrastructure, findings, and evidence
 # tables. A store shared by three owners is one shared-infrastructure row per
 # owner pair. Contained modules are named on their deployable. They are not
 # containers. The findings array is optional: a record without it renders.
@@ -187,6 +187,7 @@ BEGIN { focal = "" }
   evia[en] = jstr($0, "via")
   eev[en] = jstr($0, "evidence")
   if (ekind[en] == "shared-infrastructure") shared++
+  if (ekind[en] == "uses") uses++
 }
 /^[[:space:]]*\{"kind":/ {
   fn++
@@ -277,6 +278,16 @@ END {
       print "}" > out
     }
     if (dialect != "none") print "```" > out
+    print "" > out
+    print "## Uses" > out
+    print "" > out
+    print "| from | to | evidence |" > out
+    print "| --- | --- | --- |" > out
+    if (uses == 0) print "| none | none | none |" > out
+    for (i = 1; i <= en; i++) {
+      if (ekind[i] != "uses") continue
+      print "| " safe(efrom[i]) " | " safe(edge_to[i]) " | " safe(eev[i]) " |" > out
+    }
     print "" > out
     print "## Shared infrastructure" > out
     print "" > out

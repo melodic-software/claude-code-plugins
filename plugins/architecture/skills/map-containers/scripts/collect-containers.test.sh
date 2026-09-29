@@ -658,6 +658,131 @@ assert_contains "three owners: the table names the store" "$hmd" "| from | to | 
 assert_contains "three owners: the table lists every pair" "$hmd" "| src/Batch/Batch.csproj | src/Worker/Worker.csproj | store:broker:bus.servicebus.windows.net: |"
 assert_contains "three owners: the table lists the first pair" "$hmd" "| src/Api/Api.csproj | src/Batch/Batch.csproj |"
 
+# An endpoint a deployable's config names is an edge only through a cited fact.
+leak_ep_pass="EndpointPass456"
+leak_ep_tok="EndpointTok789"
+EP="$TEST_TMPDIR/endpoint-repo"
+web_project "$EP/src/Web" Web
+web_project "$EP/src/OrdersApi" OrdersApi
+cat >"$EP/compose.yml" <<'EOC'
+services:
+  web:
+    build: ./src/Web
+  orders-api:
+    build:
+      context: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+EOC
+cat >"$EP/src/Web/appsettings.json" <<'EOC'
+{ "Services": { "OrdersApi": { "BaseUrl": "http://orders-api:8080" } } }
+EOC
+commit_repo "$EP"
+collect_render "$EP" "$TEST_TMPDIR/endpoint-out"
+EREC="$TEST_TMPDIR/endpoint-out/containers.json"
+eedges="$(grep '"kind":"uses"' "$EREC" || true)"
+assert_equals "endpoint: a configured base URL draws exactly one uses edge" "$(printf '%s\n' "$eedges" | grep -c . || true)" "1"
+assert_contains "endpoint: it runs from the configuring deployable to the target" "$eedges" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_contains "endpoint: it cites the file and config key" "$eedges" "src/Web/appsettings.json: Services.OrdersApi.BaseUrl"
+assert_contains "endpoint: it cites the compose service that resolved the host" "$eedges" "compose.yml: service orders-api build src/OrdersApi"
+assert_not_contains "endpoint: a resolved endpoint is not a finding" "$(cat "$EREC")" "external-endpoint"
+emd="$(cat "$TEST_TMPDIR/endpoint-out/containers.md")"
+assert_contains "endpoint: the plantuml diagram draws it" "$emd" 'Rel(e_Web, e_OrdersApi, "Uses"'
+assert_contains "endpoint: the uses table lists it with its citation" "$emd" "| src/Web/Web.csproj | src/OrdersApi/OrdersApi.csproj | src/Web/appsettings.json: Services.OrdersApi.BaseUrl"
+mkdir -p "$TEST_TMPDIR/endpoint-likec4" "$TEST_TMPDIR/endpoint-none"
+bash "$RENDER" --record "$EREC" --out "$TEST_TMPDIR/endpoint-likec4" --dialect likec4 >/dev/null
+assert_contains "endpoint: the likec4 diagram draws it" "$(cat "$TEST_TMPDIR/endpoint-likec4/containers.md")" 'e_sys.e_Web -> e_sys.e_OrdersApi "Uses"'
+assert_likec4_golden "containers-endpoints.c4" "$TEST_TMPDIR/endpoint-likec4/containers.md"
+bash "$RENDER" --record "$EREC" --out "$TEST_TMPDIR/endpoint-none" --dialect none >/dev/null
+assert_contains "endpoint: the tables carry it when no diagram is drawn" "$(cat "$TEST_TMPDIR/endpoint-none/containers.md")" "| src/Web/Web.csproj | src/OrdersApi/OrdersApi.csproj |"
+
+# A launchSettings applicationUrl on the target resolves a loopback endpoint on the same port.
+LS="$TEST_TMPDIR/launch-repo"
+web_project "$LS/src/Web" Web
+web_project "$LS/src/Orders" Orders
+mkdir -p "$LS/src/Orders/Properties"
+cat >"$LS/src/Orders/Properties/launchSettings.json" <<'EOC'
+{ "profiles": { "https": { "applicationUrl": "https://localhost:7001;http://localhost:5001" } } }
+EOC
+cat >"$LS/src/Web/appsettings.json" <<'EOC'
+{ "Orders": { "Url": "http://localhost:5001", "Secure": "https://127.0.0.1:7001" } }
+EOC
+commit_repo "$LS"
+collect_render "$LS" "$TEST_TMPDIR/launch-out"
+LREC="$TEST_TMPDIR/launch-out/containers.json"
+ledges="$(grep '"kind":"uses"' "$LREC" || true)"
+assert_equals "launchSettings: two loopback endpoints on one target are one edge" "$(printf '%s\n' "$ledges" | grep -c . || true)" "1"
+assert_contains "launchSettings: it runs from the configuring deployable" "$ledges" '{"from":"src/Web/Web.csproj","to":"src/Orders/Orders.csproj","kind":"uses"'
+assert_contains "launchSettings: it cites both config keys" "$ledges" "src/Web/appsettings.json: Orders.Secure; src/Web/appsettings.json: Orders.Url"
+assert_contains "launchSettings: it cites the applicationUrl" "$ledges" "src/Orders/Properties/launchSettings.json: profiles.https.applicationUrl"
+assert_not_contains "launchSettings: a deployable's own listen address is not an endpoint" "$(cat "$LREC")" "external-endpoint"
+
+# An endpoint that resolves to nothing, to more than one deployable, or only by resemblance draws no edge.
+UNK="$TEST_TMPDIR/unknown-endpoint-repo"
+web_project "$UNK/src/Web" Web
+web_project "$UNK/src/OrdersApi" OrdersApi
+web_project "$UNK/src/BillingApi" BillingApi
+cat >"$UNK/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+  shared:
+    build: ./src/OrdersApi
+EOC
+cat >"$UNK/docker-compose.yml" <<'EOC'
+services:
+  shared:
+    build: ./src/BillingApi
+EOC
+cat >"$UNK/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": {
+    "External": { "BaseUrl": "https://api.example.com" },
+    "WrongPort": { "BaseUrl": "http://orders-api:9999" },
+    "Similar": { "BaseUrl": "http://ordersapi:8080" },
+    "Both": { "BaseUrl": "http://shared:8080" }
+  }
+}
+EOC
+cat >"$UNK/src/OrdersApi/appsettings.json" <<'EOC'
+{ "Self": { "BaseUrl": "http://orders-api:8080" } }
+EOC
+commit_repo "$UNK"
+collect_render "$UNK" "$TEST_TMPDIR/unknown-endpoint-out"
+UREC="$TEST_TMPDIR/unknown-endpoint-out/containers.json"
+utext="$(cat "$UREC")"
+assert_equals "unresolved: no endpoint draws an edge" "$(grep -c '"kind":"uses"' "$UREC" || true)" "0"
+assert_equals "unresolved: each unresolved endpoint is one finding, and a self-reference is none" "$(grep -c '"kind":"external-endpoint"' "$UREC" || true)" "4"
+assert_contains "unresolved: an unknown host is an external endpoint with its file and key" "$utext" "src/Web/appsettings.json: Services.External.BaseUrl names host api.example.com; resolves to no deployable"
+assert_contains "unresolved: a port the service does not declare is not matched" "$utext" "Services.WrongPort.BaseUrl names host orders-api:9999; resolves to no deployable"
+assert_contains "unresolved: a name that only resembles a project is not matched" "$utext" "Services.Similar.BaseUrl names host ordersapi:8080; resolves to no deployable"
+assert_contains "unresolved: a host naming two deployables is not guessed" "$utext" "Services.Both.BaseUrl names host shared:8080; matches more than one deployable"
+assert_contains "unresolved: the findings table lists them" "$(cat "$TEST_TMPDIR/unknown-endpoint-out/containers.md")" "| external-endpoint | 1 |"
+
+# Userinfo and a query token do not stop the edge from resolving, and neither reaches an output.
+LEAK="$TEST_TMPDIR/leak-endpoint-repo"
+web_project "$LEAK/src/Web" Web
+web_project "$LEAK/src/OrdersApi" OrdersApi
+cat >"$LEAK/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+EOC
+cat >"$LEAK/src/Web/appsettings.json" <<EOC
+{ "Services": { "Orders": { "BaseUrl": "https://user:${leak_ep_pass}@orders-api/?token=${leak_ep_tok}" } } }
+EOC
+commit_repo "$LEAK"
+collect_render "$LEAK" "$TEST_TMPDIR/leak-endpoint-out"
+mkdir -p "$TEST_TMPDIR/leak-endpoint-likec4"
+bash "$RENDER" --record "$TEST_TMPDIR/leak-endpoint-out/containers.json" --out "$TEST_TMPDIR/leak-endpoint-likec4" --dialect likec4 >"$TEST_TMPDIR/leak-endpoint-likec4/render.out" 2>&1
+leak_ep_text="$(cat "$TEST_TMPDIR/leak-endpoint-out"/* "$TEST_TMPDIR/leak-endpoint-likec4"/*)"
+assert_contains "leak: the edge still resolves" "$leak_ep_text" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_not_contains "leak: the password is in no output" "$leak_ep_text" "$leak_ep_pass"
+assert_not_contains "leak: the query token is in no output" "$leak_ep_text" "$leak_ep_tok"
+assert_not_contains "leak: the userinfo is in no output" "$leak_ep_text" "user:"
+
 # Files are read from the working tree, and a dirty tracked file is a finding.
 DIRTY="$TEST_TMPDIR/dirty-repo"
 web_project "$DIRTY/src/Api" Api
