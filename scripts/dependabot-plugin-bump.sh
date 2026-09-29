@@ -152,7 +152,7 @@ ${body}
   if grep -qE '^##[[:space:]]*\[' "$changelog"; then
     awk -v entry="$entry" '
       BEGIN { inserted=0 }
-      /^##[[:space:]]*\[/ && !inserted { printf "%s", entry; inserted=1 }
+      /^##[[:space:]]*\[/ && !inserted { printf "%s\n", entry; inserted=1 }
       { print }
       END { if (!inserted) printf "%s", entry }
     ' "$changelog" >"$tmp"

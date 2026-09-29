@@ -79,6 +79,12 @@ if [[ $rc -eq 0 && "$ver" == "1.0.1" && "$out" == *"alpha 1.0.0 -> 1.0.1"* ]] &&
 else
   fail "lockfile bump: rc=$rc ver=$ver out='$out'"
 fi
+# The inserted entry is separated from the next version heading by a blank line (markdownlint MD022/MD032).
+if awk '/^## \[1\.0\.1\]/{seen=1} seen && /^## \[1\.0\.0\]/{exit !(prev=="")} {prev=$0}' "$repo/plugins/alpha/CHANGELOG.md"; then
+  ok "inserted entry leaves a blank line before the next heading"
+else
+  fail "inserted entry runs into the next heading: $(cat "$repo/plugins/alpha/CHANGELOG.md")"
+fi
 # Gate passes
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump main >/dev/null 2>&1); then
   ok "gate --check-bump passes after bump"

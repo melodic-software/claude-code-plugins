@@ -1,12 +1,14 @@
 ---
 description: "Route one spec container's multi-session effort: say where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, and route the next step to the skill that owns it. Use when the user says 'ship' about a spec or container, asks where a container stands or what is next in it, wants to drive or resume the effort, or wants to close it out. Routes only: the next item is /work-items:work, re-slicing is /work-items:decompose."
-argument-hint: "[#<container-id> | <topic-slug>]. Empty = discover the container from the current topic, then from the tracker"
+argument-hint: "[#<container-id> | <topic-slug>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Route a spec container's macro journey. Status, execution shape, next step
 ---
+
+**Arguments.** `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker
 
 ## Variables
 

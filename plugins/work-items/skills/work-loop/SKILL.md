@@ -1,6 +1,6 @@
 ---
 description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
-argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]"
+argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,8 @@ metadata:
   summary: Drain the backlog as a self-paced autonomous loop
   cadence: continuous
 ---
+
+**Arguments.** `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]`. Full form: [<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]
 
 ## Variables
 

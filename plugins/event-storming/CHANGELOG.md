@@ -3,6 +3,14 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.18] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `simulation` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
 ## [0.6.17] - 2026-09-27
 
 ### Changed

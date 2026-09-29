@@ -90,8 +90,8 @@ and clarity is what grounds 2 to 4 test for.
 
 | Skill | `argument-hint` | Why it conforms |
 |---|---|---|
-| `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. |
-| `repo-hygiene:clean` | `[scan\|caches\|build\|git\|…] (bare → menu or auto-detect)` (action list abridged) | Action words only; each selects a named routine, so none needs a flag. The bare form is stated. |
+| `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--sizes-only] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. The rest of the parser's flags are in the body's Arguments line. |
+| `repo-hygiene:clean` | `[scan\|caches\|build\|git\|stash\|tree\|all\|<tier>-batch\|aliases…]` | Action words only; each selects a named routine, so none needs a flag. `<tier>-batch` stands for the five fleet forms the body lists. The body states the bare form. |
 
 ## `argument-hint` is bound to the shape
 
@@ -105,6 +105,9 @@ appears only when a ground-1 parser accepts that form. Without one, the hint imp
 that does not exist, so write the grouping rule in words in the Arguments section instead.
 
 The hint validates nothing, so its only job is to agree with the Arguments section it summarizes.
+Its length budget, punctuation, and the no-empty-hint rule are the
+[argument-hint house style](../argument-hint/README.md)'s, which the fleet contract validator
+enforces.
 
 ## Decisions
 

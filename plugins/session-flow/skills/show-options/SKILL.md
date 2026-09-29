@@ -1,12 +1,14 @@
 ---
 description: "Lay out which skills fit this moment as a ranked menu that hides nothing: Now, Next, Skipped upstream, Later, and a rotating Spotlight, drawn from the full installed catalog, not the truncated in-context listing. Use when: 'what should I run next', 'what are my options', 'what am I forgetting', 'which skill fits here', 'what else could I run', 'show me my options', 'what skills apply now'. Not the one-next-stage router (/session-flow:workflow) or a situation report (/session-flow:orient)."
-argument-hint: "[topic-slug] (e.g. /session-flow:show-options, /session-flow:show-options my-topic)"
+argument-hint: "[topic-slug]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Lay out the skills that fit this moment as a ranked, nothing-hidden menu
 ---
+
+**Arguments.** `[topic-slug]`. e.g. /session-flow:show-options, /session-flow:show-options my-topic
 
 # Show options
 

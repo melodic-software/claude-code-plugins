@@ -1,6 +1,6 @@
 ---
 description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Already sharp tickets: /planning:interview or /work-items."
-argument-hint: "[chart|work] [topic] (e.g., /planning:wayfind chart <topic>, /planning:wayfind work)"
+argument-hint: "[chart|work] [topic]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -13,6 +13,8 @@ metadata:
   workflow-stage: contract
   summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
 ---
+
+**Arguments.** `[chart|work] [topic]`. e.g., /planning:wayfind chart <topic>, /planning:wayfind work
 
 ## Pre-computed context
 

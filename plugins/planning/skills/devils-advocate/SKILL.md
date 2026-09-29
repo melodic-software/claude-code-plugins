@@ -1,12 +1,14 @@
 ---
 description: "Stress-test a plan or proposal adversarially before implementation: assumptions, evidence, failure scenarios, operational gotchas. Use when: 'devil's advocate', 'stress test', 'poke holes', 'what could go wrong', or before new dependencies, CI/build changes, or cross-module architecture. `incumbent` mode attacks the status quo: 'is there a better way now', 'should we still use X'. Not for code bugs or pre-PR verification."
-argument-hint: "[incumbent [target]] or [plan text or file path]. An optional leading deep/shallow sets research depth; works from conversation context if no argument given"
+argument-hint: "[incumbent [target]] or [plan text or file path]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: plan
   summary: Stress-test a plan or the incumbent approach adversarially
 ---
+
+**Arguments.** `[incumbent [target]] or [plan text or file path]`. An optional leading deep/shallow sets research depth; works from conversation context if no argument given
 
 ## Repository context. Gather first
 
