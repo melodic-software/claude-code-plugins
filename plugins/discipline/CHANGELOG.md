@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.15.5] - 2026-09-29
+
+### Fixed
+
+- The setup skill's rerun caveat passes the scope `claude plugin list` reports (`user` from the home directory), per the plugin-reconfiguration convention.
+
 ## [0.15.4] - 2026-09-28
 
 ### Changed
