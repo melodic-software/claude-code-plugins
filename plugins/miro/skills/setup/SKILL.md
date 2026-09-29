@@ -39,14 +39,17 @@ Official contracts:
    failure: the server runs and each tool call returns the configure instruction, so absent tools
    point to a different cause.
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
-4. When the scoped Miro tools are present, report that the server started and the token was supplied;
-   do not claim that the token has valid API access merely from tool discovery.
+4. When the scoped Miro tools are present, report only that the server started. The server starts
+   and lists its tools with no token, so tool presence proves neither that a token was supplied nor
+   that it has API access. Say the token state is unchecked, and that `verify-api` detects an unset
+   token.
 5. Optional credential check, only when the invocation passed `verify-api` (the explicit opt-in;
    never offer it as an in-flow question): call the read-only `miro_list_boards` tool with
    `limit: 1`. Never create, update, or delete a board during setup.
    - Success verifies API access; report only the count returned, not board names, IDs, or URLs.
-   - A tool error saying the token is not set, or an authentication failure, directs the user to
-     `/plugin configure miro@<marketplace>`.
+   - A tool error saying `miro_api_token` is not set means the token is unconfigured: report
+     `token not set` and direct the user to `/plugin configure miro@<marketplace>`, then
+     `/reload-plugins`. An authentication failure gets the same direction.
    - Network, rate-limit, or service failure is reported as a distinct degraded state; do not tell the
      user to replace a credential unless the response identifies authentication as the cause.
 
@@ -100,8 +103,8 @@ secrets manager rather than inlining it literally.
 
 ## Output
 
-Report one state: `disabled`, `server unavailable`, `server ready (credential not API-verified)`,
-`API access verified`, or `API verification degraded`. Include the exact next action when the state is
+Report one state: `disabled`, `server unavailable`, `server ready (token not checked)`,
+`token not set`, `API access verified`, or `API verification degraded`. Include the exact next action when the state is
 not verified.
 
 Sensitive values use the macOS Keychain, or `~/.claude/.credentials.json` on platforms where no

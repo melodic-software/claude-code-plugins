@@ -14,7 +14,7 @@ spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-c
 
 The plugin **installs disabled** (`defaultEnabled: false`). A bundled MCP server that
 connects to an external, credentialed service is opt-in, not on by default. Enable it
-with `claude plugin enable miro` or the `/plugin` interface, and provide a token:
+with `claude plugin enable miro` or the `/plugin` interface. Set a token before first use:
 
 | Option | Storage | Purpose |
 |---|---|---|
