@@ -183,7 +183,10 @@ item's class sits within the effective rung **and** its promotable cell is **eff
 C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines.
-Report each bound-to-effective pair at cycle start. The three-arm resolver, what counts as
+Report each bound-to-effective pair at cycle start. The operator-supplied surfaces the seam needs
+are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
+report-only lane-start preflight names each missing one, and the seam still returns no qualified
+read, so every cell stays effective-unpromoted. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.

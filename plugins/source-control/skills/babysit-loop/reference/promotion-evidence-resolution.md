@@ -38,7 +38,11 @@ only**, never by re-deriving a subset in prose.
 
 **Current seam state.** This seam does not yet return a qualified, non-forgeable evidence read, so
 **every promotable cell resolves effective-unpromoted**: autonomous merge stays off for C2/C3
-classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. The
+classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. What an operator
+supplies for the seam is in
+[`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
+in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
+option name; neither makes the seam return a read, since no cycle step invokes the checker. The
 implementation checklist and phased plan are proposed in
 [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md)
 ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)); recheck trigger:
