@@ -32,8 +32,7 @@ touching instruction files. The open tracker is
 Direct reading is conditional in ways a repository cannot fix from inside: it is gated on a remote
 feature flag whose code default was false when this was decided, is suppressed by any `CLAUDE.md`
 at or above the working directory, needs CLI 2.1.277 or later, and is absent from some sessions
-entirely. Each of those is
-a four-part dated record in
+entirely. Each of those is a four-part dated record in
 `plugins/instruction-placement/skills/migrate/reference/sources.md` ("The remote flag, and how its
 code default is read", "The documented feature-flag dependency", "The minimum CLI version"), and
 the loading rule itself is the record under "Why the shim stays" in that skill's `SKILL.md`.
