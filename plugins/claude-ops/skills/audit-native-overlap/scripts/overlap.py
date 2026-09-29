@@ -1262,19 +1262,24 @@ def cmd_detect(args: argparse.Namespace) -> int:
 
     corpus = load_components(repo)
     surfaces = native_surfaces(lane_payloads)
-    scored = (
-        discover.discover(surfaces, corpus, threshold=args.threshold, top_k=args.top_k)
-        if args.top_k > 0
-        else []
+
+    def keyed(scored: list[discover.Scored]) -> dict[tuple[str, str, str, str], Any]:
+        return {
+            key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind}): (
+                s,
+                score,
+                matched,
+            )
+            for s, c, score, matched in scored
+        }
+
+    # Seeds read their score from every scored pair, so a seed below the
+    # discovery cut still shows how far lexical evidence alone would carry it.
+    all_scored = discover.score_all(surfaces, corpus)
+    seed_scores = keyed(all_scored)
+    scores = keyed(
+        discover.select(all_scored, threshold=args.threshold, top_k=args.top_k)
     )
-    scores = {
-        key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind}): (
-            s,
-            score,
-            matched,
-        )
-        for s, c, score, matched in scored
-    }
 
     candidates: list[dict[str, Any]] = []
     for pair in pairs_data["pairs"]:  # shape guaranteed by validate_pairs above
@@ -1311,7 +1316,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if pair.get("why"):
             evidence.append(f"seeded rationale: {pair['why']}")
         key = key_of(native.get("name"), component)
-        _surface, score, matched = scores.pop(key, (None, None, None))
+        scores.pop(key, None)
+        _surface, score, matched = seed_scores.get(key, (None, None, None))
         klass = (seen or {}).get("class", native.get("class"))
         block = native_block(native.get("name"), klass, seen)
         block["seeded_class"] = native.get("class")

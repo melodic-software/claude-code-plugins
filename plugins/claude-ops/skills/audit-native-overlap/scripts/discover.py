@@ -215,31 +215,48 @@ def score_pair(
     return round(score, 4), matched
 
 
+Scored = tuple[Surface, Component, float, list[str]]
+
+
+def score_all(surfaces: list[Surface], components: list[Component]) -> list[Scored]:
+    """Every pair sharing at least one token, best first per native surface."""
+    idf = idf_table([s.bag for s in surfaces] + [c.bag for c in components])
+    vectors: dict[int, tuple[dict[str, float], float]] = {}
+    for item in [*surfaces, *components]:
+        vec = _vector(item.bag, idf)
+        vectors[id(item)] = (vec, _norm(vec))
+    found: list[Scored] = []
+    for surface in surfaces:
+        scored = []
+        for component in components:
+            score, matched = score_pair(surface, component, idf, vectors)
+            if matched:
+                scored.append((surface, component, score, matched))
+        scored.sort(key=lambda item: (-item[2], item[1].plugin, item[1].name))
+        found.extend(scored)
+    return found
+
+
+def select(scored: list[Scored], *, threshold: float, top_k: int) -> list[Scored]:
+    """The pairs at or over the threshold, at most top_k per native surface."""
+    kept: list[Scored] = []
+    per_surface: Counter = Counter()
+    for item in scored:
+        if item[2] >= threshold and per_surface[id(item[0])] < top_k:
+            per_surface[id(item[0])] += 1
+            kept.append(item)
+    return kept
+
+
 def discover(
     surfaces: list[Surface],
     components: list[Component],
     *,
     threshold: float = DEFAULT_THRESHOLD,
     top_k: int = DEFAULT_TOP_K,
-) -> list[tuple[Surface, Component, float, list[str]]]:
+) -> list[Scored]:
     """Every pair at or over the threshold, at most top_k per native surface."""
-    idf = idf_table([s.bag for s in surfaces] + [c.bag for c in components])
-    vectors: dict[int, tuple[dict[str, float], float]] = {}
-    for item in [*surfaces, *components]:
-        vec = _vector(item.bag, idf)
-        vectors[id(item)] = (vec, _norm(vec))
-    found: list[tuple[Surface, Component, float, list[str]]] = []
-    for surface in surfaces:
-        if not surface.bag:
-            continue
-        scored = []
-        for component in components:
-            score, matched = score_pair(surface, component, idf, vectors)
-            if score >= threshold and matched:
-                scored.append((surface, component, score, matched))
-        scored.sort(key=lambda item: (-item[2], item[1].plugin, item[1].name))
-        found.extend(scored[:top_k])
-    return found
+    return select(score_all(surfaces, components), threshold=threshold, top_k=top_k)
 
 
 def invocability(registrations: list[dict[str, Any]]) -> dict[str, Any]:
