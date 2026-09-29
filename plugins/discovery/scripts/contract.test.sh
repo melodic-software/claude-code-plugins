@@ -300,8 +300,10 @@ assert_present 'parent contract names the Python twin' \
 # envelope section further down.
 # ---------------------------------------------------------------------------
 turns_of() { grep -m1 -E '^maxTurns:' "$PLUGIN_ROOT/agents/$1.md" | tr -dc '0-9'; }
-contract_turns="$(grep -m1 -oE 'Every worker definition here sets `maxTurns: [0-9]+`' \
-  "$PLUGIN_ROOT/reference/parent-contract.md" | tr -dc '0-9')"
+contract_turns="$(grep -m1 -oE 'Every producing worker definition here \([^)]*\) sets `maxTurns: [0-9]+`' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | grep -oE 'maxTurns: [0-9]+' | tr -dc '0-9')"
+verifier_contract_turns="$(grep -m1 -oE 'read-only `research-verifier` sets `maxTurns: [0-9]+`' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | grep -oE 'maxTurns: [0-9]+' | tr -dc '0-9')"
 for agent in explorer researcher intent-tracer; do
   agent_turns="$(turns_of "$agent")"
   if [[ -n "$contract_turns" && "$agent_turns" == "$contract_turns" ]]; then
@@ -310,6 +312,16 @@ for agent in explorer researcher intent-tracer; do
     fail "$agent maxTurns (${agent_turns:-unset}) equals the parent contract's value (${contract_turns:-unset})"
   fi
 done
+verifier_turns="$(turns_of research-verifier)"
+if [[ -n "$verifier_contract_turns" && "$verifier_turns" == "$verifier_contract_turns" ]]; then
+  pass "research-verifier maxTurns ($verifier_turns) equals the parent contract's value ($verifier_contract_turns)"
+else
+  fail "research-verifier maxTurns (${verifier_turns:-unset}) equals the parent contract's value (${verifier_contract_turns:-unset})"
+fi
+assert_present 'research-verifier pins the verdict tier: model opus' \
+  'agents/research-verifier.md' '^model: opus$'
+assert_present 'research-verifier pins the verdict tier: effort high' \
+  'agents/research-verifier.md' '^effort: high$'
 
 # ---------------------------------------------------------------------------
 # 8. Progressive disclosure is not inverted (#2271 D-F4)
@@ -605,6 +617,14 @@ for agent in explorer researcher intent-tracer; do
   assert_present "$file reads each file once and re-reads only to see its own change" \
     "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
+assert_present "research-verifier states its limit as its own frontmatter maxTurns ($verifier_turns)" \
+  'agents/research-verifier.md' "Your limit is \`maxTurns: ${verifier_turns}\`"
+verifier_stop="$(grep -m1 -oiE 'stop gathering by turn [0-9]+' "$PLUGIN_ROOT/agents/research-verifier.md" | tr -dc '0-9')"
+if [[ -n "$verifier_stop" && -n "$verifier_turns" && "$verifier_stop" -gt 0 && "$verifier_stop" -lt "$verifier_turns" ]]; then
+  pass "research-verifier names a stop-gathering turn ($verifier_stop) below its limit ($verifier_turns)"
+else
+  fail "research-verifier names a stop-gathering turn (${verifier_stop:-unset}) below its limit (${verifier_turns:-unset})"
+fi
 assert_absent 'no agent says it cannot observe its own turn budget' \
   'cannot observe your own remaining turn'
 

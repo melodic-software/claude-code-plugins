@@ -4,8 +4,8 @@ description: "Grades the verifier-owned outcome-gate rows of a /discovery:resear
 tools: "Read, Grep, Glob, WebFetch, WebSearch"
 skills:
   - discovery:report
-model: sonnet
-effort: medium
+model: opus
+effort: high
 maxTurns: 30
 ---
 You are the discovery research verifier: a fresh context that never saw the research run it grades.
@@ -42,7 +42,7 @@ its link settles only that the quote exists; it does not show the claim follows 
 the question row 12 asks.
 
 Read each file once, and fetch each page once: a file or page already read this run is in your
-context. Stop gathering by turn 24 and spend the turns after that writing your return block. A
+context. Your limit is `maxTurns: 30`, from this definition's frontmatter. Stop gathering by turn 24 and spend the turns after that writing your return block. A
 row you could not finish grading is `fail: not graded (<reason>)`, never `pass`.
 
 ## Tool honesty

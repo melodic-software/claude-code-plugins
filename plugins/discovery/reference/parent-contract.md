@@ -74,7 +74,7 @@ is the one place the values are defined.
 | `full` | `high` (the full workflow) | the full procedure |
 
 A research worker runs the **lower** of `Budget:` and `Source breadth:`. Both only narrow: neither
-raises a run above the caller's effort, and neither widens any worker's `maxTurns: 40`, which is
+raises a run above the caller's effort, and neither widens any worker's `maxTurns`, which is
 fixed in its definition; `Turn budget:` is that same bound as a turn number. A `Budget:` line that
 opens with no listed word is read as `full`, and the worker names that reading in
 `open_questions`. Explore and trace-intent have no Effort table, so for them the word asks for a
@@ -118,10 +118,10 @@ the drift this file exists to close.
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
 named here rather than in the template above. Each worker definition pins a default model:
-`explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
+`explorer` runs on `sonnet`; `researcher`, `intent-tracer` and `research-verifier` run on `opus`. The default is still to
 **pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
-whose scope earns a different model; it replaces the pin in either direction. Every worker spends
-`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading; why 40
+whose scope earns a different model; it replaces the pin in either direction. Every producing worker
+spends `maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading; why 40
 stays is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
 completion budget". The pin
 outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
@@ -454,6 +454,15 @@ the main conversation's model, so on a machine without the variable an unpinned 
 orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
 environment variable, so it is a cost defect in a worker definition.
 
+### The verdict lane pins `opus` at `effort: high`
+
+*Claim.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may not
+grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`, mechanical
+preparation, stays on `sonnet`. *Basis.* [docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md)
+line 1042, "a consequential verdict runs at the session-model tier or above, never below", and line
+1187, "Consequential-output lanes with a frontmatter surface pin `high`", both read 2026-09-29.
+*Recheck:* an edit to the philosophy's tier or lane rule.
+
 ### A turn-limit stop returns partial output, and the parent can resume the agent
 
 *Claim.* A subagent that reaches `maxTurns` returns its output marked as partial, and the parent
@@ -477,7 +486,7 @@ is part of it, which is why the agents keep the disk marker as the primary stop 
 ### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
 
 *Claim.* A subagent's `maxTurns` comes from its definition, and the parent cannot change it for
-one dispatch. Every worker definition here sets `maxTurns: 40`. The number is a checkpoint and a
+one dispatch. Every producing worker definition here (`explorer`, `researcher`, `intent-tracer`) sets `maxTurns: 40`. The read-only `research-verifier` sets `maxTurns: 30` and stops gathering at turn 24. The number is a checkpoint and a
 runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
 gathering at its own stop turn to write before the limit, and a run that still reaches the limit
 completes through the resume in the record above. *Basis.*
@@ -492,11 +501,11 @@ turns (print mode only). Exits with an error when the limit is reached. No limit
 *Why the plugin cares.* No documented or measured basis exists for a different number. Raising
 it would size the budget to a guess, and removing it would drop the guard on unattended runs,
 while a limit stop now returns partial output the parent resumes. `contract.test.sh` holds the
-three definitions to the value this record names, and to a stop turn below it. *Recheck, in
+three producing definitions to the value this record names, the verifier to its own 30, and each to a stop turn below its limit. *Recheck, in
 addition to the shared trigger:* the Agent tool documents a per-invocation `maxTurns`, a resume
 fails to recover a run that reached the limit, or a turns-to-complete distribution is measured
 after the explorer stops re-reading files it already read. Change the number only on one of
-those, and change it here and in all three definitions together.
+those, and change it here and in every definition it names together.
 
 ## Running the acceptance gate
 
