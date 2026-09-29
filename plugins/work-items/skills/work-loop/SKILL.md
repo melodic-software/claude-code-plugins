@@ -415,10 +415,11 @@ apply the manifest default:
 the convention. The streak counter and cap persist in durable state.
 
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
-by `/implementation:implement-dispatch`, its internal 3–5 wave default, or the
-`${user_config.work_dispatch_concurrency_cap}` ceiling when the operator sets it, which
-`/work-items:work` threads through as that skill's `--wave-cap`. This loop body's
-arithmetic over those two factors bounds the fan-out.
+by `/implementation:implement-dispatch`, that skill's resolved cap (argument, operator option,
+or internal default), which includes the `${user_config.work_dispatch_concurrency_cap}` ceiling
+`/work-items:work` threads through as `--wave-cap` when the operator sets it. This loop body's
+arithmetic over those two factors is an upper bound only: under worker authority the effective
+wave is one row.
 
 ## No-progress detector
 
