@@ -21,7 +21,7 @@ Arguments: `$ARGUMENTS`
 
 ## Scope
 
-Ingests Claude Code changelog entries and integrates them into the repo. Covers the full arc: read upstream changes → orient on repo impact → research new features → triage with user → plan edits → implement → verify → close matching issues.
+Ingests Claude Code changelog entries and integrates them into the repo. Covers the full arc: read upstream changes → orient on repo impact → research new features → decide with user → plan edits → implement → verify → close matching issues. `diff` reports decisions about components, not a list of items.
 
 Distinct from:
 
@@ -68,9 +68,9 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 
 | Action | Description | Detail |
 |--------|-------------|--------|
-| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
+| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues. Consumes the `diff` working set | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
-| `diff` | Resolve the range, apply the cap, orient on repo impact. Read-only analysis table | See "Action: diff" below |
+| `diff` | Resolve the range, apply the cap, emit decision rows by owner surface plus a docs-lag section. Read-only | See "Action: diff" below |
 | `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
 | `help` | Show action table | *(inline)* |
 
@@ -100,27 +100,26 @@ Resolve the range, check the cap, and check version alignment:
    - Otherwise → no `--range`; the default range from the read marker applies
 2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
 3. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
-4. **Parse** into structured items. Each item gets: summary, category (feature / fix / UI / internal), affected surface (if identifiable)
+4. **Reuse the working set** when `diff` saved one for this range: `apply` consumes it and re-fetches only what a recheck trigger names, per "Persistence" in [context/decisions.md](context/decisions.md)
+5. **Parse** into structured items. Each item gets: a stable id (`257-001`), summary, category (feature / fix / UI / internal), affected surface (if identifiable). Ids and the working-set directory are defined in [context/decisions.md](context/decisions.md)
 
 ### Phase 1. Explore
 
 Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
 
 1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
-2. Classify each item per `context/classification-rubric.md`:
-   - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
-   - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
-   - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
+2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
+3. Group by owner surface and write each correct, replace and adopt row with its required sentence. A skip item leaves no row
 
-Output: structured table with item, classification, affected files, rationale.
+Output: decision rows grouped by owner surface, per [context/decisions.md](context/decisions.md). The
+work fans out by release cluster with no Workflow script; see "Fan-out shape" there.
 
 ### Phase 2. Research
 
-For items needing enrichment (P1 items with behavioral changes, P2 items with unclear scope):
+For rows needing enrichment (correct rows with behavioral changes, adopt rows with unclear scope):
 
-1. Spawn **parallel research subagents**. One per feature cluster (use a Claude Code documentation-focused agent type when available)
-2. Instruct each subagent to ground every claim in a primary source fetched during the task (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it.
+1. Spawn **parallel research subagents**. One per feature cluster, each receiving the explorers' questions (use a Claude Code documentation-focused agent type when available)
+2. Instruct each subagent to ground every claim by `curl` of the page (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts
 
 3. Research targets per item type:
    - New frontmatter field → exact syntax, interaction with existing fields, docs gap
@@ -129,21 +128,20 @@ For items needing enrichment (P1 items with behavioral changes, P2 items with un
    - Behavioral change → before/after, migration path, breaking implications
    - Bug fix → what was broken, what surfaces affected, historical data impact
 
-4. Synthesize research into enriched analysis per item
+4. Synthesize research into enriched rows
 
 ### Phase 3. Interview
 
-Present triage table to user via `AskUserQuestion` or structured markdown:
+Present the decision rows to the user via `AskUserQuestion` or structured markdown:
 
 ```markdown
-| # | Change | Classification | Affected files | Action needed |
-|---|--------|---------------|----------------|---------------|
-| 1 | <summary> | P1 | <files> | <specific update> |
-| 2 | <summary> | P2 | — | <evaluation + recommendation> |
-| N | <summary> | P3 | — | No action |
+| # | Owner surface | Lens | Items | Required sentence | Action needed |
+|---|---------------|------|-------|-------------------|---------------|
+| 1 | <component> | correct | <ids> | <false vs true> | <specific update> |
+| 2 | <component> | adopt | <ids> | <problem solved> | <adopt, decline, or defer pending probe> |
 ```
 
-User picks scope: "all P1+P2", "just P1", or specific items by number.
+User picks scope: "all rows", "just correct", or specific rows by number.
 
 Lock brief: confirmed scope becomes implementation contract.
 
@@ -190,7 +188,7 @@ deferred or blocked), then what changed and what verification showed.
 The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
 
 - **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
-- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits the triage table only. Answers "is this range worth an `apply`?"
+- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits decision rows grouped by owner surface, each with its lens and required sentence, plus a docs-lag section, and saves its working set for `apply`. Answers "is this range worth an `apply`?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
 ---
@@ -201,5 +199,6 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 |---|---|
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
+| `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger), fanning out, or saving and reusing the working set. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
-| `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
