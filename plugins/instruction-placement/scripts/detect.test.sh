@@ -16,6 +16,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 SCRIPT="$SCRIPT_DIR/detect.sh"
 
 FAILED=0
@@ -61,7 +64,7 @@ assert_eq "an unusable --root is a usage error" "2" "$?"
 # ==========================================================================
 # Section segmentation — exact line ranges
 # ==========================================================================
-repo="$(mktemp -d)"
+repo="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$repo" init -q .
 cat >"$repo/CLAUDE.md" <<'EOF'
 # Project
@@ -97,7 +100,7 @@ assert_has "normative markers are counted and named" "$out" "$(printf 'SIGNAL\tC
 assert_lacks_sub "a section with no normative language emits no SIGNAL" \
   "$(printf '%s\n' "$out" | grep '^SIGNAL' | grep "$(printf '\t5\t')" || true)" "SIGNAL"
 
-sig="$(mktemp -d)"
+sig="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$sig" init -q .
 cat >"$sig/AGENTS.md" <<'EOF'
 # Rules
@@ -113,7 +116,7 @@ assert_eq "markers are emitted in deterministic sorted order" "always,do-not,mus
 # ==========================================================================
 # Frontmatter and fenced blocks are excluded
 # ==========================================================================
-fence="$(mktemp -d)"
+fence="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$fence" init -q .
 cat >"$fence/AGENTS.md" <<'EOF'
 ---
@@ -139,7 +142,7 @@ assert_lacks_sub "an extension inside a fence is not a hint" "$out_f" ".fake"
 # ==========================================================================
 # Glob-derivation hints
 # ==========================================================================
-hint="$(mktemp -d)"
+hint="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$hint" init -q .
 cat >"$hint/AGENTS.md" <<'EOF'
 # Conventions
@@ -164,7 +167,7 @@ assert_lacks_sub "an abbreviation like e.g. is not an extension" "$out_h" "$(pri
 # ==========================================================================
 # Rule inventory
 # ==========================================================================
-rules="$(mktemp -d)"
+rules="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$rules" init -q .
 mkdir -p "$rules/.claude/rules" "$rules/pkg/.claude/rules" "$rules/ext"
 printf 'class X {}\n' >"$rules/a.cs"
@@ -184,7 +187,7 @@ assert_has "a symlinked rule is inventoried" "$out_r" "$(printf 'RULE\t.claude/r
 # ==========================================================================
 # Corpus exclusions and tiering
 # ==========================================================================
-corp="$(mktemp -d)"
+corp="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$corp" init -q .
 mkdir -p "$corp/docs" "$corp/vendor/x" "$corp/node_modules/y" "$corp/skills/s/evals/fixtures"
 printf '# Root\n' >"$corp/CLAUDE.md"
@@ -211,7 +214,7 @@ assert_has "a docs tree file is tiered" "$out_c" "$(printf 'FILE\tdocs/guide.md\
 # path, and a double count in the summary. `context/corpus.md` says exclusions
 # are absolute and applied before any classification, so this pins BOTH halves:
 # skipped, and not silently re-admitted.
-excl="$(mktemp -d)"
+excl="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$excl" init -q .
 mkdir -p "$excl/vendor/pkg/.claude/rules"
 printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# Vendored rule\n' \
@@ -224,7 +227,6 @@ assert_has "a rule inside an excluded tree is skipped" "$out_x" \
   "$(printf 'SKIP\tvendor/pkg/.claude/rules/v.md\texcluded by corpus rules')"
 assert_lacks_sub "and the backfill does not re-admit it" "$out_x" \
   "$(printf 'FILE\tvendor/pkg/.claude/rules/v.md')"
-rm -rf "$excl"
 
 out_core="$(run --root "$corp" --tier core)"
 assert_has "core tier keeps the instruction layer" "$out_core" "$(printf 'FILE\tCLAUDE.md\tcore\t1')"
@@ -246,7 +248,6 @@ sections="$(printf '%s\n' "$out" | grep -c '^SECTION' || true)"
 assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 
 # ==========================================================================
-rm -rf "$repo" "$sig" "$fence" "$hint" "$rules" "$corp"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1
