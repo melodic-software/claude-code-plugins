@@ -1,0 +1,53 @@
+# xUnit, with the NUnit and MSTest test attributes and Moq, NSubstitute and
+# FakeItEasy mocks. Schema and YAML subset: scripts/adapter-load.awk.
+id: cs-xunit
+language: cs
+block_model: brace
+files: ['*Test.cs', '*Tests.cs']
+# Test attributes; the method signature that follows opens the block.
+test_start:
+  - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
+# Matched in any attribute of the same stack, before or after the test one.
+test_skip:
+  - 'Skip[[:space:]]*='
+  - 'Ignore'
+assertion:
+  calls:
+    - '[Aa]ssert'
+    - '\.Should'
+    - 'Should\.'
+    - '[Ee]xpect'
+    - 'Verify'
+    - 'Received'
+    - 'MustHaveHappened'
+    - 'MustNotHaveHappened'
+    - 'Throws'
+    - '[Ss]napshot'
+    - '[Cc]heck'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+mock:
+  create:
+    - 'new[[:space:]]+Mock<'
+    - 'Mock\.Of<'
+    - 'Substitute\.For<'
+    - 'A\.Fake<'
+  verify:
+    - '\.Verify[[:space:]]*\('
+    - '\.VerifyAll'
+    - '\.VerifyNoOtherCalls'
+    - '\.Received'
+    - '\.DidNotReceive'
+    - 'MustHaveHappened'
+    - 'MustNotHaveHappened'
+  # Each chain is stripped as a BOUNDED expression, never to end of line, so a
+  # same-line real assertion after the chain survives the strip.
+  strip:
+    - '\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - '\.[[:space:]]*Received[[:space:]]*(\([^()]*\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - '\.[[:space:]]*DidNotReceive[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
+    - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
+equality:
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
+suppress_marker: 'cant-fail-ok:'

@@ -67,6 +67,7 @@ dump_engine() {
   if [[ -r "$dir/adapter-load.awk" ]]; then
     case "$lang" in
     js) id=js-jest ;;
+    js-vitest) id=js-vitest ;;
     py) id=py-pytest ;;
     cs) id=cs-xunit ;;
     esac
@@ -75,7 +76,7 @@ dump_engine() {
     awk -v ADAPTER="$id" -v ADAPTER_TABLE="$table" -f "$dir/mask-js.awk" \
       -f "$dir/cant-fail-scan.awk" -f "$WORK/dump.awk" /dev/null >"$out"
   else
-    awk -v LANG_ID="$lang" -f "$dir/mask-js.awk" -f "$dir/cant-fail-scan.awk" \
+    awk -v LANG_ID="${lang%-vitest}" -f "$dir/mask-js.awk" -f "$dir/cant-fail-scan.awk" \
       -f "$WORK/dump.awk" /dev/null >"$out"
   fi
 }
@@ -98,7 +99,7 @@ for bin in gawk mawk; do
   esac
   legs=$((legs + 1))
 
-  for lang in js py cs; do
+  for lang in js js-vitest py cs; do
     PATH="$shim:$PATH" dump_engine "$WORK/$REL_SCRIPTS" "$lang" "$WORK/re.base" || true
     PATH="$shim:$PATH" dump_engine "$SCRIPT_DIR" "$lang" "$WORK/re.new" || true
     if diff -u "$WORK/re.base" "$WORK/re.new" >"$WORK/re.diff"; then

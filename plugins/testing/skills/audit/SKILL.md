@@ -64,11 +64,13 @@ states the fired condition in the run's own values.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh"            # report + denominator
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --check    # gate: exit 1 findings, 2 gap, 0 clean
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings # findings file on stdout
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --file <path> # one test file, any mode above
 ```
 
 Scan root: the current repo's git toplevel (or `$CANT_FAIL_SCAN_ROOT` to narrow/point explicitly,
 a supported operator lever). Ecosystems v1: JS/TS (`*.test.*`/`*.spec.*`), Python
-(`test_*.py`/`*_test.py`), C# (`*Test.cs`/`*Tests.cs`).
+(`test_*.py`/`*_test.py`), C# (`*Test.cs`/`*Tests.cs`), each defined by an adapter file in
+`adapters/`.
 
 Present the script's findings and its coverage block as reported, the denominator is what makes a
 clean report a claim rather than an absence. A run that examined 0 test files says so and is never

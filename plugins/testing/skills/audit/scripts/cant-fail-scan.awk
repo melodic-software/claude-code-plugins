@@ -1,8 +1,17 @@
 # cant-fail-scan.awk — per-file rule engine for cant-fail-scan.sh. Not a
 # standalone entry point: the driver resolves the scan root, walks the tree,
-# and aggregates; this program judges ONE test file per invocation.
+# picks the adapter for each file, and aggregates; this program judges ONE test
+# file per invocation.
 #
-# Invocation: awk -v LANG_ID=<js|py|cs> -f mask-js.awk -f cant-fail-scan.awk <file>
+# Invocation: awk -v ADAPTER=<id> -v ADAPTER_TABLE=<path> -f mask-js.awk -f cant-fail-scan.awk <file>
+#
+# ADAPTER_TABLE is adapter-load.awk's output over the adapters/ directory. All
+# framework vocabulary (test starts, skips, assertion tokens, mocks, equality
+# helpers) comes from the named adapter. This file holds only what no adapter
+# can supply: the rules, one lexer per language family (js, cs, python), and
+# the block model each lexer drives (brace for js and cs, indent for python).
+# Language syntax stays with its lexer: C# attributes and method signatures,
+# and Python's assert statement.
 #
 # Twin-file load: the JavaScript masker lives in mask-js.awk beside this file,
 # because runner-config-scan.awk masks the same language and one copy cannot
@@ -35,57 +44,62 @@ BEGIN {
   sr = 0        # inside a skipped suite (describe.skip / xdescribe) — JS only  # spellchecker:disable-line
   sr_depth = 0
   last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
+  load_adapter()
+}
 
-  # Two-argument equality helpers for the recomputed-expectation rule; one
-  # combined case-sensitive list, matched by substring lookup, so a language
-  # gains nothing from a private copy. Inequality asserts are deliberately
-  # absent: Assert.NotEqual(f(2), f(2)) is an always-fail defect, not this rule.
-  TAUT_FUNCS = "assert.equal|assert.strictEqual|assert.deepEqual|assert.deepStrictEqual|assertEqual|assertEquals|assertAlmostEqual|Assert.Equal|Assert.StrictEqual|Assert.Same|Assert.AreEqual|Assert.AreSame"
-  split(TAUT_FUNCS, TAUT_NAMES, "|")
+# ---------------------------------------------------------------------------
+# Adapter. Each list field joins into one alternation; an empty list becomes
+# "", which has() treats as never matching. The R_* names are the parity
+# check's contract (parity-check.sh dumps them).
+# ---------------------------------------------------------------------------
 
-  if (LANG_ID == "js") {
-    # The trailing t.<method> alternative is the AVA / node-tap vocabulary —
-    # those runners assert through the test-context object, not expect/assert.
-    ANY_ERE = "expect[[:space:]]*\\(|[Aa]ssert|[Ss]hould|[Vv]erify|[Tt]hrows|rejects|resolves|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate|fail[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])t[[:space:]]*\\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)"  # spellchecker:disable-line
-    MOCKA_ERE = "toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast|sinon\\.assert|calledOnce|calledTwice|calledThrice|calledWith|callCount"
-    MOCKC_ERE = "jest\\.(mock|fn|spyOn)|vi\\.(mock|fn|spyOn)|sinon\\.(stub|spy|fake|mock)|createMock|\\.mockReturnValue|\\.mockResolvedValue|\\.mockImplementation"
-    # Full mock-interaction chains, removed before deciding whether a real
-    # value assertion remains. [^()]*(\([^()]*\)[^()]*)* allows one nesting
-    # level; a deeper chain survives the strip and reads as a value assertion
-    # — the conservative direction.
-    STRIP_ERE = "expect[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)[[:space:]]*(\\.[[:space:]]*not)?[[:space:]]*\\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|sinon\\.assert\\.[A-Za-z]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)"
-    TEST_START_ERE = "(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\\.[[:space:]]*(only|concurrent|failing|sequential))*[[:space:]]*(\\.[[:space:]]*each[[:space:]]*\\([^)]*\\)[[:space:]]*)?\\("
-    TEST_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xit|xtest)[[:space:]]*\\(|(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\\.[[:space:]]*(skip|todo)"
-    SUITE_SKIP_ERE = "(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\\.[[:space:]]*skip)[[:space:]]*\\("  # spellchecker:disable-line
-  } else if (LANG_ID == "py") {
-    ANY_ERE = "[Aa]ssert|\\.raises|\\.warns|self\\.fail|[Ee]xpect|[Vv]erify|[Ss]hould|[Cc]heck|[Ee]nsure|[Vv]alidate"  # spellchecker:disable-line
-    MOCKA_ERE = "assert_called|assert_any_call|assert_has_calls|assert_not_called|assert_awaited|call_count|mock_calls|\\.called([^A-Za-z0-9_]|$)"
-    MOCKC_ERE = "MagicMock|AsyncMock|Mock\\(|create_autospec|patch\\(|patch\\.object|mocker\\."
-    # Second alternative: an assert statement WHOSE SUBJECT is a mock property.
-    # The property tokens carry word-boundary guards so a real attribute that
-    # merely contains one (result.called_back) is never stripped.
-    STRIP_ERE = "\\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|assert[[:space:]][^\\n]*([^A-Za-z0-9_](call_count|mock_calls)([^A-Za-z0-9_]|$)|\\.called([^A-Za-z0-9_]|$))[^\\n]*"
-    TEST_START_ERE = "^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+test[A-Za-z0-9_]*[[:space:]]*\\("
-    SKIP_DECOR_ERE = "^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\\.[[:space:]]*mark[[:space:]]*\\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)|^[[:space:]]*@[[:space:]]*unittest[[:space:]]*\\.[[:space:]]*skip"
-  } else if (LANG_ID == "cs") {
-    ANY_ERE = "[Aa]ssert|\\.Should|Should\\.|[Ee]xpect|Verify|Received|MustHaveHappened|MustNotHaveHappened|Throws|[Ss]napshot|[Cc]heck|[Ee]nsure|[Vv]alidate"
-    MOCKA_ERE = "\\.Verify[[:space:]]*\\(|\\.VerifyAll|\\.VerifyNoOtherCalls|\\.Received|\\.DidNotReceive|MustHaveHappened|MustNotHaveHappened"
-    MOCKC_ERE = "new[[:space:]]+Mock<|Mock\\.Of<|Substitute\\.For<|A\\.Fake<"
-    # Each mock-interaction chain is stripped as a BOUNDED expression — the
-    # Received/DidNotReceive forms include one chained call — never to end of
-    # line, so a same-line real assertion after the chain survives the strip.
-    STRIP_ERE = "\\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\)|\\.[[:space:]]*Received[[:space:]]*(\\([^()]*\\))?(\\.[A-Za-z_]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\))?|\\.[[:space:]]*DidNotReceive[[:space:]]*(\\(\\))?(\\.[A-Za-z_]+[[:space:]]*\\([^()]*(\\([^()]*\\)[^()]*)*\\))?|MustHaveHappened[A-Za-z]*[[:space:]]*(\\([^()]*\\))?|MustNotHaveHappened[A-Za-z]*[[:space:]]*(\\([^()]*\\))?"
-    ATTR_ERE = "^[[:space:]]*\\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)"
-    ATTR_ANY_ERE = "^[[:space:]]*\\["
-    ATTR_SKIP_ERE = "Skip[[:space:]]*=|Ignore"
-    SIG_ERE = "(public|private|protected|internal|async|static|void|Task)[^=]*\\("
-  } else {
-    printf "E\tunknown LANG_ID '%s'\n", LANG_ID
+function load_adapter(    line, f, key, n, i, w, nw, wi) {
+  while ((getline line < ADAPTER_TABLE) > 0) {
+    split(line, f, "\t")
+    if (f[1] != ADAPTER) continue
+    key = f[2]
+    if (key == "language") LEXER = f[3]
+    else if (key == "suppress_marker") R_EXEMPT = f[3]
+    # Two statements: mawk creates V[key] before evaluating the right side.
+    else if (key in V) V[key] = V[key] "|" f[3]
+    else V[key] = f[3]
+  }
+  close(ADAPTER_TABLE)
+  if (LEXER == "") {
+    printf "E\tunknown adapter '%s'\n", ADAPTER
     FATAL = 1
     exit 2
   }
-  EXEMPT_ERE = "cant-fail-ok:"
+  R_ANY = V["assertion.calls"]
+  if (V["assertion.idioms"] != "") R_ANY = R_ANY (R_ANY != "" ? "|" : "") V["assertion.idioms"]
+  if (V["snapshot"] != "") R_ANY = R_ANY (R_ANY != "" ? "|" : "") V["snapshot"]
+  R_MOCKA = V["mock.verify"]
+  R_MOCKC = V["mock.create"]
+  R_STRIP = V["mock.strip"]
+  R_START = V["test_start"]
+  R_SKIP = V["test_skip"]
+  R_SUITE_SKIP = V["suite_skip"]
+  if (R_EXEMPT == "") R_EXEMPT = "cant-fail-ok:"
+
+  # Two-argument equality helpers, matched by substring in list order.
+  # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
+  # always-fail defect, not this rule.
+  R_CALL2 = V["equality.call2"]
+  N_CALL2 = (R_CALL2 == "") ? 0 : split(R_CALL2, CALL2, "|")
+
+  # Receiver form <wrapper>.<matcher>: wrapper(A).matcher(B). Grouped by
+  # wrapper into one matcher alternation each.
+  NRW = 0
+  n = (V["equality.receiver"] == "") ? 0 : split(V["equality.receiver"], w, "|")
+  for (i = 1; i <= n; i++) {
+    nw = index(w[i], ".")
+    for (wi = 1; wi <= NRW && RW_NAME[wi] != substr(w[i], 1, nw - 1); wi++) ;
+    if (wi > NRW) { NRW = wi; RW_NAME[wi] = substr(w[i], 1, nw - 1); RW_MATCH[wi] = "" }
+    RW_MATCH[wi] = RW_MATCH[wi] (RW_MATCH[wi] != "" ? "|" : "") substr(w[i], nw + 1)
+  }
 }
+
+function has(s, re) { return re != "" && s ~ re }
 
 # ---------------------------------------------------------------------------
 # Masking. One function per language; string/comment interiors become spaces,
@@ -269,33 +283,34 @@ function emit(kind, slug, line, detail) {
 # is what the expressions are read from.
 # ---------------------------------------------------------------------------
 
-function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr) {
-  tkind = (raw_line ~ EXEMPT_ERE || prev_raw ~ EXEMPT_ERE) ? "X" : "F"
-  # expect(A).toBe(A) family. The masked match position indexes into the RAW
-  # line — masking is length-preserving, so the columns align, and an earlier
-  # "expect" inside a string cannot shadow the real call site.
-  if (LANG_ID == "js" && match(masked_line, /expect[[:space:]]*\(/) > 0) {
-    m = RSTART + 6
+function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr, wrap_re) {
+  tkind = (raw_line ~ R_EXEMPT || prev_raw ~ R_EXEMPT) ? "X" : "F"
+  # Receiver form, e.g. expect(A).toBe(A). The masked match position indexes
+  # into the RAW line — masking is length-preserving, so the columns align,
+  # and an earlier "expect" inside a string cannot shadow the real call site.
+  for (i = 1; i <= NRW; i++) {
+    wrap_re = RW_NAME[i]
+    gsub(/\./, "\\.", wrap_re)
+    if (match(masked_line, wrap_re "[[:space:]]*\\(") == 0) continue
+    m = RSTART + length(RW_NAME[i])
     while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
-    if (extract_parens(raw_line, m)) {
-      a = EXTRACT
-      rest = substr(raw_line, EXTEND + 1)
-      if (match(rest, /^[[:space:]]*\.[[:space:]]*(toBe|toEqual|toStrictEqual)[[:space:]]*\(/) > 0) {
-        p = index(rest, "(")
-        if (p > 0 && extract_parens(rest, p)) {
-          b = EXTRACT
-          expr = norm(a)
-          if (expr != "" && expr == norm(b)) {
-            emit(tkind, "recomputed-expectation", FNR, "expect(" expr ") compared to itself")
-            return
-          }
-        }
+    if (!extract_parens(raw_line, m)) continue
+    a = EXTRACT
+    rest = substr(raw_line, EXTEND + 1)
+    if (match(rest, "^[[:space:]]*\\.[[:space:]]*(" RW_MATCH[i] ")[[:space:]]*\\(") == 0) continue
+    p = index(rest, "(")
+    if (p > 0 && extract_parens(rest, p)) {
+      b = EXTRACT
+      expr = norm(a)
+      if (expr != "" && expr == norm(b)) {
+        emit(tkind, "recomputed-expectation", FNR, RW_NAME[i] "(" expr ") compared to itself")
+        return
       }
     }
   }
-  # two-argument equality helpers, all languages
-  for (i in TAUT_NAMES) {
-    fn = TAUT_NAMES[i]
+  # two-argument equality helpers
+  for (i = 1; i <= N_CALL2; i++) {
+    fn = CALL2[i]
     if (index(masked_line, fn) == 0) continue
     p = index(raw_line, fn)
     if (p == 0) continue
@@ -311,8 +326,8 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       return
     }
   }
-  # python assert EXPR == EXPR
-  if (LANG_ID == "py" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
+  # python assert EXPR == EXPR: the statement is language syntax, not adapter data
+  if (LEXER == "python" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
     rest = raw_line
     sub(/^[[:space:]]*assert[[:space:]]+/, "", rest)
     if (split_top_comma(rest)) rest = SPLIT1  # drop ", msg"
@@ -333,15 +348,15 @@ function eval_block(    blk, stripped, mocka_n, kind) {
   blocks++
   blk = block_masked
   kind = block_exempt ? "X" : "F"
-  if (blk !~ ANY_ERE && blk !~ MOCKA_ERE) {
+  if (!has(blk, R_ANY) && !has(blk, R_MOCKA)) {
     emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
     return
   }
-  if ((blk ~ MOCKC_ERE || file_mock) && blk ~ MOCKA_ERE) {
+  if ((has(blk, R_MOCKC) || file_mock) && has(blk, R_MOCKA)) {
     stripped = blk
-    gsub(STRIP_ERE, "", stripped)
-    if (stripped !~ ANY_ERE) {
-      mocka_n = count_matches(blk, MOCKA_ERE)
+    if (R_STRIP != "") gsub(R_STRIP, "", stripped)
+    if (!has(stripped, R_ANY)) {
+      mocka_n = count_matches(blk, R_MOCKA)
       emit(kind, "mock-only-oracle", block_line, "test '" block_name "': " mocka_n " mock-interaction assertion(s), no assertion on a real collaborator detected")
     }
   }
@@ -352,12 +367,12 @@ function open_block(line, name) {
   block_line = line
   block_name = name
   block_masked = ""
-  block_exempt = (raw ~ EXEMPT_ERE || prev_raw ~ EXEMPT_ERE)
+  block_exempt = (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT)
 }
 
 function append_block(m, r) {
   block_masked = block_masked m "\n"
-  if (r ~ EXEMPT_ERE) block_exempt = 1
+  if (r ~ R_EXEMPT) block_exempt = 1
 }
 
 function close_block() { in_test = 0; eval_block() }
@@ -387,95 +402,113 @@ function cs_method_name(s,    t) {
 }
 
 # ---------------------------------------------------------------------------
-# Main loop
+# Block models. brace_call: a test_start call opens a brace block on its own
+# line (js). brace_decl: test_start attributes, then a method signature opens a
+# brace or expression body (cs). indent: a test_start def opens a block its
+# indentation closes (python).
+# ---------------------------------------------------------------------------
+
+function brace_call() {
+  if (in_test) {
+    append_block(masked, raw)
+    depth += brace_delta(masked)
+    if (depth <= 0) close_block()
+    taut_scan(raw, masked)
+  } else if (sr) {
+    # inside a skipped suite: consume braces until the suite closes; open
+    # nothing and judge nothing — a test that does not run is not judged
+    sr_depth += brace_delta(masked)
+    if (sr_depth <= 0) sr = 0
+  } else if (has(masked, R_SUITE_SKIP)) {
+    match(masked, R_SUITE_SKIP)
+    sr = 1
+    sr_depth = brace_delta(substr(masked, RSTART))
+    if (sr_depth <= 0) sr = 0
+  } else {
+    if (has(masked, R_START) && !has(masked, R_SKIP)) {
+      match(masked, R_START)
+      open_block(FNR, first_quoted(substr(raw, RSTART)))
+      append_block(masked, raw)
+      depth = brace_delta(substr(masked, RSTART))
+      if (depth <= 0) close_block()
+    }
+    taut_scan(raw, masked)
+  }
+}
+
+# test_skip here matches a decorator on a line above the def.
+function indent() {
+  if (in_test && masked !~ /^[[:space:]]*$/ && indent_of(raw) <= def_indent) close_block()
+  if (!in_test) {
+    if (has(masked, R_SKIP)) pending_skip = 1
+    if (has(masked, R_START)) {
+      if (pending_skip) pending_skip = 0
+      else {
+        match(masked, /def[[:space:]]+[A-Za-z0-9_]*/)
+        open_block(FNR, substr(masked, RSTART + 4, RLENGTH - 4))
+        sub(/^[[:space:]]+/, "", block_name)
+        def_indent = indent_of(raw)
+        append_block(masked, raw)
+      }
+    } else if (masked !~ /^[[:space:]]*@/ && masked !~ /^[[:space:]]*$/) pending_skip = 0
+  } else append_block(masked, raw)
+  taut_scan(raw, masked)
+}
+
+# test_skip here matches any attribute in the stack, before or after the test
+# attribute. An attribute is a line opening with "["; a signature is a line
+# with a C# modifier or return type before its "(".
+function brace_decl() {
+  if (in_test) {
+    if (expr_body) {
+      append_block(masked, raw)
+      if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
+    } else if (body_open) {
+      append_block(masked, raw)
+      depth += brace_delta(masked)
+      if (depth <= 0) close_block()
+    } else {
+      append_block(masked, raw)
+      cs_body_start(masked)
+    }
+  } else if (pending_attr && masked ~ /(public|private|protected|internal|async|static|void|Task)[^=]*\(/ && masked !~ /^[[:space:]]*\[/) {
+    pending_attr = 0
+    if (pending_skip) pending_skip = 0
+    else {
+      open_block(FNR, cs_method_name(masked))
+      append_block(masked, raw)
+      body_open = 0; expr_body = 0; depth = 0
+      cs_body_start(masked)
+    }
+  } else {
+    if (has(masked, R_START)) {
+      pending_attr = 1
+      if (has(masked, R_SKIP)) pending_skip = 1
+    } else if (masked ~ /^[[:space:]]*\[/) {
+      # any other attribute in the same stack — a skip marker counts whether
+      # it precedes or follows the test attribute
+      if (has(masked, R_SKIP)) pending_skip = 1
+    } else if (masked !~ /^[[:space:]]*$/) { pending_attr = 0; pending_skip = 0 }
+  }
+  taut_scan(raw, masked)
+}
+
+# ---------------------------------------------------------------------------
+# Main loop: one lexer and one block model per adapter language.
 # ---------------------------------------------------------------------------
 
 {
   raw = $0
   sub(/\r$/, "", raw)
-  if (LANG_ID == "js") masked = mask_js(raw)
-  else if (LANG_ID == "py") masked = mask_py(raw)
+  if (LEXER == "js") masked = mask_js(raw)
+  else if (LEXER == "python") masked = mask_py(raw)
   else masked = mask_cs(raw)
 
-  if (masked ~ MOCKC_ERE) file_mock = 1
+  if (has(masked, R_MOCKC)) file_mock = 1
 
-  if (LANG_ID == "js") {
-    if (in_test) {
-      append_block(masked, raw)
-      depth += brace_delta(masked)
-      if (depth <= 0) close_block()
-      taut_scan(raw, masked)
-    } else if (sr) {
-      # inside a skipped suite: consume braces until the suite closes; open
-      # nothing and judge nothing — a test that does not run is not judged
-      sr_depth += brace_delta(masked)
-      if (sr_depth <= 0) sr = 0
-    } else if (masked ~ SUITE_SKIP_ERE) {
-      match(masked, SUITE_SKIP_ERE)
-      sr = 1
-      sr_depth = brace_delta(substr(masked, RSTART))
-      if (sr_depth <= 0) sr = 0
-    } else {
-      if (masked ~ TEST_START_ERE && masked !~ TEST_SKIP_ERE) {
-        match(masked, TEST_START_ERE)
-        open_block(FNR, first_quoted(substr(raw, RSTART)))
-        append_block(masked, raw)
-        depth = brace_delta(substr(masked, RSTART))
-        if (depth <= 0) close_block()
-      }
-      taut_scan(raw, masked)
-    }
-  } else if (LANG_ID == "py") {
-    if (in_test && masked !~ /^[[:space:]]*$/ && indent_of(raw) <= def_indent) close_block()
-    if (!in_test) {
-      if (masked ~ SKIP_DECOR_ERE) pending_skip = 1
-      if (masked ~ TEST_START_ERE) {
-        if (pending_skip) pending_skip = 0
-        else {
-          match(masked, /def[[:space:]]+test[A-Za-z0-9_]*/)
-          open_block(FNR, substr(masked, RSTART + 4, RLENGTH - 4))
-          sub(/^[[:space:]]+/, "", block_name)
-          def_indent = indent_of(raw)
-          append_block(masked, raw)
-        }
-      } else if (masked !~ /^[[:space:]]*@/ && masked !~ /^[[:space:]]*$/) pending_skip = 0
-    } else append_block(masked, raw)
-    taut_scan(raw, masked)
-  } else {
-    # cs
-    if (in_test) {
-      if (expr_body) {
-        append_block(masked, raw)
-        if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
-      } else if (body_open) {
-        append_block(masked, raw)
-        depth += brace_delta(masked)
-        if (depth <= 0) close_block()
-      } else {
-        append_block(masked, raw)
-        cs_body_start(masked)
-      }
-    } else if (pending_attr && masked ~ SIG_ERE && masked !~ ATTR_ANY_ERE) {
-      pending_attr = 0
-      if (pending_skip) pending_skip = 0
-      else {
-        open_block(FNR, cs_method_name(masked))
-        append_block(masked, raw)
-        body_open = 0; expr_body = 0; depth = 0
-        cs_body_start(masked)
-      }
-    } else {
-      if (masked ~ ATTR_ERE) {
-        pending_attr = 1
-        if (masked ~ ATTR_SKIP_ERE) pending_skip = 1
-      } else if (masked ~ ATTR_ANY_ERE) {
-        # any other attribute in the same stack — a skip marker counts whether
-        # it precedes or follows the test attribute
-        if (masked ~ ATTR_SKIP_ERE) pending_skip = 1
-      } else if (masked !~ /^[[:space:]]*$/) { pending_attr = 0; pending_skip = 0 }
-    }
-    taut_scan(raw, masked)
-  }
+  if (LEXER == "js") brace_call()
+  else if (LEXER == "python") indent()
+  else brace_decl()
   prev_raw = raw
 }
 

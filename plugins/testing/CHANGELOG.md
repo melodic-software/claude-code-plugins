@@ -3,6 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5] - 2026-09-28
+
+### Changed
+
+- **audit:** the can't-fail scanner reads its framework vocabulary from adapter files
+  (`skills/audit/adapters/`: `js-jest`, `js-vitest`, `py-pytest`, `cs-xunit`) instead of
+  regex literals in `cant-fail-scan.awk`. `scripts/adapter-load.awk` loads a restricted YAML
+  subset and refuses a malformed adapter or a non-portable regex with exit 2. Findings,
+  coverage and exit codes are unchanged; `scripts/parity-check.sh` proves that against the
+  previous scanner under gawk and mawk.
+
+### Added
+
+- **audit:** `cant-fail-scan.sh --file <path>` scans exactly one test file, with the same
+  modes and exit codes, and names the adapter that claimed it.
+
 ## [0.9.4] - 2026-09-28
 
 ### Added
