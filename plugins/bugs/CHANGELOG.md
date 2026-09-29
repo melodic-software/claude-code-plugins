@@ -3,6 +3,14 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4] - 2026-09-29
+
+### Changed
+
+- The README Configuration section states the promotion path for consumer `## Gotchas`: repo-specific
+  lines stay in the layer, and a line that is not repo-specific is filed as an issue on this
+  marketplace so the shipped skill carries it for every consumer (#3547).
+
 ## [0.11.3] - 2026-09-28
 
 ### Added
