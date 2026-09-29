@@ -34,6 +34,11 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 - **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
   up from the file's directory; shfmt reads `.editorconfig` the same way. No
   working-directory assumptions. The tools are anchored to the edited file.
+- **Gitignored files are skipped by default.** A file the repository gitignores is not
+  linted or rewritten, silently (no notice), since a rewrite of an ignored file has no git
+  checkout to undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A
+  tracked file that matches an ignore pattern stays in scope, and when git cannot decide
+  (absent, no repository, an error) the hook acts as before.
 - **Scope: files inside the current project, when `CLAUDE_PROJECT_DIR` is set.**
   With `CLAUDE_PROJECT_DIR` set, the hook acts only on shell files under it
   (symlink-resolved): a `.sh`/`.bash` file written *outside* the project, e.g. to
@@ -53,16 +58,18 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
+Every skip notice below appears once per session and agent, renewed every eighth skip.
+
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+  visible notice. [Install jq](https://jqlang.org/download/).
 - **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
-  a visible notice, once per session and agent, renewed every eighth skip.
+  a visible notice.
 - **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
   to opt in). Absent while the repo opts in: the format pass skips with a
-  visible notice, once per session and agent, renewed every eighth skip. Without the `.editorconfig` opt-in the
+  visible notice. Without the `.editorconfig` opt-in the
   format pass stays quiet. The repo chose not to format.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)
@@ -111,11 +118,12 @@ The linting and formatting rules come from the `.shellcheckrc` and
 `.editorconfig` already in your repository, which the plugin reads automatically.
 To change the rules, edit those files.
 
-One `userConfig` option tunes the hook itself:
+Two `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
+| `bash_format_lint_gitignored` | `false` | Set `true` to lint and format files the repository gitignores; by default the hook skips them. |
 
 Set it interactively with `/plugin configure bash-format@<marketplace>`, or headless on the
 install command:

@@ -24,7 +24,8 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. Linting
 rules come from the repository's own `.shellcheckrc`, formatting from its `.editorconfig`,
-and the only tunable is the native `userConfig` toggle. Every prerequisite is a `PATH`
+and the only tunables are the native `userConfig` options `bash_format_enabled` and
+`bash_format_lint_gitignored`. Every prerequisite is a `PATH`
 binary the plugin never bundles, and the plugin never installs system packages, so `apply`
 is guidance-only with **no write path**. It never modifies the repository, user settings, or
 the plugin cache.
@@ -41,7 +42,8 @@ for what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-The lint pass and the format pass are independent; report each separately.
+The lint pass and the format pass are independent; report each separately. A skip notice
+appears once per session and agent, renewed every eighth skip (README Requirements).
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -52,13 +54,13 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of running either pass.
+   notice instead of running either pass.
 3. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the lint pass
-   skips with a visible once-per-session notice.
+   skips with a visible notice.
 4. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
    `.editorconfig` opt-in below, because the format pass runs **only when the repo has opted
    in**:
-   - opted in AND `shfmt` absent → FAIL: the format pass skips with a visible once-per-session
+   - opted in AND `shfmt` absent → FAIL: the format pass skips with a visible
      notice.
    - not opted in → INFO regardless of `shfmt`: the format pass stays quiet by design (the
      repo chose not to format), so a missing `shfmt` is not a defect here.
@@ -76,9 +78,12 @@ restores the FAIL semantics.
 6. **`.shellcheckrc`.** INFO: ShellCheck auto-discovers `.shellcheckrc` by walking up from
    the file's directory. Report whether one exists; its absence is not a FAIL (ShellCheck
    applies its own defaults).
-7. **Hook toggle.** Report the effective `bash_format_enabled` value:
-   `${user_config.bash_format_enabled}` (unexpanded or empty means default `true`; any value
-   other than `true` disables the hook).
+7. **Hook options.** Report both effective values. `${user_config.bash_format_enabled}`
+   (unexpanded or empty means the manifest default `true`; any value other than `true`
+   disables the hook). `${user_config.bash_format_lint_gitignored}` (unexpanded or empty means
+   the manifest default `false`): unless it is `true`, an edit to a file the repository
+   gitignores is silently skipped, so a user asking why `.work/scratch.sh` was not formatted
+   gets this answer.
 8. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 9. **Project scope.** INFO: when `CLAUDE_PROJECT_DIR` is set, the hook acts only
@@ -92,8 +97,14 @@ restores the FAIL semantics.
    `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions) the guard
    is skipped and any existing edited file is processed. Report this so a green
    `check` is not read as "every shell edit anywhere is covered".
+10. **Gitignored files.** INFO: unless `bash_format_lint_gitignored` is `true`, a file the
+    repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
+    notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
+    decide (git absent, no repository, an error) the hook acts as before
+    (`hook::gitignored_out_of_scope` in `hooks/rewrite-guard.sh`). Report the item 7 value
+    beside this.
 
-When every probe passes, report the result **with the scope caveat** (item 9).
+When every probe passes, report the result **with the scope caveats** (items 9 and 10).
 Never an unqualified "fully operational", which would imply out-of-project shell
 edits are covered when they are deliberately skipped.
 
@@ -112,13 +123,13 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   repo in. A bare `[*]` is not enough, but this skill does not write it. `.editorconfig` is
   cross-cutting (it governs every editor and tool in the repo), so the choice and the edit
   belong to the consumer.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
+- toggle off, or gitignored files wanted: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
   `/plugin configure bash-format@<marketplace>` any time, or headless
   `claude plugin install bash-format@<marketplace> -s <scope> --config bash_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed`
+  (or `--config bash_format_lint_gitignored=true`; repeatable per key). Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports

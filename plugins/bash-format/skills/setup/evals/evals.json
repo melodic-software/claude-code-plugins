@@ -5,13 +5,13 @@
       "id": 1,
       "name": "check-reports-lint-and-format-passes-separately",
       "prompt": "/bash-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, shellcheck for the lint pass, shfmt for the format pass, the .editorconfig shell opt-in, .shellcheckrc discovery, the bash_format_enabled toggle, hook registration, and project scope — with one remediation line per FAIL and no file modified.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, shellcheck for the lint pass, shfmt for the format pass, the .editorconfig shell opt-in, .shellcheckrc discovery, the bash_format_enabled and bash_format_lint_gitignored options, hook registration, and project scope — with one remediation line per FAIL and no file modified.",
       "files": [],
       "expectations": [
         "Reports the lint pass (shellcheck) and the format pass (shfmt) as two independent rows rather than one combined formatter verdict",
-        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of running either pass",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible notice, once per session and agent, renewed every eighth skip, instead of running either pass",
         "Reports .shellcheckrc absence as INFO, not FAIL, because ShellCheck applies its own defaults when it discovers none",
-        "Modifies nothing during check and reports the effective bash_format_enabled value rather than parsing settings files for hook registration"
+        "Modifies nothing during check and reports the effective bash_format_enabled and bash_format_lint_gitignored values rather than parsing settings files for hook registration"
       ]
     },
     {
@@ -78,6 +78,20 @@
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version itself, and directs the rerun of check to a fresh session because the rendered value is injected at skill load, so a same-session check still reports the old value",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory, or the rerun adds a second install record at the scope passed and enables the plugin there; the value itself always lands in user settings",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "gitignored-edit-is-skipped-by-default",
+      "prompt": "/bash-format:setup check\n\nI edited .work/scratch.sh and nothing was formatted or linted. .work/ is in our .gitignore. Is bash-format broken?",
+      "expected_output": "Reports the effective bash_format_lint_gitignored value, explains that a file the repository gitignores is silently skipped by default (no lint, no format, no notice) so this is not a defect, and names the opt-in bash_format_lint_gitignored=true; modifies nothing.",
+      "files": [],
+      "expectations": [
+        "Reports the effective bash_format_lint_gitignored value (unexpanded or empty means the manifest default false) alongside bash_format_enabled",
+        "Explains that with the option not true, an edit to a gitignored file is silently skipped with no lint, no format, and no notice, and classifies this as INFO rather than FAIL",
+        "Names the opt-in: setting bash_format_lint_gitignored to true, through /plugin configure or a headless claude plugin install --config rerun, takes effect in a fresh session",
+        "States that a tracked file matching an ignore pattern stays in scope, and that when git cannot decide the hook acts as before",
+        "Modifies nothing during check, including the repository, .gitignore, user settings, and pluginConfigs"
       ]
     }
   ]
