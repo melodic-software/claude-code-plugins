@@ -236,12 +236,13 @@ Three rules make the signal deterministic:
   what makes the seam fail loud rather than silent; no reconciliation pass is needed, and none
   would be reliable, since a compensating write can stop in exactly the same window.
 
-**Background-job launch mode.** Launch mode decides whether the escalation record file can be
-written. The tracker marker comment stays the escalation of record either way. A loop lane still
-must not call `EnterWorktree` (the terminal would end the long-lived orchestrator session). The
-observed conditions and their verification record are in the work-loop skill's "Background-job
-launch mode" paragraph in
-[`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/skills/work-loop/SKILL.md).
+**Background-job launch mode.** The tracker marker comment is the escalation of record whether or
+not the record file was written. A loop lane must not call `EnterWorktree` (the terminal would end
+the long-lived orchestrator session). Which launch conditions let the record file be written is a
+harness behavior this convention does not state: the work-loop skill's "Background-job launch mode"
+paragraph in
+[`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/skills/work-loop/SKILL.md)
+holds the observed conditions and their verification record.
 
 The `summary` restates the marker comment's one-line question, text the lane already published on
 the tracker, so the record itself adds no new secret surface. The hook payload the seam sends is

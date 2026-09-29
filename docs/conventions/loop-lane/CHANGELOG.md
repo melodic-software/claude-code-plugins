@@ -10,9 +10,10 @@ table (§3); drift found by that audit is recorded here.
 Patch, docs only. No topology, escalation-contract, tier-vocabulary, or loop-layer invariant changed.
 
 - **Background-job launch mode no longer states a harness behavior.** The [9.3.0] bullet restated a
-  harness claim that was never verified. The convention now says only that launch mode decides
-  whether the escalation record can be written, and points at the work-loop skill paragraph that
-  holds the observed conditions and their verification record.
+  harness claim that was never verified. The convention now states no launch-mode condition: it
+  keeps the tracker marker as the escalation of record and the no-`EnterWorktree` rule, and points
+  at the work-loop skill paragraph that holds the observed conditions and their verification
+  record.
 
 ## [9.3.0] - 2026-09-28
 
