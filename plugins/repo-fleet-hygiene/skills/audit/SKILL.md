@@ -58,7 +58,7 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable). Config equivalent: repeatable `fleet.skipAppend`. Same bare-name validation.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
-  It is **not** a scope fallback. A run with no scope fails rather than auditing it.
+  It is **not** a scope fallback; see the no-scope ladder below.
 - `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
   only).
 - `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
@@ -72,9 +72,9 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
-shared ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current working
-directory when it is a Git checkout, else exit 3 naming every rung. The project directory is not a
-rung. Pass that guidance through rather than re-deriving a root yourself. Config
+shared no-scope ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current
+working directory when it is a Git checkout, else exit 3 naming every rung. A Git checkout in the
+working directory is a rung; the session project directory is not one on its own. Pass that guidance through rather than re-deriving a root yourself. Config
 resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
@@ -257,7 +257,7 @@ Related fleet contracts that remain separate:
 - Git missing or too old: stop before scanning and give the prerequisite error.
 - Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
   the exact invalid input and stop; never silently fall back.
-- No scope given and the project directory is not a Git working tree: stop, and relay the script's
+- No scope given and no rung of the no-scope ladder resolves (exit 3): stop, and relay the script's
   remedy block verbatim. The operator did not choose that path, so the rejection alone is not
   actionable.
 - A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
@@ -272,10 +272,10 @@ Related fleet contracts that remain separate:
   repository: discovery `add_target`s it and **returns without descending into its children**. A
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
-- A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
-  the discovery-skips header line. Windows directory
-  junctions test as symlinks under Git Bash, so they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
-  (configured).
+- A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed
+  as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
+  Windows directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
+  discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.

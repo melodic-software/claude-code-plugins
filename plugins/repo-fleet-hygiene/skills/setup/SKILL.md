@@ -58,7 +58,7 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
 1. **Config presence**. Resolve the config path (`--config` or the default). Absent → INFO naming
    the full ladder: the audit next probes the user-global `~/.claude/repo-fleet-hygiene.conf` (report
    whether one exists there); with no config on the ladder and no scope argument, a bare
-   `/repo-fleet-hygiene:audit` fails rather than auditing the current project. `apply` scaffolds a
+   `/repo-fleet-hygiene:audit` follows the no-scope ladder in that skill. `apply` scaffolds a
    config only if the user wants bounded roots or overrides.
 2. **Parse validity**. Present config: `git config --file "<path>" --list >/dev/null`. A non-zero exit
    is FAIL with the parse error in the remediation line. Never `source` the file.
