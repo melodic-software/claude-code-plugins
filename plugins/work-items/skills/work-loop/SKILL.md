@@ -348,16 +348,23 @@ frontier candidates (open linked PR)" rule in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
 as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
-binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
-nor escalated, and this cycle changes none of its labels. The cycle report lists it as
-`in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first, or as
-`in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for a
-candidate it has already excluded, a second query with the adapter's reporting reduction supplies
-the PR number, draft state, and age from `createdAt`. The exclusion has no age bound, so an
-abandoned, red, or stale-draft closing PR keeps its item out of every cycle and out of the
-no-progress counter; the age on this line is the operator's only signal until a bound exists. `/work-items:work`'s own dispatch-time
-staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
-queued or escalated item never reaches it.
+binding with no PR host keeps it. An excluded candidate is neither dispatched nor ratify-queued,
+and within the age bound below it is not escalated and this cycle changes none of its labels. The
+cycle report lists it as `in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first,
+or as `in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for
+a candidate it has already excluded, a second query with the adapter's reporting reduction supplies
+the PR number, draft state, and age from `createdAt`.
+
+The exclusion is bounded by age. Read `${user_config.work_loop_in_flight_stale_days}` (default 14;
+a surviving literal `${user_config.…}` placeholder means the key is unset, so apply the manifest
+default). A PR open longer than that stops silently excluding its item: it is still not dispatched
+or classified, and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
+number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
+marker read suppresses duplicates, and the labelled item leaves the autonomous frontier. The cycle
+report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
+A failed check has no age and stays excluded. The escalation is not progress: it does not reset
+the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover
+this: it runs only for dispatched items, never a queued or escalated one.
 
 Hard gates that override any classification:
 
@@ -432,12 +439,13 @@ citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
-  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A dirty
+  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
+  in-flight escalation is not progress. A dirty
   execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
-  excluded is waiting on its PR, not on this lane, so it does not count. Otherwise the cycle is
+  excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
   idle and the counter holds. A cycle
   in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
