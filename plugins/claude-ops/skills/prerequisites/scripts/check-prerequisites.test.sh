@@ -131,10 +131,10 @@ out="$(run_stub "[]")"
 rc=$?
 expect_eq "cli: an empty list is an empty fleet, not a repository scan" 0 "$rc"
 
-# Unparseable claude output falls back to the settings merge.
+# Unparsable claude output falls back to the settings merge.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
 out="$(run_stub "not json")"
-expect_has "unparseable claude output uses the settings fallback" $'absent-b\tplugin-b\tmissing' "$out"
+expect_has "unparsable claude output uses the settings fallback" $'absent-b\tplugin-b\tmissing' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

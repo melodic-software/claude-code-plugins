@@ -27,6 +27,17 @@
       ]
     },
     {
+      "id": 3,
+      "name": "version-question-routes-to-plugins",
+      "prompt": "/claude-ops:prerequisites\n\nAre my plugins up to date with the marketplace?",
+      "expected_output": "Explains that plugin versions are a different question and names /claude-ops:plugins audit, rather than answering from the prerequisites table.",
+      "files": [],
+      "expectations": [
+        "Names /claude-ops:plugins audit for the version question",
+        "Does not present the prerequisites table as an answer about plugin versions"
+      ]
+    },
+    {
       "id": 4,
       "name": "setup-check-row-is-typed-by-the-user",
       "prompt": "/claude-ops:prerequisites\n\nThe table shows ctx7 as missing with check /context7:setup check. Run that check for me and fix it.",
@@ -37,17 +48,6 @@
         "Tells the user to type /context7:setup check themselves",
         "Shows the row's install command, npm install -g ctx7@latest, as text",
         "Does not run `npx`, `npm install`, or `go install`"
-      ]
-    },
-    {
-      "id": 3,
-      "name": "version-question-routes-to-plugins",
-      "prompt": "/claude-ops:prerequisites\n\nAre my plugins up to date with the marketplace?",
-      "expected_output": "Explains that plugin versions are a different question and names /claude-ops:plugins audit, rather than answering from the prerequisites table.",
-      "files": [],
-      "expectations": [
-        "Names /claude-ops:plugins audit for the version question",
-        "Does not present the prerequisites table as an answer about plugin versions"
       ]
     }
   ]

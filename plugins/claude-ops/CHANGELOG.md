@@ -21,7 +21,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`--permission-prompts none` denial is stated as unprobed.** The lanes Record, the primitives
   paragraph and the launcher comment say the flag is documented for print mode and unattended
   runs, that `--bg` accepts it, and that denial in a `--bg` lane has not been probed. Launcher
-  behavior is unchanged. The lanes skill keeps one record per decline.
+  behavior is unchanged. The lanes skill keeps the `--resume <id> --bg` record; the
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` and `/advisor` declines are ledgered in
+  `docs/upstream/claude-code.md`.
 - **The `/doctor` claim in `audit-performance` is narrowed:** the engine reads no transcripts,
   and whether `/doctor` prints a per-hook history is not established. The suggest sentences in
   `audit-install-state`, `audit-performance` and `audit-skill-visibility` carry their own

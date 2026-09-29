@@ -2,7 +2,7 @@
 description: "Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"
+argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run (clean)] [--days N (latency)]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -10,7 +10,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS]
+**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run (clean)] [--days N (latency)]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS]
 
 ## Repository context. Gather first
 
