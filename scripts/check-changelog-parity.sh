@@ -90,6 +90,10 @@
 #     changelog. A body shorter than MIN_REPEATED_BODY characters is exempt, so
 #     the deliberate one-line "Shared launcher/library sync" entries stay legal.
 #     Repeats already on the base are not this change set's to fix.
+#   * --check-bump also rejects a BUMP WITHOUT CHANGE: a bumped plugin must have
+#     a changed file under plugins/<name>/ other than its plugin.json and root
+#     CHANGELOG.md. A deliberate re-release is named as `<plugin>@<version>` in
+#     scripts/changelog-no-op-bumps.txt (CHANGELOG_NO_OP_BUMPS overrides it).
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -120,6 +124,7 @@ cd "$SCRIPT_DIR/.." || exit 2
 MIN_REPEATED_BODY=120
 
 BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
+NO_OP_BUMPS="${CHANGELOG_NO_OP_BUMPS:-scripts/changelog-no-op-bumps.txt}"
 
 mode="${1:-}"
 case "$mode" in
@@ -139,6 +144,16 @@ if [[ -f "$BASELINE" ]]; then
   read_list::into baseline_names "$BASELINE" --comments inline || exit 2
   for name in ${baseline_names[@]+"${baseline_names[@]}"}; do
     grandfathered["$name"]=1
+  done
+fi
+
+# Sanctioned no-op re-releases (--check-bump), one `<plugin>@<version>` per line.
+declare -A no_op_bump
+no_op_rows=()
+if [[ -f "$NO_OP_BUMPS" ]]; then
+  read_list::into no_op_rows "$NO_OP_BUMPS" --comments inline || exit 2
+  for row in ${no_op_rows[@]+"${no_op_rows[@]}"}; do
+    no_op_bump["$row"]=1
   done
 fi
 
@@ -657,6 +672,7 @@ nonmonotonic=0
 published_reuse=0
 absorbed=0
 repeated=0
+empty_bump=0
 
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
@@ -765,6 +781,13 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     continue
   fi
 
+  # A release must ship something: a bump whose only plugin changes are the
+  # manifest and the changelog is a re-release of the previous version.
+  if [[ -z "${shipped_changed[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
+    echo "BUMP WITHOUT CHANGE: $name went $base_version -> $head_version but this change set touches nothing under plugins/$name/ besides plugin.json and CHANGELOG.md; ship the change with the bump, or name '$name@$head_version' in $NO_OP_BUMPS if the re-release is deliberate." >&2
+    empty_bump=$((empty_bump + 1))
+  fi
+
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
   # satisfy the gate. The match is a FIXED-STRING heading anchored to line start
@@ -817,13 +840,14 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0 || empty_bump > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
   ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
   ((repeated > 0)) && echo "An entry added by this change set may not repeat another entry's body verbatim (bodies under $MIN_REPEATED_BODY characters are exempt)." >&2
+  ((empty_bump > 0)) && echo "Bump a plugin's version only in the change set that changes a file it ships." >&2
   ((published_reuse > 0)) && echo "Bump the manifest version and add a new '## [<version>]' release entry whenever this change set modifies shipped plugin files — reusing a published version number is not allowed." >&2
   exit 1
 fi
