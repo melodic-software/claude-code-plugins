@@ -2,11 +2,15 @@
 # -*- coding: utf-8 -*-
 """Inventory the `.work` memory tiers: what is stale, what is in flight.
 
-Stdlib only; Python 3.10+. Every subcommand is read-only.
+Stdlib only; Python 3.10+. `report` is read-only; `normalize` and `clean`
+are dry runs that print exact absolute paths until `--apply` is given.
 
 Usage:
     tidy_work.py report [--days N] [--memory-dir <root>] [--json]
                         [--link-state <file> | --offline]
+    tidy_work.py normalize [--memory-dir <root>] [--apply]
+    tidy_work.py clean [--days N] [--memory-dir <root>] [--apply]
+                       [--link-state <file> | --offline]
 
 `report` lists the first-level items of the current repo's memory root and of
 `$HOME/.work`, each with its path, age, size, kind and whether it is in flight.
@@ -30,9 +34,19 @@ Issue and PR state comes from `gh api` unless `--link-state` supplies a JSON
 object mapping `#N` or `owner/repo#N` to a state, or `--offline` treats every
 link as unknown (in flight). A link missing from the table is unknown.
 
+`normalize` moves a handoff or running-retro file that sits in the wrong place
+(the root, or the other one's directory) into `handoffs/` or `running-retros/`.
+It never deletes, never touches an unknown item, and refuses to overwrite.
+
+`clean` removes only items of a known kind that are not in flight, and only
+inside a resolved root. It refuses an item holding a symlink that resolves
+outside the root. The root's `.gitignore` self-ignore file is never touched.
+
 Exit codes:
+    all     2 usage, or `--link-state` unreadable or not a JSON object
     report  0 printed
-            2 usage, or `--link-state` unreadable or not a JSON object
+    others  0 dry run, or every planned action applied
+            1 an action was refused or failed
 """
 
 from __future__ import annotations
@@ -41,6 +55,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -336,17 +351,26 @@ def _table(items: list[Item], now: float) -> str:
     return "\n".join(fmt.format(*row) for row in (header, *body))
 
 
-def cmd_report(args: argparse.Namespace) -> int:
-    table: dict[str, str] | None = None
-    if args.link_state:
-        try:
-            table = json.loads(Path(args.link_state).read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            print(f"error: --link-state unreadable: {exc}", file=sys.stderr)
-            return 2
-        if not isinstance(table, dict):
-            print("error: --link-state must be a JSON object", file=sys.stderr)
-            return 2
+def _load_link_table(path: str | None) -> dict[str, str] | None:
+    if not path:
+        return None
+    try:
+        table = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"--link-state unreadable: {exc}") from exc
+    if not isinstance(table, dict):
+        raise ValueError("--link-state must be a JSON object")
+    return table
+
+
+def _survey(
+    args: argparse.Namespace,
+) -> tuple[list[tuple[str, Path]], list[str], list[Item], float] | None:
+    try:
+        table = _load_link_table(args.link_state)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
     roots, notes = resolve_roots(args.memory_dir)
     states = LinkStates(table, args.offline)
     now = datetime.now(timezone.utc).timestamp()
@@ -354,6 +378,14 @@ def cmd_report(args: argparse.Namespace) -> int:
     for label, root in roots:
         items.extend(inventory(root, label))
     mark_in_flight(items, args.days, states, now)
+    return roots, notes, items, now
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    survey = _survey(args)
+    if survey is None:
+        return 2
+    roots, notes, items, now = survey
     rows = [_to_dict(item, now) for item in items]
     if args.json:
         payload = {
@@ -378,23 +410,145 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _escapes(path: Path, root: Path) -> bool:
+    """True when path, or a symlink inside it, resolves outside root."""
+    try:
+        if not path.resolve().is_relative_to(root):
+            return True
+        if path.is_dir() and not path.is_symlink():
+            for base, dirs, files in os.walk(path, followlinks=False):
+                for name in (*dirs, *files):
+                    entry = Path(base, name)
+                    if entry.is_symlink() and not entry.resolve().is_relative_to(root):
+                        return True
+    except (OSError, RuntimeError):
+        return True
+    return False
+
+
+def plan_moves(root: Path) -> list[tuple[Path, Path]]:
+    """(source, target) for each handoff or running-retro file outside its directory."""
+    layout = (
+        ("handoffs", save_point.HANDOFF_NAME_RE),
+        ("running-retros", RETRO_NAME_RE),
+    )
+    sources: list[Path] = []
+    try:
+        for entry in sorted(root.iterdir()):
+            if entry.name in ("handoffs", "running-retros"):
+                if entry.is_dir() and not entry.is_symlink():
+                    sources.extend(sorted(entry.iterdir()))
+            else:
+                sources.append(entry)
+    except OSError:
+        return []
+    moves: list[tuple[Path, Path]] = []
+    for src in sources:
+        if src.is_symlink() or not src.is_file():
+            continue
+        for dirname, name_re in layout:
+            if name_re.match(src.name) and src.parent != root / dirname:
+                moves.append((src, root / dirname / src.name))
+    return moves
+
+
+def _refusal(dst: Path) -> str | None:
+    if dst.parent.is_symlink() or (dst.parent.exists() and not dst.parent.is_dir()):
+        return f"{dst.parent.as_posix()} is not a plain directory"
+    if os.path.lexists(dst):
+        return f"target exists: {dst.as_posix()}"
+    return None
+
+
+def cmd_normalize(args: argparse.Namespace) -> int:
+    roots, notes = resolve_roots(args.memory_dir)
+    for note in notes:
+        print(f"note: {note}", file=sys.stderr)
+    failed = total = 0
+    for _, root in roots:
+        for src, dst in plan_moves(root):
+            total += 1
+            refusal = _refusal(dst)
+            if refusal is None and args.apply:
+                dst.parent.mkdir(exist_ok=True)
+                os.rename(src, dst)
+            if refusal:
+                failed += 1
+                print(f"refused: {src.as_posix()} ({refusal})")
+            else:
+                verb = "moved" if args.apply else "would move"
+                print(f"{verb}: {src.as_posix()} -> {dst.as_posix()}")
+    print(f"{total} misplaced, {failed} refused" + ("" if args.apply else ", dry run"))
+    return 1 if failed and args.apply else 0
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    survey = _survey(args)
+    if survey is None:
+        return 2
+    roots, notes, items, _ = survey
+    for note in notes:
+        print(f"note: {note}", file=sys.stderr)
+    root_of = dict(roots)
+    failed = removed = 0
+    stale = [item for item in items if not item.keep]
+    for item in stale:
+        if _escapes(item.path, root_of[item.root]):
+            failed += 1
+            print(f"refused: {item.path.as_posix()} (outside the root)")
+        elif not args.apply:
+            print(f"would remove: {item.path.as_posix()}")
+        else:
+            try:
+                if item.path.is_dir():
+                    shutil.rmtree(item.path)
+                else:
+                    item.path.unlink()
+            except OSError as exc:
+                failed += 1
+                print(f"failed: {item.path.as_posix()} ({exc})")
+                continue
+            removed += 1
+            print(f"removed: {item.path.as_posix()}")
+    kept = len(items) - len(stale)
+    count = f"{removed} removed" if args.apply else f"{len(stale) - failed} to remove"
+    print(f"{count}, {failed} refused or failed, {kept} kept")
+    return 1 if failed and args.apply else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    report = sub.add_parser("report", help="inventory the memory roots (read-only)")
-    report.add_argument("--days", type=float, default=DEFAULT_DAYS)
-    report.add_argument("--memory-dir", help="memory root; default is save_point.py's")
-    report.add_argument(
-        "--json", action="store_true", help="print JSON instead of a table"
-    )
-    link = report.add_mutually_exclusive_group()
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--memory-dir", help="memory root; default is save_point.py's")
+    inflight = argparse.ArgumentParser(add_help=False)
+    inflight.add_argument("--days", type=float, default=DEFAULT_DAYS)
+    link = inflight.add_mutually_exclusive_group()
     link.add_argument(
         "--link-state", help="JSON file mapping #N or owner/repo#N to a state"
     )
     link.add_argument(
         "--offline", action="store_true", help="treat every link as unknown"
     )
+    report = sub.add_parser(
+        "report", parents=[common, inflight], help="inventory the roots (read-only)"
+    )
+    report.add_argument(
+        "--json", action="store_true", help="print JSON instead of a table"
+    )
     report.set_defaults(func=cmd_report)
+    normalize = sub.add_parser(
+        "normalize", parents=[common], help="move misplaced handoffs and retros"
+    )
+    normalize.set_defaults(func=cmd_normalize)
+    clean = sub.add_parser(
+        "clean", parents=[common, inflight], help="remove stale known-kind items"
+    )
+    clean.set_defaults(func=cmd_clean)
+    for cmd in (normalize, clean):
+        cmd.add_argument(
+            "--apply", action="store_true", help="mutate; the default is a dry run"
+        )
     return parser
 
 

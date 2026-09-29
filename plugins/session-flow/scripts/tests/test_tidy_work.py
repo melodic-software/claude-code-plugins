@@ -1,4 +1,4 @@
-"""Contract tests for tidy_work.py report, run as a subprocess.
+"""Contract tests for tidy_work.py, run as a subprocess.
 
 Every fixture is a temp HOME plus a temp git repo; the real ~/.work is never read.
 """
@@ -109,16 +109,20 @@ def build(env) -> None:
     age(home / ".work", 60)
 
 
-def run_cli(env, *args: str) -> subprocess.CompletedProcess[str]:
+def run_tidy(env, command: str, *args: str) -> subprocess.CompletedProcess[str]:
     _, home, repo = env
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "report", *args],
+        [sys.executable, str(SCRIPT), command, *args],
         cwd=repo,
         env={**os.environ, "HOME": str(home)},
         capture_output=True,
         text=True,
         check=False,
     )
+
+
+def run_cli(env, *args: str) -> subprocess.CompletedProcess[str]:
+    return run_tidy(env, "report", *args)
 
 
 def report(env, *args: str) -> dict[str, dict]:
@@ -225,3 +229,171 @@ def test_bad_link_state_exits_2(env):
     bad = env[0] / "bad.json"
     bad.write_text("[]", encoding="utf-8")
     assert run_cli(env, "--link-state", str(bad)).returncode == 2
+
+
+STATE = {"#5222": "open", "#7": "closed", SLICE_LINK: "open"}
+STALE = {
+    HANDOFF_STALE,
+    HANDOFF_CLOSED,
+    HANDOFF_LATER,
+    HOME_HANDOFF,
+    "finished",
+    "feat-x",
+}
+RETRO = "20260101T100000Z-running-retro-x.md"
+RETRO2 = "20260102T100000Z-running-retro-y.md"
+
+
+def tree(*roots: Path) -> set[str]:
+    return {p.as_posix() for root in roots for p in root.rglob("*")}
+
+
+def clean(env, *args: str) -> subprocess.CompletedProcess[str]:
+    return run_tidy(env, "clean", *links(env[0], STATE), *args)
+
+
+def test_clean_dry_run_changes_nothing_and_prints_absolute_paths(env):
+    build(env)
+    _, home, repo = env
+    before = snapshot(repo, home)
+    result = clean(env)
+    assert result.returncode == 0, result.stderr
+    assert snapshot(repo, home) == before
+    listed = [
+        Path(line.split(": ", 1)[1])
+        for line in result.stdout.splitlines()
+        if line.startswith("would remove: ")
+    ]
+    assert {p.name for p in listed} == STALE
+    assert all(p.is_absolute() for p in listed)
+
+
+def test_clean_apply_removes_only_stale_known_items(env):
+    build(env)
+    _, home, repo = env
+    before = tree(repo, home)
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    gone = {Path(p).name for p in before - tree(repo, home)}
+    assert gone == STALE | {"report.md", "workflow-checklist.md"}
+    work = repo / ".work"
+    for survivor in (
+        work / "handoffs" / HANDOFF_FRESH,
+        work / "handoffs" / HANDOFF_LINKED,
+        work / "handoffs" / HANDOFF_NAMED,
+        work / "handoffs" / "notes.txt",
+        work / "unfinished",
+        work / "widget",
+        work / "drain" / "status" / "5222.json",
+    ):
+        assert survivor.exists(), survivor
+    assert (work / ".gitignore").read_text(encoding="utf-8") == "*\n"
+
+
+def test_clean_offline_apply_keeps_unresolved_links(env):
+    build(env)
+    _, _, repo = env
+    result = run_tidy(env, "clean", "--offline", "--apply")
+    assert result.returncode == 0, result.stderr
+    assert (repo / ".work" / "handoffs" / HANDOFF_CLOSED).exists()
+    assert not (repo / ".work" / "handoffs" / HANDOFF_STALE).exists()
+
+
+def test_clean_refuses_symlink_leaving_the_root(env):
+    build(env)
+    tmp, _, repo = env
+    outside = tmp / "outside"
+    write(outside / "precious.txt", "keep")
+    stale = repo / ".work" / "reviews" / "feat-x"
+    (stale / "escape").symlink_to(outside)
+    age(stale, 60)
+    stamp = time.time() - 60 * DAY
+    os.utime(stale / "escape", (stamp, stamp), follow_symlinks=False)
+    result = clean(env, "--apply")
+    assert result.returncode == 1
+    assert f"refused: {stale.as_posix()}" in result.stdout
+    assert stale.exists()
+    assert (outside / "precious.txt").read_text(encoding="utf-8") == "keep"
+    assert not (repo / ".work" / "handoffs" / HANDOFF_STALE).exists()
+
+
+def test_clean_never_follows_a_symlinked_item(env):
+    build(env)
+    tmp, _, repo = env
+    outside = tmp / "outside-dir"
+    write(outside / "workflow-checklist.md", CHECKLIST_DONE)
+    age(outside, 60)
+    (repo / ".work" / "linked").symlink_to(outside)
+    assert clean(env, "--apply").returncode == 0
+    assert (repo / ".work" / "linked").is_symlink()
+    assert (outside / "workflow-checklist.md").exists()
+
+
+def misplace(env) -> None:
+    _, _, repo = env
+    work = repo / ".work"
+    handoff(work / HANDOFF_STALE)
+    write(work / RETRO, "---\ntype: running-retro\n---\n")
+    write(work / "handoffs" / RETRO2, "---\ntype: running-retro\n---\n")
+    write(work / "notes.txt", "stray")
+    write(work / "drain" / "status" / HANDOFF_FRESH, "not a handoff here")
+
+
+def normalize(env, *args: str) -> subprocess.CompletedProcess[str]:
+    return run_tidy(env, "normalize", *args)
+
+
+def test_normalize_dry_run_changes_nothing(env):
+    misplace(env)
+    _, home, repo = env
+    before = snapshot(repo, home)
+    result = normalize(env)
+    assert result.returncode == 0, result.stderr
+    assert snapshot(repo, home) == before
+    work = repo / ".work"
+    expected = (
+        f"would move: {work / HANDOFF_STALE} -> {work / 'handoffs' / HANDOFF_STALE}"
+    )
+    assert expected in result.stdout
+
+
+def test_normalize_apply_moves_without_deleting_and_skips_unknown(env):
+    misplace(env)
+    _, _, repo = env
+    work = repo / ".work"
+    content = (work / HANDOFF_STALE).read_text(encoding="utf-8")
+    result = normalize(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert (work / "handoffs" / HANDOFF_STALE).read_text(encoding="utf-8") == content
+    assert not (work / HANDOFF_STALE).exists()
+    assert (work / "running-retros" / RETRO).exists()
+    assert (work / "running-retros" / RETRO2).exists()
+    assert not (work / "handoffs" / RETRO2).exists()
+    assert (work / "notes.txt").read_text(encoding="utf-8") == "stray"
+    assert (work / "drain" / "status" / HANDOFF_FRESH).exists()
+    assert (work / ".gitignore").read_text(encoding="utf-8") == "*\n"
+
+
+def test_normalize_refuses_to_overwrite(env):
+    misplace(env)
+    _, _, repo = env
+    work = repo / ".work"
+    handoff(work / "handoffs" / HANDOFF_STALE, body="original")
+    result = normalize(env, "--apply")
+    assert result.returncode == 1
+    assert "target exists" in result.stdout
+    assert "original" in (work / "handoffs" / HANDOFF_STALE).read_text(encoding="utf-8")
+    assert (work / HANDOFF_STALE).exists()
+    assert (work / "running-retros" / RETRO).exists()
+
+
+def test_normalize_refuses_symlinked_target_dir(env):
+    misplace(env)
+    tmp, _, repo = env
+    outside = tmp / "outside"
+    outside.mkdir()
+    (repo / ".work" / "running-retros").symlink_to(outside)
+    result = normalize(env, "--apply")
+    assert result.returncode == 1
+    assert list(outside.iterdir()) == []
+    assert (repo / ".work" / RETRO).exists()
