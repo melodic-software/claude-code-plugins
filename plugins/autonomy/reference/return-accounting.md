@@ -176,5 +176,8 @@ human-attested fields.
 
 ## Agent-run artifact attestation is out of scope (#4703)
 
-Signed agent-run artifact attestation is out of scope; the record is
-`docs/out-of-scope/agent-run-artifact-attestation.md`.
+This convention attests **return**: two human fields at the task boundary. It does not sign
+which instructions, review prompts, workflows, or runs produced a commit, and no plugin or leaf
+under `autonomy` takes that on. The full decision record is
+`docs/out-of-scope/agent-run-artifact-attestation.md` in the marketplace source tree, which an
+installed plugin does not ship.
