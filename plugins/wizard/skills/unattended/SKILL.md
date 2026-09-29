@@ -57,9 +57,11 @@ these helpers:
   on success and on failure.
 - `Assert-Elevation -Mode Required` or `Forbidden`. Elevation is a constraint
   with two failure directions.
-- `Assert-NotInside -Name <distro-or-service>`. The script must not be running
-  inside the thing it restarts. A WSL login cutover cannot be a script running
-  inside that distro; emit PowerShell so it runs on the Windows host.
+- `Assert-NotInside -Name <wsl-distro>`. The script must not be running inside
+  the WSL distro it restarts. It compares `Name` with `WSL_DISTRO_NAME` only: a
+  service, container or process is not detected. A WSL login cutover cannot be a
+  script running inside that distro; emit PowerShell so it runs on the Windows
+  host.
 - `Resolve-UnattendedSecret -Name <ENV> -FilePath <optional>`. First hit wins:
   environment variable, then the file, then one hidden prompt. The value is
   redacted out of the transcript.
@@ -165,10 +167,11 @@ Do not launch the script. The agent's own entry is `pwsh -File <script> -Test`,
 which changes nothing: read `result-dry-latest.json` (`status`, `delta`,
 `planned`) and fix what it reports before asking. Then print the `# STAGES`
 block and get explicit approval before telling the human to launch it. Say
-which elevation mode it demands and the result path. Tell the human to run
-`-WhatIf` first, read its narration and blast radius, and only then make the
-real launch. After the real run, read `result-latest.json`. Do not ask them to
-paste the transcript.
+which elevation mode it demands, that it requires PowerShell 7 (`pwsh`),
+launched with `pwsh -File <script>` (Windows PowerShell 5.1 fails at
+`#requires`), and the result path. Tell the human to run `-WhatIf` first, read
+its narration and blast radius, and only then make the real launch. After the
+real run, read `result-latest.json`. Do not ask them to paste the transcript.
 
 ## Next
 
@@ -176,6 +179,9 @@ paste the transcript.
 
 ## Gotchas
 
+- `Assert-NotInside` reads `WSL_DISTRO_NAME`. `WIZARD_INSIDE_MARKER`, when set,
+  replaces it: that is the test seam `template.test.sh` uses, not an operator
+  setting. A script running inside a service or container passes the guard.
 - The agent never launches the real run. A pipeline or an agent shell is the
   wrong principal. `-Test` is the one exception, because it invokes no mutating
   block. It also sets `-WhatIf`, so a cmdlet outside a helper that honors

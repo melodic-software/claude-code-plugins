@@ -78,6 +78,7 @@ function Assert-Elevation {
 function Assert-NotInside {
     param([Parameter(Mandatory = $true)][string] $Name)
     $inside = $env:WSL_DISTRO_NAME
+    # WIZARD_INSIDE_MARKER replaces WSL_DISTRO_NAME: the test seam for template.test.sh.
     if ($env:WIZARD_INSIDE_MARKER) {
         $inside = $env:WIZARD_INSIDE_MARKER
     }

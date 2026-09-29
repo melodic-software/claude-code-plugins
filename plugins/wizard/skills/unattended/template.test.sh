@@ -42,6 +42,56 @@ else
   fail "not-inside guard refuses the named distro" "$msg"
 fi
 
+code="$(run_pwsh wsl-env "
+  Remove-Item Env:WIZARD_INSIDE_MARKER -ErrorAction SilentlyContinue
+  \$env:WSL_DISTRO_NAME = 'Ubuntu-26.04'
+  try { Assert-NotInside -Name 'Ubuntu-26.04'; 'ran' } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/wsl-env.out")"
+if [[ "$msg" == *'refusing to run inside Ubuntu-26.04'* ]]; then
+  pass "not-inside guard reads WSL_DISTRO_NAME when no marker is set"
+else
+  fail "not-inside guard reads WSL_DISTRO_NAME when no marker is set" "$msg"
+fi
+
+code="$(run_pwsh not-wsl "
+  Remove-Item Env:WIZARD_INSIDE_MARKER -ErrorAction SilentlyContinue
+  Remove-Item Env:WSL_DISTRO_NAME -ErrorAction SilentlyContinue
+  try { Assert-NotInside -Name 'build-agent-service'; 'ran' } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/not-wsl.out")"
+if [[ "$msg" == ran ]]; then
+  pass "not-inside guard does not detect a service, only a WSL distro"
+else
+  fail "not-inside guard does not detect a service, only a WSL distro" "$msg"
+fi
+
+SKILL_MD="$SCRIPT_DIR/SKILL.md"
+README_MD="$SCRIPT_DIR/../../README.md"
+SKILL_FLAT="$(tr '\n' ' ' <"$SKILL_MD" | tr -s ' ')"
+if [[ "$SKILL_FLAT" == *'Assert-NotInside -Name <wsl-distro>'* && "$SKILL_FLAT" != *'<distro-or-service>'* \
+  && "$SKILL_FLAT" == *'compares `Name` with `WSL_DISTRO_NAME` only'* && "$SKILL_FLAT" == *'a service, container or process is not detected'* ]]; then
+  pass "SKILL.md scopes Assert-NotInside to a WSL distro"
+else
+  fail "SKILL.md scopes Assert-NotInside to a WSL distro" "wording missing or still says distro-or-service"
+fi
+
+if [[ "$SKILL_FLAT" == *'WIZARD_INSIDE_MARKER'* && "$SKILL_FLAT" == *'the test seam'* ]] \
+  && grep -Fq 'the test seam for template.test.sh' "$TEMPLATE"; then
+  pass "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md"
+else
+  fail "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md" "seam not named"
+fi
+
+if head -n 1 "$TEMPLATE" | grep -Fxq '#requires -Version 7.0' \
+  && [[ "$SKILL_FLAT" == *'requires PowerShell 7 (`pwsh`)'* && "$SKILL_FLAT" == *'`pwsh -File <script>` (Windows PowerShell 5.1 fails at `#requires`)'* ]] \
+  && grep -Fq 'winget install --id Microsoft.PowerShell' "$README_MD" \
+  && grep -Fq 'Needs PowerShell 7' "$README_MD"; then
+  pass "the PowerShell 7 requirement and its Windows install path are stated"
+else
+  fail "the PowerShell 7 requirement and its Windows install path are stated" "requirement or install path missing"
+fi
+
 code="$(run_pwsh elev "
   try { Assert-Elevation -Mode Required; 'ran' } catch { \$_.Exception.Message }
 ")"
