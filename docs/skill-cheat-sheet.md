@@ -40,7 +40,16 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/architecture:map-components`](../plugins/architecture/skills/map-components/SKILL.md) | `architecture` | Chart the modules inside one deployable as a C4 component view |
+| [`/architecture:map-containers`](../plugins/architecture/skills/map-containers/SKILL.md) | `architecture` | Chart deployables, the stores they bind, and contained modules |
+| [`/architecture:map-context`](../plugins/architecture/skills/map-context/SKILL.md) | `architecture` | Chart one software system's C4 system context from tracked configuration |
+| [`/architecture:map-data`](../plugins/architecture/skills/map-data/SKILL.md) | `architecture` | Draw an ERD from a committed schema, offline |
+| [`/architecture:map-dependencies`](../plugins/architecture/skills/map-dependencies/SKILL.md) | `architecture` | Cite project and package edges from build manifests |
+| [`/architecture:map-deployment`](../plugins/architecture/skills/map-deployment/SKILL.md) | `architecture` | Chart IaC deployment topology per environment, with a diff |
+| [`/architecture:map-events`](../plugins/architecture/skills/map-events/SKILL.md) | `architecture` | Chart publishers, consumers, and orphan messages |
+| [`/architecture:map-flow`](../plugins/architecture/skills/map-flow/SKILL.md) | `architecture` | Trace one C# entry point into a sequence diagram with a citation on every hop |
 | [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
+| [`/architecture:map-states`](../plugins/architecture/skills/map-states/SKILL.md) | `architecture` | Draw a cited state diagram, or refuse when the table is not explicit |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
@@ -94,6 +103,8 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/pixel-art:tileset`](../plugins/pixel-art/skills/tileset/SKILL.md) | `pixel-art` | Author, render, and review an engine tileset or parallax |
 | [`/pixel-art:ui`](../plugins/pixel-art/skills/ui/SKILL.md) | `pixel-art` | Author, render, and review pixel-art UI skins, icons, and fonts |
 | [`/pixel-art:vfx`](../plugins/pixel-art/skills/vfx/SKILL.md) | `pixel-art` | Author, render, and review pixel-art effects and animation cells |
+| [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |
+| [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test

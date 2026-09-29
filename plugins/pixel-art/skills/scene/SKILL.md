@@ -44,9 +44,10 @@ file beside the output:
   fps; every draw lands on integer coordinates.
 - Light and fades step through palette colors or Bayer-dither patterns; never alpha, gradients or
   blur.
-- Audio, when given: inline the WAV as a `data:audio/wav;base64,...` URL (the output stays one
-  file) and play it with WebAudio, started on the first click
-  (browsers block autoplay), cues tied to the same timeline.
+- Audio, when given: put `/*WAV:relative/file.wav*/null` in the template. `embed.py` inlines a
+  `data:audio/wav;base64,...` URL (the output stays one file). Play it with WebAudio, started on
+  the first click (browsers block autoplay), and rewind the scene clock on that click so the
+  picture and the loop share a start.
 
 A worked example is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/scene.html` (title card, dithered sky,
 parallax, fire particles, walking character, typed dialogue); copy the folder into the working
