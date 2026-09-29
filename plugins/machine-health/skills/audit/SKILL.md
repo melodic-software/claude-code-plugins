@@ -86,7 +86,7 @@ Routing table:
 - **Per-check timeout:** 90 seconds.
 - **No interactive prompts.** Ever. This runs unattended on a schedule; a stalled prompt would hang the weekly job.
 - **No retry loops on failure.** One attempt per check, one attempt per remediation. `reference/shared/remediation-philosophy.md` carries the one-attempt rationale for remediations; checks stay one-attempt for the same reason. A flaky check should read as flaky, not as eventually-fine.
-- **First-run dry mode.** The first ever run (RunMode `first-run`) forces `DryRun = true`. Seeds state, produces the first report, queues remediation approval in `<StateBase>/TODO.md`.
+- **First-run dry mode.** The first ever run (RunMode `first-run`) forces `DryRun = true`. Seeds state, produces the first report, and queues any first-run proposal (such as installing the `Microsoft.WinGet.Client` module) in `<StateBase>/TODO.md`. Remediation approval is never queued there: it goes through `/machine-health:setup`.
 - **Idempotency.** Two runs back-to-back produce two valid reports and two history entries with no partial state.
 - **Egress allowlist.** The allowlist governs outbound calls routed through `scripts/windows/lib/Invoke-AllowlistedWeb.ps1`. That wrapper permits only Microsoft Update endpoints, winget sources, and the CISA KEV feed, throws on any other host, and logs each `GET`, `FAIL`, and `DENY` line to `<StateBase>/logs/run-YYYY-MM-DD.log`. A check or remediation that reaches the network without the wrapper is outside this enforcement and its calls are not logged, so route every outbound call through it.
 - **No `Invoke-Expression`** on any data the skill did not author itself in this session. No "run whatever came back" patterns.
@@ -98,9 +98,9 @@ Routing table:
 
 The skill grows itself within narrow, auditable bounds:
 
-- **Write to `<StateBase>/TODO.md`** when discovery proposes a check needing new permissions, network access, or remediation path. Human approval required before it becomes active.
+- **Write to `<StateBase>/TODO.md`** after the run (the orchestrator script writes only the first-run proposal) when discovery proposes a check needing new permissions, network access, or remediation path. Human approval required before it becomes active.
 - **Mark catalog entries `deprecated: true`** (never delete silently) with a `deprecation_reason` when a check has become meaningless for this host, via the catalog overlay (`reference/shared/catalog-overlay.md`), never by editing the shipped catalog. Propose removal after 3 consecutive crashes (each increments `crash_count`).
-- **Demote chronically quiet checks.** After 4 consecutive identical outputs, propose demotion to monthly cadence. Write to `<StateBase>/TODO.md`; the approved demotion is an overlay `cadence` patch. Don't reshuffle cadence on your own.
+- **Demote chronically quiet checks.** After 4 consecutive identical outputs, propose demotion to monthly cadence. Write it to `<StateBase>/TODO.md` yourself after the run (the orchestrator does not compute streaks); the approved demotion is an overlay `cadence` patch. Don't reshuffle cadence on your own.
 - **Refresh the CISA KEV cache** weekly via `scripts/<os>/lib/Get-CisaKevCache.ps1` (the winget-upgrades check does this automatically; the live cache lives under `$env:LOCALAPPDATA\machine-health\cache`, seeded from the shipped `catalog/cisa-kev.json` stub). Skip if younger than 7 days.
 - **Never rewrite history.** `state/history.jsonl` is append-only. It is the trend-detection source of truth, and rewriting an old line corrupts every severity-trend comparison drawn from it. If a historical entry is wrong, add a correction entry; don't edit the old line.
 

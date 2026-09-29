@@ -61,6 +61,7 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Assert-CatalogEntry.ps1')
 . (Join-Path $libRoot 'New-InvalidCatalogEntryResult.ps1')
 . (Join-Path $libRoot 'Get-ApprovalState.ps1')
+. (Join-Path $libRoot 'Add-TodoProposal.ps1')
 . (Join-Path $libRoot 'Invoke-AllowlistedWeb.ps1')
 . (Join-Path $libRoot 'Get-ElevationMatrix.ps1')
 . (Join-Path $libRoot 'Write-ElevationBanner.ps1')
@@ -479,7 +480,8 @@ try {
 $remediationAttempts = [System.Collections.Generic.List[object]]::new()
 $remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded)
 
-$todoPath = Join-Path $skillRoot 'TODO.md'
+$todoPath = Get-TodoPath -StateBase $StateBase
+$queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
 $approvalState = Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
 
 function Invoke-Remediation {
@@ -546,18 +548,15 @@ try {
 
 # First-run proposal: suggest installing Microsoft.WinGet.Client module when
 # it's absent. The text-parse fallback is localization-fragile. Never auto-
-# install per SKILL.md. Proposals are machine-specific state -- write to the
-# per-run logs directory (user-owned), print a loud banner to stderr, and
-# append a log line. Never write to the repo.
+# install per SKILL.md. The proposal is machine-specific state: queue it in the
+# state-root TODO.md, print a loud banner to stderr, and append a log line.
+# Never write to the repo.
 if ($RunMode -eq 'first-run') {
     try {
         $hasWingetModule = $null -ne (Get-Module -ListAvailable Microsoft.WinGet.Client -ErrorAction SilentlyContinue)
         if (-not $hasWingetModule) {
-            $proposalPath = Join-Path $logsDir 'first-run-proposals.md'
+            $proposalTitle = 'First-run proposal: install Microsoft.WinGet.Client module'
             $proposal = @'
-
-### First-run proposal: install Microsoft.WinGet.Client module
-
 The winget-upgrades check prefers the official Microsoft.WinGet.Client
 PowerShell module (v1.12+) for authoritative, localization-safe upgrade
 data. The text-parse fallback is fragile on non-English Windows. To
@@ -567,15 +566,16 @@ upgrade coverage:
 
 This is a proposal only. Per SKILL.md, the skill never auto-installs
 modules. Harmless to ignore.
-
 '@
-            Add-Content -LiteralPath $proposalPath -Value $proposal -Encoding utf8
+            if (Add-TodoProposal -TodoPath $todoPath -Title $proposalTitle -Body $proposal) {
+                $queuedTodoTitles.Add($proposalTitle)
+            }
             Write-StderrBanner -Line @(
                 '[machine-health] First-run proposal: install Microsoft.WinGet.Client'
                 '[machine-health] for authoritative winget data.'
-                "[machine-health] See: $proposalPath"
+                "[machine-health] See: $todoPath"
             )
-            Write-MachineHealthLog "first_run_proposed_winget_client_module proposal_path=$proposalPath"
+            Write-MachineHealthLog "first_run_proposed_winget_client_module todo_path=$todoPath"
         }
     } catch {
         Write-MachineHealthLog "first_run_proposal_failed $($_.Exception.Message)"
@@ -772,7 +772,7 @@ $remediationsSection = if ($remediationAttempts.Count -eq 0) {
 }
 
 $discoverySection = Get-DiscoveryMarkdown -Proposals $discoveredChecks
-$openQuestions = '_No new TODO entries this run._'
+$openQuestions = Get-OpenQuestionsMarkdown -QueuedTitle $queuedTodoTitles.ToArray() -TodoPath $todoPath
 
 $appendixSection = try {
     ConvertTo-AppendixMarkdown -CheckResults $checkResults
