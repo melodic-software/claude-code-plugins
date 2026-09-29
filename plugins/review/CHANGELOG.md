@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.7] - 2026-09-29
+## [0.33.8] - 2026-09-29
 
 ### Security
 
@@ -12,6 +12,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   a remote stylesheet or image with no HTML-significant character. The module comment no longer
   claims the generator marker proves a page came from the builder: anyone can recompute the digest,
   so a stamped page is judged by the structural scan alone.
+
+## [0.33.7] - 2026-09-29
+
+### Changed
+
+- **`ecosystem-specialist` no longer triggers proactively.** Its description scopes the trigger to
+  an explicit 'build', 'test', 'lint', or 'check' request and says not after every edit, matching
+  `code-reviewer`.
 
 ## [0.33.6] - 2026-09-29
 
