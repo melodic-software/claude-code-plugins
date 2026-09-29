@@ -1,17 +1,11 @@
 # Skill argument shape
 
 Owner doc for **how a skill takes arguments**: the order of the tokens after `/plugin:skill`,
-when a token earns a `--flag`, how `argument-hint` is written, and how the body reads what
+when a token earns a `--flag`, what the `argument-hint` lists, and how the body reads what
 arrived. Consumed by skill authors at design time (`playbooks:skill-authoring`), by reviewers, and
 by audits grading an existing argument surface. One home per the convention registry
 ([`docs/plugin-philosophy.md`](../../plugin-philosophy.md#convention-registry)); this doc decides,
 other surfaces point here.
-
-Provenance: [#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001), raised
-from [#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000), where
-`disk-hygiene:clean`'s engine-mirroring `--root-child` flag was checked against this shape. The
-sources were re-fetched on 2026-09-28 rather than taken from the issue; every doc-derived claim
-carries a row in [Record](#record).
 
 ## What the harness gives a skill
 
@@ -73,9 +67,9 @@ A token is a `--flag` only when at least one of these holds:
 
 1. **A parser takes it.** It crosses into something that genuinely parses argv: a bundled
    script, or a CLI the skill wraps. The skill spells it exactly as that parser does.
-2. **It opts into a destructive or state-changing effect**, such as `--execute`, `--apply`, or
-   `--force`. The Agent Skills scripts guidance recommends explicit confirmation flags for
-   destructive operations, and clig.dev names `-f`/`--force` as the non-interactive confirmation.
+2. **It opts into a destructive effect**, such as `--execute` or `--force`. The Agent Skills
+   scripts guidance recommends explicit confirmation flags for destructive operations, and
+   clig.dev names `-f`/`--force` as the non-interactive confirmation.
 3. **It combines orthogonally** with the skill's other modifiers.
 4. **It is optional with a default**, such as `--max-depth <N>` or `--since <date>`.
 
@@ -95,19 +89,17 @@ and clarity is what grounds 2 to 4 test for.
 
 ## `argument-hint` is bound to the shape
 
-The hint lists the action set, then the modifiers, then the subject, in the notation POSIX XBD 12.1
-defines and the Claude Code commands page uses: `<x>` required, `[x]` optional, `a|b` mutually
-exclusive, `...` repeatable. Keep the hint to the shape. Put examples and the bare-invocation
-behavior in the body's Arguments section.
+The hint lists the action set, then the modifiers, then the subject. Keep the hint to the shape.
+Put examples and the bare-invocation behavior in the body's Arguments section. Every question of
+string style (notation, alternatives, length budget, punctuation, the no-empty-hint rule) is the
+[argument-hint house style](../argument-hint/README.md)'s, which the fleet contract validator
+enforces.
 
 Nested or repeatable syntax on a flag, such as `[--root-children [--root-child <name>]...]`,
 appears only when a ground-1 parser accepts that form. Without one, the hint implies a parser
 that does not exist, so write the grouping rule in words in the Arguments section instead.
 
 The hint validates nothing, so its only job is to agree with the Arguments section it summarizes.
-Its length budget, punctuation, and the no-empty-hint rule are the
-[argument-hint house style](../argument-hint/README.md)'s, which the fleet contract validator
-enforces.
 
 ## Decisions
 
