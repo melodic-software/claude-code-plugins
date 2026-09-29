@@ -4,12 +4,12 @@
 #   scripts/check-exec-form-windows-probe.sh
 #
 # Static half (every host): an exec-form hook (`args` present) whose `command`
-# is a shebang script, a .cmd/.bat shim, a bare name other than the documented
-# real executables, or a bash.exe/sh.exe path fails. Shell form (no `args`) is
-# not inspected. This script does not rewrite rows. A .sh path is not a legal
-# `command`; the landed spelling is "node" plus hooks/exec-bash.mjs. Bare bash
-# plus the script in args is the shape scripts/check-hook-exec-form.sh already
-# rejects.
+# is a shebang script, a .cmd/.bat shim, a bare name that is not on the
+# EXEC_NAME_ALLOWLIST of scripts/check-hook-exec-form.sh, or a bash.exe/sh.exe
+# path fails. Shell form (no `args`) is not inspected. This script does not
+# rewrite rows. A .sh path is not a legal `command`; the landed spelling is
+# "node" plus hooks/exec-bash.mjs. Bare bash plus the script in args is the
+# shape scripts/check-hook-exec-form.sh already rejects.
 #
 # Spawn half (Windows, or EXEC_FORM_WINDOWS_PROBE_FORCE=1): spawn node.exe with
 # an args array and a stdin payload, with no shell. If the sentinel arg is
@@ -100,6 +100,20 @@ if ((${#reader_cmd[@]} == 0)); then
   exit 2
 fi
 
+# One allowlist for bare names: the gate's own EXEC_NAME_ALLOWLIST line. A probe
+# that cannot read it exits 2 rather than guess a second list.
+GATE="scripts/check-hook-exec-form.sh"
+allow_line="$(grep -E '^EXEC_NAME_ALLOWLIST=\([^)]*\)$' "$GATE" 2>/dev/null || true)"
+exec_names=()
+if [[ -n "$allow_line" && "$allow_line" != *$'\n'* ]]; then
+  allow_line="${allow_line#EXEC_NAME_ALLOWLIST=(}"
+  read -r -a exec_names <<<"${allow_line%)}"
+fi
+if ((${#exec_names[@]} == 0)); then
+  echo "check-exec-form-windows-probe: cannot read exactly one EXEC_NAME_ALLOWLIST=(...) line from ${GATE}" >&2
+  exit 2
+fi
+
 windows=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) windows=1 ;;
@@ -131,6 +145,19 @@ image_name() {
   lower "$base"
 }
 
+# allowed_name <command>: exact match, the way the gate compares.
+allowed_name() {
+  local name
+  for name in "${exec_names[@]}"; do
+    if [[ "$1" == "$name" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+NOT_EXE_HINT='is not a real Windows executable (no shell and no shebang). Use "command": "node" with the script in args; a bash script goes through hooks/exec-bash.mjs.'
+
 # consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
@@ -145,26 +172,23 @@ consider() {
     low="$(lower "$base")"
     case "$low" in
     bash.exe | sh.exe)
-      flag "$file" "$where" "$cmd" "names a shell image (${base}). Keep the hook in shell form with \"shell\": \"bash\"; a machine-specific bash.exe path is not a portable exec-form row."
+      flag "$file" "$where" "$cmd" "names a shell image (${base}). Use \"command\": \"node\" with hooks/exec-bash.mjs and then the script; a machine-specific bash.exe path is not a portable exec-form row."
       ;;
     *.exe)
       ok_rows=$((ok_rows + 1))
       ;;
     *)
-      flag "$file" "$where" "$cmd" "is not a real Windows executable (no shell and no shebang). Use \"command\": \"node\" with the script in args, or shell form with \"shell\": \"bash\"."
+      flag "$file" "$where" "$cmd" "$NOT_EXE_HINT"
       ;;
     esac
     ;;
   *)
-    low="$(lower "$cmd")"
-    case "$low" in
-    node | node.exe | powershell.exe | pwsh.exe)
+    # shellcheck disable=SC2310 # allowed_name is a pure loop test; it cannot fail unexpectedly
+    if allowed_name "$cmd"; then
       ok_rows=$((ok_rows + 1))
-      ;;
-    *)
-      flag "$file" "$where" "$cmd" "is not a real Windows executable (no shell and no shebang). Use \"command\": \"node\" with the script in args, or shell form with \"shell\": \"bash\"."
-      ;;
-    esac
+    else
+      flag "$file" "$where" "$cmd" "$NOT_EXE_HINT"
+    fi
     ;;
   esac
 }

@@ -6,6 +6,7 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-exec-form-windows-probe.sh"
+GATE="$SELF_DIR/check-hook-exec-form.sh"
 READER="$SELF_DIR/check-hook-exec-form-frontmatter.py"
 REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 LAUNCHER="$SELF_DIR/../lib/exec-bash.mjs"
@@ -18,7 +19,7 @@ LAUNCHER="$SELF_DIR/../lib/exec-bash.mjs"
 f=""
 
 new_fixture() {
-  fixture_tree::build "$1" --sut "$SCRIPT" --sut "$READER" --plugins || return 1
+  fixture_tree::build "$1" --sut "$SCRIPT" --sut "$GATE" --sut "$READER" --plugins || return 1
   mkdir -p "${!1}/.github" "${!1}/lib"
   cp "$REQUIREMENTS" "${!1}/.github/requirements-ci.txt"
   cp "$LAUNCHER" "${!1}/lib/exec-bash.mjs"
@@ -130,16 +131,69 @@ else
 fi
 rm -rf "$f"
 
+# --- a bare name passes only when the gate's allowlist carries it -----------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":[]}]}]}'
+if run_check "$f" >/dev/null 2>&1; then
+  ok "bare node passes"
+else
+  fail "bare node should pass"
+fi
+rm -rf "$f"
+
 for name in node.exe powershell.exe pwsh.exe; do
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$name\",\"args\":[]}]}]}"
-  if run_check "$f" >/dev/null 2>&1; then
-    ok "bare $name passes"
+  if out="$(run_check "$f" 2>&1)"; then
+    fail "bare $name is not on the allowlist and should fail, got: $out"
   else
-    fail "bare $name should pass"
+    assert_fail "bare $name fails" "$out" "exec-form command \"$name\" is not a real Windows executable"
   fi
   rm -rf "$f"
 done
+
+# --- the gate and the probe read one allowlist ------------------------------
+# Same fixture, same bare name, both scripts: they must agree, and each must
+# have judged the row (exit 0 or 1), not stopped on the environment (exit 2).
+for name in node node.exe bash sh python3 pwsh powershell.exe; do
+  new_fixture f
+  plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$name\",\"args\":[]}]}]}"
+  gate_rc=0
+  probe_rc=0
+  (cd "$f" && bash scripts/check-hook-exec-form.sh) >/dev/null 2>&1 || gate_rc=$?
+  run_check "$f" >/dev/null 2>&1 || probe_rc=$?
+  if [[ "$gate_rc" == "$probe_rc" && "$gate_rc" -le 1 ]]; then
+    ok "gate and probe agree on bare $name (exit $gate_rc)"
+  else
+    fail "gate and probe disagree on bare $name (gate exit $gate_rc, probe exit $probe_rc)"
+  fi
+  rm -rf "$f"
+done
+
+# --- a probe that cannot read the gate's allowlist stops at exit 2 ----------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+rm "$f/scripts/check-hook-exec-form.sh"
+rc=0
+out="$(run_check "$f" 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
+  ok "a missing gate file exits 2"
+else
+  fail "a missing gate file should exit 2 (rc=$rc): $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+printf '%s\n' 'EXEC_NAME_ALLOWLIST=(node)' 'EXEC_NAME_ALLOWLIST=(node bash)' >"$f/scripts/check-hook-exec-form.sh"
+rc=0
+out="$(run_check "$f" 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
+  ok "two allowlist lines in the gate exit 2"
+else
+  fail "two allowlist lines should exit 2 (rc=$rc): $out"
+fi
+rm -rf "$f"
 
 # --- args must be an array --------------------------------------------------
 new_fixture f
