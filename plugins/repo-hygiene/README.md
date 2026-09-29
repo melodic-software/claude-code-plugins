@@ -59,8 +59,10 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   auto-restored from the index.
 - **Session-scoped destructive guard.** While the skill is active, a PreToolUse
   hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
-  `git checkout --`, and recursive `Remove-Item`; the confirmed command runs only
-  through the skill's own gate. It does not match `git branch -D` or
+  `git checkout --`, recursive `Remove-Item`, the clean scripts when the command
+  contains `--apply`, and `git worktree remove` with a force flag. A dry-run is
+  not blocked. The confirmed command runs only through the skill's own gate.
+  It does not match `git branch -D` or
   `git push --delete` (#3852); local branch deletion goes through
   `git-branch-delete.sh` after the confirmation gate. Kill switch: the `clean_destructive_guard_enabled`
   userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or

@@ -73,13 +73,20 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 ### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
 
-Before presenting at Step 5, persist the composed plan as a **draft** to `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; under `contract_tier: local` it joins the memory slice. The final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count). Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
+Before presenting at Step 5, persist the composed plan as a **draft** to `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; under `contract_tier: local` it joins the memory slice. The final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it. Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting.
 
-- **Every phase has ≥1 `Sanity Check`**. `grep -c "Sanity Check" PLAN.md` ≥ the phase count; a phase with no verifiable check is unshippable.
-- **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]` (or another valid tag); no untagged phase.
+Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and require exit 0. It decides the mechanical criteria off the file, one `criterion=<name> status=<pass|fail>` line each:
+
+- **Every phase has ≥1 `Sanity Check`**, counted per phase section; a phase with no verifiable check is unshippable.
+- **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]`, `[DOING]`, or `[DONE]`; no untagged phase.
+- **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is persisted in PLAN.md with at least one row.
+- **Blast radius assessed**. A Blast-radius line naming LOW, MEDIUM, HIGH, or CRITICAL exists (from Step 3b), not omitted.
+- **Paths are portable**. No drive-letter path and no `/Users/<name>` or `/home/<name>` path, since a committed PLAN.md is read on other machines; a deliberate example carries `<!-- path-example -->` on its line.
+
+The rest are judgment checked by reading, or have their own script:
+
 - **Every brief scope-item maps to a phase**. Walk the Brief's scope list against the phases; no scope-item silently dropped, no in-scope phase missing.
-- **Every unilateral decision is surfaced**. Each `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6 appears in the "Decisions made (gate-passed)" table (with its what-it-changes column filled), not left only in the plan body; below-bar decisions were interviewed, not decided.
-- **Blast radius assessed**. A Blast-radius line exists (from Step 3b), not omitted.
+- **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled, not left only in the plan body; below-bar decisions were interviewed, not decided. The script checks only that the table has rows.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
 This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
