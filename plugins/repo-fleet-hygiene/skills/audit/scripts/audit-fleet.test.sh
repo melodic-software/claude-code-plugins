@@ -1093,6 +1093,18 @@ else
   printf 'FAIL: apply-plan preview renders each remote branch with its class and expected tip\n' >&2
   failures=$((failures + 1))
 fi
+# Every ls-remote failing leaves no remote candidate and no per-repository unverified row.
+unmerged_fail_out="$TMP/unmerged-all-fail.txt"
+MOCK_UNMERGED_REMOTE=1 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$unmerged_fail_out" 2>&1 || true
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$unmerged_fail_out")" == 1 ]] &&
+  ! grep -Eq "Finding: unmerged-remote-branch(-unverified)?$|delete-remote-branches" "$unmerged_fail_out"; then
+  printf 'PASS: all-fail ls-remote yields no remote candidate and withholds unverified rows\n'
+else
+  printf 'FAIL: all-fail ls-remote yields no remote candidate and withholds unverified rows\n' >&2
+  failures=$((failures + 1))
+fi
 
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
