@@ -213,6 +213,28 @@ function may_form(w, worig,   ds, dl, cs, cl) {
   return 0
 }
 
+# year_form(w): does this window carry a bare year as a date? A year is four
+# digits standing alone: not inside a longer token ("SC2034", "20260901T100000Z",
+# "Finder_2024"), and the first number after the keyword. check-stamps.sh carries
+# the same test and adds the "-MM" extension its classifier reads; the two must
+# accept the same lines. A false return leaves RSTART = 0 and RLENGTH = -1.
+function year_form(w,   off, s, pre, post) {
+  off = 0
+  while (match(substr(w, off + 1), /(19|20)[0-9][0-9]/)) {
+    s = off + RSTART
+    if (substr(w, 1, s - 1) ~ /[0-9]/) break
+    pre = (s > 1) ? substr(w, s - 1, 1) : ""
+    post = substr(w, s + 4, 1)
+    if (pre !~ /[0-9a-z_]/ && post !~ /[0-9a-z_]/) {
+      RSTART = s; RLENGTH = 4
+      return 1
+    }
+    off = s
+  }
+  RSTART = 0; RLENGTH = -1
+  return 0
+}
+
 # A stamp line: a stamp keyword whose following window carries something
 # date-shaped. Both halves are required — see the header note.
 # "read" gets a tighter window than the explicit stamp verbs: it is an ordinary
@@ -225,7 +247,7 @@ function may_form(w, worig,   ds, dl, cs, cl) {
 # and leaves RSTART on the leftmost of its two signals, so a signal out in the
 # slack cannot hide one the wlen guard below would have taken.
 # check-stamps.sh carries that split at both of its sites.
-function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
+function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen, s) {
   low = tolower(line)
   off = 0
   while (1) {
@@ -234,6 +256,16 @@ function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
       return 0
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
+    # "read" inside an identifier ("cache_read_input_tokens") is a name, not the verb.
+    # Underscores that wrap the word alone ("_read_", Markdown emphasis) are not a name.
+    s = off + RSTART
+    if (kw ~ /_read|read_/ &&
+        ((substr(kw, 1, 1) == "_" && s > 1 && substr(low, s - 1, 1) ~ /[a-z0-9]/) ||
+         (substr(kw, length(kw), 1) == "_" && substr(low, pos + 1, 1) ~ /[a-z0-9]/))) {
+      off = pos
+      if (off >= length(low)) return 0
+      continue
+    }
     wlen = (kw ~ /read/) ? 30 : 60
     # Same window rule as check-stamps.sh keyword_window(): the window is a
     # distance from the keyword, not a cut through the text. Slice wlen plus 9
@@ -253,7 +285,7 @@ function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
     rest_orig = substr(line, pos, wlen + 9)
     if (match(rest, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return 1
     if (match(rest, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return 1
-    if (match(rest, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return 1
+    if (year_form(rest) && RSTART <= wlen) return 1
     if (match(rest, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
     if (may_form(rest, rest_orig) && RSTART <= wlen) return 1
     if (match(rest, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return 1
