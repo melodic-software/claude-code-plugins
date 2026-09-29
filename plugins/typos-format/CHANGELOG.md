@@ -7,7 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Fixed
 
-- **Shared launcher sync: `exec-bash.mjs` resolves bash from `PATH` and names the hook that did not run.** The launcher finds bash on `PATH` again (before `/bin/bash` on Linux and macOS, after the Git roots on Windows) and skips relative `PATH` entries and WSL relay hits. A hook that cannot launch (no bash, spawn error, bad arguments) or dies on a signal prints one stderr line naming the script and what that means for the hook.
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
 
 ## [0.7.5] - 2026-09-28
 

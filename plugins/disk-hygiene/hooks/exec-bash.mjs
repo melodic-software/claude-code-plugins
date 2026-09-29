@@ -29,7 +29,7 @@
 // not a guard block. A guard's own exit 2 passes through.
 
 import { spawn } from "node:child_process";
-import { statSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -194,10 +194,21 @@ function main() {
   });
 }
 
+// Node realpaths the main entry, so import.meta.url never carries a symlink or
+// junction that argv[1] does. Compare real paths, or a launch through a linked
+// checkout path would never reach main() and would exit 0 with no output.
+function realPath(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 function invokedDirectly() {
   const arg = process.argv[1];
   if (!arg) return false;
-  return path.resolve(arg) === path.resolve(fileURLToPath(import.meta.url));
+  return realPath(arg) === realPath(fileURLToPath(import.meta.url));
 }
 
 if (invokedDirectly()) main();
