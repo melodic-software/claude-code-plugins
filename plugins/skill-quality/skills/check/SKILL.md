@@ -9,8 +9,6 @@ metadata:
   summary: Static QA gate for skill frontmatter, caps, and evals
 ---
 
-**Arguments.** `[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]`. Full form: [check|validate-evals|listing-budget|measure-invocation] [<skill-name-or-root> ...]. Omit the action for check; measure-invocation takes validate|score|compare|emit-plugin-eval
-
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
@@ -241,6 +239,11 @@ against Claude Code 2.1.263 and two pages: the tools reference
 set `disable-model-invocation: true`"). Recheck when the `Skill` row describes more than one skill
 per call, when the skills page stops carrying that sentence, or when a release note names the Skill
 tool. This gate does not automate that reachability check; author and review against the invariant.
+
+## Next
+
+- A FAIL or WARN to fix in a skill being authored: /playbooks:skill-authoring.
+- All checks pass and the change is ready to ship: /verification:confirm.
 
 ## Gotchas
 
