@@ -92,19 +92,23 @@ average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs
 
 ### 2b. Code path under test (before each arm)
 
-The goal must name which **code path(s)** the metric is meant to exercise (for example skip with no
-interpreter versus Python run path, cold cache versus warm). Before **each** arm, either **reset**
-the state files that select the path (markers, sentinel files, cache keys) or **record** their
-values and carry them in the report. After the arm, report which path actually ran, with evidence
-(a marker file, exit code, or the set of processes spawned). Use a line per arm:
+The goal names which **code path(s)** the metric is meant to exercise, and the observable that
+identifies each (for example skip with no interpreter versus Python run path, cold cache versus
+warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm, either
+**reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
+their values and carry them in the report; say which was done. After the arm, report which path
+actually ran, with evidence (a marker file, exit code, or the set of processes spawned). A path
+that cannot be observed is reported `unobserved`, never assumed. One line per arm, required in the
+report beside the step 3 rig line:
 
 ```text
-Path (<arm>): <intended path from goal> -> <observed path> (evidence: <marker | exit | processes>)
+Path (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)
 ```
 
-An arm whose observed path does not match the goal's named path is **flagged**; its duration is not
-reported as the goal's headline metric. A harness that always exercised the rare path while the
-common session path stayed unmeasured is exactly the failure this step prevents.
+An arm whose observed path does not match the goal's named path, or is `unobserved`, is
+**flagged**; its duration is not reported as the goal's headline metric. A harness that always
+exercised the rare path while the common session path stayed unmeasured is exactly the failure
+this step prevents.
 
 ### 3. Capture durations, only if step 1 allowed it
 
@@ -121,6 +125,9 @@ Every duration carries a rig line, because a number without its rig cannot be re
 ```text
 Rig:  <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
 ```
+
+Every arm's `Path (<arm>):` line from step 2b sits beside its rig line; a duration without both is
+not reported.
 
 ### 4. Evidence for the goal's `Correlation:` line
 
@@ -279,5 +286,5 @@ stored one.
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.
 - **Stale markers send every sample down the wrong path.** Reset or record path-selecting state
-  before each arm, and report observed path with evidence; a mismatch is flagged, not folded into
-  the headline metric.
+  before each arm, and report observed path with evidence; a mismatch, or a path that could not be
+  observed (`unobserved`), is flagged, not folded into the headline metric.

@@ -97,6 +97,14 @@ example "p50 does not grow faster than linear in transcript bytes"). If the boun
 `unproven` is legal and travels to verify like `Correlation:`. `/performance:target` should flag
 such candidates when ranking; if it did not, name the growing-state read here anyway.
 
+**Code path under test, required.** Name the code path(s) the metric is meant to exercise and the
+**observable** that identifies each one: a marker file, an exit code, the set of processes spawned.
+A goal that names no path is not locked. A subject with a rare branch and a common branch needs the
+common one named, because a harness can sit on the rare one without erroring: in #4437 a stale
+`bench.launched` marker sent every Stop-hook sample down the rare Python path while the common
+skip path stayed unmeasured. `/performance:snapshot` step 2b resets or records the state that
+selects the path before each arm and reports which path ran.
+
 ### 2. The floor, computed before any work
 
 The irreducible cost this target cannot go below whatever the code does. Compute it by measuring the
@@ -162,6 +170,7 @@ two different baseline stores.
 Metric:     <exact command> -> <field>
 Counter:    <drift-immune counter>   [ranked above the duration]
 Correlation: <evidence the counter moves the duration> | unproven   [REQUIRED]
+Path:       <code path(s) under test> (observable: <marker | exit code | process set>)   [REQUIRED]
 Boundary:   start <event> -> end <event>; <which side of the split each falls on>; <start state>
 Event:      <wall-clock metric when units run in parallel> | n/a
 Unit:       <unit under study + marginal over next-slowest peer> | n/a
@@ -200,6 +209,9 @@ Target (from /performance:target): <candidate> @ <E1..E4>
   signal (the raw events the score is built from) and measure that instead.
 - **A goal built on an E3/E4 candidate must record that.** Optimizing an unmeasured target can
   succeed against its own metric and change nothing a user perceives.
+- **A goal with no named code path is not locked.** Name the path and the observable that tells it
+  apart from its siblings; a stale marker can route every sample down the rare branch and the
+  duration still looks like a measurement.
 - **One size is not enough when the subject re-reads growing state.** A hook that re-reads the
   whole transcript can look fine at 50 KB and fail at 10 MB; the scaling arms exist to catch that
   before work is spent.

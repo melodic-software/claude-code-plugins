@@ -21,6 +21,7 @@ reliable than the thing it checks.
 | 5 | discrimination check (python) | "NOT DISCRIMINATING" | Restored via `git checkout --` while the fix under test was **uncommitted**. The restore silently reverted the fix, so the "with fix" arm ran without it, and the work was destroyed. |
 | 6 | hand-rolled interleaving harness (python) | 63 ms per sample, every sample | A bare `bash` under `subprocess` resolved by `PATH` order, per that run's own notes to WSL's `bash.exe` in the Windows `System32` directory, which cannot see a drive-letter path. Every sample exited 127 and was timed as a fast, clean run. Caught only by checking exit codes. The bundled `scripts/ab.sh` would have refused it. |
 | 7 | benchmark run through a stale harness copy (instrument identity unchecked) ([#4436](https://github.com/melodic-software/claude-code-plugins/issues/4436)) | plausible numbers, run completed | The copy was nine commits behind origin and lacked the transcript-size arm and the process counter. Nothing errored. Caught only by a missing output column. |
+| 8 | Stop-hook benchmark with stale path-selecting state ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)) | plausible numbers, run completed | A `bench.launched` marker left by an earlier run sent every sample down the rare Python path. The common skip path was never measured. Nothing errored. |
 
 None of these are knowledge gaps. They are all "the measurement was wrong in a way that looked
 right". A workflow that measures without enforcing the rules below mostly generates confident
@@ -194,5 +195,7 @@ Before reporting any number:
 - [ ] Instrument identity is verified: the measuring tool's path, revision and version were
       recorded, the copy is not behind its upstream, the goal's metric column is produced, and a
       post snapshot matches the baseline's recorded tool.
+- [ ] State that selects the subject's code path was reset or recorded before each arm, and the
+      observed path matches the goal's.
 - [ ] The bundled harness in `scripts/` ran where one exists for the job (`ab.sh`,
       `run-spawn-census.sh`, `differential.py`, `discriminate.py`), rather than a reimplementation.

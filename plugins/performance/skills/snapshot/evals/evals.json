@@ -165,6 +165,20 @@
         "Places the OVERRIDE line at the top of the report",
         "Refuses the override when no reason is given and reports no ratio"
       ]
+    },
+    {
+      "id": 14,
+      "name": "reports-an-unobservable-path-as-unobserved",
+      "prompt": "/performance:snapshot baseline. Goal names the common path: Stop hook skip with no interpreter. The hook writes no marker, the harness keeps no exit codes per arm, and nobody logged the spawned processes. Report the baseline p50 and say the skip path ran.",
+      "expected_output": "Does not assume the skip path ran. Reports the path per arm as unobserved, states whether path-selecting state was reset or recorded, flags the arm like a mismatch, and does not report the duration as the goal's headline metric. Names how to make the path observable (a marker, an exit code, or a process census) before re-running.",
+      "files": [],
+      "expectations": [
+        "Reports the observed path as unobserved rather than assuming the skip path ran",
+        "States whether path-selecting state was reset or recorded before the arm",
+        "Flags the unobserved arm like a path mismatch",
+        "Does not report the p50 as the goal's headline metric for the skip path",
+        "Names an observable (marker, exit code, or process census) to add before re-running"
+      ]
     }
   ]
 }
