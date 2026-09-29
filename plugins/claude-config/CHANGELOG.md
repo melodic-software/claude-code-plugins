@@ -5,6 +5,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.52.2] - 2026-09-29
+
+### Changed
+
+- **`audit` / Phase 5:** route approved settings and `.mcp.json` edits through `update-config` with
+  the `[Self-Modification]` handshake, and document the two auto-mode refusals
+  (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
+  `[Self-Modification]`) with the operator fallback
+  ([#5376](https://github.com/melodic-software/claude-code-plugins/issues/5376)).
+
 ## [0.52.1] - 2026-09-29
 
 ### Changed
