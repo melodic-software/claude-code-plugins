@@ -85,10 +85,12 @@ posture is to write the shim while a root `CLAUDE.md` exists in a repository.
 - **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
   attaches a subdirectory's `AGENTS.md` on a Read there under the same condition; reading
-  `AGENTS.md` directly needs v2.1.277 or later and is unavailable in some sessions.
+  `AGENTS.md` directly depends on a CLI version floor and on the session, both in
+  [`skills/migrate/reference/sources.md`](skills/migrate/reference/sources.md), "The minimum CLI
+  version".
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code reads
   AGENTS.md" and "When AGENTS.md support is unavailable"; confirmed by canary runs on 2.1.278.
-- **As of**: 2026-09-19.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: that section changes which file names count for the check, or a release note
   names `AGENTS.md` or instruction-file loading.
 

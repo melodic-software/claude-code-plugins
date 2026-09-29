@@ -25,10 +25,11 @@ skill's job; `/instruction-placement:check` asks the same question again on ever
 
 - **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it;
-  reading it directly needs v2.1.277 or later and is unavailable in some sessions.
+  reading it directly depends on a CLI version floor and on the session, both in
+  `skills/migrate/reference/sources.md`, "The minimum CLI version".
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md" and "When AGENTS.md
   support is unavailable"; canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-19.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: that section changes which file names count for the check, or a release note
   names `AGENTS.md` or instruction-file loading.
 

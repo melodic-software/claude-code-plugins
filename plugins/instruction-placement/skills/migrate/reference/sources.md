@@ -61,10 +61,10 @@ the bytes rather than paraphrased.
   telemetry disabled, couldn't load `AGENTS.md` either, so on those versions update to v2.1.281
   or later." Below v2.1.277 no session reads it, whatever the flag says. The Bedrock and
   telemetry-disabled gap is stated for versions before v2.1.281, not as a limit of v2.1.282.
-- **Basis**: `https://code.claude.com/docs/en/memory.md`, fetched 2026-09-28 by the rung-1 route,
-  54,922 bytes; the floor sentence is at line 352, the unavailable bullet at 402, and step 2 at
+- **Basis**: `https://code.claude.com/docs/en/memory.md`, fetched 2026-09-29 by the rung-1 route,
+  49,601 bytes; the floor sentence is at line 352, the unavailable bullet at 402, and step 2 at
   578. The slug is in `llms.txt` and the first heading is "How Claude remembers your project".
-- **As of**: 2026-09-28.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: the memory page states a different floor, or a release note moves it.
 
 ## `claude-code-action` release to installed CLI version

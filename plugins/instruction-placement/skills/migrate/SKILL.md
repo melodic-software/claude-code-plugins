@@ -314,8 +314,9 @@ than asking git for an index copy a staged edit may have replaced; a restore tha
 so and the run still exits non-zero.
 
 Removal is priced, and the price is printed before the confirmation: a directly read `AGENTS.md`
-does not appear in `/memory` or in the `/context` Memory files, and fires no `InstructionsLoaded`
-hook. That is a decision to make, not tidying.
+fires no `InstructionsLoaded` hook, and `/memory` lists it only from v2.1.280
+([`reference/sources.md`](reference/sources.md), "What shim removal costs"). That is a decision to
+make, not tidying.
 
 ## Verify the load, never assume it
 
@@ -347,12 +348,12 @@ directly at all.
   on Amazon Bedrock or with telemetry disabled, read `CLAUDE.md` files only, and that on those
   versions you update Claude Code. A `CLAUDE.md` containing `@AGENTS.md` never makes Claude read
   the file twice.
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-28 (54,922 bytes;
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-29 (49,601 bytes;
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
   "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
   earlier AGENTS.md workaround". Canary runs on Claude Code 2.1.278 confirmed the displacement
-  rule; this 2026-09-28 pass did not repeat those runs (`claude` on this host is not logged in).
-- **As of**: 2026-09-28.
+  rule; this 2026-09-29 pass did not repeat those runs (`claude` on this host is not logged in).
+- **As of**: 2026-09-29.
 - **Recheck trigger**: that page changes which file names count for the check or which sessions lack
   support, or a release note names `AGENTS.md` or instruction-file loading.
 
