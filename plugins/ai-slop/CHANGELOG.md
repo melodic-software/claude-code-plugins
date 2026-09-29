@@ -22,6 +22,10 @@
 - **audit:** `fix` writes a `fix-pass-record` for the findings file it consumed before the
   re-emit, so `review:fanout fix` no longer reapplies the pre-fix file. The claim that no stale
   findings file survives remediation now matches that behavior.
+- **audit:** `emit-fix-record.sh` quotes a YAML-sensitive branch name (`true`, `123`, `#topic`)
+  the way `emit-findings.sh` does, so `review:fanout fix` matches the record's branch exactly.
+- **audit:** the rubric run directory is created with a plain `mkdir` and a numeric suffix on
+  collision, so two audits in one second get separate workspaces.
 
 ## [0.11.4] - 2026-09-29
 

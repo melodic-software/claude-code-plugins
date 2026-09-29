@@ -88,6 +88,12 @@ NA="$TEST_TMPDIR/na.txt"
 printf '| a.md:3 | em dash | reverted: meaning loss | 20260101T000000Z-ai-slop.md |\n' >"$NA"
 R2="$(cd "$TEST_TMPDIR" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA" --consumed "$FB" --branch other/b --rows 7 --outcome '`/ai-slop:audit fix` → 6 fixed, 1 reverted' --not-applied-rows "$NA")"
 assert_eq "explicit --branch wins" "branch: other/b" "$(sed -n 4p "$R2")"
+
+# YAML-sensitive branch names are quoted like emit-findings.sh quotes them.
+for pair in 'true|"true"' '123|"123"' '#topic|"#topic"' 'a: b|"a: b"'; do
+  RB="$(cd "$TEST_TMPDIR" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA" --branch "${pair%%|*}")"
+  assert_eq "branch ${pair%%|*} is quoted" "branch: ${pair#*|}" "$(sed -n 4p "$RB")"
+done
 assert_eq "one entry per consumed file" "2" "$(grep -c '^  - name: ' "$R2")"
 assert_contains "Not applied table carries the row" "$(cat "$R2")" "| Location | Finding | Why not applied | Source file |"
 assert_contains "Not applied row is copied through" "$(cat "$R2")" "reverted: meaning loss"

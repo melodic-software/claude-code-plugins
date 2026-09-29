@@ -90,6 +90,20 @@ sha12() {
   { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12
 }
 
+# Same quoting predicate as emit-findings.sh: the consumer compares the exact branch string.
+yaml_scalar() {
+  local s="$1" l="${1,,}" indicator='^[][?:,{}#&*!|>%@`"'"'"'-]'
+  if [[ "$s" =~ $indicator || "$s" == *": "* || "$s" == *" #"* || "$s" =~ [[:space:]]$ ||
+    "$l" =~ ^(true|false|yes|no|on|off|null|~)$ || "$s" =~ ^[+-]?[0-9]+$ ||
+    "$s" =~ ^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$ || "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ||
+    "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
+    s="${s//\\/\\\\}"
+    printf '"%s"' "${s//\"/\\\"}"
+  else
+    printf '%s' "$s"
+  fi
+}
+
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TMP="$(mktemp)"
@@ -98,7 +112,7 @@ trap 'rm -f "$TMP"' EXIT
 names=""
 for f in "${CONSUMED[@]}"; do names+="${names:+, }$(basename "$f")"; done
 {
-  printf -- '---\ntype: fix-pass-record\ndate: %s\nbranch: %s\nsource-findings:\n' "$DATE_UTC" "$BRANCH"
+  printf -- '---\ntype: fix-pass-record\ndate: %s\nbranch: %s\nsource-findings:\n' "$DATE_UTC" "$(yaml_scalar "$BRANCH")"
   for f in "${CONSUMED[@]}"; do
     printf -- '  - name: %s\n    sha256: %s\n' "$(basename "$f")" "$(sha12 "$f")"
   done

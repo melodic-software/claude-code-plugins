@@ -45,7 +45,9 @@ step 5 after fetching the producer contract. The fan-out can therefore start bef
 contract is reachable.
 
 - Repository target: `<repo top level>/.work/ai-slop-rubric/<TS>/`, with
-  `TS="$(date -u +%Y%m%dT%H%M%SZ)"`. Create it with `mkdir -p`, then confirm it is ignored with
+  `TS="$(date -u +%Y%m%dT%H%M%SZ)"`. Create `.work/ai-slop-rubric/` with `mkdir -p`, then the run directory with a plain `mkdir`, which
+  fails on an existing path; on failure retry with `<TS>-2`, `<TS>-3`, and so on, so two runs in
+  one second never share a workspace (an explicit resume reuses its known path). Confirm it is ignored with
   `git -C <repo top level> check-ignore -q .work/ai-slop-rubric/<TS>/`. When the check fails or
   the directory cannot be created, use the session scratchpad, else the system temp directory.
 - Non-repository target: the session scratchpad, else the system temp directory.
