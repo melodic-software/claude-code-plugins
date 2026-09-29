@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract tests for the pixel-art backend adapters.
+# Runs every pixel-art test suite (test_*.py).
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
@@ -9,4 +9,4 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-exec python3 -m unittest test_backends.py -q
+exec python3 -m unittest discover -s . -p 'test_*.py' -q

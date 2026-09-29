@@ -1251,6 +1251,24 @@ class CloneGroupRowTests(unittest.TestCase):
         rendered = run("render", stdin=json.dumps(json.loads(result.stdout)))
         self.assertIn("summary.files_excluded_only", rendered.stdout)
 
+    def test_render_counts_excluded_only_files_without_the_summary_field(self) -> None:
+        kept = clone_row("bash", "alpha/live.sh", "beta/live.sh", 4)
+        dropped = clone_row("bash", "alpha/shared/u.sh", "beta/shared/u.sh", 9)
+        doc = duplication_doc([kept])
+        doc["excluded"] = [
+            {
+                "registry": "r.txt",
+                "line": 1,
+                "path": "shared/u.sh",
+                "instances": dropped["instances"]
+                + [{"file": "", "start_line": 1, "end_line": 9}, {"start_line": 1}],
+            }
+        ]
+        self.assertNotIn("files_excluded_only", doc["summary"])
+        rendered = run("render", stdin=json.dumps(doc))
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertIn("so the 2 file(s) holding nothing but excluded", rendered.stdout)
+
 
 def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
     return {

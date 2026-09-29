@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test repo-analysis.test.js"
+    "test": "node --test"
   },
   "description": "Shared git-repo structure, framework, and section-diff analysis used by the course-digest and youtube extraction backends",
   "exports": {

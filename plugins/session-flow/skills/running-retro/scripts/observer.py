@@ -40,6 +40,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from shutil import which
 
+_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+if _PLUGIN_SCRIPTS not in sys.path:
+    sys.path.insert(0, _PLUGIN_SCRIPTS)
+
+from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -701,11 +707,10 @@ class Observer:
             self.model,
             "--permission-mode",
             "dontAsk",
-            # Unattended print run: deny anything that would still prompt, and
-            # tell the model not to retry it. dontAsk already denies; the flag
-            # is the print-mode form that names the host as nobody.
-            "--permission-prompts",
-            "none",
+            # Unattended print run: dontAsk already denies anything that would
+            # prompt. --permission-prompts none also tells the model not to
+            # retry, but only CLIs that know the flag get it.
+            *permission_prompts_args(claude),
             "--output-format",
             "json",
             # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the

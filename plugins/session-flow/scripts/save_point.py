@@ -1304,13 +1304,15 @@ def _git_toplevel(start: Path) -> Path | None:
 
 def _plugin_data_root() -> Path | None:
     """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when set, else derived
-    from this script's install path. Claude Code does not export the variable
-    to Bash-tool commands, so the derivation is the normal case in a session.
+    from this script's install path. Bash-tool commands do not receive the
+    variable, so the derivation is the normal case in a session (record:
+    ``reference/structure.md`` "Verification record: plugin data dir").
     An installed plugin runs from ``<config>/plugins/cache/<marketplace>/
     <plugin>/<version>/``, and its data dir is ``<config>/plugins/data/<id>/``
     where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
     than a letter, digit, ``_`` or ``-`` replaced by ``-``. Any other layout
-    (``--plugin-dir``, a source checkout) has no derivable id: None."""
+    (``--plugin-dir``, a source checkout) has no derivable id: None.
+    Caveat: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
     env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
     if env:
         return Path(env).expanduser()
