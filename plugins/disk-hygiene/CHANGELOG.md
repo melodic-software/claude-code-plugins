@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.18] - 2026-09-29
+
+### Fixed
+
+- **`clean` argument hint covers every flag.** The hint keeps `[--execute]`, `[--max-depth <N>]`, `[--sizes-only]`, and `[--policy <file>]`, and an `[options]` placeholder stands for `--confirmed-large-scan`, `--quiet`, and `--root-children` with `--root-child <name>`. The `**Arguments.**` line leads with the hint and keeps the complete flag list after it.
+
 ## [0.28.17] - 2026-09-29
 
 ### Fixed

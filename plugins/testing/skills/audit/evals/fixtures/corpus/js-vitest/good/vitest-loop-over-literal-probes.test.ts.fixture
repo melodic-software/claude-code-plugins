@@ -1,0 +1,34 @@
+// good-for: rule-conditional-assertion
+// results has one entry per literal probe, so the loop body always runs.
+import { describe, expect, it } from 'vitest';
+import { post } from '../src/client';
+
+describe('webhook', () => {
+  it('returns the same opaque 401 for every bad signature', async () => {
+    const probes = [{ sig: undefined }, { sig: 'bad' }, { sig: 'sha256=dead' }];
+    const results = await Promise.all(probes.map((p) => post('/webhook', p)));
+    for (const { status } of results) {
+      expect(status).toBe(401);
+    }
+  });
+
+  it('never leaks the failure reason', async () => {
+    const probes = [
+      { sig: 'sha1=abc' },
+      { sig: 'sha256=' },
+    ];
+    const results = await Promise.all(
+      probes.map(async (p) => (await post('/webhook', p)).body),
+    );
+    for (const body of results) {
+      expect(body).not.toHaveProperty('reason');
+    }
+  });
+
+  it('accepts every well-formed content type', async () => {
+    const codes = await Promise.all(['application/json', 'text/plain'].map((t) => post('/webhook', { t })));
+    for (const code of codes) {
+      expect(code).toBe(202);
+    }
+  });
+});

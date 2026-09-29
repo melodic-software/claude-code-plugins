@@ -1,0 +1,8 @@
+// expect: rule-constant-restatement
+// An e2e test that never opens the page: it restates a constant.
+import { expect, test } from '@playwright/test';
+import { PAGE_SIZE } from '../src/orders';
+
+test('the order list shows fifty rows', async () => {
+  expect(PAGE_SIZE).toBe(50);
+});

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# expect: rule-source-text-read
+# reads: scripts/deploy.sh
+# Greps the deploy script for a line instead of running it against a failing step.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+
+if grep -q 'set -euo pipefail' "$REPO/scripts/deploy.sh"; then
+  pass "deploy fails fast"
+else
+  fail "deploy does not set -e"
+fi

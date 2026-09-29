@@ -1,0 +1,27 @@
+// good-for: rule-inert-assertion
+// good-for: rule-constant-restatement
+// good-for: rule-source-text-read
+// The repaired twins: every web-first matcher is awaited, the page size is
+// checked on the rendered list, and the heading is read from the live page.
+import { expect, test } from '@playwright/test';
+import { PAGE_SIZE } from '../src/orders';
+
+test('saving shows a confirmation', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Saved')).toBeVisible();
+  await Promise.all([
+    expect(page.getByRole('status')).toHaveText('Saved'),
+    expect(page).toHaveURL(/settings/),
+  ]);
+});
+
+test('the order list shows one page of rows', async ({ page }) => {
+  await page.goto('/orders');
+  await expect(page.getByRole('listitem')).toHaveCount(PAGE_SIZE);
+});
+
+test('the page renders a heading', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+});

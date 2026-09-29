@@ -441,7 +441,8 @@ declares_both_fixtures B "$CASE_B"
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
 # Both defenses are body prose, each covered by its own section digest below; no
-# frontmatter key states or qualifies either.
+# frontmatter key states or qualifies either. `argument-hint` is the bare slot list
+# `[action] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "881ecec0f5c8cf8e18d16edc7a3d5a72463c48ddc483f5736814b18506d2a6b3"
@@ -466,12 +467,13 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # recommendation, and restrict convention-only recommending to non-consequential questions.
 # Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
 # withheld question drops its recommendation but is still asked and registered, so it too
-# resolves nothing.
+# resolves nothing. The three recommendation-basis links point at the plugin-shipped
+# context file instead of an org URL; a link target changes no rule.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "be1109648072c71b2368ef1e130e4d34219352512d3423b774dcc58b94903684"
+  "c2dd07863d030599e9a4fe484d9f97bd5cb5db88e64284757fd07edf3bacb254"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -514,12 +516,16 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "### Step 1.5. Auto-detect (default action only)" \
   "bc000f8d116bad560c8a74646f7d3736aefa7c42d34a8aa5643c30c5bc58a984"
 # Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
-# outlives the branch goes and touches no assumption or Brief rule.
+# outlives the branch goes and touches no assumption or Brief rule. Its prune caveat applies
+# under `contract_tier: branch` only; under `local` nothing is committed, so nothing is pruned.
+# The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
+# and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
+# never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "3824691bd60ef69d83647df46b5e14a6ffadc2df726425c0410bbb58f5aa05ae"
+  "402e1ba5e8f1fda8446446a70e8cd11a30a18814998563155c278943b834a1ce"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -544,11 +550,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
 # It also says a decision the session records in the ledger is mirrored with the same op as a
 # terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
+# The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "ff84d3f9cfacddcf6f11bc1fda1683cc0d87131d9583bc78c157cd513da737b8"
+  "0fbfcb797f606a548d8f46e1c97be4f63fdbeb33f8bfee1dd369f5d71a7ea17c"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
@@ -557,7 +564,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
-  "## Composition with other skills" \
+  "## Next" \
   "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
@@ -614,8 +621,10 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # durable home) grades where content persists after merge and touches neither defense.
 # Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
 # and the queued-output-first order, and resolves no row the user did not answer.
+# Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
+# `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "a3038d1d112c3727c1ea4bf1aa3dccbe16fccaf26587cca79050ff07e4ebf43a"
+  "2d0f3698af829c4aba3425a667498f4ca378e82f40df26e1c048c8941342ace6"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

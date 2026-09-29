@@ -1,0 +1,16 @@
+// expect: rule-snapshot-only
+// The approved receipt file is the only oracle.
+using System.Threading.Tasks;
+using NUnit.Framework;
+using VerifyNUnit;
+
+[TestFixture]
+public class CartReceiptVerifyTests
+{
+    [Test]
+    public async Task Receipt_ListsTheItems()
+    {
+        var receipt = new Cart().Add("tea", 4m).Receipt();
+        await Verifier.Verify(receipt);
+    }
+}

@@ -1,0 +1,6 @@
+# good-for: rule-zero-assertion
+from slugs import slugify
+
+
+def test_slugify_collapses_dashes():
+    assert slugify("a -- b") == "a-b"

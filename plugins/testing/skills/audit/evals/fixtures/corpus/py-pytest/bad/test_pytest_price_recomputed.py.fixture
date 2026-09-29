@@ -1,0 +1,8 @@
+# expect: rule-recomputed-expectation
+# Both sides call parse_price on the same input, so the assertion passes
+# whatever parse_price returns.
+from prices import parse_price
+
+
+def test_parse_price_strips_currency_symbol():
+    assert parse_price("$4.20") == parse_price("$4.20")

@@ -1,0 +1,9 @@
+# expect: rule-recomputed-derived
+# The expected total is measured from the same items Get-Total adds up.
+Describe 'Get-Total' {
+    It 'adds the prices' {
+        $items = @([pscustomobject]@{ Price = 10 }, [pscustomobject]@{ Price = 5 })
+        $exp = ($items | Measure-Object Price -Sum).Sum
+        Get-Total $items | Should -Be $exp
+    }
+}

@@ -615,7 +615,7 @@ git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
-ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
+ls-remote-fleet-unavailable|UNKNOWN|no|no|Per-repository merged-remote-branch findings are withheld; every live probe in this run failed
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -712,6 +712,32 @@ record_finding() {
   F_DISP+=("$disposition")
   F_HANDOFF+=("$handoff")
   F_REPO_IDX+=("$CURRENT_REPO_IDX")
+}
+
+# Takes every buffered MEDIUM finding of <kind> back out of the store and the tier tally, keeping
+# the remaining rows in order. Compacts in place (no array rebuild) so bash 3.2 stays safe under
+# `set -u`.
+withhold_medium_findings() {
+  local kind="$1" i n=${#F_KIND[@]} keep=0
+  for ((i = 0; i < n; i++)); do
+    if [[ "${F_KIND[$i]}" == "$kind" && "${F_CONF[$i]}" == "MEDIUM" ]]; then
+      FINDINGS_MEDIUM=$((FINDINGS_MEDIUM - 1))
+      continue
+    fi
+    if [[ "$keep" -ne "$i" ]]; then
+      F_CONF[keep]="${F_CONF[$i]}"
+      F_KIND[keep]="${F_KIND[$i]}"
+      F_TARGET[keep]="${F_TARGET[$i]}"
+      F_EVIDENCE[keep]="${F_EVIDENCE[$i]}"
+      F_DISP[keep]="${F_DISP[$i]}"
+      F_HANDOFF[keep]="${F_HANDOFF[$i]}"
+      F_REPO_IDX[keep]="${F_REPO_IDX[$i]}"
+    fi
+    keep=$((keep + 1))
+  done
+  for ((i = n - 1; i >= keep; i--)); do
+    unset "F_CONF[$i]" "F_KIND[$i]" "F_TARGET[$i]" "F_EVIDENCE[$i]" "F_DISP[$i]" "F_HANDOFF[$i]" "F_REPO_IDX[$i]"
+  done
 }
 
 # The ordinary emitter: the kind decides the tier and the disposition.
@@ -2311,7 +2337,10 @@ repo_verdict() {
     kind="${F_KIND[$i]}"
     target="${F_TARGET[$i]}"
     if [[ "$conf" == "UNKNOWN" ]]; then
-      unknown=$((unknown + 1))
+      case "$kind" in
+      discovery-skip | discovery-symlink-skip) ;;
+      *) unknown=$((unknown + 1)) ;;
+      esac
     elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
       array_contains "$target" "${cand_targets[@]:-}" || cand_targets+=("$target")
     fi
@@ -3119,12 +3148,14 @@ else
 fi
 
 # When every attempted ls-remote failed, N MEDIUM merged-remote-branch findings are one
-# transport/binding problem, not N independent stale heads (#4211). Empty ls-remote (head
-# already gone) is a successful probe and does not count as a failure.
+# transport/binding problem, not N independent stale heads (#4211). The per-repository rows are
+# withheld and the single fleet finding replaces them. Empty ls-remote (head already gone) is a
+# successful probe and does not count as a failure.
 if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
+  withhold_medium_findings merged-remote-branch
   emit_finding ls-remote-fleet-unavailable "fleet" \
-    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings stay MEDIUM cached observations" \
-    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun. The per-repository MEDIUM findings are not independent live-probe failures"
+    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings are withheld because no live probe succeeded" \
+    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------
@@ -3157,8 +3188,9 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
 done
 
 # Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
-# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
-# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
+# get their own rollup row. Their evidence gaps (all UNKNOWN kinds except the disclosed
+# discovery skips) must also move the overall Fleet verdict off CLEAN — repo_verdict -1
+# already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))

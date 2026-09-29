@@ -1,0 +1,14 @@
+// good-for: rule-zero-assertion
+// An ignored test does not run, so it is not judged.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderSyncIgnoredTests
+{
+    [TestMethod]
+    [Ignore("the ERP sandbox is down")]
+    public void Sync_PushesPlacedOrders()
+    {
+        new OrderSync(new ErpClient()).Run();
+    }
+}
