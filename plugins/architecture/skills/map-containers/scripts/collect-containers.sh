@@ -42,6 +42,8 @@ REDACT_AWK="$SCRIPT_DIR/../../../lib/redact-connection.awk"
 ASSIGN_AWK="$SCRIPT_DIR/../../../lib/config-assignments.awk"
 # shellcheck source=../../../lib/family-records.sh
 source "$SCRIPT_DIR/../../../lib/family-records.sh"
+# shellcheck source=../../../lib/github-remote.sh
+source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -61,35 +63,6 @@ json_escape() {
   s="${s//$'\r'/\\r}"
   s="${s//$'\n'/\\n}"
   JSON_ESC="$s"
-}
-
-github_repo_name() {
-  local url="$1" scheme=0 host rest host_l repo
-  [[ -n "$url" && "$url" != "unknown" ]] || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    if [[ "$rest" == :* ]]; then
-      return 1
-    fi
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  [[ -n "$rest" ]] || return 1
-  host_l="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
-  [[ "$host_l" == "github.com" || "$host_l" == "www.github.com" ]] || return 1
-  repo="${rest#*/}"
-  repo="${repo%%/*}"
-  [[ -n "$repo" && "$repo" != "$rest" ]] || return 1
-  printf '%s' "$repo"
 }
 
 normalize_inside() {
