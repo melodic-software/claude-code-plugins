@@ -239,7 +239,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/education:explain`](../plugins/education/skills/explain/SKILL.md) | `education` | Explain any concept or the last response in genuinely plain words |
 | [`/education:quiz-me`](../plugins/education/skills/quiz-me/SKILL.md) | `education` | Generate a post-change report with a quiz verifying you absorbed the work |
 | [`/education:teach`](../plugins/education/skills/teach/SKILL.md) | `education` | Multi-session learning coach for general topics or repo-grounded concepts |
-| [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Run a Claude Code agent turn on another fleet machine over SSH |
+| [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message |
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
 | [`/go-format:check`](../plugins/go-format/skills/check/SKILL.md) | `go-format` | Report whether goimports is installed. Never installs. |
