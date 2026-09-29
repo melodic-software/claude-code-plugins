@@ -36,8 +36,9 @@ indent_size = 2
 
 # Go: gofmt is the sole formatter and indents with tabs, so the space default
 # does not apply; indent enforcement is disabled here and deferred to gofmt
-# (mirrors the JS/TS deferral to Biome).
-[*.go]
+# (mirrors the JS/TS deferral to Biome). Go corpus fixtures are gofmt output
+# under a .fixture suffix.
+[*.{go,go.fixture}]
 indent_style = unset
 indent_size = unset
 

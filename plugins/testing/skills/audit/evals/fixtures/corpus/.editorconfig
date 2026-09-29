@@ -1,6 +1,0 @@
-# Go corpus fixtures are gofmt output under a .fixture suffix, so the root [*.go]
-# tab deferral applies to them too.
-
-[*.go.fixture]
-indent_style = unset
-indent_size = unset
