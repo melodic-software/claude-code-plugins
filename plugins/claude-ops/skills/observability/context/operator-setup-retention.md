@@ -79,7 +79,7 @@ no independent recovery restart, so the prune owns the complete stop â†’ trim â†
 holds the sentinel through the restart attempt and releases it last; an unreadable service state
 is an error, never treated as `Stopped`, so the hot store stays untouched and cleanup attempts the
 restart. It is wired into `/claude-ops:observability clean` (one entry covering the JSONL layers + this OTEL store;
-the JSONL hook-events layer keeps its own 30-day `--keep-days` window, and the opt-in skill-usage
+the JSONL hook-events layer (`hook-events.jsonl` and its rotated `.1`, which the sink rotates at the size cap whatever the session-log switch is set to) keeps its own 30-day `--keep-days` window, and the opt-in skill-usage
 layer its own 365-day `--keep-skill-usage-days` window, longer because a starvation report wants
 long history and those rows carry names and branches only, no content).
 

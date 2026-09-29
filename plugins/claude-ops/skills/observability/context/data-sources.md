@@ -28,7 +28,9 @@ inherits no `CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocati
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
-rows for envelopes that carry no session id.
+rows for envelopes that carry no session id. That file is size-capped: past `hook_events_max_bytes`
+(10 MB by default) the sink moves it to `hook-events.jsonl.1`, replacing any older `.1`, so queries
+read both files.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -41,6 +43,7 @@ shopt -s nullglob
 HOOK_FILES=("$HOOK_ROOT"/sessions/*.jsonl)
 shopt -u nullglob
 [[ -f "$HOOK_ROOT/hook-events.jsonl" ]] && HOOK_FILES+=("$HOOK_ROOT/hook-events.jsonl")
+[[ -f "$HOOK_ROOT/hook-events.jsonl.1" ]] && HOOK_FILES+=("$HOOK_ROOT/hook-events.jsonl.1")
 case "$SCOPE" in
   session)  # the newest session file by mtime, the one still being written
     SINCE_ISO=""

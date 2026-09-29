@@ -304,6 +304,7 @@ prune_file "$HOOK_LOG" "ts"
 # `clean` sweeps the stale ones whether or not the hooks still run.
 log "clean: hook log root $HOOK_ROOT"
 prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
+prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts"
 if [[ -d "$HOOK_ROOT/sessions" ]]; then
   OLD_SESSIONS=()
   while IFS= read -r f; do OLD_SESSIONS+=("$f"); done < <(
