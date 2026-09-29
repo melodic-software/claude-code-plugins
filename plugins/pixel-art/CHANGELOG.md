@@ -3,6 +3,19 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5] - 2026-09-28
+
+### Added
+
+- Evals for vague briefs on `sprite`, `animate`, and `scene`, a PICO-8 and a Godot layout
+  case, and a scene case that refuses to claim a visual review without a browser tool (#4406).
+
+### Changed
+
+- Reference review: Godot 3 bitmask pairings are judgment (the docs and Godot issues #64769 and
+  #79411 disagree). The Aseprite section adds the EULA license shape from the FAQ.
+  `image-rendering: pixelated` is cited from MDN. Unity no longer states unverified facts.
+
 ## [0.3.4] - 2026-09-28
 
 ### Added
