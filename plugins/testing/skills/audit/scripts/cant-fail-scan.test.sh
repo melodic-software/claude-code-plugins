@@ -772,7 +772,7 @@ load_yaml() {
   err="$(cat "$TMP_ROOT/load.err")"
 }
 TAB=$'\t'
-load_yaml good.yaml $'# comment line\r\nid: demo\r\nlanguage: js\nblock_model: brace  # trailing comment\nfiles: [\'*.test.js\', \'*.spec.js\']\ndetect:\n  any_regex:\n    - \'from [\'\'"]vitest\'\n  # nested comment\nassertion.calls:\n- \'expect[[:space:]]*\\(\'\nmock:\n  create: [\'vi\\.fn\']\n  verify:\n    - toHaveBeenCalled\nsuppress_marker: \'cant-fail-ok:\'\n'
+load_yaml good.yaml $'# comment line\r\nid: demo\r\nlanguage: js\nblock_model: brace  # trailing comment\nfiles: [\'*.test.js\', \'*.spec.js\']\ntest_start: [x]\ndetect:\n  any_regex:\n    - \'from [\'\'"]vitest\'\n  # nested comment\nassertion.calls:\n- \'expect[[:space:]]*\\(\'\nmock:\n  create: [\'vi\\.fn\']\n  verify:\n    - toHaveBeenCalled\nsuppress_marker: \'cant-fail-ok:\'\n'
 assert_exit "loader accepts the subset (exit 0)" 0 "$rc"
 assert_contains "loader emits a scalar, CR stripped, comment dropped" "$out" "demo${TAB}block_model${TAB}brace"
 assert_contains "loader emits each flow-list item" "$out" "demo${TAB}files${TAB}*.spec.js"
@@ -838,6 +838,14 @@ done
 load_yaml rs.yaml $'id: rs\nlanguage: js\ndelegation: [x]\n'
 assert_exit "loader rejects a reserved, unimplemented field (exit 2)" 2 "$rc"
 assert_contains "loader says the field is reserved" "$err" "delegation is reserved"
+load_yaml nt.yaml $'id: nt\nlanguage: js\nfiles: [a]\n'
+assert_exit "loader rejects an adapter that claims files with no test_start (exit 2)" 2 "$rc"
+assert_contains "loader says test_start is missing" "$err" "nt.yaml: claims files but has no test_start"
+printf 'id: empty\nextends: base\ntest_start: []\n' >"$ADIR/empty.yaml"
+rc=0
+out="$(awk -f "$LOAD" "$ADIR/empty.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
+assert_exit "loader rejects an empty test_start overriding an inherited one (exit 2)" 2 "$rc"
+assert_contains "loader names the adapter left without a matcher" "$out" "empty.yaml: claims files but has no test_start"
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
 assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"

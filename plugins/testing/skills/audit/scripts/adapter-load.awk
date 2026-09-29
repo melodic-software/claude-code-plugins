@@ -212,11 +212,15 @@ END {
   }
   for (fi = 1; fi <= nf; fi++) resolve(fi, 0)
   for (fi = 1; fi <= nf; fi++) {
-    lang = ""; bm = ""
+    lang = ""; bm = ""; hf = 0; hts = 0
     for (j = 1; j <= nr; j++) if (R_F[j] == fi) {
       if (R_K[j] == "language") lang = R_V[j]
       if (R_K[j] == "block_model") bm = R_V[j]
+      if (R_K[j] == "files") hf = 1
+      if (R_K[j] == "test_start") hts = 1
     }
+    # A claimed file with no test matcher parses zero blocks and reads clean.
+    if (hf && !hts) die_file(fi, "claims files but has no test_start")
     if (lang !~ /^(js|cs|python)$/) die_file(fi, "language must be js, cs or python, got: " lang)
     if (bm != "" && bm != (lang == "python" ? "indent" : "brace"))
       die_file(fi, "block_model " bm " is not supported for language " lang)
