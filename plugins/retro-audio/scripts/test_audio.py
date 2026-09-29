@@ -63,6 +63,15 @@ class AudioTest(unittest.TestCase):
             self.assertEqual(sfx.main(["--params", "{bad", "--out", out]), 1)
             self.assertEqual(sfx.main(["--params", str(pathlib.Path(tmp) / "missing.json"), "--out", out]), 1)
 
+    def test_non_object_or_null_field_params_exit_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = str(pathlib.Path(tmp) / "x.wav")
+            for body in ("[]", "null"):
+                f = pathlib.Path(tmp) / "p.json"
+                f.write_text(body)
+                self.assertEqual(sfx.main(["--params", str(f), "--out", out]), 1)
+            self.assertEqual(sfx.main(["--params", '{"freq": null}', "--out", out]), 1)
+
     def test_gameboy_rejects_a_fifth_channel(self):
         score = "c | d | e | f | g"
         with self.assertRaises(ValueError):
