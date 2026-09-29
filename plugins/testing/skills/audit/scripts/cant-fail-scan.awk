@@ -1566,9 +1566,15 @@ function helper_mark(i) {
 
 # Whether definition i calls its own name while another definition of that
 # name in its scope asserts: an overload delegating to one that asserts.
-function delegates_to_overload(i,    key) {
+# Plain statements on purpose: gawk 5.2.1 double-frees on this test written
+# as one return of joined && and || terms (Ubuntu 24.04, 2026-09-29).
+function delegates_to_overload(i,    key, calls, name) {
   key = DEF_CLS[i] SUBSEP DEF_NAME[i]
-  return SCOPE_ASSERTS[key] > 0 && (index(DEF_CALLS[i] " ", " " DEF_NAME[i] " ") || index(DEF_CALLS[i] " ", " ." DEF_NAME[i] " "))
+  if (!(key in SCOPE_ASSERTS)) return 0
+  calls = DEF_CALLS[i] " "
+  name = DEF_NAME[i]
+  if (index(calls, " " name " ")) return 1
+  return index(calls, " ." name " ") > 0
 }
 
 # A helper that calls an asserting helper asserts too, to any depth: repeat
@@ -1580,7 +1586,6 @@ function helper_verdicts(    i, changed, hit) {
     changed = 0
     for (i = 1; i <= DEF_N; i++) {
       if (i in DEF_ASSERTS) continue
-      # Two statements: gawk 5.2.1 double-frees on the two calls joined by ||.
       hit = calls_helper(DEF_CALLS[i], DEF_CLS[i])
       if (!hit) hit = delegates_to_overload(i)
       if (hit) { DEF_ASSERTS[i] = 1; helper_mark(i); changed = 1 }
