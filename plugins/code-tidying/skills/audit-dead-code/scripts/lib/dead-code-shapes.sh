@@ -88,7 +88,13 @@ dc_lang_of_path() {
       line="${line//$'\r'/}"
       if [[ "$line" == '#!'* ]]; then
         read -ra words <<<"${line#'#!'}"
+        local skip=0
         for word in ${words[@]+"${words[@]}"}; do
+          if ((skip)); then
+            skip=0
+            continue
+          fi
+          case "$word" in -u | -C | --unset | --chdir) skip=1 ;; *) ;; esac
           interp="${word##*/}"
           [[ "$interp" == env || "$word" == -* || "$word" == *=* ]] || break
         done

@@ -937,6 +937,23 @@ nolane_grep_out="$(cd "$NOLANE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
 assert_contains "the grep lane covers a file with no symbol lane" "$nolane_grep_out" \
   "Summary coverage: covered=1 uncovered=0"
 
+# A no-lane file with no searchable key is never searched, so it stays uncovered.
+SHORT_REPO="$TEST_TMPDIR/nolane-short"
+init_repo "$SHORT_REPO"
+printf '%s\n' '#!/usr/bin/python3' 'print(1)' >"$SHORT_REPO/py"
+stage_repo "$SHORT_REPO"
+short_out="$(cd "$SHORT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_contains "a file too short to search is uncovered" "$short_out" \
+  "Summary coverage: covered=0 uncovered=1"
+
+# An env option's argument is not the interpreter.
+ENVOPT_REPO="$TEST_TMPDIR/env-option"
+init_repo "$ENVOPT_REPO"
+printf '%s\n' '#!/usr/bin/env -S -u PYTHONPATH bash' 'unused_helper() { :; }' >"$ENVOPT_REPO/tool-launcher"
+stage_repo "$ENVOPT_REPO"
+envopt_out="$(cd "$ENVOPT_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_contains "env -u ARG bash is a shell script" "$envopt_out" "unused_helper"
+
 # --- 14. Symbol pass for JS/TS that no package.json root owns ---
 # The grep lane extracts function, class, const, let and var declarations from those
 # files and reuses the referenced-anywhere rule. Its precision on the trap corpus
