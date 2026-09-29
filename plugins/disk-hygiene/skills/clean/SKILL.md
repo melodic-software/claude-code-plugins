@@ -351,7 +351,9 @@ The engine never deletes managed state. The bundled registry
 `reference/owner-registry.json` is the inspectable list of owners, path suffixes,
 platforms, read-only argv, and destructive argv. Read it to see what the component
 believes about a path. A match is a hint, not proof of ownership and not permission
-to delete.
+to delete. Each entry that names a command carries its upstream `basis`, `verified`
+date, and `recheckTrigger`; re-fetch the basis before trusting a read-only or
+destructive classification.
 
 After the snapshot, run:
 

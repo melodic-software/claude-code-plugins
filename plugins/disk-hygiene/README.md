@@ -31,10 +31,13 @@ unvalidated tree.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
-- Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
-  A dry-run result is evidence for the report, never authorization for this engine to remove it.
-- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
-  calls made from literal shell words, returns `ask` for the one canonical apply shape, and denies
+- The engine never deletes managed state. `managed-report` names the owner from the bundled owner
+  registry and runs its read-only command; `managed-apply` runs only the registry's destructive owner
+  command, behind the same exact-tier approval as `apply`. A dry-run result is evidence for the
+  report, never authorization for this engine to remove the path.
+- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled read-only
+  calls (scan, preview, handoff-verify, managed-report) made from literal shell words, returns `ask`
+  for the canonical apply and managed-apply shapes, and denies
   every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
   filename, redirection, and operator syntax is rejected before argument parsing.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the

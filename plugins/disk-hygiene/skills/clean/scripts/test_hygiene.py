@@ -11558,6 +11558,12 @@ class ManagedStateLaneTests(unittest.TestCase):
             self.assertTrue(entry["platforms"])
             self.assertIn("read_only_argvs", entry)
             self.assertIn("destructive_argvs", entry)
+        unverified = json.loads(json.dumps(payload))
+        del next(e for e in unverified["entries"] if e["id"] == "docker-desktop")[
+            "recheckTrigger"
+        ]
+        with self.assertRaises(hygiene.owner_registry.OwnerRegistryError):
+            hygiene.owner_registry.validate_registry(unverified)
 
     def test_absent_tool_offers_no_command(self) -> None:
         registry = hygiene.owner_registry.load_registry()
@@ -11630,6 +11636,23 @@ class ManagedStateLaneTests(unittest.TestCase):
             self.assertIn("AppData/Local/SomeGame", found)
             self.assertNotIn("AppData/Local/Docker/nested", found)
             self.assertNotIn("keep.txt", found)
+
+    def test_probe_does_not_list_through_a_linked_container(self) -> None:
+        registry = hygiene.owner_registry.load_registry()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            outside = Path(temporary) / "outside"
+            (outside / "chezmoi").mkdir(parents=True)
+            (root / "real" / "Local" / "Docker").mkdir(parents=True)
+            try:
+                (root / ".cache").symlink_to(outside, target_is_directory=True)
+                (root / "AppData").symlink_to(root / "real", target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlinks unavailable: {exc}")
+            found = hygiene.owner_registry.probe_container_children(
+                root, {".cache", "AppData"}, registry["managed_container_suffixes"]
+            )
+            self.assertEqual([], found)
 
     def test_run_argv_does_not_invoke_a_shell(self) -> None:
         completed = subprocess.CompletedProcess(

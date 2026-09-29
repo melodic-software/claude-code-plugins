@@ -15,6 +15,7 @@ import json
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -105,6 +106,21 @@ def validate_registry(payload: object) -> dict[str, Any]:
             if commands and not tool:
                 raise OwnerRegistryError(
                     f"{identifier} names commands but no owning tool"
+                )
+        if entry["read_only_argvs"] or entry["destructive_argvs"]:
+            basis = entry.get("basis")
+            if (
+                not isinstance(basis, list)
+                or not basis
+                or not all(isinstance(url, str) and url for url in basis)
+                or not all(
+                    isinstance(entry.get(key), str) and entry[key].strip()
+                    for key in ("verified", "recheckTrigger")
+                )
+            ):
+                raise OwnerRegistryError(
+                    f"{identifier} names commands without basis, verified, "
+                    "and recheckTrigger"
                 )
     return payload
 
@@ -306,6 +322,10 @@ def classify_path(
 
 
 def _directory_names(directory: Path) -> list[str]:
+    """Names in one real directory. A symlink or reparse point is never listed."""
+    info = directory.lstat()
+    if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+        raise NotADirectoryError(str(directory))
     with os.scandir(directory) as iterator:
         return sorted((entry.name for entry in iterator), key=str.casefold)
 

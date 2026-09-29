@@ -22,7 +22,14 @@
         ["docker", "builder", "prune", "-f"]
       ],
       "operator_action": null,
-      "note": "Reclaims unused images and build cache. Does not delete the Docker data directory."
+      "note": "Removes dangling images and dangling build cache (no -a). Does not delete the Docker data directory.",
+      "basis": [
+        "https://docs.docker.com/reference/cli/docker/system/df/",
+        "https://docs.docker.com/reference/cli/docker/image/prune/",
+        "https://docs.docker.com/reference/cli/docker/builder/prune/"
+      ],
+      "verified": "2026-09-28",
+      "recheckTrigger": "A Docker CLI release note or one of these reference pages changes what system df reports or what image prune or builder prune removes without -a."
     },
     {
       "id": "nvidia-shader-cache",
@@ -66,7 +73,10 @@
       "read_only_argvs": [["chezmoi", "doctor"]],
       "destructive_argvs": [],
       "operator_action": null,
-      "note": "No cache command. The http cache re-downloads on the next apply."
+      "note": "No cache command. The http cache re-downloads on the next apply.",
+      "basis": ["https://www.chezmoi.io/reference/commands/doctor/"],
+      "verified": "2026-09-28",
+      "recheckTrigger": "The chezmoi doctor reference page describes any write, fix, or state change."
     },
     {
       "id": "pulumi",
@@ -77,7 +87,13 @@
       "read_only_argvs": [["pulumi", "about"], ["pulumi", "plugin", "ls"]],
       "destructive_argvs": [],
       "operator_action": "pulumi plugin rm for one unused name and version shown by pulumi plugin ls",
-      "note": "The unused version is not known to the registry, so plugin rm is not run."
+      "note": "The unused version is not known to the registry, so plugin rm is not run.",
+      "basis": [
+        "https://www.pulumi.com/docs/iac/cli/commands/pulumi_about/",
+        "https://www.pulumi.com/docs/iac/cli/commands/pulumi_plugin_ls/"
+      ],
+      "verified": "2026-09-28",
+      "recheckTrigger": "Either Pulumi CLI reference page describes the command changing state, installing, or removing plugins."
     },
     {
       "id": "dotnet-nuget",
@@ -88,7 +104,10 @@
       "read_only_argvs": [["dotnet", "nuget", "locals", "all", "--list"]],
       "destructive_argvs": [["dotnet", "nuget", "locals", "all", "--clear"]],
       "operator_action": null,
-      "note": "Clears the NuGet HTTP, temp, and global-packages caches. Does not delete the directory by path."
+      "note": "Clears the NuGet http-cache, global-packages, temp, and plugins-cache folders; the next restore re-downloads packages. Does not delete the directory by path.",
+      "basis": ["https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-locals"],
+      "verified": "2026-09-28",
+      "recheckTrigger": "The dotnet nuget locals page changes the caches all covers or what --list or --clear does."
     },
     {
       "id": "ollama",
@@ -99,7 +118,10 @@
       "read_only_argvs": [["ollama", "list"]],
       "destructive_argvs": [],
       "operator_action": null,
-      "note": "ollama list is read-only. Removing a model needs a name this registry does not invent."
+      "note": "ollama list is read-only. Removing a model needs a name this registry does not invent.",
+      "basis": ["https://github.com/ollama/ollama/blob/main/docs/cli.mdx"],
+      "verified": "2026-09-28",
+      "recheckTrigger": "The Ollama CLI reference changes what list (ls) does."
     }
   ]
 }
