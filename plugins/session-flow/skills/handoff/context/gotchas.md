@@ -89,4 +89,8 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   session as plain text and no goal is set, while the handoff looks complete. The goal region
   therefore holds the condition alone, under an instruction that has the user type `/goal` and a
   space by hand, paste the region, and check for the `◎ /goal active` indicator (engine doc, "Emit
-  the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails.
+  the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails. Verified
+  2026-09-29 against [Keep Claude working toward a goal](https://code.claude.com/docs/en/goal),
+  which shows a goal set by running `/goal` followed by the condition and a `◎ /goal active`
+  indicator while it is active; the page does not state the message-start rule, which rests on the
+  `/loop` note above. Recheck when that page changes the syntax or the indicator text.
