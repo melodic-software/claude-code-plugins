@@ -204,6 +204,25 @@ rc=$?
 assert_eq "missing jq binary exits 4" 4 "$rc"
 assert_contains "missing jq binary message" "$out" "jq not found"
 
+out="$(PATH="$STUB_BIN" "$BASH_BIN" "$SCRIPT" --help 2>&1)"
+rc=$?
+assert_eq "--help answers with no jq binary" 0 "$rc"
+
+# ============================================================================
+# --max-worktrees caps the listed worktrees; the count stays the full count
+# ============================================================================
+out="$(run --max-worktrees 1)"
+assert_contains "cap keeps the full worktree count" "$out" "worktree-count: 3"
+assert_contains "cap lists the first worktree" "$out" "/repos/claude-code-plugins  [main]"
+assert_not_contains "cap drops the worktrees past it" "$out" "/repos/wt-538  ["
+assert_contains "cap says how many were dropped" "$out" "... 2 more (--max-worktrees 0 lists all)"
+out="$(run --max-worktrees 0)"
+assert_contains "0 lists every worktree" "$out" "/repos/wt-detached  [(detached)]"
+assert_not_contains "0 prints no truncation line" "$out" "more (--max-worktrees"
+out="$(run --max-worktrees=three 2>&1)"
+rc=$?
+assert_eq "--max-worktrees rejects a non-integer" 3 "$rc"
+
 # ============================================================================
 echo
 if ((FAILED)); then
