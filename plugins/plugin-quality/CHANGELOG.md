@@ -5,6 +5,22 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- **Audit findings carry errors, improvements, quality of life and standards alignment
+  ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)).** The auditor
+  ledgers every component under the three categories (`reference/categories.md`), the
+  `collect-categories.sh` and `collect-standards.sh` collectors cite the resolved convention home
+  (an unresolved home is stated, nothing inferred), and each component-type lens gains a
+  `## Categories` section. Step 3 grades the ledger before it is presented.
+- **Research gate on remediations.** A remediation at or above the effort tier's severity floor
+  needs a research line (`/discovery:research` when installed, the manual discipline otherwise);
+  one without it, or with an open question, is emitted as `needs-decision`, never `agent-ready`.
+  Audit-style plugins also get their emitted-finding samples validated, and a false one is graded
+  `verdict: false`.
+
 ## [0.8.0] - 2026-09-29
 
 ### Added
