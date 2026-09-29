@@ -71,7 +71,9 @@
 # Rewording, extending, or qualifying a pinned line is EXPECTED to fail, including a typo
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
-# then update the skill body and this suite in one change.
+# then update the skill body and this suite in one change. Recomputing a digest or pin here is
+# attended-only: an unattended run that hits a failing digest reports the pin and the git diff,
+# then stops, and never updates it.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
