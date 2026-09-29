@@ -49,6 +49,8 @@ Claude already knows coding. Focus on information that pushes Claude off its def
 
 Highest-signal content in any skill. Build iteratively from failure points Claude hits. Add a line every time Claude trips. Day 1: 1 entry. Month 3: 10. The most valuable part of the skill.
 
+Repo-specific lines a consumer adds without forking the skill live in that plugin's config-cascade surface (`## Gotchas` in e.g. `.claude/<plugin>.md`), concatenated after bundled gotchas when the skill loads. See the [consumer-gotchas tier](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/consumer-gotchas.md). Generalizable lines still ship in the skill via an issue to this marketplace.
+
 ### 3. Use the File System & Progressive Disclosure
 
 A skill is a folder, not a markdown file. The file system is context engineering. SKILL.md is the hub (~30 lines); spoke files do the work.
