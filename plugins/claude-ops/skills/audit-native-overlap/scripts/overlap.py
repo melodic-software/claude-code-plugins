@@ -189,9 +189,11 @@ END_MARKER = "<!-- native-surfaces:end -->"
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 AS_OF_RE = re.compile(r"^\d+\.\d+\.\d+$")
-# A description fingerprint: the first 16 hex chars of the SHA-256 of the
+# A description fingerprint: the first 32 hex chars of the SHA-256 of the
 # whitespace-collapsed description, so a reflowed line never resurfaces a pair.
-FINGERPRINT_RE = re.compile(r"^[0-9a-f]{16}$")
+# Shorter digests trip the typos spell check on word-like hex fragments.
+FINGERPRINT_LEN = 32
+FINGERPRINT_RE = re.compile(rf"^[0-9a-f]{{{FINGERPRINT_LEN}}}$")
 RESURFACED = "resurfaced: description changed"
 # A trigger that is nothing but a date (however spelled) fails the observability
 # bar: a date alone is not an observable event.
@@ -234,7 +236,7 @@ def fingerprint(text: str | None) -> str | None:
     if text is None:
         return None
     normalized = " ".join(text.split())
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:FINGERPRINT_LEN]
 
 
 def native_description(registrations: list[dict[str, Any]]) -> str:

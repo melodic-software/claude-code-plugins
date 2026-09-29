@@ -1881,7 +1881,7 @@ def make_dismissal(**overrides):
         "reason": "shared word only",
         "as_of": "2.1.284",
         "date": "2026-09-29",
-        "fingerprint": {"native": "0" * 16, "component": "1" * 16},
+        "fingerprint": {"native": "0" * 32, "component": "1" * 32},
     }
     entry.update(overrides)
     return entry

@@ -267,7 +267,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" d
 `dismiss` refuses a pair that already has a verdict row, a native surface absent from the
 extraction, and a component absent from the repo. It writes the native surface and its class, the
 component, the reason, `as_of` (the extraction's CLI version, or `--as-of`), `date` (today, or
-`--date`), and a `fingerprint` of each side's description: the first 16 hex characters of the
+`--date`), and a `fingerprint` of each side's description: the first 32 hex characters of the
 SHA-256 of the whitespace-collapsed text. Re-running it on the same pair refreshes the record.
 Then run `generate`.
 
