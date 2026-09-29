@@ -1,0 +1,15 @@
+# good-for: rule-zero-assertion
+# The helper raises CalledProcessError on a non-zero exit and KeyError on a
+# missing "data" key; the test's oracle is that it returns.
+import json
+import subprocess
+
+
+def _run_with_event(event):
+    result = subprocess.run(["parse", json.dumps(event)], capture_output=True, text=True)
+    result.check_returncode()
+    return json.loads(result.stdout)["data"]
+
+
+def test_non_string_timestamp_does_not_crash():
+    _run_with_event({"type": "assistant", "timestamp": 12345})
