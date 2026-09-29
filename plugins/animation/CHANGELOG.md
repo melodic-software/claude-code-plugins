@@ -3,7 +3,15 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.1.4] - 2026-09-29
+
+### Added
+
+- `scripts/animation.test.sh` runs the `test_produce`, `test_inkstats` and `test_woodcut_marks`
+  suites under `run-plugin-tests.sh`. With `ANIMATION_REQUIRE_DEPS=1` it exits 1 when numpy or
+  opencv is missing instead of skipping the two suites that need them (#4507, #4594).
+- `test_produce.py` covers `review` with two packs in one film and a shot naming a pack absent
+  from the brief (#4591).
 
 ### Changed
 
