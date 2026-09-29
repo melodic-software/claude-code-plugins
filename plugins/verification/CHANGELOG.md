@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11] - 2026-09-29
+
+### Added
+
+- **`confirm` carries a Boundary section for the bundled `verify` skill.** This skill verifies the
+  outcome against the plan or intent; when the change has a runtime surface, the model offers the
+  person-run `/verify` as an addition rather than invoking it.
+
 ## [0.6.10] - 2026-09-28
 
 ### Changed
