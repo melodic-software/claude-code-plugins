@@ -5,6 +5,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ## [0.63.35] - 2026-09-29
 
+### Added
+
+- **Node.js on PATH is declared as a requirement.** The README Requirements section, a `node`
+  row in `/claude-ops:setup check` and a `prerequisites.json` entry (so `/claude-ops:prerequisites`
+  reports it) say that every hook row starts through `node hooks/exec-bash.mjs` and that the hooks
+  do not launch without it.
+- **`audit-native-overlap` scans plugin manifest descriptions** for an ungated presence clause,
+  as it does skill descriptions; the finding stays an advisory.
+
 ### Fixed
 
 - **The prerequisites check reads enablement from `claude plugin list --json`** when `claude`
@@ -12,7 +21,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   project, with the most specific scope winning per plugin. The settings-merge fallback now skips
   a whole file whose `enabledPlugins` holds a non-Boolean value, as Claude Code does. The Next
   section drops its placeholder bullet and names the three model-invocable formatter checks; a
-  check that a setup skill owns (context7, playwright) is typed by the person.
+  check that a setup skill owns is human-only, so the person types it and the model relays it.
 - **The `audit-skill-visibility` test runs the `--installed` contract on cygpath hosts** instead
   of skipping it with an exit-0 block on Git Bash.
 
@@ -34,6 +43,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   to the engine.
 - **`audit-native-overlap` names `/skill-quality:check`** in its Apply step, and sibling
   pointers are restored.
+- **`scope-semantics.md` records the partial orphan-sweep observation.** The 2.1.270 debug log
+  shows the sweep visiting removed marketplaces' cache folders; removal of the marked version
+  directory stays unobserved.
+- **`canonical-pairs.json` no longer carries the sandbox-mask-file nomination** in the `doctor`
+  and `audit-install-state` `why`; `docs/upstream/claude-code.md` holds it.
 - **CHANGELOG history:** duplicate entries collapsed, false claims corrected and missing
   headings restored in earlier entries.
 
@@ -228,8 +242,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
   ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
   Python unit tests pass, the contract that a two-scope install collapses to one plugin
-  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
-  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+  prints a counted `SKIP (host: ...)` and exits 0 whenever `cygpath` rewrites a POSIX mktemp
+  path. No Windows run showed that rewrite to be the cause. Linux CI is unchanged.
 
 ## [0.62.15] - 2026-09-28
 

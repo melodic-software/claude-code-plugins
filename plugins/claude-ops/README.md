@@ -333,6 +333,11 @@ The audit hooks are Bash scripts (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
 
+**Node.js on PATH.** Every hook row starts through `node hooks/exec-bash.mjs`, which finds the
+real Bash and runs the script. Claude Code's native binary neither ships nor uses Node.js
+([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` on PATH
+the hooks do not launch. `/claude-ops:setup check` reports whether `node` resolves.
+
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
 sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The single

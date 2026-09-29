@@ -33,4 +33,4 @@ With no arguments and a `claude` executable on PATH, the script reads the enable
 
 A missing row is a report, not an install. Do not run `npx`, `npm install`, or `go install` from this skill.
 
-The table's `check` column names the skill for that row. When that skill is model-invocable, run it. When it is a setup skill (`/context7:setup check`, `/playwright:setup check`), the model cannot invoke it: tell the user to type it and show the row's install command. Install nothing unless the user asked.
+The table's `check` column names the skill for that row. When that skill is model-invocable, run it. When it is a setup skill (a `:setup check` command), it is human-only, so the model cannot invoke it and can only relay the command: tell the user to type it and show the row's install command. Install nothing unless the user asked.
