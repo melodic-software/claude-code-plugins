@@ -45,3 +45,17 @@ decided here.
 
 Acceptance for #3614: each pipeline element above carries **adopt**, **already-covered**, or
 **rejected** with reason.
+
+## Operator decisions (#5255)
+
+Item numbers follow the operator-gate list in the issue. Rejected: none.
+
+| Item | Gap-analysis row | Decision | Condition | Work item |
+|---|---|---|---|---|
+| 1. No-skill arm documentation | With-skill vs without-skill baseline runs | Adopted | Docs only, now | #5393 |
+| 2. Script graders for mechanical expectations | Script-based grading for mechanical checks | Adopted | After item 1; pilot on a few high-traffic skills | #5397 |
+| 3. Cost metadata on suites | Benchmark deltas weighing pass-rate against token/time cost | Deferred | Until item 1 lands | none yet |
+| 4. Cost-capped CI rerun on skill edits | Closed propose, apply, rerun, review loop | Deferred | Until items 2 and 3 land | none yet |
+| 5. Assertion-discipline enforcement | Assertion discipline | Adopted | After the item 6 measurement is recorded | #5394 |
+| 6. Comparison against upstream `skill-creator` | Compare against `skill-creator` before building parallel infra | Adopted | One-time manual comparison, now | #5395 |
+| 7. Iteration directory layout | Workspace / iteration directory layout | Deferred | Until the item 2 pilot shows what authors produce | none yet |
