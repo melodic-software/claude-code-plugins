@@ -24,8 +24,9 @@ The shims stay until all four cutover conditions hold. They are graded, each wit
 `plugins/instruction-placement/skills/migrate/SKILL.md`, and are the remote flag, CI, the local
 canary, and path detection. `/instruction-placement:migrate remove-shims` takes root and nested
 shims out together once they all hold. The check reruns monthly, and on any Claude Code release
-touching instruction files, as
-<https://github.com/melodic-software/claude-code-plugins/issues/4281>.
+touching instruction files. The open tracker is
+<https://github.com/melodic-software/claude-code-plugins/issues/5163>
+(#4281 was false-closed when #5160 merged).
 
 ## Why
 
@@ -40,8 +41,13 @@ the loading rule itself is the record under "Why the shim stays" in that skill's
 On 2026-09-28 those records were re-derived against Claude Code 2.1.282. The bundle code default
 for `tengu_agents_md_mod` reads true, the env-vars feature-flag list no longer names `AGENTS.md`,
 and from v2.1.280 `/memory` lists a directly read `AGENTS.md`. The decision stands: shims stay
-until every graded condition is `[MET]` across the fleet. This checkout's run is in the same
-records; it names only this repository.
+until every graded condition is `[MET]` across the fleet. The same day's fleet run named the nine
+repositories `gh repo list` could read, recorded in `sources.md` under "Accessible fleet graded
+2026-09-28". A standing refresh at 12:31 UTC graded this marketplace at origin/main
+`5e6eade117ec3e6737840434602dbfb930f5ab3e` and the other eight at the commits in that table,
+recorded under "Standing refresh (#5163)": conditions 1, 2, and 4 `[MET]`, condition 3
+`[UNREACH]` because the CLI was logged out. Five repositories from the historical ten on #4281
+were not readable from this host. The verdict stays NOT MET, and `last_checked` stays 2026-09-20.
 
 The shim costs about 55 tokens per session, never makes Claude read the file twice, and loads in
 the conditions that record lists as unavailable for direct reading (stated under "Why the shim

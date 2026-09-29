@@ -7,29 +7,20 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
-        # which runs the launcher without the `env` process its shebang costs.
-        # Git Bash, which runs the shell-form string, looks that `bash` up on
-        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
-        # Verified 2026-09-23 against Claude Code 2.1.281 at
-        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
-        # Windows; exec form resolves `command` on PATH); recheck when that
-        # page changes how shell-form commands are run on Windows, or a
-        # release note names hook shell selection. Exec form resolves
-        # `command` on PATH with no shell, and a bare `python3` there is
-        # the zero-length WindowsApps App Execution Alias stub on stock
-        # Windows, the hook cannot launch, and a failed launch is non-blocking,
-        # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
-        # rejects that stub and falls through to `python`, then `py -3`.
-        # `${CLAUDE_PLUGIN_ROOT}` is the only substitution a skill-frontmatter
-        # hook receives. Never ${CLAUDE_PLUGIN_DATA} or
-        # ${user_config.*}, either of which makes Claude Code refuse the launch.
-        # The single-quoted YAML scalar is the same value hooks.json spells with
-        # \" escapes; every path placeholder must stay double-quoted, because the
-        # shell re-tokenizes the string and plugin roots contain spaces.
+        # Exec form. `command` is `node` (a real executable). exec-bash.mjs
+        # finds Git Bash and never System32\bash.exe, then runs
+        # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
+        # launch that fails open on Windows.
+        # Claim: exec form spawns `command` with `args` and no shell, and a
+        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
+        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
+        # and "Command hook fields".
+        # As of: 2026-09-28.
+        # Recheck: that page stops ignoring `shell` when `args` is set, or a
+        # skill hook gains another placeholder.
         - type: command
-          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
-          shell: bash
+          command: node
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
           timeout: 60
 metadata:
   workflow-stage: anytime
@@ -40,8 +31,11 @@ metadata:
 
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
-primary objective; reclaimed bytes are secondary.** Read
-[the safety model](reference/safety-model.md) before the optional execution lane.
+primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
+full: there is no emergency lane and no rule that yields under pressure. The recorded Option A
+(no proportionality, no regenerable-at-a-cost engine signal) lives in
+[the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
+optional execution lane.
 
 ## Arguments and boundaries
 
@@ -122,9 +116,9 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   both from the probe. The probe itself needs `<hook-python>`: if neither source has supplied it,
   submit the probe once with bare `python`, and the guard denies that read-only call and names its
   interpreter; rerun the probe with it. Never submit a scan to learn either value. A `data_root` of
-  `none` in the note or `null` from the probe means the install layout proved no data root: pass
-  `${CLAUDE_PLUGIN_DATA}` and let the guard judge, and a denial then is the coverage gap §1
-  describes. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
+  `none` in the note or `null` from the probe means the install layout proved no data root, so the
+  guard denies every engine call: report the audit as not run, relay the recovery the guard's
+  denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
   improvising a different scanner or deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
@@ -207,6 +201,16 @@ re-verification checks a candidate with no live-I/O value left to give would oth
 fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
+The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
+subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
+`curl` without the belt. **Basis:** #4228 audit on Claude Code 2.1.278 (Windows 11); the hooks
+page describes skill-hook lifetime and is silent on subagent reach
+(https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
+**Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
+note names that reach. Enforcing "workers return evidence only" in a hook that fires for
+subagents is parked: a plugin-level gate that reached subagents would be a new
+hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
+belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -219,7 +223,10 @@ coverage gaps, not clean results.
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
 report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring the managed-state
-rule below.
+rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) and fills
+`recommendation` when that size reaches the baseline policy's
+`os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
+own. A `null` recommendation with a `complete` measurement means the zone is below the threshold.
 
 ## 2. Establish evidence and ownership
 
@@ -233,6 +240,12 @@ patterns and from live filesystem state, and an entry that names a single field 
 step straight past a cloud-sync root whose name embeds a tenant.
 This positional read is how session-state droppings that share no common name (a runner-controller
 status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
+
+The scan's `stdlib_shadowing` list names each home-root `*.py` file whose stem is a standard-library
+module name. The file's entry carries a `stdlib-module-shadow` advisory, and the home-root
+`__pycache__` entry carries `bytecode_sources` naming the modules its `.pyc` files come from. An
+advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
+renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
 For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
 
@@ -439,8 +452,15 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
   apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
-  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+  interpreter. The same denial text also admits literal-form read-only supporting commands whose
+  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
+  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
+  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
+  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
+  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
+  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
+  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
+  exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

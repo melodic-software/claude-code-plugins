@@ -83,13 +83,13 @@ Verify this machine's prerequisites and platform posture with `/disk-hygiene:set
 
 ## How the guard is registered
 
-**All three** hook registrations, both wired hooks and the skill-scoped belt, use **shell form**:
-the `command` string is `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...` with
-`"shell": "bash"` and no `args`, so Claude Code routes it through Git Bash itself instead of
-resolving the command on `PATH`, and that `bash` is looked up by Git Bash on its own `PATH`. Exec form does not survive Windows, where a bare `PATH` lookup finds the WSL relay
-`System32\bash.exe` before Git Bash, or the zero-length `WindowsApps\python3.exe` App Execution
-Alias stub; the launch fails, and a failed hook launch is non-blocking, so the guard silently
-enforces nothing. The launcher resolves Python itself instead (#1504).
+**All three** hook registrations, both wired hooks and the skill-scoped belt, use **exec form**
+with `"command": "node"`. `args` is `hooks/exec-bash.mjs`, then
+`hooks/run-python-hook.sh` and that script's arguments. `node` is a real executable. The
+launcher finds Git Bash and never `System32\bash.exe`. Bare `bash` or `python3` as `command`
+is the launch that fails open on Windows: the WSL relay and the WindowsApps alias stub, and a
+failed hook launch is non-blocking, so the guard would silently enforce nothing. The launcher
+resolves Python itself instead (#1504, #3686).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
@@ -234,7 +234,11 @@ Policy files all share one shape:
       "reason": "My tool's documented staging-directory convention"
     }
   ],
-  "additional_protected_path_globs": ["client-deliverables/**"]
+  "additional_protected_path_globs": [
+    "client-deliverables/**",
+    "/srv/shared/keep/**",
+    {"glob": "legal/**", "reason": "counsel hold"}
+  ]
 }
 ```
 
@@ -243,15 +247,40 @@ Without `--policy`, standing policy files layer over the baseline when present:
 `.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and
 replaces both standing layers. The scan output records which sources applied.
 
-Candidate hints can be disabled or extended. Consumer protection globs are additive. Hard safety
+Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/` or a drive letter matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted; `reason` is commentary stored with the glob. Hard safety
 predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
 file can only add protections, add hints, or disable discovery hints (which can only cause junk to
 be missed, never removed).
+
+When the scan covers the user home directory, `stdlib_shadowing` lists each home-root `*.py` file
+whose stem is a Python standard-library module name, such as `~/gettext.py`. That file shadows the
+module for Python started from the home directory with `-c`, `-m`, or the REPL, and it keeps the
+home-root `__pycache__` rebuilding. The file's entry carries a `stdlib-module-shadow` advisory, and
+the `__pycache__` entry gains `bytecode_sources` naming the modules its `.pyc` files were compiled
+from. So a report can say to rename the source, not only to delete the cache. The advisory is not a
+hint: it assigns no tier and changes no eligibility. The stdlib name set is the engine
+interpreter's `sys.stdlib_module_names`.
 
 When the audited zone overlaps the user temp directory, the scan also reports an `os_autoclean`
 advisory naming the OS mechanism that should own it (Windows Storage Sense, systemd-tmpfiles) and,
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
 hand-cleaning the zone.
+
+On Windows the advisory also sums the user temp directory's regular-file sizes in a read-only walk
+that follows no links and stops after 100,000 entries. The result is reported as `temp_zone`, and
+the size is a floor when `complete` is false. The recommendation then depends on size against
+`os_temp_recommendation_threshold_bytes` in `skills/clean/reference/baseline-policy.json` (1 GiB by
+default):
+
+| Temp directory size | Storage Sense | `recommendation` |
+|---|---|---|
+| At or above the threshold | On, temporary-files cleanup on | Run Storage Sense now (Settings > System > Storage > Storage Sense) |
+| At or above the threshold | On, temporary-files cleanup off | Turn on temporary-files cleanup and run it now |
+| At or above the threshold | Off or not detected | Enable it on a schedule; a manual run is available either way |
+| Below the threshold | Any | `null` |
+
+The text quotes the detected on/off state, schedule, and temporary-files scope. The advisory never
+runs Storage Sense, and it changes nothing about what the engine may delete in that directory.
 
 ## Volume-root coverage
 
@@ -408,9 +437,12 @@ measurements below carry the conditions they were taken under.
   double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
   substituted value (both placeholders resolve under Claude Code's own install and data roots). The
   invariant is therefore **maintained by test**, not structural, `hooks/run-python-hook.test.sh`
-  asserts the launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every
-  placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
-  entry can never make an assertion vacuously green. Interpolating anything beyond those two
+  asserted, at 0.17.8, that the launcher was named in `command`, `args` was absent, and
+  `shell: bash` was declared. **0.28.5** moves those registrations to exec form
+  (`"command": "node"`, `args` naming `hooks/exec-bash.mjs` then `hooks/run-python-hook.sh`).
+  **0.28.6** makes the skill belt's `args` a YAML sequence. The tests assert that shape, and
+  `test_hygiene.py`'s hook helpers stay form-agnostic so a later form change cannot make an
+  assertion vacuously green. Interpolating anything beyond those two
   placeholders into the command string would open a live injection surface; a repo-wide CI gate for
   this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
   skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same

@@ -70,8 +70,10 @@ the bytes rather than paraphrased.
 ## `claude-code-action` release to installed CLI version
 
 The pin in a workflow decides which CLI CI installs, and so whether CI can read `AGENTS.md` at all.
-Each row was re-derived this session by resolving the tag to its commit and reading
-`base-action/action.yml` at that commit; none was copied forward.
+Each row was re-derived on 2026-09-28 by resolving the tag to its commit and reading
+`base-action/action.yml` at that commit; none was copied forward. The four rows through
+`v1.0.231` match the 2026-09-20 derivation. `v1.0.235` is new: it is the pin
+`melodic-software/ci-workflows` carries on `main`.
 
 | Release | Commit | `CLAUDE_CODE_VERSION` | At or above 2.1.277 |
 |---|---|---|---|
@@ -79,13 +81,20 @@ Each row was re-derived this session by resolving the tag to its commit and read
 | `v1.0.222` | `56cf60fde42f7b19c3abfd5c9c48b69a1288461f` | `2.1.269` | no |
 | `v1.0.228` | `2261fcfc88e7de1b55f179edd588805e12de71f2` | `2.1.275` | no |
 | `v1.0.231` | `cfc3eb22bfed5c26ef66e3223c982af27e4524de` | `2.1.278` | yes |
+| `v1.0.235` | `756cc22e19660d20e8cc9496b4f242475a7f7790` | `2.1.283` | yes |
 
 - **Claim**: the table above, and the general rule that the value is assigned in
   `base-action/action.yml` as a shell line `CLAUDE_CODE_VERSION="<version>"` immediately before the
-  `Installing Claude Code v${CLAUDE_CODE_VERSION}...` echo (line 150 at all four commits).
+  `Installing Claude Code v${CLAUDE_CODE_VERSION}...` echo (line 150 at all five commits).
 - **Basis**: `gh api repos/anthropics/claude-code-action/commits/<tag>` for the commit, then
-  `gh api repos/anthropics/claude-code-action/contents/base-action/action.yml?ref=<tag>`.
-- **As of**: 2026-09-20.
+  `gh api repos/anthropics/claude-code-action/contents/base-action/action.yml?ref=<tag>`,
+  re-read 2026-09-28 for every row in the table. `v1.0.235` is an annotated tag whose tag object
+  `f33305702e43b9f71a532e6f80aed9a399df8288` points at commit
+  `756cc22e19660d20e8cc9496b4f242475a7f7790`. That commit is the `uses:` pin in
+  `melodic-software/ci-workflows` `b570d97203c7973b25c14e3de91c5ff3a4aa0e82`,
+  `.github/workflows/claude-review.yml:167` and `.github/workflows/claude-security-review.yml:160`,
+  both commented `# v1.0.235`.
+- **As of**: 2026-09-28.
 - **Recheck trigger**: a new pin appears in any in-scope repository, or the action stops assigning
   `CLAUDE_CODE_VERSION` in `base-action/action.yml`. A pin whose file carries no such assignment is
   `[UNREACH]`, never a pass: an unreadable map is not a satisfied floor.
@@ -127,14 +136,99 @@ host from this checkout.
 
 - **Claim:** this marketplace does not host the #4282 canary infrastructure;
   condition 2 stays on the existing knowledge-corpus run id until a maintainer
-  records a replacement run in [The CI canary](#the-ci-canary).
+  records a replacement run in [The CI canary](#the-ci-canary). On 2026-09-28 the
+  only direct pin in the accessible fleet is ci-workflows `v1.0.235` (CLI 2.1.283),
+  newer than that canary's `v1.0.231` / CLI 2.1.278. The canary record's recheck
+  trigger fired. The run id was not replaced from this checkout.
 - **Basis:** #4282 (sandbox archived, `git push` refused). [The CI canary](#the-ci-canary)
   already records run `35475056935` on `melodic-software/knowledge-corpus` as of
   2026-09-19. Building the matrix in this repo would add a live
-  `claude-code-action` workflow and a secret this checkout does not own.
+  `claude-code-action` workflow and a secret this checkout does not own. The newer
+  pin is the `v1.0.235` row in the release map above, read from ci-workflows
+  `b570d97203c7973b25c14e3de91c5ff3a4aa0e82`.
 - **As of:** 2026-09-28.
 - **Recheck trigger:** a maintainer names a live host and records a new run id
   in [The CI canary](#the-ci-canary), or `claude-lane-sandbox` is unarchived.
+
+## Accessible fleet graded 2026-09-28
+
+`gh repo list melodic-software` on this host returned the nine live repositories below, plus
+archived `claude-lane-sandbox` (not cloned; #4282 keeps it archived). `cutover-check.sh --repo`
+named each live tree. `medley`, `songwriting`, `claude-code-proxy`, `knowledge-corpus`, and
+`provisioning` answered repository-not-found and were not graded. Those five are part of the
+historical ten on #4281, so this run does not cover that list.
+
+| Repository | Commit graded |
+|---|---|
+| claude-code-plugins (this branch) | the tip that contains this record |
+| standards | `849678b5e59d20b50ec39b4dd587d70756417727` |
+| ci-runner | `ac7ac20af851ca93f7d636cee5425bde032e04eb` |
+| ci-workflows | `b570d97203c7973b25c14e3de91c5ff3a4aa0e82` |
+| claude-code-account-rotation | `af6541e4ff2a4d12400310b21a7203bfff1013f8` |
+| cursor-plugins | `9cb950e62443300764ee81537df8bbb19931880a` |
+| agent-plugins | `03260bb8a4fdda42809e4f9dbd42409f96b47f59` |
+| codex-plugins | `be421d0a7ae900fa5cdefe17343110be412b5a64` |
+| .github | `5bc36c9492720dedfd922ec82355dfe95125920e` |
+
+- **Claim**: with the `v1.0.235` row in the release map, that invocation grades condition 1
+  `[MET]` (bundle code default true on CLI 2.1.282), condition 2 `[MET]` (two pins, both
+  `756cc22e19660d20e8cc9496b4f242475a7f7790`, install CLI 2.1.283, at or above 2.1.277; CI
+  canary run `35475056935` remains the recorded run), condition 3 `[UNREACH]` (`claude auth
+  status` reports `loggedIn: false`; both `claude -p` legs exit 1 and stdout is `Not logged
+  in · Please run /login`), and condition 4 `[MET]` (68 acknowledged rows, all in this
+  marketplace; the other eight trees report no path detection). Before the `v1.0.235` row,
+  condition 2 was `[UNREACH]` on those two pins. Nothing is removed. The
+  `user-scope.sh:136` acknowledgement is on `main` via #5160.
+- **Basis**: `cutover-check.sh` on 2026-09-28 against the commits above, CLI `2.1.282 (Claude
+  Code)`, bundle offset 225456771 `var W=!0`, env-vars fetch with the AGENTS.md bullet absent.
+  The pre-map run is the same command before this row existed.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: fired the same day at 12:31 UTC. The grade from that run is
+  [Standing refresh (#5163)](#standing-refresh-5163). A pin move or a previously unread
+  repository becoming readable is that section's trigger.
+
+## Standing refresh (#5163)
+
+`cutover-check.sh` again, 2026-09-28 12:31 UTC, without `--skip-canary`, against the nine
+live repositories `gh repo list melodic-software` returned. Archived `claude-lane-sandbox`
+was not cloned (#4282). `gh repo view` for `medley`, `songwriting`, `claude-code-proxy`,
+`knowledge-corpus`, and `provisioning` returned repository-not-found, so those five of the
+historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
+
+| Repository | Commit graded |
+|---|---|
+| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) <!-- portability-ok: graded commit table records origin/main SHA at cutover-check run time --> |
+| standards | `849678b5e59d20b50ec39b4dd587d70756417727` |
+| ci-runner | `ac7ac20af851ca93f7d636cee5425bde032e04eb` |
+| ci-workflows | `b570d97203c7973b25c14e3de91c5ff3a4aa0e82` |
+| claude-code-account-rotation | `af6541e4ff2a4d12400310b21a7203bfff1013f8` |
+| cursor-plugins | `9cb950e62443300764ee81537df8bbb19931880a` |
+| agent-plugins | `03260bb8a4fdda42809e4f9dbd42409f96b47f59` |
+| codex-plugins | `be421d0a7ae900fa5cdefe17343110be412b5a64` |
+| .github | `5bc36c9492720dedfd922ec82355dfe95125920e` |
+
+- **Claim**: Condition 1 is `[MET]`. The bundle code default for `tengu_agents_md_mod` is
+  true (`var W=!0` at offset 225456771 on CLI 2.1.282). The env-vars fetch in the same run
+  found the feature-flag heading and no `AGENTS.md` bullet. Condition 2 is `[MET]`. The only
+  pins are the two in ci-workflows (`claude-review.yml:167` and
+  `claude-security-review.yml:160`), both `756cc22e19660d20e8cc9496b4f242475a7f7790`, which
+  the release map installs as CLI 2.1.283, at or above 2.1.277. CI canary run `35475056935`
+  stays the recorded run. Condition 3 is `[UNREACH]`. The home scratch root was
+  `<user>/.cache` and the second path was `/tmp`. Each `claude -p` exited 1. A separate
+  probe, `claude -p "say hi" --model haiku --tools ""`, printed `Not logged in · Please run
+  /login` and exited 1. `claude auth status` reported `loggedIn` false and `authMethod` none.
+  Condition 4 is `[MET]`: 68 acknowledged rows, all in this marketplace; the other eight
+  trees report no path detection. The verdict is NOT MET. `agents-md-cutover-check` in
+  `.github/recurring-schedule.json` stays `last_checked` 2026-09-20 and `next_due`
+  2026-10-20. Shim removal stays blocked.
+- **Basis**: `cutover-check.sh` stdout from this host on 2026-09-28 12:31 UTC (conditions 1,
+  2, and 4 `[MET]`, condition 3 `[UNREACH]`, exit 1); `claude auth status`; the login probe
+  above; `gh repo list` and the five `gh repo view` not-found results; the commits in the
+  table.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: the next cutover-check run, a named repository moving its pin, one of
+  the five unread repositories becoming readable, or a host where `claude auth status`
+  reports `loggedIn` true so condition 3 can measure.
 
 ## Install-dependent loader tests parked (#4283)
 

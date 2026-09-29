@@ -59,6 +59,8 @@ if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3))); 
   exit 2
 fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "$PROG: not inside a git work tree" >&2
   exit 2
@@ -162,10 +164,7 @@ if ((HARVEST)); then
 fi
 
 # --- the two trees -----------------------------------------------------------
-if ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
-  echo "$PROG: base ref not resolvable: $BASE_REF" >&2
-  exit 2
-fi
+gate_entry::require_base "$BASE_REF" "$PROG: base ref not resolvable: $BASE_REF"
 mkdir -p "$WORK/base" || exit 2
 if ! git archive --format=tar "$BASE_REF" plugins/guardrails | tar -xf - -C "$WORK/base"; then
   echo "$PROG: could not extract plugins/guardrails from $BASE_REF" >&2
@@ -181,9 +180,22 @@ for t in "${TOKENS[@]}"; do
 done
 
 # row_args_of <root>: the argv after run-guards.sh on that tree's Bash row.
+# Shell form keeps the script in command. Exec form keeps it in args
+# (command is node) and the guard names follow run-guards.sh in that array.
 row_args_of() {
   local cmd
-  cmd=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].command | select(contains("run-guards.sh"))' "$1/hooks/hooks.json" 2>/dev/null) || return 1
+  cmd=$(jq -r '
+    .hooks.PreToolUse[]
+    | select(.matcher == "Bash|PowerShell")
+    | .hooks[]
+    | if ((.args // []) | map(tostring) | join(" ") | contains("run-guards.sh")) then
+        ((.args // []) | map(tostring) | join(" "))
+      elif (.command | tostring | contains("run-guards.sh")) then
+        .command
+      else
+        empty
+      end
+  ' "$1/hooks/hooks.json" 2>/dev/null) || return 1
   [[ -n "$cmd" && "$cmd" != *$'\n'* ]] || return 1
   printf '%s' "${cmd#*run-guards.sh }"
 }

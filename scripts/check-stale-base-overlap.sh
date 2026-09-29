@@ -59,7 +59,7 @@ if ! changed_files::verify_base "$base_ref"; then
   echo "check-stale-base-overlap: base ref not resolvable: $base_ref" >&2
   exit 2
 fi
-if ! git rev-parse --verify --quiet "HEAD^{commit}" >/dev/null; then
+if ! changed_files::verify_base HEAD; then
   echo "check-stale-base-overlap: HEAD not resolvable" >&2
   exit 2
 fi

@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **`block-no-verify` honors the PowerShell sink tokens `block_dangerous_git_allow` already names** ([#4252](https://github.com/melodic-software/claude-code-plugins/issues/4252)). The fail-closed sink message told the operator to add `ps-unparsable-<trigger>` to that list. That cleared `block-dangerous-git` and left `block-no-verify` still blocking a mutating shape (`Invoke-Command -ScriptBlock { git reset --hard }`), so the next lever an operator reached for was `block_no_verify_enabled=false`. The same token now blanks the unreadable region in both guards; a visible `--no-verify` beside it still blocks. `herestring-comment-char` still has no token.
+
+## [0.41.3] - 2026-09-28
+
+### Changed
+
+- **The dispatcher rows are exec form on `node`** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Each `run-guards.sh` registration is `"command": "node"` with `hooks/exec-bash.mjs`, the dispatcher script, and that script's arguments in `args`. `exec-bash.mjs` spawns a real bash and forwards stdin and the exit code. On Windows it uses `CLAUDE_CODE_GIT_BASH_PATH` when that file is named `bash.exe`, `sh.exe`, `bash`, or `sh`, otherwise `Git\bin\bash.exe` or `Git\usr\bin\bash.exe`. It does not use `System32\bash.exe`. Bare `bash` with the script in `args` stays illegal. `workflow-resilience-check.sh` is the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the default-off checker exits in node before bash starts. Node is the hook parent; bash still sources every guard in one process.
+
 ## [0.41.2] - 2026-09-28
 
 ### Changed

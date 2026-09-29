@@ -13,6 +13,7 @@ any session; every claim is about what the surface does where it resolves.
 | Its `prompt-audit` subcommand scopes to the whole working directory's prompt surface: skill bodies, `CLAUDE.md` and rule files, tool descriptions, and request-building application code | The subcommand's own reference read source-as-spec from the public skills repository (`skills/claude-api`, `shared/prompt-audit.md`, inventory step) | 2026-09-09, repository HEAD of 2026-09-03 | The reference's inventory step changes scope, or the subcommand is renamed or removed |
 | `prompt-audit` produces a report and a proposed diff, applying edits only when the request asked for them | Same reference, its output and apply steps | 2026-09-09 | The reference's apply posture changes |
 | The bundled skill's subcommand set is wider than the public repository's: `cost-optimize`, `migrate`, `managed-agents-onboard`, `prompt-audit`, `upgrade`, `build-eval`, `hillclimb` ship in the binary, while `build-eval` and `hillclimb` are absent from the public repository and the skill's docs page | Direct read of the bundled skill inside Claude Code 2.1.263 against a clone of the public repository at HEAD `41bbe19` | 2026-09-09 | The public repository or the docs page gains the missing subcommands, or a release changes the bundled set |
+| The model-migration guide includes `## Ground the migration with an eval`, and the `prompt-audit` guide still runs Steps 0–7 over Groups 1–4 | Direct read of those two guides extracted from Claude Code 2.1.282. Changelog 2.1.260 refreshed the skill's samples and is the release that added the eval section relative to the 2.1.258 basis this catalog first cited. Changelog 2.1.283 is the next release that names `prompt-audit` | 2026-09-28 | A release note changes `prompt-audit` or the model-migration guide's eval section |
 
 ## Why the verdict is complementary
 
@@ -34,6 +35,6 @@ sweep surfaces into the catalog as rows rather than re-running the sweep to find
 
 Bundled skills can be removed by `disableBundledSkills`, hidden by `skillOverrides`, and vary by
 plan, platform, and host surface. The routing in `SKILL.md` therefore reads "when the surface
-resolves in your session" and never "the surface is available". Verified against
+resolves in this session" and never "the surface is available". Verified against
 `code.claude.com/docs/en/settings-reference.md` on 2026-09-09; recheck when a release or docs
 change adds, removes, or renames a gating axis.

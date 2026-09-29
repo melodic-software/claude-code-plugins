@@ -66,7 +66,9 @@ Zero config means *emitted output is unchanged*, and any default here breaks tha
 
 **With `diagram_dialect.system` unset, no C4 container view is emitted and the design skill behaves
 exactly as it does today.** Declaring the key is the opt-in, and it is the only opt-in. A consumer
-who wants the view names a dialect; a consumer who says nothing gets what they already had.
+who wants the view names a dialect; a consumer who says nothing gets what they already had. The
+architecture plugin's C4 views of the code read the same key the same way: unset, they write their
+records and draw no C4 picture.
 
 The `data` key can carry a default precisely because it cannot cause this: `mermaid` is what data
 artifacts are already emitted in, so the default preserves current behavior rather than adding
@@ -104,18 +106,21 @@ Nothing here restricts mermaid for the architecture plugin's `landscape_dialect`
 
 ## C4 dialect surfaces
 
-This convention owns one C4-shaped artifact. The architecture plugin owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This convention's system key governs every C4 view except the landscape, which the architecture
+plugin keys separately. The two keys keep separate allowed values and separate defaults because
+they are different artifacts, not because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
-| C4 container view | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+| C4 container view of a design | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+| C4 component, system context, container, and deployment views of the code | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, `/architecture:map-deployment` |
 | C4 system landscape | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#c4-dialect-surfaces) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
 
-`diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
-key would add an artifact a consumer never asked for, which is why the key is unset unless the team
-names a dialect.
+`diagram_dialect.system` is the opt-in C4 view `/planning:design` and the architecture map views
+emit. A default on that key would add an artifact a consumer never asked for, which is why the key
+is unset unless the team names a dialect. The architecture plugin records which of its views read
+which key in its
+[map family dialect decision](../../../plugins/architecture/reference/config.md#map-family-dialect-decision).
 
 `landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
 `architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
@@ -198,8 +203,8 @@ home through the resolver its own plugin bundles and restates the ladder in its 
 | Key | Reading skill |
 |---|---|
 | `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria) |
-| `diagram_dialect.data` | `/planning:design` (data-scope artifact) |
-| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set) |
+| `diagram_dialect.data` | `/planning:design` (data-scope artifact) and `/architecture:map-data` (as-built ERD from a declared schema) |
+| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set), and `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, and `/architecture:map-deployment` (C4 views of the code, each drawn only when the key is set) |
 
 `landscape_dialect` is not a key of this convention. It is owned by the architecture plugin; see
 [C4 dialect surfaces](#c4-dialect-surfaces).

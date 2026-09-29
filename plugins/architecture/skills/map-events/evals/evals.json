@@ -1,0 +1,38 @@
+{
+  "skill_name": "map-events",
+  "evals": [
+    {
+      "id": 1,
+      "name": "edges-cite-sites-and-orphans-are-findings",
+      "prompt": "/architecture:map-events\n\nlandscape_dialect is structurizr. Publisher.cs calls Publish<Billing.Contracts.OrderPlaced> and Send<Billing.Contracts.ChargeCard>. A consumer implements IConsumer<Billing.Contracts.OrderPlaced>. Another implements IConsumer<Shipping.Contracts.OrderPlaced>. Nothing publishes the shipping message or consumes ChargeCard.",
+      "expected_output": "Every publisher and consumer edge cites a file and a line. ChargeCard is an orphan publisher. Shipping.Contracts.OrderPlaced is an orphan consumer. The two OrderPlaced types are not joined. The artifact is events.md, a mermaid flowchart: broadcast is a dotted arrow and send is solid.",
+      "expectations": [
+        "Does not match messages by short name",
+        "Writes events.md as a mermaid flowchart and no events.dsl, without reading landscape_dialect",
+        "Passes no --dialect to render-events.sh",
+        "Writes a Handoff line map-flow can read"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unresolved-publish-is-kept",
+      "prompt": "/architecture:map-events\n\nA method calls bus.Publish(message) with no type argument and endpoint.Send(new X()) where X is declared nowhere in the repository.",
+      "expected_output": "Both calls are unresolved edges and unresolved findings. Neither is omitted.",
+      "expectations": [
+        "Does not drop a dynamic publish or send",
+        "Does not use either call to satisfy a consumer of a named contract"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "short-names-and-registrations",
+      "prompt": "/architecture:map-events\n\nContracts/OrderPlaced.cs declares `namespace Contracts;` and `public record OrderPlaced`. OrderService.cs in `namespace Shop.Orders;` has `using Contracts;` and calls `bus.Publish(new OrderPlaced(42))`. OrderPlacedConsumer implements IConsumer<OrderPlaced>. Startup calls `x.AddConsumer<OrderPlacedConsumer>()`.",
+      "expected_output": "Contracts.OrderPlaced is the one message, cited at its declaration with an integer line. The publish and the consumer both resolve to it, so there is no orphan. OrderService and OrderPlacedConsumer are not messages.",
+      "expectations": [
+        "Resolves the short name through the using directive",
+        "Does not report the AddConsumer-registered consumer as an orphan or a message",
+        "Does not list a class that is never published, sent, or consumed as a message"
+      ]
+    }
+  ]
+}

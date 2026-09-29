@@ -60,14 +60,14 @@ model context by default while bodies load only on invocation. One clause, front
 this grammar:
 
 ```text
-When the <class> <name> <surface-noun> resolves in your session, prefer it for <native's job>;
+When the <class> <name> <surface-noun> resolves in this session, prefer it for <native's job>;
 this skill for <ours>.
 ```
 
 Four required parts:
 
-1. **The gate**: `resolves in your session` (or `resolves in this session`). This is the
-   canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
+1. **The gate**: `resolves in this session` (the retired spelling `resolves in your session` is
+   no longer accepted). This is the canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
    about the machine. `if installed`, `always available`, `Claude Code ships`, and `is built in`
    are all wrong here: the first is the cross-plugin gate, the rest are assertions.
 2. **The provenance class**: `bundled`, `built-in`, `plugin-backed built-in`, or
@@ -82,7 +82,7 @@ Four required parts:
 Worked example, in the shipped shape:
 
 ```text
-When the bundled doctor skill resolves in your session, prefer it for the quick native
+When the bundled doctor skill resolves in this session, prefer it for the quick native
 health-and-fix pass; this skill for the deep read-only install-tree inventory.
 ```
 
@@ -254,7 +254,7 @@ A `wrap` row bakes a body section, not a second description phrase. The heading 
 
 In order, the section carries:
 
-1. The gate token `resolves in your session`.
+1. The gate token `resolves in this session`.
 2. The identity check by class. Bundled: the name is in the listing; invoke by alias where the
    Skill tool resolves one; check the description as advisory. A description that reads as a
    different surface is a likely user or project shadow, so skip with a warning, except where
@@ -297,7 +297,7 @@ wording is "reserved for the person to run", never "cannot be invoked" as an abs
 unattended run records the sentence in output.
 
 The suggest token `is available in your session (` differs from the route token `resolves in
-your session` by design: the route token is a condition the model observes in its listing, and
+this session` by design: the route token is a condition the model observes in its listing, and
 the suggest token is one the person checks. It is not the rejected assertion phrasing `always
 available`. Parity keys on the sentence shape, so unrelated prose that merely says "available
 in your session" is not a suggest sentence.

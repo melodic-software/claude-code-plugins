@@ -5,6 +5,45 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.43] - 2026-09-28
+
+### Fixed
+
+- **`plugin-disable` lever states the observed `enabledPlugins` rule.** A plugin no scope names
+  does not load, whatever its `defaultEnabled`; the settings reference agrees, the plugins reference
+  still says it falls back to `defaultEnabled`, and the lever now says so. Two caveats carry the verification records
+  (Claude Code 2.1.280): the no-fallback rule, and a non-Boolean value making Claude Code skip every
+  `enabledPlugins` entry in its file. The lever cites the `settings-reference#enabledplugins`,
+  `plugins-reference#defaultenabled`, and `settings#fix-a-broken-settings-file` anchors (#4660).
+
+## [0.6.42] - 2026-09-28
+
+### Added
+
+- **Lever rows for command-output caps** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `bashOutputMaxChars` is disclose-only: it changes how much of a later command stays inline, and a startup snapshot of it measures zero. `taskOutputMaxChars` is recorded as removed in Claude Code 2.1.277, so the catalogue does not emit it.
+
+### Changed
+
+- **Connector allowlists and `/context` counting**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The connectors lever no longer says `allowedMcpServers` removes managed connectors. From
+  Claude Code 2.1.259 only `deniedMcpServers` does; `allowedMcpServers` governs servers users
+  add. The measurement contract no longer says `/context` makes no API call. It uses the
+  token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
+  after the first turn. Pages read 2026-09-28.
+
+## [0.6.41] - 2026-09-28
+
+### Changed
+
+- **Connector allowlists and `/context` counting**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The connectors lever no longer says `allowedMcpServers` removes managed connectors. From
+  Claude Code 2.1.259 only `deniedMcpServers` does; `allowedMcpServers` governs servers users
+  add. The measurement contract no longer says `/context` makes no API call. It uses the
+  token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
+  after the first turn. Pages read 2026-09-28.
+
 ## [0.6.39] - 2026-09-28
 
 ### Added

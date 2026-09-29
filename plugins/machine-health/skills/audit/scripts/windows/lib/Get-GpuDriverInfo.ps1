@@ -12,12 +12,12 @@ NVIDIA: if `nvidia-smi` is on PATH, run it to fetch driver + GPU name.
 Intel/AMD: enumerate Win32_VideoController (PnP fallback; driver date
 only). Never throws; missing vendor tooling just returns {} entries.
 
-PowerShell doesn't throw on native-command non-zero exit by default, so
-we check Get-Command nvidia-smi FIRST and skip invocation entirely when
-absent. This avoids silent "command not found" garbage on stdout.
-
-Windows-specific (Win32_VideoController is WMI).
+A missing tool or a non-zero exit leaves the NVIDIA record out and the
+Win32_VideoController fallback still runs. Windows-specific
+(Win32_VideoController is WMI).
 #>
+
+. (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
 
 function Get-GpuDriverInfo {
     [CmdletBinding()]
@@ -26,29 +26,26 @@ function Get-GpuDriverInfo {
 
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    $nvCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if ($nvCmd) {
-        try {
-            # Keep each flag one quoted token: unquoted, argument-mode commas split
-            # it into separate argv entries and nvidia-smi rejects it (exit 2).
-            $raw = & nvidia-smi '--query-gpu=name,driver_version' `
-                '--format=csv,noheader' 2>$null
-            if ($LASTEXITCODE -eq 0 -and $raw) {
-                foreach ($line in ($raw -split "`r?`n")) {
-                    $parts = $line -split ',' | ForEach-Object { $_.Trim() }
-                    if ($parts.Count -ge 2 -and $parts[0]) {
-                        $out.Add([pscustomobject]@{
-                                vendor         = 'NVIDIA'
-                                model          = $parts[0]
-                                driver_version = $parts[1]
-                                source         = 'nvidia-smi'
-                            })
-                    }
-                }
+    # One string per argv entry. An unquoted comma in argument mode would split
+    # the query into four entries and nvidia-smi would reject it (exit 2).
+    $nv = Invoke-NativeCommand -Name 'nvidia-smi' -DiscardStdErr -ArgumentList @(
+        '--query-gpu=name,driver_version',
+        '--format=csv,noheader'
+    )
+    if ($nv.status -eq 'Ok' -and $nv.output) {
+        foreach ($line in ($nv.output -split "`r?`n")) {
+            $parts = $line -split ',' | ForEach-Object { $_.Trim() }
+            if ($parts.Count -ge 2 -and $parts[0]) {
+                $out.Add([pscustomobject]@{
+                        vendor         = 'NVIDIA'
+                        model          = $parts[0]
+                        driver_version = $parts[1]
+                        source         = 'nvidia-smi'
+                    })
             }
-        } catch {
-            Write-Verbose "Get-GpuDriverInfo: nvidia-smi failed. $($_.Exception.Message)"
         }
+    } elseif ($nv.status -eq 'Failed') {
+        Write-Verbose "Get-GpuDriverInfo: nvidia-smi failed. $($nv.error)"
     }
 
     try {

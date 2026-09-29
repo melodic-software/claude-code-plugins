@@ -3,6 +3,22 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3] - 2026-09-28
+
+### Added
+
+- `scripts/woodcut_marks.py` draws the caption slits and the 4 px boil tail that land inside the
+  frozen `sliver_caption` and `boil` bands. A 1 px redraw of the whole frame stroke scores about
+  1.00, and a 2 px redraw scores about 2.00 (part of #4507).
+
+## [0.1.2] - 2026-09-28
+
+### Added
+
+- `/animation:produce`: a production directory with `brief.md`, pre-production boards, and an
+  approval digest. `produce.py shots` and `review` exit 2 until the user approves, and again if
+  the boards change. `shots.json` owns shot cuts; `inkstats.py --cuts` reads that file (#4591).
+
 ## [0.1.1]
 
 ### Fixed

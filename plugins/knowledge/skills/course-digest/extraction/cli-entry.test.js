@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -108,6 +108,17 @@ describe("course-dir CLIs", () => {
       expect(`${result.stdout}${result.stderr}`).toContain("course.json not found");
     });
   }
+
+  it("runs main when the entrypoint path goes through a symlink", () => {
+    const link = path.join(mkdtempSync(path.join(tmpdir(), "cli-link-")), "extraction");
+    symlinkSync(dir, link, "junction");
+    const result = spawnSync(process.execPath, [path.join(link, "validate-extraction.js")], {
+      encoding: "utf8",
+      timeout: 20000,
+    });
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("--course-dir is required");
+  });
 });
 
 describe("artifacts written through argv", () => {

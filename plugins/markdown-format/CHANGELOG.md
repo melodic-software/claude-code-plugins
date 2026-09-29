@@ -3,6 +3,25 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.75] - 2026-09-28
+
+### Changed
+
+- README: a missing-prerequisite or trust-gate notice appears in full on the first skip for each session and subagent, then as a shorter renewal on the eighth skip and every eighth after that (`HOOK_NOTICE_RENEW_EVERY`), not only once per session.
+- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes that use a file-write call it recognizes, and names `perl -i`, `tee`, a standalone `cp`, and `node -e` among the forms it does not detect.
+
+## [0.11.74] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.11.73] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
 ## [0.11.72] - 2026-09-28
 
 ### Changed

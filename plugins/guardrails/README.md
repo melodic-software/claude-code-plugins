@@ -24,14 +24,19 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 Since **0.31.0** the always-on guards are registered through one dispatcher per event,
 `hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
-process, and sources each guard in turn inside that one bash process. The table below
+process, and sources each guard in turn inside that one bash process. Since **0.41.0**
+those rows are exec form: `"command": "node"` with `hooks/exec-bash.mjs` and the
+dispatcher script in `args`. Node finds Git Bash (never the WSL relay) and spawns it;
+bash still sources every guard in one process. `workflow-resilience-check.sh` is
+the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the
+default-off checker exits in node before bash starts. The table below
 still names every guard, and every guard still ships as its own script with its own
 contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
 standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the
-dispatcher line for its event, so the registration stays readable per guard. What the
-dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
+dispatcher for its event, so the registration stays readable per guard. What the
+dispatcher owns: the spawn shape (one bash process per Bash/PowerShell call where there
 were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
-PostToolUse where there were three), the exit code (2 if any guard blocks, and every
+PostToolUse where there were three, each started by the node entry), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons; that
 is deliberate, not leftover work, so a dual-blocked PowerShell sink prints both
 denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)); measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host. This Linux checkout cannot produce that figure), and the merge
@@ -1352,7 +1357,7 @@ reads it from.
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
 | `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
 | `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
-| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr (a command still unreadable after five granted sink rounds is refused whatever the list holds); empty blocks all |
+| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr (block-no-verify honors the same sink tokens, so one entry clears a mutating block both guards hold; a command still unreadable after five granted sink rounds is refused whatever the list holds); empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
 | `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |

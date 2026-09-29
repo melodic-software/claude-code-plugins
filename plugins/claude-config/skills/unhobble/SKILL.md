@@ -1,6 +1,6 @@
 ---
 description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
-argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
+argument-hint: "[phase]: snapshot|bare|observe|readd|watch|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -39,8 +39,10 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
   instruction-files mode, and this body does not restate either**; the four-part record is this
   plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
-  and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
-  operator explicitly opts in per phase-1 prompt, never by default.
+  and plugins enabled at any scope. User-global files (`~/.claude/**`) are edited only when the
+  operator explicitly opts in per phase-1 prompt, never by default. A plugin enabled at user
+  scope is still classified, and a behavioral one is ablated by the project `enabledPlugins`
+  overlay below, not by editing the user settings file.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.
 - **Reversible by construction.** Tracked-file changes happen on a dedicated experiment branch;
   untracked/settings changes are backed up to plugin state before modification or removal and
@@ -54,27 +56,43 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 
 ## State
 
-`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/` where `<experiment-id>` is
-`<repo-basename>-<model-version>-<YYYYMMDD>-<nonce>` (a short random suffix minted at snapshot).
-The basename is a convenience label, not the identity: `${CLAUDE_PLUGIN_DATA}` is machine-global,
-so two checkouts sharing a basename (a fork, a same-named worktree) running the same model on the
-same day would otherwise resolve to one directory and cross-restore each other's settings. The
-manifest therefore records the canonical checkout identity, the resolved absolute worktree path
-and, when a remote exists, the origin URL, and every later phase verifies it matches the current
-checkout before acting; a mismatch aborts with the conflicting path named. `snapshot` never reuses
-an existing experiment directory: a fresh run mints a fresh id, and resuming an open experiment
-means passing its phase commands from inside the same checkout its manifest names.
+`manifest.json` and `stumbles.md` live in the repo at `.claude/unhobble/<experiment-id>/`, where
+`<experiment-id>` is `<repo-basename>-<model-version>-<YYYYMMDD>-<nonce>` (a short random suffix
+minted at snapshot). Phase 1 writes both files with the Write or Edit tool. The Phase 2 strip
+commit carries them, and every later ledger or manifest update is committed on the experiment
+branch the same way, so a later session's clone already holds the ledger.
+`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/` holds only `backups/`. It is
+not the home of the manifest or the ledger.
 
-- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention`),
-  what was stripped, how to restore it (path, restore mechanism, backup location), branch name,
-  target model, phase timestamps.
+The basename is a convenience label, not the identity. The manifest records `origin_url`,
+`branch`, and `base_commit`, and no absolute host path. Every later phase resolves the current
+origin URL and current branch, and checks that the recorded `base_commit` is still an ancestor of
+HEAD. A mismatch aborts and names the field plus the recorded and current values. A repo with no
+remote records `origin_url` as an empty string and compares that. `snapshot` never reuses an
+existing experiment directory: a fresh run mints a fresh id. Resuming an open experiment means
+passing its phase commands from a checkout of the recorded origin, on the recorded branch, at a
+commit that still contains `base_commit`. A different absolute path is not a mismatch.
+
+Refuse a state path under the topic-docs contract dir (default `docs/topics/`, or `contract_dir`
+when `.claude/topic-docs.yaml` sets one). Name
+`scripts/check-contract-slice-prune.sh --check-diff` as the reason: a pull request that leaves a
+path there fails that gate, and the slice is pruned before merge, which deletes the ledger.
+
+- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
+  `non-derivable`, which is kept and restored like `policy`),
+  what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
+  the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
+  No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
-  did, what was expected, suspected missing instruction, severity).
-- `backups/`: pre-strip copies of any non-git-tracked file modified or removed (settings hook
-  entries, and an untracked instruction file the plan classified behavioral, which git cannot
-  restore and so is never stripped through the git helper).
+  did, what was expected, suspected missing instruction, severity), with any deletion watch
+  recorded above the table (see Deletion watch).
+- `backups/`, under `${CLAUDE_PLUGIN_DATA}` only: pre-strip copies of any non-git-tracked file
+  modified or removed (settings hook entries, and an untracked instruction file the plan classified
+  behavioral, which git cannot restore and so is never stripped through the git helper). Never
+  commit `backups/`.
 
-`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
+`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates,
+open and closed deletion watches.
 
 ## Phase 1: snapshot
 
@@ -114,8 +132,37 @@ means passing its phase commands from inside the same checkout its manifest name
    config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
    noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
    residue down with the behavioral surface.
-4. Write `manifest.json`; present the strip plan (what goes, what stays and why) and stop for
-   confirmation.
+
+   **Plugins, every one enabled at any scope.** Inventory user, project, and local
+   `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
+   plugin: id, scopes, the component types it ships, hook-wiring or not, class, and the Phase 2
+   action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
+   **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
+   reference "Standard layout" table and `hooks` manifest field
+   (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
+   2026-09-28. **Recheck:** that page names another hook location. Classify each wired
+   entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
+   a second hook rubric. A plugin whose every component is policy (or behavioral with a
+   non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a
+   plainly behavioral component is `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with
+   a per-hook kill switch still available when the plugin exposes one. One whose every component
+   is behavioral is the overlay candidate. A plugin with no hook wiring is not
+   automatically skill-only: inventory every component type that same table lists (MCP and LSP
+   servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
+   LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin
+   is `non-derivable`. Only then apply this rubric to its skills, commands, agents, output styles,
+   workflows, and settings: `policy`
+   when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
+   carries a machine fact or procedure the model cannot derive; `behavioral` when all are
+   convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
+   overlay candidate. When the components disagree (a policy or non-derivable component beside
+   behavioral ones), the plugin is `hybrid`: kept whole and recorded `unstripped-mixed-plugin`,
+   the same rule as for hook-wiring plugins. A plugin force-enabled by managed settings cannot be disabled from project
+   scope; record it kept. Managed settings are never edited.
+4. Write `manifest.json` and an empty `stumbles.md` under `.claude/unhobble/<experiment-id>/`
+   with the Write or Edit tool. Do not write them with a shell redirect or a heredoc. Present the
+   strip plan (what goes, what stays and why) and stop for confirmation. Do not commit yet: the
+   strip commit carries both files.
 
 ## Phase 2: bare
 
@@ -127,7 +174,9 @@ Apply the confirmed strip plan:
   retained file. A file classified `hybrid` operationalizes exactly like a mixed file, stripping the
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
-  `experiment: strip instruction surfaces for unhobble baseline`.
+  `experiment: strip instruction surfaces for unhobble baseline`, and that commit includes
+  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`. The clean-tree check already
+  ran in Phase 1, before those files existed; other uncommitted dirt still refuses this phase.
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
@@ -137,8 +186,10 @@ Apply the confirmed strip plan:
   of it gone and the rest still loading. **An untracked instruction file, the ordinary case for
   `CLAUDE.local.md`, is not this helper's to strip**, since git holding the undo is what lets it
   remove anything at all. One the plan classified behavioral takes the same route as the settings
-  entries below: back it up to `backups/`, record the path and its restore in the manifest, and
-  remove it there. The helper names it rather than stripping it, so the bare baseline is still
+  entries below: back it up under
+  `${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/backups/`, record the path and its restore in the
+  manifest, and remove the working-tree file. The helper
+  names it rather than stripping it, so the bare baseline is still
   reached, by the path that can actually restore it. **Name the files the plan approved.** A repository can hold
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
@@ -165,29 +216,38 @@ Apply the confirmed strip plan:
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
   `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
   which only moves whole files.
-- Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
+- Project-settings hook entries classified `behavioral`: back up the settings file to
+  `${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
   or config where one exists, else leave it wired and record `unstripped-hybrid-hook` (observe
   phase notes the confound), per the plan's named split.
-- Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
-  classified `behavioral` for this project (leave policy/tooling plugins the operator marked keep).
-  Plugins toggle whole, since project settings offer no partial disable, so a plugin classified
-  **`hybrid`** (any `policy`-classified surface alongside behavioral components, e.g. a policy
-  hook next to behavioral convenience skills; older strip plans say "mixed" for the same class)
-  is **kept whole**, with its behavioral components recorded in the manifest as
-  `unstripped-mixed-plugin` (label unchanged for manifest continuity); the observe phase notes
-  them as still-loaded confounds rather than
-  silently taking the policy gate down with the plugin. Within a kept-whole mixed plugin, a
-  behavioral or hybrid HOOK may still be individually stripped when the plugin exposes a per-hook
-  kill switch (a `<hook>_enabled`-style userConfig option): record the option flipped and its
-  prior value in the manifest as a partial strip, restoring by flipping it back. No per-hook
-  switch → the hook stays loaded, recorded by its own class: `unstripped-behavioral-hook` for a
-  plain behavioral hook (nothing of it is legitimately loaded; the whole hook is the confound),
-  `unstripped-hybrid-hook` for a hybrid (its policy residue is legitimately loaded; only the
-  behavioral surface is the confound), alongside the plugin's confound note.
-- Print the "you are bare" summary: what a fresh session will now load (ideally: nothing but the
-  code) and how to restore everything (`readd` phase reads the manifest; `git` holds the files).
+- Plugins classified `behavioral`: record the prior enabled set in the manifest, then write
+  `"<plugin>@<marketplace>": false` into the committed project `.claude/settings.json`
+  `enabledPlugins` map. Keep every key in byte order (`LC_ALL=C` sort), one per line, which is
+  what the repository catalog-enablement gate checks (check-plugin-catalog-enablement, under
+  the repository scripts directory); an explicit `false` passes that gate
+  as a recorded opt-out. Record each key's prior project value (absent or `true`) in the
+  manifest. Restore to that value: set `true` back where the project had `true`, and delete the
+  key where the `false` was newly added over another scope's enablement.
+  A plugin classified `hybrid` is kept whole, behavioral parts recorded as
+  `unstripped-mixed-plugin` (label unchanged for manifest continuity). Within that kept plugin, a
+  behavioral or hybrid hook may still be stripped when a per-hook kill switch exists (a
+  `<hook>_enabled`-style userConfig option): record the option flipped and its prior value,
+  restoring by flipping it back. No switch means the hook stays loaded:
+  `unstripped-behavioral-hook` or `unstripped-hybrid-hook`, as before.
+  **Claim:** a project-scope `enabledPlugins` value of `false` overrides a user-scope `true` for
+  the same `plugin@marketplace` key. **Basis:** the settings reference
+  `enabledPlugins` section, "Project settings take precedence over user settings"
+  (<https://code.claude.com/docs/en/settings-reference>), fetched 2026-09-28. The worked example
+  on that page is the other direction: a user `false` does not disable a project `true`.
+  **As of:** 2026-09-28. **Recheck:** that section no longer says project settings take
+  precedence over user settings, or it states that a project `false` does not override a user
+  `true`. Do not call an arm stripped until a fresh session's `claude plugin list --json` omits
+  the plugin. One that is still listed is a confound; local or managed scope can still win.
+- Print the "you are bare" summary: what a fresh session will now load, which plugins were
+  disabled, which were kept as policy or tooling, which are `unstripped-mixed-plugin`, and how
+  to restore everything (`readd` phase reads the manifest; `git` holds the files).
 
 Start a **fresh session** after stripping. The current session already carries the old
 instructions in context, so it cannot measure their absence.
@@ -196,7 +256,8 @@ instructions in context, so it cannot measure their absence.
 
 Work normally on real tasks for a meaningful window (days of real work, not one toy prompt). When
 the model stumbles, doing something an instruction used to prevent, missing a convention, or breaking a
-workflow, append a row to `stumbles.md`:
+workflow, append a row to `stumbles.md` with the Write or Edit tool and commit that update on the
+experiment branch:
 
 | Date | Task | What happened | Expected | Suspected missing instruction | Severity |
 
@@ -209,6 +270,9 @@ rows after real work is a licensed permanent deletion.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
+   This gate is the evidence grammar, and only the grammar: a row is one ledger line, rows that
+   share an underlying cause count as one, and the commit that acts cites the rows. The deletion
+   watch uses this grammar and does not define a second one.
 2. For a root instruction file being restored whole,
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
@@ -240,7 +304,50 @@ rows after real work is a licensed permanent deletion.
    defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
-   repo's normal PR flow.
+   repo's normal PR flow. The register hold covers only protected rules, so before that merge run
+   `/review:security-review` against the pull request (if the `review` plugin is installed). Its
+   instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
+   enforces. Without the plugin, record in the pull request body that the retired rules got no
+   security pass.
+
+## Deletion watch
+
+`watch` is the deletion direction of the re-add grammar above. It does not add a row shape, a
+second ledger, or a second gate. Use it for one consequential rule: a rule that governs a
+situation and does not match the instruction exception register. An editorial candidate (removal
+would not change behavior, the content is derivable, or it restates the obvious) does not enter
+a watch; `audit-instructions` clears that tier on its normal criteria. A protected-class rule
+never enters a watch. Name the class and stop.
+
+A watch runs inside an experiment. When none is open, start one for the single rule: mint an
+experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
+`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with the
+watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
+ledger table: the rule, quoted,
+and the surface it lives on; the governed situation, stated as where its absence would show; the
+window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
+duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
+
+Present the rule, its surface, and the watch record, and wait for confirmation. Then remove the
+rule and keep it removed for the whole window. A watched rule is never kept
+loaded: a rule still in context prevents the stumble it exists to prevent, so zero attributed rows
+would say nothing about whether it can go. A disqualifying stumble ends the watch and restores the
+rule.
+
+Attribute a stumble by that governed situation. Same-cause aggregation is the re-add gate's rule.
+Co-absence is not attribution. When several rules were removed together, a stumble attaches to
+one rule only when exactly one removed rule governs the situation. When two do, the row attaches
+to the group and those deletions are reverted together.
+
+A watch that never accumulates qualifying sessions expires unresolved. Report that. It is not
+evidence the rule can go.
+
+The deletion is warranted when the qualifying-session count is met and the attributed row count,
+after same-cause aggregation, is zero. The commit that makes the removal permanent cites the watch
+the way a restoring commit cites its ledger rows. Present the closed watch and wait for
+confirmation before the removal is kept. A closed watch with
+zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
+is not clear, and silence is not a warrant.
 
 ## Cadence wiring (optional)
 
@@ -265,7 +372,15 @@ scheduling surfaces vary per consumer and are the operator's choice.
   nor depends on either: the experiment here ablates *your* instructions, which is the part you
   own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
   this experiment.)
-- **Windows:** restore paths in `manifest.json` are stored with forward slashes; git handles both.
+- **Windows:** repo-relative restore paths in `manifest.json` use forward slashes. The manifest
+  still records no absolute host path.
+- **Machine-specific paths.** A committed manifest that contains an absolute host path fails the
+  machine-specific-paths CI lane. This skill records none: identity is `origin_url`, `branch`, and
+  `base_commit`.
+- **State writes go through Write or Edit.** The guardrails `block-hook-bypass` hook blocks shell
+  redirects and heredocs that write a file, exit 2, because those forms skip the Write and Edit
+  gates. Writing the manifest or the ledger with `cat >`, `echo >`, or a heredoc is the blocked
+  form. Use Write or Edit.
 
 ## What this skill does NOT do
 

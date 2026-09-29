@@ -16,6 +16,8 @@ only after that version increases.
   its usage line in that case. `validate-extraction.js` writes
   `validation-report.json`, `analyze-code-repo.js --skip-clone` writes
   `analysis.json`, and `download-resources.js` writes `article-links.json`.
+  The entrypoint check compares real paths, so a CLI started through a
+  symlinked plugin root still runs.
 
 ## [0.14.7] - 2026-09-28
 

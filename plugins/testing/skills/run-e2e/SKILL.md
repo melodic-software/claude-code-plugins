@@ -1,5 +1,5 @@
 ---
-description: "When the bundled run skill resolves in your session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
+description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
 argument-hint: "[unattended] [scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ metadata:
 ---
 ## Native step: run (bundled skill)
 
-When the bundled `run` skill resolves in your session, invoke it to launch the app, then layer
+When the bundled `run` skill resolves in this session, invoke it to launch the app, then layer
 screenshots, responses, and logs on top of its result.
 
 **Mutation.** `run` starts processes rather than editing files; fingerprint the tracked tree before
@@ -101,7 +101,7 @@ conflated whenever the request is "run it and see":
   orchestrator configuration, drives UI and API flows, and captures evidence under the contract in
   [context/e2e.md](context/e2e.md); its non-UI smoke lane has no native counterpart.
 
-**Routing.** When the bundled `run` skill resolves in your session, prefer it for a quick look at
+**Routing.** When the bundled `run` skill resolves in this session, prefer it for a quick look at
 a change with no record needed. Prefer this skill when the outcome must be evidenced (screenshots,
 responses, logs), when the project's orchestrator governs the start, or when the target is a
 library, MCP server, hook, or script. The `/verify` handoff in the Handoff section stands beside
