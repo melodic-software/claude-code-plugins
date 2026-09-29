@@ -44,6 +44,20 @@
 # Every regex field must use the ERE subset gawk, mawk and BSD awk agree on:
 # no \s \S \d \D \w \W \b \B \< \>, no backreferences, and no {n,m}
 # intervals, which mawk 1.3.3 does not implement.
+#
+# -v EXTEND=<file> appends `<id> <tab> <field> <tab> <value>` lines to those
+# adapters' list fields after extends is resolved; an unknown id or a field
+# that is not a list exits 2.
+#
+# -v MODE=config parses .claude/testing.yaml layers instead, in cascade order,
+# with the same subset (keys may also hold - and /) and prints the merged
+# config as `<key> <tab> <value>`: lists concatenate with the first occurrence
+# kept, and a later layer's scalar overrides. Keys: adapters.enable,
+# adapters.disable, paths.include, paths.exclude, adapter_dirs (lists),
+# extend.<adapter>.<list field> (validated as the adapter field is), and
+# rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
+# or rule-<slug> and prints as rules.<slug>. A glob starting with * must be
+# single-quoted.
 
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
@@ -57,7 +71,9 @@ BEGIN {
   # Schema fields no engine code reads yet; accepting them would drop them silently.
   split("additional_test_blocks", t, " ")
   for (i in t) RESERVED[t[i]] = 1
-  nf = 0; nr = 0
+  RULE_RE = "^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|flaky-passes-suite|only-not-forbidden)$"
+  KEY_RE = MODE == "config" ? "^[A-Za-z_][A-Za-z0-9_./-]*:" : "^[A-Za-z_][A-Za-z0-9_.]*:"
+  nf = 0; nr = 0; nl = 0; ns = 0
 }
 
 function die(msg) {
@@ -69,6 +85,11 @@ function die(msg) {
 function die_file(fi, msg) {
   printf "adapter-load: %s: %s\n", F_NAME[fi], msg > "/dev/stderr"
   FAILED = 1
+  exit 2
+}
+
+function die_ext(msg) {
+  printf "adapter-load: %s: %s\n", EXTEND, msg > "/dev/stderr"
   exit 2
 }
 
@@ -102,7 +123,7 @@ function scalar(s,    j, c, out) {
     die("unterminated single-quoted scalar")
   }
   if (s ~ /^"/) die("double-quoted scalars are not supported; use single quotes")
-  if (s ~ /^[&*!|>{%@`]/) die("unsupported YAML syntax: " s)
+  if (s ~ /^[&*!|>{%@`]/) die("unsupported YAML syntax (single-quote a value that starts with it): " s)
   SCALAR = s
   return ""
 }
@@ -120,9 +141,48 @@ function plain_value(s,    rest) {
   return SCALAR
 }
 
+# m (map), l (list), s (scalar), or "" for an unknown key.
+function kind_of(k,    f) {
+  if (MODE != "config") return (k in KIND) ? KIND[k] : ""
+  if (k ~ /^(adapters|paths|rules|extend)$/ || k ~ /^extend\.[A-Za-z0-9_-]+$/) return "m"
+  if (k ~ /^(adapters\.(enable|disable)|paths\.(include|exclude)|adapter_dirs)$/) return "l"
+  if (k ~ /^rules\.[^.]+$/) return "s"
+  if (!match(k, /^extend\.[A-Za-z0-9_-]+\./)) return ""
+  f = substr(k, RLENGTH + 1)
+  return (f in KIND) && KIND[f] != "s" ? KIND[f] : ""
+}
+
+# A config record: lists keep the first occurrence of each item, scalars the
+# last layer's value.
+function cfg_add(key, v,    r) {
+  if (index(v, "\t") > 0) die("tab in value of " key)
+  if (key ~ /^rules\./) {
+    r = substr(key, 7)
+    sub(/^testing\/audit\//, "", r)
+    if (r !~ /^rule-/ || substr(r, 6) !~ RULE_RE) die("unknown rule: " substr(key, 7))
+    if (v !~ /^(off|warn|error)$/) die(key " is off, warn or error, got: " v)
+    r = "rules." substr(r, 6)
+    if (!(r in SCAL)) SC_KEY[++ns] = r
+    SCAL[r] = v
+    return
+  }
+  if (match(key, /^extend\.[A-Za-z0-9_-]+\./)) check_value(substr(key, RLENGTH + 1), v)
+  if ((key, v) in LSEEN) return
+  LSEEN[key, v] = 1
+  L_KEY[++nl] = key; L_VAL[nl] = v
+}
+
 function add(key, v) {
-  if (!(key in KIND)) die("unknown key: " key)
-  if (KIND[key] == "m") die(key " is a map, not a value")
+  if (kind_of(key) == "") die("unknown key: " key)
+  if (kind_of(key) == "m") die(key " is a map, not a value")
+  if (MODE == "config") { cfg_add(key, v); return }
+  check_value(key, v)
+  nr++; R_F[nr] = nf; R_K[nr] = key; R_V[nr] = v
+  if (key == "id") F_ID[nf] = v
+  if (key == "extends") F_EXT[nf] = v
+}
+
+function check_value(key, v) {
   if (index(v, "\t") > 0) die("tab in value of " key)
   if (key in RESERVED) die(key " is reserved and not implemented yet")
   if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
@@ -132,9 +192,6 @@ function add(key, v) {
   if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
     die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
   if (key in IS_RE) portable_ere(v)
-  nr++; R_F[nr] = nf; R_K[nr] = key; R_V[nr] = v
-  if (key == "id") F_ID[nf] = v
-  if (key == "extends") F_EXT[nf] = v
 }
 
 function open_key(key) {
@@ -158,7 +215,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     while (sp > 0 && S_IND[sp] > ind) sp--
     if (sp == 0) die("list item with no open key")
     key = S_KEY[sp]
-    if (KIND[key] != "l") die(key " does not take a list")
+    if (kind_of(key) != "l") die(key " does not take a list")
     v = substr(body, 2)
     sub(/^[ ]+/, "", v)
     if (v ~ /^\[/) die("nested list")
@@ -166,7 +223,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     next
   }
 
-  if (!match(body, /^[A-Za-z_][A-Za-z0-9_.]*:/)) die("expected `key: value` or `- item`")
+  if (!match(body, KEY_RE)) die("expected `key: value` or `- item`")
   key = substr(body, 1, RLENGTH - 1)
   rest = substr(body, RLENGTH + 1)
   if (rest != "" && rest !~ /^ /) die("missing space after colon")
@@ -175,7 +232,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
   # A key sits at column 0 or at the one child indent its open parent set.
   if (sp == 0 ? ind != 0 : ((sp in S_CHILD) && S_CHILD[sp] != ind)) die("bad indentation")
   if (sp > 0) { S_CHILD[sp] = ind; key = S_KEY[sp] "." key }
-  if (!(key in KIND)) die("unknown key: " key)
+  if (kind_of(key) == "") die("unknown key: " key)
   open_key(key)
 
   if (rest ~ /^(#.*)?$/) {
@@ -184,7 +241,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     next
   }
   if (rest ~ /^\[/) {
-    if (KIND[key] != "l") die(key " does not take a list")
+    if (kind_of(key) != "l") die(key " does not take a list")
     rest = substr(rest, 2)
     for (;;) {
       sub(/^[ ]+/, "", rest)
@@ -208,7 +265,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     if (substr(rest, 2) !~ /^[ ]*(#.*)?$/) die("text after a flow list")
     next
   }
-  if (KIND[key] != "s") die(key " takes a " (KIND[key] == "l" ? "list" : "map") ", not a scalar")
+  if (kind_of(key) != "s") die(key " takes a " (kind_of(key) == "l" ? "list" : "map") ", not a scalar")
   add(key, plain_value(rest))
 }
 
@@ -232,12 +289,23 @@ function resolve(fi, depth,    p, j, n0) {
 
 END {
   if (FAILED) exit 2
+  if (MODE == "config") {
+    for (i = 1; i <= nl; i++) printf "%s\t%s\n", L_KEY[i], L_VAL[i]
+    for (i = 1; i <= ns; i++) printf "%s\t%s\n", SC_KEY[i], SCAL[SC_KEY[i]]
+    exit 0
+  }
   for (fi = 1; fi <= nf; fi++) {
     if (!(fi in F_ID) || F_ID[fi] == "") die_file(fi, "no id")
     if (F_ID[fi] in BY_ID) die_file(fi, "duplicate adapter id: " F_ID[fi])
     BY_ID[F_ID[fi]] = fi
   }
   for (fi = 1; fi <= nf; fi++) resolve(fi, 0)
+  while (EXTEND != "" && (getline ln < EXTEND) > 0) {
+    split(ln, x, "\t")
+    if (!(x[1] in BY_ID)) die_ext("extend names an unknown adapter: " x[1])
+    if (!(x[2] in KIND) || KIND[x[2]] != "l") die_ext("extend." x[1] "." x[2] " is not a list field")
+    nr++; R_F[nr] = BY_ID[x[1]]; R_K[nr] = x[2]; R_V[nr] = x[3]
+  }
   for (fi = 1; fi <= nf; fi++) {
     lang = ""; bm = ""; hf = 0; hts = 0
     for (j = 1; j <= nr; j++) if (R_F[j] == fi) {

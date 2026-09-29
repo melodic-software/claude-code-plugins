@@ -116,6 +116,12 @@
 # unknown tree — a completed-looking scan of the wrong tree is
 # indistinguishable from a clean bill.
 #
+# Config: .claude/testing.yaml, resolved against the root's git toplevel by
+# ../../../scripts/resolve-config.sh, turns adapters off or on, excludes or
+# includes paths, extends adapter lists, loads consumer adapters and sets rule
+# levels (off drops a finding, warn keeps it out of the gate, error gates it).
+# With no layer file present the scan is exactly the shipped one.
+#
 # Every run reports a DENOMINATOR (coverage block): files enumerated and
 # examined per ecosystem, test blocks parsed, exemptions, and what could not
 # be read. "0 findings" over 0 examined files is a scan of nothing and is
@@ -261,12 +267,84 @@ fi
 
 WALK_ERR="$(mktemp)"
 ADAPTER_TABLE="$(mktemp)"
-trap 'rm -f "$WALK_ERR" "$ADAPTER_TABLE"' EXIT
+EXTEND_FILE=""
+trap 'rm -f "$WALK_ERR" "$ADAPTER_TABLE" "$EXTEND_FILE"' EXIT
+
+# Location values are REPO-relative, not scan-root-relative: the fix action
+# fences each remediation to Location, so a subdirectory scan root must not
+# shorten the path. git's own prefix avoids any path-format reconciliation
+# (drive-letter vs POSIX) a toplevel string comparison would need. Outside a
+# repository the prefix is empty and Location degrades to root-relative.
+# The same call yields the toplevel the config layers resolve against.
+TOP=""
+REPO_PREFIX=""
+{
+  IFS= read -r TOP
+  IFS= read -r REPO_PREFIX
+} < <(git -C "$ROOT" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
+
+# --- Config -------------------------------------------------------------------
+# .claude/testing.yaml, resolved by scripts/resolve-config.sh. With no layer
+# file present nothing below runs, so a repository without one pays three file
+# tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
+# the test-scan hook, which runs this script, goes silent with no plugin change.
+CFG_ROOT="${TOP:-$ROOT}"
+tc_layers=0
+for f in ${HOME:+"$HOME/.claude/testing.yaml"} "${CLAUDE_PROJECT_DIR:-$CFG_ROOT}/.claude/testing.yaml" \
+  "$CFG_ROOT/.claude/testing.local.yaml"; do
+  [[ -f "$f" ]] && tc_layers=$((tc_layers + 1))
+done
+tc_extra=()
+tc_enable=()
+tc_exclude_re=()
+tc_include_re=()
+tc_uncovered=()
+declare -A tc_on=() tc_off=() rule_level=()
+if ((tc_layers)); then
+  RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
+  require_readable "$RESOLVER" 'config resolver'
+  # shellcheck source=../../../scripts/resolve-config.sh
+  source "$RESOLVER"
+  tc_out="$(bash "$RESOLVER" --root "$CFG_ROOT" ${FILE:+--quick})" || {
+    printf 'ERROR: .claude/testing.yaml did not resolve (see above); refusing to scan.\n' >&2
+    exit 2
+  }
+  while IFS=$'\t' read -r key val; do
+    case "$key" in
+    adapters.enable)
+      tc_enable+=("$val")
+      tc_on[$val]=1
+      ;;
+    adapters.disable) tc_off[$val]=1 ;;
+    paths.exclude)
+      tcfg_glob_re "$val"
+      tc_exclude_re+=("$TCFG_RE")
+      ;;
+    paths.include)
+      tcfg_glob_re "$val"
+      tc_include_re+=("$TCFG_RE")
+      ;;
+    adapter_dirs) for f in "$val"/*.yaml; do [[ -f "$f" ]] && tc_extra+=("$f"); done ;;
+    extend.*)
+      val="${key#extend.}"$'\t'"$val"
+      [[ -n "$EXTEND_FILE" ]] || EXTEND_FILE="$(mktemp)"
+      printf '%s\t%s\n' "${val%%.*}" "${val#*.}" >>"$EXTEND_FILE"
+      ;;
+    rules.*) rule_level[${key#rules.}]="$val" ;;
+    hook.uncovered) tc_uncovered+=("$val") ;;
+    *) ;;
+    esac
+  done <<<"$tc_out"
+fi
+# adapter_on <id>: disable wins; a non-empty enable list is an allowlist.
+adapter_on() {
+  [[ -z "${tc_off[$1]:-}" ]] && [[ ${#tc_enable[@]} -eq 0 || -n "${tc_on[$1]:-}" ]]
+}
 
 # --- Adapters -----------------------------------------------------------------
 # Every adapter is validated up front: a malformed one refuses the whole run
 # (exit 2), never a per-file engine error the aggregate could absorb.
-if ! awk -f "$LOADER" "$ADAPTER_DIR"/*.yaml >"$ADAPTER_TABLE"; then
+if ! awk -v EXTEND="$EXTEND_FILE" -f "$LOADER" "$ADAPTER_DIR"/*.yaml ${tc_extra[@]+"${tc_extra[@]}"} >"$ADAPTER_TABLE"; then
   printf 'ERROR: adapter load failed (see above); refusing to scan.\n' >&2
   exit 2
 fi
@@ -274,6 +352,7 @@ adapter_ids=()
 declare -A a_lang=() a_globs=() a_detect=() a_advisory=()
 all_globs=()
 while IFS=$'\t' read -r id key val; do
+  adapter_on "$id" || continue
   [[ -n "${a_lang[$id]+x}" ]] || {
     adapter_ids+=("$id")
     a_lang[$id]=""
@@ -296,7 +375,7 @@ done <"$ADAPTER_TABLE"
 # order. Prints nothing when none claims the file.
 pick_adapter() {
   local base="${1##*/}" id glob re first="" first_detects="" pats
-  for id in "${adapter_ids[@]}"; do
+  for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
     while IFS= read -r glob; do
       # shellcheck disable=SC2053 # the glob is a pattern on purpose
       if [[ -n "$glob" && "$base" == $glob ]]; then
@@ -319,13 +398,6 @@ pick_adapter() {
   printf '%s' "$first"
 }
 
-# Location values are REPO-relative, not scan-root-relative: the fix action
-# fences each remediation to Location, so a subdirectory scan root must not
-# shorten the path. git's own prefix avoids any path-format reconciliation
-# (drive-letter vs POSIX) a toplevel string comparison would need. Outside a
-# repository the prefix is empty and Location degrades to root-relative.
-REPO_PREFIX="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
-
 # --- Walk ---------------------------------------------------------------------
 # Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
 # (a detector's fixture corpus is deliberately defective test code; scanning it
@@ -346,7 +418,7 @@ collect_files() {
 # file names.
 name_args=()
 declare -A glob_seen=()
-for id in "${adapter_ids[@]}"; do
+for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
   while IFS= read -r glob; do
     [[ -z "$glob" || -n "${glob_seen[$glob]:-}" ]] && continue
     glob_seen[$glob]=1
@@ -354,16 +426,58 @@ for id in "${adapter_ids[@]}"; do
     name_args+=(-name "$glob")
   done <<<"${a_globs[$id]:-}"
 done
+[[ ${#name_args[@]} -gt 0 ]] || name_args=(-name '')
+
+# include_files: files under the root that a paths.include glob names, walked
+# past the prunes above (only .git and node_modules stay pruned); each still
+# needs an adapter to claim it.
+# ponytail: walks the whole root per run when include is set; walk each glob's
+# literal leading directory instead if that shows up in a large tree.
+include_files() {
+  [[ ${#tc_include_re[@]} -gt 0 && -z "$FILE" ]] || return 0
+  local f rel re
+  while IFS= read -r f; do
+    rel="$REPO_PREFIX${f#"$ROOT"/}"
+    for re in "${tc_include_re[@]}"; do
+      if [[ "$rel" =~ $re ]]; then
+        printf '%s\n' "$f"
+        break
+      fi
+    done
+  done < <(find "$ROOT" \( -name .git -o -name node_modules \) -prune -o -type f -print 2>>"$WALK_ERR")
+}
+
+# excluded <file>: a paths.exclude glob names its repo-relative path.
+excluded() {
+  local rel="$REPO_PREFIX${1#"$ROOT"/}" re
+  for re in ${tc_exclude_re[@]+"${tc_exclude_re[@]}"}; do
+    [[ "$rel" =~ $re ]] && return 0
+  done
+  return 1
+}
+
 js_files=()
 py_files=()
 cs_files=()
 sh_files=()
 ps_files=()
 go_files=()
+tc_excluded=0
+tc_unclaimed=0
 declare -A file_adapter=()
 while IFS= read -r f; do
-  [[ -n "$f" ]] || continue
+  [[ -n "$f" && -z "${file_adapter[$f]+x}" ]] || continue
+  if [[ ${#tc_exclude_re[@]} -gt 0 ]] && excluded "$f"; then
+    tc_excluded=$((tc_excluded + 1))
+    file_adapter[$f]=""
+    continue
+  fi
   id="$(pick_adapter "$f")"
+  if [[ -z "$id" ]]; then
+    tc_unclaimed=$((tc_unclaimed + 1))
+    file_adapter[$f]=""
+    continue
+  fi
   file_adapter[$f]="$id"
   case "${a_lang[$id]}" in
   js) js_files+=("$f") ;;
@@ -374,7 +488,10 @@ while IFS= read -r f; do
   go) go_files+=("$f") ;;
   *) ;;
   esac
-done < <(collect_files "${name_args[@]}")
+done < <(
+  collect_files "${name_args[@]}"
+  include_files
+)
 
 # Playwright runner configs: the same pruned walk, for the six filenames the
 # runner probes. Playwright never walks upward, so every directory holding any
@@ -435,7 +552,6 @@ n_wo=0
 # claims as a test file. Prints nothing otherwise: the engine cannot see git,
 # so this is where a candidate read becomes a finding or is dropped.
 SOURCE_EXT_RE='\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$'
-TOP=""
 source_target() {
   local file="$1" path="$2" cand dir rel glob
   [[ "$path" =~ $SOURCE_EXT_RE && "$path" != /* ]] || return 0
@@ -457,9 +573,28 @@ source_target() {
   done
 }
 
+# rule_override <slug> <1 when the finding gates --check by default>: apply
+# its rules.<slug> level from .claude/testing.yaml. off drops the finding
+# (return 1), warn keeps it out of the gate, error puts it in.
+tc_dropped=0
+tc_gate=0
+tc_ungate=0
+rule_override() {
+  case "${rule_level[$1]:-}" in
+  off)
+    tc_dropped=$((tc_dropped + 1))
+    return 1
+    ;;
+  warn) [[ "$2" -eq 1 ]] && tc_ungate=$((tc_ungate + 1)) ;;
+  error) [[ "$2" -eq 0 ]] && tc_gate=$((tc_gate + 1)) ;;
+  *) ;;
+  esac
+  return 0
+}
+
 scan_one() {
   # scan_one <file>
-  local file="$1" rel kind slug line detail target
+  local file="$1" rel kind slug line detail target gates
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     unreadable=$((unreadable + 1))
@@ -478,6 +613,15 @@ scan_one() {
     B) blocks=$((blocks + slug)) ;;
     L) lost=$((lost + 1)) ;;
     F)
+      if [[ ${#rule_level[@]} -gt 0 ]]; then
+        gates=0
+        case "$slug" in
+        zero-assertion | recomputed-expectation) [[ -z "${a_advisory[${file_adapter[$file]}]:-}" || "$strict" -eq 1 ]] && gates=1 ;;
+        mock-only-oracle) [[ "$strict" -eq 1 ]] && gates=1 ;;
+        *) ;;
+        esac
+        rule_override "$slug" "$gates" || continue
+      fi
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
       f_detail+=("$detail")
@@ -546,6 +690,9 @@ scan_config() {
       fi
       ;;
     F)
+      if [[ ${#rule_level[@]} -gt 0 ]]; then
+        rule_override "$slug" "$strict" || continue
+      fi
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
       f_detail+=("$detail")
@@ -610,6 +757,7 @@ report_only=$((n_ia + n_cr + n_st + n_ca + n_rd + n_so + n_wo))
 total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings + report_only))
 gating=$((n_cf1 + n_cf2 - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
+gating=$((gating + tc_gate - tc_ungate))
 walk_errors="$(awk 'NF { n++ } END { print n + 0 }' "$WALK_ERR" 2>/dev/null)"
 [[ -n "$walk_errors" ]] || walk_errors=0
 enumerated=$((enum_js + enum_py + enum_cs + enum_sh + enum_ps + enum_go))
@@ -767,6 +915,14 @@ coverage_block() {
   else
     printf '  playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable)\n' \
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
+  fi
+  if ((tc_layers)); then
+    printf '  .claude/testing.yaml: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
+      "$tc_layers" "$tc_excluded" "$tc_unclaimed" "$tc_dropped" "$tc_ungate" "$tc_gate"
+    if [[ -z "$FILE" && ${#tc_uncovered[@]} -gt 0 ]]; then
+      printf '  test-scan hook: no shipped hook row matches %s, so the hook skips those files; /testing:setup check prints a hook entry to add\n' \
+        "$(printf '%s, ' "${tc_uncovered[@]}" | sed 's/, $//')"
+    fi
   fi
   printf '  files whose lexer lost sync (not judged): %d\n' "$lost"
   printf '  walk/read/engine error lines: %d\n' "$walk_errors"

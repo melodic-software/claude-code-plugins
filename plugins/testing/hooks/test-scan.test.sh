@@ -44,6 +44,7 @@ git -C "$REPO" init -q
 printf 'scratch/\n' >"$REPO/.gitignore"
 export CLAUDE_PLUGIN_DATA="$TMP/data"
 export CLAUDE_PROJECT_DIR="$REPO"
+export HOME="$TMP/home"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 
 cat >"$REPO/src/sum.test.ts" <<'EOF'
@@ -126,6 +127,9 @@ out="$(payload Write "$REPO/src/sum.test.ts" s0 "" call-a "$CREATE" |
   CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
     --require-true TEST_GUARDS_ENABLED "$HOOK" 2>&1)"
 assert_empty "(a) option unset: no output" "$out"
+out="$(payload Write "$REPO/src/sum.test.ts" s0 "" call-a2 "$CREATE" |
+  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' bash "$HOOK" --enabled 2>&1)"
+assert_contains "(a) --enabled, the consumer-entry form, runs with the option unset" "$out" rule-zero-assertion
 
 # (b) a zero-assertion Vitest create reports the rule, with the rules note.
 run Write "$REPO/src/sum.test.ts"

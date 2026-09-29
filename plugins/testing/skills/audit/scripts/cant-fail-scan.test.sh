@@ -1561,6 +1561,74 @@ out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
 assert_exit "a second table after the Adapter grid is not read as adapter rows" 0 "$rc"
 assert_not_contains "the second table's rows are never named as adapters" "$out" "T3"
 
+# --- .claude/testing.yaml: the config cascade ---------------------------------
+# HOME and CLAUDE_PROJECT_DIR are pinned per run: a developer's own layers must
+# not change what these cases see.
+CFG="$TMP_ROOT/cfg"
+CFG_HOME="$TMP_ROOT/cfg-home"
+mkdir -p "$CFG/.claude" "$CFG/src" "$CFG/build/t" "$CFG_HOME"
+git -C "$CFG" init -q
+printf "import { it } from 'vitest';\nit('adds', () => {\n  add(1, 2);\n});\n" >"$CFG/src/bad.test.ts"
+printf "import { it, expect } from 'vitest';\nit('adds', () => {\n  expect(add(1, 2)).toBeDefined();\n});\n" >"$CFG/src/weak.test.ts"
+printf 'package x\n\nimport "testing"\n\nfunc TestSum(t *testing.T) {\n\tSum(1, 2)\n}\n' >"$CFG/src/sum_test.go"
+cp "$CFG/src/bad.test.ts" "$CFG/src/bad.it.ts"
+cp "$CFG/src/bad.test.ts" "$CFG/build/t/built.test.ts"
+cfg_scan() {
+  rc=0
+  out="$(env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CANT_FAIL_SCAN_ROOT="$CFG" bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+cfg_set() { printf '%s\n' "$@" >"$CFG/.claude/testing.yaml"; }
+
+cfg_scan
+assert_finding_count "no config: the zero-assertion, weak-oracle and Go findings" 3
+cfg_set 'paths:' "  exclude: ['**/*.test.ts']"
+cfg_scan
+assert_finding_count "paths.exclude '**/*.test.ts' drops both .test.ts files" 1
+assert_contains "the coverage block counts the excluded files" "$out" "excluded by paths.exclude: 2"
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_finding_count "--file of an excluded path reports nothing" 0
+assert_contains "and examines nothing" "$out" "test files: 0 examined"
+hook_out="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Write","session_id":"s","tool_use_id":"cfg-1","tool_input":{"file_path":"%s"},"tool_response":{"type":"create","structuredPatch":[]}}' "$CFG/src/bad.test.ts" |
+  env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CLAUDE_PLUGIN_DATA="$TMP_ROOT/cfg-data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true \
+    bash "$SCRIPT_DIR/../../../hooks/test-scan.sh" 2>&1)"
+if [[ -z "$hook_out" ]]; then pass "test-scan.sh prints nothing for an excluded test file"; else fail "test-scan.sh prints nothing for an excluded test file" "$hook_out"; fi
+cfg_set 'adapters:' '  disable: [go-testing]'
+cfg_scan
+assert_finding_count "adapters.disable drops the Go file" 2
+assert_contains "the Go file is not even enumerated" "$out" "go 0)"
+cfg_set 'adapters:' '  enable: [go-testing]'
+cfg_scan
+assert_finding_count "adapters.enable runs only the listed adapters" 1
+cfg_set 'rules:' '  rule-zero-assertion: off'
+cfg_scan --check
+assert_finding_count "rules off drops the finding" 1
+assert_exit "with no gating finding left, --check passes" 0 "$rc"
+cfg_set 'rules:' '  rule-zero-assertion: warn'
+cfg_scan --check
+assert_finding_count "rules warn still reports" 3
+assert_exit "but never gates --check" 0 "$rc"
+cfg_set 'rules:' '  rule-zero-assertion: warn' '  testing/audit/rule-weak-oracle: error'
+cfg_scan --check
+assert_exit "rules error gates a report-only rule" 1 "$rc"
+assert_contains "and counts one gating finding" "$out" "FAIL: 1 gating finding(s)."
+cfg_set 'extend:' '  js-vitest:' "    files: ['*.it.ts']"
+cfg_scan
+assert_finding_count "extend.js-vitest.files claims a new glob" 4
+assert_contains "the audit names the glob no hook row covers" "$out" "*.it.ts"
+cfg_set 'paths:' "  include: ['build/**/*.test.ts']"
+cfg_scan
+assert_finding_count "paths.include reaches a pruned directory" 4
+assert_contains "the included file is reported" "$out" "build/t/built.test.ts"
+cfg_set 'rules:' '  rule-no-such: off'
+cfg_scan
+assert_exit "an invalid config refuses the scan" 2 "$rc"
+rm -f "$CFG/.claude/testing.yaml"
+mkdir -p "$CFG_HOME/.claude"
+printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml"
+cfg_scan
+assert_finding_count "the user-global layer applies" 2
+rm -f "$CFG_HOME/.claude/testing.yaml"
+
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.
 if [[ -z "${CANT_FAIL_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then

@@ -18,8 +18,11 @@
 set -uo pipefail
 
 # Kill switch before any library is sourced; the launcher's --require-true
-# gate already applies it, this keeps a direct run honest too.
-[[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" ]] || exit 0
+# gate already applies it, this keeps a direct run honest too. --enabled is
+# for the consumer settings entry /testing:setup check prints for a glob no
+# shipped row covers: a settings hook receives no CLAUDE_PLUGIN_OPTION_*
+# (probes.md), and adding that entry is the opt-in.
+[[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" || "${1:-}" == --enabled ]] || exit 0
 
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
@@ -98,6 +101,12 @@ if ((rc != 0)); then
   printf '%s test-scan: %s: %s\n' "$(date -u +%FT%TZ)" "$FILE" "$why" >>"$DATA/test-scan.log"
   printf 'test-scan: %s: %s\n' "$FILE" "$why" >&2
   hook::finish error findings array '[]'
+fi
+
+# The scanner examined nothing: .claude/testing.yaml excluded the path or
+# disabled its adapter. No findings and no note.
+if grep -q '^  test files: 0 examined' "$out_file"; then
+  hook::finish skipped findings array '[]'
 fi
 
 findings="$(grep '^finding \[' "$out_file")"

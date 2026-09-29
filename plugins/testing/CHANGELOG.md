@@ -53,6 +53,22 @@ All notable changes to the `testing` plugin are documented here. Format follows
   derived expectation too, and leads with "change detectors" or "weak or snapshot-only oracles"
   when only findings of tests that can fail are present. The 7-day marker prune removes the
   directories the earlier `mkdir` markers left, as well as marker files.
+- **audit, hooks:** `.claude/testing.yaml`, resolved across `~/.claude/testing.yaml`, the team file
+  and `.claude/testing.local.yaml` by `scripts/resolve-config.sh` (lists concatenate, a later
+  scalar overrides). `adapters.disable` and `adapters.enable` (an allowlist) pick adapters,
+  `paths.exclude` and `paths.include` take repo-root globs (`**` crosses `/`, `*` does not;
+  Windows paths are normalized first), `extend.<adapter>.<field>` appends to an adapter's list,
+  `adapter_dirs` loads consumer adapters, and `rules.<rule>: off | warn | error` drops a rule's
+  findings, keeps them out of the `--check` gate, or gates them. The scanner applies all of it, so
+  an excluded file or a disabled adapter also silences the `test-scan` hook, rules note included.
+  The audit names every consumer glob no shipped hook row matches. A repository with no layer file
+  scans exactly as before.
+- **setup:** `/testing:setup check | apply`. `check` prints the resolved config, which test-lint
+  rules the lint config turns on per language (a missing `valid-expect`, Playwright await or
+  focused-test rule, `xUnit2021`, `NUnit2009`, or ruff `PLR0124`, `PT011` or `F631` is a finding),
+  an optional instruction line to paste, and a `.claude/settings.json` entry for each glob the
+  shipped hook skips. `apply` writes only `.claude/testing.yaml`. The `test-scan` hook takes
+  `--enabled` for that settings entry, since a settings hook receives no plugin option variables.
 
 ### Changed
 

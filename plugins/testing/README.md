@@ -12,6 +12,7 @@ behavior with tests.
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection, a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, C#, Bash, PowerShell and Go; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
+| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved `.claude/testing.yaml`, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes `.claude/testing.yaml`. |
 
 ## Works in any repo
 
@@ -48,6 +49,11 @@ This plugin declares no userConfig options.
 behavior, so the file is optional. Its keys, defaults, and precedence are documented in
 the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
 config-cascade convention.
+
+`/testing:audit` and the `test-scan` hook read `.claude/testing.yaml` through the same cascade
+(`~/.claude/testing.yaml`, the team file, `.claude/testing.local.yaml`): adapters to turn off or
+allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
+rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the file.
 
 ## License
 

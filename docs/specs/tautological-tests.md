@@ -216,11 +216,11 @@ that names that lexer and a block model. A new lexer or block model needs a plug
     window of three consecutive body lines. The other regex fields match masked code.
   - Every list field is a list of EREs, except `files` (basename globs), `equality.call2` (helper
     names matched as substrings; for `bash` and `pwsh` also the command form `fn A B`),
-    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`) and `equality.pipeline`
+    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`), `rules_off` (rule slugs) and `equality.pipeline`
     (literal matchers after a pipe, as in `A | Should -Be B`).
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
     file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
-    otherwise the first claimant in load order, whether or not it has a `detect` list.
+    otherwise the first claimant with no `detect` list, and failing that the first claimant.
 - `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
   value is never dropped silently.
 - `assertion.async` matches the start of a statement that asserts nothing unless it is awaited or
@@ -260,7 +260,11 @@ Java/Kotlin and Go testify.
   resolver is a plugin-local script modeled on `plugins/docs-hygiene/scripts/resolve-config.sh`. It
   is not imported from that plugin (shell-test-helpers convention: no cross-plugin imports).
 - Keys: `adapters.enable`, `adapters.disable`, `paths.include`, `paths.exclude`, `extend.<adapter>.<field>`,
-  `adapter_dirs`, `rules.<rule-id>: off | warn | error`.
+  `adapter_dirs`, `rules.<rule-id>: off | warn | error`. `adapters.enable` is an allowlist and
+  `adapters.disable` wins over it. `paths.include` walks past the scanner's directory prunes (never
+  `.git` or `node_modules`), and an included file still needs an adapter that claims it.
+  `rules.<rule-id>` takes `testing/audit/rule-<slug>` or `rule-<slug>`. A glob that starts with `*`
+  is single-quoted, because a bare leading `*` is YAML alias syntax.
 - Removals (`adapters.disable`, `paths.exclude`) apply inside the script, so hook and audit go silent
   with no plugin change.
 - Additions (`paths.include`, consumer adapters with new globs) reach the audit at once. They reach
@@ -681,7 +685,11 @@ Is.EqualTo(y))` is not parsed as an equality yet, so the NUnit derived pair uses
 - `for r in inert-assertion constant-restatement source-text-read conditional-assertion recomputed-derived snapshot-only weak-oracle; do bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --help | grep -q "rule-$r" || echo "$r"; done` prints nothing, and so does the same loop over `plugins/testing/skills/audit/SKILL.md`.
 - `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-### Phase 5: Config cascade and `/testing:setup` [TODO]
+### Phase 5: Config cascade and `/testing:setup` [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. The test-scan p95 with a config file present
+was measured only under load (181-196 ms at load 22-27, where the pre-change code measured 164-189
+ms); the idle re-measure against the 150 ms budget moves to Phase 8.
 
 - `plugins/testing/scripts/resolve-config.sh` merges `~/.claude/testing.yaml`,
   `.claude/testing.yaml` and `.claude/testing.local.yaml` additively. It is modeled on
@@ -692,7 +700,9 @@ Is.EqualTo(y))` is not parsed as an equality yet, so the NUnit derived pair uses
   are normalized first.
 - Probe whether a consumer settings hook receives `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_OPTION_*`.
   Record the result in `probes.md`. If it does not, the printed consumer entry passes `--enabled` and
-  locates the plugin through a stable shim `[FALLBACK]`.
+  locates the plugin through a stable shim `[FALLBACK]`. Taken: Claude Code 2.1.284 gives a settings
+  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and finds the newest
+  cached `testing/*/hooks/test-scan.sh`.
 - New `plugins/testing/skills/setup/SKILL.md`, `check | apply`, with
   `disable-model-invocation: true` (modeled on `plugins/mutation-testing/skills/setup`). `check`
   prints:
@@ -708,7 +718,7 @@ Is.EqualTo(y))` is not parsed as an equality yet, so the NUnit derived pair uses
 **Sanity Check:**
 
 - `bash plugins/testing/scripts/resolve-config.test.sh` exits 0. It covers layer order, list concatenation, `**` matching and a Windows-style path.
-- A `cant-fail-scan.test.sh` case writes `.claude/testing.yaml` containing an `exclude` list with `**/*.test.ts`. It asserts 0 findings from the scanner and no `test-scan.sh` output for a bad `.test.ts` fixture.
+- A `cant-fail-scan.test.sh` case writes `.claude/testing.yaml` containing an `exclude` list with `'**/*.test.ts'`. It asserts 0 findings from the scanner and no `test-scan.sh` output for a bad `.test.ts` fixture.
 - A setup test runs `check` and a scripted `apply` in a temp repo and asserts that no file named `CLAUDE.md` or `AGENTS.md` changed.
 - `grep -c 'CLAUDE_PLUGIN_ROOT' docs/topics/tautological-tests/probes.md` is at least 1.
 - `bash scripts/check-changed-skills.sh origin/main` exits 0.
@@ -943,4 +953,4 @@ User-approval gates that still hold:
 - Phase 2 and Phase 8: running on a Windows fleet machine through `/fleet:reach`.
 - Phase 8: scanning `medley` and `ci-runner`, read-only.
 - Phase 4a: any Pocock example that fits neither a rule nor the acceptance criterion 1 judge list.
-- Phase 5 `[FALLBACK]`: the consumer-entry shim, if the probe shows plugin variables are missing.
+- Phase 5 `[FALLBACK]`: taken; the probe showed a settings hook gets no plugin variables.
