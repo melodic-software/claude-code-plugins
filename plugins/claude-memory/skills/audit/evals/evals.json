@@ -22,7 +22,7 @@
       "expectations": [
         "Output audits only the instruction/memory layer (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, rules, auto-memory)",
         "Output does NOT audit MCP servers, hooks, agents, or skills within this skill",
-        "Output routes those out-of-scope entities to audit-automation-gaps"
+        "Output routes MCP servers and hooks to audit and agents and skills to audit-automation-gaps (both in the claude-config plugin)"
       ]
     },
     {

@@ -311,9 +311,9 @@ prescribed an `@AGENTS.md` import or a symlink as the way to make one load; that
 from the page as fetched 2026-09-19 and is quoted here only as the superseded basis. The page now
 says Claude reads `AGENTS.md` as the project instructions where there is no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, needs v2.1.277 or
-later to do so, and cannot in some sessions (a provider without it, telemetry off,
-`disableAllHooks` or `allowManagedHooksOnly` set, the built-in `agents-md` plugin disabled, the
-first session after an upgrade), where the import is still what carries it.
+later to do so, and cannot in some sessions (`disableAllHooks` or `allowManagedHooksOnly` set, the
+built-in `agents-md` plugin disabled, the first session after an upgrade; before v2.1.281 also
+sessions on Amazon Bedrock or with telemetry disabled), where the import is still what carries it.
 
 - **Claim**: an `AGENTS.md` loads either directly, where no `CLAUDE.md` displaces it and support is
   available, or through a `CLAUDE.md` that imports or symlinks it, on that `CLAUDE.md`'s row.

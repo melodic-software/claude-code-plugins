@@ -13,7 +13,8 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
 - `skills/audit/reference/official-guidance.md` no longer says a directly read `AGENTS.md` is
   absent from `/memory`: the memory page says `/memory` lists it from v2.1.280. The record is
-  re-dated 2026-09-29.
+  re-dated 2026-09-29, and the Bedrock and telemetry-disabled gap is stated as limited to versions
+  before v2.1.281.
 
 ### Changed
 
