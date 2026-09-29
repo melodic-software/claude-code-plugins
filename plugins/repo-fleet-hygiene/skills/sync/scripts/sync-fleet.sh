@@ -10,6 +10,12 @@
 # A skipped line is skipped<TAB>repo<TAB>reason[<TAB>extra]<TAB>git-exit=<n><TAB>remedy=<text>.
 # git-exit is the status of the command that failed (the worktree helper's for
 # a worktree skip), or none when a plan rule skipped the repo.
+# Scope and discovery flags: --repo DIR, --root DIR, --named DIR, --config FILE, --project-dir DIR.
+# --repos-from FILE|- reads one checkout path per line (- is stdin), blank lines ignored, and counts
+# as explicit scope, so the config and fallback rungs are not consulted.
+# --skip NAME (repeatable, a bare directory name) replaces the default discovery skip set;
+# --extend-skip NAME adds to whichever set is in effect; --skip-from FILE reads one --skip name
+# per line, blank lines ignored and CRLF stripped. A missing FILE exits 2.
 # Exit status: 0 when no repo was skipped, 1 when any was, 2 usage, 3 refused.
 set -uo pipefail
 
@@ -32,10 +38,28 @@ WT_ROOT=""
 WT_CREATE=""
 FAILS=0
 STASH_SHA=""
+REPOS_FROM_GIVEN=0
 
 fail() {
   printf 'Error: %s\n' "$1" >&2
   exit 2
+}
+
+# read_lines_into <array-name> <file|-> <flag>: append each non-blank line, CR stripped.
+read_lines_into() {
+  local -n dest="$1"
+  local src="$2" line
+  if [[ "$src" == - ]]; then
+    exec 3<&0
+  else
+    [[ -f "$src" ]] || fail "$3 file not found: $src"
+    exec 3<"$src" || fail "$3 file not readable: $src"
+  fi
+  while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -z "$line" ]] || dest+=("$line")
+  done
+  exec 3<&-
 }
 
 while [[ $# -gt 0 ]]; do
@@ -48,6 +72,34 @@ while [[ $# -gt 0 ]]; do
   --root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--root requires a directory"
     ROOTS+=("$2")
+    shift 2
+    ;;
+  --repos-from)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--repos-from requires a file or -"
+    read_lines_into REPOS "$2" --repos-from
+    REPOS_FROM_GIVEN=1
+    shift 2
+    ;;
+  --skip)
+    [[ $# -ge 2 ]] || fail "--skip requires a bare directory name"
+    validate_skip_name "$2" "--skip"
+    SKIP_NAMES+=("$2")
+    shift 2
+    ;;
+  --extend-skip)
+    [[ $# -ge 2 ]] || fail "--extend-skip requires a bare directory name"
+    validate_skip_name "$2" "--extend-skip"
+    SKIP_APPEND_NAMES+=("$2")
+    shift 2
+    ;;
+  --skip-from)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--skip-from requires a file"
+    from_names=()
+    read_lines_into from_names "$2" --skip-from
+    for name in ${from_names[@]+"${from_names[@]}"}; do
+      validate_skip_name "$name" "--skip-from"
+      SKIP_NAMES+=("$name")
+    done
     shift 2
     ;;
   --named)
@@ -97,7 +149,7 @@ elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
   CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
 fi
 if [[ -n "$CONFIG" ]]; then
-  if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
+  if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
     fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
     ROOTS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
     REPOS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
@@ -106,7 +158,7 @@ if [[ -n "$CONFIG" ]]; then
 fi
 fleet_finalize_skip_names
 
-if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
+if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
   fallback="$(mktemp)"
   if ! scope_resolve_fallback "${NAMED[@]}" >"$fallback"; then
     rm -f "$fallback"

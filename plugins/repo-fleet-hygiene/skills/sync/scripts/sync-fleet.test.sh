@@ -132,6 +132,42 @@ printf '[fleet]\n\tskip = a/b\n' >"$TMP/skip-bad.conf"
 bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-bad.conf" >/dev/null 2>&1
 expect "a path-shaped fleet.skip entry is refused with exit 2" "code=$?" is "$?" 2
 
+skipped="$(bash "$SCRIPT" --root "$TMP/skipdrive" --skip foo)"
+expect "--skip prunes the named directory" "$skipped" \
+  is "$([[ "$skipped" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "--skip replaces the default set, so a repo under vendor/ is found" "$skipped" \
+  has "$skipped" "$TMP/skipdrive/vendor/dep"
+extended="$(bash "$SCRIPT" --root "$TMP/skipdrive" --extend-skip foo)"
+expect "--extend-skip prunes the named directory and keeps the defaults" "$extended" \
+  is "$([[ "$extended" == *"$TMP/skipdrive/foo/dep"* || "$extended" == *"$TMP/skipdrive/vendor/dep"* ]] && echo found)" ""
+
+mkdir -p "$TMP/skipdrive/bar"
+git clone -q "$bare" "$TMP/skipdrive/bar/dep"
+printf 'foo\n\nbar\r\n' >"$TMP/skip.list"
+listed="$(bash "$SCRIPT" --root "$TMP/skipdrive" --skip-from "$TMP/skip.list")"
+expect "--skip-from prunes every listed name, blank and CRLF lines included" "$listed" \
+  is "$([[ "$listed" == *"$TMP/skipdrive/foo/dep"* || "$listed" == *"$TMP/skipdrive/bar/dep"* ]] && echo found)" ""
+expect "--skip-from keeps ordinary repos" "$listed" has "$listed" "$TMP/skipdrive/app"
+
+bash "$SCRIPT" --root "$TMP/skipdrive" --skip-from "$TMP/no-such.list" >/dev/null 2>&1
+expect "--skip-from on a missing file exits 2" "code=$?" is "$?" 2
+bash "$SCRIPT" --root "$TMP/skipdrive" --skip '' >/dev/null 2>&1
+expect "--skip '' exits 2" "code=$?" is "$?" 2
+
+printf '%s\n\n%s\r\n' "$clone" "$TMP/skipdrive/app" >"$TMP/repos.list"
+fromfile="$(cd / && bash "$SCRIPT" --repos-from "$TMP/repos.list" --project-dir "$TMP/cfg")"
+expect "--repos-from FILE plans exactly the listed repos" "$fromfile" \
+  is "$(printf '%s\n' "$fromfile" | grep -c "^ff-only")" 2
+expect "--repos-from FILE reports the listed repo count" "$fromfile" has "$fromfile" "repos: 2"
+fromstdin="$(printf '%s\n' "$clone" | bash "$SCRIPT" --repos-from -)"
+expect "--repos-from - reads stdin" "$fromstdin" has "$fromstdin" "repos: 1"
+bash "$SCRIPT" --repos-from "$TMP/no-such.list" >/dev/null 2>&1
+expect "--repos-from on a missing file exits 2" "code=$?" is "$?" 2
+printf '[fleet]\n\trepo = %s\n' "$TMP/seed" >"$TMP/scoped.conf"
+scoped="$(bash "$SCRIPT" --repos-from "$TMP/repos.list" --config "$TMP/scoped.conf")"
+expect "--repos-from skips the config scope rung" "$scoped" \
+  is "$([[ "$scoped" == *"$TMP/seed"* ]] && echo found)" ""
+
 git clone -q --bare "$bare" "$TMP/evil.git"
 git -C "$TMP/evil.git" update-ref refs/heads/-evil refs/heads/main
 git -C "$TMP/evil.git" symbolic-ref HEAD refs/heads/-evil
