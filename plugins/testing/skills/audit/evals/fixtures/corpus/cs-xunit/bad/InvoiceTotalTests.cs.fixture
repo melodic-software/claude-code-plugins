@@ -1,0 +1,16 @@
+// expect: rule-zero-assertion
+// Builds an invoice and computes its total, but nothing checks the total, so
+// the test passes whatever Total() returns.
+using Xunit;
+
+public class InvoiceTotalTests
+{
+    [Fact]
+    public void Total_IncludesTax()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+        invoice.AddLine("widget", 100m);
+
+        var total = invoice.Total();
+    }
+}

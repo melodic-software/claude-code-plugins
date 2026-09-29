@@ -1,0 +1,11 @@
+// good-for: rule-source-text-read
+// reads: __testfixtures__/rename.input.js
+// A codemod's input lives in __testfixtures__: test data, not the code under test.
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { transform } from '../src/rename';
+
+test('renames the import', () => {
+  const input = readFileSync(join(__dirname, '../__testfixtures__/rename.input.js'), 'utf8');
+  expect(transform(input).includes("from 'new-name'")).toBe(true);
+});

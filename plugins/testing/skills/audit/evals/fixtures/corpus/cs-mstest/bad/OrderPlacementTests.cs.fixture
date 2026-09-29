@@ -1,0 +1,16 @@
+// expect: rule-zero-assertion
+// Places an order and never looks at the result, so the test passes whatever
+// Place does short of throwing.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderPlacementTests
+{
+    [TestMethod]
+    public void Place_MarksTheOrderPlaced()
+    {
+        var service = new OrderService(new InMemoryOrderStore());
+
+        var order = service.Place(new OrderRequest(customerId: 42, sku: "pen"));
+    }
+}

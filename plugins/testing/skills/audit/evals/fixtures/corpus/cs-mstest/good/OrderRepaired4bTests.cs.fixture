@@ -1,0 +1,37 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the discount is asserted present first, the total is a
+// literal, the receipt snapshot sits beside a literal, and the null check
+// sits beside the value.
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using VerifyMSTest;
+
+[TestClass]
+public partial class OrderRepaired4bTests : VerifyBase
+{
+    [TestMethod]
+    public void Discount_TakesTenPercent()
+    {
+        var order = Order.Place("SAVE10", 100m);
+        Assert.IsNotNull(order.Discount);
+        Assert.AreEqual(10m, order.Discount.Amount);
+    }
+
+    [TestMethod]
+    public void Total_AddsTheLines()
+    {
+        var lines = new[] { new OrderLine(10m), new OrderLine(5m) };
+        Assert.AreEqual(15m, Order.Total(lines));
+    }
+
+    [TestMethod]
+    public async Task Receipt_ListsTheLines()
+    {
+        var receipt = Order.Place("", 40m).Receipt();
+        StringAssert.Contains(receipt, "Total: 40");
+        await Verify(receipt);
+    }
+}

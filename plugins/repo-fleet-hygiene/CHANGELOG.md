@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1] - 2026-09-29
+
+### Fixed
+
+- **`discovery-skip` and `discovery-symlink-skip` no longer make the fleet verdict BLOCKED**
+  ([#4220](https://github.com/melodic-software/claude-code-plugins/issues/4220)). Both findings stay
+  `UNKNOWN` and disclosed, but a non-repository `.git` husk or a symlinked directory under the root
+  no longer turns an otherwise clean fleet into `BLOCKED (evidence gap)`. Every other `UNKNOWN`
+  kind, including `stale-config-entry` and `ls-remote-fleet-unavailable`, still does.
+
 ## [0.24.0] - 2026-09-29
 
 ### Added
