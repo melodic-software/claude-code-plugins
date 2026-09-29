@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.38.29] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.38.28] - 2026-09-29
 
 ### Fixed
