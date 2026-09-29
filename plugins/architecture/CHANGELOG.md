@@ -3,6 +3,21 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-09-29
+
+### Added
+
+- `map-containers` reads search-index stores (Elasticsearch, OpenSearch, Azure AI
+  Search) from connection configuration and labels them with their technology.
+- `map-containers` draws a cited `uses` edge from a deployable to another
+  deployable in the same system when a configured base URL or endpoint resolves to
+  it. An endpoint that resolves to nothing stays an external reference.
+
+### Changed
+
+- `redact-connection.awk` redacts the local HTTP endpoint values the new edges
+  read, with a no-leak fixture; its existing rules are unchanged.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added
