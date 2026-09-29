@@ -778,7 +778,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
 | Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
-| Skill argument-hint house style | [`docs/conventions/argument-hint/`](conventions/argument-hint/README.md) |
+| Skill argument shape: action, earned `--flag` modifiers, subject, and `argument-hint` form | [`docs/conventions/skill-argument-shape/`](conventions/skill-argument-shape/README.md) |
+| Skill `argument-hint` string style: 100-character budget, punctuation, no prose, no empty hint | [`docs/conventions/argument-hint/`](conventions/argument-hint/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |

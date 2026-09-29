@@ -55,8 +55,9 @@ A skill that omits the key is silent under this check.
 
 ## What this convention is not
 
-- It does not choose positional words versus `--flags`. That shape is
-  [#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001), still open.
+- It does not choose positional words versus `--flags`, or the order of action, modifiers, and
+  subject. The [skill argument shape](../skill-argument-shape/README.md) owns that; this doc owns
+  only how the hint string is written.
 - It does not declare `arguments:` or describe substitution. That is a separate concern.
 - It does not restate the setup `check` / `apply` contract. plugin-philosophy owns that, and the
   same validator already enforces the leading `check`.

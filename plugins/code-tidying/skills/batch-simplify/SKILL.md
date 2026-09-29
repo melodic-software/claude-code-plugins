@@ -2,13 +2,13 @@
 description: "Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [path...] [docs] [override]"
+argument-hint: "[time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
 
-**Arguments.** `[time-window | branch | repo] [path...] [docs] [override]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
+**Arguments.** `[time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
 
 ## Repository context. Gather first
 
@@ -100,6 +100,10 @@ Append `override` to any mode to lift the **GLOBAL HARD path list** for this swe
 It reaches path entries only. The append-only / historical-record protection in Phase 2 is a separate contract that no channel lifts (a bulk edit there rewrites history), and so are the behavioral guards, the work-tracking entries, and SELF-UPDATE EXTRA HARD. Every lifted path is named in the Phase 8 report with the channel that lifted it.
 
 Two standing channels lift the same list without the flag: a root-relative glob in the repo's tracked `.claude/code-tidying/exclusion-overrides.md`, and the `hard_exclusions: advisory` userConfig posture. Precedence per path is argument, then repository file, then userConfig, then enforced. Full contract: the tidy skill's [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) section 4.
+
+### Flag: `in-place`
+
+Append `in-place` or `in-place=commit` to repo mode to run on the current branch with no new branch and no PR. Detected and stripped exactly like `docs`. `in-place` leaves the run's changes staged; `in-place=commit` makes one commit of them. The diff-scoped modes already leave uncommitted working-tree edits, so the flag changes nothing there. Rules: [context/repo-mode.md](context/repo-mode.md) "Delivery".
 
 ## Workflow
 
@@ -210,7 +214,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6 a
    - **Needs-human**. HUMAN-DECISION and PROTECTED items: a behavior or public-API question, product judgment, or an excluded class this skill must not edit.
    - **Too-large**. A genuinely huge refactor whose scope would dwarf the sweep itself. Be skeptical before granting this: "large" is not "too large"; the bar is work that would need its own planned effort, not just many edits.
 
-3. **Run a resolution wave** for the Fix-now items: spawn agents with the same Phase 6 spawn contract (same verification, and in repo mode the same refutation verifier). The wave's edits land exactly like the primary wave's: uncommitted working-tree changes in the diff-scoped modes, commits on the run's single branch in repo mode. Give each agent the complete file set its concern spans, every consolidated site plus every file a CROSS-GROUP ground named, so the wave boundary that forced the deferral is actually gone and CROSS-GROUP cannot legitimately recur. If an agent still discovers a genuinely new file mid-task, fold it into that item's file list and re-dispatch the item once. One resolution wave plus that single re-dispatch, no further recursion: an item still deferred after it goes to the Phase 8 report carrying its recorded ground, whatever that ground is.
+3. **Run a resolution wave** for the Fix-now items: spawn agents with the same Phase 6 spawn contract (same verification, and in repo mode the same refutation verifier). The wave's edits land exactly like the primary wave's: uncommitted working-tree changes in the diff-scoped modes, commits on the run's single branch in repo mode (staged, under `in-place`). Give each agent the complete file set its concern spans, every consolidated site plus every file a CROSS-GROUP ground named, so the wave boundary that forced the deferral is actually gone and CROSS-GROUP cannot legitimately recur. If an agent still discovers a genuinely new file mid-task, fold it into that item's file list and re-dispatch the item once. One resolution wave plus that single re-dispatch, no further recursion: an item still deferred after it goes to the Phase 8 report carrying its recorded ground, whatever that ground is.
 
 4. **Report the remainder, do not file it.** Needs-human items, Too-large items, and anything the resolution wave still could not finish go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Each reported item carries a `Basis:` for its recommended disposition, `verified` with the `file:line` or tool output, or `judgment` (never for a consequential item: cross-repo, shared infrastructure, irreversible, or security). A consequential disposition that cannot be settled is withheld: report the open question and the evidence that would settle it instead of a recommendation. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label). Do not file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
 

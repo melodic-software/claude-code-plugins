@@ -7,6 +7,15 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Consumer gotchas reader wiring, 2026-09-28
+
+- **`bugs` concatenates consumer `## Gotchas` at skill load (#3547).** `/bugs:scan` and
+  `/bugs:write` pre-compute `scripts/concat-gotchas.sh` over the three cascade layers, applying
+  the 1.3 special-root classification: a home-rooted or non-repository root reads user-global
+  only, and a layer path that names the user-global file is not read twice. The
+  participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
+  `contract_version` bump: plugin reader, not a contract rule change.
+
 ## [1.3] - 2026-09-28
 
 Additive classification (minor bump): a new resolution step that does not change precedence

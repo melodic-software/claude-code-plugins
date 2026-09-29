@@ -3,13 +3,26 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.43] - 2026-09-28
+## [0.23.44] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `audit`, `setup` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.23.43] - 2026-09-28
+
+### Added
+
+- **`/repo-fleet-hygiene:sync`** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
+  Bare invocation prints a dry-run plan. `--apply` fast-forwards each canonical checkout onto the
+  remote default branch after one confirmation (`--yes` when there is no terminal, passed only
+  after the user has seen the dry-run plan and explicitly said to go ahead). Dirty work is
+  parked in a linked worktree. Non-fast-forward, dubious ownership, and a partial stash apply are
+  skipped and reported. Scope with no arguments uses named paths, then `ghq` roots, then the
+  working directory, else exit 3. `audit` uses that same fallback and still does not treat the
+  project directory as a repo.
 
 ## [0.23.42] - 2026-09-28
 

@@ -1,6 +1,6 @@
 ---
 description: "Proactively hunt a rotated lane for safe structural improvements (Beck tidyings) and ship one tight structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items."
-argument-hint: "[<lane> | <glob>... | dry-run [<lane> | <glob>...] | self-update | help] [override]"
+argument-hint: "[<lane>|<glob>... | dry-run [<lane>|<glob>...] | self-update | help] [override] [in-place[=commit]]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
@@ -73,6 +73,7 @@ Parse `$ARGUMENTS` to determine the action:
 | `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
 | `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this lane's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a lane is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
+| `in-place` or `in-place=commit` (flag, combines with the smart default, `<lane>`, and `override`) | **Run on the current branch, no branch, no PR** | A caller already holds the branch and PR (a repo-sweep playbook, a feature branch). Strip the token before reading the rest of `$ARGUMENTS`, matched whole like `override`. Phase B stays on the current branch and refuses the default branch; Phase E stages tidyings without committing; Phase H opens no PR and posts no comment, and prints its report to the user instead. `in-place` leaves the changes staged; `in-place=commit` makes one commit of them. The backlog throttle does not apply; every other gate (exclusions, scope budget, verification, self-review) still runs, measured on the staged diff. |
 
 ## Lane catalog
 
@@ -141,12 +142,16 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 1. Resolve lane from `$ARGUMENTS` per Action Router. Empty arg → infer from current branch / recent commits / git status; if ambiguous, ask the user.
 2. Load the lane per **Lane resolution** above. Read the full file(s). When a project lane declares `## Merge semantics`, read **both** the project and bundled layers and merge per that declaration (e.g. project `Scope` replaces bundled globs; project watch-for entries append to the bundled ones); otherwise read the single resolved file. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
-4. Backlog throttle, if ≥3 open PRs match `chore/tidy-*` (see pre-computed context above), STOP. Surface a one-line note to the user and exit cleanly. Do NOT pile on.
+4. Backlog throttle (skipped under `in-place`), if ≥3 open PRs match `chore/tidy-*` (see pre-computed context above), STOP. Surface a one-line note to the user and exit cleanly. Do NOT pile on.
 5. Find anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if no merged PRs yet). The anchor establishes the "what's drifted since last sweep" baseline.
 
 ### Phase B. Branch
 
 `git checkout -b chore/tidy-<lane>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch, a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
+
+**`in-place`:** create no branch; stay on the current one. If it is the default branch, or the
+index already holds staged changes, stop and tell the user: the staged set this run hands back
+(or commits under `in-place=commit`) must be the tidyings alone.
 
 ### Phase C. Explore + research
 
@@ -173,6 +178,7 @@ If the hunt finds zero applicable improvements: clean exit, NO PR. Do not produc
 3. `git add <path>` only, never `-A` or `.` (parallel-session WIP can sneak in).
 4. Pre-flight every file with `git diff <path>` *before* staging. After staging, use `git diff --cached <path>` to confirm only the tidying went in.
 5. Commit messages follow Conventional Commits with the lane's default type (e.g., `refactor:` for code lanes, `docs:` for prose lanes, `chore:` for tooling).
+6. **`in-place`:** stage each tidying per steps 3-4 but do not commit; Phase H handles it.
 
 ### Phase F. Verify
 
@@ -180,14 +186,19 @@ Tidying is behavior-preserving, so verification must confirm exactly that: run t
 
 ### Phase G. Self-review + simplify
 
-1. Review the full diff yourself (`git diff origin/<default-branch>...HEAD`) hunting for accidental behavior change, scope creep, and convention violations. Drive real findings to zero before push.
-2. Run `/simplify` on the touched files (NOT scope creep. Only files already edited). Rebuild and re-verify after simplify.
+1. Review the full diff yourself (`git diff origin/<default-branch>...HEAD`; under `in-place`, `git diff --cached`) hunting for accidental behavior change, scope creep, and convention violations. Drive real findings to zero before push.
+2. Run `/simplify` on the touched files (NOT scope creep. Only files already edited). Rebuild and re-verify after simplify. Under `in-place`, stage what `/simplify` changed and re-review `git diff --cached` so Phase H ships it.
 
 Self-review by the producing context is enough here, a fresh-context verifier is the rule where a verdict is subjective, but tidying is behavior-preserving and Phase F is an objective build/test/lint pass/fail. A change that turns out behavioral fails Phase F and is backed out (Gotchas), never verdict-reviewed into acceptance.
 
 ### Phase H. Ship
 
-Never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
+**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged;
+`in-place=commit` makes one commit of them, titled per the format below (via
+`/source-control:commit` when installed). Print to the user the title, Summary, Test plan, and
+the audit-trail sections below that would have gone to the PR, then stop.
+
+Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
 
 If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content, the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
 
@@ -267,8 +278,8 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Summary:
 
 - Every item the scope budget cuts becomes one filed work item.
 - Title format: `<conv-type>(<area>): <what>`.
-- Body must include: rationale, file list, scope estimate (LOC + files), and a link to the parent tidy PR.
-- Phase H's "Deferred items" follow-up comment (or, when `source-control` isn't installed, the PR body's own "Deferred items" section) links every filed item by number.
+- Body must include: rationale, file list, scope estimate (LOC + files), and a link to the parent tidy PR (under `in-place`, the branch name).
+- Phase H's "Deferred items" follow-up comment (or, when `source-control` isn't installed, the PR body's own "Deferred items" section; under `in-place`, the printed report) links every filed item by number.
 
 ## Boundary, the bundled `simplify` skill
 
