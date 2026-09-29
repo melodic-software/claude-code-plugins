@@ -188,8 +188,8 @@ dispositions to hand-written markdown only: a file whose head carries a generate
 reported and routed to the human, and its finding names the generator's input as the fix site.
 
 **`${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh --topic <topic-slug>` keeps that ledger:** `init`
-(creates it, or reports that it exists on a resume), `close <file>`, `spend <n>`, `cache-add`,
-`cache-check`, and `status`. It checks an entry's shape and the spend's arithmetic, and nothing
+(creates it under a sweep id, or reports that it exists on a resume), `close <file>`, `spend <n>`,
+`cache-add`, `cache-check`, and `status`, which lists the closed files a resume skips. It checks an entry's shape and the spend's arithmetic, and nothing
 more. It cannot tell whether a disposition is right or whether every finding in a file is
 accounted for, so each field stays the run's own claim.
 
@@ -206,7 +206,8 @@ unseen means reporting on a body nobody in this sweep read.
 **The ledger is checkout-local.** It lives under this checkout's `.work/` and is never tracked,
 so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: `status`
 there says so, it carries no closures, no spend, and no cache, and the report says so rather than
-presenting itself as a continuation.
+presenting itself as a continuation. The ledger names the sweep id and the checkout it started
+in, so a copy carried to another checkout is refused (exit 3) rather than resumed.
 
 ## Configuration
 

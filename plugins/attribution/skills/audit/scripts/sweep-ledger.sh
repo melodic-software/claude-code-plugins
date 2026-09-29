@@ -16,7 +16,10 @@
 # an entry and is never asserted here; every field is the run's own claim.
 #
 # The ledger is `.work/SLUG/sweep-ledger.md` under the checkout's toplevel, so a
-# worktree keeps its own and no other checkout sees it. The script reads and
+# worktree keeps its own and no other checkout sees it. `init` writes the sweep's
+# id and the checkout it started in on the first line after the header, and every
+# call refuses a ledger that does not name this checkout, so a copy carried to
+# another checkout is not resumed as the same sweep. The script reads and
 # writes that one file, plus the config cascade for `budgets.corpus_fetch_ceiling`.
 # It is append-only: the running spend is the sum of the `spend` lines, and the
 # newest `cache` line for a URL wins.
@@ -24,7 +27,8 @@
 # Contract: reference/dispositions.md "Sweep closure".
 # Exit: 0 on success, 1 when `status` finds spend at or over the ceiling, 2 on
 # usage or input error (a `close` missing a field included), 3 when the ledger's
-# state refuses the call (no ledger for a write, a file already closed), 4 when
+# state refuses the call (no ledger for a write, a file already closed, a ledger
+# from another checkout), 4 when
 # `status` needs jq to read the config layers and it is absent, 5 when the ledger
 # could not be written.
 set -uo pipefail
@@ -57,16 +61,16 @@ Usage:
   sweep-ledger.sh --topic SLUG status
   sweep-ledger.sh [--topic SLUG] --show-config
 
-  init         create the ledger, or report that it exists (a resume)
+  init         create the ledger with a sweep id, or report that it exists (a resume)
   close        record a closed file; refuses a missing field or a file already closed
   spend        add N fetches to the running total
   cache-add    record a fetched source with its hash and fetch time
   cache-check  look a source up; a hit is reported for re-validation, never as reusable
-  status       closed files, spend against corpus_fetch_ceiling, cache size; exits 1
-               when spend is at or over the ceiling
+  status       sweep id, closed files, spend against corpus_fetch_ceiling, cache size;
+               exits 1 when spend is at or over the ceiling
 
 Values may not contain a newline or '|'. A ledger is checkout-local: none here means
-a new sweep.
+a new sweep, and a ledger copied in from another checkout is refused (exit 3).
 EOF
 }
 
@@ -176,16 +180,27 @@ append() {
 }
 
 SPEND=0
+SWEEP_ID=""
+SWEEP_ROOT=""
+SWEEP_AT=""
 declare -A CLOSED=()
 declare -A CACHE=()
 
-# load_ledger: one pass over the ledger, filling SPEND, CLOSED (file set) and CACHE
-# (URL to "sha256 | fetch time", the newest line winning).
+# load_ledger: one pass over the ledger, filling SWEEP_*, SPEND, CLOSED (file set)
+# and CACHE (URL to "sha256 | fetch time", the newest line winning). A ledger that
+# does not record this checkout is refused: a copy carried here is not this sweep.
 load_ledger() {
   local line rest n
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     case "$line" in
+    "- sweep: "*)
+      rest="${line#- sweep: }"
+      SWEEP_ID="${rest%% | checkout: *}"
+      rest="${rest#* | checkout: }"
+      SWEEP_ROOT="${rest%% | started: *}"
+      SWEEP_AT="${rest#* | started: }"
+      ;;
     "- spend: "*)
       n="${line#- spend: }"
       [[ "$n" =~ ^[0-9]+$ ]] && SPEND=$((SPEND + 10#$n))
@@ -201,6 +216,8 @@ load_ledger() {
     *) ;;
     esac
   done <"$LEDGER"
+  [[ "$SWEEP_ROOT" == "$REPO_ROOT" ]] ||
+    die 3 "$LEDGER is not this checkout's sweep (${SWEEP_ID:-no sweep line}, started in ${SWEEP_ROOT:-no checkout recorded}): this is a new sweep; move the file aside to start one here"
 }
 
 # need_ledger: every subcommand but init and a bare status refuses without one.
@@ -215,16 +232,20 @@ case "$CMD" in
 init)
   want 0 "no arguments"
   if [[ -f "$LEDGER" ]]; then
-    echo "ledger exists: $LEDGER (a resume; run status)"
+    load_ledger
+    echo "ledger exists: $LEDGER (a resume of sweep $SWEEP_ID; run status)"
   else
     mkdir -p "$(dirname "$LEDGER")" || die 5 "cannot create $(dirname "$LEDGER")"
+    at="$(now)"
+    SWEEP_ID="$TOPIC-${at//[-:]/}"
     printf '%s\n' \
       "# Sweep ledger" \
       "" \
       "Checkout-local and never tracked. One appended line per event: the running spend is the" \
       "sum of the \`spend\` lines, and the newest \`cache\` line for a URL wins." \
-      "" >"$LEDGER" || die 5 "cannot write $LEDGER"
-    echo "created: $LEDGER"
+      "" \
+      "- sweep: $SWEEP_ID | checkout: $REPO_ROOT | started: $at" >"$LEDGER" || die 5 "cannot write $LEDGER"
+    echo "created: $LEDGER (sweep $SWEEP_ID)"
   fi
   ;;
 close)
@@ -289,7 +310,9 @@ status)
     die 4 "jq is required to read corpus_fetch_ceiling from the config layers"
   load_ledger
   echo "ledger: $LEDGER"
+  echo "sweep: $SWEEP_ID (started $SWEEP_AT)"
   echo "closed files: ${#CLOSED[@]}"
+  [[ "${#CLOSED[@]}" -eq 0 ]] || printf '  %s\n' "${!CLOSED[@]}" | sort
   echo "spend: $SPEND of $CEILING corpus_fetch_ceiling $CEILING_LABEL"
   echo "cache entries: ${#CACHE[@]}"
   if [[ "$SPEND" -ge "$CEILING" ]]; then

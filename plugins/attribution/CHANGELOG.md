@@ -27,20 +27,23 @@
 - **`scripts/sweep-ledger.sh` keeps the sweep ledger.** `init`, `close <file>`, `spend <n>`,
   `cache-add`, `cache-check`, and `status` manage `.work/<topic-slug>/sweep-ledger.md` in the
   current checkout, so a resumed sweep restores its closures, its running fetch spend and its
-  source cache instead of relying on a hand-kept file. `close` refuses an entry missing the file,
-  the dispositions or any of the four guard outcomes, and a file already closed, and stamps the
-  running spend on each closure. `spend` sums across separate invocations. `cache-check` reports a
-  hit for re-validation with its recorded hash and fetch time, never as something to reuse.
-  `status` prints closed files, spend against `corpus_fetch_ceiling` (read through the config
-  layers) and the cache size, and exits 1 once spend reaches the ceiling. With no ledger in the
-  checkout it says `no ledger here: this is a new sweep (no closures, no spend, no cache)`.
+  source cache instead of relying on a hand-kept file. `init` gives the sweep an id and records the
+  checkout it started in; every call refuses, with exit 3, a ledger that names another checkout or
+  none, so a copy carried elsewhere is a new sweep, not a resume. `close` refuses an entry missing
+  the file, the dispositions or any of the four guard outcomes, and a file already closed, and
+  stamps the running spend on each closure. `spend` sums across separate invocations.
+  `cache-check` reports a hit for re-validation with its recorded hash and fetch time, never as
+  something to reuse. `status` prints the sweep id, the closed files, spend against
+  `corpus_fetch_ceiling` (read through the config layers) and the cache size, and exits 1 once
+  spend reaches the ceiling. With no ledger in the checkout it says
+  `no ledger here: this is a new sweep (no closures, no spend, no cache)`.
 
   **The script checks an entry's shape and the spend's arithmetic, not whether a disposition is
   right.** It cannot know how many findings a file had, so every field remains the run's own
   claim. `SKILL.md` "Sweep", `reference/dispositions.md` "Sweep closure" and
   `reference/source-fetch.md` "Budgets, caching, and stopping" no longer say the ledger is written
   by hand. The 0.5.1 entry recording that no machinery existed is left as recorded. The suite is
-  `scripts/sweep-ledger.test.sh` (Refs #3465).
+  `scripts/sweep-ledger.test.sh` (#5353, Refs #3465).
 
 ### Changed
 

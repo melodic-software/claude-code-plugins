@@ -151,8 +151,9 @@ keeps it: `spend` adds fetches to the total, `cache-add` and `cache-check` recor
 source, and `status` exits non-zero once the total reaches `corpus_fetch_ceiling`. The run still
 has to call them, and the script checks arithmetic, never whether a fetch was worth spending. The
 ledger is checkout-local, so a sweep resumed in a different checkout has no spend and no cache to
-restore and is a new sweep. `SKILL.md` "Sweep" and `reference/dispositions.md` "Sweep closure"
-carry the resume rules and the entry's fields.
+restore and is a new sweep, and a ledger copied there is refused. The cache entries are the run's
+own record, and `emit-findings.sh` never reads the ledger. `SKILL.md` "Sweep" and
+`reference/dispositions.md` "Sweep closure" carry the resume rules and the entry's fields.
 
 Exhausting a budget produces the neutral outcome, not a failure and not a negative verdict:
 `source not identified (budget exhausted; searched: ...)`, naming every surface checked. Absence

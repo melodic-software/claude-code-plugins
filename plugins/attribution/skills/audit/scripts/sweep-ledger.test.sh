@@ -67,11 +67,14 @@ OTHER="$TEST_TMPDIR/other-checkout"
 for d in "$REPO" "$OTHER"; do
   mkdir -p "$d"
   git -C "$d" init -q
+  printf '%s\n' '.work/' >"$d/.git/info/exclude"
 done
 # The script names the ledger from git's own spelling of the toplevel, which is not
 # the mktemp spelling on macOS (/private/var) or Git for Windows (C:/...).
 REPO="$(git -C "$REPO" rev-parse --show-toplevel)"
+OTHER="$(git -C "$OTHER" rev-parse --show-toplevel)"
 LEDGER="$REPO/.work/t1/sweep-ledger.md"
+OTHER_LEDGER_DIR="$OTHER/.work/t1"
 
 # run <args...>: the script from inside the first checkout, stdout and stderr together.
 run() { (cd "$REPO" && bash "$LEDGER_SH" "$@" 2>&1); }
@@ -119,11 +122,19 @@ OUT="$(run --topic t1 init)"
 assert_exit "init exits 0" "$?" "0"
 assert_contains "init reports the ledger it created" "$OUT" "created: $LEDGER"
 assert_eq "init creates the ledger under the checkout's .work" "$([[ -f "$LEDGER" ]] && echo yes || echo no)" "yes"
+assert_contains "init records a sweep id" "$(cat "$LEDGER")" "- sweep: t1-20"
+assert_contains "init records the checkout the sweep started in" "$(cat "$LEDGER")" "| checkout: $REPO | started: 20"
+SWEEP_LINE="$(grep '^- sweep: ' "$LEDGER")"
+SWEEP_ID_T1="${SWEEP_LINE#- sweep: }"
+SWEEP_ID_T1="${SWEEP_ID_T1%% | *}"
 
 run --topic t1 spend 5 >/dev/null
 OUT="$(run --topic t1 init)"
 assert_exit "a second init exits 0" "$?" "0"
 assert_contains "a second init reports the ledger already exists" "$OUT" "ledger exists"
+assert_contains "a second init names the sweep it resumes" "$OUT" "a resume of sweep t1-20"
+assert_eq "a second init keeps the sweep line" "$(grep '^- sweep: ' "$LEDGER")" "$SWEEP_LINE"
+assert_contains "status names the sweep" "$(run --topic t1 status)" "sweep: t1-20"
 assert_contains "a second init leaves the recorded spend alone" "$(run --topic t1 status)" "spend: 5 of"
 
 # --- close -----------------------------------------------------------------------
@@ -159,7 +170,10 @@ assert_exit "a ./ spelling of a closed file is still a duplicate" "$?" "3"
 assert_contains "the duplicate is not recorded" "$(run --topic t1 status)" "closed files: 1"
 
 run --topic t1 close docs/b.md "${CLOSE_FIELDS[@]}" >/dev/null
-assert_contains "a second file counts" "$(run --topic t1 status)" "closed files: 2"
+OUT="$(run --topic t1 status)"
+assert_contains "a second file counts" "$OUT" "closed files: 2"
+assert_contains "status lists the first closed file for a resume to skip" "$OUT" "  docs/a.md"
+assert_contains "status lists the second closed file for a resume to skip" "$OUT" "  docs/b.md"
 
 # --- spend: accumulation across invocations (the resume case) --------------------
 
@@ -249,6 +263,38 @@ assert_eq "another checkout sees a new sweep, not this one's ledger" "$OUT" \
   "no ledger here: this is a new sweep (no closures, no spend, no cache)"
 OUT="$(run_other --topic t1 cache-check "$URL")"
 assert_exit "another checkout has no cache to look in" "$?" "3"
+
+# A ledger file copied into another checkout is refused, not resumed as the same
+# sweep: it names the checkout it started in.
+mkdir -p "$OTHER_LEDGER_DIR"
+cp "$LEDGER" "$OTHER_LEDGER_DIR/sweep-ledger.md"
+BEFORE="$(cat "$OTHER_LEDGER_DIR/sweep-ledger.md")"
+OUT="$(run_other --topic t1 status)"
+assert_exit "status on a copied ledger exits 3" "$?" "3"
+assert_contains "a copied ledger is called a new sweep" "$OUT" "this is a new sweep"
+assert_contains "a copied ledger names its sweep and the checkout it started in" "$OUT" "($SWEEP_ID_T1, started in $REPO)"
+OUT="$(run_other --topic t1 spend 1)"
+assert_exit "spend on a copied ledger exits 3" "$?" "3"
+OUT="$(run_other --topic t1 close docs/c.md "${CLOSE_FIELDS[@]}")"
+assert_exit "close on a copied ledger exits 3" "$?" "3"
+OUT="$(run_other --topic t1 cache-check "$URL")"
+assert_exit "cache-check on a copied ledger exits 3, the cache is not reused" "$?" "3"
+OUT="$(run_other --topic t1 init)"
+assert_exit "init on a copied ledger exits 3, it is not adopted as a resume" "$?" "3"
+assert_eq "a refused copied ledger is left unchanged" "$(cat "$OTHER_LEDGER_DIR/sweep-ledger.md")" "$BEFORE"
+
+# A ledger with no sweep line (one not started by init) records no checkout and is
+# refused the same way.
+mkdir -p "$REPO/.work/hand"
+printf '%s\n' '# notes kept by hand' >"$REPO/.work/hand/sweep-ledger.md"
+OUT="$(run --topic hand status)"
+assert_exit "a ledger with no sweep line exits 3" "$?" "3"
+assert_contains "a ledger with no sweep line says so" "$OUT" "no sweep line"
+
+# Nothing but the ignored .work/ tree is written: no tracked or untracked file
+# appears in the checkout.
+assert_eq "the ledger is the only thing written, under the ignored .work/" \
+  "$(git -C "$REPO" status --porcelain --ignored)" "!! .work/"
 
 # --- --show-config -----------------------------------------------------------------
 

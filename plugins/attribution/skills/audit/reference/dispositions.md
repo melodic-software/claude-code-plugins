@@ -186,6 +186,7 @@ entry missing any of them cannot support a resume:
    it unseen.
 
 Fields 4 and 5 are what make the ceiling and the cache per-sweep rather than per-invocation. The
-ledger is checkout-local and never tracked; `SKILL.md` "Sweep" carries what a resume does with
+ledger opens with the sweep's id and the checkout it started in (`init` writes both), and every
+call refuses a ledger that names another checkout. The ledger is checkout-local and never tracked; `SKILL.md` "Sweep" carries what a resume does with
 these fields, and why a sweep resumed in a different checkout is a new sweep rather than a
 continuation of this one.
