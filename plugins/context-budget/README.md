@@ -54,9 +54,10 @@ disk. These routes change a settings file without an ask:
 
 For a signal that fires whatever wrote the file, Claude Code's `ConfigChange` hook event runs
 when a settings file changes during a session. It can stop the new settings from applying to the
-running session, but it cannot ask, it discards any message, and the file on disk has already
-changed. That is a different control from this one, and this plugin does not register it.
-Verified 2026-09-28 against Claude Code 2.1.280 at <https://code.claude.com/docs/en/hooks>
+running session (except for `policy_settings`), but it cannot ask, it discards `systemMessage`
+and surfaces no message for a block, and the file on disk has already changed. That is a
+different control from this one, and this plugin does not register it.
+Verified 2026-09-29 against Claude Code 2.1.284 at <https://code.claude.com/docs/en/hooks>
 ("ConfigChange" and "FileChanged", and the matcher table that filters PreToolUse on
 `tool_name`). Recheck when that page gives `ConfigChange` an `ask` outcome or a visible message,
 or gives PreToolUse a matcher on target path.
