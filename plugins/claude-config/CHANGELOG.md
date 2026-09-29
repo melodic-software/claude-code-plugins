@@ -3,11 +3,30 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.22] - 2026-09-28
+## [0.51.24] - 2026-09-28
 
 ### Changed
 
 - **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. A plugin without hooks is classified across every component type; an MCP or LSP server, executable, or monitor makes it non-derivable, and its skills, commands, and agents use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores each key to its prior project value (true, or absent). A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
+
+## [0.51.23] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-grants` criteria (#4583).** P2 cites `docs/plugin-philosophy.md` as the
+  doctrine owner for hardcoded consumer specifics; this skill keeps the permission-grant detector only.
+
+## [0.51.22] - 2026-09-28
+
+### Changed
+
+- **`unhobble` Phase 4 sends the deletions it keeps to a security pass**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The register
+  hold restores protected rules only. Before the experiment branch merges, the pull request
+  now runs `/review:security-review` when the `review` plugin is installed. That skill's
+  instruction-surface lens checks every rule left deleted for a guardrail nothing else
+  enforces. Without the plugin, the pull request body records that the retired rules got no
+  security pass.
 
 ## [0.51.21] - 2026-09-28
 

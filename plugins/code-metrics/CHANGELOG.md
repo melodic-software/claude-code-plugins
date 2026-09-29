@@ -3,6 +3,21 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.22] - 2026-09-28
+
+### Added
+
+- **`summary.files_excluded_only` counts files that survive only as sanctioned
+  exclusions.** `summary.files` still counts surviving clone rows. After
+  a total exclusion those files are no longer invisible next to the scope's
+  file count: resummarize and the markdown name them.
+- **Skill-body default sentences are pinned to `config-defaults.json`.**
+  `scripts/check-code-metrics-skill-prose.py` checks the duplication defaults (in
+  `audit-duplication` and the `principles` measures reference), the four `coverage.*`
+  defaults in `audit-coverage`, `type_debt.reference`, the cyclomatic reference, and the
+  file-length reference. The README known-gap that left those sentences unbound
+  is replaced by the gate.
+
 ## [0.3.21] - 2026-09-28
 
 ### Changed

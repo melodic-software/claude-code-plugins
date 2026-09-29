@@ -1230,6 +1230,27 @@ class CloneGroupRowTests(unittest.TestCase):
         self.assertEqual(out["status"], "complete")
         self.assertEqual(out["run"], doc["run"])
 
+    def test_excluded_only_files_are_counted_on_the_summary(self) -> None:
+        kept = clone_row("bash", "alpha/live.sh", "beta/live.sh", 4)
+        dropped = clone_row("bash", "alpha/shared/u.sh", "beta/shared/u.sh", 9)
+        doc = AssembleTests().assemble([], [kept], [])
+        doc["measures"] = [kept]
+        doc["excluded"] = [
+            {
+                "registry": "r.txt",
+                "line": 1,
+                "path": "shared/u.sh",
+                "instances": dropped["instances"],
+            }
+        ]
+        result = run("resummarize", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)["summary"]
+        self.assertEqual(summary["files"], 2)
+        self.assertEqual(summary["files_excluded_only"], 2)
+        rendered = run("render", stdin=json.dumps(json.loads(result.stdout)))
+        self.assertIn("summary.files_excluded_only", rendered.stdout)
+
 
 def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
     return {
@@ -1406,7 +1427,8 @@ class DuplicationRenderTests(unittest.TestCase):
         self.assertIn(
             "Excluded by a sanctioned-replication registry: 1. Files with clones counts "
             "surviving groups only, so the 2 file(s) holding nothing but excluded groups "
-            "are left out of it; the scope's file count is every file scanned.",
+            "are left out of it (summary.files_excluded_only); the scope's file count is "
+            "every file scanned.",
             out,
         )
 

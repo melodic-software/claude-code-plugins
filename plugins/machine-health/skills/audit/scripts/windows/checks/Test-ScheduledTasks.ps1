@@ -34,14 +34,15 @@ function Test-IsNeverRunScheduledTask {
 # Dot-source guard: lets Pester test the helper in isolation; & invocation skips it.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'scheduled-tasks'
 $category = 'reliability'
 $commands = @(
     'Get-ScheduledTask | Get-ScheduledTaskInfo | Where-Object { $_.LastTaskResult -ne 0 }'
 )
 
-try {
+$FailureSummary = 'Scheduled task check failed.'
+$PassThru = $false
+$CheckBody = {
     # \Microsoft\* tasks are OS housekeeping noise. 267014 (SCHED_S_TASK_TERMINATED) is
     # deliberately not filtered: termination is a real event worth surfacing.
     $tasks = @(Get-ScheduledTask -ErrorAction Stop |
@@ -83,9 +84,5 @@ try {
         failed_tasks = @($failed | Select-Object -First 20)
     } `
         -NeedsAdmin $false -RanSuccessfully $true
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Scheduled task check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-09-28
+
+### Changed
+
+- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes that use a file-write call it recognizes, and names `perl -i`, `tee`, a standalone `cp`, and `node -e` among the forms it does not detect.
+
 ## [0.7.1] - 2026-09-28
 
 ### Changed

@@ -15,7 +15,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Test-IsElevated.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WorstSeverity.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'disk-space'
 $category = 'storage'
 $commands = @(
@@ -52,7 +51,9 @@ function Get-WearSeverity {
     return 'OK'
 }
 
-try {
+$FailureSummary = 'Disk health check failed.'
+$PassThru = $false
+$CheckBody = {
     $volumes = [System.Collections.Generic.List[pscustomobject]]::new()
     # One ladder for volume and physical-disk sub-severities; Get-WorstSeverity
     # takes the max, so a single seeded 'OK' covers both empty collections.
@@ -175,9 +176,5 @@ try {
         -NeedsAdmin $false -RanSuccessfully $true `
         -AdminFields $adminFields `
         -Notes $adminNote
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Disk health check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

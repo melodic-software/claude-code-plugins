@@ -52,8 +52,9 @@ rather than becoming a plausible guess, and a repository nobody names produces n
 edge.
 
 A landscape that draws at most two systems or no edges is reported as thin, with
-the reason and what to run instead: `/architecture:improve` or
-`/discovery:explore` when the question is how one repository is built inside.
+the reason and what to run instead: `/architecture:map-components` when the
+question is the modules inside one deployable, `/architecture:improve` for
+module-design friction, or `/discovery:explore` for how the code behaves.
 
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
@@ -77,6 +78,56 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Below the landscape
+
+Each rung is its own skill. Facts come from a tested script. An edge cites the
+file and the matched text. Anything no probe derives stays `unknown`.
+
+`/architecture:map-dependencies` cites which project references which from build
+declarations. The first adapter is .NET `ProjectReference` and `PackageReference`.
+The record is `dependency-graph.json`. The human file is a mermaid flowchart. It
+reads no dialect key.
+
+`/architecture:map-components` draws the C4 component view of one deployable from
+that graph. When `dependency-graph.json` is already present it renders that file.
+Otherwise it runs `dependency-graph.sh`. The picture is `diagram_dialect.system`.
+
+`/architecture:map-events` charts who publishes which message and who consumes it.
+The shipped adapter is C# in the MassTransit shape. Orphan publishers and
+consumers are findings. The picture is a mermaid flowchart and reads no dialect
+key.
+
+`/architecture:map-flow` traces one C# route or method. Every hop cites a tracked
+call site. An interface, service locator, or reflection hop stays unresolved.
+The picture is a mermaid sequence diagram and reads no dialect key.
+
+`/architecture:map-containers` charts the deployables in one repository and the
+stores they bind. Kind comes from the project output, a host builder, a
+Dockerfile, or a process manifest. A directory name does not decide it.
+Credentials are stripped before the record is written. The picture is
+`diagram_dialect.system`.
+
+`/architecture:map-context` draws one focal system, the people an operator stated,
+and the external systems named by tracked configuration. Credentials never land
+in the artifact. Actors are not derived from names in the repository. The picture
+is `diagram_dialect.system`.
+
+`/architecture:map-data` draws an entity-relationship diagram from tracked schema
+declarations and does not open a database connection. The dialect is
+`diagram_dialect.data` (`mermaid` or `dbml`, default `mermaid`). `--live` is
+refused.
+
+`/architecture:map-deployment` draws a C4 deployment view from tracked Docker
+Compose and Kubernetes manifests, one diagram per environment. `--diff` lists
+declared differences. Every emitted value passes the shared connection
+redactor. The picture is `diagram_dialect.system`. Terraform, Pulumi, Bicep, CloudFormation, Helm, and
+Kustomize are named and then the run stops. `--live` is refused.
+
+`/architecture:map-states` draws one entity from an explicit XState `createMachine`
+block or a Stateless `Configure`/`Permit` table. Unreachable and dead-end states
+are findings. Ad hoc status assignments are a refusal. The picture is a mermaid
+`stateDiagram-v2`. It reads no dialect key.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +149,15 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-dependencies
+/architecture:map-components
+/architecture:map-events
+/architecture:map-flow <entry>
+/architecture:map-containers
+/architecture:map-context
+/architecture:map-data
+/architecture:map-deployment --diff staging prod
+/architecture:map-states <entity>
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,17 +167,27 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map
+dependencies", "component diagram", "map events", "trace this route", "map
+containers", "system context", "entity relationship", "deployment diagram",
+"state diagram".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+Every `map-*` skill reads `architecture_dir` (repo-relative, no default) from a
+topic doc at your repository's convention home, `<home>/architecture/README.md`.
+`landscape_dialect` (`structurizr` or `mermaid`, default `mermaid`) is the
+landscape picture alone. The components, context, containers, and deployment
+views read `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default: unset
+draws no C4 view) and `map-data` reads `diagram_dialect.data`, both from the
+authoring-formats topic doc. Flow, events, dependencies, and states are mermaid
+and read no dialect key.
+Optional `component_layers` is the outside-to-inside list
+`/architecture:map-components --group-by layer` reads. The contract, including
+which skill reads which key, lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
+`architecture_dir` declared and none confirmed, the map skills stop and point
 at setup rather than choosing a directory for you.
 
 ## Persistence
@@ -135,8 +205,8 @@ either way.
 This plugin has no `userConfig`. It adapts to your project through your
 project's own context: its glossary (if any), its architecture decision records,
 and its work-artifact convention. There is nothing to hand-edit in the plugin.
-The two `map-landscape` keys are consumer-side, not plugin-side; see Consumer
-configuration above.
+The map keys are consumer-side, not plugin-side; see Consumer configuration
+above.
 
 ## Install
 

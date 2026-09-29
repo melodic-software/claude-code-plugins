@@ -297,7 +297,11 @@ rows after real work is a licensed permanent deletion.
    defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
-   repo's normal PR flow.
+   repo's normal PR flow. The register hold covers only protected rules, so before that merge run
+   `/review:security-review` against the pull request (if the `review` plugin is installed). Its
+   instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
+   enforces. Without the plugin, record in the pull request body that the retired rules got no
+   security pass.
 
 ## Cadence wiring (optional)
 
