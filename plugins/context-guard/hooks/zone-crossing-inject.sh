@@ -322,8 +322,11 @@ cg::leading_scalar_object() {
 
 # Session id and event from a payload this hook can prove without jq and
 # without hook-utils. The scan stops at the first nested value, so a
-# tool-result that repeats these keys is not read. A backslash is an escape
-# the builtin below does not decode; that payload takes the full parser.
+# tool-result that repeats these keys is not read. The header may carry
+# backslashes: Windows paths in transcript_path and cwd do, and they precede
+# tool_calls. A key text inside another string is escaped, so it does not match
+# the quoted key; the one form that does (`\"session_id"`) makes the key appear
+# twice and falls back. An escape inside either id value falls back too.
 # Returns 1 when the two fields are not both plain strings.
 cg_prove_scalar_ids() {
   local s="$1" header ev="" sid=""
@@ -336,7 +339,6 @@ cg_prove_scalar_ids() {
     ((${#s} <= 65536)) || return 1
     [[ "$s" == '{'* ]] || return 1
   fi
-  [[ "$header" != *\\* ]] || return 1
   cg_json_plain_string "$header" hook_event_name ev || return 1
   cg_json_plain_string "$header" session_id sid || return 1
   [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
@@ -348,11 +350,12 @@ cg_prove_scalar_ids() {
 # <json> <key> <varname>. The key appears once, and the value has no escape.
 cg_json_plain_string() {
   local s="$1" key="$2" rest stripped count
+  local re='^[[:space:]]*:[[:space:]]*"([^"\]*)"'
   stripped=${s//"\"$key\""/}
   count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
   ((count == 1)) || return 1
   rest=${s#*"\"$key\""}
-  [[ "$rest" =~ ^[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || return 1
+  [[ "$rest" =~ $re ]] || return 1
   # printf -v, not a nameref: namerefs need bash 4.3 and this plugin supports 3.2.
   printf -v "$3" '%s' "${BASH_REMATCH[1]}"
 }

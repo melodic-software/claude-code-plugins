@@ -1088,6 +1088,186 @@ else
   fail "oversize fallback suppressed injection: rc=$AFTER_RC out=${AFTER_OUT:0:120}"
 fi
 
+# --- Windows-shaped payloads keep the builtin id proof (#4392) ----------------
+# Claude Code puts transcript_path and cwd ahead of tool_calls, and on Windows
+# both carry backslashes: `\\` per separator, `\"` for a quote. A header-wide
+# backslash test used to send every such payload through hook-utils.sh (about
+# five milliseconds to source, far more on Windows) and jq. Now only the two id
+# values must be plain.
+#
+# Payloads are single-quoted text printed with %s, never a printf format: a
+# format would turn `\\` into `\` and `\"` into `"`, and the fixture would test
+# a different payload than the one written. Each is also checked to be JSON,
+# which is what makes an accepted or a refused proof mean something.
+#
+# The seam is the xtrace line for `source .../hook-utils.sh`. A fire that emits
+# loads the library legitimately, so "not sourced" is asserted on the steady
+# fire that follows a crossing, and "sourced" on the same fire for payloads that
+# must fall back. strace cannot see this: sourcing is in-process, and a payload
+# of 64 KiB or less parses with the builtin, so no process starts either way.
+
+# cw_payload <sid> <transcript_path> <cwd> [<filler> [<mode> [<event>]]]
+# sid, paths and event are the raw text between the JSON quotes. Modes: default
+# is ids, paths, then tool_calls; `late` puts the paths first; `flat` has no
+# nested value at all.
+cw_payload() {
+  local sid="$1" tp="$2" cwd="$3" filler="${4:-ok}" mode="${5:-}" event="${6:-PostToolBatch}"
+  local ids="\"session_id\":\"$sid\",\"hook_event_name\":\"$event\""
+  local paths="\"transcript_path\":\"$tp\",\"cwd\":\"$cwd\""
+  local nested=",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_response\":\"$filler\"}]}"
+  case $mode in
+  late) printf '%s' "{$paths,$ids$nested" ;;
+  flat) printf '%s' "{$ids,$paths}" ;;
+  *) printf '%s' "{$ids,$paths$nested" ;;
+  esac
+}
+
+# cw_fire <home> <data> <payload> <xtrace-log> → OUT, RC
+cw_fire() {
+  OUT=$(printf '%s' "$3" |
+    HOME="$1" CLAUDE_PLUGIN_DATA="$2" HOOK_TELEMETRY_SINK="" \
+      BASH_XTRACEFD=9 bash -x "$HOOK" 2>/dev/null 9>"$4")
+  RC=$?
+}
+cw_sourced() { grep -qE '^\++ (source|\.) .*hook-utils\.sh' "$1"; }
+cw_spawns() { grep -cE "$TRACE_PAT" "$1" | tr -cd '0-9'; }
+
+# cw_fast <label> <transcript_path> <cwd> [<filler> [<mode>]]: the payload with
+# Windows paths crosses exactly as its /tmp twin does, and the fire after it
+# proves the ids without hook-utils and without a process.
+cw_fast() {
+  local label="$1" tp="$2" cwd="$3" filler="${4:-ok}" mode="${5:-}" sid="w$1"
+  local pw pt out_w out_t f
+  local wh="$WORK/cw-$label-wh" wd="$WORK/cw-$label-wd"
+  local th="$WORK/cw-$label-th" td="$WORK/cw-$label-td"
+  local log="$WORK/cw-$label.xtrace"
+  pw=$(cw_payload "$sid" "$tp" "$cwd" "$filler" "$mode")
+  pt=$(cw_payload "$sid" /tmp /tmp "$filler" "$mode")
+  if ! jq -e . >/dev/null 2>&1 <<<"$pw"; then
+    fail "windows payload '$label': fixture is not valid JSON"
+    return
+  fi
+  write_snapshot "$wh" "$sid" 90
+  write_snapshot "$th" "$sid" 90
+  cw_fire "$wh" "$wd" "$pw" "$log.cross"
+  out_w=$OUT
+  cw_fire "$th" "$td" "$pt" "$log.twin"
+  out_t=$OUT
+  if [[ -n "$out_w" && "$out_w" == *additionalContext* && "$out_w" == *dumb* && "$out_w" == "$out_t" ]]; then
+    ok "windows payload '$label': crossing output is byte-identical to the /tmp twin"
+  else
+    fail "windows payload '$label': windows=[${out_w:0:160}] twin=[${out_t:0:160}]"
+  fi
+  for f in zone armed; do
+    if [[ -s "$wd/state/$sid.$f" && "$(cat "$wd/state/$sid.$f")" == "$(cat "$td/state/$sid.$f" 2>/dev/null)" ]]; then
+      ok "windows payload '$label': .$f state matches the twin"
+    else
+      fail "windows payload '$label': .$f state differs: [$(cat "$wd/state/$sid.$f" 2>/dev/null)] vs [$(cat "$td/state/$sid.$f" 2>/dev/null)]"
+    fi
+  done
+  cw_fire "$wh" "$wd" "$pw" "$log.steady"
+  if [[ $RC -eq 0 && -z "$OUT" ]] && ! cw_sourced "$log.steady" && [[ "$(cw_spawns "$log.steady")" == 0 ]]; then
+    ok "windows payload '$label': the steady fire proves the ids without hook-utils or a process"
+  else
+    fail "windows payload '$label': steady fire rc=$RC out=[${OUT:0:80}] sourced=$(cw_sourced "$log.steady" && echo yes || echo no) spawns=$(cw_spawns "$log.steady")"
+  fi
+}
+
+# cw_fall <label> <expected sid> <sourced: 0|1> <payload>: the payload resolves
+# the real ids, never the decoy id `x` a mis-proof would key on, and the steady
+# fire does (1) or does not (0) load hook-utils.
+cw_fall() {
+  local label="$1" want="$2" sourced="$3" p="$4"
+  local h="$WORK/cw-$label-h" d="$WORK/cw-$label-d" log="$WORK/cw-$label.xtrace"
+  local got=0
+  if ! jq -e . >/dev/null 2>&1 <<<"$p"; then
+    fail "windows payload '$label': fixture is not valid JSON"
+    return
+  fi
+  write_snapshot "$h" "$want" 90
+  write_snapshot "$h" x 90
+  cw_fire "$h" "$d" "$p" "$log.cross"
+  if [[ $RC -eq 0 && "$(cat "$d/state/$want.zone" 2>/dev/null)" == dumb && ! -e "$d/state/x.zone" ]] &&
+    jq -e '.hookSpecificOutput.hookEventName == "PostToolBatch"' >/dev/null 2>&1 <<<"$OUT"; then
+    ok "windows payload '$label': resolves '$want' and never the decoy id"
+  else
+    fail "windows payload '$label': rc=$RC state=[$(ls "$d/state" 2>&1)] out=[${OUT:0:120}]"
+  fi
+  cw_fire "$h" "$d" "$p" "$log.steady"
+  cw_sourced "$log.steady" && got=1
+  if [[ $RC -eq 0 && -z "$OUT" && "$got" == "$sourced" ]]; then
+    ok "windows payload '$label': steady fire sourced hook-utils=$got as expected"
+  else
+    fail "windows payload '$label': steady fire rc=$RC out=[${OUT:0:80}] sourced=$got, expected sourced=$sourced"
+  fi
+}
+
+# 1. Escaped backslashes and escaped quotes ahead of tool_calls take the fast
+# path. The rows cover a trailing `\\` before the closing quote, braces, brackets
+# and commas inside an escaped string, a \u escape, and the paths after the ids.
+cw_fast bs 'C:\\Users\\kyle\\.claude\\projects\\p\\k.jsonl' 'C:\\Users\\kyle\\repo'
+cw_fast q 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir'
+# shellcheck disable=SC1003  # JSON text ending in an escaped backslash
+cw_fast tail 'C:\\Users\\kyle\\t.jsonl' 'C:\\'
+# shellcheck disable=SC1003  # JSON text ending in an escaped backslash
+cw_fast punct 'C:\\a \"{,[\" b' 'D:\\x\\\"y\"\\'
+cw_fast uni 'C:\\Users\\k\u00e9\\t.jsonl' 'D:\\r'
+cw_fast late 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\"' ok late
+
+# 5. No nested value: the leading-object scan fails and the header is the whole
+# payload. The xtrace line is the `(( n <= 65536 ))` size guard only that branch
+# runs.
+cw_fast flat 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir' ok flat
+if grep -qE '^\++ \(\( [0-9]+ <= 65536 \)\)' "$WORK/cw-flat.xtrace.steady"; then
+  ok "windows payload 'flat': the whole-payload header branch ran"
+else
+  fail "windows payload 'flat': the whole-payload header branch did not run"
+fi
+
+# 6. An envelope past 64 KiB, Windows paths ahead of tool_calls.
+cw_fast big 'C:\\Users\\kyle\\.claude\\projects\\p\\g.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir' "$OVER"
+# shellcheck disable=SC1003  # JSON text ending in an escaped backslash
+cw_fast biglate 'C:\\Users\\kyle\\t.jsonl' 'C:\\' "$OVER" late
+if ((${#OVER} > 65536)); then
+  ok "windows payload 'big': the envelope is past the builtin parser's ceiling"
+else
+  fail "windows payload 'big': the envelope is not oversize"
+fi
+
+# 2. Escaped key text inside a value is never a key. The literal `"session_id"`
+# needs an unescaped closing quote, which `\"session_id\"` does not have, so the
+# real ids still prove on the fast path and the decoy `x` never resolves.
+cw_fall esc w2 0 "$(cw_payload w2 'C:\\a \"session_id\":\"x\" \"hook_event_name\":\"Fake\" b' 'D:\\c')"
+cw_fall esclate w2l 0 "$(cw_payload w2l 'C:\\a \"session_id\":\"x\" b' 'D:\\c \"hook_event_name\":\"Fake\"' ok late)"
+
+# 3. A quoted key text that is a real string in the header makes the key appear
+# twice, so the proof falls back and the full parser answers. The value equal to
+# the bare word, and the escaped-open-quote form that closes on the string's own
+# quote (`\"session_id"`), are the two spellings.
+cw_fall bare w3 1 "$(cw_payload w3 'C:\\a' 'session_id')"
+cw_fall bareev w3e 1 "$(cw_payload w3e 'C:\\a' 'hook_event_name')"
+cw_fall escopen w3o 1 "$(cw_payload w3o 'C:\\a' 'x\"session_id')"
+cw_fall escopenev w3p 1 "$(cw_payload w3p 'C:\\a' 'x\"hook_event_name' ok late)"
+
+# 4. An escape inside an id value falls back, and the full parser's answer is
+# what counts: \u0034 decodes to `4`, \u0054 to `T`.
+cw_fall idesc w4 1 "$(cw_payload 'w\u0034' 'C:\\a' 'D:\\d')"
+cw_fall evesc w4e 1 "$(cw_payload w4e 'C:\\a' 'D:\\d' ok '' 'Post\u0054oolBatch')"
+# An id that decodes to something outside the state-file class exits silently
+# and writes nothing, on the same path as before.
+for raw in 'a\\c' 'a\"b'; do
+  h="$WORK/cw-badid-h"
+  d="$WORK/cw-badid-d"
+  rm -rf "$h" "$d"
+  write_snapshot "$h" a 90
+  cw_fire "$h" "$d" "$(cw_payload "$raw" 'C:\\a' 'D:\\d')" "$WORK/cw-badid.xtrace"
+  if [[ $RC -eq 0 && -z "$OUT" && -z "$(ls -A "$d/state" 2>/dev/null)" ]] && cw_sourced "$WORK/cw-badid.xtrace"; then
+    ok "windows payload: id '$raw' falls back, then exits silently with no state"
+  else
+    fail "windows payload: id '$raw' rc=$RC out=[${OUT:0:80}] state=[$(ls "$d/state" 2>&1)]"
+  fi
+done
+
 # --- Redirection placement must not change what the hook emits ----------------
 # The fork reduction moved `2>/dev/null` off three command substitutions and
 # onto their enclosing groups. A group redirect covers everything in the group,
