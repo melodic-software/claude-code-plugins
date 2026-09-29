@@ -10,6 +10,27 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
 
 ## Lane reference
 
+### Coverage accounting
+
+Every in-scope source file is either covered or named. Covered means a lane took the file as input
+and reached `ran` or `degraded`. Uncovered files are one `Note: uncovered <path> — <reason>` line
+each, after `Summary coverage: covered=N uncovered=M`. The reasons are `no lane for the language`,
+`no manifest root`, `tool not installed`, `tool could not parse it`, and `lane not selected`.
+
+`files=` on a `Lane:` line is that input count, including `skipped` and `no-manifest`. `Summary
+total: files-with-findings=` is the number of files that emitted a candidate. A clean-result note
+is printed only when `uncovered=0`, some lane reached `ran`, and there are no candidates. Uncovered
+files suppress both that note and the scan-of-nothing note.
+
+`no-manifest` is the state when knip has no `package.json` root, or gopls has no `go.mod` root.
+`files=` is the real language count, which is zero only when no such file is in scope. A source
+file that sits outside every manifest root of its language is uncovered with `no manifest root`
+even when some other root ran. `skipped` stays the missing-or-uninvocable binary state.
+
+Source files with no lane are the extensions `dc_lang_of_path` classifies as `nolane` (Rust, .NET,
+JVM, Ruby, C and C++, and the other extensions named there). Docs, JSON, YAML, and other
+non-source paths are not in the coverage total.
+
 ### knip: TS/JS
 
 - **Invocation:** `knip --reporter json --no-progress`, run with cwd set to the **project root**,

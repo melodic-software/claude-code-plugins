@@ -193,6 +193,17 @@ NO_GIT=1
 run_case "root outside a git work tree has no team layer" $'(none)'
 NO_GIT=0
 
+# A root that differs from $HOME only in case is home on a case-insensitive
+# filesystem (Windows, macOS). Two real directories stand in for that here.
+HOME="${FIXTURES}/home-j/user"
+CLAUDE_PROJECT_DIR="${FIXTURES}/home-j/USER"
+mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"
+layer "$CLAUDE_PROJECT_DIR/.claude/bugs.md" '## Gotchas
+
+- Home in another case: not a team layer.
+'
+run_case "root equal to home up to case has no team layer" $'(none)'
+
 if [[ "$FAIL" -gt 0 ]]; then
   echo "concat-gotchas tests: $PASS passed, $FAIL failed"
   exit 1

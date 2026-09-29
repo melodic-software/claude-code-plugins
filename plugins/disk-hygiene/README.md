@@ -248,6 +248,15 @@ predicates and the baseline protected-name/root rules are non-overridable by any
 file can only add protections, add hints, or disable discovery hints (which can only cause junk to
 be missed, never removed).
 
+When the scan covers the user home directory, `stdlib_shadowing` lists each home-root `*.py` file
+whose stem is a Python standard-library module name, such as `~/gettext.py`. That file shadows the
+module for Python started from the home directory with `-c`, `-m`, or the REPL, and it keeps the
+home-root `__pycache__` rebuilding. The file's entry carries a `stdlib-module-shadow` advisory, and
+the `__pycache__` entry gains `bytecode_sources` naming the modules its `.pyc` files were compiled
+from. So a report can say to rename the source, not only to delete the cache. The advisory is not a
+hint: it assigns no tier and changes no eligibility. The stdlib name set is the engine
+interpreter's `sys.stdlib_module_names`.
+
 When the audited zone overlaps the user temp directory, the scan also reports an `os_autoclean`
 advisory naming the OS mechanism that should own it (Windows Storage Sense, systemd-tmpfiles) and,
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than

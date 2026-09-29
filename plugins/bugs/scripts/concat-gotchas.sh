@@ -79,9 +79,13 @@ fi
 # ancestor of it, or is not inside a git working tree, has no team or overlay
 # layer. Otherwise ~/.claude/bugs.md would be read again as the team layer.
 if [[ -n "$root" && -n "${HOME:-}" ]]; then
+  # Fold slashes, trailing slash, and case, as config-cascade step 2 and
+  # source-control's root_is_home_or_ancestor do (Windows paths differ only so).
   rp="$(cd "$root" 2>/dev/null && pwd -P)" || rp="$root"
   hp="$(cd "$HOME" 2>/dev/null && pwd -P)" || hp="$HOME"
-  [[ "$hp" == "$rp" || "$hp" == "${rp%/}"/* ]] && root=""
+  rp="${rp//\\//}"; rp="${rp%/}"; rp="${rp,,}"
+  hp="${hp//\\//}"; hp="${hp%/}"; hp="${hp,,}"
+  [[ "$hp" == "$rp" || "$hp" == "$rp"/* ]] && root=""
 fi
 if [[ -n "$root" && "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]]; then
   root=""
