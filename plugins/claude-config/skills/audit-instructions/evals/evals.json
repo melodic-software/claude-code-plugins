@@ -304,10 +304,10 @@
       "id": 25,
       "name": "execution-model-and-report-identity-contract",
       "prompt": "/claude-config:audit-instructions all --unattended --persist-findings over a marketplace repository.",
-      "expected_output": "Reads context/execution-and-report.md as the standing record of the execution model and the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29 and the I30 to I33 lane findings. Does not edit audited surfaces.",
+      "expected_output": "Follows SKILL.md's Lane sizing and Run files and resume for the execution model and reference/finding-identity.md for the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29 and the I30 to I33 lane findings. Does not edit audited surfaces.",
       "files": [],
       "expectations": [
-        "Follows context/execution-and-report.md for lane sizing, --unattended disclosure, and resume/lease shape rather than inventing a second run model",
+        "Follows SKILL.md Lane sizing and Run files and resume for lane sizing, --unattended disclosure, and resume/lease shape rather than inventing a second run model",
         "Presents each finding's identity as (check, claim, sites); an I15 conflict is one finding with two sites",
         "Persists I28, I29, and I30 to I33; rows the emit path refuses are declined and counted, never silently dropped",
         "Does not edit audited instruction files"

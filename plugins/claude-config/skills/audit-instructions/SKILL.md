@@ -302,9 +302,6 @@ rows to `lane-runs.sh plan --run-dir <run-dir>`: dispatch only the `rerun` lanes
 touches, and a changed partition re-runs them all. With no prior run, `--resume` says so and starts
 a new one.
 
-The standing execution model and the report identity contract are recorded together in [context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
-lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a later change to either lands in one place.
-
 A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
 plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
 carried in a variable or through inline Python, which that guard blocks because it cannot resolve
@@ -402,7 +399,7 @@ many lanes were reused and how many re-ran. It also confirms the run added zero 
 unchanged; the target-model fail-loud stop is an invocation-time validation abort, not an
 interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table.
 Each row's identity is `(check, claim, sites)` per
-[context/execution-and-report.md](context/execution-and-report.md); presentation fields stay
+[reference/finding-identity.md](reference/finding-identity.md); presentation fields stay
 outside the hash. An I15 conflict is one finding with two sites and one Finding ID. **Finding ID** is
 the row's re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivation and claim templates](reference/finding-identity.md)); a refused row reads `unidentified: <reason>` there.
 
@@ -412,7 +409,10 @@ the row's re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivati
 Phase B2's findings carry two anchors, so they get their own **Cross-surface conflicts** subsection.
 Beside it, an **Out-of-catalog** subsection holds the defects the catalog's "Out-of-catalog defects"
 section admits, each with Check `out-of-catalog`, its evidence, and where it routes; those rows never
-reach `emit-findings.sh`. I33 rows move to an **I33 by plugin** section ([layout](context/execution-and-report.md)).
+reach `emit-findings.sh`. I33 rows move to an **I33 by plugin** section: one collapsed
+`<details><summary><plugin>: <n> spokes</summary>` block per plugin, holding the same table columns so
+every row keeps its `Surface:Line` and fenced diff. The roll-up is presentation only; each spoke stays
+its own finding with its own excerpt anchor.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
