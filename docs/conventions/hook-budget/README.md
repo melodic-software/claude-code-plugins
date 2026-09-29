@@ -152,9 +152,11 @@ Every shipped hook row is exec form ([#3686](https://github.com/melodic-software
 
 ## Windows kernel Token leak
 
-Hook, statusline, and Bash-tool spawns amplify a Windows kernel Token-object leak by roughly one
-token per child-creating process. The measurements, sources, and recheck triggers live in one
-place, the section "The host-level floor: a kernel Token-object leak" of
-[known-performance-issues.md](../../../plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows).
-[#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) tracks per-hook
-fan-out reduction. The leak does not relax the budget (Rule 2).
+Hook, statusline, and Bash-tool spawns add to a Windows kernel Token-object leak. The leak per
+spawn differs by binary and by host, so this doc states no rate. The section "The host-level floor:
+a kernel Token-object leak" of
+[known-performance-issues.md](../../../plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
+owns the reference host's per-binary measurements, sources, and recheck triggers.
+[#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372) holds the melo-lap-001
+rows, and [#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) tracks
+per-hook fan-out reduction. The leak does not relax the budget (Rule 2).
