@@ -11,6 +11,7 @@ $script:Steps = [System.Collections.Generic.List[object]]::new()
 $script:Warnings = [System.Collections.Generic.List[string]]::new()
 $script:Held = [System.Collections.Generic.List[string]]::new()
 $script:Secrets = [System.Collections.Generic.List[string]]::new()
+$script:Irreversible = @()
 $script:ResultDirectory = $null
 $script:TranscriptPath = $null
 
@@ -153,6 +154,37 @@ function Invoke-IdempotentStep {
         })
 }
 
+# A guard that skips a destructive step when a name is absent from a parsed
+# listing must not read an empty parse as absent: the read may have failed.
+function Assert-ParsedState {
+    param(
+        [Parameter(Mandatory = $true)][string] $Name,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][AllowEmptyString()] $Value
+    )
+    $items = @($Value | ForEach-Object { "$_" -split '\r?\n' } | Where-Object { $_.Trim() })
+    if ($items.Count -eq 0) {
+        throw "could not read ${Name}: parsed listing is empty. Unknown state is a stop, not 'already absent'"
+    }
+    Write-Host "read ${Name}: $($items.Count) item(s)"
+}
+
+# wsl.exe writes UTF-16 unless WSL_UTF8=1, and a PowerShell capture decodes that
+# as text with embedded NULs. Prefer a CLI's --json over parsing human output.
+function Invoke-NativeUtf8 {
+    param([Parameter(Mandatory = $true)][scriptblock] $Block)
+    $priorVariable = $env:WSL_UTF8
+    $priorEncoding = [Console]::OutputEncoding
+    $env:WSL_UTF8 = '1'
+    # A host with no attached console throws on the setter; the pin then rests on WSL_UTF8.
+    try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
+    try {
+        & $Block
+    } finally {
+        $env:WSL_UTF8 = $priorVariable
+        try { [Console]::OutputEncoding = $priorEncoding } catch { }
+    }
+}
+
 # Polls an outcome instead of trusting the exit code of the request that caused
 # it. The predicate must assert a non-empty observation first: an empty set
 # satisfies "all of them are done".
@@ -224,12 +256,25 @@ function Use-GuardedResource {
     $script:Held.Remove($Name) | Out-Null
 }
 
+# Refuses before prompting, so no irreversible action precedes proof and release
+# of every guarded resource.
 function Confirm-Irreversible {
     param([Parameter(Mandatory = $true)][string] $Name)
+    if ($Name -notin $script:Irreversible) {
+        throw "irreversible step $Name was not declared"
+    }
+    if ($script:Held.Count -gt 0) {
+        throw "refusing irreversible step $Name while resources are held: $($script:Held -join ', ')"
+    }
     $answer = Read-Host -Prompt "Type $Name to confirm this irreversible step"
     if ($answer -ne $Name) {
         throw "confirmation declined for $Name"
     }
+    $script:Steps.Add([pscustomobject]@{
+            name   = "irreversible $Name"
+            status = 'ok'
+            detail = 'confirmed'
+        })
 }
 
 function Complete-UnattendedResult {
@@ -249,13 +294,14 @@ function Complete-UnattendedResult {
         [System.IO.File]::WriteAllText($script:TranscriptPath, $text)
     }
     $payload = [ordered]@{
-        schema          = 'cutover.result/1'
-        status          = $Status
-        steps           = @($script:Steps)
-        warnings        = @($script:Warnings)
-        held_resources  = @($script:Held)
-        transcript      = $script:TranscriptPath
-        redacted        = $true
+        schema               = 'cutover.result/1'
+        status               = $Status
+        steps                = @($script:Steps)
+        warnings             = @($script:Warnings)
+        held_resources       = @($script:Held)
+        irreversible_actions = @($script:Irreversible)
+        transcript           = $script:TranscriptPath
+        redacted             = $true
     }
     $json = $payload | ConvertTo-Json -Depth 6
     foreach ($secret in $script:Secrets) {
@@ -275,9 +321,12 @@ function Complete-UnattendedResult {
 function Invoke-UnattendedRun {
     param(
         [Parameter(Mandatory = $true)][string] $ResultDirectory,
-        [Parameter(Mandatory = $true)][scriptblock] $Stages
+        [Parameter(Mandatory = $true)][scriptblock] $Stages,
+        [string[]] $Irreversible = @()
     )
     Initialize-UnattendedResult -ResultDirectory $ResultDirectory
+    $script:Irreversible = @($Irreversible)
+    Write-Host ('irreversible actions: ' + $(if ($Irreversible.Count) { $Irreversible -join '; ' } else { 'none' }))
     try {
         & $Stages
         Complete-UnattendedResult -Status ok

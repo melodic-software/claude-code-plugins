@@ -362,6 +362,140 @@ else
   fail "the result JSON redacts a secret carried in a step detail" "$(cat "$TEST_TMPDIR/jsonredact/result-latest.json" 2>/dev/null)"
 fi
 
+code="$(run_pwsh irrlist "
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrlist' -Irreversible 'wsl --unregister Ubuntu-26.04', 'git push --force' -Stages { 'stage' }
+  \$json = Get-Content -Raw '$TEST_TMPDIR/irrlist/result-latest.json' | ConvertFrom-Json
+  'schema=' + \$json.schema
+  'declared=' + (\$json.irreversible_actions -join '|')
+")"
+msg="$(cat "$TEST_TMPDIR/irrlist.out")"
+transcript="$(find "$TEST_TMPDIR/irrlist" -name 'transcript-*.log' | head -1)"
+if grep -Fq 'irreversible actions: wsl --unregister Ubuntu-26.04; git push --force' "$transcript" \
+  && [[ "$msg" == *'schema=cutover.result/1'* && "$msg" == *'declared=wsl --unregister Ubuntu-26.04|git push --force'* ]]; then
+  pass "the declared irreversible list is in the transcript and the result JSON"
+else
+  fail "the declared irreversible list is in the transcript and the result JSON" "$msg $(head -c 400 "$transcript" 2>/dev/null)"
+fi
+
+code="$(run_pwsh irrnone "
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrnone' -Stages { 'stage' }
+  \$json = Get-Content -Raw '$TEST_TMPDIR/irrnone/result-latest.json' | ConvertFrom-Json
+  'present=' + (\$json.PSObject.Properties.Name -contains 'irreversible_actions')
+  'count=' + @(\$json.irreversible_actions).Count
+")"
+msg="$(cat "$TEST_TMPDIR/irrnone.out")"
+transcript="$(find "$TEST_TMPDIR/irrnone" -name 'transcript-*.log' | head -1)"
+if grep -Fq 'irreversible actions: none' "$transcript" && [[ "$msg" == *'present=True'* && "$msg" == *'count=0'* ]]; then
+  pass "a run that declares nothing says none and emits an empty list"
+else
+  fail "a run that declares nothing says none and emits an empty list" "$msg"
+fi
+
+code="$(run_pwsh irrundeclared "
+  try {
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrundeclared' -Irreversible 'wipe' -Stages { Confirm-Irreversible -Name 'other' }
+  } catch { \$_.Exception.Message }
+  \$json = Get-Content -Raw '$TEST_TMPDIR/irrundeclared/result-latest.json' | ConvertFrom-Json
+  'status=' + \$json.status
+  'declared=' + (\$json.irreversible_actions -join '|')
+")"
+msg="$(cat "$TEST_TMPDIR/irrundeclared.out")"
+if [[ "$msg" == *'irreversible step other was not declared'* && "$msg" == *'status=failed'* && "$msg" == *'declared=wipe'* ]]; then
+  pass "Confirm-Irreversible refuses an undeclared step before prompting"
+else
+  fail "Confirm-Irreversible refuses an undeclared step before prompting" "$msg"
+fi
+
+code="$(run_pwsh irrheld "
+  try {
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrheld' -Irreversible 'wipe' -Stages {
+      try { Use-GuardedResource -Name 'fleet' -Take { } -Prove { \$false } -Release { } } catch { }
+      Confirm-Irreversible -Name 'wipe'
+    }
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/irrheld.out")"
+if [[ "$msg" == *'refusing irreversible step wipe while resources are held: fleet'* ]]; then
+  pass "Confirm-Irreversible refuses while a guarded resource is held"
+else
+  fail "Confirm-Irreversible refuses while a guarded resource is held" "$msg"
+fi
+
+code="$(run_pwsh irrok "
+  function Read-Host { 'wipe' }
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrok' -Irreversible 'wipe' -Stages {
+    Use-GuardedResource -Name 'fleet' -Take { } -Prove { \$true } -Release { }
+    Confirm-Irreversible -Name 'wipe'
+  }
+  \$step = (Get-Content -Raw '$TEST_TMPDIR/irrok/result-latest.json' | ConvertFrom-Json).steps | Where-Object name -eq 'irreversible wipe'
+  'step=' + \$step.status + ':' + \$step.detail
+")"
+msg="$(cat "$TEST_TMPDIR/irrok.out")"
+if [[ "$msg" == *'step=ok:confirmed'* ]]; then
+  pass "a declared irreversible step with nothing held is confirmed and recorded"
+else
+  fail "a declared irreversible step with nothing held is confirmed and recorded" "$msg $(cat "$TEST_TMPDIR/irrok.err")"
+fi
+
+code="$(run_pwsh irrdecline "
+  function Read-Host { 'no' }
+  try {
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/irrdecline' -Irreversible 'wipe' -Stages { Confirm-Irreversible -Name 'wipe' }
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/irrdecline.out")"
+if [[ "$msg" == *'confirmation declined for wipe'* ]]; then
+  pass "a wrong confirmation answer aborts the run"
+else
+  fail "a wrong confirmation answer aborts the run" "$msg"
+fi
+
+# Assert-ParsedState: name|value expression|expected (throws, or the item count).
+for case in 'parsednull|$null|throws' 'parsedarray|@()|throws' "parsedblank|'   '|throws" "parsedblanks|@('', ' ')|throws" \
+  "parsedone|'Ubuntu-26.04'|1" "parsedtwo|@('a', 'b')|2" 'parsedlines|("a" + [Environment]::NewLine + "b")|2'; do
+  IFS='|' read -r name value expected <<<"$case"
+  code="$(run_pwsh "$name" "
+    try { Assert-ParsedState -Name 'listing' -Value $value; 'passed' } catch { \$_.Exception.Message }
+  ")"
+  msg="$(cat "$TEST_TMPDIR/$name.out")"
+  if [[ "$expected" == throws && "$msg" == *"could not read listing: parsed listing is empty. Unknown state is a stop, not 'already absent'"* && "$msg" != *passed* ]] \
+    || [[ "$expected" != throws && "$msg" == *"read listing: $expected item(s)"* && "$msg" == *passed* ]]; then
+    pass "Assert-ParsedState on '$value' gives $expected"
+  else
+    fail "Assert-ParsedState on '$value' gives $expected" "$msg"
+  fi
+done
+
+code="$(run_pwsh utf8 "
+  \$env:WSL_UTF8 = \$null
+  [Console]::OutputEncoding = [Text.Encoding]::Latin1
+  \$inside = @(Invoke-NativeUtf8 { & pwsh -NoProfile -Command '\$env:WSL_UTF8'; & pwsh -NoProfile -Command '[Console]::Out.Write([char]0xE9)' })
+  'variable=' + \$inside[0]
+  'decoded=' + \$inside[1].Length
+  'after=' + \$(if (Test-Path Env:WSL_UTF8) { \$env:WSL_UTF8 } else { 'unset' })
+  'encoding=' + [Console]::OutputEncoding.WebName
+")"
+msg="$(cat "$TEST_TMPDIR/utf8.out")"
+if [[ "$msg" == *'variable=1'* && "$msg" == *'decoded=1'* && "$msg" == *'after=unset'* && "$msg" == *'encoding=iso-8859-1'* ]]; then
+  pass "Invoke-NativeUtf8 pins WSL_UTF8 and UTF-8 decoding inside the block and restores both"
+else
+  fail "Invoke-NativeUtf8 pins WSL_UTF8 and UTF-8 decoding inside the block and restores both" "$msg"
+fi
+
+code="$(run_pwsh utf8throw "
+  \$env:WSL_UTF8 = 'keep'
+  [Console]::OutputEncoding = [Text.Encoding]::Latin1
+  try { Invoke-NativeUtf8 { throw 'boom' } } catch { 'caught=' + \$_.Exception.Message }
+  'after=' + \$env:WSL_UTF8
+  'encoding=' + [Console]::OutputEncoding.WebName
+")"
+msg="$(cat "$TEST_TMPDIR/utf8throw.out")"
+if [[ "$msg" == *'caught=boom'* && "$msg" == *'after=keep'* && "$msg" == *'encoding=iso-8859-1'* ]]; then
+  pass "Invoke-NativeUtf8 restores the prior variable and encoding when the block throws"
+else
+  fail "Invoke-NativeUtf8 restores the prior variable and encoding when the block throws" "$msg"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0
