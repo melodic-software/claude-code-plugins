@@ -3,6 +3,13 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.37] - 2026-09-29
+
+### Changed
+
+- `bench/trace-probe.sh --count` reports how many processes each tee render shape spawns before the wrapped statusline runs, and `bench/bench.test.sh` asserts the non-elected renders spawn none. The bench README records the counts (0 on the render path, 5 to 12 on the elected drain, which runs once per drain interval), so the tee needed no diet ([#4676](https://github.com/melodic-software/claude-code-plugins/issues/4676)). The tee itself is unchanged.
+- Corrected the 0.8.29, 0.8.31, 0.8.34 and 0.8.35 entries: each was a hook-utils.sh sync with no change to this plugin.
+
 ## [0.8.36] - 2026-09-28
 
 ### Fixed
