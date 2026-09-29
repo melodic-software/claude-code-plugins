@@ -310,22 +310,26 @@ def _mux_audio(webm, wav, seconds, work):
         return None
     (work / "scene-in.webm").write_bytes(webm)
     (work / "audio.wav").write_bytes(wav)
-    done = subprocess.run(
-        [
-            ffmpeg, "-y", "-i", str(work / "scene-in.webm"),
-            "-stream_loop", "-1", "-i", str(work / "audio.wav"),
-            "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "libopus",
-            "-t", str(seconds), str(work / "scene-out.webm"),
-        ],
-        capture_output=True, text=True,
-    )
-    if done.returncode:
-        print(
-            f"capture.py: scene.webm is video-only because ffmpeg could not mux the audio: {done.stderr.strip()[-300:]}",
-            file=sys.stderr,
+    out = work / "scene-out.webm"
+    try:
+        done = subprocess.run(
+            [
+                ffmpeg, "-y", "-i", str(work / "scene-in.webm"),
+                "-stream_loop", "-1", "-i", str(work / "audio.wav"),
+                "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "libopus",
+                "-t", str(seconds), str(out),
+            ],
+            capture_output=True, text=True, timeout=max(30, seconds + 20),
         )
+        reason = done.stderr.strip()[-300:] if done.returncode else ""
+        if not reason and not (out.exists() and out.stat().st_size):
+            reason = "ffmpeg wrote no output"
+    except subprocess.TimeoutExpired:
+        reason = "ffmpeg timed out"
+    if reason:
+        print(f"capture.py: scene.webm is video-only because ffmpeg could not mux the audio: {reason}", file=sys.stderr)
         return None
-    return (work / "scene-out.webm").read_bytes()
+    return out.read_bytes()
 
 
 def capture_scene(scene, times, out_dir, record, scale, browser):
@@ -419,7 +423,7 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             audio = bool(payload["webm"].get("audio"))
             if payload.get("wav") and not audio:
                 muxed = _mux_audio(webm, base64.b64decode(payload["wav"]), record, served)
-                webm, audio = muxed or webm, muxed is not None
+                webm, audio = (muxed, True) if muxed is not None else (webm, False)
             (out_dir / "scene.webm").write_bytes(webm)
             video = "scene.webm"
         manifest = {

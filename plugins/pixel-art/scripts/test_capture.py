@@ -162,6 +162,18 @@ class CaptureTest(unittest.TestCase):
             with redirect_stderr(io.StringIO()) as err:
                 self.assertIsNone(capture._mux_audio(b"not a webm", b"not a wav", 1, pathlib.Path(tmp)))
             self.assertIn("could not mux", err.getvalue())
+        for name, effect in (
+            ("timeout", subprocess.TimeoutExpired("ffmpeg", 1)),
+            ("empty output", SimpleNamespace(returncode=0, stderr="")),
+        ):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+                capture.shutil, "which", return_value="ffmpeg"
+            ), mock.patch.object(
+                capture.subprocess, "run", side_effect=effect if isinstance(effect, Exception) else None,
+                return_value=effect,
+            ), redirect_stderr(io.StringIO()) as err:
+                self.assertIsNone(capture._mux_audio(b"v", b"a", 1, pathlib.Path(tmp)))
+                self.assertIn("could not mux", err.getvalue())
 
     def test_run_without_ffmpeg_prints_video_only_note_and_records_no_audio(self):
         payload = {
