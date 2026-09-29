@@ -69,7 +69,9 @@ def _parse_channel(text, chip):
                     raise ValueError("unclosed [ repeat")
                 index += 1
                 count, index = _number(text, index)
-                times = int(count) if count else 2
+                if count is not None and count < 1:
+                    raise ValueError("repeat count must be at least 1")
+                times = 2 if count is None else int(count)
                 inner = notes[start:]
                 del notes[start:]
                 notes.extend(inner * times)
@@ -79,6 +81,8 @@ def _parse_channel(text, chip):
                 value, index = _number(text, index)
                 if value is None:
                     raise ValueError(f"missing number after {char}")
+                if char in "tl" and value <= 0:
+                    raise ValueError(f"{char} must be greater than zero")
                 if char == "t":
                     state["tempo"] = value
                 elif char == "o":
@@ -108,6 +112,8 @@ def _parse_channel(text, chip):
                     index += 1
                 length, next_index = _number(text, index)
                 if length is not None:
+                    if length <= 0:
+                        raise ValueError("note length must be greater than zero")
                     index = next_index
                 else:
                     length = state["length"]
@@ -139,7 +145,9 @@ def _parse_channel(text, chip):
             raise ValueError(f"unexpected {char!r} in score")
         return index
 
-    parse(0)
+    end = parse(0)
+    if end < len(text):
+        raise ValueError("unmatched ] in score")
     return notes
 
 
