@@ -11,6 +11,9 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   in the claude-config plugin, the skills `SKILL.md` names, instead of the removed
   `automation-gaps` route
   ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
+- `skills/audit/reference/official-guidance.md` no longer says a directly read `AGENTS.md` is
+  absent from `/memory`: the memory page says `/memory` lists it from v2.1.280. The record is
+  re-dated 2026-09-29.
 
 ### Changed
 
