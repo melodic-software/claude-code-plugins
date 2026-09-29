@@ -51,8 +51,9 @@ your `PATH`.
   with the install route kept. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
   A SessionStart probe reports a missing `actionlint` once per session, from
-  `prerequisites.json`, and the PostToolUse notice names the same install route.
-  `/actionlint:check` reports whether the binary resolves and installs nothing.
+  `prerequisites.json`, and the PostToolUse notice names the same install route. The two share
+  one latch, so the probe's notice counts as the first and the first PostToolUse notice stays
+  silent until the renewal. `/actionlint:check` reports whether the binary resolves and installs nothing.
 
 ### Hook budget accounting
 

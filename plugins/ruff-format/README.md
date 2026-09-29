@@ -57,13 +57,16 @@ own and runs only when your repo has opted into Ruff.
   resolves `.venv/bin/ruff`, or `.venv/Scripts/ruff.exe` on Windows, walking up
   from the edited file) or on `PATH`. Ruff is never downloaded on the fly; if
   it is not present while a Ruff config governs the repo, the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. **Ruff 0.12+ is recommended**
+  visible notice, once per session (all agents share it), renewed every eighth skip with the
+  install route kept. **Ruff 0.12+ is recommended**
   (tested against 0.15.20): earlier releases lack stabilized version-aware
   syntax errors, and on much older releases the flags the hook passes may be
   absent, in which case the run is reported as a tool break rather than a
   finding.
 - A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, and
-  the PostToolUse notice names the same install route. The probe looks on `PATH` and at
+  the PostToolUse notice names the same install route. The two share one latch, so the probe's
+  notice counts as the first and the first PostToolUse notice stays silent until the renewal.
+  The probe looks on `PATH` and at
   `.venv/bin/ruff` under the working directory; the edit hook also resolves a `.venv` ruff by
   walking up from the edited file. Run `/ruff-format:check` to see what resolves; it is read-only
   and installs nothing.

@@ -664,13 +664,15 @@ else
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
   done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
 
-  # run_probe <value|__unset__> -> run the row with actionlint_enabled set to <value> (or unset).
+  # run_probe <value|__unset__> [data-dir] -> run the row with actionlint_enabled set to <value>
+  # (or unset), on a fresh plugin data dir unless one is given.
   run_probe() {
-    local v="$1"
+    local v="$1" data="${2:-}"
+    [[ -n "$data" ]] || data="$(mktemp -d "$PG_WORK/data.XXXXXX")"
     local -a opt=(env -u CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED)
     [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=$v")
     (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
-      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$data" \
         "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
   }
 
@@ -692,6 +694,24 @@ else
       fail "probe-gate: $label should print the missing-actionlint notice (rc=$RC_PG out=$OUT_PG)"
     fi
   done
+
+  # The probe and the PostToolUse notice share one latch key, so once the probe has
+  # printed its notice the same session's first missing-binary edit is silent. MINBIN
+  # holds jq and no actionlint, the PATH under which the hook emits its first notice.
+  PG_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")"
+  run_probe true "$PG_DATA" >/dev/null
+  OUT_PG=$(
+    cd "$UNRELATED" || exit 1
+    printf '{"session_id":"s1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
+      "$REPO/.github/workflows/clean.yml" |
+      env -u CLAUDE_PROJECT_DIR PATH="$MINBIN" CLAUDE_PLUGIN_DATA="$PG_DATA" \
+        CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+  )
+  if [[ -z "$OUT_PG" ]]; then
+    ok "probe-gate: the probe's notice latches the PostToolUse notice (one key)"
+  else
+    fail "probe-gate: the PostToolUse notice fired after the probe's notice in the same session: $OUT_PG"
+  fi
   rm -rf "${PG_WORK:?}"
 fi
 

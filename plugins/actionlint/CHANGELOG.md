@@ -9,6 +9,10 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 
 - The binary is probed at SessionStart, and a missing `actionlint` prints a notice bound to the manifest's declared prerequisite.
 
+### Changed
+
+- The PostToolUse missing-binary notice latches on the same key as the SessionStart probe (`actionlint-actionlint`, was `actionlint-missing`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal, instead of both firing.
+
 ## [0.10.2] - 2026-09-29
 
 ### Changed

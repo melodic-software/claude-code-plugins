@@ -9,6 +9,10 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 - The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/bash-format:check` reports whether the binaries resolve without installing.
 
+### Changed
+
+- The missing `shfmt` and `shellcheck` notices latch once per session, shared by all agents, instead of once per session and agent, and keep the install route when they renew every eighth skip. The SessionStart probe uses the same latch key as the PostToolUse notice (`bash-format-shfmt`, `bash-format-shellcheck`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The `jq` notice is unchanged.
+
 ## [0.8.8] - 2026-09-29
 
 ### Changed

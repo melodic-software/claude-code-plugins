@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- The prerequisites skill's Next section points at the check skill of every formatter plugin that has one.
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
 
 ## [0.64.2] - 2026-09-29
 
