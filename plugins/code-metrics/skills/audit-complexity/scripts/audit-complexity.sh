@@ -4,7 +4,7 @@
 #
 #   audit-complexity.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
 #
-# Prints the markdown report; `--json` prints the `code-metrics/v1` document
+# Prints the markdown report; `--json` prints the `code-metrics/v2` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
 # (scripts/dispatch.sh in the plugin root); this script owns `--json` and the
 # measure list it asks for: cyclomatic, cognitive, halstead. Every number is
