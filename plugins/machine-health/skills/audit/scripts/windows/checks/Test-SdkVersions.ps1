@@ -11,7 +11,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'sdk-versions'
 $category = 'updates'
 $commands = @(
@@ -65,7 +64,9 @@ function Add-SdkFinding {
         })
 }
 
-try {
+$FailureSummary = 'SDK version check failed.'
+$PassThru = $false
+$CheckBody = {
     $eolPath = Join-Path (Resolve-SkillRoot) 'reference\shared\sdk-eol-table.json'
     $eol = @{}
     if (Test-Path -LiteralPath $eolPath) {
@@ -152,9 +153,5 @@ try {
         eol_soon_count    = $warn.Count
     } `
         -NeedsAdmin $false -RanSuccessfully $true
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'SDK version check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

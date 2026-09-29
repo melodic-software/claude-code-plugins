@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.7] - 2026-09-28
+
+### Added
+
+- **`plan`'s Step 4.7 outcome gate is a script.** `scripts/check-plan-outcome.sh <PLAN.md>`
+  decides the mechanical criteria off the file: at least one phase, a `[TODO]`/`[DOING]`/`[DONE]`
+  tag (a note only after ` - `) on every `### Phase N:` heading, a `Sanity Check` in every phase section (per phase, not a
+  file total), a `| Decision | What it changes ...` table row when the plan tags a decision, and a
+  Blast-radius line naming its level. The model was self-running these from prose. Scope-item
+  mapping and one-row-per-tag stay judgment, named as such. A co-located `.test.sh` covers each
+  criterion (#4271).
+- **PLAN.md paths are checked for portability.** The same script fails on a drive-letter path or a
+  `/Users/<name>` or `/home/<name>` path (any case) unless the line carries `<!-- path-example -->`, since a
+  committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
+  carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
+
 ## [0.45.6] - 2026-09-28
 
 ### Changed

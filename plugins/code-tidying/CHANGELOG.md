@@ -3,6 +3,15 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.13] - 2026-09-28
+
+### Added
+
+- **`tidy` accepts an ad hoc glob scope.** When no lane covers the target files,
+  `tidy [dry-run] <glob>...` runs on those globs with a borrowed template's watch-for list,
+  lane-specific exclusions, and commit type, plus the repository's own test command, and writes no
+  lane file.
+
 ## [0.23.12] - 2026-09-28
 
 ### Changed
