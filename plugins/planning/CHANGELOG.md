@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-09-29
+
+### Added
+
+- **`interview` Step 3 sign-off recap.** Before the confirmation request in `me` and `auto` modes, the restatement carries one line per `Q<N>` with its status and resolution, generated from the ledger's open-question register rather than the transcript, so it survives a compaction ([#3941](https://github.com/melodic-software/claude-code-plugins/issues/3941)).
+- **`check-open-questions.sh --procedure`** checks what a ledger file can show about the procedure: rounds appear contiguously in the register and every retired row carries a resolution. The Step 3 gate and the Step 4 Brief cross-check cite its exit code and `procedure=` field. The skill names what stays unchecked: survey grounding, domain classification, ask-time register writes and frontier recomputation.
+
+### Changed
+
+- `interview` and `audit-answers` each state their relationship: the recap and `--procedure` check show the Q&A and that the procedure ran, `audit-answers` adversarially re-validates the answers, and neither composes nor duplicates the other.
+
 ## [0.46.0] - 2026-09-29
 
 ### Added
