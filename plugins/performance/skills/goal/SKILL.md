@@ -89,13 +89,15 @@ Object +2 per external command vs PATH-shim `spawns=`); see
 
 **Scaling arm when state grows with use.** When the subject **reads state whose size grows with
 real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
-entries), a single-size measurement can pass while realistic use fails. The metric MUST be measured
-at **two or more sizes** spanning realistic use (for example 50 KB and 10 MB on the same transcript
-shape, not two sizes that exercise different code paths). Record each arm's size and result. **Done
-when** must state whether cost stays flat as size grows, or grows only within a stated bound (for
-example "p50 does not grow faster than linear in transcript bytes"). If the bound is unknown,
-`unproven` is legal and travels to verify like `Correlation:`. `/performance:target` should flag
-such candidates when ranking; if it did not, name the growing-state read here anyway.
+entries, databases, queues), a single-size measurement can pass while realistic use fails. The
+metric MUST be measured at **two or more sizes** spanning realistic use (for example 50 KB and
+10 MB on the same transcript shape, not two sizes that exercise different code paths). Record each
+arm's size and result. **Done when** carries a stated bound: cost stays flat as size grows, or
+grows only within a named bound (for example "p50 does not grow faster than linear in the new
+bytes per Stop", or cost per new unit of content). When the bound is unknown, the scaling arms
+establish it and the goal is not locked until the human states one. Stop and say what is blocked;
+do not pick the bound for them. `/performance:target` should flag such candidates when ranking; if
+it did not, name the growing-state read here anyway.
 
 **Code path under test, required.** Name the code path(s) the metric is meant to exercise and the
 **observable** that identifies each one: a marker file, an exit code, the set of processes spawned.
@@ -177,7 +179,7 @@ Unit:       <unit under study + marginal over next-slowest peer> | n/a
 Floor:      <value> (measured by: <command>)
 Realistic:  <value>    Ideal: <value>   [event-level realistic/ideal when parallel]
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
-Scaling:    <sizes and per-arm results> | n/a (fixed-size subject)
+Scaling:    <growing input, sizes, per-arm results, bound> | n/a: subject reads no growing state
 Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
 Target (from /performance:target): <candidate> @ <E1..E4>
 ```
@@ -212,6 +214,10 @@ Target (from /performance:target): <candidate> @ <E1..E4>
 - **A goal with no named code path is not locked.** Name the path and the observable that tells it
   apart from its siblings; a stale marker can route every sample down the rare branch and the
   duration still looks like a measurement.
-- **One size is not enough when the subject re-reads growing state.** A hook that re-reads the
-  whole transcript can look fine at 50 KB and fail at 10 MB; the scaling arms exist to catch that
-  before work is spent.
+- **One size is not enough when the subject re-reads growing state.** The claude-ops
+  `hook-failure-audit.sh` Stop hook took 137 ms on a 50 KB transcript, 1,374 ms on 2 MB, and
+  6,977 ms on 10 MB, with a constant 3 processes per fire, so a spawn counter alone would have
+  passed it. A constant counter does not rule out size-proportional cost: measure the duration at
+  two sizes even when the counter is flat. Claim: those timings and the constant process count of
+  3. Basis: issue #4389 (22 runs per size). As-of: 2026-09-29. Recheck when #4389 is edited or the
+  hook is rewritten.

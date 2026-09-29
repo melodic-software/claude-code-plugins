@@ -130,13 +130,15 @@
       "id": 11,
       "name": "requires-scaling-arms-when-state-grows-with-use",
       "prompt": "/performance:goal the Stop hook on session transcripts. Metric: p50 wall-clock from the bundled harness. We already measured 137 ms on a 50 KB transcript; lock that as the goal.",
-      "expected_output": "Refuses to lock a single-size goal when the hook re-reads the whole transcript: requires at least two sizes spanning realistic use, records a Scaling line with per-arm results, and adds a done criterion that cost does not grow with transcript size (or grows only within a stated bound). Does not treat the 50 KB point alone as sufficient.",
+      "expected_output": "Refuses to lock a single-size goal when the hook re-reads the whole transcript: requires at least two sizes spanning realistic use, records a Scaling line with per-arm results, and adds a done criterion that cost does not grow with transcript size (or grows only within a stated bound). Does not treat the 50 KB point alone as sufficient. When the bound is unknown it does not write `unproven` as the bound and does not lock the goal: it says the goal is blocked until the human states a bound.",
       "files": [],
       "expectations": [
         "Requires measuring at two or more transcript sizes spanning realistic use, not only 50 KB",
         "Records a Scaling line in the goal output with sizes and per-arm results",
         "Done when includes whether cost stays flat or grows within a stated bound as size grows",
-        "Does not accept the single 50 KB measurement as the complete goal"
+        "Does not accept the single 50 KB measurement as the complete goal",
+        "Does not accept `unproven` as the scaling bound in Done when",
+        "Does not lock the goal while no scaling bound (flat, or a named growth bound) is stated, and says what is blocked instead of choosing the bound"
       ]
     },
     {
@@ -150,6 +152,19 @@
         "Asks which code path(s) the hook exercises, naming the common path versus the rare path",
         "Asks for the observable that identifies each path (marker, exit code, or spawned-process set)",
         "Records a Path line in the goal output once the path and observable are named"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "constant-counter-does-not-waive-the-scaling-arms",
+      "prompt": "/performance:goal the Stop hook that audits the session transcript. Counter: process count per fire, 3 at 50 KB and 3 at 10 MB, so it does not grow with the transcript. Metric: p50 wall-clock from the bundled harness. The counter is constant, so lock the goal on the counter alone.",
+      "expected_output": "Does not lock on the constant counter. Explains that a constant spawn count does not rule out size-proportional cost (the claude-ops hook-failure-audit hook held 3 processes per fire while going from 137 ms at 50 KB to 6,977 ms at 10 MB), requires the duration measured at two or more sizes, records a Scaling line with per-arm results, and asks the human for a stated bound for Done when.",
+      "files": [],
+      "expectations": [
+        "Does not lock the goal on the constant process count alone",
+        "States that a constant counter does not rule out cost that grows with input size",
+        "Requires the duration to be measured at two or more sizes spanning realistic use",
+        "Records a Scaling line with per-arm results and asks the human for the bound"
       ]
     }
   ]
