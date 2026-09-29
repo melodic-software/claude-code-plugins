@@ -99,8 +99,16 @@ engine plan:
    Include one entry for every live `.git` marker at or below the approved checkout. `path` is
    snapshot-relative; `remote` is the configured GitHub remote whose repository must contain every
    local branch-head SHA (plus detached `HEAD`, when applicable), or `null` only for a genuinely
-   unborn repository with no local heads. `stash_copies` contains independent absolute checkout
-   roots outside every approved deletion path; use `[]` when there are no stashes. Then run:
+   unborn repository with no local heads or an entry carrying `accept_unpublished`.
+   `stash_copies` contains independent absolute checkout roots outside every approved deletion
+   path; use `[]` when there are no stashes.
+
+   A throwaway checkout (no remote, untracked files, no commits) fails the status or remote gate.
+   When the operator still wants it deleted, never delete it outside this lane. Add
+   `"accept_unpublished": true` and the operator's `"reason"` to the entry whose `path` is the
+   exact approved path, and tell the operator that unpushed commits and untracked or ignored files
+   in it will be lost. The acknowledgement relaxes only those two gates; see
+   [the safety model](safety-model.md#standalone-git-checkout-evidence). Then run:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
@@ -117,6 +125,7 @@ engine plan:
    missing/failed `git` or `gh`, a repository-set mismatch, external common Git metadata,
    dirty/untracked/ignored content, an unconfirmed head, a linked-worktree "stash copy", or a
    non-duplicated stash leaves the categorical VCS protections in place and returns `contested`.
+   `accept_unpublished` waives only the dirty-content and unconfirmed-head items in that list.
 
    The exception is deliberately limited to the Git-specific reasons: `vcs-tracked-content`,
    `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the scan's opaque `.git` truncation.

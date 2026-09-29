@@ -215,7 +215,7 @@ out of scope until such a signal exists.
   (`/guardrails:setup apply install-pre-commit-content`) or an equivalent CI check.
   This entry is where that scope is stated. Since **0.38.0** the block message
   no longer prints it, so a blocked agent is not handed the list of unchecked
-  write forms; the once-per-session operator notice points here instead.
+  write forms; the operator notice (once per session and agent, renewed every eighth skip) points here instead.
 - **`block-hook-bypass` block message and operator levers.** stderr is what the
   blocked agent reads, so it carries only what the agent can act on: the
   verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
