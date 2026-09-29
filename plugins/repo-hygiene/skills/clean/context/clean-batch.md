@@ -139,7 +139,7 @@ reported as a store that vanished after the dry-run.
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
-(dry-run) / `nothing-to-do` (dry-run: a `caches`/`build`/`all` repo with no paths to
+(dry-run) / `nothing-to-do` (dry-run: a repo with no paths to
 remove and no new shared object store; its plan record still applies as a no-op) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
 `failed` (a child `rm` failed). A dry-run also prints a `Repo | Outcome | Paths | Bytes` table, one row per repo

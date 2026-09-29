@@ -487,6 +487,7 @@ out="$(bash "$BATCH" --tier git --repo "$GT" "$TEST_TMPDIR/gitnew-wt" 2>/dev/nul
 assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | "
 assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
 assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
+assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"

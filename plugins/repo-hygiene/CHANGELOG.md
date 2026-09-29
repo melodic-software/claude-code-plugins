@@ -8,7 +8,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **`clean-batch.sh` dry-run reports `Outcome: nothing-to-do` for a repo with nothing to reclaim.**
-  A caches, build, or all repo that plans no paths and adds no new git object store no longer
+  A repo that plans no paths and adds no new git object store no longer
   reads as `would-clean`. `Summary:` counts are unchanged.
 - **`clean-batch.sh` dry-run prints a `Repo | Outcome | Paths | Bytes` table** before `BatchPlan:`
   and `Summary:`, one row per repo including skipped and blocked ones.
