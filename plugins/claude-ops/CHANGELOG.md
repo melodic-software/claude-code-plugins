@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.66.0] - 2026-09-29
+
+### Added
+
+- **`inventory` has built-in subagent and tool lanes** (`builtin_agents`, `builtin_tools`), each
+  with its own integrity status and canaries (`general-purpose`, `Explore`, `Plan`,
+  `statusline-setup`; `Bash`, `Read`, `Edit`, `Write`, `WebFetch`). Agent types and tool names
+  resolve from their constants at runtime. Agents carry the roster status (`default`,
+  `conditional`, `absent`), tool lists and model; tools carry deferral, gating and search hints,
+  and factory-built tools are counted, not guessed.
+- **`inventory --docs` cross-checks tools** against the tools reference in a nested block with its
+  own status; `--tools-docs-file` reads the page from a file.
+- **`audit-native-overlap detect` scores built-in subagents and tools** as the `builtin-agent` and
+  `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
+  both.
+
 ## [0.65.0] - 2026-09-29
 
 ### Added
