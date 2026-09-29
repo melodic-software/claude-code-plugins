@@ -52,7 +52,7 @@ In a regular checkout:
 gh pr merge <pr_number> --squash --delete-branch
 ```
 
-In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`, or `git worktree list` shows more than one entry), omit `--delete-branch`: gh then tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote branch separately, unless the repo deletes head branches on merge:
+In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: gh then tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote branch separately, unless the repo deletes head branches on merge:
 
 ```bash
 gh pr merge <pr_number> --squash
