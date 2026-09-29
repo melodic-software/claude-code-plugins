@@ -199,6 +199,10 @@ main() {
   local repo_root store_dir cutoff_seconds body_cutoff_seconds
   repo_root="$(resolve_repo_root)"
   store_dir="${CC_OTEL_STORE:-$repo_root/.claude/observability/otel}"
+  # Windows env values (CC_OTEL_STORE at Machine scope, CLAUDE_PROJECT_DIR) arrive as C:\...;
+  # awk -v treats each backslash as an escape and strips it. Forward slashes work for bash,
+  # awk and duckdb alike.
+  [[ "$OS_KIND" == windows ]] && store_dir="${store_dir//\\//}"
   SENTINEL="$store_dir/.prune-in-progress"
   cutoff_seconds=$((EPOCHSECONDS - retention_days * SECONDS_PER_DAY))
   body_cutoff_seconds=$((EPOCHSECONDS - body_retention_days * SECONDS_PER_DAY))
