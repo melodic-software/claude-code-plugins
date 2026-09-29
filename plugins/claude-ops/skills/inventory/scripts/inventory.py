@@ -127,6 +127,24 @@ WORKFLOW_LANE = "bundled_workflows"
 # bundled roster. Absence means the workflow scan broke.
 WORKFLOW_CANARY = ("deep-research",)
 
+# Built-in subagent types and built-in tools, each its own lane. Like the
+# workflow lane, each is optional in `check_integrity` so a caller that
+# extracts neither is not reported as broken.
+AGENT_LANE = "builtin_agents"
+TOOL_LANE = "builtin_tools"
+
+# Built-in subagents and tools that have shipped in every build observed and
+# that the docs name (sub-agents.md, tools-reference.md). Absence means the
+# scan broke, not that the product dropped them.
+AGENT_CANARY = ("general-purpose", "Explore", "Plan", "statusline-setup")
+TOOL_CANARY = ("Bash", "Read", "Edit", "Write", "WebFetch")
+
+# Value shapes a name constant may hold. A subagent type is PascalCase or
+# kebab-case (`Explore`, `claude-code-guide`); a tool is PascalCase, or
+# snake_case for a few remote and memory tools.
+AGENT_NAME_RE = r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*"
+TOOL_NAME_RE = r"[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*(?:_[a-z0-9]+)+"
+
 # A description or argument hint held in a single-character identifier is
 # trusted only when its binding lies this close to the registration: such names
 # are function-local, and a farther binding belongs to another function.
@@ -700,13 +718,15 @@ class _Values:
 
 
 def _object_fields(
-    src: str, braces: BraceMap, open_i: int
+    src: str, braces: BraceMap, open_i: int, *, methods: bool = False
 ) -> dict[str, tuple[str, int]]:
     """Top-level fields of the object literal at `open_i`.
 
     Maps each key to ("value", offset of its value) or ("getter", offset of
-    the getter body's `{`). Nested objects, strings, and groups are skipped,
-    so a nested object's field never answers for the outer one.
+    the getter body's `{`); with `methods`, a method or async method
+    (`description(){...}`) maps to ("method", offset of its body's `{`).
+    Nested objects, strings, and groups are skipped, so a nested object's
+    field never answers for the outer one.
     """
     close = braces.pairs.get(open_i)
     if close is None:
@@ -734,6 +754,8 @@ def _object_fields(
                 j = _skip_ws(src, _match_close(src, braces, m.end() - 1, close), close)
                 if m.group(1) == "get" and src.startswith("{", j):
                     fields.setdefault(key, ("getter", j))
+                elif methods and m.group(1) != "set" and src.startswith("{", j):
+                    fields.setdefault(key, ("method", j))
                 i, expect_key = j, False
                 continue
         expect_key = False
@@ -877,6 +899,9 @@ def _operand(
             j = _ident_end(src, i)
             word = src[i:j]
             k = _skip_ws(src, j, n)
+            if word == "async" and k < n and (src[k] == "(" or src[k] in _ID_START):
+                # `async()=>...` or `async x=>...`: the keyword, not a callee.
+                return _operand(src, braces, k, n, acc, hops=hops, anchor=anchor)
             if src.startswith("=>", k):
                 return _arrow_body(src, braces, k + 2, n, acc, hops=hops, anchor=anchor)
             if word in _NON_STRING_WORDS:
@@ -1063,25 +1088,34 @@ def _eval_field(
     *,
     hops: int = _MAX_HOPS,
     anchor: int | None = None,
+    methods: bool = False,
 ) -> str | None:
     """Evaluate one top-level field into `acc`; returns its form, or None when absent."""
-    entry = _object_fields(src, braces, open_i).get(key)
+    entry = _object_fields(src, braces, open_i, methods=methods).get(key)
     if entry is None:
         return None
     kind, pos = entry
-    if kind == "getter":
+    if kind in ("getter", "method"):
+        if kind == "method":
+            acc.via.add("call")
         close = braces.pairs.get(pos)
         if close is None:
-            return "getter"
+            return kind
         _scan(src, braces, pos + 1, close, acc, block=True, hops=hops, anchor=anchor)
-        return "getter"
+        return kind
     close = braces.pairs.get(open_i, len(src))
     _scan(src, braces, pos, close, acc, block=False, hops=hops, anchor=anchor)
     return "value"
 
 
 def resolve_field(
-    src: str, braces: BraceMap, open_i: int, key: str, anchor: int | None = None
+    src: str,
+    braces: BraceMap,
+    open_i: int,
+    key: str,
+    anchor: int | None = None,
+    *,
+    methods: bool = False,
 ) -> dict[str, Any] | None:
     """Statically resolve one string field of an object literal.
 
@@ -1090,11 +1124,14 @@ def resolve_field(
     getter), which is what a default session shows; `variants` lists every
     alternative when there is more than one; `source` names the form:
     literal, template (a runtime substitution rendered as an ellipsis),
-    constant, call, getter, arrow, or unresolved.
+    constant, call, getter, arrow, or unresolved. With `methods`, a method
+    (`description(){return x}`) is read like a getter and labeled `call`.
     """
     acc = _Values()
     try:
-        form = _eval_field(src, braces, open_i, key, acc, anchor=anchor)
+        form = _eval_field(
+            src, braces, open_i, key, acc, anchor=anchor, methods=methods
+        )
     except (ValueError, IndexError, RecursionError):
         form, acc = "value", _Values()
     if form is None:
@@ -1317,7 +1354,7 @@ _KEBAB_BINDING_RE = re.compile(
 
 
 def build_const_index(
-    src: str, idents: set[str] | None = None
+    src: str, idents: set[str] | None = None, value_re: str | None = None
 ) -> dict[str, list[tuple[int, str]]]:
     """Every `ident="kebab-case"` binding, keyed by identifier, in source order.
 
@@ -1330,14 +1367,21 @@ def build_const_index(
     resolving narrows the scan to those names, which is a fraction of the cost
     of indexing every binding in a 37 MB source.
     """
+    value = value_re or r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*"
     if idents is not None:
         if not idents:
             return {}
+        # `(?<![\w$])`, not `\b`: minified names may start with `$`, before
+        # which `\b` needs a word character and so never matches a real start.
         pattern = re.compile(
-            r"\b("
+            r"(?<![\w$])("
             + "|".join(re.escape(i) for i in sorted(idents, key=len, reverse=True))
-            + r')\s*=\s*"([a-z][a-z0-9]*(?:-[a-z0-9]+)*)"'
+            + r')\s*=\s*"('
+            + value
+            + r')"'
         )
+    elif value_re:
+        pattern = re.compile(r"(?<![\w$])(" + _IDENT + r')\s*=\s*"(' + value + r')"')
     else:
         pattern = _KEBAB_BINDING_RE
     index: dict[str, list[tuple[int, str]]] = {}
@@ -1380,7 +1424,11 @@ def _nearest_binding(src: str, ident: str, at: int) -> int | None:
     `SHORT_IDENT_LOCALITY_BYTES`.
     """
     lo = max(0, at - SHORT_IDENT_LOCALITY_BYTES) if len(ident) == 1 else 0
-    pattern = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"\s*=(?![=>])\s*")
+    # The identifier leads and the boundary check trails it: a pattern that
+    # opens with a lookbehind loses the regex engine's literal-prefix scan and
+    # runs about thirty times slower over a 45 MB source.
+    name = re.escape(ident)
+    pattern = re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
     last = None
     for m in pattern.finditer(src, lo, at):
         last = m
@@ -1971,6 +2019,428 @@ def _workflow_invocation(
     return rec
 
 
+# --------------------------------------------------------------------------
+# Built-in subagents and tools
+# --------------------------------------------------------------------------
+
+_PASCAL_RE = re.compile(r"[A-Z][A-Za-z0-9]*")
+_NAME_EXPR_RE = re.compile(_STR + r"|(" + _IDENT + r")(\.[A-Za-z_$][\w$]*)?(?=\s*[,}])")
+_BINDING_HEAD_RE = re.compile(r"(?<![\w$.])(" + _IDENT + r")\s*=\s*$")
+_EXPORT_RE = re.compile(r"export\{([^{}]*)\}")
+_ELEM_LITERAL_RE = re.compile(_STR + r"(?=\s*[,\]])")
+_ELEM_SPREAD_RE = re.compile(r"\.\.\.(" + _IDENT + r")(?=\s*[,\]])")
+_ELEM_IDENT_RE = re.compile(_IDENT + r"(?=\s*[,\]])")
+
+
+def resolve_tool_ident(
+    ident: str, at: int, index: dict[str, list[tuple[int, str]]]
+) -> str | None:
+    """Resolve a tool-name identifier by its nearest preceding PascalCase binding.
+
+    Tool names are PascalCase, and in the bytecode layout their constants sit
+    megabytes ahead of use, with unrelated modules rebinding the same minified
+    identifier in between (`no="SendMessage"`, then `no="column"`). The index
+    holds only tool-shaped values; among them the nearest PascalCase binding
+    wins, and a snake_case one is taken only when no PascalCase binding
+    precedes. A single-character identifier keeps the usual locality limit.
+    """
+    bindings = index.get(ident)
+    if not bindings:
+        return None
+    before = bindings[: bisect.bisect_left(bindings, (at, ""))]
+    if len(ident) == 1:
+        before = [b for b in before if at - b[0] <= SHORT_IDENT_LOCALITY_BYTES]
+    for _, value in reversed(before):
+        if _PASCAL_RE.fullmatch(value):
+            return value
+    return before[-1][1] if before else None
+
+
+def _name_expr(
+    src: str, fields: dict[str, tuple[str, int]], key: str
+) -> tuple[str, str | None]:
+    """How a name field is written: ("literal", text), ("ident", name),
+    ("member", name) for `e.name`, or ("expr", None) for anything else."""
+    entry = fields.get(key)
+    if entry is None or entry[0] != "value":
+        return "expr", None
+    m = _NAME_EXPR_RE.match(src, entry[1])
+    if not m:
+        return "expr", None
+    if m.group(1) is not None:
+        return "literal", _unescape(m.group(1))
+    return ("member" if m.group(3) else "ident"), m.group(2)
+
+
+def _literal_flag(
+    src: str, fields: dict[str, tuple[str, int]], key: str, default: bool
+) -> bool | None:
+    """A boolean field: `!0`/`!1` read as written, absent is `default`, and
+    anything else (a getter, a method, a call) is decided at runtime: None."""
+    entry = fields.get(key)
+    if entry is None:
+        return default
+    if entry[0] == "value" and src.startswith(("!0", "!1"), entry[1]):
+        return src.startswith("!0", entry[1])
+    return None
+
+
+def _array_names(
+    src: str,
+    braces: BraceMap,
+    open_i: int,
+    index: dict[str, list[tuple[int, str]]],
+    at: int,
+    hops: int = 2,
+) -> tuple[list[str], bool]:
+    """Tool names in the array literal at `open_i`, and whether all resolved.
+
+    Elements are string literals, tool-name constants, or a `...spread` of
+    another array constant, which is followed `hops` deep.
+    """
+    names: list[str] = []
+    complete = True
+    for start in _split_args(src, braces, open_i + 1):
+        if src.startswith("]", start):
+            continue
+        lit = _ELEM_LITERAL_RE.match(src, start)
+        spread = _ELEM_SPREAD_RE.match(src, start)
+        ident = _ELEM_IDENT_RE.match(src, start)
+        if lit:
+            names.append(_unescape(lit.group(1)))
+        elif spread and hops > 0:
+            v = _nearest_binding(src, spread.group(1), at)
+            if v is not None and src.startswith("[", v):
+                more, ok = _array_names(src, braces, v, index, v, hops - 1)
+                names.extend(more)
+                complete = complete and ok
+            else:
+                complete = False
+        elif ident and not spread:
+            value = resolve_tool_ident(ident.group(0), at, index)
+            if value is None:
+                complete = False
+            else:
+                names.append(value)
+        else:
+            complete = False
+    return names, complete
+
+
+def _tool_list(
+    src: str,
+    braces: BraceMap,
+    open_i: int,
+    fields: dict[str, tuple[str, int]],
+    key: str,
+    index: dict[str, list[tuple[int, str]]],
+) -> tuple[list[str] | None, str]:
+    """A subagent's tool list and how it was read: `literal`, `partial` (some
+    element did not resolve; the list is a floor), `getter` (decided per
+    session), `reference` (another object's field), or `absent`."""
+    entry = fields.get(key)
+    if entry is None:
+        return None, "absent"
+    if entry[0] != "value":
+        return None, "getter"
+    if not src.startswith("[", entry[1]):
+        return None, "reference"
+    try:
+        names, complete = _array_names(src, braces, entry[1], index, open_i)
+    except (ValueError, IndexError):
+        return None, "partial"
+    return names, "literal" if complete else "partial"
+
+
+def _binding_ident(src: str, open_i: int) -> str | None:
+    """The identifier an object literal is assigned to (`var X={...}`)."""
+    m = _BINDING_HEAD_RE.search(src, max(0, open_i - 80), open_i)
+    return m.group(1) if m else None
+
+
+def _export_names(src: str, ident: str, close_i: int) -> list[str]:
+    """Names an `export{...}` gives `ident`.
+
+    The chunk's closing export statement is always read. A one- or
+    two-character identifier is chunk-local, so only that statement can
+    speak for it; a longer one may be re-exported under another name by a
+    later statement (`export{qHe}` then `export{qHe as CLAUDE_AGENT}`), so
+    every export statement naming it is read.
+    """
+    statements = []
+    first = _EXPORT_RE.search(src, close_i, close_i + 262_144)
+    if first:
+        statements.append(first.group(1))
+    if len(ident) > 2:
+        pattern = re.compile(
+            r"export\{([^{}]*(?<![\w$])" + re.escape(ident) + r"(?![\w$])[^{}]*)\}"
+        )
+        statements.extend(m.group(1) for m in pattern.finditer(src))
+    out: list[str] = []
+    for statement in statements:
+        for part in statement.split(","):
+            local, _, exported = part.strip().partition(" as ")
+            if local == ident and (exported or local) not in out:
+                out.append(exported or local)
+    return out
+
+
+def _agent_roster(
+    src: str, braces: BraceMap, refs: dict[str, str]
+) -> tuple[dict[str, str], bool]:
+    """Which built-in agents the default roster registers, and how.
+
+    `refs` maps each identifier or export name an agent is reachable by to its
+    agent name. The roster is the function whose array initializer holds a
+    known agent and whose pushes add more: `let n=[GP];if(c)n.push(SL);...`.
+    An agent in the initializer is `default`; one pushed is `conditional`
+    (the push sits under a runtime condition). An agent loaded from another
+    chunk is pushed through a destructured export (`{CLAUDE_AGENT:s}=...`).
+    Returns (name -> status, roster found).
+    """
+    best: tuple[int, dict[str, str]] | None = None
+    long_refs = {r: n for r, n in refs.items() if len(r) > 1}
+    if not long_refs:
+        return {}, False
+    init_re = re.compile(r"(?<![\w$.])(" + _IDENT + r")=\[([^\[\]]*)\]")
+    for m in init_re.finditer(src):
+        elems = [e.strip() for e in m.group(2).split(",") if e.strip()]
+        if not elems or not any(e in long_refs for e in elems):
+            continue
+        enc = braces.enclosing(m.start())
+        if enc is None or enc[1] - enc[0] > 8_192:
+            continue
+        body = src[enc[0] : enc[1] + 1]
+        status = {long_refs[e]: "default" for e in elems if e in long_refs}
+        local = {
+            d.group(2): long_refs[d.group(1)]
+            for d in re.finditer(r"\{(" + _IDENT + r"):(" + _IDENT + r")\}", body)
+            if d.group(1) in long_refs
+        }
+        push_re = re.compile(re.escape(m.group(1)) + r"\.push\(([^()]*)\)")
+        for push in push_re.finditer(body):
+            for arg in push.group(1).split(","):
+                arg = arg.strip()
+                name = local.get(arg) or long_refs.get(arg)
+                if name:
+                    status.setdefault(name, "conditional")
+        if len(status) >= 2 and (best is None or len(status) > best[0]):
+            best = (len(status), status)
+    return (best[1], True) if best else ({}, False)
+
+
+def extract_builtin_agents(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Built-in subagent types, keyed by name, plus resolution notes.
+
+    A definition is an object literal carrying `agentType` and
+    `source:"built-in"`; its name is a literal or a constant resolved by the
+    nearest-preceding rule. Fields are read from the literal itself, so the
+    registration path (a roster function, a chunk export, a feature's own
+    spawn) does not matter for finding it; the roster says which ones a
+    default session registers.
+    """
+    notes: dict[str, Any] = {}
+    found: list[tuple[int, dict[str, tuple[str, int]]]] = []
+    opens: set[int] = set()
+    for m in re.finditer(r"[{,]agentType:", src):
+        enc = braces.enclosing(m.start() + 1)
+        if enc is None or enc[0] in opens:
+            continue
+        fields = _object_fields(src, braces, enc[0], methods=True)
+        # A definition carries its prompt or its routing text; a runtime
+        # context object that merely copies `agentType` and `source` from a
+        # definition carries neither.
+        if "agentType" not in fields or not {"whenToUse", "getSystemPrompt"} & set(
+            fields
+        ):
+            continue
+        origin = resolve_field(src, braces, enc[0], "source")
+        if not origin or origin["value"] != "built-in":
+            continue
+        opens.add(enc[0])
+        found.append((enc[0], fields))
+
+    exprs = [(o, f, _name_expr(src, f, "agentType")) for o, f in found]
+    idents = {e[1] for *_, e in exprs if e[0] == "ident" and e[1]}
+    name_index = build_const_index(src, idents, AGENT_NAME_RE)
+    tools_index = build_const_index(src, None, TOOL_NAME_RE)
+
+    out: dict[str, dict[str, Any]] = {}
+    refs: dict[str, str] = {}
+    unresolved: list[str] = []
+    for open_i, fields, (kind, text) in exprs:
+        if kind == "literal":
+            name = text
+        elif kind == "ident" and text:
+            name = resolve_name_ident(text, open_i, name_index)
+        else:
+            name = None
+        if not name or not re.fullmatch(AGENT_NAME_RE, name):
+            unresolved.append(text or f"agentType at {open_i}")
+            continue
+        if name in out:
+            out[name]["definitions"] += 1
+            continue
+        ident = _binding_ident(src, open_i)
+        if ident:
+            refs.setdefault(ident, name)
+            for exported in _export_names(src, ident, braces.pairs[open_i]):
+                refs.setdefault(exported, name)
+        rec: dict[str, Any] = {"name": name, "source": "builtin-agent"}
+        _apply_field(
+            rec, "description", resolve_field(src, braces, open_i, "whenToUse")
+        )
+        rec["description"] = rec["description"] or ""
+        for key, field_name in (
+            ("tools", "tools"),
+            ("disallowed_tools", "disallowedTools"),
+        ):
+            names, how = _tool_list(
+                src, braces, open_i, fields, field_name, tools_index
+            )
+            rec[key], rec[f"{key}_source"] = names, how
+        for key, field_name in (
+            ("model", "model"),
+            ("permission_mode", "permissionMode"),
+        ):
+            got = resolve_field(src, braces, open_i, field_name)
+            rec[key] = (
+                got["value"]
+                if got and got["source"] in ("literal", "constant")
+                else None
+            )
+        turns = fields.get("maxTurns")
+        digits = re.match(r"\d+", src[turns[1] : turns[1] + 8]) if turns else None
+        rec["max_turns"] = int(digits.group(0)) if digits else None
+        rec["omit_claude_md"] = _literal_flag(src, fields, "omitClaudeMd", False)
+        rec["definitions"] = 1
+        out[name] = rec
+
+    roster, roster_found = _agent_roster(src, braces, refs)
+    for name, rec in out.items():
+        status = roster.get(name, "absent")
+        rec["roster"] = status
+        rec["gated"] = status != "default"
+        # Users reach a registered subagent by @-mention or --agent, the model
+        # by the Agent tool's subagent_type; one outside the default roster is
+        # registered only when a runtime feature adds it.
+        who: bool | None = None if status == "absent" else True
+        rec["user_invocable"] = who
+        rec["model_invocable"] = who
+
+    notes["definitions_seen"] = len(found)
+    notes["resolved"] = len(found) - len(unresolved)
+    notes["roster_found"] = roster_found
+    notes["roster"] = {
+        s: sorted(n for n, r in out.items() if r["roster"] == s)
+        for s in ("default", "conditional", "absent")
+    }
+    if unresolved:
+        notes["unresolved_names"] = sorted(set(unresolved))
+    return out, notes
+
+
+def extract_builtin_tools(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Built-in tools, keyed by name, plus resolution notes.
+
+    A tool definition is an object literal with top-level `name` and
+    `maxResultSizeChars`, whether passed to the tool builder or assigned
+    directly, so the builder's minified name is never needed. A name held in
+    a function parameter (`name:e.name`, or a lone `e` with no binding in
+    reach) is a factory that builds tools at runtime: counted in
+    `factory_definitions`, never guessed. An `isMcp:!0` literal is the MCP
+    tool template and is skipped.
+    """
+    notes: dict[str, Any] = {}
+    found: list[tuple[int, dict[str, tuple[str, int]]]] = []
+    opens: set[int] = set()
+    templates = 0
+    for m in re.finditer(r"[{,](?:get\s+)?maxResultSizeChars\b", src):
+        enc = braces.enclosing(m.start() + 1)
+        if enc is None or enc[0] in opens:
+            continue
+        opens.add(enc[0])
+        fields = _object_fields(src, braces, enc[0], methods=True)
+        if "maxResultSizeChars" not in fields or "name" not in fields:
+            continue
+        if _literal_flag(src, fields, "isMcp", False):
+            templates += 1
+            continue
+        found.append((enc[0], fields))
+
+    exprs = [(o, f, _name_expr(src, f, "name")) for o, f in found]
+    index = build_const_index(src, None, TOOL_NAME_RE)
+    out: dict[str, dict[str, Any]] = {}
+    unresolved: list[str] = []
+    factories = 0
+    for open_i, fields, (kind, text) in exprs:
+        name = None
+        if kind == "literal":
+            name = text
+        elif kind == "ident" and text:
+            name = resolve_tool_ident(text, open_i, index)
+        if name is None and (
+            kind == "member" or (kind == "ident" and len(text or "") == 1)
+        ):
+            factories += 1
+            continue
+        if not name or not re.fullmatch(TOOL_NAME_RE, name):
+            unresolved.append(text or f"name at {open_i}")
+            continue
+        rec: dict[str, Any] = {"name": name, "source": "builtin-tool"}
+        desc = resolve_field(src, braces, open_i, "description", methods=True)
+        _apply_field(rec, "description", desc)
+        rec["description"] = rec["description"] or ""
+        hint = resolve_field(src, braces, open_i, "searchHint", methods=True)
+        rec["search_hint"] = hint["value"] if hint else None
+        ufn = resolve_field(src, braces, open_i, "userFacingName", methods=True)
+        if ufn and ufn["value"] and ufn["value"] != name:
+            rec["user_facing_name"] = ufn["value"]
+        aliases = fields.get("aliases")
+        rec["aliases"] = (
+            _array_names(src, braces, aliases[1], index, open_i)[0]
+            if aliases and aliases[0] == "value" and src.startswith("[", aliases[1])
+            else []
+        )
+        rec["deferred"] = _literal_flag(src, fields, "shouldDefer", False)
+        rec["always_load"] = _literal_flag(src, fields, "alwaysLoad", False)
+        rec["flag_driven"] = [
+            k for k in ("deferred", "always_load") if rec[k] is None
+        ] or None
+        if rec["flag_driven"] is None:
+            del rec["flag_driven"]
+        rec["gated"] = "isEnabled" in fields
+        # A tool is called by the model; no user types one.
+        rec["user_invocable"] = False
+        rec["model_invocable"] = True
+        prev = out.get(name)
+        if prev is None:
+            rec["definitions"] = 1
+            out[name] = rec
+        else:
+            prev["definitions"] += 1
+            if not prev["description"] and rec["description"]:
+                rec["definitions"] = prev["definitions"]
+                out[name] = rec
+
+    notes["definitions_seen"] = len(found)
+    notes["resolved"] = len(found) - len(unresolved) - factories
+    if factories:
+        notes["factory_definitions"] = factories
+    if templates:
+        notes["templates_skipped"] = templates
+    if unresolved:
+        notes["unresolved_names"] = sorted(set(unresolved))
+    notes["description_unresolved"] = sum(
+        1 for r in out.values() if r["description_source"] in ("unresolved", "absent")
+    )
+    return out, notes
+
+
 def detect_cli_version(src: str) -> str | None:
     """Best-effort CLI version from the bundle.
 
@@ -2000,6 +2470,11 @@ def check_integrity(
     runs_below_floor: int = 0,
     workflows: dict[str, Any] | None = None,
     workflow_notes: dict[str, Any] | None = None,
+    *,
+    agents: dict[str, Any] | None = None,
+    agent_notes: dict[str, Any] | None = None,
+    tools: dict[str, Any] | None = None,
+    tool_notes: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Decide whether this extraction can be trusted, per lane, and say why.
 
@@ -2016,7 +2491,15 @@ def check_integrity(
     advisories prefixed by the lane name, so the healthy lanes' counts stay
     reportable and the broken lane is named rather than hidden.
     """
-    present = LANES + ((WORKFLOW_LANE,) if workflows is not None else ())
+    present = LANES + tuple(
+        lane
+        for lane, payload in (
+            (WORKFLOW_LANE, workflows),
+            (AGENT_LANE, agents),
+            (TOOL_LANE, tools),
+        )
+        if payload is not None
+    )
     lanes: dict[str, dict[str, Any]] = {
         lane: {"status": "ok", "problems": [], "advisories": []} for lane in present
     }
@@ -2126,6 +2609,35 @@ def check_integrity(
                 f"{len(wnotes['unresolved'])} bundled-workflow registration(s) did not "
                 "resolve a name; the bundled-workflow list is a floor, not a total"
             )
+
+    for lane, payload, lane_notes, canary, noun in (
+        (AGENT_LANE, agents, agent_notes, AGENT_CANARY, "built-in agent"),
+        (TOOL_LANE, tools, tool_notes, TOOL_CANARY, "built-in tool"),
+    ):
+        if payload is None:
+            continue
+        entry, lnotes = lanes[lane], lane_notes or {}
+        if not payload:
+            entry["problems"].append(
+                f"no {noun} definition resolved - the {noun} scan found nothing"
+            )
+        else:
+            missing_names = [c for c in canary if c not in payload]
+            if missing_names:
+                entry["problems"].append(
+                    f"canary {noun}(s) absent: {', '.join(missing_names)} - the scan "
+                    "resolved nothing it should have"
+                )
+        if lnotes.get("unresolved_names"):
+            entry["advisories"].append(
+                f"{len(lnotes['unresolved_names'])} {noun} definition(s) did not "
+                f"resolve a name; the {noun} list is a floor, not a total"
+            )
+    if agents and not (agent_notes or {}).get("roster_found"):
+        lanes[AGENT_LANE]["advisories"].append(
+            "the default agent roster was not located; every agent reads roster "
+            "`absent`, so which agents a default session registers is unknown"
+        )
 
     problems: list[str] = []
     advisories: list[str] = list(top_advisories)
@@ -2360,6 +2872,8 @@ _BINARY_LANES = (
     ("builtin_commands", "command"),
     ("bundled_skills", "skill"),
     ("bundled_workflows", "workflow"),
+    (AGENT_LANE, "agent"),
+    (TOOL_LANE, "tool"),
 )
 
 
@@ -2416,6 +2930,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 commands = extract_builtin_commands(src, braces)
                 skills, skill_notes = extract_bundled_skills(src, braces)
                 workflows, workflow_notes = extract_bundled_workflows(src, braces)
+                agents, agent_notes = extract_builtin_agents(src, braces)
+                tools, tool_notes = extract_builtin_tools(src, braces)
                 plugin_backed = extract_plugin_backed(src)
 
                 for name, plugin in plugin_backed.items():
@@ -2438,6 +2954,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["bundled_skill_notes"] = skill_notes
                 report["bundled_workflows"] = workflows
                 report["bundled_workflow_notes"] = workflow_notes
+                report[AGENT_LANE] = agents
+                report["builtin_agent_notes"] = agent_notes
+                report[TOOL_LANE] = tools
+                report["builtin_tool_notes"] = tool_notes
                 report["plugin_backed"] = plugin_backed
                 report["integrity"] = check_integrity(
                     src,
@@ -2448,6 +2968,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                     int(meta.get("runs_below_floor", 0) or 0),
                     workflows,
                     workflow_notes,
+                    agents=agents,
+                    agent_notes=agent_notes,
+                    tools=tools,
+                    tool_notes=tool_notes,
                 )
                 report["integrity"]["undetermined"] = undetermined_fields(report)
 

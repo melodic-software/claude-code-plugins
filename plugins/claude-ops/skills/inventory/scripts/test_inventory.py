@@ -1017,6 +1017,266 @@ class TestBundledWorkflows(unittest.TestCase):
         self.assertEqual(got["status"], "ok")
 
 
+# Shapes from 2.1.285: literal and constant agent types, a disallowed list
+# with a spread, a getter tool list, a chunk agent pushed through a renamed
+# export, an internal agent outside the roster, a user-settings agent, and a
+# runtime context object that copies `agentType` and `source`.
+AGENT_SRC = (
+    'var xt="Edit",yt="Agent";var B6=[xt];var zz="Explore";'
+    'var GP={agentType:"general-purpose",whenToUse:"General agent",tools:["*"],'
+    'source:"built-in",baseDir:"built-in",getSystemPrompt:()=>""};'
+    'var EX={agentType:zz,whenToUse:"Fast search",disallowedTools:[yt,...B6],'
+    'source:"built-in",baseDir:"built-in",model:"inherit",omitClaudeMd:!0,'
+    'maxTurns:15,getSystemPrompt:()=>""};'
+    'var PL={agentType:"Plan",whenToUse:"Plans",source:"built-in",tools:EX.tools,'
+    'getSystemPrompt(){return""}};'
+    'var SL={agentType:"statusline-setup",whenToUse:"Status line",'
+    'tools:["Read","Edit"],source:"built-in",model:"sonnet",getSystemPrompt:()=>""};'
+    'var GD={agentType:"claude-code-guide",whenToUse:"Docs questions",'
+    'get tools(){return[yt]},source:"built-in",getSystemPrompt:()=>""};'
+    'var qHe={agentType:"claude",whenToUse:"Catch-all",tools:["*"],source:"built-in",'
+    'getSystemPrompt:()=>""};export{qHe};export{qHe as CLAUDE_AGENT};'
+    'var o={agentType:"workflow-subagent",whenToUse:"Internal",tools:["*"],'
+    'source:"built-in",getSystemPrompt:()=>""};export{o as WF};'
+    'var UC={agentType:"custom",whenToUse:"x",source:"userSettings",'
+    'getSystemPrompt:()=>""};'
+    "var ctx={agentType:GP.agentType,source:GP.source};"
+    "function R(){let n=[GP];if(a())n.push(SL);if(b()){let{CLAUDE_AGENT:s}="
+    'req("c");n.push(s)}if(c())n.push(EX,PL);n.push(GD);return n}'
+)
+
+
+class TestBuiltinAgents(unittest.TestCase):
+    def _extract(self, src: str = AGENT_SRC) -> tuple[dict, dict]:
+        return inv.extract_builtin_agents(src, inv.build_brace_map(src))
+
+    def test_only_built_in_definitions_are_agents(self) -> None:
+        agents, notes = self._extract()
+        self.assertEqual(
+            sorted(agents),
+            [
+                "Explore",
+                "Plan",
+                "claude",
+                "claude-code-guide",
+                "general-purpose",
+                "statusline-setup",
+                "workflow-subagent",
+            ],
+        )
+        self.assertEqual((notes["definitions_seen"], notes["resolved"]), (7, 7))
+
+    def test_a_constant_type_resolves_and_fields_are_read(self) -> None:
+        rec = self._extract()[0]["Explore"]
+        self.assertEqual(rec["description"], "Fast search")
+        self.assertEqual(rec["model"], "inherit")
+        self.assertEqual(rec["max_turns"], 15)
+        self.assertIs(rec["omit_claude_md"], True)
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_tool_list_forms(self) -> None:
+        agents = self._extract()[0]
+        self.assertEqual(agents["statusline-setup"]["tools"], ["Read", "Edit"])
+        self.assertEqual(agents["general-purpose"]["tools"], ["*"])
+        self.assertEqual(agents["Plan"]["tools_source"], "reference")
+        self.assertIsNone(agents["claude-code-guide"]["tools"])
+        self.assertEqual(agents["claude-code-guide"]["tools_source"], "getter")
+        self.assertEqual(agents["Explore"]["tools_source"], "absent")
+
+    def test_roster_statuses(self) -> None:
+        agents, notes = self._extract()
+        self.assertTrue(notes["roster_found"])
+        self.assertEqual(agents["general-purpose"]["roster"], "default")
+        self.assertIs(agents["general-purpose"]["gated"], False)
+        for name in ("statusline-setup", "Explore", "Plan", "claude-code-guide"):
+            self.assertEqual(agents[name]["roster"], "conditional", name)
+        # Pushed through `{CLAUDE_AGENT:s}`, the name a later export gives it.
+        self.assertEqual(agents["claude"]["roster"], "conditional")
+        self.assertEqual(agents["workflow-subagent"]["roster"], "absent")
+        self.assertIsNone(agents["workflow-subagent"]["model_invocable"])
+        self.assertIs(agents["Explore"]["model_invocable"], True)
+        self.assertIs(agents["Explore"]["user_invocable"], True)
+
+    def test_an_unresolved_type_is_counted(self) -> None:
+        src = AGENT_SRC + (
+            'var UU={agentType:qq9,whenToUse:"u",source:"built-in",'
+            'getSystemPrompt:()=>""};'
+        )
+        agents, notes = self._extract(src)
+        self.assertEqual(notes["unresolved_names"], ["qq9"])
+        self.assertEqual(notes["resolved"], notes["definitions_seen"] - 1)
+
+    def test_no_roster_leaves_every_agent_absent(self) -> None:
+        agents, notes = self._extract(AGENT_SRC.split("function R()")[0])
+        self.assertFalse(notes["roster_found"])
+        self.assertEqual({a["roster"] for a in agents.values()}, {"absent"})
+
+
+TOOL_SRC = (
+    'var Ue="Bash",at="Read",xt="Edit",hn="Write",wr="WebFetch";'
+    'var k1="SendUserFile";var m1="memory_read";'
+    "var Kl={isEnabled:()=>!0,isConcurrencySafe:(e)=>!1};"
+    'k1="system_assigned_identity";'
+    '$t({name:Ue,searchHint:"execute shell commands",'
+    "get maxResultSizeChars(){return 1},"
+    'async description({description:e}){return e||"Run"},isEnabled(){return!0}});'
+    '$t({name:at,maxResultSizeChars:1e5,async description(){return"Read a file"},'
+    'aliases:["ReadFile"],shouldDefer:!1});'
+    '$t({name:xt,maxResultSizeChars:1,description:async()=>"Edit a file",'
+    "get shouldDefer(){return x()}});"
+    "var De={name:wr,maxResultSizeChars:1,shouldDefer:!0,"
+    'userFacingName(){return"Fetch"}};'
+    "$t({name:hn,maxResultSizeChars:1,alwaysLoad:!0});"
+    "$t({name:k1,maxResultSizeChars:1});"
+    "$t({name:m1,maxResultSizeChars:1});"
+    "function ne(e){return $t({name:e.name,maxResultSizeChars:5})}"
+    'var M=$t({isMcp:!0,name:"mcp",maxResultSizeChars:1});'
+)
+
+
+class TestBuiltinTools(unittest.TestCase):
+    def _extract(self, src: str = TOOL_SRC) -> tuple[dict, dict]:
+        return inv.extract_builtin_tools(src, inv.build_brace_map(src))
+
+    def test_every_tool_shape_is_found_without_the_builder_name(self) -> None:
+        tools, notes = self._extract()
+        self.assertEqual(
+            sorted(tools),
+            [
+                "Bash",
+                "Edit",
+                "Read",
+                "SendUserFile",
+                "WebFetch",
+                "Write",
+                "memory_read",
+            ],
+        )
+        self.assertEqual(notes["factory_definitions"], 1)
+        self.assertEqual(notes["templates_skipped"], 1)
+        self.assertNotIn("unresolved_names", notes)
+
+    def test_pascal_case_binding_wins_over_a_nearer_snake_case_one(self) -> None:
+        # `k1` is rebound to a snake_case string nearer the definition, as
+        # unrelated modules rebind minified names; a snake_case value is taken
+        # only when no PascalCase binding precedes (`m1`).
+        tools = self._extract()[0]
+        self.assertIn("SendUserFile", tools)
+        self.assertIn("memory_read", tools)
+        self.assertNotIn("system_assigned_identity", tools)
+
+    def test_descriptions_hints_and_names(self) -> None:
+        tools = self._extract()[0]
+        self.assertEqual(tools["Read"]["description"], "Read a file")
+        self.assertEqual(tools["Read"]["description_source"], "call")
+        self.assertEqual(tools["Edit"]["description"], "Edit a file")
+        self.assertEqual(tools["Bash"]["search_hint"], "execute shell commands")
+        self.assertEqual(tools["WebFetch"]["user_facing_name"], "Fetch")
+        self.assertEqual(tools["Read"]["aliases"], ["ReadFile"])
+        self.assertEqual(tools["Write"]["description_source"], "absent")
+
+    def test_deferral_markers(self) -> None:
+        tools = self._extract()[0]
+        self.assertIs(tools["WebFetch"]["deferred"], True)
+        self.assertIs(tools["Read"]["deferred"], False)
+        self.assertIs(tools["Bash"]["deferred"], False)
+        self.assertIsNone(tools["Edit"]["deferred"])
+        self.assertEqual(tools["Edit"]["flag_driven"], ["deferred"])
+        self.assertIs(tools["Write"]["always_load"], True)
+        self.assertIs(tools["Bash"]["gated"], True)
+        self.assertIs(tools["Read"]["gated"], False)
+
+    def test_tools_are_model_only(self) -> None:
+        rec = self._extract()[0]["Bash"]
+        self.assertEqual((rec["user_invocable"], rec["model_invocable"]), (False, True))
+
+    def test_an_unbound_name_is_unresolved_not_a_factory(self) -> None:
+        tools, notes = self._extract(TOOL_SRC + "$t({name:zzq,maxResultSizeChars:1});")
+        self.assertEqual(notes["unresolved_names"], ["zzq"])
+
+    def test_resolve_tool_ident_honors_short_locality(self) -> None:
+        index = {"e": [(0, "Bash")]}
+        self.assertIsNone(
+            inv.resolve_tool_ident("e", inv.SHORT_IDENT_LOCALITY_BYTES + 10, index)
+        )
+        self.assertEqual(inv.resolve_tool_ident("e", 10, index), "Bash")
+
+
+class TestAgentAndToolIntegrity(unittest.TestCase):
+    def _check(self, agents: dict, anotes: dict, tools: dict, tnotes: dict) -> dict:
+        src = TestIntegrity()._src()
+        return inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+            {"security-review": "security-review"},
+            agents=agents,
+            agent_notes=anotes,
+            tools=tools,
+            tool_notes=tnotes,
+        )
+
+    def _healthy(self) -> tuple[dict, dict, dict, dict]:
+        agents = {n: {} for n in inv.AGENT_CANARY}
+        tools = {n: {} for n in inv.TOOL_CANARY}
+        return agents, {"roster_found": True}, tools, {}
+
+    def test_both_lanes_ok(self) -> None:
+        got = self._check(*self._healthy())
+        self.assertEqual(got["lanes"][inv.AGENT_LANE]["status"], "ok")
+        self.assertEqual(got["lanes"][inv.TOOL_LANE]["status"], "ok")
+        self.assertEqual(got["status"], "ok")
+
+    def test_a_missing_canary_breaks_only_that_lane(self) -> None:
+        agents, anotes, tools, tnotes = self._healthy()
+        del tools["Bash"]
+        got = self._check(agents, anotes, tools, tnotes)
+        self.assertEqual(got["lanes"][inv.TOOL_LANE]["status"], "broken")
+        self.assertEqual(got["lanes"][inv.AGENT_LANE]["status"], "ok")
+        self.assertEqual(got["status"], "degraded")
+        self.assertTrue(any("Bash" in a for a in got["advisories"]))
+
+    def test_an_empty_lane_is_broken(self) -> None:
+        agents, anotes, tools, tnotes = self._healthy()
+        got = self._check({}, anotes, tools, tnotes)
+        self.assertEqual(got["lanes"][inv.AGENT_LANE]["status"], "broken")
+
+    def test_unresolved_names_and_a_missing_roster_degrade(self) -> None:
+        agents, _, tools, _ = self._healthy()
+        got = self._check(
+            agents, {"roster_found": False}, tools, {"unresolved_names": ["zz"]}
+        )
+        self.assertEqual(got["lanes"][inv.AGENT_LANE]["status"], "degraded")
+        self.assertEqual(got["lanes"][inv.TOOL_LANE]["status"], "degraded")
+
+    def test_factories_do_not_degrade(self) -> None:
+        agents, anotes, tools, _ = self._healthy()
+        got = self._check(agents, anotes, tools, {"factory_definitions": 4})
+        self.assertEqual(got["lanes"][inv.TOOL_LANE]["status"], "ok")
+
+    def test_lanes_absent_when_not_extracted(self) -> None:
+        src = TestIntegrity()._src()
+        got = inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+        )
+        self.assertNotIn(inv.AGENT_LANE, got["lanes"])
+        self.assertNotIn(inv.TOOL_LANE, got["lanes"])
+
+
+class TestNearestBindingBoundary(unittest.TestCase):
+    def test_a_longer_identifier_ending_in_the_name_is_not_a_binding(self) -> None:
+        src = 'Rvt="a";xRvt="b";o.Rvt="c";z'
+        at = len(src) - 1
+        v = inv._nearest_binding(src, "Rvt", at)
+        assert v is not None
+        self.assertEqual(src[v : v + 3], '"a"')
+
+
 DOCS = """# Commands
 
 ## All commands
