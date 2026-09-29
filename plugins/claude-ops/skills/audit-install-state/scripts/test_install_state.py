@@ -1087,5 +1087,162 @@ class TestAuditorAncestry(unittest.TestCase):
             )
 
 
+class TestUnreferencedVersions(unittest.TestCase):
+    """Cache version directories that no installPath references, measured and never touched."""
+
+    NOW = 1_800_000_000.0
+
+    def _cache(self, root: Path, *versions: tuple[str, int | None, int]) -> None:
+        """`(version, marker epoch-ms or None, payload bytes)` under one marketplace/plugin."""
+        for version, marker, size in (*versions, ("current", None, 1)):
+            vdir = root / "plugins" / "cache" / "mkt" / "plug" / version
+            vdir.mkdir(parents=True)
+            (vdir / "payload").write_bytes(b"x" * size)
+            if marker is not None:
+                (vdir / ".orphaned_at").write_text(str(marker), encoding="utf-8")
+
+    def _registry(self, root: Path, *install_paths: str, current: bool = True) -> None:
+        if current:
+            install_paths = (
+                str(root / "plugins" / "cache" / "mkt" / "plug" / "current"),
+                *install_paths,
+            )
+        records = [
+            {"scope": "project", "installPath": p, "projectPath": "/repo"}
+            for p in install_paths
+        ]
+        (root / "plugins" / "installed_plugins.json").write_text(
+            json.dumps({"version": 2, "plugins": {"plug@mkt": records}}),
+            encoding="utf-8",
+        )
+
+    def _run(self, root: Path):
+        rows, _ = engine.walk_tree(root, [])
+        return engine.unreferenced_versions(root, rows, now=self.NOW)
+
+    def _ms(self, days: float) -> int:
+        return int((self.NOW - days * 86400) * 1000)
+
+    def test_a_referenced_version_is_excluded_and_the_rest_sort_by_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(
+                root,
+                ("1.0.0", None, 500),
+                ("1.1.0", self._ms(20), 100),
+                ("1.2.0", None, 300),
+            )
+            self._registry(
+                root, str(root / "plugins" / "cache" / "mkt" / "plug" / "1.0.0")
+            )
+            found, note = self._run(root)
+            self.assertIsNone(note)
+            self.assertEqual([v["version"] for v in found], ["1.2.0", "1.1.0"])
+
+    def test_a_marker_older_than_the_window_is_past_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(20), 10), ("1.1.0", self._ms(3), 10))
+            self._registry(root)
+            found, _ = self._run(root)
+            by_version = {v["version"]: v for v in found}
+            self.assertTrue(by_version["1.0.0"]["past_sweep_window"])
+            self.assertEqual(by_version["1.0.0"]["marker_age_days"], 20.0)
+            self.assertTrue(by_version["1.0.0"]["orphaned_at"].startswith("2026-12-26"))
+            self.assertFalse(by_version["1.1.0"]["past_sweep_window"])
+            self.assertEqual(
+                by_version["1.0.0"]["path"], "plugins/cache/mkt/plug/1.0.0"
+            )
+
+    def test_the_prune_helper_names_only_unreferenced_versions_past_the_window(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real_now = datetime.now(timezone.utc).timestamp()
+            old, recent = (int((real_now - d * 86400) * 1000) for d in (20, 3))
+            self._cache(
+                root,
+                ("1.0.0", old, 10),
+                ("1.1.0", recent, 10),
+                ("1.2.0", None, 10),
+                ("1.3.0", old, 10),
+            )
+            self._registry(
+                root, str(root / "plugins" / "cache" / "mkt" / "plug" / "1.3.0")
+            )
+            self.assertEqual(
+                engine.prunable_version_paths(root), ["plugins/cache/mkt/plug/1.0.0"]
+            )
+
+    def test_an_unmarked_version_has_no_age_and_is_never_past_the_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", None, 10))
+            self._registry(root)
+            (found,), _ = self._run(root)
+            self.assertIsNone(found["orphaned_at"])
+            self.assertIsNone(found["marker_age_days"])
+            self.assertFalse(found["past_sweep_window"])
+
+    def test_a_missing_registry_reports_nothing_and_says_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(30), 10))
+            found, note = self._run(root)
+            self.assertEqual(found, [])
+            self.assertIn("installed_plugins.json", note)
+            self.assertEqual(_scan(root)["unreferenced_versions"], [])
+
+    def test_an_unparseable_registry_reports_nothing_and_says_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(30), 10))
+            (root / "plugins" / "installed_plugins.json").write_text(
+                "{", encoding="utf-8"
+            )
+            found, note = self._run(root)
+            self.assertEqual(found, [])
+            self.assertIsNotNone(note)
+
+    def test_a_registry_for_another_root_does_not_mark_everything_unreferenced(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(30), 10))
+            self._registry(
+                root, "/elsewhere/plugins/cache/mkt/plug/1.0.0", current=False
+            )
+            found, note = self._run(root)
+            self.assertEqual(found, [])
+            self.assertIn("may belong to another root", note)
+
+    def test_the_audit_writes_nothing_inside_the_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(30), 10))
+            self._registry(root)
+            before = sorted(p.relative_to(root) for p in root.rglob("*"))
+            engine.prunable_version_paths(root)
+            _scan(root)
+            self.assertEqual(
+                before, sorted(p.relative_to(root) for p in root.rglob("*"))
+            )
+
+    def test_the_reader_opens_only_the_registry_and_orphan_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(1), 10))
+            self.assertEqual(
+                engine.read_text_guarded(
+                    root, "plugins/cache/mkt/plug/1.0.0/.orphaned_at"
+                ),
+                str(self._ms(1)),
+            )
+            with self.assertRaises(engine.SecretReadRefused):
+                engine.read_text_guarded(root, "plugins/cache/mkt/plug/1.0.0/payload")
+
+
 if __name__ == "__main__":
     unittest.main()
