@@ -227,7 +227,7 @@ that names that lexer and a block model. A new lexer or block model needs a plug
 - `advisory` and `body_skip` are planned, not yet in the loader: `adapter-load.awk` rejects each as
   an unknown key. The phase that first relies on one adds it to the loader schema in the same
   change.
-- `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
+- `astgrep_rules` is reserved and not implemented. It is research switch SW1: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
 
@@ -549,7 +549,7 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
   - Change-detector: these tests can fail, so they sit outside the can't-fail gate.
     - `rule-constant-restatement`, which also covers testing the fixture: a local literal as the
       subject, with no call (G8). A contract constant is exempted with the scanner's existing
-      `cant-fail-ok:` annotation (`suppress_marker`, `cant-fail-scan.awk:97`).
+      `cant-fail-ok:` annotation (`suppress_marker`; its default is set in `load_adapter` in `cant-fail-scan.awk`).
     - `rule-source-text-read`, which fires only when the path read is a tracked, non-test source
       file, and never when the test reads through a glob or directory walk (a policy test;
       `RESEARCH-matrix.md:151-153`). Without that gate, 107 grep lines in this repo's Bash tests
@@ -811,7 +811,7 @@ Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 - Opt-in split mode (Q3): a spec-only test-writer subagent, a validity check before the tests are
   frozen, and an implementer that cannot edit them.
 - Wave 2 adapters: Rust, Java/Kotlin and Go testify. The ast-grep backend comes in only if research
-  switch S1 fires.
+  switch SW1 fires.
 
 **Sanity Check:**
 
@@ -821,8 +821,8 @@ Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 
 | Alternative | Why rejected | Switch condition |
 |---|---|---|
-| ast-grep as the scanner engine | No PowerShell grammar ships; adds an 8-16 MB install to every consumer | A prebuilt PowerShell grammar ships, or ast-grep is on most fleet machines (research S2, S3) |
-| Semgrep | About 1 s per file, a 365 MB install, and PowerShell needs the paid edition | Never on the hook path; a CI-only cross-file rule might use it (S4) |
+| ast-grep as the scanner engine | No PowerShell grammar ships; adds an 8-16 MB install to every consumer | A prebuilt PowerShell grammar ships, or ast-grep is on most fleet machines (research switches SW2, SW3) |
+| Semgrep | About 1 s per file, a 365 MB install, and PowerShell needs the paid edition | Never on the hook path; a CI-only cross-file rule might use it (switch SW4) |
 | JSON adapters read with `jq` | Consumers would write two formats. Sibling hooks already use `jq` behind a notice, so the dependency itself is not the blocker | The YAML-subset loader fails its portability tests under mawk |
 | Broad hook fallback filter for consumer globs | Needs a bare `test/` pattern, which Q6 forbids | Q6 is revised through an interview |
 | `rule-lint-missing` as a scanner rule | It reads lint config, not test bodies, and has no answer for Bash, Pester or Go | A lint config needs per-file findings |
