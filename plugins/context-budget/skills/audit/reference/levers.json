@@ -260,7 +260,7 @@
     {
       "id": "plugin-disable",
       "title": "enabledPlugins (per-plugin, four scopes)",
-      "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope, with the plugin's defaultEnabled as fallback.",
+      "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope. A plugin no scope names does not load, whatever its defaultEnabled; the settings reference says it falls back to defaultEnabled.",
       "category": "removes-weight",
       "categoryBasis": "Key and scopes documented. The split is measured: agent definitions are uncapped and shrink proportionally; the skill listing is budget-capped and measured zero change even with most plugins disabled.",
       "conditions": "Removes weight on the Custom agents row (and any MCP servers the plugin ships). On the Skills row, zero while the listing is over cap — the honest benefit there is routing accuracy.",
@@ -270,14 +270,19 @@
       "measurement": "snapshot before/after disabling; compare Custom agents (real), Skills (expect capped), and MCP tools if the plugin ships servers.",
       "emittedConfig": "{\"enabledPlugins\": {\"<plugin>@<marketplace>\": false}}",
       "caveats": [
-        "A plugin shipping an MCP server can also cost the prompt cache on toggle — the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix."
+        "A plugin shipping an MCP server can also cost the prompt cache on toggle — the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix.",
+        "Claim: an installed plugin loads only when an enabledPlugins scope sets it true; defaultEnabled does not decide an absent key. Basis: claude plugin list --json on Claude Code 2.1.280, in a fixture config directory, reported disabled every installed plugin no scope named, including one whose marketplace entry and one whose plugin.json set defaultEnabled true; settings-reference#enabledplugins and plugins-reference#defaultenabled state the fallback. As of 2026-09-23, re-measured 2026-09-28. Recheck: a Claude Code release that applies the fallback, or the docs dropping it.",
+        "Every value must be a Boolean. Claim: one non-Boolean value (\"yes\", 1) makes Claude Code skip every enabledPlugins entry in that file, so its true siblings read disabled too, while other scopes still decide. Basis: the same fixture probe on Claude Code 2.1.280; claude doctor lists the value under Invalid settings. As of 2026-09-28. Recheck: a release that honors the Boolean siblings, or settings#fix-a-broken-settings-file naming per-entry handling for this key."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings",
-        "https://code.claude.com/docs/en/plugins"
+        "https://code.claude.com/docs/en/plugins",
+        "https://code.claude.com/docs/en/settings-reference#enabledplugins",
+        "https://code.claude.com/docs/en/plugins-reference#defaultenabled",
+        "https://code.claude.com/docs/en/settings#fix-a-broken-settings-file"
       ],
       "verified": "2026-08-17",
-      "recheckTrigger": "The plugins/settings pages change the key or its precedence, or agent listings become budget-capped like skills."
+      "recheckTrigger": "The plugins/settings pages change the key or its precedence, agent listings become budget-capped like skills, or a Claude Code release applies the defaultEnabled fallback to a plugin no scope names."
     },
     {
       "id": "agent-name-deny",
