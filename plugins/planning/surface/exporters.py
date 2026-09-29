@@ -642,11 +642,17 @@ def export_brief(d):
     out += [
         f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
     ] or ["- none recorded"]
+    restated = (doc.get("restatement") or {}).get("sections", {}).get("acceptance")
+    criteria = [
+        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
+        for line in str(restated or "").splitlines()
+        if line.strip()
+    ]
     out += [
         "",
         "### Acceptance criteria",
         "",
-        "- none recorded in the interview surface",
+        *(criteria or ["- none recorded in the interview surface"]),
         "",
     ]
     out += ["### Captured assumptions", ""]

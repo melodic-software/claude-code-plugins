@@ -61,7 +61,7 @@ class SessionCase(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
 
-    def session(self, questions, events, meta=None):
+    def session(self, questions, events, meta=None, restatement=None):
         doc = {
             "meta": meta or {"title": "Export test", "eyebrow": "surface eyebrow text"},
             "rev": 1,
@@ -69,6 +69,8 @@ class SessionCase(unittest.TestCase):
             "questions": questions,
             "visuals": [],
         }
+        if restatement:
+            doc["restatement"] = restatement
         (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
         responses, history = rebuild_responses(events)
         (self.dir / "responses.json").write_text(
@@ -295,6 +297,53 @@ class TestExportBrief(SessionCase):
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
+
+    def acceptance_section(self, acceptance):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept")],
+            restatement={"rev": 1, "at": AT, "sections": {"acceptance": acceptance}},
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        return text, text.split("### Acceptance criteria")[1].split("###")[0]
+
+    def test_restated_acceptance_criteria_become_plain_bullets(self):
+        text, section = self.acceptance_section(
+            "- AC one is testable\n\n- [ ] AC two\n[x] AC three"
+        )
+        self.assertEqual(
+            [x for x in section.splitlines() if x],
+            ["- AC one is testable", "- AC two", "- AC three"],
+        )
+        self.assertNotIn("none recorded in the interview surface", text)
+
+    def test_no_restatement_keeps_the_none_line(self):
+        self.deferred_session()
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- none recorded in the interview surface", text)
+
+    def test_restated_acceptance_cannot_add_a_heading_or_fence(self):
+        text, section = self.acceptance_section("# Sneaky\n```\n~~~")
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertEqual(
+            headings[:5],
+            [
+                "## Brief",
+                "### TLDR",
+                "### Goal",
+                "### Constraints",
+                "### Acceptance criteria",
+            ],
+        )
+        self.assertNotIn("# Sneaky", headings)
+        self.assertFalse(
+            any(x.startswith(("- `", "- ~")) for x in section.splitlines())
+        )
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
 
     def test_confirmed_commitment_is_an_assumption_and_archived_is_out_of_scope(self):
         self.decided()
