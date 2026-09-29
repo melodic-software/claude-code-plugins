@@ -11,9 +11,18 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   is the real input count, including a missing tool and a lane with no manifest root. No
   `package.json` or `go.mod` is `state=no-manifest`, distinct from `skipped` (no resolvable
   binary). `Summary coverage: covered=N uncovered=M` plus one `Note:` per uncovered file names the
-  reason: no lane for the language, no manifest root, tool not installed, or lane not selected. The
-  clean-result note is printed only when nothing is uncovered. `Summary total:` reports
-  `files-with-findings=` so that key is not the scan count.
+  reason: no lane for the language, no manifest root, tool not installed, tool could not parse it,
+  or lane not selected. The clean-result note is printed only when nothing is uncovered.
+  `Summary total:` reports `files-with-findings=` so that key is not the scan count.
+
+## [0.23.13] - 2026-09-28
+
+### Added
+
+- **`tidy` accepts an ad hoc glob scope.** When no lane covers the target files,
+  `tidy [dry-run] <glob>...` runs on those globs with a borrowed template's watch-for list,
+  lane-specific exclusions, and commit type, plus the repository's own test command, and writes no
+  lane file.
 
 ## [0.23.12] - 2026-09-28
 

@@ -66,9 +66,13 @@ function Test-DefenderPlatformEvent {
 function Invoke-DriversCheck {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
-    param()
+    param(
+        [switch] $Human,
+        # Tests dot-source this script and read the object. The script entry
+        # point omits -PassThru so the envelope writes the result.
+        [switch] $PassThru
+    )
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $id = 'drivers'
     $category = 'drivers'
     $commands = @(
@@ -80,7 +84,8 @@ function Invoke-DriversCheck {
         "Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-CodeIntegrity/Operational'; Id=3001,3004 }"
     )
 
-    try {
+    $FailureSummary = 'Driver inventory check failed.'
+    $CheckBody = {
         # spellchecker:ignore-next-line
         $drivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer)
@@ -249,18 +254,13 @@ function Invoke-DriversCheck {
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
             -AdminFields $adminFields
-    } catch {
-        $result = New-HealthFailureResult -Id $id -Category $category `
-            -Summary 'Driver inventory check failed.' -Commands $commands -ErrorRecord $_
     }
-
-    $sw.Stop()
-    $result.duration_ms = [int]$sw.ElapsedMilliseconds
-    return $result
+    . (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
+    if ($PassThru) { return $result }
 }
 
 # Dot-source guard: the tests dot-source this script so Pester mocks of lib functions
 # apply (mocks do not reach `&`-invoked scripts); skip the check body then.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
-Invoke-DriversCheck | Write-HealthResult -Human:$Human
+Invoke-DriversCheck -Human:$Human

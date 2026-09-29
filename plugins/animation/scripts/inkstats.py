@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Style statistics of an ink film, computed the same way for a source clip and for any render.
 
-usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H] [--t T0-T1] [--json OUT]
+usage: inkstats.py <film> [--fps N] [--cuts T,T,..|shots.json | --seg S] [--region X,Y,W,H] [--t T0-T1] [--json OUT]
                    [--rows OUT] [--pack PACK]
   <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else BASE_FPS), or a
             rotoscope work dir
             (src/dNNN.png timed by d/index.json; the last drawing holds until that index's duration)
-  --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
+  --cuts    shot boundaries in seconds, or a produce shots.json whose shot t0 values are those boundaries.
+            Each shot is a column of the table. Without it, columns are --seg seconds
             long (default 3.35). Columns are for reading only: the check judges the whole film.
   --region  measure only this box of every frame (a prop, a dark field); --t keeps only frames with T0 <= t < T1
   --json    write the summary: per statistic p10/p50/p90 over drawings, the timing values, and per column medians
@@ -436,6 +437,20 @@ def nums(s, n=None):
     return v
 
 
+def parse_cuts(s):
+    """Shot boundaries: a comma list of seconds, or a produce shots.json (each shot's t0)."""
+    if not s:
+        return None
+    path = Path(s)
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            return [float(shot['t0']) for shot in data['shots']]
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            sys.exit(f'inkstats: {s} is not a shots.json with numeric t0 values')
+    return nums(s)
+
+
 def report(m, pack, name, size=None):
     """Print the check table; return (rows, film distance, margin): margin is the largest row distance minus 1, so a
     film passes at margin <= 0. size, the film's [w, h], warns when it differs from the pack's measured_from.size:
@@ -480,7 +495,7 @@ def main(argv=None):
     fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or BASE_FPS
     rows = measure(a.film, fps, region, nums(a.t, 2))
     base = pack['knobs']['frame_rate']['base_fps'] if pack else fps   # holds are counted on the style's rate
-    m = summary(rows, nums(a.cuts), a.seg, base)
+    m = summary(rows, parse_cuts(a.cuts), a.seg, base)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n', encoding='utf-8')
     if a.rows:
