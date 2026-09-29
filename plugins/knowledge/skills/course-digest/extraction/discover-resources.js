@@ -22,6 +22,7 @@ import { createLogger } from "@melodic/video-digestion/shared/logger";
 import { createAdapter } from "./adapters/adapter-contract.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
+import { invokedAsCli } from "./lib/cli-main.js";
 import {
   findFirstVideoLesson,
   formatLessonLabel,
@@ -30,11 +31,16 @@ import {
   resolveLogLevel,
 } from "./utils.js";
 
-const args = parseCliArgs({
-  sample: { type: "boolean", default: false },
-  headless: { type: "boolean", default: true },
-});
-const log = createLogger(resolveLogLevel(args));
+let args;
+let log;
+
+function bindCli() {
+  args = parseCliArgs({
+    sample: { type: "boolean", default: false },
+    headless: { type: "boolean", default: true },
+  });
+  log = createLogger(resolveLogLevel(args));
+}
 
 function selectSample(modules) {
   const sampled = [];
@@ -127,6 +133,7 @@ async function inspectAllLessons(lessonList, ctx) {
 }
 
 async function main() {
+  bindCli();
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const platformCfg = course.platformConfig ?? {};
 
@@ -258,7 +265,9 @@ async function main() {
   log.info(`  Report: ${reportPath}\n`);
 }
 
-main().catch((e) => {
-  log.error("Fatal error:", e);
-  process.exit(1);
-});
+if (invokedAsCli(import.meta.url)) {
+  main().catch((e) => {
+    log.error("Fatal error:", e);
+    process.exit(1);
+  });
+}

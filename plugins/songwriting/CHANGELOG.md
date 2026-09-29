@@ -3,6 +3,15 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.36] - 2026-09-28
+
+### Fixed
+
+- **Dead Suno help-center links from the link-checker report (#3928).** Articles
+  5782849, 5782977, 2409473, and 11362305 now return 404. The `suno` skill's
+  citations point at Wayback Machine captures of the same articles, so each
+  claim keeps a source a reader can open.
+
 ## [1.4.35] - 2026-09-28
 
 ### Added

@@ -150,6 +150,11 @@ SKILL.md is injected once, as a single message, on invocation, and is not re-rea
 the on-demand read applies to the supporting files it points to. So standing rules belong in the
 body and bulky material in the files the body names.
 
+Forked execution (`context: fork`) is a Claude Code extension, not part of the filesystem model
+above. What a fork changes, whether it pays, the anti-candidate classes, and this fleet's `background: false` default live in the
+[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md);
+this section does not restate them.
+
 Scripts run through the Bash tool and only their output costs tokens, so a bundled script beats
 generated code for any deterministic operation. Write the pointer as
 `${CLAUDE_SKILL_DIR}/scripts/<name>` (or `${CLAUDE_PLUGIN_ROOT}/...` for a plugin's own tree) so
@@ -178,7 +183,9 @@ Network, local-not-global installs, and the per-surface table:
 (the Claude Code row, both bullets). Package listing:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#package-dependencies>.
 Verified 2026-09-10 (overview table re-read 2026-09-11). Recheck: the lifecycle section changes
-the inject-once claim, or the overview's runtime table changes any row.
+the inject-once claim, or the overview's runtime table changes any row. Forked context
+(`context: fork`) is not restated here: the in-repo owner is
+`docs/conventions/invocation-context/README.md`.
 
 ## Argument surface
 

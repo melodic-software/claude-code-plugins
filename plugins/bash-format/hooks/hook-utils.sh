@@ -159,12 +159,19 @@ hook::emit_skip_notice() {
     msg="${prefix}"$'\n'"PATH probed: $(hook::format_path_probed "$probed")"
   fi
   if [[ "${HOOK_NOTICE_KIND:-full}" == "renew" ]]; then
-    msg="${msg%%$'\n'*}"
-    if ((${#msg} > 240)); then
-      msg="${msg:0:237}..."
-    fi
-    if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
-      msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
+    if [[ "${HOOK_NOTICE_KEEP_BODY:-0}" == "1" ]]; then
+      # A prerequisite renewal keeps the install route (#4240).
+      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
+        msg="${msg}"$'\n'"[${HOOK_NOTICE_COUNT} skips this session]"
+      fi
+    else
+      msg="${msg%%$'\n'*}"
+      if ((${#msg} > 240)); then
+        msg="${msg:0:237}..."
+      fi
+      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
+        msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
+      fi
     fi
   fi
   hook::emit_channels "$event" "$msg" "$msg"
@@ -267,12 +274,16 @@ hook::emit_system_message() {
 #   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
 HOOK_NOTICE_KIND=full
 HOOK_NOTICE_COUNT=0
+HOOK_NOTICE_KEEP_BODY=0
 HOOK_NOTICE_RENEW_EVERY="${HOOK_NOTICE_RENEW_EVERY:-8}"
 
 hook::notice_once() {
-  local key="$1" input="${2:-}" session="no-session" agent="no-agent"
+  local key="$1" input="${2:-}" class="${3:-}" session="no-session" agent="no-agent"
+  local session_only=0
   HOOK_NOTICE_KIND=full
   HOOK_NOTICE_COUNT=0
+  HOOK_NOTICE_KEEP_BODY=0
+  [[ "$class" == "prerequisite" ]] && session_only=1
   if [[ "$input" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
     session="${BASH_REMATCH[1]}"
     session="${session//[^A-Za-z0-9_-]/-}"
@@ -286,6 +297,7 @@ hook::notice_once() {
   fi
   agent="${agent//[^A-Za-z0-9_-]/-}"
   [[ -n "$agent" ]] || agent="no-agent"
+  [[ "$session_only" -eq 1 ]] && agent="session"
   local dir="${CLAUDE_PLUGIN_DATA:-}"
   [[ -n "$dir" ]] || return 0
   dir="$dir/skip-notices"
@@ -323,6 +335,7 @@ hook::notice_once() {
   fi
   if ((count % every == 0)); then
     HOOK_NOTICE_KIND=renew
+    [[ "$session_only" -eq 1 ]] && HOOK_NOTICE_KEEP_BODY=1
     return 0
   fi
   HOOK_NOTICE_KIND=silent
@@ -597,7 +610,7 @@ hook::_physical_builtin_to() {
 # closed on an unresolved signature must not see a form-converted path instead.
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
 hook::physical_path_to() {
-  local __hu_r
+  local __hu_r=""
   HOOK_PHYSICAL_PATH_UNRESOLVED=0
   if hook::_physical_builtin_to __hu_r "$2"; then
     hook::expand_8dot3_to "$1" "$__hu_r"
@@ -609,6 +622,9 @@ hook::physical_path_to() {
       return 0
     fi
   fi
+  # No cygpath fallback: cygpath converts spellings but does not follow
+  # symlinks, and guards that fail closed on this return would exempt a temp
+  # symlink pointing into the repository.
   HOOK_PHYSICAL_PATH_UNRESOLVED=1
   printf -v "$1" '%s' "$2"
   return 1
@@ -1747,12 +1763,16 @@ hook::walk_up_to() {
 # schema requires of `data.file` ("relative to the consuming repo root").
 #
 # On a Windows bash host (OSTYPE msys, cygwin or win32) both sides go through
-# `cygpath -lm` (long name, forward-slash mixed form) when it is available, so
+# `cygpath -l -m` (long name, forward-slash mixed form) when it is available, so
 # the prefix strip compares ONE representation: on Windows Git Bash
 # `git rev-parse --show-toplevel` answers with a drive-letter path while
-# file_path may arrive in POSIX mount form, and the raw strip never matches. On
-# Linux/macOS both paths are already POSIX, so the strip runs directly without
-# looking for cygpath.
+# file_path may arrive in POSIX mount form, and the raw strip never matches.
+# A trailing separator is trimmed first, and the Windows compare is
+# case-insensitive, so `C:/repo/` and `c:/repo/src/run.sh` still yield
+# `src/run.sh`. When cygpath sends the two sides to different trees, the
+# caller's own spelling is tried before the basename degrade. On Linux/macOS
+# both paths are already POSIX, so the strip runs directly without calling
+# cygpath.
 #
 # What survives the strip is not trusted to BE relative. A mount/symlink
 # mismatch, or a cygpath that answers for one side and not the other, leaves
@@ -1774,36 +1794,89 @@ hook::walk_up_to() {
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
 hook::repo_relative_path_to() {
   local __hu_rp_dest="$1"
-  local __hu_rp_file="$2" __hu_rp_root="$3" __hu_rp_rel="$2"
+  local __hu_rp_file="$2" __hu_rp_root="$3" __hu_rp_rel=""
+  local __hu_rp_file_n __hu_rp_root_n __hu_rp_file_c __hu_rp_root_c __hu_rp_pre
+  local __hu_rp_fold=0 __hu_rp_file_lm="" __hu_rp_root_lm=""
   HOOK_REPO_RELATIVE_DEGRADED=0
+  # One separator spelling, then drop a trailing separator. A root that already
+  # ends in / or \ makes the prefix "/repo//" and matches nothing, so every
+  # in-project file collapses to its basename (#4527). The filesystem root
+  # itself is kept: trimming its only slash would empty the anchor.
+  # Backslash is a separator only on Windows; on POSIX it is a filename
+  # character, and folding it could make an outside path look like a member.
+  __hu_rp_file_n=$__hu_rp_file
+  __hu_rp_root_n=$__hu_rp_root
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    __hu_rp_file_n="${__hu_rp_file_n//\\//}"
+    __hu_rp_root_n="${__hu_rp_root_n//\\//}"
+    ;;
+  *) ;; # POSIX: keep the caller's spelling
+  esac
+  while [[ "$__hu_rp_root_n" == */ && "$__hu_rp_root_n" != / ]]; do
+    __hu_rp_root_n="${__hu_rp_root_n%/}"
+  done
+  while [[ "$__hu_rp_file_n" == */ && ${#__hu_rp_file_n} -gt 1 ]]; do
+    __hu_rp_file_n="${__hu_rp_file_n%/}"
+  done
+  __hu_rp_file_c=$__hu_rp_file_n
+  __hu_rp_root_c=$__hu_rp_root_n
   # An empty root anchors nothing, and the strip must not run against one:
   # `${file#""/}` merely shaves the leading slash, handing back a path that is
   # still the caller's absolute path but no longer LOOKS absolute to the
   # redaction below, so it would leak with a success status. Skipping the strip
   # leaves rel as the input, which the redaction then degrades correctly.
-  if [[ -n "$__hu_rp_root" ]]; then
-    # cygpath exists only on the Windows bash hosts (the OSTYPE set
-    # hook::normalize_path_to uses). Elsewhere `command -v` misses, and a miss
-    # probes every PATH directory: on WSL that includes the /mnt/c entries, one
-    # 9P round trip each, 13-20 ms per call.
-    local __hu_rp_cyg=0
+  #
+  # cygpath exists only on the Windows bash hosts (the OSTYPE set
+  # hook::normalize_path_to uses). Elsewhere `command -v` misses, and a miss
+  # probes every PATH directory: on WSL that includes the /mnt/c entries, one
+  # 9P round trip each, 13-20 ms per call. The call is therefore the lookup.
+  if [[ -n "$__hu_rp_root_n" ]]; then
     case "${OSTYPE:-}" in
-    msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && __hu_rp_cyg=1 ;;
-    *) ;;
-    esac
-    if ((__hu_rp_cyg)); then
-      local __hu_rp_file_lm __hu_rp_root_lm
-      __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
-      __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
+    msys* | cygwin* | win32)
+      __hu_rp_fold=1
+      __hu_rp_file_lm=$(cygpath -l -m -- "$__hu_rp_file_n" 2>/dev/null) || __hu_rp_file_lm=""
+      __hu_rp_root_lm=$(cygpath -l -m -- "$__hu_rp_root_n" 2>/dev/null) || __hu_rp_root_lm=""
       if [[ -n "$__hu_rp_file_lm" && -n "$__hu_rp_root_lm" ]]; then
-        __hu_rp_rel="${__hu_rp_file_lm#"$__hu_rp_root_lm"/}"
+        __hu_rp_file_c="${__hu_rp_file_lm//\\//}"
+        __hu_rp_root_c="${__hu_rp_root_lm//\\//}"
+        while [[ "$__hu_rp_root_c" == */ && "$__hu_rp_root_c" != / ]]; do
+          __hu_rp_root_c="${__hu_rp_root_c%/}"
+        done
+        while [[ "$__hu_rp_file_c" == */ && ${#__hu_rp_file_c} -gt 1 ]]; do
+          __hu_rp_file_c="${__hu_rp_file_c%/}"
+        done
+      fi
+      ;;
+    *) ;; # POSIX hosts: case-sensitive FS, strip the caller's spelling
+    esac
+    __hu_rp_pre="${__hu_rp_root_c}/"
+    if [[ "$__hu_rp_file_c" == "$__hu_rp_pre"* ]]; then
+      __hu_rp_rel="${__hu_rp_file_c#"$__hu_rp_pre"}"
+    elif ((__hu_rp_fold)) && [[ "${__hu_rp_file_c,,}" == "${__hu_rp_pre,,}"* ]]; then
+      __hu_rp_rel="${__hu_rp_file_c:${#__hu_rp_pre}}"
+    elif [[ "$__hu_rp_file_c" != "$__hu_rp_file_n" || "$__hu_rp_root_c" != "$__hu_rp_root_n" ]]; then
+      # cygpath sent the two sides to different trees (a /tmp that is usertemp
+      # on one side and a drive-root translation on the other). The caller's
+      # own spelling still shares a prefix; use that rather than the basename.
+      __hu_rp_pre="${__hu_rp_root_n}/"
+      if [[ "$__hu_rp_file_n" == "$__hu_rp_pre"* ]]; then
+        __hu_rp_rel="${__hu_rp_file_n#"$__hu_rp_pre"}"
+      elif ((__hu_rp_fold)) && [[ "${__hu_rp_file_n,,}" == "${__hu_rp_pre,,}"* ]]; then
+        __hu_rp_rel="${__hu_rp_file_n:${#__hu_rp_pre}}"
+      else
+        __hu_rp_rel=$__hu_rp_file_c
       fi
     else
-      __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
+      __hu_rp_rel=$__hu_rp_file_c
     fi
+  else
+    __hu_rp_rel=$__hu_rp_file_n
   fi
   # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped
-  # path arrives in. Trim on either separator: a mixed-form path carries both.
+  # path arrives in. Separators were folded to / above, so the slash arm covers
+  # a UNC that arrived with backslashes. Trim on either separator anyway: a
+  # mixed-form path can still carry a backslash when folding was skipped.
   case "$__hu_rp_rel" in
   /* | [A-Za-z]:* | \\\\*)
     __hu_rp_rel="${__hu_rp_rel##*/}"

@@ -3,6 +3,15 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-09-28
+
+### Changed
+
+- **`audit` runs as a blocking fork** (`context: fork`, `background: false`) (#3545). The body
+  is an isolated subagent prompt with no parent history; the optional path argument and the
+  working tree are the whole input. The caller waits for the scorecard in the same turn.
+  `audit-posture` stays inline. Rubric: `docs/conventions/invocation-context/`.
+
 ## [0.5.2] - 2026-09-28
 
 ### Added

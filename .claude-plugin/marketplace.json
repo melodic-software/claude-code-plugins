@@ -525,7 +525,14 @@
       "name": "dometrain",
       "source": "./plugins/dometrain",
       "category": "discovery",
-      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning", "grounding"],
+      "tags": ["dometrain", "courses", "dotnet", "csharp", "learning", "grounding", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "dometrain-mcp",
+      "source": "./plugins/dometrain-mcp",
+      "category": "discovery",
+      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning"],
       "defaultEnabled": false
     },
     {

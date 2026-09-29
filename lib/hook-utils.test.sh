@@ -1296,7 +1296,49 @@ if [[ "$kind_out" == "renew 8" ]]; then
 else
   fail "notice_once: 8th skip renew" "got '$kind_out'"
 fi
-rm -rf "$DATA16C" "$DATA16C2"
+DATA16P="$(mktemp -d)"
+if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite); then
+  ok "notice_once: prerequisite first call emits"
+else
+  fail "notice_once: prerequisite first call suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_B" prerequisite); then
+  fail "notice_once: prerequisite other agent emitted again"
+else
+  ok "notice_once: prerequisite latch is the session, not the agent"
+fi
+pre_marker="$DATA16P/skip-notices/k-pre.sess-1.session"
+if [[ -f "$pre_marker" ]]; then
+  ok "notice_once: prerequisite marker ignores agent id"
+else
+  fail "notice_once: prerequisite marker ignores agent id" "missing $pre_marker"
+fi
+DATA16R="$(mktemp -d)"
+pre_kind="$(
+  CLAUDE_PLUGIN_DATA="$DATA16R"
+  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true
+  for _i in 1 2 3 4 5 6; do hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true; done
+  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite
+  printf '%s %s %s' "$HOOK_NOTICE_KIND" "$HOOK_NOTICE_KEEP_BODY" "$HOOK_NOTICE_COUNT"
+)"
+if [[ "$pre_kind" == "renew 1 8" ]]; then
+  ok "notice_once: prerequisite renewal keeps the body"
+else
+  fail "notice_once: prerequisite renewal keeps the body" "got '$pre_kind'"
+fi
+HOOK_NOTICE_KIND=renew
+HOOK_NOTICE_KEEP_BODY=1
+HOOK_NOTICE_COUNT=8
+skip_notice="$(hook::emit_skip_notice SessionStart $'plugin: tool missing. Install: npm i -D tool\nPATH probed: /usr/bin')"
+HOOK_NOTICE_KIND=full
+HOOK_NOTICE_KEEP_BODY=0
+HOOK_NOTICE_COUNT=0
+if [[ "$skip_notice" == *'Install: npm i -D tool'* && "$skip_notice" == *'8 skips this session'* ]]; then
+  ok "emit_skip_notice: prerequisite renewal keeps the install route"
+else
+  fail "emit_skip_notice: prerequisite renewal keeps the install route" "got '$skip_notice'"
+fi
+rm -rf "$DATA16C" "$DATA16C2" "$DATA16P" "$DATA16R"
 
 probed="$(CLAUDE_PLUGIN_ROOT=/tmp/my-plugin hook::format_path_probed \
   "/usr/bin:/tmp/other/plugins/foo/bin:/tmp/my-plugin/bin:/opt/homebrew/bin")"
@@ -3336,6 +3378,14 @@ case "$p" in
   esac
   p="$d:$rest"
   ;;
+/tmp/*/src/*)
+  # Disagree with the directory's conversion on purpose, so a helper that
+  # trusts cygpath alone degrades to the basename.
+  p="D:/diverged/${p#/tmp/}"
+  ;;
+/tmp/*)
+  p="C:/users/temp/${p#/tmp/}"
+  ;;
 *) ;;
 esac
 printf '%s\n' "$p"
@@ -3422,6 +3472,39 @@ rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b
 # drive-letter case degrades exactly as the nocyg control does.
 rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
 rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
+# Trailing separator, drive-letter case, and a cygpath that disagrees with
+# itself. Each one came back as the basename on Windows Git Bash (#4527).
+rrp_case cyg "a trailing slash on the root still strips" 'C:/repo/src/run.sh' 'C:/repo/' src/run.sh 0
+rrp_case cyg "drive-letter case does not matter" 'C:/Repo/src/run.sh' 'c:/repo' src/run.sh 0
+rrp_case cyg "cygpath disagreement falls back to the caller's spelling" /tmp/repo/src/run.sh /tmp/repo src/run.sh 0
+rrp_case nocyg "a trailing slash on a POSIX root still strips" /repo/src/run.sh /repo/ src/run.sh 0
+rrp_case cygposix "a POSIX backslash is a filename character, not a separator" '/repo\outside/secret.txt' /repo secret.txt 1
+
+# physical_path_to on Windows with realpath and readlink absent must stay
+# UNRESOLVED even when cygpath answers: cygpath does not follow symlinks, and
+# block-hook-bypass `_bbh_physical_path` and secret-pattern-detection step 7
+# refuse their temp exemption only because this returns 1. The target is a
+# temp symlink pointing into a repository, the #3727 bypass shape.
+mkdir -p "$RRP_DIR/repo" "$RRP_DIR/temp"
+ln -s "$RRP_DIR/repo" "$RRP_DIR/temp/to-repo"
+PHYS_PROBE=$(
+  # shellcheck disable=SC2016  # the child's $1 is its own positional, quoted on purpose
+  PATH="$RRP_DIR/cyg" "$BASH" -c '
+    OSTYPE=msys
+    # shellcheck source=hook-utils.sh
+    source "$1"
+    _out=""
+    hook::physical_path_to _out "$2"
+    printf "%s\n%s\n" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED"
+  ' _ "$HOOK_DIR/hook-utils.sh" "$RRP_DIR/temp/to-repo"
+)
+PHYS_RC="${PHYS_PROBE%%$'\n'*}"
+PHYS_FLAG="${PHYS_PROBE#*$'\n'}"
+if [[ "$PHYS_RC" == 1 && "$PHYS_FLAG" == 1 ]]; then
+  ok "physical_path_to: msys temp symlink with only cygpath stays unresolved"
+else
+  fail "physical_path_to msys cygpath-only: rc=$PHYS_RC flag=$PHYS_FLAG"
+fi
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------

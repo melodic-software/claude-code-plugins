@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.7] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.41.6] - 2026-09-28
+
+### Changed
+
+- README: a missing-tool skip says it fires once per session and agent, renewed every eighth skip, to both Claude and the user ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+
+## [0.41.5] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- **`block-windows-drive-tmp` treats `mkdir.exe` and a quoted `C:/Program Files/Git/usr/bin/mkdir.exe` as writers** ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)). The verb regex required the word to end at a space, so `mkdir.exe` never matched `mkdir` and a space in `Program Files` hid the verb. A path-qualified or `.exe` command word is now a writer. The suite allows POSIX `/tmp` on a host whose `/tmp` is the Git for Windows usertemp mount, and keeps `C:/tmp` blocked. `run-guards.test.sh` preserves fixture paths (`MSYS_NO_PATHCONV`) and shims `git.exe`, the name Git Bash resolves.
+
 ## [0.41.4] - 2026-09-28
 
 ### Fixed

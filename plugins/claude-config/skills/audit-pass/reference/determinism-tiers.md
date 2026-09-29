@@ -1,5 +1,11 @@
 # audit-pass: the three tiers and their properties
 
+## Contents
+
+- [6. The three tiers and their properties](#6-the-three-tiers-and-their-properties)
+  - [The precondition must be measured, not assumed](#the-precondition-must-be-measured-not-assumed)
+  - [State digest, pinned](#state-digest-pinned)
+
 This file owns §6: the derived, judged, and delegated tiers, the comparability predicate they are
 stated over, and properties P1–P6 with the determinism gate that measures their precondition.
 

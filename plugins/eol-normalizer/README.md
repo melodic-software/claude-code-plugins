@@ -35,7 +35,7 @@ imposes no rules of its own.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **git** on `PATH`. The attribute resolution (`git check-attr`) and repo-root
   detection depend on it. Without a git repository the hook is a quiet no-op
   (nothing to normalize against, not a missing prerequisite).

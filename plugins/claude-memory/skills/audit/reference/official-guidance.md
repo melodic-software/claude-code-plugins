@@ -1,5 +1,29 @@
 # Official Claude Code Guidance on CLAUDE.md
 
+## Contents
+
+- [Size and adherence](#size-and-adherence)
+- [Context injection clarification](#context-injection-clarification)
+- [The deletion test](#the-deletion-test)
+- [What to include vs exclude](#what-to-include-vs-exclude)
+- [Build and test commands](#build-and-test-commands)
+- [@import syntax](#import-syntax)
+- [claudeMdExcludes setting](#claudemdexcludes-setting)
+- [Skills vs CLAUDE.md](#skills-vs-claudemd)
+- [Hooks vs CLAUDE.md](#hooks-vs-claudemd)
+- [InstructionsLoaded hook](#instructionsloaded-hook)
+- [Specificity](#specificity)
+- [Consistency](#consistency)
+- [Rules files](#rules-files)
+- [Auto-memory limits](#auto-memory-limits)
+- [Auto-memory storage](#auto-memory-storage)
+- [Subagent persistent memory](#subagent-persistent-memory)
+- [HTML comments](#html-comments)
+- [Boris Cherny (CC creator)](#boris-cherny-cc-creator)
+- [Style enforcement](#style-enforcement)
+- [Compaction by steering method (June 2026)](#compaction-by-steering-method-june-2026)
+- [No official scoring rubric](#no-official-scoring-rubric)
+
 Last researched: 2026-06-20; code.claude.com/docs/en/memory re-verified 2026-08-10 (the other
 sources below were not re-checked on that date)
 Sources: [Steering Claude Code (June 18, 2026)](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more), code.claude.com/docs/en/memory, code.claude.com/docs/en/hooks, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, howborisusesclaudecode.com
