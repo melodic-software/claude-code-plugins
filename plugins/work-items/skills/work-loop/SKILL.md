@@ -283,8 +283,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
-   whose marker already stands, a still-unratified `ratify-c3`, an idempotent label re-convergence
-  , is not a new escalation, so the cycle files no second comment and writes no second record.
+   whose marker already stands, a still-unratified `ratify-c3`, an idempotent label re-convergence,
+   is not a new escalation, so the cycle files no second comment and writes no second record.
    **Record before marker is load-bearing, not incidental**: a stop between the two then loses the
    tracker comment, which the next cycle re-files (one duplicate notification), whereas the reverse
    order leaves a standing marker that suppresses the record on every later cycle and loses the
@@ -292,14 +292,33 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
-   **Background-job launch mode.** When Claude Code runs this lane as a background job, the harness
-   blocks Write/Edit to the shared default-branch checkout until the session calls `EnterWorktree`.
-   This lane deliberately runs on that checkout and must not call `EnterWorktree` (that terminal
-   would transition the long-lived orchestrator). Step 0's gitignore preflight does not lift the
-   harness block, so the escalation record write is refused and only the tracker marker comment
-   survives. For the out-of-band notification leg, launch the lane in an interactive foreground
-   session on the default-branch checkout, or accept that background launches lose the record
-   ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+   **Background-job launch mode (interim, pending the owner's decision on
+   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Observed, not
+   yet decided: a background session on the shared default-branch checkout had its record Write
+   refused with "parent bg session hasn't isolated yet, so writes to the shared checkout are
+   blocked", while a background job launched inside an already-isolated lane worktree (instance
+   `melo-lap-001-wsl-2`, worktree `cc-plugins-lane-2`) completed three record Writes. Claude Code's
+   background-session docs describe the same split: inside a git repository, writes to the shared
+   checkout are blocked until the session is moved into a worktree, and a session already inside a
+   linked git worktree skips that move. So the trigger appears to be session isolation, not
+   background mode itself; triage did not reproduce the refusal. This lane deliberately runs on the
+   default-branch checkout and must not call `EnterWorktree`, which would end the long-lived
+   orchestrator. Step 0's gitignore preflight does not lift a harness block. When the record Write
+   is refused, the tracker marker comment is the escalation of record and the cycle continues.
+   Foreground on the default-branch checkout is the known-good mode.
+
+   Verification record for that paragraph. Claim: the harness refusal of the record Write is
+   conditional on the session not yet being isolated in a worktree, not on background mode.
+   Basis: [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598) body (the
+   refusal text, instance `melo-lap-001-wsl-1`, shared checkout) and its second comment (three
+   Writes succeeded from the isolated worktree `cc-plugins-lane-2`, instance `melo-lap-001-wsl-2`);
+   the docs agree: "Inside a git repository, Claude Code blocks writes to the shared checkout until
+   Claude moves the session into a worktree", and Claude skips the move when "the session is
+   already inside a linked git worktree"
+   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; the hooks reference
+   is silent on the point). As of 2026-09-29; the refusal itself was not reproduced. Recheck
+   trigger: that docs section changes its block or skip rules, a Claude Code release note changes
+   background-session isolation, or the owner records the #4598 decision.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
