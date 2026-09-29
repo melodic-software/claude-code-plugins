@@ -7578,11 +7578,12 @@ class GuardTests(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "POSIX symlink layout")
     def test_readonly_head_resolution_target_decides_trust(self) -> None:
-        """A head resolving into uutils' root-owned dir is trusted; into $HOME or /tmp it is not."""
+        """A head resolving into uutils' root-owned coreutils dir is trusted; elsewhere it is not."""
         cases = {
             "/usr/lib/cargo/bin/coreutils/ls": True,
             (Path.home() / ".cargo/bin/ls").as_posix(): False,
             "/tmp/cargo/bin/coreutils/ls": False,
+            "/usr/lib/cargo/bin/su": False,
         }
         for target, trusted in cases.items():
             with (
