@@ -16,7 +16,7 @@ never combined with `&&` or other commands in one call. The record for these sha
 1. On a `chore/repo-sweep-*` branch, bring it current first: `git fetch origin '<branch>'`, then
    `git merge --ff-only 'origin/<branch>'`. A step committed on another machine is only reconciled
    when its commit is local.
-2. Run `S/state.sh`. If it printed `mergeable CONFLICTING` (exit 0, 12, or 13), stop before the exit
+2. Run `S/state.sh`. If it printed `mergeable CONFLICTING` (any exit code), stop before the exit
    code handling below and before any step. GitHub runs no `pull_request` workflows on a
    conflicting PR, so pushed step commits get no CI. Ask the user to merge the base branch into
    the sweep branch and push, then rerun `next`. `UNKNOWN` never stops. Basis: the `pull_request`
