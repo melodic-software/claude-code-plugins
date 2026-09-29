@@ -3,11 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.18] - 2026-09-28
+## [0.62.19] - 2026-09-28
 
 ### Changed
 
 - **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.62.18] - 2026-09-28
+
+### Changed
+
+- The `setup` spoke `reference/apply-convention.md` gains two headings (target layer and
+  non-interactive writes; the interactive interview) and a Contents block that links them, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on it. No step text
+  changed.
 
 ## [0.62.17] - 2026-09-28
 

@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.30] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` points at the invocation-context rubric** for when a skill may set
+  `context: fork`, the anti-candidate classes, and this fleet's `background: false` default
+  (#3545). The hub, the runtime-model section, the pre-share checklist, and one eval case all
+  point; they do not restate the rubric.
+
 ## [0.13.29] - 2026-09-28
 
 ### Added

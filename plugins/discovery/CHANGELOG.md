@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [0.25.7] - 2026-09-28
+
+### Changed
+
+- The `research` spoke `context/dispatch.md` opens with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on it.
+
 ## [0.25.6] - 2026-09-28
 
 ### Added

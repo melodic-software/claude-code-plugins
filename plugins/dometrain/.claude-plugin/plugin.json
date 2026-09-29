@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "dometrain",
-  "version": "0.4.1",
-  "description": "Dometrain course-content grounding over a third-party remote MCP server (Dometrain-hosted, Bearer auth): search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Credential entered once through Claude Code's native masked userConfig prompt and stored in secure credential storage. Ships with a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin.",
+  "version": "0.5.0",
+  "description": "Dometrain course-content grounding skills for a Dometrain MCP server: search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Ships no server: install dometrain-mcp for the bundled one, or configure your own user-scope dometrain server. Includes a setup check and a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -10,19 +10,10 @@
   "license": "MIT",
   "keywords": [
     "dometrain",
-    "mcp",
     "courses",
     "dotnet",
     "csharp",
     "learning"
   ],
-  "defaultEnabled": false,
-  "userConfig": {
-    "dometrain_api_key": {
-      "type": "string",
-      "title": "Dometrain API key",
-      "description": "Dometrain account API key from https://dometrain.com/dashboard/account/ (MCP API keys section). Optional: leave it blank when a user-scope MCP server at the same URL supplies the key from DOMETRAIN_API_KEY or a secret store (see the README). The remote server rejects requests that carry no key. Stored by Claude Code in secure credential storage, never settings.json.",
-      "sensitive": true
-    }
-  }
+  "defaultEnabled": false
 }
