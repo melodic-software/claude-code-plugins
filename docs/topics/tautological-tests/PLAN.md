@@ -267,9 +267,11 @@ test file and feeds findings back.
   - runs the scanner under its own timeout, set below the hooks.json `timeout`. A timeout or error
     logs a line and exits 0;
   - caps `additionalContext` below 10,000 characters.
-- Latency budget: `test-scan` p95 per matching write is at most 3 S (`docs/conventions/hook-budget`
-  unit S; the multiple is my judgment). Measured on WSL here, and on one Windows fleet machine through
-  `/fleet:reach` (user-approval gate).
+- Latency budget: `test-scan` p95 per matching write is at most 150 ms on WSL and at most 1 s on
+  Windows (judgment, from the 89 ms WSL measurement). The earlier 3 S budget
+  (`docs/conventions/hook-budget` unit S) cannot hold where a bash spawn costs under 1 ms but the
+  node launcher every exec-form hook needs costs 20-30 ms (user decision, 2026-09-28). Measured on
+  WSL here, and on one Windows fleet machine through `/fleet:reach` (user-approval gate).
 
 | File | Action |
 |---|---|
@@ -293,7 +295,7 @@ test file and feeds findings back.
   - (g) the doubtful-hit prompt appears for a recomputed expectation.
 - `bash plugins/testing/scripts/gen-hook-filters.sh --check` exits 0. Its test asserts that every row has an `if`, that no glob matches `src/app.ts`, and that no two rows match one path.
 - `bash scripts/sync-exec-bash.sh --check`, `bash scripts/check-hook-exec-form.sh`, `bash scripts/check-hook-userconfig-argv.sh`, `bash scripts/check-hooks-description.sh` and `bash scripts/check-hook-wiring-liveness.sh` exit 0.
-- `grep -c 'p95' docs/topics/tautological-tests/probes.md` is at least 2 (WSL and Windows), each figure at most 3 S.
+- `grep -c 'p95' docs/topics/tautological-tests/probes.md` is at least 2 (WSL and Windows), at most 150 ms on WSL and 1 s on Windows.
 
 ### Phase 3: Wave-1 adapters for every fleet language [TODO]
 
@@ -494,7 +496,7 @@ Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | The engine refactor changes existing findings | Med | High | Phase 1 parity run per subdirectory and over a real tree, under gawk and mawk |
-| The hook driver is slow on Windows Git Bash (about 46 ms per call on WSL; S about 80 ms on Windows) | Med | Med | Phase 2 budget of 3 S p95, measured before later phases build on it |
+| The hook driver is slow on Windows Git Bash (about 46 ms per call on WSL; S about 80 ms on Windows) | Med | Med | Phase 2 p95 budget (150 ms WSL, 1 s Windows), measured before later phases build on it |
 | Lexical rules false-fire on real suites | High | Med | All new rules advisory; Bash ceiling in Phase 3; precision run; false-positive-to-fixture rule |
 | Bash and MCP writes bypass the hooks | Known | Med | Guardrails `block-hook-bypass` covers shell writes; the audit and the Release 2 judge cover the rest |
 | Adapter globs drift from hook filters, or overlap | Med | Med | `gen-hook-filters.sh --check` with dedup and overlap tests |
