@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** Full form: <owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier
+**Arguments.** `<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]`. Full form: <owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier
 
 ## Variables
 
