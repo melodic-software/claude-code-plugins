@@ -496,6 +496,93 @@ assert_contains "--diff refusal lists the environments" "$(cat "$TEST_TMPDIR/dep
 bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-good-diff" --diff staging prod >/dev/null
 assert_equals "--diff with known environments exits 0" "$?" "0"
 
+# Kubernetes namespaces are environments. Every difference kind is reported,
+# a parameter in one namespace only is added or removed, and a secret-shaped
+# value never prints.
+ns_pw_a="NsStagePw-4471"
+ns_pw_b="NsProdPw-9082"
+ns_pw_only="NsOnlyProdPw-5530"
+repo7="$TEST_TMPDIR/k8s-ns"
+init_repo "$repo7"
+mkdir -p "$repo7/deploy"
+k8s_ns_manifest() {
+  local ns="$1" image="$2" replicas="$3" port="$4" level="$5" pw="$6"
+  shift 6
+  cat <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: ${ns}
+spec:
+  replicas: ${replicas}
+  template:
+    spec:
+      containers:
+        - name: api
+          image: ${image}
+          ports:
+            - containerPort: ${port}
+          env:
+            - name: LOG_LEVEL
+              value: ${level}
+            - name: PASSWORD
+              value: ${pw}
+$*
+EOF
+}
+k8s_ns_manifest staging ghcr.io/acme/api:1.0.0 1 8080 info "$ns_pw_a" "            - name: STAGING_ONLY
+              value: yes" >"$repo7/deploy/staging.yaml"
+k8s_ns_manifest prod ghcr.io/acme/api:1.4.0 3 9090 warn "$ns_pw_b" "            - name: SIGNING_KEY
+              value: ${ns_pw_only}
+            - name: FEATURE_X
+              value: on" >"$repo7/deploy/prod.yaml"
+commit_all "$repo7"
+bash "$COLLECT" --repo "$repo7" --out "$TEST_TMPDIR/k8s-ns.json" --generated-on 2026-09-28
+assert_equals "k8s namespace collect exits 0" "$?" "0"
+nsrec="$(cat "$TEST_TMPDIR/k8s-ns.json")"
+assert_contains "k8s namespace record is drawn" "$nsrec" '"status": "drawn"'
+assert_contains "k8s ports are captured" "$nsrec" '"ports":"8080"'
+assert_contains "k8s image differs" "$nsrec" "ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"
+assert_contains "k8s replicas differ" "$nsrec" '"change":"replicas"'
+assert_contains "k8s replicas detail" "$nsrec" "3 -> 1"
+assert_contains "k8s ports differ" "$nsrec" '"detail":"9090 -> 8080"'
+assert_contains "k8s plain parameter differs" "$nsrec" "LOG_LEVEL warn -> info"
+assert_contains "k8s parameter only in prod is removed" "$nsrec" '"change":"parameter-removed"'
+assert_contains "k8s removed parameter names it" "$nsrec" "FEATURE_X on present only in prod"
+assert_contains "k8s parameter only in staging is added" "$nsrec" "STAGING_ONLY yes present only in staging"
+assert_contains "k8s secret differs" "$nsrec" "secret parameter PASSWORD differs"
+assert_contains "k8s secret only in one namespace is removed" "$nsrec" "secret parameter SIGNING_KEY present only in prod"
+for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
+  assert_not_contains "k8s record has no secret value" "$nsrec" "$v"
+done
+bash "$RENDER" --record "$TEST_TMPDIR/k8s-ns.json" --out "$TEST_TMPDIR/k8s-ns-out" --diff staging prod >/dev/null
+nsmd="$(cat "$TEST_TMPDIR/k8s-ns-out/deployment.md")"
+assert_contains "diff section names the compared kinds" "$nsmd" "Kinds compared: container added or removed, image, replicas, ports, parameter added or removed"
+assert_contains "diff section says nodes are not compared" "$nsmd" "Networks and Ingress hosts are not compared."
+for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
+  assert_not_contains "k8s diff table has no secret value" "$nsmd" "$v"
+done
+
+# Compose parameter presence, and an empty diff that names what it looked for.
+repo8="$TEST_TMPDIR/compose-presence"
+init_repo "$repo8"
+mkdir -p "$repo8/deploy/a" "$repo8/deploy/b" "$repo8/deploy/c"
+printf 'services:\n  api:\n    image: x:1\n    environment:\n      ONLY_A: one\n      KEEP: same\n' >"$repo8/deploy/a/compose.yaml"
+printf 'services:\n  api:\n    image: x:1\n    ports:\n      - "80:80"\n    environment:\n      ONLY_B: two\n      KEEP: same\n' >"$repo8/deploy/b/compose.yaml"
+printf 'services:\n  api:\n    image: x:1\n    environment:\n      ONLY_A: one\n      KEEP: same\n' >"$repo8/deploy/c/compose.yaml"
+commit_all "$repo8"
+bash "$COLLECT" --repo "$repo8" --out "$TEST_TMPDIR/presence.json" --generated-on 2026-09-28
+prec="$(cat "$TEST_TMPDIR/presence.json")"
+assert_contains "compose parameter only in a is removed" "$prec" "ONLY_A one present only in a"
+assert_contains "compose parameter only in b is added" "$prec" "ONLY_B two present only in b"
+assert_contains "compose port declared in one environment differs" "$prec" '"detail":"none -> 80:80"'
+assert_not_contains "a shared parameter is not a difference" "$prec" "KEEP same present"
+bash "$RENDER" --record "$TEST_TMPDIR/presence.json" --out "$TEST_TMPDIR/presence-out" --diff a c >/dev/null
+pmd="$(cat "$TEST_TMPDIR/presence-out/deployment.md")"
+assert_contains "an empty diff names the kinds it looked for" "$pmd" "No differences of these kinds: container added or removed, image,"
+assert_not_contains "an empty diff prints no bare none row" "$pmd" "| none |"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
   exit 0

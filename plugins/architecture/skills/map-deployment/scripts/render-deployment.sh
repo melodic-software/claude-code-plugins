@@ -211,17 +211,26 @@ summary="$(
           print "No --diff was requested. Declared differences between environments are listed when two environments were collected." > md
           print "" > md
         }
-        print "| Change | Environments | Tool | Container | Detail |" > md
-        print "|---|---|---|---|---|" > md
         for (i = 1; i <= ndiffs; i++) {
           item = held["diffs", i]
           L = jget(item, "left"); R = jget(item, "right")
           if (diff_a != "" && !((L == diff_a && R == diff_b) || (L == diff_b && R == diff_a))) continue
           if (env_filter != "" && L != env_filter && R != env_filter) continue
           shown_d++
-          print "| " safe(jget(item, "change")) " | " safe(L) " / " safe(R) " | " safe(jget(item, "tool")) " | " safe(jget(item, "container")) " | " safe(jget(item, "detail")) " |" > md
+          rows[shown_d] = "| " safe(jget(item, "change")) " | " safe(L) " / " safe(R) " | " safe(jget(item, "tool")) " | " safe(jget(item, "container")) " | " safe(jget(item, "detail")) " |"
         }
-        if (shown_d == 0) print "| none |  |  |  |  |" > md
+        kinds = "container added or removed, image, replicas, ports, parameter added or removed, parameter value, secret parameter differs (the value is never printed)"
+        if (shown_d == 0) {
+          print "No differences of these kinds: " kinds "." > md
+        } else {
+          print "Kinds compared: " kinds "." > md
+          print "" > md
+          print "| Change | Environments | Tool | Container | Detail |" > md
+          print "|---|---|---|---|---|" > md
+          for (i = 1; i <= shown_d; i++) print rows[i] > md
+        }
+        print "" > md
+        print "Networks and Ingress hosts are not compared." > md
         print "" > md
         print "## Diagram" > md
         print "" > md
