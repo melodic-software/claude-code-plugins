@@ -184,6 +184,51 @@ USER_ROW="$(printf '%s\n' "$TEST_TMPDIR/home/.claude/CLAUDE.md:1:I6" |
   (cd "$REPO" && HOME="$TEST_TMPDIR/home" bash "$IDS"))"
 assert_contains "a user-scope surface takes the user: prefix" "$USER_ROW" $'\tuser:.claude/CLAUDE.md=e:'
 
+# --- Case 6b: under $HOME only instruction-file shapes are surfaces ----------
+H="$TEST_TMPDIR/home"
+mkdir -p "$H/.claude/plugins/cache/p/1.0/hooks" "$H/.claude/projects/x" "$H/projects" \
+  "$H/notes" "$H/shared" "$H/.ssh" "$H/cc-alt" "$H/plant"
+for f in CLAUDE.md projects/AGENTS.md notes/style.md shared/rules.md .claude/settings.json \
+  .claude/plugins/cache/p/1.0/hooks/hooks.json .ssh/config .claude/.credentials.json \
+  .claude/projects/x/t.jsonl .bashrc notes/settings.json cc-alt/settings.json; do
+  printf 'Never do this.\n' >"$H/$f"
+done
+home_ids() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$H" bash "$IDS"); }
+surface_row() { printf '%s\n' "$H/$1:1:I6" | home_ids; }
+
+for shape in CLAUDE.md projects/AGENTS.md notes/style.md .claude/settings.json \
+  .claude/plugins/cache/p/1.0/hooks/hooks.json; do
+  assert_contains "an instruction file under home yields user:$shape" "$(surface_row "$shape")" \
+    $'\tuser:'"$shape=e:"
+done
+for other in .ssh/config .claude/.credentials.json .claude/projects/x/t.jsonl .bashrc \
+  notes/settings.json cc-alt/settings.json; do
+  assert_contains "a non-instruction file under home is refused: $other" "$(surface_row "$other")" \
+    $'#REFUSED\t'"$H/$other:1:I6"$'\tsurface-not-an-instruction-file'
+done
+RELOCATED="$(printf '%s\n' "$H/cc-alt/settings.json:1:I6" |
+  (cd "$REPO" && HOME="$H" CLAUDE_CONFIG_DIR="$H/cc-alt" bash "$IDS"))"
+assert_contains "settings.json in a relocated CLAUDE_CONFIG_DIR is a surface" "$RELOCATED" \
+  $'\tuser:cc-alt/settings.json=e:'
+
+# Symlinks resolve to the physical file before the shape test.
+ln -s "$H/shared/rules.md" "$H/link-b.md"
+ln -s link-b.md "$H/link-a.md"
+assert_contains "a symlink chain inside home resolves to its target's user: surface" \
+  "$(surface_row link-a.md)" $'\tuser:shared/rules.md=e:'
+ln -s "$H/shared/rules.md" "$REPO/skills/demo/reference/ext.md"
+assert_contains "a repository symlink into home takes the target's user: surface" \
+  "$(printf '%s\n' 'skills/demo/reference/ext.md:1:I6' | home_ids)" $'\tuser:shared/rules.md=e:'
+ln -s reference/plain.md "$REPO/skills/demo/alias.md"
+assert_contains "a symlink chain inside the repository keeps the repo-relative target" \
+  "$(printf '%s\n' 'skills/demo/alias.md:3:I6' | home_ids)" $'\tskills/demo/reference/plain.md=e:'
+ln -s "$H/.ssh/config" "$H/plant/CLAUDE.md"
+assert_contains "a CLAUDE.md symlinked to a non-instruction file is refused" \
+  "$(surface_row plant/CLAUDE.md)" $'\tsurface-not-an-instruction-file'
+ln -s "$OUTSIDE" "$H/notes/out.md"
+assert_contains "a symlink from home to a file outside home and the repo is refused" \
+  "$(surface_row notes/out.md)" $'\tsurface-outside-repository-and-home'
+
 # --- Case 7: the claim table mirrors the reference and the catalog -----------
 script_table="$(sed -n 's/^  \(I[0-9][0-9]*\(-[a-f]\)\{0,1\}\)) echo "\([^"]*\)" ;;$/\1 \3/p' "$IDS" | LC_ALL=C sort)"
 # shellcheck disable=SC2016 # the backticks are literal markdown code spans

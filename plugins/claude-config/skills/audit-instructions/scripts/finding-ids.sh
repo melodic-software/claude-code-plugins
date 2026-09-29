@@ -26,8 +26,9 @@
 #
 # A row it cannot identify prints `#REFUSED<TAB><row><TAB><reason>` and gets no
 # id: an id with no claim template, a pairwise row for any check but I15, a
-# surface outside both the repository and the home directory, a line past EOF
-# or blank. Refusals never change the exit code, so a caller counts them.
+# surface outside both the repository and the home directory, a file under the
+# home directory that is not an instruction file (see instruction_shape), a line
+# past EOF or blank. Refusals never change the exit code, so a caller counts them.
 #
 # The claim table MIRRORS reference/finding-identity.md "Claim templates";
 # finding-ids.test.sh fails when the two, or the catalog's check headings,
@@ -64,7 +65,10 @@ Output, per row, tab-separated:
 A row that cannot be identified prints `#REFUSED<TAB><row><TAB><reason>`.
 
 --root names the repository root surfaces are relative to; it defaults to the
-git toplevel of the current directory.
+git toplevel of the current directory. Under the home directory only an
+instruction file is a surface: a *.md file, or a settings.json,
+settings.local.json or hooks.json inside a .claude tree or the resolved
+${CLAUDE_CONFIG_DIR:-~/.claude}.
 EOF
 }
 
@@ -161,6 +165,42 @@ HOME_P=""
 if [[ -n "${HOME:-}" ]]; then
   HOME_P="$(cd "$HOME" 2>/dev/null && pwd -P)" || HOME_P=""
 fi
+CONFIG_P=""
+if [[ -n "${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}" ]]; then
+  CONFIG_P="$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P)" || CONFIG_P=""
+fi
+
+# Whether a physical path under $HOME is an instruction file: a markdown file
+# (CLAUDE.md, CLAUDE.local.md, AGENTS.md, rules, skills, agents, output styles,
+# and the files they import or a symlink points at), or the JSON that carries
+# hook instruction text (settings.json, settings.local.json, a plugin's
+# hooks.json) inside a .claude tree or the resolved config directory. Anything
+# else under $HOME, such as .ssh/config, .claude/.credentials.json or a shell rc
+# file, is not a surface, so its lines are never hashed into an anchor.
+#
+# Home-directory scope. The user surface is $HOME-wide, not
+# ${CLAUDE_CONFIG_DIR:-~/.claude} alone, because Claude Code reads instruction
+# files that sit outside the config directory and under $HOME.
+#   Claim:   "Claude Code loads `CLAUDE.md` and `CLAUDE.local.md` from your
+#            current working directory and every directory above it", and reads
+#            "every `AGENTS.md` and `.claude/AGENTS.md` in your working directory
+#            and the directories above it" where no CLAUDE.md counts; imports
+#            accept "Both relative and absolute paths", and a user-scope file's
+#            imports load without the approval dialog.
+#   Basis:   https://code.claude.com/docs/en/memory ("How CLAUDE.md files load",
+#            "When Claude Code reads AGENTS.md", "Import additional files").
+#   As of:   2026-09-29.
+#   Recheck: the ancestor-loading or import-path sentences change, or a release
+#            note adds an instruction file type that is neither *.md nor the
+#            settings and hooks JSON above.
+instruction_shape() {
+  case "$1" in
+  *.md) return 0 ;;
+  */settings.json | */settings.local.json | */hooks.json) ;;
+  *) return 1 ;;
+  esac
+  [[ "$1" == */.claude/* || (-n "$CONFIG_P" && "$1" == "$CONFIG_P"/*) ]]
+}
 
 surface_of() {
   local p="$1" dir base dir_abs abs target hops=0
@@ -182,6 +222,7 @@ surface_of() {
     return 0
   fi
   if [[ -n "$HOME_P" && "$abs" == "$HOME_P"/* ]]; then
+    instruction_shape "$abs" || return 2
     printf 'user:%s' "${abs#"$HOME_P"/}"
     return 0
   fi
@@ -241,10 +282,18 @@ site_of() {
     printf '!file-unreadable'
     return
   fi
-  surface="$(surface_of "$path")" || {
+  surface="$(surface_of "$path")"
+  case $? in
+  0) ;;
+  2)
+    printf '!surface-not-an-instruction-file'
+    return
+    ;;
+  *)
     printf '!surface-outside-repository-and-home'
     return
-  }
+    ;;
+  esac
   if [[ "$surface" == *"="* ]]; then
     printf '!surface-contains-equals-sign'
     return
