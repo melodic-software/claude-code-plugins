@@ -5,6 +5,10 @@ AI-adoption-ladder contract set: it ships the tool-agnostic contracts an adoptin
 its own repositories, tools, and policies, plus a guided-setup skill that discovers the org's
 state and records that binding.
 
+**Out of scope:** signed agent-run artifact attestation (SLSA-style proof of which prompts and
+skills produced a commit); see
+[`docs/out-of-scope/agent-run-artifact-attestation.md`](../../docs/out-of-scope/agent-run-artifact-attestation.md).
+
 ## Shipped capability (0.7.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
@@ -158,7 +162,7 @@ merge:
 
 A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
 launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
-once-per-session notice instead of disengaging silently, which is also how a stale (pre-arming)
+notice (once per session and agent, renewed every eighth skip) instead of disengaging silently, which is also how a stale (pre-arming)
 lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
 location, so only managed settings can enable the gate there.
 

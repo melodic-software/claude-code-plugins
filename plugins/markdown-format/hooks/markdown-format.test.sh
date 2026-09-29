@@ -2218,7 +2218,7 @@ exec "$REAL_JQ" "\$@"
 EOF
 chmod +x "$SHIM_DIR/cygpath" "$SHIM_DIR/jq"
 
-count_lm() { grep -c -- '-lm' "$CYG_LOG" 2>/dev/null || true; }
+count_lm() { grep -c -- '-l -m' "$CYG_LOG" 2>/dev/null || true; }
 
 # Unwired (sink unset), clean fixture: no jq at all. hook::buffer_stdin
 # validates an object payload with builtins (hook::_json_object_proven) and

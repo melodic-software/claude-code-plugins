@@ -62,7 +62,7 @@ Present the findings in a structured table, leading with the verified findings y
 
 Unless `quick` or `review-only` scope:
 
-1. Run `/simplify` over the branch diff when that capability resolves in your session; otherwise do a manual pass for dead code, needless indirection, and duplication introduced by the branch
+1. Run `/simplify` over the branch diff when that capability resolves in this session; otherwise do a manual pass for dead code, needless indirection, and duplication introduced by the branch
 2. **Show the simplify diff**: run `git diff` and present what changed. Automated simplification fixes are NOT research-verified; treat them like any code-review finding: inspect each change, approve or revert
 3. **Pause for user review**: let the user approve/reject simplify changes before proceeding
 4. Re-run tests on approved changes

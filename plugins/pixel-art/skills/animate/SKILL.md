@@ -41,10 +41,14 @@ before drawing: it is the review rubric later. Engine layouts override craft def
 
 Use a procedural generator for anything past a couple of frames: one `draw(direction, pose)`
 function whose parameters (limb angles, step phase, body bob, arm swing, squash) produce each
-frame, so every frame stays on-model and a fix lands in every frame at once. A worked example is
-`${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` (RPG Maker MZ 4-direction walker); copy it into
-the working directory before adapting or running it. Draw one side view and
-mirror it for the other only when the design is symmetric; reshade if the light side matters.
+frame, so every frame stays on-model and a fix lands in every frame at once. For a humanoid
+walker, start from `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py` and adapt it: a proportion preset
+(`chibi`, `standard`, `tall`), a head shape, a hair shape, material ramps, and an `extra`
+callback for clothing or props. `${CLAUDE_PLUGIN_ROOT}/examples/walker/blacksmith.py` is a
+4-direction walker built that way. `${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` is an
+earlier hand-written MZ sheet; copy either example into the working directory before running it, with `kit.py` beside `blacksmith.py`.
+Draw one side view and mirror it for the other only when the design is symmetric; the kit shades
+after the mirror so the light stays top-left.
 
 A PNG from another backend is snapped with `render.py --snap` before its rows enter the spec
 ([`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)). Palette presets and project palette
@@ -56,11 +60,13 @@ the engine's order, and declare each cycle under `animations` with `fps` or `dur
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 4
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 4
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
-Output location resolves as in `/pixel-art:sprite`. `render.py` writes one GIF per animation.
+Output location resolves as in `/pixel-art:sprite`. `backends.py` follows the same backend rule as
+`/pixel-art:sprite` (native unless `${user_config.backend}` or `--backend` says otherwise, and no
+`--confirm` until the user accepts a paid call). It writes one GIF per animation.
 
 ## 5. Review loop
 

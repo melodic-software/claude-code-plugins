@@ -3,6 +3,64 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.17] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+
+## [0.62.16] - 2026-09-28
+
+### Added
+
+- **`worktree-create.sh --existing-branch`** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
+  Checks out a local branch that already exists instead of creating one with `-b`. It cannot be
+  combined with `--base-ref`. `/repo-fleet-hygiene:sync` uses it to park divergent work.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.62.14] - 2026-09-28
+
+### Changed
+
+- **`worktree` keeps its action gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The session-id requirement, the stranded-work removal refusal, and the nesting rule sit in the first 20,000 bytes. The dated nesting-invariant record moves below the actions.
+
+## [0.62.13] - 2026-09-28
+
+### Changed
+
+- **`parse-branch-issue.sh` skips team and overlay when the project root is home or not a repository** ([#4672](https://github.com/melodic-software/claude-code-plugins/issues/4672)). With `CLAUDE_PROJECT_DIR` equal to `$HOME` (or an ancestor of it), the team path `${root}/.claude/source-control.md` is the same file as user-global; with a root outside any git working tree there is no consumer repository. In both cases the script reports `team and overlay not applicable` and reads `~/.claude/source-control.md` once, as user-global. A team or overlay path that physically equals the user-global file is skipped even inside a repository. Setup `check` reports those layers as N/A; `apply layer=team` and `layer=local` refuse and offer `layer=user`. The config-cascade contract records the rule as resolution step 2 (contract 1.3). A shared root resolver for other surfaces is follow-up.
+
+## [0.62.12] - 2026-09-28
+
+### Changed
+
+- **Worktree facts have one producer (#3422).** `scripts/lib/worktree-facts.sh` parses
+  `git worktree list --porcelain -z`, encodes and decodes the lock reason, and
+  prints TSV rows whose empty columns are `-`. `landed-work.sh`,
+  `worktree-claim.sh`, and `worktree-create.sh` call it. The worktree skill
+  runs `worktree-facts.sh list <repo>`, which prints the record as TSV
+  (`path head branch bare linked locked lock_reason prunable`), instead of
+  describing a hand parse. `locked` is `yes` for a reasonless lock too, so
+  cleanup never reads such a tree as unlocked. `worktree-claim.sh` still keys a claim on the
+  lock reason, so a reasonless lock stays UNCLAIMED there, as before.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- **The three guarded-mutation CLIs share one preamble (#3449).**
+  `guarded_mutation.py` owns the worker-lease check, the snapshot load, and the
+  head pin that `refresh_pr_branch.py`, `manage_feedback_ledger.py`, and
+  `request_review.py` each opened with. The helper documents what it checks,
+  what it permits, what it refuses, and that a refusal is still the exception
+  the caller already saw. Dry runs still skip the lease. What the guard permits
+  is unchanged.
+
 ## [0.62.10] - 2026-09-28
 
 ### Changed

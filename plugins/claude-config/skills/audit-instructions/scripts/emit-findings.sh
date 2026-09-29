@@ -1,22 +1,37 @@
 #!/usr/bin/env bash
-# Compose a conforming review-findings file from instruction-scan.sh output.
+# Compose a conforming review-findings file from instruction-scan.sh output and
+# from model-lane findings.
 #
-#   emit-findings.sh --from <scan-output> --out <path> [--branch <b>]
+#   emit-findings.sh [--from <scan-output>] [--from-lane <lane-rows>] --out <path>
+#                    [--branch <b>]
 #
 # The FINDINGS HOME is never resolved here: the caller (the audit-instructions
 # skill) resolves it through the detector-findings convention's rung order and
 # its fetch-and-refuse gate, then hands the resolved path in as --out. This
 # script owns only the deterministic composition.
 #
-# ONLY the I28 and I29 families are emitted. Every other check id
-# instruction-scan.sh marks (I6, I8-a/b/c/f, I10, I23, I25, I27) has no
-# severity-crosswalk row, and the detector-findings contract admits no row
-# whose tier cannot be looked up from one — those stay in the human report.
-# Rows for them are counted as declined, never silently dropped. A --from
-# line that is not a scan row at all (suffix outside [a-f], prose, blank)
-# is counted as reason=unparsable-row, never omitted from both Scan rows
-# read and every Declined line. I29 rows come from restatement-scan.py and
-# are concatenated onto the same --from stream.
+# TWO INTAKE PATHS, each admitting only the rules that carry a severity-crosswalk
+# row and are selected on that path:
+#   --from       scanner-fed: I28-a/b (instruction-scan.sh) and I29-a/b
+#                (restatement-scan.py, concatenated onto the same stream).
+#                Confidence `high`: a deterministic detector fired.
+#   --from-lane  lane-fed: I30, I31, I32, I33, which no scanner seeds; the rows
+#                are the Phase C-surviving lane findings, in the same
+#                `file:line:check-id` shape. Confidence is omitted: a judgment
+#                selected the row, and the contract has no grade below `high`
+#                for a producer that performs no reviewer verification.
+# A row on the wrong path is declined with the path it belongs to. Every other
+# check id (I6, I8-a/b/c/f, I10, I23, I25, I27, ...) has no crosswalk row, and
+# the detector-findings contract admits no row whose tier cannot be looked up
+# from one — those stay in the human report. Rows for them are counted as
+# declined, never silently dropped. A line that is not a row at all (suffix
+# outside [a-f], prose, blank) is counted as reason=unparsable-row, never
+# omitted from both the rows-read count and every Declined line.
+#
+# Every emitted row carries its audit-pass finding identity in the Finding cell
+# (`finding_id=<16 hex>`), derived by finding-ids.sh beside this script; a row
+# it cannot identify is declined reason=identity-unresolved rather than emitted
+# without one.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
 # docs/conventions/detector-findings/README.md ("The severity crosswalk"); that
@@ -33,12 +48,15 @@
 # is one caller away from being bypassed; findings that reach an APPLY relay
 # carry it in the writer.
 #
-# Exit: 0 on success, 2 on usage error, 3 when --from carries no scan rows at all
-# (not scanner output; refusing beats composing from garbage). Zero EMITTABLE
-# findings with scan rows present still WRITES the file — coverage is the payload.
+# Exit: 0 on success, 2 on usage error, 3 when neither input carries a single
+# row (not scanner or lane output; refusing beats composing from garbage). Zero
+# EMITTABLE findings with rows present still WRITES the file — coverage is the
+# payload.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FROM=""
+FROM_LANE=""
 OUT=""
 BRANCH=""
 CARVEOUT=""
@@ -46,14 +64,19 @@ RESIDENCY=""
 
 usage() {
   cat <<'EOF'
-emit-findings.sh — compose a review-findings file from instruction-scan.sh output.
+emit-findings.sh — compose a review-findings file from instruction-scan.sh
+output and model-lane findings.
 
 Usage:
-  emit-findings.sh --from <scan-output> --out <path> [--branch <b>]
-                   [--declined-carveout <n>] [--declined-residency <n>]
+  emit-findings.sh [--from <scan-output>] [--from-lane <lane-rows>] --out <path>
+                   [--branch <b>] [--declined-carveout <n>]
+                   [--declined-residency <n>]
 
---from is instruction-scan.sh output (`file:line:check-id` rows); run it with
---body-only. --out is the CONVENTION-RESOLVED destination; if it exists, a
+At least one of --from and --from-lane is required. --from is
+instruction-scan.sh output (`file:line:check-id` rows); run it with
+--body-only. --from-lane is the lane findings for I30, I31, I32, and I33 that
+survived Phase C, one `file:line:check-id` row each, the line being the
+flagged sentence's first line. --out is the CONVENTION-RESOLVED destination; if it exists, a
 -2/-3 suffix is appended (non-overwrite naming). --branch defaults to the
 current git branch. --declined-carveout records how many I28/I29 candidates the
 model lane dropped for a criteria carve-out before this script ran, so that
@@ -62,8 +85,9 @@ exclusion is counted in ## Surfaces instead of going unrecorded.
 RESIDENCY-UNRESOLVED (their surface's residency was never established), which
 propose no applicable edit and so are held out of --from the same way.
 
-Only I28-a / I28-b / I29-a / I29-b rows are emitted (the families carrying
-severity-crosswalk rows); all other check ids are counted as declined and left
+Only I28-a / I28-b / I29-a / I29-b rows (from --from) and I30 / I31 / I32 /
+I33 rows (from --from-lane) are emitted, the families carrying
+severity-crosswalk rows; all other check ids are counted as declined and left
 to the human report.
 EOF
 }
@@ -81,6 +105,11 @@ while [[ $# -gt 0 ]]; do
   --from)
     require_opt_value "$@"
     FROM="$2"
+    shift 2
+    ;;
+  --from-lane)
+    require_opt_value "$@"
+    FROM_LANE="$2"
     shift 2
     ;;
   --out)
@@ -114,14 +143,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$FROM" && -n "$OUT" ]] || {
+[[ (-n "$FROM" || -n "$FROM_LANE") && -n "$OUT" ]] || {
   usage >&2
   exit 2
 }
-[[ -f "$FROM" ]] || {
+if [[ -n "$FROM" && ! -f "$FROM" ]]; then
   echo "emit-findings.sh: --from file not found: $FROM" >&2
   exit 2
-}
+fi
+if [[ -n "$FROM_LANE" && ! -f "$FROM_LANE" ]]; then
+  echo "emit-findings.sh: --from-lane file not found: $FROM_LANE" >&2
+  exit 2
+fi
+# awk tells the two streams apart by FILENAME, so one file cannot be both.
+if [[ -n "$FROM" && "$FROM" == "$FROM_LANE" ]]; then
+  echo "emit-findings.sh: --from and --from-lane name the same file; the paths admit different rules" >&2
+  exit 2
+fi
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
@@ -130,13 +168,16 @@ if [[ -z "$BRANCH" ]]; then
   }
 fi
 
-# A scan row is `<path>:<line>:<check-id>`. Anything with no such row is not
-# scanner output. Strip a trailing CR first so an all-CRLF file with a matching
+# A row is `<path>:<line>:<check-id>`. Input with no such row is neither scanner
+# nor lane output. Strip a trailing CR first so an all-CRLF file with a matching
 # row is recognized rather than refused — the same strip the awk intake applies
 # before its pattern match.
-if ! LC_ALL=C grep -qE '^.+:[0-9]+:I[0-9]+(-[a-f])?$' \
-  < <(LC_ALL=C sed $'s/\r$//' "$FROM"); then
-  echo "emit-findings.sh: $FROM has no instruction-scan.sh rows; not scanner output" >&2
+ROW_ERE='^.+:[0-9]+:I[0-9]+(-[a-f])?$'
+INPUTS=()
+[[ -n "$FROM" ]] && INPUTS+=("$FROM")
+[[ -n "$FROM_LANE" ]] && INPUTS+=("$FROM_LANE")
+if ! LC_ALL=C sed $'s/\r$//' "${INPUTS[@]}" | LC_ALL=C grep -E "$ROW_ERE" >/dev/null; then
+  echo "emit-findings.sh: ${INPUTS[*]} carries no instruction-scan.sh or lane rows" >&2
   exit 3
 fi
 
@@ -223,27 +264,89 @@ if [[ -n "$CYGPATH_BIN" ]]; then
   [[ -n "$CYGPATH_IO" ]] || CYGPATH_BIN=""
 fi
 
+# Identity for every row an intake path could admit, keyed by the row verbatim.
+# Only the admitted families are identified: a scan over a large corpus carries
+# thousands of rows for families that never reach this file.
+IDMAP="$(mktemp)"
+trap 'rm -f "$IDMAP" ${CYGPATH_IO:+"$CYGPATH_IO"}' EXIT
+LC_ALL=C sed $'s/\r$//' "${INPUTS[@]}" |
+  LC_ALL=C grep -E ':I(28-[ab]|29-[ab]|3[0-3])$' |
+  bash "$SCRIPT_DIR/finding-ids.sh" >"$IDMAP" 2>/dev/null || true
+
 LC_ALL=C awk \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
   -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" \
   -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" -v residency="$RESIDENCY" \
-  -v cygpath_bin="$CYGPATH_BIN" -v cygpath_io="$CYGPATH_IO" '
+  -v cygpath_bin="$CYGPATH_BIN" -v cygpath_io="$CYGPATH_IO" \
+  -v idmap="$IDMAP" -v lane_file="$FROM_LANE" -v have_scan="${FROM:+1}" '
+  BEGIN {
+    while ((getline line < idmap) > 0) {
+      if (substr(line, 1, 1) == "#") continue
+      split(line, idf, "\t")
+      fid[idf[1]] = idf[2]
+    }
+    close(idmap)
+  }
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
     if (id == "I29-a") return "claude-config/audit-instructions/rule-description-restatement"
     if (id == "I29-b") return "claude-config/audit-instructions/rule-sibling-restatement"
+    if (id == "I30") return "claude-config/audit-instructions/rule-trigger-less-stamp"
+    if (id == "I31") return "claude-config/audit-instructions/rule-migration-relative-phrasing"
+    if (id == "I32") return "claude-config/audit-instructions/rule-route-to-absent-skill"
+    if (id == "I33") return "claude-config/audit-instructions/rule-spoke-self-description"
     return ""
   }
-  # Tier mirror of the severity crosswalk (see header comment). I28 and I29
-  # are IMPORTANT on the degradation-with-a-named-trigger limb.
-  function rule_tier(id) { return "IMPORTANT" }
-  function rule_action(id) {
+  function lane_rule(id) { return (id == "I30" || id == "I31" || id == "I32" || id == "I33") }
+  # Tier mirror of the severity crosswalk (see header comment). I32 is
+  # CRITICAL, I33 is SUGGESTION, and every other emitted rule is IMPORTANT.
+  function rule_tier(id) {
+    if (id == "I32") return "CRITICAL"
+    if (id == "I33") return "SUGGESTION"
+    return "IMPORTANT"
+  }
+  function tier_rank(t) { return (t == "CRITICAL") ? 0 : (t == "IMPORTANT") ? 1 : 2 }
+  # Where history cut from a spoke belongs: the owning plugin CHANGELOG, or the
+  # repository one for a surface outside plugins/.
+  function changelog_of(loc,   c) {
+    if (loc ~ /^plugins\/[^\/]+\//) {
+      c = loc
+      sub(/^plugins\//, "", c)
+      sub(/\/.*$/, "", c)
+      return "plugins/" c "/CHANGELOG.md"
+    }
+    return "CHANGELOG.md"
+  }
+  # The skill hub a spoke belongs to: the SKILL.md one directory above the
+  # spoke directory. The I33 remediation can land there, so its Action names it.
+  function hub_of(loc,   h) {
+    h = loc
+    sub(/\/[^\/]+\/[^\/]+$/, "", h)
+    return h "/SKILL.md"
+  }
+  function rule_action(id, loc) {
     if (id == "I28-a")
       return "Downgrade the emphasis, never the directive: restate as normal conditional phrasing (\"Use this tool when ...\"). The directive must survive the edit verbatim, apart from capitalization forced by dropping a leading wrapper; only its volume changes."
     if (id == "I28-b")
       return "Replace the blanket default with the targeted condition it stood in for (\"Use [tool] when it would ...\"). The condition is the payload; do not delete the instruction."
+    if (id == "I30")
+      return "Add the recheck trigger as an observable event (a release note naming the flag, a fetch no longer carrying the quoted span, a version floor moving), or point the stamp at the dated owner record that carries one. Keep the claim, its basis, and its date; the stamp stays."
+    if (id == "I31")
+      return "Restate the sentence as the current rule and its reason in the present tense; the rule itself survives, and only its framing against a prior version changes. Remediation target for any history worth keeping: " changelog_of(loc) " or an ADR, never this spoke."
+    if (id == "I32")
+      return "Name the skill that exists, or describe the capability by class per the seam-phrasing convention. Keep the routing sentence; the route is repointed, never left to nowhere."
+    if (id == "I33")
+      return "Delete the opener that describes the role or loading of this spoke; the content below it stays. Remediation target when the index row of the hub does not already carry the loading condition: " hub_of(loc) ", where that condition is added."
     return "Cut the body restatement. Do not edit the description, when_to_use, or any quoted trigger phrase — the always-in-context field stays; only the body copy that restates it is removed."
+  }
+  # The surfaces a lane rule is defined over. I31 and I33 are spoke-only, so a
+  # row elsewhere is outside the scope of the remedy and is declined, never
+  # emitted.
+  function in_rule_surfaces(id, loc) {
+    if (id == "I31") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
+    if (id == "I33") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
+    return 1
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
   #
@@ -471,7 +574,7 @@ LC_ALL=C awk \
   }
 
   # Which marker fired, in the run own values (never the rule definition restated).
-  function fired_marker(id, text,   i, pats_a, pats_b, n) {
+  function fired_marker(id, text,   i, pats_a, pats_b, n, t) {
     if (id == "I28-a") {
       n = split("CRITICAL:|IMPORTANT:|You MUST|you MUST|MANDATORY|ALWAYS use|NEVER skip", pats_a, "|")
       for (i = 1; i <= n; i++) if (index(text, pats_a[i]) > 0) return "marker=\"" pats_a[i] "\""
@@ -483,6 +586,20 @@ LC_ALL=C awk \
       return "phrase=(blanket tool default)"
     }
     if (id == "I29-a") return "shape=\"description-restatement\""
+    if (id == "I30") return "shape=\"stamp-without-recheck-trigger\""
+    if (id == "I31") return "shape=\"migration-relative-phrasing\""
+    if (id == "I32") {
+      # With more than one candidate the writer cannot tell which one is absent.
+      t = text
+      if (gsub(/\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/, "", t) + gsub(/`[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`/, "", t) > 1)
+        return "shape=\"route-to-absent-skill\""
+      if (match(text,/\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/))
+        return "target=\"" substr(text, RSTART, RLENGTH) "\""
+      if (match(text, /`[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`/))
+        return "target=\"" substr(text, RSTART + 1, RLENGTH - 2) "\""
+      return "shape=\"route-to-absent-skill\""
+    }
+    if (id == "I33") return "shape=\"spoke-self-description\""
     return "shape=\"sibling-section-restatement\""
   }
 
@@ -511,7 +628,8 @@ LC_ALL=C awk \
   # CRLF file does not silently drop the CR-terminated rows.
   {
     sub(/\r$/, "")
-    nrows++
+    is_lane = (lane_file != "" && FILENAME == lane_file)
+    if (is_lane) nlane++; else nrows++
   }
   /^.+:[0-9]+:I[0-9]+(-[a-f])?$/ {
     # Split from the RIGHT: a path may contain colons, the last two fields never do.
@@ -522,6 +640,8 @@ LC_ALL=C awk \
 
     rid = rule_id(id)
     if (rid == "") { declined_nocrosswalk[id]++; next }
+    if (is_lane && !lane_rule(id)) { declined_scanner_fed[id]++; next }
+    if (!is_lane && lane_rule(id)) { declined_lane_fed[id]++; next }
 
     if (lno + 0 <= fm_end(file)) { declined_frontmatter[id]++; next }
 
@@ -540,11 +660,28 @@ LC_ALL=C awk \
     loc = relativize_in_repo(file)
     if (loc == "") { declined_outofrepo[id]++; next }
 
+    if (!in_rule_surfaces(id, loc)) { declined_scope[id]++; next }
+
+    if (!($0 in fid)) { declined_identity[id]++; next }
+
+    # Identical sentences under one heading path share an anchor, hence an id:
+    # the finding is reported once and the collision is named with its count.
+    f = fid[$0]
+    if (f in nfid) { if (nfid[f]++ == 1) collided[++ncoll] = f; next }
+    nfid[f] = 1
+
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
 
-    rows[++nemit] = "| " rule_tier(id) " | high | " esc(loc) ":" lno " | claude-config:audit-instructions | " \
-      esc(rid " " fired_marker(id, text) " -- " excerpt) " | " esc(rule_action(id)) " |"
+    # Rank order is tier, then Confidence (high above omitted), then input order.
+    tier = rule_tier(id)
+    k = tier_rank(tier) * 2 + (is_lane ? 1 : 0)
+    bucket[k, ++nb[k]] = "| " tier " | " (is_lane ? "" : "high") " | " esc(loc) ":" lno \
+      " | claude-config:audit-instructions | " \
+      esc(rid " " fired_marker(id, text) " finding_id=" fid[$0] " -- " excerpt) " | " \
+      esc(rule_action(id, loc)) " |"
+    nemit++
+    if (is_lane) nemit_lane++
     seen[id]++
     next
   }
@@ -561,20 +698,36 @@ LC_ALL=C awk \
     print ""
     print "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"
     print "|------|------|------------|----------|------------|---------|--------|"
-    for (i = 1; i <= nemit; i++) printf "| %d %s\n", i, rows[i]
+    rank = 0
+    for (k = 0; k <= 5; k++)
+      for (i = 1; i <= nb[k]; i++) printf "| %d %s\n", ++rank, bucket[k, i]
     print ""
     print "## Surfaces"
     print ""
-    ran = "Ran: [claude-config:audit-instructions (instruction-scan.sh --body-only)]."
+    how = ""
+    if (have_scan != "") how = "instruction-scan.sh --body-only"
+    if (lane_file != "") how = how (how == "" ? "" : "; ") "model lanes: I30, I31, I32, I33"
+    ran = "Ran: [claude-config:audit-instructions (" how ")]."
     zero = ""
-    nz = split("I28-a I28-b I29-a I29-b", zids, " ")
+    ranids = ""
+    if (have_scan != "") ranids = "I28-a I28-b I29-a I29-b"
+    if (lane_file != "") ranids = ranids (ranids == "" ? "" : " ") "I30 I31 I32 I33"
+    nz = split(ranids, zids, " ")
     for (i = 1; i <= nz; i++)
       if (!(zids[i] in seen))
         zero = zero (zero == "" ? "" : ", ") rule_id(zids[i])
     if (zero != "") ran = ran " Returned no result: [" zero "]."
     print ran
     printf "Scan rows read: %d. Emitted: %d.\n", nrows, nemit
+    if (lane_file != "")
+      printf "Lane rows read: %d. Emitted from lanes: %d.\n", nlane, nemit_lane
+    for (i = 1; i <= ncoll; i++)
+      printf "Identity collisions: finding_id=%s count=%d (reported once; no suppression carries forward)\n", collided[i], nfid[collided[i]]
     report_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
+    report_declined(declined_scanner_fed, "scanner-fed-rule (admitted only through --from)")
+    report_declined(declined_lane_fed, "lane-fed-rule (admitted only through --from-lane)")
+    report_declined(declined_scope, "outside-rule-surfaces (I31 and I33 apply to context/, reference/, and references/ spokes)")
+    report_declined(declined_identity, "identity-unresolved (finding-ids.sh refused the row)")
     report_declined(declined_frontmatter, "frontmatter (body-scope fence)")
     report_declined(declined_trigger, "quoted-trigger-phrase (body-scope fence)")
     report_declined(declined_outofrepo, "outside-repo-root (Location must be repo-relative; human report only)")
@@ -589,10 +742,6 @@ LC_ALL=C awk \
     if (residency != "")
       printf "Declined candidates: count=%s reason=residency-unresolved (RESIDENCY-UNRESOLVED in the human report; no applicable edit)\n", residency
   }
-' "$FROM" >"$OUT"
-
-if [[ -n "$CYGPATH_IO" ]]; then
-  rm -f "$CYGPATH_IO"
-fi
+' "${INPUTS[@]}" >"$OUT"
 
 echo "emit-findings.sh: wrote $OUT"

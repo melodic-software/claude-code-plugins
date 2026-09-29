@@ -274,8 +274,8 @@ work into noise.
 **Fix-first applies at repo scale too, with the full machinery.** The main workflow's Phase 6.5
 resolution wave runs here unchanged, and its agents get the same repo-mode spawn contract and the
 same mandatory refutation verifier as any other group: a deferral resolved without the verifier
-would be the one un-refuted diff in a mode built on refuting every diff. The wave commits to the
-run's single branch like every other group.
+would be the one un-refuted diff in a mode built on refuting every diff. The wave lands like every
+other group (see "Delivery").
 
 **No work items are filed by default.** At repo scale, filing produces a tracker backlog nobody
 triages, which is worse for the items than an inventory somebody can search, and worse for the user than a
@@ -295,6 +295,14 @@ already is the aggregate, it is searchable, and it does not go stale the moment 
 closed.
 
 ## Delivery
+
+**`in-place` replaces the branch, PR, and commit rules below.** The run stays on the current
+branch (refuse the default branch), creates no branch, opens no PR, merges no base, and posts no
+PR comment. Each group's verified edits are staged, not committed; `in-place=commit` makes one
+commit of the whole run at the end, its message naming every group. The Phase 8 report goes to the
+user as usual, carrying what the PR would have. Every other rule in this file holds, the
+refutation verifier and the tracked-modifications precondition included. Version discipline still
+applies to the staged or committed change.
 
 **One feature branch and one pull request for the whole run.** Create the run's branch before the
 first group dispatches, from the refreshed tip of the intended PR base (fetch it first), normally

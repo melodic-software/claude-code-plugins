@@ -401,5 +401,27 @@ else
 fi
 chmod 644 "$UNREAD_LIST" 2>/dev/null || true
 
+# --- preflight once, and a progress line on stderr ---
+PROG_REPO="$(mkrepo prog)"
+# A fresh build inside the target repo must reach RECENT_BUILD even when the
+# batch runs from outside every target (the ghq fleet case).
+mkdir -p "$PROG_REPO/obj"
+: >"$PROG_REPO/obj/project.assets.json"
+rc=0
+out="$(cd / && bash "$BATCH" --tier caches --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
+err="$(bash "$BATCH" --tier caches --repo "$PROG_REPO" 2>&1 >/dev/null)" || true
+assert_exit "caches dry-run still exits 0 with preflight" 0 "$rc"
+assert_contains "caches dry-run prints preflight scope once" "$out" "PreflightScope: batch-repositories"
+assert_contains "preflight scans the target repo, not the cwd" "$out" "RECENT_BUILD: $PROG_REPO/obj/project.assets.json"
+assert_contains "caches dry-run prints preflight facts" "$out" "RUNTIME_PROCS:"
+preflight_hits="$(grep -c 'PreflightScope:' <<<"$out" || true)"
+assert_exit "preflight runs once, not per repo" 1 "$preflight_hits"
+assert_contains "dry-run progress names the repo" "$err" "Progress: 1/1 $PROG_REPO"
+
+rc=0
+git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
+assert_exit "git dry-run exits 0" 0 "$rc"
+assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"

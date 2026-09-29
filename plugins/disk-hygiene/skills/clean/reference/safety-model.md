@@ -176,7 +176,8 @@ VCS protection remains categorical in preview, apply, and every handoff verifica
 explicitly supply `--vcs-evidence`. The evidence mode can relax only
 `vcs-tracked-content`, `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the opaque scan
 boundary at that `.git` marker. It does so only when all four live gates pass for every repository
-marker within the one approved checkout:
+marker within the one approved checkout (gates 1 and 2 may instead be waived by the
+`accept_unpublished` acknowledgement described below):
 
 1. `git status --porcelain=v1 --untracked-files=all --ignored=matching --ignore-submodules=none`
    exits successfully and emits nothing, including gitignored-but-present paths (`.env`, local
@@ -200,6 +201,19 @@ candidate shares stash refs and is not an independent backup. Only GitHub.com is
 unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
 categorical reasons.
+
+An operator who wants a throwaway checkout gone even though it fails gates 1 or 2 records that on
+the evidence entry: `"accept_unpublished": true` with a non-empty `"reason"`. The engine accepts it
+only on an entry whose `path` is itself an exact approved path, so a nested repository or a pattern
+cannot carry it. For that repository, porcelain output and local heads that are not on a
+`github.com` remote (or have no remote) stop failing gates 1 and 2; those gates report
+`accepted-unpublished` and the evidence result lists each acknowledgement with its reason under
+`accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
+repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
+the acknowledgement the verdict is unchanged. The acknowledgement exists because a categorical
+refusal did not stop the deletion in #4227: the operator had the directories removed outside the
+engine with every check skipped. Before deleting under it, tell the operator that unpushed commits
+and untracked or ignored files in the checkout will be lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;

@@ -55,7 +55,7 @@ beat a weaker one at high effort on both axes (basis:
 `platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`,
 verified 2026-09-09; recheck on that section changing).
 
-When the bundled `claude-api` skill resolves in your session, its `hillclimb` subcommand
+When the bundled `claude-api` skill resolves in this session, its `hillclimb` subcommand
 automates this search over a suite: it splits cases into train and test sets, proposes one
 configuration change per round from failing train transcripts, and scores the winner on the
 held-out test set. Distribution record: the subcommand (and its `build-eval` prerequisite) ships in

@@ -3,11 +3,30 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.4] - 2026-09-28
+## [0.41.7] - 2026-09-28
 
 ### Fixed
 
 - **Hook suites no longer fail when run inside a Claude Code session.** `guardrails-test-helpers.sh` now unsets `CLAUDE_PLUGIN_DATA` and `HOOK_TELEMETRY_SINK` for every suite that sources it. An inherited `CLAUDE_PLUGIN_DATA` latched the levers notice that `block-hook-bypass.test.sh` counts, and the sink's extra output broke two jq counts in `run-guards.test.sh`. Test-only; hook behavior is unchanged.
+
+## [0.41.6] - 2026-09-28
+
+### Changed
+
+- README: a missing-tool skip says it fires once per session and agent, renewed every eighth skip, to both Claude and the user ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+
+## [0.41.5] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- **`block-windows-drive-tmp` treats `mkdir.exe` and a quoted `C:/Program Files/Git/usr/bin/mkdir.exe` as writers** ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)). The verb regex required the word to end at a space, so `mkdir.exe` never matched `mkdir` and a space in `Program Files` hid the verb. A path-qualified or `.exe` command word is now a writer. The suite allows POSIX `/tmp` on a host whose `/tmp` is the Git for Windows usertemp mount, and keeps `C:/tmp` blocked. `run-guards.test.sh` preserves fixture paths (`MSYS_NO_PATHCONV`) and shims `git.exe`, the name Git Bash resolves.
+
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **`block-no-verify` honors the PowerShell sink tokens `block_dangerous_git_allow` already names** ([#4252](https://github.com/melodic-software/claude-code-plugins/issues/4252)). The fail-closed sink message told the operator to add `ps-unparsable-<trigger>` to that list. That cleared `block-dangerous-git` and left `block-no-verify` still blocking a mutating shape (`Invoke-Command -ScriptBlock { git reset --hard }`), so the next lever an operator reached for was `block_no_verify_enabled=false`. The same token now blanks the unreadable region in both guards; a visible `--no-verify` beside it still blocks. `herestring-comment-char` still has no token.
 
 ## [0.41.3] - 2026-09-28
 

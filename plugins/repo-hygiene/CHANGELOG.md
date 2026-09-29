@@ -3,11 +3,29 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.55] - 2026-09-28
+## [0.10.56] - 2026-09-28
 
 ### Fixed
 
 - **The branch-audit and branch-delete suites pass with a global `tag.gpgsign=true`.** Their fixture tags use `--no-sign`; a signed tag needs a message, and the empty one aborted `git tag`. Test-only.
+
+## [0.10.55] - 2026-09-28
+
+### Fixed
+
+- **`clean` destructive guard matches `--apply` on the mutating scripts and a
+  forced `git worktree remove` (#3346).** `clean-caches.sh`, `clean-build.sh`,
+  `git-prune.sh`, `git-tree-reset.sh`, `git-tree-reset-batch.sh`,
+  `remove-path.sh`, and `clean-batch.sh` are blocked when the command contains
+  `--apply`. A dry-run is not blocked. `git worktree remove --force` / `-f` is
+  blocked. `CLEAN_GUARD_ACK=1` (Bash) and `$env:CLEAN_GUARD_ACK=1;` (PowerShell)
+  still lift the block after the confirmation gate. `git branch -D`/`-d` and
+  `git push --delete` stay out of the net (#3852).
+- **`clean-batch.sh` runs `preflight.sh` once before a caches/build/all dry-run
+  and prints `Progress:` on stderr (#3346).** `preflight.sh` takes optional
+  roots, and the batch passes its target repositories, so `RECENT_BUILD` covers
+  them wherever the batch runs from. The git-only tier does not run preflight. Apply does not run it again. Progress is `N/M <path>` on dry-run
+  and `apply N <path>` on apply.
 
 ## [0.10.54] - 2026-09-28
 

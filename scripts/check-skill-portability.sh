@@ -66,6 +66,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/token-scan.sh
 . "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
 # shellcheck source=lib/read-list.sh
@@ -120,42 +122,27 @@ is_scannable() {
 
 # Resolve the file set for the requested mode.
 files=()
-if (($# == 0)); then
+if ! gate_entry::classify "$@"; then
   usage
 fi
 
-mode="$1"
-case "$mode" in
---all)
-  shift
-  (($# == 0)) || usage
+case "$GE_MODE" in
+all)
   while IFS= read -r f; do
     is_scannable "$f" && files+=("$f")
   done < <(find plugins -type f -path 'plugins/*/skills/*' \( -name '*.md' -o -name '*.sh' \) | sort)
   ;;
---paths)
-  shift
-  (($# > 0)) || usage
-  files=("$@")
+paths)
+  files=("${GE_PATHS[@]}")
   ;;
--*)
-  usage
-  ;;
-*)
-  # Changed-file mode: <base-ref>.
-  base="$mode"
-  shift
-  (($# == 0)) || usage
-  if ! changed_files::verify_base "$base"; then
-    printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
-    exit 2
-  fi
+base)
+  base="$GE_REF"
   # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
   # git pathspec does not match under git's default (non-pathname) globbing.
-  # The NUL-safe read and the deletion filter live in the shared resolver; a
-  # failed diff is fatal there rather than arriving here as an empty scope.
+  # A failed diff exits 2 from the shared entry rather than arriving here as
+  # an empty scope.
   changed=()
-  changed_files::into changed "$base" -- 'plugins/' || exit 2
+  gate_entry::collect_changed changed "$base" -- 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     case "$f" in
     plugins/*/skills/*) ;;
@@ -166,11 +153,15 @@ case "$mode" in
     files+=("$f")
   done
   ;;
+*)
+  printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
+  gate_entry::finish 2
+  ;;
 esac
 
 if ((${#files[@]} == 0)); then
   echo "No skill files in scope — nothing to gate."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # scan_file <path> — print `LINE: token -> text` for each unexcused hit.
@@ -397,6 +388,7 @@ if ((violations > 0)); then
     echo "'portability-ok: <reason>' comment at the site, or declare an inherent"
     echo "narrower scope with 'portability-scope: <reason>' in the file."
   } >&2
-  exit 1
+  gate_entry::finish 1
 fi
 echo "No unexcused coupling tokens in ${#files[@]} skill file(s)."
+gate_entry::finish 0

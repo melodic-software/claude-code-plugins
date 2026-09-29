@@ -104,7 +104,7 @@ assert_contains "markdown states the duplicated-line count" "$out" "Duplicated l
 assert_contains "markdown states the exclusion" "$out" "Excluded by a sanctioned-replication registry"
 assert_contains "markdown counts no file with clones after a total exclusion" "$out" "Files with clones: 0."
 assert_contains "markdown says which files the summary leaves out, and why" "$out" \
-  "so the 2 file(s) holding nothing but excluded groups are left out of it"
+  "so the 2 file(s) holding nothing but excluded groups are left out of it (summary.files_excluded_only)"
 
 # 4. Every collector absent: a report is still produced and says so.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
