@@ -5,16 +5,22 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 ## [0.8.2] - 2026-09-28
 
-### Added
+### Changed
 
-- **DLSS5-Feeder research park (#4592):** `reference/feeder-route.md` documents the manual Feeder
-  route for no-upscaler games; `assess` copy points there without implying `apply` installs it.
+- **DLSS5-Feeder research park (#4592):** `assess` guidance in `SKILL.md` and
+  `candidate-selection.md` now points to `reference/feeder-route.md`. The route stays unverified
+  and anti-cheat gated pending the #4592 decision, and `apply` does not install it.
 
 ## [0.8.1] - 2026-09-27
 
 ### Fixed
 
-- A folder the discovery scan cannot list is reported with the path from the error, from `CategoryInfo.TargetName`, or from a quoted path in the message when Windows leaves `TargetObject` empty. The selftest holds that folder open with no sharing so the listing fails with a sharing violation. A Deny ACE, including one for Everyone, does not stop an elevated runner from listing.
+- A folder the discovery scan cannot list is reported with the path from the error, from
+  `CategoryInfo.TargetName`, or from a quoted path in the message when Windows leaves `TargetObject`
+  empty. The selftest holds that folder open with no sharing so the listing fails with a sharing
+  violation. A Deny ACE, including one for Everyone, does not stop an elevated runner from listing.
+  This repaired the selftest step added by #4646, which failed on the hosted windows-2025 lane; it
+  shipped in #4664.
 
 ## [0.8.0] - 2026-09-27
 
