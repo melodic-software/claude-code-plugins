@@ -319,6 +319,12 @@ Run only on files the be-concise step did not edit.
 - prime: false
 - checked: true
 
+#### Notes
+
+`--fix` runs only each ecosystem's format-only `fix-cmd`. After it, run `/toolchain:lint all` in
+check mode so every ecosystem's `check-cmd` also covers the whole repository, and report its
+failures.
+
 ### skill-quality
 
 - skill: skill-quality:check

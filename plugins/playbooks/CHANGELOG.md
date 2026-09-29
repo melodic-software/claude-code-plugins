@@ -10,7 +10,8 @@ only after that version increases.
 
 - **The `repo-sweep` hygiene `lint` step covers the whole repository** ([#5201](https://github.com/melodic-software/claude-code-plugins/issues/5201)).
   The catalog entry passed only `--fix`, so `toolchain:lint` linted the changed files, which on a
-  clean sweep tree are the earlier steps' edits. The entry now passes `all --fix`.
+  clean sweep tree are the earlier steps' edits. The entry now passes `all --fix` and a note
+  directs a following `/toolchain:lint all` check-mode run, since `--fix` runs only format commands.
 
 ## [0.14.0] - 2026-09-29
 
