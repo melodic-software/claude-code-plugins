@@ -815,19 +815,24 @@ assert_contains "gopls with no go.mod reports zero go files, not a hidden count"
   "Lane: gopls | root=- | state=no-manifest | files=0 |"
 assert_contains "grep still covers the shell file" "$mix_out" \
   "Lane: grep | root=. | state=ran | files=3 |"
-assert_contains "coverage counts the shell file covered and both mjs uncovered" "$mix_out" \
-  "Summary coverage: covered=1 uncovered=2"
-assert_contains "first uncovered mjs is listed" "$mix_out" \
-  "Note: uncovered one.mjs — no manifest root"
-assert_contains "second uncovered mjs is listed" "$mix_out" \
-  "Note: uncovered two.mjs — no manifest root"
-assert_not_contains "a readme is not an uncovered source file" "$mix_out" "README.md"
-assert_not_contains "uncovered files suppress the clean-result note" "$mix_out" \
-  "Note: no candidates from the lanes that ran"
-assert_not_contains "uncovered files suppress the scan-of-nothing note" "$mix_out" \
-  "Note: no lane ran"
+assert_contains "the grep symbol pass covers the shell file and both standalone mjs" "$mix_out" \
+  "Summary coverage: covered=3 uncovered=0"
+assert_not_contains "a readme is not a source file" "$mix_out" "README.md"
 mix_out2="$(cd "$MIX_REPO" && bash "$SCAN" 2>/dev/null)"
 assert_equal "coverage scan is byte-identical on a second read-only run" "$mix_out" "$mix_out2"
+# Without the grep lane nothing reads the standalone files, so they are listed.
+mixk_out="$(cd "$MIX_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+assert_contains "knip alone leaves the shell file unselected and both mjs uncovered" "$mixk_out" \
+  "Summary coverage: covered=0 uncovered=3"
+assert_contains "first uncovered mjs is listed" "$mixk_out" \
+  "Note: uncovered one.mjs — no manifest root"
+assert_contains "second uncovered mjs is listed" "$mixk_out" \
+  "Note: uncovered two.mjs — no manifest root"
+assert_not_contains "a readme is not an uncovered source file" "$mixk_out" "README.md"
+assert_not_contains "uncovered files suppress the clean-result note" "$mixk_out" \
+  "Note: no candidates from the lanes that ran"
+assert_not_contains "uncovered files suppress the scan-of-nothing note" "$mixk_out" \
+  "Note: no lane ran"
 
 # package.json exists, but the standalone .mjs is outside that root. Ownership
 # must not drop it: the owned file is covered, the outside file is uncovered.
@@ -895,6 +900,63 @@ assert_contains "rust is uncovered because no lane owns it" "$nolane_out" \
   "Note: uncovered src/main.rs — no lane for the language"
 assert_contains "nolane coverage is one uncovered file" "$nolane_out" \
   "Summary coverage: covered=0 uncovered=1"
+
+# --- 14. Symbol pass for JS/TS that no package.json root owns ---
+# The grep lane extracts function, class, const, let and var declarations from those
+# files and reuses the referenced-anywhere rule. Its precision on the trap corpus
+# is 2 of 3 (entry-point export `main` is the miss), so the shape is tier 2, not
+# the tier 1 of the shell symbols. Files inside a manifest root stay knip's.
+
+SA_REPO="$TEST_TMPDIR/standalone-js"
+init_repo "$SA_REPO"
+cp "$FIXTURES/standalone.mjs" "$FIXTURES/ts-orphan.ts" "$FIXTURES/ts-used.ts" "$FIXTURES/ts-entry.ts" \
+  "$FIXTURES/dead-and-dynamic.ts" "$SA_REPO/"
+# A name assembled at run time: no literal spelling of it exists anywhere.
+printf '%s\n' 'export function handleAlpha() {' '  return 1;' '}' \
+  'const suffix = "Alpha";' 'console.log(globalThis["handle" + suffix]);' >"$SA_REPO/computed.mjs"
+stage_repo "$SA_REPO"
+sa_exit=0
+sa_out="$(cd "$SA_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || sa_exit=$?
+assert_exit "standalone js scan exits 0" 0 "$sa_exit"
+assert_contains "the grep lane takes the standalone js files as symbol input" "$sa_out" \
+  "Lane: grep | root=. | state=ran | files=6 | detail=4 symbol candidate(s) from"
+assert_equal "four ts-unreferenced-symbol candidates" "4" "$(count_shape "$sa_out" "Finding shape: ts-unreferenced-symbol")"
+assert_not_contains "no standalone js candidate uses the shell symbol shape" "$sa_out" \
+  "Finding shape: unreferenced-symbol"
+assert_not_contains "no standalone js symbol is tier 1" "$sa_out" "Finding tier: 1"
+assert_contains "the unreferenced function in the standalone mjs is a candidate" "$sa_out" \
+  "Finding excerpt: export function renderLegacyRow(cells) {"
+assert_not_contains "the function the module calls itself is not a candidate" "$sa_out" \
+  "Finding excerpt: export function summarizeRows(rows) {"
+assert_contains "the orphan module's export is a candidate" "$sa_out" \
+  "Finding excerpt: export function parseLegacyManifest(text: string): string[] {"
+assert_not_contains "the statically imported export is not a candidate" "$sa_out" "mountPanel"
+assert_not_contains "the export named in a literal string is not a candidate" "$sa_out" \
+  "Finding excerpt: export function renderPanel"
+# Dynamic-usage traps stay uncertain candidates. Nothing here emits a verdict.
+assert_contains "the entry-point export is a tier 2 candidate, not a tier 1 dead claim" "$sa_out" \
+  "Finding excerpt: export async function main(moduleName: string): Promise<string> {"
+assert_contains "the run-time-assembled name is a tier 2 candidate" "$sa_out" \
+  "Finding excerpt: export function handleAlpha() {"
+assert_not_contains "no candidate carries a verdict word" "$sa_out" "verdict"
+assert_contains "the standalone files are covered" "$sa_out" "Summary coverage: covered=6 uncovered=0"
+
+# A file inside a package.json root is knip's: no grep symbol candidate for it, while
+# the standalone file beside the root still gets one.
+OWN_REPO="$TEST_TMPDIR/owned-vs-standalone-js"
+init_repo "$OWN_REPO"
+mkdir -p "$OWN_REPO/pkg" "$OWN_REPO/scripts"
+printf '%s\n' '{"name":"pkg","version":"0.0.0","private":true}' >"$OWN_REPO/pkg/package.json"
+printf '%s\n' 'export function ownedDeadHelper() {' '  return 1;' '}' >"$OWN_REPO/pkg/owned.mjs"
+printf '%s\n' 'export function looseDeadHelper() {' '  return 1;' '}' >"$OWN_REPO/scripts/loose.mjs"
+stage_repo "$OWN_REPO"
+own_out="$(cd "$OWN_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_not_contains "a package.json-owned mjs yields no grep candidate" "$own_out" "File: pkg/owned.mjs"
+assert_not_contains "a package.json-owned mjs symbol is not extracted" "$own_out" "ownedDeadHelper"
+assert_contains "the standalone mjs beside the root yields a symbol candidate" "$own_out" \
+  "Finding excerpt: export function looseDeadHelper() {"
+assert_contains "only the standalone file is covered by the grep lane" "$own_out" \
+  "Lane: grep | root=. | state=ran | files=1 |"
 
 # --- Final report ------------------------------------------------------------------
 

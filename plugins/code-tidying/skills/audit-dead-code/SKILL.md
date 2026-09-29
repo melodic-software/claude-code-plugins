@@ -27,10 +27,10 @@ report that presents them as equals is wrong even when every finding in it is ri
 | **knip** | TS/JS: unused files, exports, types, enum members. **Not** class members. Knip 6 rejects `--include classMembers` outright | **60% precision / 100% recall** on trap fixtures | Unrestored, it **manufactures false positives** (a failed config load produced 2 phantom "unused files"). Its `ERROR:` line goes to stderr, which the JSON reporter discards |
 | **vulture** | Python: unused function / class / method / variable / attribute, plus unreachable code | **16.7% precision / 100% recall**. All five trap classes false-positived at 100% | High recall, low precision **by construction**. Read its output as a worklist, never as a verdict |
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`). That is the lane's declared coverage, not a defect | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**. False **NEGATIVES**, the opposite of knip. Never describe the two degradations with one shared phrase |
-| **grep** | Shell and PowerShell function definitions, plus unreferenced source files (`unreferenced-file`, tier 2) | Symbol extractor: **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4. `unreferenced-file` precision is unmeasured | High precision on symbols, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead. A file miss is tier 2 because a computed path or glob is invisible |
+| **grep** | Shell and PowerShell function definitions; `function`, `class`, `const`, `let` and `var` declarations in JS/TS that no `package.json` root owns (`ts-unreferenced-symbol`, tier 2); plus unreferenced source files (`unreferenced-file`, tier 2) | Shell symbol extractor: **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4. JS/TS symbol extractor: **66.7% precision (2 of 3) / 66.7% recall (2 of 3)** on the trap corpus plus `standalone.mjs`, as recorded on 2026-09-29. `unreferenced-file` precision is unmeasured | High precision on shell symbols, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead. A JS/TS export that only an entry point or an outside consumer calls is a false candidate (`main` in the corpus), and a name mentioned in a comment saves a dead symbol (`formatLegacyRow`). A file miss is tier 2 because a computed path or glob is invisible |
 
 Every figure in the Measured character column comes from this plugin's own trap fixtures under
-`evals/fixtures/`, as recorded on 2026-08-23. Recheck trigger: a major version bump in any lane's
+`evals/fixtures/`, as recorded on 2026-08-23 (the JS/TS symbol figures: 2026-09-29). Recheck trigger: a major version bump in any lane's
 detector, or a change to the fixture corpus. Re-measure before quoting one to a user.
 
 Orphaned-**file** coverage spans source files with a recognised extension; the extension list is closed. The grep lane emits `unreferenced-file` at tier 2
@@ -59,8 +59,13 @@ from the measured precision of the lane that produced it.
 | `py-unreachable` | vulture | 1 |
 | `go-unused-unexported` | gopls | 1 |
 | `unreferenced-symbol` | grep | 1 |
+| `ts-unreferenced-symbol` | grep | 2 |
 | `unreferenced-file` | grep | 2 |
 | `detector-drift` | any | 3 |
+
+`ts-unreferenced-symbol` is tier 2, not the tier 1 of the shell `unreferenced-symbol`: its measured
+precision is 2 of 3 on the trap corpus, and an entry-point or public export nothing in the repository
+calls reads as unreferenced.
 
 Consumers with their own conventions can refine these defaults in their repo's `CLAUDE.md` /
 rules; the tiers above are the skill's built-in baseline.
@@ -90,7 +95,7 @@ still saves a symbol.
 | `skipped` | no resolvable local binary, or a located binary that failed to invoke. Nothing was fetched. No package runner is ever called |
 | `degraded` | the lane ran but its output is not trustworthy. **It emits no records**, and its line says why. Its files are uncovered (`lane degraded`) |
 | `scanned-zero-files` | the lane had zero in-scope input files it **owns** (a nested project root's files belong to that root). Both detectors otherwise report this as exit 0 with no output. Indistinguishable from clean |
-| `no-manifest` | the lane's language is in scope, but no project manifest root exists (`package.json` for knip, `go.mod` for gopls). `files=` is the real in-scope count for that language. Those files are uncovered. This is not a missing binary |
+| `no-manifest` | the lane's language is in scope, but no project manifest root exists (`package.json` for knip, `go.mod` for gopls). `files=` is the real in-scope count for that language. Those files are uncovered unless another lane took them: the grep lane takes JS/TS that no `package.json` root owns. This is not a missing binary |
 
 `files=` on a `Lane:` line is the number of files that lane took as input, including `skipped` and `no-manifest`. It is not the number of findings.
 
@@ -231,18 +236,10 @@ Adjudicated `dead` verdicts are applied there. This skill only reports.
 ## Gotchas
 
 - **No `package.json` means knip does not scan `.js`/`.mjs`/`.cjs`.** Those extensions are routed to
-  knip. With no manifest root the lane is `no-manifest`, `files=` is the real count, and each file
-  is listed uncovered (`no manifest root`). A file that sits outside every `package.json` root is
-  uncovered the same way, even when some other root ran. The grep lane still reports such a file as
-  `unreferenced-file` when nothing names its basename or path, but unused exports inside it stay
-  invisible. A symbol-level grep fallback or knip-without-manifest scan is **deferred**
-  ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
-  **Claim:** symbol-level dead JS/TS outside any `package.json` root has no extractor until
-  trap-measured work ships. Coverage accounting lists the files; file-level misses are
-  `unreferenced-file` at tier 2.
-  **Basis:** #4522, #4521 and #4523. **As of:** 2026-09-28.
-  **Recheck:** standalone `.mjs` trap fixtures produce candidates at recorded precision, or #4522
-  unpark.
+  knip, so with no manifest root its lane is `no-manifest` and `files=` is the real count. The grep
+  lane takes those files, and any JS/TS file outside every `package.json` root, for
+  `ts-unreferenced-symbol` and `unreferenced-file`, so a full run lists them covered. A symbol used
+  only inside its own file counts as referenced and stays unreported.
 - **A `degraded` lane is not a quiet lane.** knip degraded means invented findings were withheld;
   gopls degraded means real findings were never produced. Report which one happened. Either way the
   lane's files are listed uncovered (`lane degraded`), so the clean-result note cannot print.
