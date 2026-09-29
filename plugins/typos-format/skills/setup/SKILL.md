@@ -94,8 +94,10 @@ restores the FAIL semantics. Node.js (step 8) is the exception: the enabled-gate
    Name the remediation in the same line rather than leaving the reader to infer it.
 7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
-8. **Node.js.** Run `command -v node` via Bash, which works without the launcher. FAIL when
-   absent, even with the toggle off: the hook row runs `node hooks/exec-bash.mjs`, so a missing
+8. **Node.js.** Run `node --version` via Bash, which works without the launcher. A
+   `command -v node` hit is not enough: a version-manager shim or a shell function resolves
+   there yet cannot run the launcher. FAIL when the command is absent or exits non-zero, even
+   with the toggle off: the hook row runs `node hooks/exec-bash.mjs`, so a missing
    `node` is a hook launch error and the hook never runs. Verification record. Claim: Claude
    Code's native binary neither ships nor uses Node. Basis: [Set
    up](https://code.claude.com/docs/en/setup). As of 2026-09-29. Recheck when a re-read of that

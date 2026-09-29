@@ -14,7 +14,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Documentation
 
-- README Requirements and the setup skill's `check` now list Node.js, which every hook launch needs since 0.7.1: without `node` the hook does not launch and spelling is not checked ([#3708](https://github.com/melodic-software/claude-code-plugins/issues/3708)).
+- README Requirements and the setup skill's `check` now list Node.js, which every hook launch needs since 0.7.1: without `node` the hook does not launch and spelling is not checked ([#3708](https://github.com/melodic-software/claude-code-plugins/issues/3708)). The check runs `node --version`, not `command -v node`, so a broken version-manager shim fails it.
 - README hook cost accounting: a disabled hook costs a `node` process and an enabled edit costs `node` plus bash, not one shell and an unchanged count. Dropped the pre-0.7.1 disabled-row figures and added 2026-09-29 Linux rows for 0.7.6, marking the 0.6.35 and 0.6.55 figures and the 0.6.48 census as predating the launcher.
 - README: removed the unreproducible 2026-09-27 Linux spawn-equivalent table and the stale nine-plugin count.
 - CHANGELOG: restored the `### Changed` headings on 0.6.65 and 0.6.64.
