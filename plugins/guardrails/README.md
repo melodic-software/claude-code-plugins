@@ -124,10 +124,10 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
-- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.8**). It runs its
+- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.11**). It runs its
   command line inside a Linux distribution, so every guard that re-parses a
   `sh -c` operand (`block-no-verify`, `block-dangerous-git`,
-  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`,
   `block-root-delete-target`) re-parses that command line too: `wsl git reset
   --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
   `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) and a leading
@@ -335,7 +335,7 @@ out of scope until such a signal exists.
   redirects blocked anyway, which cost false positives with no true positive.
 
   **On Windows the temp default takes an 8.3 short-name spelling** (since
-  **0.37.7**), because that is how `TEMP`, and so the harness scratchpad, is
+  **0.38.6**), because that is how `TEMP`, and so the harness scratchpad, is
   spelled on a volume that generates short names (`C:/Users/<user>~1/...`,
   `RUNNER~1` on the Windows CI runner). A `~` is accepted only in a component of
   the 8.3 shape (`NAME~N`, `NAME~N.EXT`), and only for the temp default: the
@@ -357,9 +357,8 @@ out of scope until such a signal exists.
   `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
   `Write` stayed blocked, the same content-guard bypass the MCP lane above
   exists to close. The consequence is that `printf '*' >> .work/.gitignore`
-  still blocks; that command is `session-flow`'s own documented procedure, so the
-  conflict routes to the skill (use `Write`, which is scanned) rather than to this
-  guard.
+  still blocks because the memory tier is not exempt; write that file with
+  `Write`, which the content guards scan.
 
   **The default is confirmed through symlink resolution before it grants.** The
   lexical compare alone would exempt a redirect on its spelling, so a symlink
