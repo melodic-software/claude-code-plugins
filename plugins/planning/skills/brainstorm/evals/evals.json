@@ -60,6 +60,18 @@
         "Output does not fabricate a problem to brainstorm when none is open",
         "Output states that no rough problem is open and stops (or asks the user to supply one)"
       ]
+    },
+    {
+      "id": 6,
+      "name": "observed-fact-evidence-bar-d5",
+      "prompt": "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers.",
+      "expected_output": "Produces multiple codebase-grounded candidates where each option cites an observed, falsifiable fact about this repository (a concrete path or mechanism plus a claim that could be wrong), not only a plausible improvement story.",
+      "files": [],
+      "expectations": [
+        "Each candidate names a concrete file, module, or mechanism in this repo that the option would touch",
+        "Each candidate ties the option to an observed fact that could be falsified by reading the codebase, not merely a plausible narrative",
+        "Output still presents multiple ordered candidates and invites the user to react rather than picking unilaterally"
+      ]
     }
   ]
 }

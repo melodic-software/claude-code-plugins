@@ -70,10 +70,25 @@ needs tracked work in the step's `Scope decisions:` instead.
 ### tidy
 
 - skill: code-tidying:tidy
-- args: <lane>
-- applies-when: repo has source code and the user wants one tidying lane in this sweep
+- args: <lane> | <lane1>,<lane2>,... | all
+- applies-when: repo has source code or prose that at least one tidy lane covers
 - checked: false
 - issue: #4503
+
+#### Notes
+
+`code-tidying:tidy` runs one lane per invocation. When the sweep should tidy more than one lane,
+resolve `args` to a comma-separated lane list or `all` (every lane in the union of bundled and
+`.claude/tidy-lanes/*.md` names that applies to this repo, excluding the maintainer-only
+`self-update` lane). `next` invokes tidy once per lane in that list inside this single step. Present findings from every lane together for review; one step
+commit covers all lanes. Ad hoc globs with no lane file still need a project lane definition or a
+separate manual tidy outside repo-sweep.
+
+Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
+bundled lanes, and `self-update` is maintainer-only. Basis: `code-tidying` 0.23.11
+`skills/tidy/SKILL.md` (argument-hint, lane resolution, `self-update` row). As of: 2026-09-28.
+Recheck: tidy accepts several lanes in one call, or changes where it reads lanes from; prefer the
+lane list tidy's own `help` prints over this note when they differ.
 
 #### Override
 
