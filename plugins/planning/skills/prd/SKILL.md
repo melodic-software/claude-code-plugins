@@ -1,7 +1,6 @@
 ---
 description: "Write a Product Requirements Document that locks product intent (problem, users, success metrics) before any engineering plan, in three tiers with a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or a user-facing change needs written alignment. Engineering-internal work: /planning:interview or /planning:plan."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
-arguments: [tier]
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -71,7 +70,7 @@ If ambiguous (could go either way), surface the question once and let the user p
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action. The first argument is `$tier`. If `$tier` is one of the tier words in the table (`one-pager`, `consumer`, `consumer-feature`, `b2b`, `b2b-internal`, `synthesize`, `review`), that row wins and the rest of `$ARGUMENTS` is the task. Any other first argument is the start of the task description, not a tier. When `$tier` is empty, no arguments were passed: ask for the tier (surface rules below).
+Read `$ARGUMENTS` whole to determine the action. If its first word is one of the tier words in the table (`one-pager`, `consumer`, `consumer-feature`, `b2b`, `b2b-internal`, `synthesize`, `review`), that row wins and the rest of `$ARGUMENTS` is the task. Any other first word is the start of the task description, not a tier. When `$ARGUMENTS` is empty, no arguments were passed: ask for the tier (surface rules below).
 
 | Argument | Action | Use case |
 |----------|--------|----------|
