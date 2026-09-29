@@ -1095,6 +1095,7 @@ parser_sees_p1 'single-quoted severity and id' "emit 'error' 'P1' SRC \"message\
 parser_sees_p1 'a dollar-quoted command word' "\$'emit' error P1 SRC \"message\""
 parser_sees_p1 'a hyphenated emitter name' 'emit-finding error P1 SRC "message"'
 parser_sees_p1 'a namespaced emitter name' 'emit::finding error P1 SRC "message"'
+parser_sees_p1 'a brace-expanded emitter name' 'emit{1..1} error P1 SRC "message"'
 parser_sees_p1 'command shifts to a hyphenated emitter' 'command emit-finding error P1 SRC "message"'
 parser_sees_p1 'builtin shifts to the emitter' 'builtin emit error P1 SRC "message"'
 parser_sees_p1 'exec shifts to the emitter' 'exec emit error P1 SRC "message"'
@@ -1243,6 +1244,8 @@ nested_ids_case 'a call inside each compound command, expansion and redirection'
   'while emit error @ID@; do :; done' 'while :; do emit error @ID@; done' \
   'for i in 1; do emit error @ID@; done' 'for i in $(emit error @ID@); do :; done' \
   'case x in x) emit error @ID@ ;; esac' 'case $(emit error @ID@) in *) :;; esac' \
+  'case x in $(emit error @ID@)) :;; esac' \
+  'x=${v:$(emit error @ID@):1}' 'x=${v/$(emit error @ID@)/y}' 'x=${v//a/$(emit error @ID@)}' \
   ': && emit error @ID@' 'emit error @ID@ && :' ': | emit error @ID@' 'emit error @ID@ | cat' '! emit error @ID@' \
   'cat >"$(emit error @ID@)"' \
   'x=$(emit error @ID@)' 'x=`emit error @ID@`' 'declare y=$(emit error @ID@)' 'arr=($(emit error @ID@))' \
