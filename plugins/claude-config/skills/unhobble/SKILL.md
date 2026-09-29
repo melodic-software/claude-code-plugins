@@ -140,9 +140,11 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
    (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
    2026-09-28. **Recheck:** that page names another hook location. Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
-   a second hook rubric. Any policy entry, or any behavioral entry whose oracle is non-derivable,
-   makes the plugin `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with a per-hook
-   kill switch still available when the plugin exposes one. A plugin with no hook wiring is not
+   a second hook rubric. A plugin whose every component is policy (or behavioral with a
+   non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a
+   plainly behavioral component is `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with
+   a per-hook kill switch still available when the plugin exposes one. One whose every component
+   is behavioral is the overlay candidate. A plugin with no hook wiring is not
    automatically skill-only: inventory every component type that same table lists (MCP and LSP
    servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
    LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin

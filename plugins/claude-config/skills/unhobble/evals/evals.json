@@ -190,8 +190,8 @@
       "id": 16,
       "name": "classifies-every-plugin-enabled-at-any-scope",
       "narration": true,
-      "prompt": "/claude-config:unhobble snapshot — user settings enable formatter@tools (hooks/hooks.json with one deny-gate that checks a secret pattern) and notes@tools (skills only, a commit-message convenience). Project settings enable neither. Classify them.",
-      "expected_output": "Emits a classification row for both plugins even though only user scope enables them. formatter@tools is hook-wiring: each wired entry is classified with the plugin-philosophy Classifying a hook rubric, not a new rubric, and the secret-pattern deny-gate is policy, so the plugin is hybrid and kept whole as unstripped-mixed-plugin. notes@tools is skill-only and behavioral under the skill-only rubric (convenience the model can do without), so it is an overlay candidate. Managed settings are not edited.",
+      "prompt": "/claude-config:unhobble snapshot — user settings enable formatter@tools (hooks/hooks.json with a deny-gate that checks a secret pattern and a PostToolUse auto-formatter) and notes@tools (skills only, a commit-message convenience). Project settings enable neither. Classify them.",
+      "expected_output": "Emits a classification row for both plugins even though only user scope enables them. formatter@tools is hook-wiring: each wired entry is classified with the plugin-philosophy Classifying a hook rubric, not a new rubric, the secret-pattern deny-gate is policy and the auto-formatter is behavioral, so the plugin is hybrid and kept whole as unstripped-mixed-plugin. notes@tools is skill-only and behavioral under the skill-only rubric (convenience the model can do without), so it is an overlay candidate. Managed settings are not edited.",
       "files": [],
       "expectations": [
         "Classifies every plugin enabled at user scope, not only project-enabled plugins",
