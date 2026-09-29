@@ -3,6 +3,15 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-09-29
+
+### Changed
+
+- **README notes the expected `/plugin` warning.** With a user-scope `dometrain` server at the
+  plugin's URL active, Claude Code skips the plugin's server as a duplicate and `/plugin` shows a
+  warning. The env-var section gives the text, says it is harmless, and says how to silence it; the
+  vault-exec section points there. The message text is observed behaviour, not documented.
+
 ## [0.4.1] - 2026-09-28
 
 ### Added

@@ -102,6 +102,12 @@ plugin does not rely on one.
 The notes under [Using vault-exec](#using-vault-exec-opt-in) on tool-name prefixes and Grok apply
 here too.
 
+With this override active, `/plugin` shows a warning for the dometrain plugin:
+`MCP server "dometrain" skipped — same command/URL as already-configured "dometrain". Remove "dometrain" from your MCP config if you want the plugin's version instead`.
+It is expected and harmless: your user-scope server is the one in use. To silence it, remove the
+user-scope entry (`claude mcp remove dometrain --scope user`) or stop using the plugin's server.
+This message text is observed behaviour, not documented by Claude Code.
+
 Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Environment variable
 expansion in `.mcp.json`" and "Scope hierarchy and precedence," verified 2026-09-25.
 
@@ -144,7 +150,9 @@ Skip it and the plugin behaves exactly as described above.
 3. Claude Code deduplicates a plugin-provided server against one configured at local, project, or
    user scope by **endpoint**. Because your user-scope server names the identical URL, it outranks
    and replaces the plugin's own server; no `/mcp` disable step is needed here, unlike `miro`'s
-   wrapped-command recipe, where the launch command itself differs.
+   wrapped-command recipe, where the launch command itself differs. `/plugin` then shows an
+   expected skipped-server warning for the plugin; the text and how to silence it are under
+   [Reading the key from an environment variable](#reading-the-key-from-an-environment-variable).
 
 Notes:
 
