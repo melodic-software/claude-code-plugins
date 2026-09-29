@@ -1,0 +1,53 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the line count is asserted before the loop, the total
+// is a literal, the snapshot sits beside a literal, the null check sits
+// beside the value, and the exception type is named.
+using System;
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceRepaired4bTests
+{
+    [Fact]
+    public void Lines_AllCarryTax()
+    {
+        var lines = InvoiceBuilder.Build("order-7").Lines;
+        Assert.Equal(2, lines.Count);
+        foreach (var line in lines)
+        {
+            Assert.True(line.Tax > 0m);
+        }
+    }
+
+    [Fact]
+    public void Total_AddsThePrices()
+    {
+        var lines = new[] { new Line(10m), new Line(5m) };
+        Assert.Equal(15m, Invoice.Total(lines));
+    }
+
+    [Fact]
+    public Task Render_PrintsEveryLine()
+    {
+        var text = InvoiceRenderer.Render(InvoiceBuilder.Build("order-7"));
+        Assert.Contains("Total: 15", text);
+        return Verify(text);
+    }
+
+    [Fact]
+    public void Create_ReturnsAnInvoice()
+    {
+        var invoice = InvoiceBuilder.Build("order-7");
+        Assert.NotNull(invoice);
+        Assert.Equal("order-7", invoice.OrderId);
+    }
+
+    [Fact]
+    public void Build_RejectsAnEmptyOrderId()
+    {
+        Assert.Throws<ArgumentException>(() => InvoiceBuilder.Build(""));
+    }
+}

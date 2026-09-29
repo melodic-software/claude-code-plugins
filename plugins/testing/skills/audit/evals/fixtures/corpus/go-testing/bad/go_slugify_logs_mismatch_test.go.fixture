@@ -1,0 +1,16 @@
+// expect: rule-inert-assertion
+// The mismatch branch only logs, so a wrong slug still passes the test.
+package slug
+
+import "testing"
+
+func TestSlugifyLowercases(t *testing.T) {
+	got, err := Slugify("Hello World")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "hello-world"
+	if got != want {
+		t.Logf("got %q, want %q", got, want)
+	}
+}

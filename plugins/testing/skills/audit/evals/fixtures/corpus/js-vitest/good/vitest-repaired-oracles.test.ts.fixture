@@ -1,0 +1,37 @@
+// good-for: rule-inert-assertion
+// good-for: rule-constant-restatement
+// good-for: rule-source-text-read
+// The repaired twins: the poll is awaited, the limit is checked through the
+// validator that uses it, the fixture feeds code under test, and the page is
+// rendered rather than read as text.
+import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { createQueue } from '../src/queue';
+import { X_POST_CHARACTER_LIMIT, validatePost } from '../src/post';
+import { displayName } from '../src/user';
+import { PitchDetail } from '../app/pitch-detail';
+
+describe('repaired', () => {
+  it('drains after flush', async () => {
+    const queue = createQueue();
+    queue.push('a');
+    queue.flush();
+    await expect.poll(() => queue.size()).toBe(0);
+  });
+
+  it('accepts 280 characters and rejects 281', () => {
+    expect(validatePost('a'.repeat(X_POST_CHARACTER_LIMIT)).ok).toBe(true);
+    expect(validatePost('a'.repeat(281)).ok).toBe(false);
+  });
+
+  it('formats the display name', () => {
+    const user = { name: 'Ada', role: 'admin' };
+    expect(displayName(user)).toBe('Ada (admin)');
+  });
+
+  it('shows the videos after the content plan', () => {
+    render(<PitchDetail />);
+    const [plan, videos] = screen.getAllByRole('region');
+    expect(plan.compareDocumentPosition(videos)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+});

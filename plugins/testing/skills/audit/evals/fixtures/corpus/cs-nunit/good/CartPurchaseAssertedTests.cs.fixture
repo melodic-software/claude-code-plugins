@@ -1,0 +1,22 @@
+// good-for: rule-zero-assertion
+// The repaired twin: constraint assertions in a multiple-assert scope.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartPurchaseAssertedTests
+{
+    [Test]
+    public void Purchase_EmptiesTheCart()
+    {
+        var cart = new Cart();
+        cart.Add(new Item("pen", 2m));
+
+        var order = cart.Purchase();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cart.Items, Is.Empty);
+            Assert.That(order.Total, Is.EqualTo(2m));
+        }
+    }
+}

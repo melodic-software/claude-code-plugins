@@ -1,0 +1,17 @@
+// good-for: rule-zero-assertion
+// The repaired twin: the order's status is asserted.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderPlacementAssertedTests
+{
+    [TestMethod]
+    public void Place_MarksTheOrderPlaced()
+    {
+        var service = new OrderService(new InMemoryOrderStore());
+
+        var order = service.Place(new OrderRequest(customerId: 42, sku: "pen"));
+
+        Assert.AreEqual(OrderStatus.Placed, order.Status);
+    }
+}

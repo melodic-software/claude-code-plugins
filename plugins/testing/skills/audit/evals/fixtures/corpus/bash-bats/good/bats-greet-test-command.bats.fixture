@@ -1,0 +1,13 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# Plain test commands fail the test under set -e, with no helper library.
+
+setup() {
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet prints a greeting for the given name" {
+  run greet world
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Hello, world" ]]
+}
