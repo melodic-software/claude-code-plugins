@@ -325,6 +325,12 @@ Run only on files the be-concise step did not edit.
 check mode so every ecosystem's `check-cmd` also covers the whole repository, and report its
 failures.
 
+Claim: `toolchain:lint` with `--fix` runs only each ecosystem's format-only `fix-cmd`, check mode
+runs `check-cmd`, and the `all` filter widens the file list to the whole repository. Basis:
+`toolchain` 0.13.18 `skills/lint/SKILL.md` (Mode flags table, command-selection table, and the
+`all` filter rule). As of: 2026-09-29. Recheck: `--fix` also runs `check-cmd`, the check-mode
+default changes, or `all` stops widening the file list.
+
 ### skill-quality
 
 - skill: skill-quality:check
