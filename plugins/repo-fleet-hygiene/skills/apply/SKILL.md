@@ -74,7 +74,8 @@ Remote deletion is separate from that gate and stricter:
   `url.*.insteadOf` count) to name the repository the audit recorded in `remote_key`. It re-reads
   the branch's pull requests with `gh pr list --state all` for `github_repo`: `never-pr` needs
   none, `closed-unmerged` needs only `CLOSED` ones with one at the plan tip. An `OPEN` or `MERGED`
-  pull request, a changed class, a full 100-row page, or a failed `gh` call skips the row.
+  pull request, a changed class, a full 100-row page, or a failed `gh` call skips the row. The
+  identity and pull request checks run again after a yes and before the ledger write and the push.
 - Each branch gets its own `[y/N]` prompt naming repository, remote, branch, class, and tip. `--yes`
   does not answer it. A non-interactive session with any remote row that would be prompted deletes
   nothing at all, local rows included (exit 3).
@@ -87,8 +88,9 @@ Remote deletion is separate from that gate and stricter:
   tip first when it is absent, but a successful delete removes the remote-tracking ref, so the
   object is unreachable afterward and `git gc` prunes it once `gc.pruneExpire` passes (two weeks by
   default).
-- **Claim:** `gc.pruneExpire` defaults to two weeks. **Basis:** `git help config`, entry
-  `gc.pruneExpire` (git 2.53.0). **As of:** 2026-09-29. **Recheck:** when a Git release changes the
+- **Claim:** `gc.pruneExpire` defaults to two weeks. **Basis:** the `gc.pruneExpire` entry of
+  <https://git-scm.com/docs/git-gc> ("prune --expire 2.weeks.ago"), matching `git help config`
+  (git 2.53.0). **As of:** 2026-09-29. **Recheck:** when a Git release changes the
   `gc.pruneExpire` default or the restore window in that entry.
 - The script prompts only when its stdin is a terminal. When it has none, `--remote-branches` only
   previews and exits 3. To delete, run `apply-plan.sh --plan-file <path> --apply --remote-branches`

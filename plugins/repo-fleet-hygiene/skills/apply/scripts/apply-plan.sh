@@ -507,10 +507,14 @@ D_REASON=()
 D_WT_PATH=()
 D_REMOTE=()
 D_CLASS=()
+D_KEY=()
+D_REPO=()
 
 append_decision() {
   D_REMOTE+=("${12:-}")
   D_CLASS+=("${13:-}")
+  D_KEY+=("${14:-}")
+  D_REPO+=("${15:-}")
   D_PHASE+=("$1")
   D_OP+=("$2")
   D_CANONICAL+=("$3")
@@ -805,7 +809,7 @@ refresh_remote_delete() {
     fi
   fi
   append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$live" \
-    "$action" "$reason" "" "$remote" "$class"
+    "$action" "$reason" "" "$remote" "$class" "$key" "$repo"
 }
 
 # Appends one ledger line before a push and leaves it in LEDGER_LINE. A failed write aborts the
@@ -1053,6 +1057,15 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       continue
       ;;
     esac
+    # The prompt can sit open: re-check identity and PR state now. The lease covers the tip.
+    if ! remote_names_audited_repo "$canonical" "$remote" "${D_KEY[$i]}"; then
+      printf 'SKIP: %s/%s in %s (remote no longer names the audited repository)\n' "$remote" "$ref" "$canonical"
+      continue
+    fi
+    if ! why="$(remote_pr_state_ok "${D_REPO[$i]}" "$ref" "$class" "$tip")"; then
+      printf 'SKIP: %s/%s in %s (%s)\n' "$remote" "$ref" "$canonical" "$why"
+      continue
+    fi
     # The restore command pushes the tip by SHA, so the object must exist locally.
     if ! git_probe -C "$canonical" cat-file -e "${tip}^{commit}" 2>/dev/null; then
       git_mutate -C "$canonical" fetch --quiet --no-tags "$remote" "refs/heads/${ref}" 2>/dev/null || true

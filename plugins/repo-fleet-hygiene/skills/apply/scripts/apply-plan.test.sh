@@ -696,7 +696,9 @@ while [[ $# -gt 0 ]]; do
 done
 printf '%s %s\n' "$repo" "$head" >>"$GH_STUB_LOG"
 [[ ! -e "$GH_STUB_DIR/fail" ]] || exit 1
-[[ ! -f "$GH_STUB_DIR/${head//\//_}" ]] || cat "$GH_STUB_DIR/${head//\//_}"
+name="$GH_STUB_DIR/${head//\//_}"
+if [[ -f "$name.after" && "$(grep -cxF "$repo $head" "$GH_STUB_LOG")" -ge 2 ]]; then name="$name.after"; fi
+[[ ! -f "$name" ]] || cat "$name"
 STUB
 chmod +x "$TMP/bin/gh"
 export PATH="$TMP/bin:$PATH"
@@ -1019,6 +1021,25 @@ bash "$SCRIPT" --plan-file "$RK_PLAN" --remote-branches >"$rk_fail" 2>&1
 assert_contains "an unreadable PR state fails closed" "GitHub PR state could not be verified (fail-closed)" "$rk_fail"
 assert_not_contains "no row is deletable while PR state is unreadable" "[delete-remote-branch]" "$rk_fail"
 rm -f "$GH_STUB_DIR/fail"
+
+# (j) A PR that appears while the prompt is open stops the delete after the yes, before any ledger.
+if [[ "$HAVE_PTY" -eq 1 ]]; then
+  make_remote_repo rl
+  RL_OID="$(add_remote_branch "$REMOTE_REPO" feat/late)"
+  set_pr_rows feat/late
+  printf 'OPEN\t%s\n' "$RL_OID" >"$GH_STUB_DIR/feat_late.after"
+  RL_PLAN="$TMP/rl-plan.json"
+  write_remote_plan "$RL_PLAN" "$REMOTE_REPO" "$NP" "feat/late|never-pr|$RL_OID"
+  rl_out="$TMP/rl.txt"
+  rl_rc=0
+  run_pty "$rl_out" y -- bash "$SCRIPT" --plan-file "$RL_PLAN" --apply --remote-branches || rl_rc=$?
+  [[ "$rl_rc" -eq 0 ]] && pass "late PR: skipped branch exits 0" || fail "late PR: skipped branch exits 0 (rc=$rl_rc)"
+  assert_contains "late PR: the confirmed row is re-checked and skipped" "a PR with this head is now OPEN" "$rl_out"
+  assert_remote_head "late PR: head survives a yes given after the PR opened" "$REMOTE_BARE" feat/late "$RL_OID"
+  [[ ! -e "$RL_PLAN.tip-ledger" ]] && pass "late PR: no ledger line written" || fail "late PR: no ledger line written"
+else
+  skip_no_pty "late PR case"
+fi
 
 # A ledger that cannot be written aborts that branch before the push.
 if [[ "$HAVE_PTY" -eq 1 ]]; then
