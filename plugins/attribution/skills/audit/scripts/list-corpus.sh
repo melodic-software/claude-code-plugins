@@ -32,6 +32,16 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ ! -r "$SCRIPT_DIR/lib.sh" ]]; then
+  echo "list-corpus.sh: cannot read $SCRIPT_DIR/lib.sh" >&2
+  for arg in "$@"; do
+    if [[ "$arg" == "--show-config" ]]; then
+      echo "detector unavailable"
+      exit 0
+    fi
+  done
+  exit 2
+fi
 # shellcheck source=lib.sh
 source "$SCRIPT_DIR/lib.sh"
 

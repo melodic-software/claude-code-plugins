@@ -38,8 +38,9 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   not hard-blocking. Never hard-block a command that has a documented legitimate direct use.
 - **Claimed property the producer can break.** If a skill asserts write-once, sealed, or immutable,
   but the producing agent can Edit the artifact, that is a discipline with after-the-fact verify,
-  not a guarantee (#3866). Flag a surface that states the stronger reading. Detection after loss
-  is not prevention.
+  not a guarantee. Flag a surface that states the stronger reading. Detection after loss is not
+  prevention. Doctrine owner: [`evidence-packet.md`](evidence-packet.md) "What a sealed packet
+  asserts" (do not restate the rule here).
 
 ## 4. SSOT / DRY / drift
 
