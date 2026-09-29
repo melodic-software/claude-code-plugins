@@ -1,6 +1,6 @@
 ---
 description: "Chart committed infrastructure as a C4 deployment view: which containers sit on which declared nodes, per environment, and what differs between two environments. Use when: 'map deployment', 'deployment diagram', 'what is different in production', 'IaC topology', 'where does this container run'. Skip when: the question is a live cloud inventory, cost, or runtime health."
-argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--live] [--out <dir>]"
+argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -24,7 +24,7 @@ Answer "where does this run, and what is different about that environment" from 
 infrastructure as code. Every node traces to a named file. The scripts collect and render. Do not
 draw a node the script did not emit, and do not describe a live cloud.
 
-This is the C4 deployment view. One diagram is one deployment environment.
+This is the C4 deployment view. Each environment is its own deployment environment in the diagram.
 
 ## Resolve home and dialect
 
@@ -91,15 +91,23 @@ the invocation asked for live state. The script does not call a cloud API.
 Shipped readers, both when both are present:
 
 - Docker Compose (`compose.yaml`, `docker-compose.yml`, and `compose.<env>.yaml`). The environment
-  is the filename suffix, or the parent directory when the file sits under `deploy/<env>/`.
+  is the filename suffix of `compose.<env>.yaml`, otherwise the parent directory name
+  (`deploy/<env>/compose.yaml`), and `default` for a file at the repository root.
+  A base file with an override or variant file in the same directory (`compose.override.yaml`,
+  `compose.<x>.yaml`) is one merged stack, not two environments. It is refused as `layered-compose`.
+  Environment-per-directory layouts are unaffected.
 - Kubernetes manifests whose `kind` is Deployment, StatefulSet, DaemonSet, Service, or Ingress.
   Each container of a workload, a sidecar included, is its own placement.
   The environment is the namespace, otherwise the parent directory.
 
-Terraform, Pulumi, Bicep, CloudFormation, Helm, and Kustomize are recognized. If any of them is
-present, the record is refused, including when Compose or Kubernetes is also present. A diagram of
-only the shipped tool would be a partial read. A repository whose only IaC is an unshipped tool is
-refused as `adapter-not-shipped`, not drawn empty.
+Terraform (any `.tf`, `.tfvars`, or `.tf.json`), ARM templates (JSON whose `$schema` names
+`deploymentTemplate`), Pulumi, Bicep, CloudFormation, Helm (a `Chart.yaml`), and Kustomize are
+recognized. If any of them is present, the record is refused, including when Compose or Kubernetes
+is also present. A diagram of only the shipped tool would be a partial read. A repository whose only
+IaC is an unshipped tool is refused as `adapter-not-shipped`, not drawn empty. Files under CI
+directories such as `.github/` are not IaC and are skipped. A double-brace expression in a Compose
+or Kubernetes value (a Go template in a healthcheck) reads normally; one in a name, image,
+namespace, replicas, or kind field refuses the file as unreadable.
 
 Every value the collector writes and the renderer prints passes through
 `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`. A parameter whose key names a credential, or
@@ -108,6 +116,14 @@ cloud access key, a private key, URL userinfo, or an HTTP Basic or Bearer creden
 with an empty value and `"redacted":"yes"`. Any other emitted field that carries one prints as
 `[redacted]`. A secret must not appear in the record, the diagram, the diff, or stdout. A diff of
 two secret values says that the parameter differs and does not print either value.
+
+A diff compares two environments over these kinds, for Compose and Kubernetes alike: a container
+present in one environment only, image, replicas, ports, a parameter present in one environment
+only, a plain parameter value, and a secret parameter that differs. A Kubernetes container port
+(`containerPort`) is the placement's ports. A Kubernetes `valueFrom` reference counts as a secret
+parameter whose presence is compared; `envFrom` is not read. Networks and Ingress hosts are not compared. The
+report's diff section lists these kinds, and an empty diff reads `No differences of these kinds:
+...` so a clean diff is never mistaken for a full comparison.
 
 When `<architecture_dir>/containers.json` exists, container names that the IaC does not place are
 listed. When it does not exist, the artifact says container names came from the IaC.
@@ -125,8 +141,8 @@ environments, diff, and container tables, and draws no diagram block. Omit
 `--env` to draw every collected environment, one deployment environment each inside the one
 fenced block. Omit `--diff` when the
 invocation did not ask for a comparison. The diff table is the first section after the tools. An
-unknown `--env` writes a refusal that lists the environments and exits 3. In a non-interactive run,
-stop there.
+unknown `--env` or `--diff` name writes a refusal that lists the environments and exits 3. In a
+non-interactive run, stop there.
 
 The script prints one summary line. Keep it:
 
@@ -166,23 +182,30 @@ End every run with this block, in this order:
 
 ## Gotchas
 
-- **A deployment diagram is one environment.** Scope is one or more software systems within a
+- **C4 scopes a deployment diagram to one environment.** Scope is one or more software systems within a
   single deployment environment. Deployment nodes are where instances run, and they nest.
-  Infrastructure nodes such as networks and ingress are supporting elements. Verified 2026-09-28
-  against <https://c4model.com/diagrams/deployment>. Recheck when that page changes the scope or
-  the primary elements. This skill draws one diagram per environment so a diff does not become a
-  single mixed picture.
-- **C4-PlantUML shape.** The block uses `!include <C4/C4_Deployment>`,
-  `Deployment_Node(alias, label, ?type, ?descr)` with a `{ }` body for nesting,
-  `Container(alias, label, ?techn, ?descr)`, and `Rel(from, to, label)`. Verified 2026-09-28
-  against <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>. Recheck when
-  that README changes those signatures or the include path. `Rel` is drawn only from a container
-  to a network node its placement names; the record has no other edges.
-- **LikeC4 shape.** Deployment node kinds are declared as `deploymentNode <kind>` in
-  `specification`, nodes nest in `deployment { environment ... }`, a model element is placed with
-  `instanceOf`, and a `deployment view <name> { include <env>.** }` draws one environment. Verified
-  2026-09-28 against <https://likec4.dev/dsl/deployment/model/> and
-  <https://likec4.dev/dsl/deployment/views/>. Recheck when either page changes that syntax.
+  Infrastructure nodes such as networks and ingress are supporting elements. Basis:
+  <https://c4model.com/diagrams/deployment>. As of: 2026-09-29. Recheck when that page changes the
+  scope or the primary elements. This skill writes one fenced block with every environment inside
+  it as its own deployment environment; `--env` narrows the block to one. The diff is a table, not a picture.
+- **C4-PlantUML deployment syntax: read against the README, never run.** Claim: the block uses
+  `!include <C4/C4_Deployment>`, `Deployment_Node(alias, label, ?type, ?descr, ...)` with a `{ }`
+  body for nesting, `Container(alias, label, ?techn, ?descr, ...)`, and `Rel(from, to, label,
+  ...)`. Basis: <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows
+  the stdlib include only for `C4_Container` and says the released `C4_...` files ship in the
+  stdlib, so the `C4_Deployment` stdlib name is inferred. As of: 2026-09-29. Recheck when that
+  README changes those signatures or the include path, or when a host with Java can run PlantUML
+  over a rendered block. No PlantUML run has parsed this output. `Rel` is drawn only from a
+  container to a network node its placement names; the record has no other edges.
+- **LikeC4 deployment syntax: parsed by the CLI.** Claim: deployment node kinds are declared as
+  `deploymentNode <kind>` in `specification`, nodes nest in `deployment { ... }`, a model element
+  is placed with `instanceOf`, and `deployment view <name> { include <env>.** }` draws one
+  environment. Basis: <https://likec4.dev/dsl/deployment/model/>,
+  <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
+  golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
+  `deployment-kubernetes.c4`), which `collect-deployment.test.sh` diffs against. As of:
+  2026-09-29. Recheck when either page changes that syntax or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
   from labels, `@` prints as `(at)`, and every identifier is prefixed and numbered, so a hostile
   name cannot close the fence, end the diagram, or collide with a keyword.
@@ -190,7 +213,9 @@ End every run with this block, in this order:
   is recorded on `default`. A service that names a network is recorded on that network.
 - **A required secret is not a topology fact.** The value is dropped. The diff can say the
   parameter differs. It cannot show the value.
-- **Two tools are not half-read.** Seeing Terraform beside Compose refuses the whole record.
+- **Two tools are not half-read.** Seeing Terraform beside Compose refuses the whole record. A
+  `main.tf` with only `module` blocks, a `.tfvars`, or an ARM template counts too.
+- **`override` is not an environment.** Compose layering is refused, never read as two environments.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.
 - **A reformatted record is refused.** Render exits 1 and writes nothing.
 - **Tracked files only.** `git ls-files` is the source list. A tracked symlink is skipped, so it
