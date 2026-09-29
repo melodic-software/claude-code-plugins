@@ -41,10 +41,14 @@ before drawing: it is the review rubric later. Engine layouts override craft def
 
 Use a procedural generator for anything past a couple of frames: one `draw(direction, pose)`
 function whose parameters (limb angles, step phase, body bob, arm swing, squash) produce each
-frame, so every frame stays on-model and a fix lands in every frame at once. A worked example is
-`${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` (RPG Maker MZ 4-direction walker); copy it into
-the working directory before adapting or running it. Draw one side view and
-mirror it for the other only when the design is symmetric; reshade if the light side matters.
+frame, so every frame stays on-model and a fix lands in every frame at once. For a humanoid
+walker, start from `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py` and adapt it: a proportion preset
+(`chibi`, `standard`, `tall`), a head shape, a hair shape, material ramps, and an `extra`
+callback for clothing or props. `${CLAUDE_PLUGIN_ROOT}/examples/walker/blacksmith.py` is a
+4-direction walker built that way. `${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` is an
+earlier hand-written MZ sheet; copy either example into the working directory before running it, with `kit.py` beside `blacksmith.py`.
+Draw one side view and mirror it for the other only when the design is symmetric; the kit shades
+after the mirror so the light stays top-left.
 
 A PNG from another backend is snapped with `render.py --snap` before its rows enter the spec
 ([`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)). Palette presets and project palette

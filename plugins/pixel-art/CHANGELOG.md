@@ -3,6 +3,15 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6] - 2026-09-28
+
+### Added
+
+- `scripts/kit.py`: proportion presets (`chibi`, `standard`, `tall`), head and hair shapes,
+  clothing layers, material ramps, top-left shading, a selective outline, and 4-direction
+  handling. `examples/walker/blacksmith.py` is a walker built on the kit, covered by
+  `scripts/test_kit.py` (#4405).
+
 ## [0.3.5] - 2026-09-28
 
 ### Added

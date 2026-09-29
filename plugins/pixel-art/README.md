@@ -73,9 +73,20 @@ The renderer that produced it lives in the `retro-audio` plugin and is not impor
 
 ## Example
 
-`examples/campfire/` holds the generator for an RPG Maker MZ walking character and a cutscene that
-reuses it. `examples/tileset/a2_ground.py`, `examples/ui/window_mz.py`, and `examples/vfx/spark_mz.py`
-each write a spec for an engine sheet. Copy a folder somewhere writable, then:
+`scripts/kit.py` is the procedural character kit: proportion presets (`chibi`, `standard`, `tall`),
+head and hair shapes, clothing layers, material ramps, top-left shading, a selective outline, and
+4-direction handling. Adapt it; do not treat it as a fixed generator. `examples/walker/blacksmith.py`
+is a 4-direction walker built on it. `examples/campfire/` holds an earlier hand-written RPG Maker MZ
+walker and a cutscene that reuses it. `examples/tileset/a2_ground.py`, `examples/ui/window_mz.py`,
+and `examples/vfx/spark_mz.py` each write a spec for an engine sheet. Copy a folder somewhere
+writable, then run it there. For `walker/`, put `scripts/kit.py` beside `blacksmith.py`:
+
+```shell
+python3 blacksmith.py
+python3 <plugin>/scripts/render.py blacksmith.json --out out --scale 4
+```
+
+For `campfire/`:
 
 ```shell
 python3 hero_mz.py

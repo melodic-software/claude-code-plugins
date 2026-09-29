@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.29] - 2026-09-28
+
+### Added
+
+- **`skill-authoring`**: the guidance spoke gains an "Argument surface" section, and the pre-share
+  checklist gains a judgment row, both pointing at the new skill argument shape convention
+  (`docs/conventions/skill-argument-shape/`). It sets the order of a skill's arguments (one action
+  word, then `--flag` modifiers that pass the earned-flag test, then at most one subject), binds
+  `argument-hint` to that order, declines the `arguments:` frontmatter field, and defers a
+  `skill-quality` lint for the shape. The
+  degrees-of-freedom table and the SKILL.md Arguments section no longer recommend named
+  `arguments` (#4001).
+
 ## [0.13.28] - 2026-09-28
 
 ### Changed

@@ -69,11 +69,10 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 **not** present in the Bash tool's environment, so the script cannot read it for itself. Passing
 it in is what makes the project rung below reachable at all.
 
-If no scope resolves, no bare path, no `--root`, no `--repo`, and no config-supplied
-`fleet.root`/`fleet.repo`, the run **stops** and names the ways to supply scope plus
-`/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
-yourself. The project directory is **not** a fallback scope: auditing the session's incidental
-working directory would silently audit whatever tree the shell happens to sit in. Config
+If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
+shared ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current working
+directory when it is a Git checkout, else exit 3 naming every rung. The project directory is not a
+rung. Pass that guidance through rather than re-deriving a root yourself. Config
 resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else

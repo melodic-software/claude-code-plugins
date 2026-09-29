@@ -50,15 +50,19 @@ mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe"
 
 # Seal config/project env so probes never reach a maintainer fleet config or an
 # incidental project-scoped rung. No network, no gh, no discovery.
+# The probe also runs from a non-Git directory with no ghq, so the collector's
+# no-scope ladder (ghq root, then the working directory) finds nothing either.
+script_abs="$(cd "$(dirname "$SCRIPT")" && pwd)/$(basename "$SCRIPT")"
 run_sealed() {
-  env -i \
+  (cd "$seal_dir/probe" && env -i \
     PATH="$PATH" \
     HOME="$seal_dir/home" \
     USERPROFILE="$seal_dir/home" \
     XDG_CONFIG_HOME="$seal_dir/xdg" \
     CLAUDE_PROJECT_DIR="$seal_dir/project" \
     TMPDIR="$seal_dir/probe" \
-    bash "$SCRIPT" "$@" >"$probe_out" 2>&1
+    REPO_FLEET_GHQ_BIN="$seal_dir/no-ghq" \
+    bash "$script_abs" "$@") >"$probe_out" 2>&1
 }
 
 # Classify --apply-plan <missing> <dir>: three distinguishable outcomes after the
