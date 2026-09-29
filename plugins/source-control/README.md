@@ -375,9 +375,10 @@ repo's owner.
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the
-`source-control.md` config. Idempotent and safe to re-run. Add
-the recursive `.claude/**/*.local.*` line to your `.gitignore` so the personal overlay layer stays
-out of version control (no skill here edits your `.gitignore`).
+`source-control.md` config. Idempotent and safe to re-run. `apply layer=team`
+appends the recursive `.claude/**/*.local.*` line to your `.gitignore` when it is missing, so the
+personal overlay layer stays out of version control; `layer=local` never edits `.gitignore` and
+fails with a recommendation when the overlay is exposed.
 Remaining optional environment variables:
 
 | Variable | Used by | Effect |

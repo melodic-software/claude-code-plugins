@@ -10,6 +10,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `landed` or `empty`; stranded and unknown worktrees are never proposed, and a live claim still skips the worktree. `worktree_stale_days` keeps its `status` meaning.
 - **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` pointer to a missing gitdir), or foreign (content, no `.git`). Empty and husk directories are proposed for removal by `cleanup`; foreign directories are reported only. `reference/worktree-root-convention.md` documents the three classes.
 
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
 ## [0.62.23] - 2026-09-29
 
 ### Fixed
