@@ -1,0 +1,33 @@
+specification {
+  element softwareSystem
+  element container
+  element boundary
+  element component
+}
+model {
+  c4system = softwareSystem "E" {
+    c4container = container "E" {
+      description "deployable"
+      cmp_src_a = component "src/a" {
+        technology "aggregate"
+        description "2 components"
+      }
+      cmp_src_b = component "src/b" {
+        technology "aggregate"
+        description "2 components"
+      }
+      cmp_src_c = component "src/c" {
+        technology "aggregate"
+        description "1 components"
+      }
+    }
+  }
+  c4system.c4container.cmp_src_c -> c4system.c4container.cmp_src_a "ProjectReference (2)"
+  c4system.c4container.cmp_src_c -> c4system.c4container.cmp_src_b "ProjectReference (2)"
+}
+views {
+  view components of c4system.c4container {
+    title "Components of E"
+    include *
+  }
+}

@@ -48,15 +48,18 @@ SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$SCRATCH"' EXIT
 export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 
+# The captures name files from the repository root. A run from a subdirectory
+# sets CM_TEST_SUBDIR (that directory, root-relative, with a trailing slash),
+# and the stub names them from there, as a collector run in that directory would.
 cat >"$STUBS/lizard" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf '1.24.0\n'; exit 0; fi
-cat "$CAPTURES/lizard.csv"
+sed "s#\${CM_TEST_SUBDIR:-@unset@}##g" "$CAPTURES/lizard.csv"
 EOF
 cat >"$STUBS/shellmetrics" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf '0.5.0\n'; exit 0; fi
-cat "$CAPTURES/shellmetrics.csv"
+sed "s#\${CM_TEST_SUBDIR:-@unset@}##g" "$CAPTURES/shellmetrics.csv"
 EOF
 chmod +x "$STUBS"/*
 
@@ -174,8 +177,8 @@ assert_doc "a lane measured in part keeps the document off complete" "$out" \
 
 # 8. Every format at once, then the markdown the skill presents.
 out="$(run_json lcov-1x.info lcov-2.2.info cobertura.xml coverage-py.json go-cover.out)"
-assert_doc "--json is one code-metrics/v1 document for audit-coverage" "$out" \
-  'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-coverage"'
+assert_doc "--json is one code-metrics/v2 document for audit-coverage" "$out" \
+  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-coverage"'
 # All four measurable lanes read an artifact. Three match every scope file and
 # are ok; Bash matches one of its three and says so rather than claiming both.
 assert_doc "the four measurable lanes are all covered" "$out" \
@@ -193,6 +196,27 @@ assert_doc "a go profile outranks a line artifact for the same file" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["cov_source"]=="statement-ratio" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None for r in d["measures"])'
 assert_doc "both formats are still named as read for the go lane" "$out" \
   'all(f in next(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="go") for f in ("go_cover","lcov"))'
+# 8b. The same audit from a subdirectory names every file, and lists every
+# missing one, exactly as the run from the root did, and records the same root;
+# only the scan root differs.
+sub_out="$(cd "$COVERAGE/.." && CM_TEST_SUBDIR="plugins/code-metrics/scripts/fixtures/" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all sources \
+  --artifacts "$COVERAGE/lcov-1x.info" --artifacts "$COVERAGE/lcov-2.2.info" --artifacts "$COVERAGE/cobertura.xml" \
+  --artifacts "$COVERAGE/coverage-py.json" --artifacts "$COVERAGE/go-cover.out" 2>/dev/null)"
+assert_eq "the run from a subdirectory exits 0" 0 "$?"
+same="$(printf '%s\n\x1e%s' "$out" "$sub_out" | "$PY" -c '
+import json, sys
+a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
+files = lambda d: sorted(r["file"] for r in d["measures"] if r["file"])
+missing = lambda d: sorted((r["lane"], r["measure"], tuple(r.get("missing", []))) for r in d["run"])
+reasons = lambda d: sorted((r["lane"], r["measure"], r["reason"] or "") for r in d["run"])
+ok = (files(a) == files(b) and files(a) and missing(a) == missing(b) and reasons(a) == reasons(b)
+      and a["root"] == b["root"] and a["scan_root"] == "." and b["scan_root"] == "plugins/code-metrics/scripts/fixtures"
+      and a["summary"] == b["summary"])
+raise SystemExit(0 if ok else 1)
+' && echo same)"
+assert_eq "coverage from a subdirectory: same files, missing lists, reasons and root as from the root" "same" "$same"
+assert_doc "the coverage document's paths and missing lists are repository-root-relative" "$sub_out" \
+  'all(r["file"].startswith("plugins/") for r in d["measures"] if r["file"]) and all(p.startswith("plugins/") for r in d["run"] for p in r.get("missing", []))'
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES" --artifacts "$COVERAGE/coverage-py.json" 2>/dev/null)"
 rc=$?
 assert_eq "markdown exits 0" 0 "$rc"
