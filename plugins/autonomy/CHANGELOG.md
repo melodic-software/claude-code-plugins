@@ -45,9 +45,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **Unattended executor examples name `--permission-prompts none`** (#4027).
-  From Claude Code 2.1.259 the flag keeps the chosen permission mode and denies only a call
-  that would have prompted. The dispatch slice cites the headless page read on 2026-09-28.
+- **Version bump only.** This release changes no plugin file; the #4027 change shipped in 0.24.8.
 
 ## [0.24.8] - 2026-09-28
 
