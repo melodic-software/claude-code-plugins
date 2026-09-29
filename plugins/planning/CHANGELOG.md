@@ -3,11 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.2] - 2026-09-29
+## [0.47.1] - 2026-09-29
 
 ### Fixed
 
 - **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
+## [0.47.0] - 2026-09-29
+
+### Added
+
+- **Interview surface visuals are replaced or archived by id.** `replace-visual` swaps in a full object for the visual with the same `id`, and `archive-visual` retires visuals with a reason; an archived visual stays in `questions.json` and the page and report no longer show it. `add-round` refuses an `id` that already exists. Visuals take `label`, `group`, `order` and `primary` (at most one live primary per group within a scope), and tabs show the label, falling back to the title, then the `id`.
+- **Gallery for surface images:** arrow keys flip between images and a compare mode shows two side by side.
+- **Open in new tab:** every visual opens in a new tab from its panel or full screen, through a single-use link that expires after 10 seconds. The tab is a sandboxed opaque origin that cannot reach the page token ([#5331](https://github.com/melodic-software/claude-code-plugins/issues/5331)).
 
 ## [0.46.1] - 2026-09-29
 
