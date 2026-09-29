@@ -811,7 +811,7 @@ record_body="$(
 )"
 
 if [[ -n "$out_file" ]]; then
-  printf '%s\n' "$record_body" >"$out_file"
+  printf '%s\n' "$record_body" >"$out_file" || die "cannot write --out file: $out_file" 1
 else
   printf '%s\n' "$record_body"
 fi

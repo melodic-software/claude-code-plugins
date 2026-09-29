@@ -97,8 +97,8 @@ record does not contain, and do not add an edge the record does not cite.
 
 Pass `--generated-on` to the fallback from `git -C <root> log -1 --format=%cs`,
 or `unknown` when that fails, so a second run on the same HEAD does not churn.
-`dependency-graph.sh` takes the repository path and prints the record; it does
-not take `--generated-on`. Write a graph you collected. A graph that was
+`dependency-graph.sh` takes `--generated-on` and `--out` too and defaults to the
+same HEAD commit date. Write a graph you collected. A graph that was
 already there stays untouched.
 
 ```bash

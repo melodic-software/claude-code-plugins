@@ -15,12 +15,14 @@
 # source, so a local secret file cannot become a node. Configuration is matched
 # as text and never executed.
 #
-# Output: context.json, schema_version 1, on stdout or in --out.
+# Output: context.json, schema_version 1, on stdout or in --out. A failed
+# --out write exits 1. generated_on defaults to the date of the repository's
+# HEAD commit ("unknown" when there is no commit); --generated-on overrides it.
 # The physical shape readers accept is fixed:
 #
 #   {
 #     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD",
+#     "generated_on": "YYYY-MM-DD" | "unknown",
 #     "subject": "<github.com origin repository name, else directory basename>",
 #     "focal": {"name":"...","origin":"derived"},
 #     "actors": [ one {"name":...} object per line, or [] ],
@@ -184,7 +186,8 @@ if [[ ! -d "$repo" ]]; then
   die "not a directory: $repo" 1
 fi
 root="$(cd -P "$repo" 2>/dev/null && pwd)" || die "unreadable: $repo" 1
-[[ -n "$generated_on" ]] || generated_on="$(date -u +%Y-%m-%d)"
+[[ -n "$generated_on" ]] || generated_on="$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)"
+[[ -n "$generated_on" ]] || generated_on="unknown"
 
 subject="$(basename "$root")"
 origin="$(git -C "$root" remote get-url origin 2>/dev/null || true)"
@@ -343,7 +346,7 @@ record_body="$(
 rm -f "$ext_body"
 
 if [[ -n "$out_file" ]]; then
-  printf '%s\n' "$record_body" >"$out_file"
+  printf '%s\n' "$record_body" >"$out_file" || die "cannot write --out file: $out_file" 1
 else
   printf '%s\n' "$record_body"
 fi

@@ -19,17 +19,21 @@
 # that page adds a diagram type for a build-declaration graph.
 #
 # Usage:
-#   dependency-graph.sh <repo-path>
+#   dependency-graph.sh [--out <file>] [--generated-on <date>] <repo-path>
 #   dependency-graph.sh --help
 #
-# Output: one JSON document on stdout, in the one-object-per-line layout.
-# Readers match objects by line, the same way landscape.json does. A reader
+# Output: one JSON document on stdout, or in --out <file> with nothing on
+# stdout; a failed write exits 1 with a message. generated_on defaults to the
+# date of the repository's HEAD commit (git log -1 --format=%cs), so a second
+# run on the same commit is byte-identical, and to "unknown" when there is no
+# commit. --generated-on overrides it. The document is in the
+# one-object-per-line layout. Readers match objects by line, the same way landscape.json does. A reader
 # given any other layout must fail rather than report an empty graph.
 # render-dependencies.sh is that reader.
 #
 #   {
 #     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD",
+#     "generated_on": "YYYY-MM-DD" | "unknown",
 #     "result": "ok" | "unknown",
 #     "message": "...",
 #     "ecosystem": "dotnet" | "unknown",
@@ -73,12 +77,12 @@
 # other than .github, .gitlab, .circleci, and .devcontainer are not walked.
 # node_modules and vendor are not walked.
 #
-# Nothing here fetches and nothing is written. The document goes to stdout.
+# Nothing here fetches. The only write is --out.
 #
 # Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
 #
 # Exit: 0 = a document was emitted (result ok or unknown); 1 = the path is
-# not a readable directory; 2 = usage.
+# not a readable directory or --out cannot be written; 2 = usage.
 set -uo pipefail
 
 NODE_THRESHOLD=40
@@ -103,7 +107,43 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-if [[ $# -ne 1 ]]; then
+raw_path=""
+out_file=""
+generated_on=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --out)
+    [[ $# -ge 2 ]] || die "--out needs a path" 2
+    out_file="$2"
+    shift 2
+    ;;
+  --out=*)
+    out_file="${1#--out=}"
+    shift
+    ;;
+  --generated-on)
+    [[ $# -ge 2 ]] || die "--generated-on needs a date" 2
+    generated_on="$2"
+    shift 2
+    ;;
+  --generated-on=*)
+    generated_on="${1#--generated-on=}"
+    shift
+    ;;
+  -*)
+    die "unknown argument: $1" 2
+    ;;
+  *)
+    if [[ -n "$raw_path" ]]; then
+      usage >&2
+      exit 2
+    fi
+    raw_path="$1"
+    shift
+    ;;
+  esac
+done
+if [[ -z "$raw_path" ]]; then
   usage >&2
   exit 2
 fi
@@ -346,7 +386,6 @@ sort_lines() {
   printf '%s\n' "${sorted[@]}"
 }
 
-raw_path="$1"
 root="$(cd "$raw_path" 2>/dev/null && pwd)" || die "not a readable directory: $raw_path" 1
 [[ -d "$root" ]] || die "not a readable directory: $raw_path" 1
 
@@ -586,24 +625,35 @@ while IFS= read -r line; do
   sorted_findings+=("$line")
 done < <(sort_lines "${finding_json[@]+"${finding_json[@]}"}")
 
-generated_on="$(date -u +%Y-%m-%d)"
+[[ -n "$generated_on" ]] || generated_on="$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)"
+[[ -n "$generated_on" ]] || generated_on="unknown"
+json_escape "$generated_on"
+e_generated_on="$JSON_ESC"
 json_escape "$message"
 e_message="$JSON_ESC"
 json_escape "$ecosystem"
 e_ecosystem="$JSON_ESC"
 
-printf '{\n'
-printf '  "schema_version": 1,\n'
-printf '  "generated_on": "%s",\n' "$generated_on"
-printf '  "result": "%s",\n' "$result"
-printf '  "message": "%s",\n' "$e_message"
-printf '  "ecosystem": "%s",\n' "$e_ecosystem"
-printf '  "node_threshold": %s,\n' "$NODE_THRESHOLD"
-printf '  "cycles_truncated": %s,\n' "$cycles_truncated_json"
-emit_array "nodes" comma "${sorted_nodes[@]+"${sorted_nodes[@]}"}"
-emit_array "edges" comma "${sorted_edges[@]+"${sorted_edges[@]}"}"
-emit_array "cycles" comma "${sorted_cycles[@]+"${sorted_cycles[@]}"}"
-emit_array "findings" none "${sorted_findings[@]+"${sorted_findings[@]}"}"
-printf '}\n'
+emit_document() {
+  printf '{\n'
+  printf '  "schema_version": 1,\n'
+  printf '  "generated_on": "%s",\n' "$e_generated_on"
+  printf '  "result": "%s",\n' "$result"
+  printf '  "message": "%s",\n' "$e_message"
+  printf '  "ecosystem": "%s",\n' "$e_ecosystem"
+  printf '  "node_threshold": %s,\n' "$NODE_THRESHOLD"
+  printf '  "cycles_truncated": %s,\n' "$cycles_truncated_json"
+  emit_array "nodes" comma "${sorted_nodes[@]+"${sorted_nodes[@]}"}"
+  emit_array "edges" comma "${sorted_edges[@]+"${sorted_edges[@]}"}"
+  emit_array "cycles" comma "${sorted_cycles[@]+"${sorted_cycles[@]}"}"
+  emit_array "findings" none "${sorted_findings[@]+"${sorted_findings[@]}"}"
+  printf '}\n'
+}
+
+if [[ -n "$out_file" ]]; then
+  emit_document >"$out_file" || die "cannot write --out file: $out_file" 1
+else
+  emit_document
+fi
 
 exit 0

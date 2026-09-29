@@ -1,6 +1,6 @@
 ---
 description: "Cite which project depends on which from build manifests, with the file and declaration on every edge. Use when: 'map dependencies', 'project reference graph', 'dependency graph', 'what references what', 'internal dependencies', 'package references', 'which projects depend on which'. Skip when: the question is which repositories exist, which is /architecture:map-landscape, shallow modules, which is /architecture:improve, or source imports and call graphs."
-argument-hint: "[path] [--include-external] [--external-only] [--cycles-only]"
+argument-hint: "[path] [--include-external] [--external-only] [--cycles-only] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -39,11 +39,14 @@ never writes the topic doc.
 ## Build the graph
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/dependency-graph.sh" "<repo-path>"
+"${CLAUDE_SKILL_DIR}/scripts/dependency-graph.sh" \
+  --out "<architecture_dir>/dependency-graph.json" "<repo-path>"
 ```
 
-Write stdout to `<architecture_dir>/dependency-graph.json` unchanged. The document is
-one object per line. Do not pretty-print it. A reader given another layout exits 1.
+The script writes the record itself and exits 1 when it cannot. `generated_on` is the
+HEAD commit date (`unknown` with no commit), so a second run on the same commit is
+byte-identical; `--generated-on <date>` overrides it. The document is one object per
+line. Do not pretty-print it. A reader given another layout exits 1.
 
 `result` is `ok` or `unknown`. `unknown` means no shipped adapter could read the tree.
 The message says which manifests were found. That is the answer. Do not draw a diagram,

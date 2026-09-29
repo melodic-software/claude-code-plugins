@@ -231,5 +231,25 @@ git -C "$link_repo" commit --quiet -m "fixture"
 bash "$COLLECT" --repo "$link_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/link.json" >/dev/null 2>&1
 assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$(cat "$TEST_TMPDIR/link.json")" "leak.partner.example"
 
+date_repo="$(init_repo "$TEST_TMPDIR/date-checkout")"
+mkdir -p "$date_repo/src"
+printf '{ "Partner": { "BaseUrl": "https://date.partner.example/api" } }\n' >"$date_repo/src/appsettings.json"
+git -C "$date_repo" add -A
+GIT_COMMITTER_DATE="2024-03-05T12:00:00Z" git -C "$date_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$date_repo" >"$TEST_TMPDIR/date-1.json"
+bash "$COLLECT" --repo "$date_repo" >"$TEST_TMPDIR/date-2.json"
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-2.json"; then
+  pass "generated_on: a second run on the same commit is byte-identical"
+else
+  fail "generated_on: a second run on the same commit is byte-identical" "outputs differ"
+fi
+assert_contains "generated_on: defaults to the HEAD commit date" "$(cat "$TEST_TMPDIR/date-1.json")" '"generated_on": "2024-03-05"'
+assert_contains "generated_on: --generated-on overrides the default" "$(bash "$COLLECT" --repo "$date_repo" --generated-on 2020-01-02)" '"generated_on": "2020-01-02"'
+empty_repo="$(init_repo "$TEST_TMPDIR/empty-checkout")"
+assert_contains "generated_on: a repo with no commits is unknown" "$(bash "$COLLECT" --repo "$empty_repo")" '"generated_on": "unknown"'
+bash "$COLLECT" --repo "$date_repo" --out "$TEST_TMPDIR/no-such-dir/out.json" >/dev/null 2>"$TEST_TMPDIR/unwritable.err"
+assert_equals "--out: an unwritable path exits 1" "$?" "1"
+assert_contains "--out: an unwritable path says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

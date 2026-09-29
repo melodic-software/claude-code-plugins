@@ -405,5 +405,35 @@ else
 fi
 assert_contains "a hostile root still yields a repo-relative path" "$hostile_out" '"src/App.csproj"'
 
+date_repo="$(make_tree date-checkout)"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$date_repo/App.csproj"
+git -C "$date_repo" init --quiet
+git -C "$date_repo" config user.email "fixture@example.invalid"
+git -C "$date_repo" config user.name "Fixture"
+git -C "$date_repo" config commit.gpgsign false
+empty_out="$(bash "$GRAPH" "$date_repo")"
+assert_contains "generated_on: a repo with no commits is unknown" "$empty_out" '"generated_on": "unknown"'
+git -C "$date_repo" add -A
+GIT_COMMITTER_DATE="2024-03-05T12:00:00Z" git -C "$date_repo" commit --quiet -m "fixture"
+bash "$GRAPH" "$date_repo" >"$TEST_TMPDIR/date-1.json"
+bash "$GRAPH" "$date_repo" >"$TEST_TMPDIR/date-2.json"
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-2.json"; then
+  pass "generated_on: a second run on the same commit is byte-identical"
+else
+  fail "generated_on: a second run on the same commit is byte-identical" "outputs differ"
+fi
+assert_contains "generated_on: defaults to the HEAD commit date" "$(cat "$TEST_TMPDIR/date-1.json")" '"generated_on": "2024-03-05"'
+assert_contains "generated_on: --generated-on overrides the default" "$(bash "$GRAPH" --generated-on 2020-01-02 "$date_repo")" '"generated_on": "2020-01-02"'
+out_stdout="$(bash "$GRAPH" --out "$TEST_TMPDIR/date-out.json" "$date_repo")"
+assert_equals "--out: nothing else reaches stdout" "$out_stdout" ""
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-out.json"; then
+  pass "--out: the file holds the same record as stdout"
+else
+  fail "--out: the file holds the same record as stdout" "outputs differ"
+fi
+bash "$GRAPH" --out "$TEST_TMPDIR/no-such-dir/out.json" "$date_repo" >/dev/null 2>"$TEST_TMPDIR/unwritable.err"
+assert_equals "--out: an unwritable path exits 1" "$?" "1"
+assert_contains "--out: an unwritable path says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
