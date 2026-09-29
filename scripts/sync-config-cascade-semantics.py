@@ -33,6 +33,7 @@ README = (
 )
 COLUMNS = ("Surface", "Who wins", "Merge form")
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+DELIMITER_CELL = re.compile(r":?-+:?")
 
 
 class Fail(Exception):
@@ -64,6 +65,8 @@ def implementers(text: str) -> list[list[str]]:
     missing = [c for c in COLUMNS if c not in header]
     if missing:
         raise Fail(2, f"Implementers table has no column: {', '.join(missing)}")
+    if not all(DELIMITER_CELL.fullmatch(c) for c in cells(table[1])):
+        raise Fail(2, "no delimiter row under the Implementers header")
     wanted = [header.index(c) for c in COLUMNS]
 
     rows: list[list[str]] = []

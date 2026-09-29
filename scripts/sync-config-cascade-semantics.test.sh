@@ -76,6 +76,11 @@ write_readme '| `a` | p | first | per-key |
 out="$(run --check)"
 expect "duplicate surface exits 1" 1 $? "$out"
 
+write_readme "$ROWS"
+edit_readme '/^|---/d'
+out="$(run --check)"
+expect "a missing delimiter row exits 2" 2 $? "$out"
+
 printf '# T\n\n## Implementers\n\n%s\n%s\n' "$HEAD" "$ROWS" >"$readme"
 out="$(run --check)"
 expect "missing markers exit 2" 2 $? "$out"

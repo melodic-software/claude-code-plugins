@@ -367,6 +367,7 @@ conformance.
 
 - **Claim:** the glance table is generated from the Implementers rows; engines are not unified.
 - **Basis:** #3575 and `scripts/sync-config-cascade-semantics.py`.
+- **As of:** 2026-09-29.
 - **Recheck:** operators still miss the row, then add the per-setup check line.
 
 ## Implementers
