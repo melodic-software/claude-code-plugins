@@ -46,8 +46,9 @@ now measures:
   source does (`offstep`); a film strictly on 3s fails.
 - Boil: redraw every mark each drawing, moving every contour a few px rather than a few far. Move
   the frame stroke 1 px and it scores about 1.00, below 1.30-1.48. Move all of it 2 px and it
-  scores about 2.00. `frame_pair('tail')` moves 14% of a 10 px stroke by 4 px and the rest by 1 px,
-  and scores about 1.41. 8% at 4 px is still below the band.
+  scores about 2.00. `frame_pair('tail')` moves the left half of the top edge by 4 px and everything
+  else by 1 px (about 14% of the stroke's pixels move 4 px), and scores about 1.41. 8% of the
+  pixels at 4 px is still below the band.
 
 ## Validation
 
