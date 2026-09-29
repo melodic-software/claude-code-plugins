@@ -3,6 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.22] - 2026-09-29
+
+### Fixed
+
+- `migrate`, `check`, `setup`, the README, `verified-mechanics.md` and `render-index.sh` now agree that `/memory` lists a directly read `AGENTS.md` from v2.1.280 and that no `InstructionsLoaded` hook fires. The shim-deletion eval case states the same.
+- The `index-drift` test runs the hook body on a rules-tree Write payload instead of exiting at the hot-path guard ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)).
+
+### Changed
+
+- `migrate/reference/sources.md` keeps one Current fleet grade record. The CI-canary record for [#4282](https://github.com/melodic-software/claude-code-plugins/issues/4282) and the install-dependent loader test record for [#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283) state the pending owner decisions instead of an encoded choice, and cutover condition 2 is marked provisional.
+
 ## [0.15.21] - 2026-09-28
 
 ### Changed
