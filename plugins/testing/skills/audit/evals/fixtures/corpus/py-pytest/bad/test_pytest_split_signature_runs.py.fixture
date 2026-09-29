@@ -1,0 +1,10 @@
+# expect: rule-zero-assertion
+# A signature split over lines, and a body that only prints: the test
+# passes whatever slugify returns.
+from slugs import slugify
+
+
+def test_slugify_lowercases(
+    tmp_path,
+) -> None:
+    print(slugify("Hello World"))

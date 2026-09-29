@@ -1,0 +1,10 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected slug is stated as a literal.
+const { describe, expect, it } = require('@jest/globals');
+const { toSlug } = require('../src/slug');
+
+describe('toSlug', () => {
+  it('lowercases and hyphenates a title', () => {
+    expect(toSlug('Hello World')).toEqual('hello-world');
+  });
+});

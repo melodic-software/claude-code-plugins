@@ -1,0 +1,11 @@
+// good-for: rule-zero-assertion
+// expect.soft is an assertion, and one inside a test.step still belongs to
+// its test.
+import { expect, test } from '@playwright/test';
+
+test('order summary shows the order', async ({ page }) => {
+  await page.goto('/orders/42');
+  await test.step('summary', async () => {
+    await expect.soft(page.getByTestId('order-id')).toHaveText('#42');
+  });
+});

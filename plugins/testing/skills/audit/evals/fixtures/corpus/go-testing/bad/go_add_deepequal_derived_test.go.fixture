@@ -1,0 +1,15 @@
+// expect: rule-recomputed-derived
+// The expected sum is computed the way Add computes it.
+package calc
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestAddSums(t *testing.T) {
+	a, b := 2, 3
+	if !reflect.DeepEqual(Add(a, b), a+b) {
+		t.Errorf("Add(%d, %d) is wrong", a, b)
+	}
+}

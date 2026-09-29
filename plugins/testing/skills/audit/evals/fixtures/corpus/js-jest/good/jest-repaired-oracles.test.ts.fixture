@@ -1,0 +1,43 @@
+// good-for: rule-inert-assertion
+// good-for: rule-constant-restatement
+// good-for: rule-source-text-read
+// The repaired twins: the promise matcher is awaited or returned, the limit is
+// checked through the behavior that uses it, and the only file read is one the
+// test wrote itself or found through a directory walk.
+import { readFileSync, readdirSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { fetchUser } from '../src/users';
+import { MAX_UPLOAD_BYTES, acceptsUpload } from '../src/upload';
+import { render } from '../src/render';
+
+describe('repaired', () => {
+  it('awaits the resolved user', async () => {
+    await expect(fetchUser(1)).resolves.toEqual({ id: 1, name: 'Ada' });
+  });
+
+  it('returns the rejection', () => {
+    return expect(fetchUser(-1)).rejects.toThrow('not found');
+  });
+
+  it('keeps a chained matcher on its own line', () => {
+    expect(acceptsUpload(1))
+      .toBe(true);
+  });
+
+  it('rejects an upload one byte over the limit', () => {
+    expect(acceptsUpload(MAX_UPLOAD_BYTES + 1)).toBe(false);
+  });
+
+  it('reads back the file it rendered', () => {
+    const out = join(tmpdir(), 'render.ts');
+    writeFileSync(out, render());
+    expect(readFileSync(out, 'utf8')).toContain('export');
+  });
+
+  it('checks every source file through a walk', () => {
+    for (const name of readdirSync('src')) {
+      expect(readFileSync(join('src', name), 'utf8')).not.toContain('debugger');
+    }
+  });
+});
