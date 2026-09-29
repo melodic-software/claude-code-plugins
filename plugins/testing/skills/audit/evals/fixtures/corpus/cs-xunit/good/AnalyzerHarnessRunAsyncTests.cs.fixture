@@ -1,0 +1,49 @@
+// good-for: rule-zero-assertion
+// Microsoft.CodeAnalysis.Testing asserts the reported diagnostics equal the
+// [|...|] markup (none when there is none), and a code fix's output equals
+// FixedCode: RunAsync is the assertion, called directly or through a helper.
+using AnalyzerTest = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerTest<
+    MyAnalyzers.SealedHandlerAnalyzer,
+    Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
+using CodeFixTest = Microsoft.CodeAnalysis.CSharp.Testing.CSharpCodeFixTest<
+    MyAnalyzers.SealedHandlerAnalyzer,
+    MyAnalyzers.SealHandlerCodeFix,
+    Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
+using Xunit;
+
+public sealed class SealedHandlerAnalyzerTests
+{
+    [Fact]
+    public async Task UnsealedHandler_ReportsDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = "public class [|OrderHandler|] : IHandler { }",
+        }.RunAsync();
+    }
+
+    [Fact]
+    public async Task SealedHandler_NoDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = "public sealed class OrderHandler : IHandler { }",
+        }.RunAsync();
+    }
+
+    [Fact]
+    public async Task UnsealedHandler_IsSealedByTheFix()
+    {
+        await new CodeFixTest
+        {
+            TestCode = "public class [|OrderHandler|] : IHandler { }",
+            FixedCode = "public sealed class OrderHandler : IHandler { }",
+        }.RunAsync();
+    }
+
+    [Fact]
+    public Task RecordHandler_NoDiagnostic() => RunAsync("public sealed record OrderHandler : IHandler;");
+
+    private static Task RunAsync(string source) =>
+        new AnalyzerTest { TestCode = source }.RunAsync();
+}

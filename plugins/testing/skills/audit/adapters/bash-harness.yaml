@@ -15,6 +15,7 @@ assertion:
   idioms:
     - '(echo|printf).*FAIL.*exit[[:space:]]+[1-9]'
     - 'FAIL"?[[:space:]]*(-eq|==)[[:space:]]*0'
+    - 'exit[[:space:]]+"?\$\(\([[:space:]]*\$?FAIL[[:space:]]*>[[:space:]]*0[[:space:]]*\)\)'
     - 'process\.exit\([A-Za-z_]*fail'
 # The assertions live in the suite this script runs or the helpers it loads.
 delegation:
