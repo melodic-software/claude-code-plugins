@@ -924,7 +924,7 @@ lane_grep() {
     names_n="$(wc -l <"$WORK/names.txt" | tr -d ' ')"
     sym_detail="$emitted symbol candidate(s) from $names_n distinct definition name(s)"
   elif [[ ${#DEF_FILES[@]} -eq 0 ]]; then
-    sym_detail='no shell or PowerShell file in candidate scope'
+    sym_detail='no shell, PowerShell, or standalone JS/TS file in candidate scope'
   else
     sym_detail='no symbol definition matched the extractor set'
   fi

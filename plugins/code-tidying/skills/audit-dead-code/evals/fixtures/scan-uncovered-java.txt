@@ -1,7 +1,7 @@
 Lane: knip | root=- | state=no-manifest | files=0 | detail=no package.json project root in this repository
 Lane: vulture | root=. | state=scanned-zero-files | files=0 | detail=no .py file in candidate scope — a scan of nothing, not a clean bill
 Lane: gopls | root=- | state=no-manifest | files=0 | detail=no go.mod module root in this repository
-Lane: grep | root=. | state=ran | files=1 | detail=no shell or PowerShell file in candidate scope; 1 unreferenced-file candidate(s)
+Lane: grep | root=. | state=ran | files=1 | detail=no shell, PowerShell, or standalone JS/TS file in candidate scope; 1 unreferenced-file candidate(s)
 File: src/Legacy.java
 Finding tier: 2
 Finding shape: unreferenced-file
