@@ -79,6 +79,10 @@ Every skip notice below appears once per session and agent, renewed every eighth
   visible notice. Without the `.editorconfig` opt-in the
   format pass stays quiet. The repo chose not to format.
 
+A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
+`prerequisites.json`, and the PostToolUse notices name the same install route. Run
+`/bash-format:check` to see which binaries resolve; it is read-only and installs nothing.
+
 Each pass is independent: when a tool is absent its pass is skipped (visibly)
 and the other still runs.
 
