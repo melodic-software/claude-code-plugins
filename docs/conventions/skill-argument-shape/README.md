@@ -91,7 +91,7 @@ and clarity is what grounds 2 to 4 test for.
 | Skill | `argument-hint` | Why it conforms |
 |---|---|---|
 | `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--sizes-only] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. The rest of the parser's flags are in the body's Arguments line. |
-| `repo-hygiene:clean` | `[scan\|caches\|build\|git\|stash\|tree\|all\|batch-modes\|aliases…]` | Action words only; each selects a named routine, so none needs a flag. The body states the bare form. |
+| `repo-hygiene:clean` | `[scan\|caches\|build\|git\|stash\|tree\|all\|<tier>-batch\|aliases…]` | Action words only; each selects a named routine, so none needs a flag. `<tier>-batch` stands for the five fleet forms the body lists. The body states the bare form. |
 
 ## `argument-hint` is bound to the shape
 
