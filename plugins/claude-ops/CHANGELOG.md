@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.1] - 2026-09-29
+## [0.64.2] - 2026-09-29
 
 ### Fixed
 
@@ -12,6 +12,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   a phrase to live in, so the integration check now reports the combination as a problem.
 - **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
   matching the rule above.
+
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
 - **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
 
 ## [0.64.0] - 2026-09-29
