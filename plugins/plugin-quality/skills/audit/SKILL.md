@@ -1,5 +1,5 @@
 ---
-description: "Post-use behavioral audit of a Claude Code plugin component, a skill, agent, hook, command, or config, after using or setting it up, ending in a work item emitted to the plugin's maintainers. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when the ask is 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin (or hook) well-designed', 'find bugs or gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
+description: "Post-use behavioral audit of a Claude Code plugin component, a skill, agent, hook, command, or config, after using or setting it up, ending in a work item emitted to the plugin's maintainers. Covers errors, improvements, and quality of life for each audited component. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when the ask is 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin (or hook) well-designed', 'find bugs or gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
 argument-hint: "<plugin>[:<component>]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,10 +12,12 @@ metadata:
 
 # Plugin audit
 
-Audit a Claude Code **plugin component** (skill · agent · hook · command · config) for correctness,
-architecture, and design quality after you have actually **used or set it up**, then hand the
-findings to the plugin's maintainers as a durable work item, without doing their implementation in
-your session.
+Audit a Claude Code **plugin component** (skill · agent · hook · command · config) for errors,
+improvements, and quality of life, and for correctness, architecture, and design quality, after you
+have actually **used or set it up**, then hand the findings to the plugin's maintainers as a
+durable work item, without doing their implementation in your session. Every category is `none` or
+findings; a run that stops after one bug is incomplete. The ledger is
+[`reference/categories.md`](reference/categories.md), and its collectors grade it.
 
 **Producer/consumer split (hard rule):** this session produces the work item; a separate session in
 the plugin's own repo consumes it. Never implement fixes in the audited plugin's repo from the
@@ -111,14 +113,15 @@ skill-loaded, so the substitution never ran: treat the run as `high` and run eve
 Two dials sit over step 5, and they answer different questions. The **zone decides where a seam
 runs**; effort decides **which seams run at all**. Where they disagree the zone wins, so `low` effort
 never buys an inline review the dumb or unknown row says MUST dispatch, and never trims an evidence
-flush. Effort touches step 5 only. Steps 1 through 4 are the evidence and contract-lock spine and run
-in full at every level:
+flush. Effort touches step 5, plus how far research on remediations and validation of emitted-finding
+samples go. Steps 1 through 4 are the evidence and contract-lock spine and run in full at every
+level; the category ledger and the standards collector are part of that spine:
 
-| Effort | Step 5 review seams |
+| Effort | Step 5 review seams, research, and emitted-finding samples |
 |---|---|
-| `low` | `skill-quality:check` only, and only for a skill target. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor |
-| `high`, `xhigh`, `max` | every presence-gated seam over every finding |
+| `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. Research stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for remediations at or above that floor (`/discovery:research` when that plugin is installed; absent, the manual discipline in `reference/categories.md`) |
+| `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
 enters that pass only when its calibrated severity is at or above the floor. An attended run pins
@@ -182,8 +185,10 @@ context. Run this once **per resolved target**, into that target's own packet. W
 
 Re-evaluate the context-gate, then dispatch the plugin's **`auditor`** agent by name, **one
 dispatch per resolved target**, each with: that target's packet path, the target
-`<plugin>[:<component>]`, and the applicable component-type lens file(s) from the index below. The
-agent reads the component's installed source, manifest, and config resolution, and **verifies every
+`<plugin>[:<component>]`, the applicable component-type lens file(s) from the index below, and
+[`reference/categories.md`](reference/categories.md). The auditor writes that ledger, including
+`none` for an empty category, and runs `collect-standards.sh` so a missing convention home is
+recorded as `unresolved` rather than guessed. The agent reads the component's installed source, manifest, and config resolution, and **verifies every
 load-bearing harness-behavior claim against current official docs per topic** (the fresh-docs
 discipline applies inside the audit. Hooks behavior against the hooks page, skill loading against
 the skills page, etc.; never training-data recall). The named agent supplies the two properties
@@ -206,6 +211,15 @@ gotchas (usage-evidence lessons graded general vs situational; general = candida
 citation states the retrieval channel it came over plus a byte count or line number; a finding whose
 citation omits **either** field is recorded as **unverified**, however confidently worded. "rung-1
 `curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.
+
+**Grade the ledger before presenting it.** Run
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
+Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
+the collector's `problem:` lines, and do not present a ledger the collector rejects.
+`research: open-question` and `verdict: unvalidated` pass the collector; the effort table says
+when they are enough. When the component emits findings to a user, the Emitted findings section
+samples them; otherwise it is `not-applicable`. `verdict: false` is the class "the plugin reported
+X and X was false".
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet. One silently empty packet among several is exactly the loss
@@ -300,6 +314,12 @@ runs is used when installed, with a one-line fallback when absent:
 - `review:fanout` / `review:quality-gate`. Breadth/depth review of the findings write-up.
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each
   claim, reproduction evidence present, severity justified, remediation actionable).
+- `/discovery:research`, the research seam, when the effort row runs it: one call per remediation
+  at or above the severity floor. A remediation it grounds becomes `research: tier-0` or `tier-1`
+  with its primary and corroborator count; one it cannot ground stays `open-question`. Write the
+  updated ledger as a new packet file (packet files are write-once), re-seal, and grade it again
+  with `collect-categories.sh`. *Absent:* apply the primary-plus-two-corroborators discipline in
+  `reference/categories.md` by hand, and leave `open-question` wherever it does not hold.
 - `skill-quality:check`, required when the audited component is a skill. *Absent:* walk the
   skill lens reference file as a manual checklist.
 - `verification:confirm` fires only when the audit session itself wrote files (e.g. a setup
@@ -332,6 +352,12 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
    where it is. The location is load-bearing, not incidental: retention keys its
    never-delete-the-deliverable rule on finding `item*.md` in the packet (`item.md`, or
    `item-<owner>.md` when one audit emits for a second owner).
+
+**Research decides the label.** A remediation with `research: open-question`, or one that did not
+clear the research seam at this run's effort, is a decision for the maintainers, not a
+recommendation. Carry it in the item as `status: needs-decision` (or as a stated open decision
+where the sink has no labels) and never mark it autonomous-eligible (`agent-ready` by default). Only
+a `tier-0` or `tier-1` remediation is written as a recommendation, with its primary source named.
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
 surface. (a) the full item draft (title + body), (b) the destination (target repo, tracker, or
@@ -369,6 +395,7 @@ observability).
 | File | Load when |
 |------|-----------|
 | `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
+| `reference/categories.md` | Before step 2 writes findings, and before step 3 grades the ledger. |
 | `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
 | `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |

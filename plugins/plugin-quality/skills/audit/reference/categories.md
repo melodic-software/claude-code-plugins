@@ -33,7 +33,8 @@ primary: the primary source fetched this session
 corroborators: 2
 ```
 
-`tier-1` is the same shape. A remediation without `research:` is rejected.
+`tier-1` is the same shape. A tier record needs the fetched primary and at least two
+independent corroborators. A remediation without `research:` is rejected.
 `open-question` is not a recommendation. The tier names are discovery's
 source-tier table (`plugins/discovery/skills/research/context/discipline.md`);
 this file does not restate that table.

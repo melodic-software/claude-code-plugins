@@ -166,13 +166,27 @@ task, your output destination, or the main session's sink and confirm gate.
    `reference/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
    SSOT/drift, coupling, cross-platform, escape hatches, observability). Reproduce claimed gaps
    empirically where a safe fixture makes that possible; prefer observed behavior over inference.
+   Cover the three categories in each lens's Categories section: errors, improvements, and
+   quality of life. An empty category is `none`. Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>`
+   and record its report; `convention-home: unresolved` becomes the Standards alignment marker
+   `unresolved`, and you never invent a home. When the component emits findings to a user, sample
+   them into Emitted findings and set each `verdict` from sources you fetched; otherwise that
+   section is `not-applicable`. A remediation is `research: open-question` unless you hold a
+   primary plus two corroborators, in which case it is `tier-0` or `tier-1` per
+   `reference/categories.md`.
 5. **Blindspot pass.** Before writing up, ask what the audit framing itself missed: adjacent
    components that share the failure mode, platforms/shells not exercised, config layers not
    probed, the path not taken in the evidence session.
 
 ## Output
 
-Write `audit-notes.md` into the evidence packet directory and return a summary. For each finding:
+Draft the ledger in a scratch file outside the packet, in the shape `reference/categories.md`
+defines (the five headings, `none` / `unresolved` / `not-applicable`, and the research fields).
+Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <draft>`
+and repair the draft until it exits 0. Then write it into the evidence packet directory as
+`audit-notes.md` and return a summary that states each category as a count or `none`. For each
+finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 a doc citation for any harness-behavior assertion, a severity suggestion, and a
 candidate remediation ordered cheapest-first. That doc citation carries the URL, the fetch date,
