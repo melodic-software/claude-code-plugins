@@ -3,7 +3,7 @@
 
     cluster-clones.py [--root <dir>] [< report.json]
 
-Reads a `code-metrics/v1` document on stdin and prints it back with the
+Reads a `code-metrics/v2` document on stdin and prints it back with the
 two-instance clone-group rows that share an identical instance merged into one
 row per clone class. jscpd (both majors) and PMD CPD report a clone as a PAIR,
 so N byte-identical copies of one fragment arrive as N-1 rows that all name

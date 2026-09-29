@@ -35,7 +35,7 @@ mean. There is no pass or fail here, and no bar to argue with.
 "${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh"                    # the change: diff from the merge-base plus uncommitted files
 "${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" src/ lib/api.py    # explicit paths (a missing one is a usage error)
 "${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" --all              # every tracked or untracked-but-not-ignored file
-"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v1 document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run" table

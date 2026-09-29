@@ -61,7 +61,7 @@ printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settin
 # NOCLAUDE_PATH holds only the tools the script needs, so no claude resolves and
 # the settings fallback runs; STUB_PATH puts a stub claude ahead of them.
 mkdir -p "$WORK/tools" "$WORK/stub"
-for tool in bash git python3 dirname find sort timeout; do
+for tool in bash git python3 dirname find sort timeout mktemp rm; do
   ln -s "$(command -v "$tool")" "$WORK/tools/$tool"
 done
 NOCLAUDE_PATH="$WORK/tools"
@@ -131,11 +131,49 @@ out="$(run_stub "[]")"
 rc=$?
 expect_eq "cli: an empty list is an empty fleet, not a repository scan" 0 "$rc"
 
-# Unparsable claude output falls back to the settings merge.
+# Unparsable claude output is an error, not a settings fallback.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
-out="$(run_stub "not json")"
-expect_has "unparsable claude output uses the settings fallback" $'absent-b\tplugin-b\tmissing' "$out"
+out="$(run_stub "not json" 2>&1)"
+rc=$?
+expect_eq "unparsable claude output exits 2" 2 "$rc"
+expect_has "unparsable claude output names the listing" 'claude plugin list --json' "$out"
 rm "$PROJECT/.claude/settings.local.json"
+
+# A listing past the 131072-byte single-argument limit must be read in full,
+# and a listing that is not JSON must stop the run with no table. The stub
+# reads its output from a file, since an environment variable that large would
+# hit the same limit.
+mkdir -p "$WORK/stubfile"
+cat >"$WORK/stubfile/claude" <<'EOF'
+#!/bin/sh
+[ "$1 $2 $3" = "plugin list --json" ] || exit 64
+cat "$STUB_FILE"
+EOF
+chmod +x "$WORK/stubfile/claude"
+ln -sf "$(command -v cat)" "$WORK/tools/cat"
+run_stub_file() { (cd "$PROJECT" && PATH="$WORK/stubfile:$WORK/tools" STUB_FILE="$1" CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" bash "$SCRIPT" 2>"$WORK/stderr"); }
+
+python3 - "$WORK/big.json" "$WORK/plugin-d" <<'PY'
+import json, sys
+rows = [{"id": "pad%d@m" % i, "scope": "user", "enabled": False, "installPath": "/nonexistent/%d" % i, "note": "x" * 100} for i in range(2500)]
+rows.append({"id": "d@m", "scope": "user", "enabled": True, "installPath": sys.argv[2]})
+json.dump(rows, open(sys.argv[1], "w"))
+PY
+big_bytes="$(wc -c <"$WORK/big.json")"
+expect_eq "oversized listing fixture exceeds 200000 bytes" 1 "$((big_bytes > 200000))"
+out="$(run_stub_file "$WORK/big.json")"
+rc=$?
+expect_eq "oversized listing exits 1" 1 "$rc"
+expect_has "oversized listing: the enabled row's tool is reported" $'absent-d\tplugin-d\tmissing' "$out"
+expect_has "oversized listing: summary counts it" 'missing=1 present=0' "$out"
+expect_eq "oversized listing: no argument-length error" 0 "$(grep -c 'Argument list too long' "$WORK/stderr")"
+
+printf '%s\n' 'Error: something went wrong, not json' >"$WORK/bad.txt"
+out="$(run_stub_file "$WORK/bad.txt")"
+rc=$?
+expect_eq "non-JSON listing exits 2" 2 "$rc"
+expect_eq "non-JSON listing prints no table" "" "$out"
+expect_has "non-JSON listing writes an error to stderr" 'claude plugin list --json' "$(cat "$WORK/stderr")"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
