@@ -115,22 +115,35 @@ scan_file() {
 # check_require_true <reported path> <json file> <jq filter selecting the hook
 # config> — exec-bash.mjs reads `--require-true NAME` from
 # CLAUDE_PLUGIN_OPTION_NAME, which Claude Code sets only for a declared
-# userConfig key `name` (case-insensitive here). Without that key no user can
-# ever turn the hook on, so the gate fails.
+# userConfig key `name` (case-insensitive here) of type boolean (the gate opens
+# only on the literal string true). Without that key no user can ever turn the
+# hook on, so the gate fails. Only the leading gate pairs right after the
+# exec-bash.mjs launcher count, as lib/exec-bash.mjs parseLaunchArgs reads them,
+# in an args array or a whitespace-tokenized shell-form command string. Each
+# (file, name) is reported once.
 check_require_true() {
-  local shown="$1" src="$2" filter="$3" plugin manifest name
+  local shown="$1" src="$2" filter="$3" plugin manifest name type
   plugin="${shown#plugins/}"
   plugin="plugins/${plugin%%/*}"
   manifest="$plugin/.claude-plugin/plugin.json"
   while IFS= read -r name; do
     name="${name%$'\r'}"
     [[ -n "$name" ]] || continue
-    if ! jq -e --arg k "$name" '(.userConfig // {}) | keys | map(ascii_downcase) | index($k | ascii_downcase)' \
-      "$manifest" >/dev/null 2>&1; then
+    type="$(jq -r --arg k "$name" '[(.userConfig // {}) | to_entries[] | select(.key | ascii_downcase == ($k | ascii_downcase))] | if length == 0 then "" else (.[0].value.type // "none") end' "$manifest" 2>/dev/null | tr -d '\r' || true)"
+    if [[ -z "$type" ]]; then
       echo "REQUIRE-TRUE: ${shown}: --require-true ${name} but ${manifest} declares no userConfig key ${name,,} — no user can enable the hook" >&2
       errors=$((errors + 1))
+    elif [[ "$type" != boolean ]]; then
+      echo "REQUIRE-TRUE: ${shown}: --require-true ${name} but userConfig key ${name,,} in ${manifest} has type ${type}, not boolean — the gate opens only on the string true" >&2
+      errors=$((errors + 1))
     fi
-  done < <(jq -r "${filter} | .. | arrays | . as \$a | range(0; length - 1) | select(\$a[.] == \"--require-true\") | \$a[. + 1] | strings" "$src" 2>/dev/null || true)
+  done < <(jq -r "${filter} | "'
+    def lead: if length >= 2 and (.[0] == "--require-true" or .[0] == "--run-if-unset-or-true")
+      then (if .[0] == "--require-true" then .[1] else empty end), (.[2:] | lead) else empty end;
+    def after: (map(test("exec-bash\\.mjs[\"\\x27]?$")) | index(true)) as $i | if $i == null then empty else .[$i + 1:] end;
+    ((.. | arrays | select(all(type == "string")) | after | lead),
+     (.. | strings | select(test("exec-bash\\.mjs")) | split("[ \t]+"; null) | map(gsub("^[\"\\x27]|[\"\\x27]$"; "")) | after | lead))
+    | strings' "$src" 2>/dev/null | sort -u || true)
 }
 
 for plugin in plugins/*/; do

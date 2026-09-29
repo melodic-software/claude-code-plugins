@@ -315,4 +315,73 @@ else
 fi
 rm -rf "$f"
 
+BOOL_MANIFEST='{"name":"alpha","userConfig":{"FOO_ENABLED":{"type":"boolean"}}}'
+
+# --- only LEADING gate pairs count: a script's own later --require-true is not a gate
+LATER_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","--require-true","SCRIPT_OWN_FLAG"]}]}]}'
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$LATER_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json "$BOOL_MANIFEST"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a script's later --require-true argument is not treated as a launcher gate"
+else
+  fail "trailing script argument should not be checked, got: $out"
+fi
+rm -rf "$f"
+
+# --- the matched userConfig key must be boolean ------------------------------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","userConfig":{"FOO_ENABLED":{"type":"string"}}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "--require-true on a string-typed userConfig key should fail, got success: $out"
+else
+  if grep -q 'REQUIRE-TRUE: .*FOO_ENABLED.*type string' <<<"$out"; then
+    ok "--require-true on a non-boolean userConfig key fails, naming the type"
+  else
+    fail "expected type diagnostic, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- shell-form command string carries the gate too --------------------------
+SHELL_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" --require-true FOO_ENABLED ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"}]}]}'
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$SHELL_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "shell-form --require-true with no userConfig key should fail, got success: $out"
+else
+  if grep -q 'REQUIRE-TRUE: .*FOO_ENABLED' <<<"$out"; then
+    ok "shell-form --require-true without a declared userConfig key fails"
+  else
+    fail "expected REQUIRE-TRUE diagnostic, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$SHELL_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json "$BOOL_MANIFEST"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "shell-form --require-true with a boolean userConfig key passes"
+else
+  fail "shell-form gate with declared key should pass, got: $out"
+fi
+rm -rf "$f"
+
+# --- each (file, name) pair is reported once ---------------------------------
+TWICE_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","a.sh"]},{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","b.sh"]}]}]}'
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$TWICE_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
+out="$(run_check "$f" 2>&1 || true)"
+n="$(grep -c 'REQUIRE-TRUE:' <<<"$out" || true)"
+if [[ "$n" == 1 ]]; then
+  ok "a repeated missing key is reported once per file"
+else
+  fail "expected 1 REQUIRE-TRUE line, got $n: $out"
+fi
+rm -rf "$f"
+
 test_harness::report
