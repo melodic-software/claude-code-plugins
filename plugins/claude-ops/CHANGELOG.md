@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
+  directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
+  `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
+  removal stays with `/disk-hygiene:clean`. A missing or unparseable registry yields an empty list
+  and a note, so an empty list reads as "not checked".
+- **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
+  can name the previous version's path after an update until the session restarts.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
