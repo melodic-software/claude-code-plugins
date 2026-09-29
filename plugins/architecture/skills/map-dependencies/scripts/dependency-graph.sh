@@ -907,11 +907,11 @@ read_go() {
 
   # Requirements. Internal only through a local replace (above) or a shared
   # go.work; otherwise the module path is an external package.
-  local mod ver hit hit_decl line
+  local mod hit hit_decl line
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     while IFS= read -r rec; do
       [[ "$rec" == require$'\t'* ]] || continue
-      IFS=$'\t' read -r _ mod ver decl <<<"$rec"
+      IFS=$'\t' read -r _ mod _ decl <<<"$rec"
       [[ -z "${replaced[$rel$us$mod]+x}" ]] || continue
       hit=""
       for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
