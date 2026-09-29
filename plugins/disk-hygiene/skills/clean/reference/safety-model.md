@@ -43,9 +43,9 @@ signal. High/Medium/Low already encode provenance, not regeneration cost.
 **Claim:** the cleaner does not distinguish a tidiness pass from a disk-full emergency; none of
 the three rules yields, and regenerable-at-a-cost is not an engine signal. **Basis:** #3855 is
 the decision carrier and lists changing nothing as a complete answer; relaxing any of those
-rules under pressure is when a wrong deletion is most likely. Option A keeps the current
-defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28. **Recheck:** an
-operator unpark of #3855, or a funded design that names which rule yields and under what
+rules under pressure is when a wrong deletion is most likely. The no-proportionality decision keeps
+the current defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28.
+**Recheck:** reopening #3855, or a funded design that names which rule yields and under what
 bounded conditions.
 
 ## Non-overridable checks
@@ -144,9 +144,10 @@ question, not this trigger firing. **Basis:** the trigger quoted from the
 [#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
 affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
-near-miss recurrence is on the record in this checkout; #3855 remains the open related
-design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
-manual lane, or #3855 closing with a per-primitive design.
+near-miss recurrence is on the record in this checkout. #3855 closed 2026-09-28 with the
+no-emergency-lane decision, not a per-primitive design. **As of:** 2026-09-28. **Recheck:** a
+documented post-#1109 near-miss in the manual lane, or a new design issue that proposes
+per-primitive gating (#3857 is the open carrier).
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
@@ -209,9 +210,8 @@ cannot carry it. For that repository, porcelain output and local heads that are 
 `accepted-unpublished` and the evidence result lists each acknowledgement with its reason under
 `accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
 repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
-the acknowledgement the verdict is unchanged. The acknowledgement exists because a categorical
-refusal did not stop the deletion in #4227: the operator had the directories removed outside the
-engine with every check skipped. Before deleting under it, tell the operator that unpushed commits
+the acknowledgement the verdict is unchanged. A refusal alone does not prevent deletion, so the
+lane keeps every other check in force and records the acknowledgement. Before deleting under it, tell the operator that unpushed commits
 and untracked or ignored files in the checkout will be lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
@@ -326,8 +326,7 @@ settings reach, get the marketplace without adding it themselves"
 ([extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)).
 Scope is `Any file`. A `directory` source is "for development only". Project-scope entries were
 already declined because repository content is hostile to this guard. User-scope is declined too:
-the key's documented purpose is repo-or-org registration, a plugin setup skill and
-`claude plugin marketplace add` both write user settings, and distinguishing user-scope from
+the key's documented purpose is repo-or-org registration, and distinguishing user-scope from
 project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
 need. The directory channel stays pinned to harness-written `known_marketplaces.json`.
 **Claim:** `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this

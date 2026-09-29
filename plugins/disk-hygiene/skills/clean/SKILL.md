@@ -34,8 +34,8 @@ metadata:
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
 primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
-full: there is no emergency lane and no rule that yields under pressure. The recorded Option A
-(no proportionality, no regenerable-at-a-cost engine signal) lives in
+full: there is no emergency lane and no rule that yields under pressure. The recorded no-proportionality
+decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
 optional execution lane.
 
