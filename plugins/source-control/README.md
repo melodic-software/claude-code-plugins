@@ -299,7 +299,12 @@ fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
-- **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
+- **Node.js on PATH.** Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's
+  native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the
+  hooks do not launch and the PR-linkage and worktree gates are not enforced. The setup `check`
+  reports whether `node` resolves.
+- **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
   and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
   Windows); `unzip` is additionally required by the CI-log fetch path
   (`fetch-failed-logs`), which exits with a remediation message when it is
