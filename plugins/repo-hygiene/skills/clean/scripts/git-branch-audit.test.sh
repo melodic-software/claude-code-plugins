@@ -294,6 +294,32 @@ git -C "$NU_REPO" checkout -q main
 assert_contains "detached HEAD is reported" "$det_out" "MainCheckout: detached at "
 assert_not_contains "detached HEAD is not an operation" "$det_out" "OperationInProgress:"
 
+# A real conflicted merge writes MERGE_HEAD itself; the conflicted and untracked
+# files count toward the dirty total.
+CM="$TEST_TMPDIR/cm-repo"
+git init -q -b main "$CM"
+git -C "$CM" config user.email "t@example.com"
+git -C "$CM" config user.name "Test"
+echo base >"$CM/f"
+git -C "$CM" add f
+git -C "$CM" commit -qm base
+git -C "$CM" branch feat/conflict
+echo main-side >"$CM/f"
+git -C "$CM" commit -qam main-side
+git -C "$CM" checkout -q feat/conflict
+echo feat-side >"$CM/f"
+git -C "$CM" commit -qam feat-side
+git -C "$CM" checkout -q main
+git -C "$CM" merge feat/conflict >/dev/null 2>&1 || true
+echo scratch >"$CM/untracked"
+cm_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$CM' && bash '$AUDIT'")"
+check_facts "conflicted-merge repo" "$CM" "$cm_out"
+assert_contains "conflicted merge is named in the MainCheckout block" "$cm_out" "MainCheckoutOperation: MERGE_HEAD "
+assert_contains "dirty count covers the conflicted and untracked files" "$cm_out" "MainCheckoutDirty: 2"
+assert_not_contains "no SAFE tier mid-merge" "$cm_out" "Tier: SAFE"
+assert_not_contains "no LIKELY-SAFE tier mid-merge" "$cm_out" "Tier: LIKELY-SAFE"
+assert_not_contains "no LOSSY tier mid-merge" "$cm_out" "Tier: LOSSY"
+
 # Gone upstream with NO origin/<default> to compare against (feature-only clone /
 # unfetched remote HEAD): the script cannot prove the branch is merged, so it must
 # fail closed to REVIEW, not offer it as a deletable LIKELY-SAFE candidate.
