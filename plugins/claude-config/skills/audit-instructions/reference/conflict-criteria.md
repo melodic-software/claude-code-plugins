@@ -16,8 +16,8 @@
 - [Worked examples](#worked-examples)
 - [Output format](#output-format)
 
-Version: 1.6.1
-Last updated: 2026-09-28
+Version: 1.6.2
+Last updated: 2026-09-29
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition: what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -112,6 +112,21 @@ performs for content-fit findings.
 The rule remains **route on the population a check actually enumerates, never on the name of the
 layer**: a boundary drawn from a label rather than from the incumbent's discovery script leaves whole
 pair classes audited by neither skill. When that script's population moves, this table moves with it.
+
+**A standing instruction against plausible user requests is not a member.** I15 does not detect
+conflict between a standing instruction and a hypothetical or plausible user request. Its population
+is the set of surfaces the tree can enumerate, and such requests are not in it. The reason is the
+[co-residency prerequisite](#prerequisite-co-residency): both directives must be in the same context
+window, and a hypothetical request has no residency, no enumerability and no liveness the tree can
+determine. Admitting the axis would either drop that gate and reintroduce the noise it suppresses, or
+need a parallel liveness notion for imagined inputs. The population is also unbounded, so the
+false-negative rate cannot be measured. The owner adjudicated this in #3565 and rejected the reopen. A
+corpus of realistic prompts to test instruction surfaces against is a different artifact and would be
+filed separately, not as an I15 extension.
+**Claim:** I15 does not adjudicate standing instructions against plausible user requests.
+**Basis:** this file's Prerequisite: co-residency section and the owner decision on #3565.
+**As of:** 2026-09-29. **Recheck:** when the co-residency prerequisite changes or a bounded,
+enumerable request corpus is filed as its own artifact.
 
 ## Prerequisite: co-residency
 
