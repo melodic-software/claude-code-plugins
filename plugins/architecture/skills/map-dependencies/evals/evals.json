@@ -18,13 +18,13 @@
     {
       "id": 2,
       "name": "unrecognized-ecosystem-is-unknown",
-      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a package.json and no .NET project file. This is a non-interactive run.",
-      "expected_output": "Writes a dependency-graph.json whose result is unknown and whose message names package.json, and a dependency-graph.md with that message and no mermaid flowchart.",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a Gemfile and no .NET project file. This is a non-interactive run.",
+      "expected_output": "Writes a dependency-graph.json whose result is unknown and whose message names Gemfile, and a dependency-graph.md with that message and no mermaid flowchart.",
       "narration": true,
       "expectations": [
         "result is unknown, not ok with an empty node list presented as a graph of no dependencies",
-        "The message names package.json and says an empty graph was not invented",
-        "Does not parse dependencies out of package.json",
+        "The message names Gemfile and says an empty graph was not invented",
+        "Does not parse dependencies out of the Gemfile",
         "dependency-graph.md has no mermaid fence",
         "Does not ask the operator to pick an ecosystem"
       ]

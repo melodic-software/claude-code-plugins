@@ -100,7 +100,7 @@ cat >"$basic/src/App/Program.cs" <<'CS'
 using Lib;
 class Program { static void Main() {} }
 CS
-printf '%s\n' '{ "dependencies": { "left-pad": "1.0.0" } }' >"$basic/package.json"
+printf '%s\n' 'source "https://rubygems.org"' >"$basic/Gemfile"
 sibling_sln_path='..\Sibling\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
 cat >"$basic/App.sln" <<SLN
 Microsoft Visual Studio Solution File, Format Version 12.00
@@ -143,7 +143,7 @@ assert_contains "basic: solution membership outside the root is a finding" "$bas
 assert_contains "basic: solution finding keeps the declared path" "$basic_json" '..\\Sibling\\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
 assert_not_contains "basic: solution path is not resolved onto the decoy sibling" "$basic_json" '"to":"src/Sibling/Sibling.csproj"'
 assert_not_contains "basic: a using in Program.cs is not an edge" "$basic_json" 'Program.cs'
-assert_contains "basic: unread node manifest is named, not drawn as empty" "$basic_json" 'Not read: node (package.json)'
+assert_contains "basic: unread ruby manifest is named, not drawn as empty" "$basic_json" 'Not read: ruby (Gemfile)'
 assert_contains "basic: node_threshold documented in the record" "$basic_json" '"node_threshold": 40'
 
 # One object per line: a node line parses as one JSON object.
@@ -253,22 +253,22 @@ th_mermaid="$(printf '%s\n' "$th_md" | awk '/^```mermaid$/,/^```$/')"
 assert_not_contains "threshold: diagram does not draw project files" "$th_mermaid" "App.csproj"
 assert_contains "threshold: diagram draws the directory edge" "$th_mermaid" "g01"
 
-node_only="$(make_tree node-only)"
-printf '%s\n' '{ "dependencies": { "left-pad": "1.0.0" } }' >"$node_only/package.json"
-node_json="$(bash "$GRAPH" "$node_only")"
-assert_equals "node-only: collector exits 0" "$?" "0"
-assert_contains "node-only: result unknown" "$node_json" '"result": "unknown"'
-assert_contains "node-only: names the manifest" "$node_json" "package.json"
-assert_contains "node-only: does not invent an empty graph" "$node_json" "did not invent an empty graph"
-assert_contains "node-only: nodes array is empty" "$node_json" '"nodes": []'
-mkdir -p "$TEST_TMPDIR/out-node"
-printf '%s\n' "$node_json" >"$TEST_TMPDIR/out-node/dependency-graph.json"
-node_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-node/dependency-graph.json" --out "$TEST_TMPDIR/out-node")"
-assert_equals "node-only: renderer exits 0" "$?" "0"
-assert_contains "node-only: summary is unknown" "$node_summary" "result=unknown"
-node_md="$(cat "$TEST_TMPDIR/out-node/dependency-graph.md")"
-assert_contains "node-only: prose says it is not an empty graph" "$node_md" "not an empty graph"
-assert_not_contains "node-only: no mermaid flowchart" "$node_md" '```mermaid'
+gem_only="$(make_tree gem-only)"
+printf '%s\n' 'source "https://rubygems.org"' >"$gem_only/Gemfile"
+gem_json="$(bash "$GRAPH" "$gem_only")"
+assert_equals "gem-only: collector exits 0" "$?" "0"
+assert_contains "gem-only: result unknown" "$gem_json" '"result": "unknown"'
+assert_contains "gem-only: names the manifest" "$gem_json" "Gemfile"
+assert_contains "gem-only: does not invent an empty graph" "$gem_json" "did not invent an empty graph"
+assert_contains "gem-only: nodes array is empty" "$gem_json" '"nodes": []'
+mkdir -p "$TEST_TMPDIR/out-gem"
+printf '%s\n' "$gem_json" >"$TEST_TMPDIR/out-gem/dependency-graph.json"
+gem_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-gem/dependency-graph.json" --out "$TEST_TMPDIR/out-gem")"
+assert_equals "gem-only: renderer exits 0" "$?" "0"
+assert_contains "gem-only: summary is unknown" "$gem_summary" "result=unknown"
+gem_md="$(cat "$TEST_TMPDIR/out-gem/dependency-graph.md")"
+assert_contains "gem-only: prose says it is not an empty graph" "$gem_md" "not an empty graph"
+assert_not_contains "gem-only: no mermaid flowchart" "$gem_md" '```mermaid'
 
 empty="$(make_tree empty)"
 empty_json="$(bash "$GRAPH" "$empty")"
@@ -294,7 +294,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App", "src\App\App.csproj",
 EndProject
 Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "Db", "db\Db.vbproj", "{22222222-2222-2222-2222-222222222222}"
 EndProject
-Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B6356EE}") = "Setup", "setup\Setup.wixproj", "{33333333-3333-3333-3333-333333333333}"
+Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B6356EE}") = "Installer", "wix\Installer.wixproj", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{44444444-4444-4444-4444-444444444444}"
 EndProject
@@ -641,6 +641,111 @@ assert_not_contains "namespace: an MSBuild expression is not a namespace" "$(nod
 assert_contains "test: a test framework reference marks the node" "$(node_of Tests/Tests.csproj)" '"test":"yes"'
 assert_not_contains "test: an ordinary project has no test field" "$(node_of Bare/Bare.csproj)" '"test"'
 assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version": 1'
+
+# Node workspaces. Members are the package folders the workspaces globs expand
+# to; a package elsewhere on disk is never matched by name.
+put() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+}
+nodews="$(make_tree nodews)"
+put "$nodews/package.json" '{
+  "name": "acme",
+  "private": true,
+  "workspaces": ["packages/*", "!packages/legacy"],
+  "devDependencies": { "@acme/tooling": "workspace:^", "typescript": "^5.0.0" }
+}'
+put "$nodews/packages/app/package.json" '{
+  "name": "@acme/app",
+  "dependencies": {
+    "@acme/lib": "workspace:*",
+    "left-pad": "^1.0.0",
+    "decoy-outside": "^1.0.0",
+    "ghost-pkg": "workspace:*",
+    "build-tool": "file:../../tools/build",
+    "escape": "link:../../../elsewhere",
+    "gone": "file:../nope",
+    "shared": "catalog:"
+  },
+  "peerDependencies": { "@acme/tooling": ">=1" }
+}'
+put "$nodews/packages/lib/package.json" '{ "name": "@acme/lib", "devDependencies": { "weird": { "version": "1" } } }'
+put "$nodews/packages/tooling/package.json" '{ "name": "@acme/tooling" }'
+put "$nodews/packages/legacy/package.json" '{ "name": "@acme/legacy" }'
+put "$nodews/tools/build/package.json" '{ "name": "build-tool" }'
+put "$nodews/tools/decoy/package.json" '{ "name": "decoy-outside" }'
+put "$TEST_TMPDIR/elsewhere/package.json" '{ "name": "escape" }'
+nodews_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$nodews")"
+assert_equals "node: collector exits 0" "$?" "0"
+assert_contains "node: result ok" "$nodews_json" '"result": "ok"'
+assert_contains "node: ecosystem node" "$nodews_json" '"ecosystem": "node"'
+assert_contains "node: a package.json is a project node named by its name field" "$nodews_json" '{"id":"packages/app/package.json","name":"@acme/app","path":"packages/app/package.json","ecosystem":"node","kind":"project"}'
+assert_contains "node: a nameless folder gives the root its folder name" "$nodews_json" '"id":"package.json","name":"acme"'
+assert_contains "node: workspace: spec on a member is an internal edge citing file and declaration" "$nodews_json" '{"from":"packages/app/package.json","to":"packages/lib/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"@acme/lib\": \"workspace:*\""}'
+assert_contains "node: workspace:^ from the root names a member" "$nodews_json" '{"from":"package.json","to":"packages/tooling/package.json","kind":"project","status":"resolved","evidence":"package.json: \"@acme/tooling\": \"workspace:^\""}'
+assert_contains "node: a peerDependency naming a member is an internal edge" "$nodews_json" '"from":"packages/app/package.json","to":"packages/tooling/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"@acme/tooling\": \">=1\""'
+assert_contains "node: a file: spec inside the root is an internal edge" "$nodews_json" '{"from":"packages/app/package.json","to":"tools/build/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"build-tool\": \"file:../../tools/build\""}'
+assert_contains "node: an ordinary dependency is an external package edge" "$nodews_json" '{"from":"packages/app/package.json","to":"pkg:node:left-pad","kind":"package","status":"resolved","evidence":"packages/app/package.json: \"left-pad\": \"^1.0.0\""}'
+assert_contains "node: a package node is named pkg:node:<name>" "$nodews_json" '{"id":"pkg:node:left-pad","name":"left-pad","path":"","ecosystem":"node","kind":"package"}'
+assert_contains "node: a devDependency is an external edge from the root" "$nodews_json" '"from":"package.json","to":"pkg:node:typescript","kind":"package"'
+assert_contains "node: a name matching a non-member package stays external" "$nodews_json" '"to":"pkg:node:decoy-outside","kind":"package","status":"resolved"'
+assert_not_contains "node: a name is never matched to a package on disk outside the workspace" "$nodews_json" '"to":"tools/decoy/package.json"'
+assert_contains "node: workspace: naming no member is unresolved" "$nodews_json" '"from":"packages/app/package.json","to":"ghost-pkg","kind":"project","status":"unresolved","evidence":"packages/app/package.json: \"ghost-pkg\": \"workspace:*\""'
+assert_contains "node: a link: outside the root is unresolved and keeps the spec" "$nodews_json" '"to":"link:../../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "node: the outside package is not matched by name or path" "$nodews_json" 'elsewhere/package.json'
+assert_contains "node: a file: to a missing folder is unresolved" "$nodews_json" '"to":"file:../nope","kind":"project","status":"unresolved"'
+assert_contains "node: a catalog: spec is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"packages/app/package.json","evidence":"packages/app/package.json: \"shared\": \"catalog:\""}'
+assert_not_contains "node: a catalog: spec is not drawn as an edge" "$nodews_json" '"to":"pkg:node:shared"'
+assert_contains "node: a negated workspace glob is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"package.json","evidence":"package.json: \"!packages/legacy\""}'
+assert_contains "node: a non-string dependency value is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"packages/lib/package.json","evidence":"packages/lib/package.json: \"weird\": {...}"}'
+nodews_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$nodews")"
+assert_equals "node: two runs are byte-identical" "$nodews_again" "$nodews_json"
+mkdir -p "$TEST_TMPDIR/out-nodews"
+printf '%s\n' "$nodews_json" >"$TEST_TMPDIR/out-nodews/dependency-graph.json"
+nodews_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-nodews/dependency-graph.json" --out "$TEST_TMPDIR/out-nodews")"
+assert_equals "node: renderer exits 0" "$?" "0"
+assert_contains "node: renderer counts the unread manifests" "$nodews_summary" "unread_files=3"
+
+# pnpm-workspace.yaml globs, the workspace: alias and path forms, and scope: a
+# package outside every workspace does not see the members by name.
+pnpm="$(make_tree pnpm)"
+put "$pnpm/pnpm-workspace.yaml" "packages:
+  - 'apps/*'
+  - 'libs/**'
+catalog:
+  react: ^18.0.0"
+put "$pnpm/package.json" '{ "name": "pnpm-root" }'
+put "$pnpm/apps/web/package.json" '{
+  "name": "web",
+  "dependencies": { "ui": "workspace:*", "alias": "workspace:@acme/core@*", "rel": "workspace:../../libs/util", "deep": "^1.0.0" }
+}'
+put "$pnpm/libs/ui/package.json" '{ "name": "ui" }'
+put "$pnpm/libs/core/package.json" '{ "name": "@acme/core" }'
+put "$pnpm/libs/util/package.json" '{ "name": "util" }'
+put "$pnpm/libs/nest/deep/package.json" '{ "name": "deep" }'
+put "$pnpm/tools/cli/package.json" '{ "name": "cli", "dependencies": { "ui": "^1.0.0" } }'
+pnpm_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pnpm")"
+assert_contains "pnpm: a workspace:* spec resolves to the member by the dependency's name" "$pnpm_json" '{"from":"apps/web/package.json","to":"libs/ui/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"ui\": \"workspace:*\""}'
+assert_contains "pnpm: the workspace:pkg@range alias resolves to the aliased member" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/core/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"alias\": \"workspace:@acme/core@*\""'
+assert_contains "pnpm: a workspace: path resolves to the folder" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/util/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"rel\": \"workspace:../../libs/util\""'
+assert_contains "pnpm: ** reaches a nested member" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/nest/deep/package.json","kind":"project","status":"resolved"'
+assert_contains "pnpm: a package outside every workspace sees a member name as external" "$pnpm_json" '{"from":"tools/cli/package.json","to":"pkg:node:ui","kind":"package","status":"resolved","evidence":"tools/cli/package.json: \"ui\": \"^1.0.0\""}'
+assert_not_contains "pnpm: the yaml catalog raises no finding" "$pnpm_json" 'unread-manifest'
+
+# A flow-list packages key in the yaml is unread.
+pnpmflow="$(make_tree pnpmflow)"
+put "$pnpmflow/pnpm-workspace.yaml" 'packages: [apps/*]'
+put "$pnpmflow/package.json" '{ "name": "root" }'
+pnpmflow_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pnpmflow")"
+assert_contains "pnpm: a flow-list packages key is an unread-manifest finding" "$pnpmflow_json" '{"kind":"unread-manifest","path":"pnpm-workspace.yaml","evidence":"pnpm-workspace.yaml: packages: [apps/*]"}'
+
+# Node beside .NET is one mixed record.
+nodemix="$(make_tree nodemix)"
+put "$nodemix/src/App/App.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+put "$nodemix/web/package.json" '{ "name": "web", "dependencies": { "left-pad": "1.0.0" } }'
+nodemix_json="$(bash "$GRAPH" "$nodemix")"
+assert_contains "node beside dotnet: ecosystem is mixed" "$nodemix_json" '"ecosystem": "mixed"'
+assert_contains "node beside dotnet: each node keeps its own ecosystem" "$nodemix_json" '"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node"'
 
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

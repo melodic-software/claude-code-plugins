@@ -78,7 +78,22 @@ The .NET adapter:
   the root is a finding, not an edge.
 - Source files are not read. A `using` or an import is not an edge.
 
-Other ecosystems stay unread. The message names them. Node, Go, Python, Rust, and JVM
+The Node adapter:
+
+- Every `package.json` outside `node_modules` is a project node, id its repo-relative path.
+  Workspace members are the package folders that the `workspaces` globs (array or
+  `{"packages": [...]}` form) and a `pnpm-workspace.yaml` `packages` list expand to.
+- A dependency, dev, peer or optional dependency that names a member of the declaring
+  package's workspace, or whose spec is `workspace:`, `file:` or `link:` pointing at a
+  package folder inside the root, is an internal project edge. Every other entry is an
+  external package edge to `pkg:node:<name>`.
+- A spec that names no member, leaves the root, or points at a folder with no `package.json`
+  is `unresolved`. Never match it to a package of the same name elsewhere on disk.
+- A negated glob, a flow-list `packages:`, a `catalog:` spec and a non-string dependency
+  value are `unread-manifest` findings, not edges. The script header carries the sources
+  for the workspace rules.
+
+Other ecosystems stay unread. The message names them. Go, Python, Rust, and JVM
 adapters are not this skill yet.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes

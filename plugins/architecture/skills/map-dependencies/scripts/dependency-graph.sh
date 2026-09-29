@@ -112,6 +112,25 @@
 # Verified 2026-09-29. Recheck when either page changes the lookup rule or the
 # base of a relative Include in an imported file.
 #
+# The Node adapter (lib/node-references.sh): every package.json outside
+# node_modules is a project node whose id is its repo-relative path. Workspace
+# members are the package folders that the "workspaces" globs of a package.json
+# (an array, or an object with a "packages" array) and the "packages" list of a
+# pnpm-workspace.yaml expand to, matched only against the package.json files
+# found under the root. A dependencies, devDependencies, peerDependencies or
+# optionalDependencies entry is an internal project edge when its name is a
+# member of a workspace that holds the declaring package, or its spec is
+# workspace: (a range, an alias pkg@range, or a relative path), file: or link:
+# and names a package folder inside the root. Every other entry is an external
+# package edge to "pkg:node:<name>". A spec that names no member, resolves
+# outside the root or to a folder with no package.json is status "unresolved"
+# and is never matched to a package of the same name elsewhere. A negated or
+# otherwise unexpanded glob, a flow-list "packages:", a catalog: spec, and a
+# dependency value that is not a string are unread-manifest findings.
+# Basis: https://docs.npmjs.com/cli/v11/using-npm/workspaces and
+# https://pnpm.io/workspaces Verified 2026-09-29. Recheck when either page
+# changes what "workspaces" or "packages" may hold or what workspace: accepts.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -135,6 +154,8 @@ NODE_THRESHOLD=40
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
 source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
+# shellcheck source=../../../lib/node-references.sh
+source "$SCRIPT_DIR/../../../lib/node-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -474,7 +495,7 @@ done < <(
     -name '*.csproj' -o -name '*.fsproj' -o -name '*.sln' -o -name '*.slnx' \
     -o -name '*.props' -o -name '*.targets' \
     -o -name 'global.json' \
-    -o -name 'package.json' \
+    -o -name 'package.json' -o -name 'pnpm-workspace.yaml' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
     -o -name 'go.mod' -o -name 'Cargo.toml' \
     -o -name 'pom.xml' -o -name 'build.gradle*' \
@@ -489,6 +510,8 @@ sln_files=()
 msbuild_files=()
 declare -A BUILD_FILE=()
 has_global_json=0
+node_files=()
+pnpm_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -502,7 +525,8 @@ for rel in "${files[@]+"${files[@]}"}"; do
     ;;
   *.props | *.targets) msbuild_files+=("$rel") ;;
   global.json) has_global_json=1 ;;
-  package.json) OTHER[node]="$rel" ;;
+  package.json) node_files+=("$rel") ;;
+  pnpm-workspace.yaml) pnpm_files+=("$rel") ;;
   pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
   go.mod) OTHER[go]="$rel" ;;
   Cargo.toml) OTHER[rust]="$rel" ;;
@@ -520,7 +544,7 @@ done
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
 # lists the shipped readers, in the order they run. A reader parses in its own
 # file, lib/<name>-references.sh, sourced above.
-READERS=(dotnet)
+READERS=(dotnet node)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
@@ -648,6 +672,151 @@ read_dotnet() {
         add_finding "unresolved-membership" "$declared" "$sln_rel: $citation"
       fi
     done < <(sln_declared_projects "$root/$sln_rel")
+  done
+}
+
+has_node() { [[ ${#node_files[@]} -gt 0 ]]; }
+
+read_node() {
+  local -A pkg_recs=() pkg_name=() ws_decls=() member_at=() roots_of=()
+  local rel dir name label rec decl
+  local us=$'\x1f'
+
+  # Every package.json outside node_modules is a project node.
+  for rel in "${node_files[@]}"; do
+    pkg_recs[$rel]="$(node_manifest_records "$root/$rel")"
+    name="$(printf '%s\n' "${pkg_recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    pkg_name[$rel]="$name"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+
+  # Workspace declarations by the folder they sit in ("." is the root). Each
+  # line is source<TAB>glob<TAB>declaration.
+  read_ws_records() {
+    local src="$1" records="$2" base
+    base="$(proj_dir_of "$src")"
+    while IFS= read -r rec; do
+      case "$rec" in
+      workspace$'\t'*) ws_decls[${base:-.}]+="$src"$'\t'"${rec#*$'\t'}"$'\n' ;;
+      unread$'\t'*) add_unread_manifest "$src" "${rec#*$'\t'}" ;;
+      *) ;;
+      esac
+    done <<<"$records"
+  }
+  for rel in "${node_files[@]}"; do
+    read_ws_records "$rel" "${pkg_recs[$rel]}"
+  done
+  for rel in "${pnpm_files[@]+"${pnpm_files[@]}"}"; do
+    read_ws_records "$rel" "$(node_pnpm_workspace_records "$root/$rel")"
+  done
+
+  # A workspace member is a package folder a glob expands to, matched against
+  # the package.json files this run found and no others. The workspace root's
+  # own package and each member it lists may name the members.
+  local ws_dir ws_rel line src glob re cand cdir under mkey
+  if [[ ${#ws_decls[@]} -gt 0 ]]; then
+    while IFS= read -r ws_dir; do
+      ws_rel="$ws_dir"
+      [[ "$ws_dir" == "." ]] && ws_rel=""
+      cand="${ws_rel:+$ws_rel/}package.json"
+      [[ -n "${pkg_recs[$cand]+x}" ]] && roots_of[$cand]+="$us$ws_dir$us"
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        src="${line%%$'\t'*}"
+        line="${line#*$'\t'}"
+        glob="${line%%$'\t'*}"
+        decl="${line#*$'\t'}"
+        if ! re="$(node_glob_regex "$glob")"; then
+          add_unread_manifest "$src" "$decl"
+          continue
+        fi
+        for cand in "${node_files[@]}"; do
+          cdir="$(proj_dir_of "$cand")"
+          [[ -n "$cdir" && "$cdir" != "$ws_rel" ]] || continue
+          if [[ -z "$ws_rel" ]]; then
+            under="$cdir"
+          else
+            [[ "$cdir" == "$ws_rel"/* ]] || continue
+            under="${cdir#"$ws_rel"/}"
+          fi
+          [[ "$under" =~ $re ]] || continue
+          [[ "${roots_of[$cand]-}" == *"$us$ws_dir$us"* ]] || roots_of[$cand]+="$us$ws_dir$us"
+          mkey="$ws_dir$us${pkg_name[$cand]}"
+          [[ -n "${pkg_name[$cand]}" && -z "${member_at[$mkey]+x}" ]] && member_at[$mkey]="$cand"
+        done
+      done <<<"${ws_decls[$ws_dir]}"
+    done < <(printf '%s\n' "${!ws_decls[@]}" | LC_ALL=C sort)
+  fi
+
+  # The member package.json that package $1 reaches by name $2, if any.
+  member_named() {
+    local d
+    local -a roots
+    IFS="$us" read -r -a roots <<<"${roots_of[$1]-}"
+    for d in "${roots[@]+"${roots[@]}"}"; do
+      [[ -n "$d" && -n "${member_at[$d$us$2]+x}" && "${member_at[$d$us$2]}" != "$1" ]] || continue
+      printf '%s\n' "${member_at[$d$us$2]}"
+      return 0
+    done
+    return 1
+  }
+
+  # An edge from package $1 to the package folder that path $3 names. $2 is the
+  # spec as declared, kept as the target of an unresolved edge.
+  add_path_edge() {
+    local from="$1" spec="$2" path="$3" evidence="$4" normalized target
+    if normalized="$(normalize_within_root "$(proj_dir_of "$from")" "$path")"; then
+      target="${normalized:+$normalized/}package.json"
+      if [[ -n "${pkg_recs[$target]+x}" && "$target" != "$from" ]]; then
+        add_edge "$from" "$target" "project" "resolved" "$evidence"
+        return 0
+      fi
+    fi
+    add_edge "$from" "$spec" "project" "unresolved" "$evidence"
+  }
+
+  local spec want target
+  for rel in "${node_files[@]}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == dep$'\t'* ]] || continue
+      rec="${rec#*$'\t'}" # drop the kind, then the section
+      rec="${rec#*$'\t'}"
+      name="${rec%%$'\t'*}"
+      rec="${rec#*$'\t'}"
+      spec="${rec%%$'\t'*}"
+      decl="${rec#*$'\t'}"
+      case "$spec" in
+      catalog:*)
+        add_unread_manifest "$rel" "$decl"
+        ;;
+      file:* | link:*)
+        add_path_edge "$rel" "$spec" "${spec#*:}" "$rel: $decl"
+        ;;
+      workspace:.* | workspace:/*)
+        add_path_edge "$rel" "$spec" "${spec#workspace:}" "$rel: $decl"
+        ;;
+      workspace:*)
+        # workspace:*, workspace:^1.0.0, or the alias form workspace:pkg@range.
+        want="$name"
+        [[ "${spec#workspace:}" == ?*@* ]] && want="${spec#workspace:}" && want="${want%@*}"
+        if target="$(member_named "$rel" "$want")"; then
+          add_edge "$rel" "$target" "project" "resolved" "$rel: $decl"
+        else
+          add_edge "$rel" "$want" "project" "unresolved" "$rel: $decl"
+        fi
+        ;;
+      *)
+        if target="$(member_named "$rel" "$name")"; then
+          add_edge "$rel" "$target" "project" "resolved" "$rel: $decl"
+        else
+          add_node "pkg:node:$name" "$name" "" "package"
+          add_edge "$rel" "pkg:node:$name" "package" "resolved" "$rel: $decl"
+        fi
+        ;;
+      esac
+    done <<<"${pkg_recs[$rel]}"
   done
 }
 

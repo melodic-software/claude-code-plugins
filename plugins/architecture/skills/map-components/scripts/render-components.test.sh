@@ -427,7 +427,7 @@ assert_contains "phantom: X is a single module" "$phantom_summary" 'thin=yes'
 
 # No .NET project: the writer's message is the reason and nothing is drawn.
 mkdir -p "$TEST_TMPDIR/node-only"
-printf '{ "name": "web" }\n' >"$TEST_TMPDIR/node-only/package.json"
+printf 'source "https://rubygems.org"\n' >"$TEST_TMPDIR/node-only/Gemfile"
 collect "$TEST_TMPDIR/node-only" "$TEST_TMPDIR/node-only.json"
 render node-only --graph "$TEST_TMPDIR/node-only.json"
 assert_equals "unknown: exits 0" "$?" "0"
@@ -435,7 +435,7 @@ unk="$(cat "$TEST_TMPDIR/node-only/components.md")"
 # The artifact quotes the word unknown in markdown backticks.
 # shellcheck disable=SC2016
 assert_contains "unknown: says unknown" "$unk" 'ecosystem `unknown`'
-assert_contains "unknown: the writer's message names the manifest" "$unk" 'package.json'
+assert_contains "unknown: the writer's message names the manifest" "$unk" 'Gemfile'
 assert_not_contains "unknown: no diagram" "$unk" '@startuml'
 assert_contains "unknown: summary is thin" "$(cat "$TEST_TMPDIR/node-only.out")" 'thin=yes'
 
