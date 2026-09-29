@@ -3,6 +3,19 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-29
+
+### Added
+
+- `capture.py --record` muxes the scene's `audio` WAV under the WebM with ffmpeg on the seek clock, so
+  the campfire recording has an audio track matching the video length. Without ffmpeg the recording
+  stays video-only and the manifest says so (#5282).
+
+### Changed
+
+- `scene-canvas.md` and the `scene` skill document the `audio` hook and the ffmpeg mux in place of the
+  video-only statement.
+
 ## [0.3.7] - 2026-09-29
 
 ### Changed
