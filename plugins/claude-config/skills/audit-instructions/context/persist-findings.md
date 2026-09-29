@@ -86,8 +86,11 @@ They stay in the human report and are counted in `## Surfaces` as
 **A lane row is a Phase C-surviving finding, written as `<path>:<line>:<check-id>`** with the line
 of the flagged sentence's first physical line (for I33, the opener). A row on the wrong intake is
 declined naming the intake it belongs to (`reason=scanner-fed-rule` or `reason=lane-fed-rule`).
-I31 and I33 are spoke rules, so a row outside a `context/` or `reference/` spoke is declined as
-`reason=outside-rule-surfaces`. **I32 is the one lane rule whose catalog surfaces reach
+I31 and I33 are admitted for any file inside a skill directory (`skills/<name>/`, including
+`SKILL.md` for I31 but not for I33) and for any file in a `context/`, `reference/`, or `references/`
+directory, where a file a memory surface points at lives; a row elsewhere is declined as
+`reason=outside-rule-surfaces`. I32 is `CRITICAL` on a path under `plugins/` (the marketplace arm)
+and `IMPORTANT` anywhere else (the user and project arm). **I32 is the one lane rule whose catalog surfaces reach
 frontmatter**: a description or `when_to_use` routing clause naming an absent skill is a real
 finding, but the relay is body-scoped, so the writer declines the row as `reason=frontmatter` and
 counts it, and the human report carries it.

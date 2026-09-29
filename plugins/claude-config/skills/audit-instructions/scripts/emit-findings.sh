@@ -20,6 +20,10 @@
 #                `file:line:check-id` shape. Confidence is omitted: a judgment
 #                selected the row, and the contract has no grade below `high`
 #                for a producer that performs no reviewer verification.
+#                I31 and I33 are admitted for a file inside a skill directory
+#                (skills/<name>/...) or in a context/, reference/, or references/
+#                directory; I33 excludes SKILL.md. I32 is CRITICAL on a path
+#                under plugins/ and IMPORTANT anywhere else.
 # A row on the wrong path is declined with the path it belongs to. Every other
 # check id (I6, I8-a/b/c/f, I10, I23, I25, I27, ...) has no crosswalk row, and
 # the detector-findings contract admits no row whose tier cannot be looked up
@@ -76,7 +80,8 @@ At least one of --from and --from-lane is required. --from is
 instruction-scan.sh output (`file:line:check-id` rows); run it with
 --body-only. --from-lane is the lane findings for I30, I31, I32, and I33 that
 survived Phase C, one `file:line:check-id` row each, the line being the
-flagged sentence's first line. --out is the CONVENTION-RESOLVED destination; if it exists, a
+flagged sentence's first line. I31 and I33 rows must sit in a skill directory or
+a context/, reference/, or references/ directory (I33 not in SKILL.md). --out is the CONVENTION-RESOLVED destination; if it exists, a
 -2/-3 suffix is appended (non-overwrite naming). --branch defaults to the
 current git branch. --declined-carveout records how many I28/I29 candidates the
 model lane dropped for a criteria carve-out before this script ran, so that
@@ -300,9 +305,11 @@ LC_ALL=C awk \
   }
   function lane_rule(id) { return (id == "I30" || id == "I31" || id == "I32" || id == "I33") }
   # Tier mirror of the severity crosswalk (see header comment). I32 is
-  # CRITICAL, I33 is SUGGESTION, and every other emitted rule is IMPORTANT.
-  function rule_tier(id) {
-    if (id == "I32") return "CRITICAL"
+  # CRITICAL on the marketplace arm (a path under plugins/, catalog severity
+  # error) and IMPORTANT on the user and project arm (catalog severity warning).
+  # I33 is SUGGESTION, and every other emitted rule is IMPORTANT.
+  function rule_tier(id, loc) {
+    if (id == "I32") return (loc ~ /^plugins\//) ? "CRITICAL" : "IMPORTANT"
     if (id == "I33") return "SUGGESTION"
     return "IMPORTANT"
   }
@@ -318,14 +325,20 @@ LC_ALL=C awk \
     }
     return "CHANGELOG.md"
   }
-  # The skill hub a spoke belongs to: the SKILL.md one directory above the
-  # spoke directory. The I33 remediation can land there, so its Action names it.
-  function hub_of(loc,   h) {
+  # The skill hub a spoke belongs to: the SKILL.md of the nearest ancestor
+  # directory that holds one. The I33 remediation can land there, so its Action
+  # names it. A file no skill owns (one a memory surface points at) has no hub.
+  function hub_of(file, loc,   base, h, probe, probe_line) {
+    base = (length(file) >= length(loc) && substr(file, length(file) - length(loc) + 1) == loc) \
+      ? substr(file, 1, length(file) - length(loc)) : (repo_root_pwd != "" ? repo_root_pwd : repo_root) "/"
     h = loc
-    sub(/\/[^\/]+\/[^\/]+$/, "", h)
-    return h "/SKILL.md"
+    while (sub(/\/?[^\/]+$/, "", h) && h != "") {
+      probe = base h "/SKILL.md"
+      if ((getline probe_line < probe) >= 0) { close(probe); return h "/SKILL.md" }
+    }
+    return ""
   }
-  function rule_action(id, loc) {
+  function rule_action(id, loc, file,   hub) {
     if (id == "I28-a")
       return "Downgrade the emphasis, never the directive: restate as normal conditional phrasing (\"Use this tool when ...\"). The directive must survive the edit verbatim, apart from capitalization forced by dropping a leading wrapper; only its volume changes."
     if (id == "I28-b")
@@ -336,17 +349,22 @@ LC_ALL=C awk \
       return "Restate the sentence as the current rule and its reason in the present tense; the rule itself survives, and only its framing against a prior version changes. Remediation target for any history worth keeping: " changelog_of(loc) " or an ADR, never this spoke."
     if (id == "I32")
       return "Name the skill that exists, or describe the capability by class per the seam-phrasing convention. Keep the routing sentence; the route is repointed, never left to nowhere."
-    if (id == "I33")
-      return "Delete the opener that describes the role or loading of this spoke; the content below it stays. Remediation target when the index row of the hub does not already carry the loading condition: " hub_of(loc) ", where that condition is added."
+    if (id == "I33") {
+      hub = hub_of(file, loc)
+      return "Delete the opener that describes the role or loading of this spoke; the content below it stays. Remediation target when the index row of the hub does not already carry the loading condition: " (hub == "" ? "the surface that points at this file" : hub) ", where that condition is added."
+    }
     return "Cut the body restatement. Do not edit the description, when_to_use, or any quoted trigger phrase — the always-in-context field stays; only the body copy that restates it is removed."
   }
-  # The surfaces a lane rule is defined over. I31 and I33 are spoke-only, so a
-  # row elsewhere is outside the scope of the remedy and is declined, never
-  # emitted.
+  # The surfaces a lane rule is defined over. I31 and I33 apply to any file
+  # inside a skill directory (skills/<name>/...) and to any file in a context/,
+  # reference/, or references/ directory, which is where a file a memory surface
+  # points at lives. I33 excludes a SKILL.md, the hub whose index carries the
+  # loading condition. A row elsewhere is outside the scope of the remedy and is
+  # declined, never emitted.
   function in_rule_surfaces(id, loc) {
-    if (id == "I31") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
-    if (id == "I33") return (loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
-    return 1
+    if (id != "I31" && id != "I33") return 1
+    if (id == "I33" && loc ~ /(^|\/)SKILL\.md$/) return 0
+    return (loc ~ /(^|\/)skills\/[^\/]+\/.+/ || loc ~ /(^|\/)(context|reference|references)\/[^\/]+$/)
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
   #
@@ -674,12 +692,12 @@ LC_ALL=C awk \
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
 
     # Rank order is tier, then Confidence (high above omitted), then input order.
-    tier = rule_tier(id)
+    tier = rule_tier(id, loc)
     k = tier_rank(tier) * 2 + (is_lane ? 1 : 0)
     bucket[k, ++nb[k]] = "| " tier " | " (is_lane ? "" : "high") " | " esc(loc) ":" lno \
       " | claude-config:audit-instructions | " \
       esc(rid " " fired_marker(id, text) " finding_id=" fid[$0] " -- " excerpt) " | " \
-      esc(rule_action(id, loc)) " |"
+      esc(rule_action(id, loc, file)) " |"
     nemit++
     if (is_lane) nemit_lane++
     seen[id]++
@@ -726,7 +744,7 @@ LC_ALL=C awk \
     report_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
     report_declined(declined_scanner_fed, "scanner-fed-rule (admitted only through --from)")
     report_declined(declined_lane_fed, "lane-fed-rule (admitted only through --from-lane)")
-    report_declined(declined_scope, "outside-rule-surfaces (I31 and I33 apply to context/, reference/, and references/ spokes)")
+    report_declined(declined_scope, "outside-rule-surfaces (I31 and I33 apply to files in a skill directory and in context/, reference/, or references/ directories; I33 excludes SKILL.md)")
     report_declined(declined_identity, "identity-unresolved (finding-ids.sh refused the row)")
     report_declined(declined_frontmatter, "frontmatter (body-scope fence)")
     report_declined(declined_trigger, "quoted-trigger-phrase (body-scope fence)")
