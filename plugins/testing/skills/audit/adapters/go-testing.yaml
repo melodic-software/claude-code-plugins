@@ -26,10 +26,28 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
-  # Matched against an if statement joined onto one line: a comparison whose
-  # branch is empty or only logs (staticcheck SA9003 for the empty one).
+  # Matched against an if statement joined onto one line, up to its first
+  # brace, so an else is never read as the branch: a comparison whose branch
+  # is empty (staticcheck SA9003), or one of a result (got, want, expected,
+  # actual) whose branch only logs.
   inert:
-    - 'if[[:space:]].*(!=|==).*\{[[:space:]]*(t[[:space:]]*\.[[:space:]]*Logf?[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*)*\}$'
+    - 'if[[:space:]][^{]*(!=|==)[^{]*\{[[:space:]]*\}$'
+    - 'if[[:space:]]+(([^{]*[^A-Za-z0-9_.])?(got|want|expected|actual|result)[A-Za-z0-9_]*[^{]*(!=|==)|[^{]*(!=|==)([^{]*[^A-Za-z0-9_.])?(got|want|expected|actual|result)[A-Za-z0-9_]*)[^{]*\{[[:space:]]*(t[[:space:]]*\.[[:space:]]*Logf?[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*)+\}$'
+  # The same joined if statement: a nil check whose branch only fails.
+  weak:
+    - '^if[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*==[[:space:]]*nil[[:space:]]*\{[[:space:]]*t[[:space:]]*\.[[:space:]]*(Fatal|Fatalf|Error|Errorf|Fail|FailNow)[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*\}$'
+  count:
+    - '(^|[^A-Za-z0-9_])len[[:space:]]*\('
+  fail:
+    - '\.[[:space:]]*(Error|Errorf|Fatal|Fatalf|Fail|FailNow)[[:space:]]*\('
+snapshot:
+  - '(snaps[[:space:]]*\.[[:space:]]*Match[A-Za-z]*|cupaloy[[:space:]]*\.[[:space:]]*Snapshot[A-Za-z]*|\.[[:space:]]*SnapshotT)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+# testing/quick and rapid: the expected value is derived from generated inputs on purpose.
+property_markers:
+  - 'testing/quick'
+  - 'pgregory\.net/rapid'
 equality:
   call2: [reflect.DeepEqual, cmp.Equal, cmp.Diff, bytes.Equal, slices.Equal, maps.Equal, errors.Is, strings.EqualFold]
+# Go constants are CamelCase, so an uppercase name says nothing about constness.
+rules_off: [constant-restatement]
 suppress_marker: 'cant-fail-ok:'

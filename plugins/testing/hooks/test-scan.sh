@@ -53,7 +53,8 @@ lines="${HOOK_JQ_FIELDS[6]}"
 
 DATA="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/testing-plugin-data}"
 mkdir -p "$DATA/marks" 2>/dev/null
-find "$DATA/marks" -mindepth 1 -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
+# No -type: markers are files now, and directories the earlier mkdir scheme left.
+find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
 
 # mark <path>: create a marker file exclusively (noclobber opens with O_EXCL),
 # so exactly one of several racing runs succeeds. mkdir is not atomic under
@@ -103,12 +104,16 @@ findings="$(grep '^finding \[' "$out_file")"
 ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
-  # The two change-detector rules flag tests that can fail, on harmless changes.
+  # The change-detector rules flag tests that fail on harmless changes, and a
+  # snapshot or weak oracle can fail too; only the rest cannot fail.
   lead="has tests that cannot fail:"
-  grep -qv -e rule-constant-restatement -e rule-source-text-read <<<"$findings" ||
-    lead="has tests that fail on harmless changes (change detectors):"
+  if ! grep -qv -e rule-constant-restatement -e rule-source-text-read -e rule-snapshot-only -e rule-weak-oracle <<<"$findings"; then
+    lead="has tests that check little (weak or snapshot-only oracles):"
+    grep -qv -e rule-constant-restatement -e rule-source-text-read <<<"$findings" ||
+      lead="has tests that fail on harmless changes (change detectors):"
+  fi
   hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON
-  if [[ "$findings" == *rule-recomputed-expectation* || "$findings" == *rule-constant-restatement* ]]; then
+  if [[ "$findings" == *rule-recomputed-expectation* || "$findings" == *rule-constant-restatement* || "$findings" == *rule-recomputed-derived* ]]; then
     ctx+=$'\n'"Before you continue, state where the expected value in each flagged assertion comes from (a spec, a bug report, a hand-computed literal). If it comes from running the code under test, replace it with a value worked out independently."
   fi
 fi

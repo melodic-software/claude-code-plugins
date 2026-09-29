@@ -26,6 +26,16 @@ assertion:
   # Mock, which is truthy and asserts nothing.
   inert:
     - '[A-Za-z_][A-Za-z0-9_.]*\.[[:space:]]*called(_once)?_with[[:space:]]*\('
+  # Not None, and a raises that accepts any exception (no match=).
+  weak:
+    - 'assert[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*(\([^()]*\))?[[:space:]]+is[[:space:]]+not[[:space:]]+None[[:space:]]*$'
+    - 'pytest[[:space:]]*\.[[:space:]]*raises[[:space:]]*\([[:space:]]*(Exception|BaseException)[[:space:]]*\)'
+    - '(self[[:space:]]*\.[[:space:]]*)?assertIsNotNone[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - '(self[[:space:]]*\.[[:space:]]*)?assertRaises[[:space:]]*\([[:space:]]*(Exception|BaseException)[[:space:]]*(,[^()]*(\([^()]*\)[^()]*)*)?\)'
+  count:
+    - '(^|[^A-Za-z0-9_])len[[:space:]]*\('
+  fail:
+    - '(self|pytest)[[:space:]]*\.[[:space:]]*fail[[:space:]]*\('
 mock:
   create:
     - 'MagicMock'
@@ -50,6 +60,14 @@ mock:
   strip:
     - '\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'assert[[:space:]][^\n]*([^A-Za-z0-9_](call_count|mock_calls)([^A-Za-z0-9_]|$)|\.called([^A-Za-z0-9_]|$))[^\n]*'
+# syrupy's snapshot fixture, and snapshottest's assertMatchSnapshot.
+snapshot:
+  - 'assert[[:space:]].*==[[:space:]]*snapshot([[:space:]]*\([^()]*\))?[[:space:]]*$'
+  - 'assert[[:space:]]+snapshot([[:space:]]*\([^()]*\))?[[:space:]]*==.*$'
+  - '(self[[:space:]]*\.[[:space:]]*)?assertMatchSnapshot[[:space:]]*\('
+# Hypothesis: the expected value is derived from generated inputs on purpose.
+property_markers:
+  - '@[[:space:]]*(hypothesis[[:space:]]*\.[[:space:]]*)?given[[:space:]]*\('
 equality:
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
 suppress_marker: 'cant-fail-ok:'

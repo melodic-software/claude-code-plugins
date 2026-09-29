@@ -1,5 +1,5 @@
 // adapter: js-jest
-// pending: rule-recomputed-derived
+// expect: rule-recomputed-derived
 // Planted #2: the expected value is recomputed with reduce over the same input.
 import { calculateTotal } from '../src/limits';
 

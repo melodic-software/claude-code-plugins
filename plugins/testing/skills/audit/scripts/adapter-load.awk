@@ -14,8 +14,9 @@
 #   - plain or single-quoted scalars ('' is a literal quote), # comments
 # Every list field is a list of EREs except files (basename globs),
 # equality.call2 (helper names matched as substrings), equality.receiver
-# (<wrapper>.<matcher>, as in expect.toBe) and equality.pipeline (literal
-# matchers after a pipe, as in `Should -Be`; a space matches any run of blanks).
+# (<wrapper>.<matcher>, as in expect.toBe), equality.pipeline (literal
+# matchers after a pipe, as in `Should -Be`; a space matches any run of blanks)
+# and rules_off (rule slugs).
 #
 # language picks the lexer: js, cs, python, bash, pwsh or go. block_model is
 # indent for python, brace or file for bash (file: the whole file is one test,
@@ -29,6 +30,14 @@
 # it is awaited or returned; assertion.inert the start of a statement that
 # looks like an assertion and never asserts. Both match masked code with its
 # leading blanks removed (for go, an if statement joined onto one line).
+# assertion.weak and snapshot match a whole assertion call (strings stand as
+# `_`), bounded the way mock.strip is: a line whose only assertions they cover
+# is a weak or a snapshot oracle (go: weak matches the joined if statement).
+# assertion.count matches a length or count check anywhere in a test body, and
+# assertion.fail a call that fails the test outright, which is the assertion
+# of the if or catch around it. property_markers match any raw line of a file
+# whose tests derive expected values on purpose (property-based tests), and
+# rules_off lists rule slugs (constant-restatement) the adapter never reports.
 # No double quotes, flow maps, anchors, aliases, tags, block scalars or
 # document markers. A trailing \r is stripped, so CRLF files load.
 #
@@ -39,11 +48,11 @@
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
   split("detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
+  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
   split("additional_test_blocks", t, " ")
@@ -117,6 +126,9 @@ function add(key, v) {
   if (index(v, "\t") > 0) die("tab in value of " key)
   if (key in RESERVED) die(key " is reserved and not implemented yet")
   if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
+  # The config rules read a Playwright config, which no test adapter claims.
+  if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle)$/)
+    die("rules_off entries are test-body rule slugs such as recomputed-derived, got: " v)
   if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
     die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
   if (key in IS_RE) portable_ere(v)

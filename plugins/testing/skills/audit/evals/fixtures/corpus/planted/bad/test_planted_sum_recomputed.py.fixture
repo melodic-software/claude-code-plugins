@@ -1,5 +1,5 @@
 # adapter: py-pytest
-# pending: rule-recomputed-derived
+# expect: rule-recomputed-derived
 # Planted #8: sum() over the same input the call under test receives.
 from app import total
 

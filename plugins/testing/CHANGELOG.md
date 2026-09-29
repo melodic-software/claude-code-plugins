@@ -30,14 +30,29 @@ All notable changes to the `testing` plugin are documented here. Format follows
   awaits, an `expect` with no matcher, a bare `.Should()`, a Python tuple assert or a Mock
   `called_once_with`, a bats `run` nothing checks or a `!` that is not the last line, and the like
   in every adapter. `rule-constant-restatement` finds a constant, or a literal the test bound
-  itself, compared to a literal with no code under test called. `rule-source-text-read` finds a
-  test reading a git-tracked, non-test source file by a static path; a read through a glob or a
-  walk is never flagged. Adapters gain `assertion.async` and `assertion.inert` fields. The
-  inert-assertion remedy names the repair for the file's language.
+  itself, compared to a literal with no call before the assertion; it does not run in C#, Go or
+  Pester, whose constants are not uppercase. `rule-source-text-read` finds a test reading a
+  git-tracked, non-test source file by a static path and searching its text; a read through a
+  glob or a walk, of a `__testfixtures__` path, or that the test parses or executes is never
+  flagged. Adapters gain `assertion.async` and `assertion.inert` fields. The inert-assertion
+  remedy names the repair for the file's language.
+- **audit:** four more report-only rules. `rule-conditional-assertion` finds a test whose every
+  assertion sits inside an `if`, a `catch` or a loop over a result it computed, with no `else` and
+  no length check. `rule-recomputed-derived` finds an expected value rebuilt from the call's own
+  arguments with an operator or an aggregate (`items.reduce(...)`, `sum(xs)`, `a + b`); a file
+  holding a property-test marker and the Playwright adapter are exempt. `rule-snapshot-only`
+  finds a test whose only oracle is a snapshot ("snapshot is the only oracle: review it as code"),
+  never an image comparison such as `toHaveScreenshot`. `rule-weak-oracle` finds a test whose only
+  oracle is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad
+  exception check (`toThrow()`, `pytest.raises(Exception)`). Adapters gain `assertion.weak`,
+  `assertion.count`, `assertion.fail`, `property_markers` and `rules_off`, and fill the existing
+  `snapshot` field. The audit skill lists every rule with its tier and gating.
 - **audit:** `GRID.md` maps each of Matt Pocock's low-value test examples to a rule or to the
   Release 2 judge, and the corpus holds the twelve planted taxonomy tests, one per file.
-- **hooks:** `test-scan` asks where the expected value comes from for a constant restatement too,
-  and leads with "change detectors" when those are the only findings.
+- **hooks:** `test-scan` asks where the expected value comes from for a constant restatement or a
+  derived expectation too, and leads with "change detectors" or "weak or snapshot-only oracles"
+  when only findings of tests that can fail are present. The 7-day marker prune removes the
+  directories the earlier `mkdir` markers left, as well as marker files.
 
 ### Changed
 

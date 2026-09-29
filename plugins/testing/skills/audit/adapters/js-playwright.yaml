@@ -36,3 +36,10 @@ assertion:
     - 'expect[[:space:]]*(\.[[:space:]]*soft[[:space:]]*)?\(.*\)[[:space:]]*(\.[[:space:]]*not[[:space:]]*)?\.[[:space:]]*(toBeAttached|toBeChecked|toBeDisabled|toBeEditable|toBeEmpty|toBeEnabled|toBeFocused|toBeHidden|toBeInViewport|toBeVisible|toBeOK|toContainClass|toContainText|toHaveAccessibleDescription|toHaveAccessibleErrorMessage|toHaveAccessibleName|toHaveAttribute|toHaveClass|toHaveCount|toHaveCSS|toHaveId|toHaveJSProperty|toHaveRole|toHaveScreenshot|toHaveText|toHaveTitle|toHaveURL|toHaveValue|toHaveValues|toMatchAriaSnapshot|toPass)[[:space:]]*\('
     - 'expect[[:space:]]*\(.*\)[[:space:]]*\.[[:space:]]*(resolves|rejects)[[:space:]]*\.'
     - 'expect[[:space:]]*\.[[:space:]]*poll[[:space:]]*\('
+# toMatchAriaSnapshot compares an accessibility tree. toHaveScreenshot, and a
+# toMatchSnapshot over a screenshot, compare images, the primary e2e oracle,
+# and are never a snapshot finding.
+snapshot:
+  - 'expect[[:space:]]*(\.[[:space:]]*soft[[:space:]]*)?\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*toMatchAriaSnapshot[[:space:]]*\('
+# Expected values come from seed data the test wrote, checked in another process.
+rules_off: [recomputed-derived]

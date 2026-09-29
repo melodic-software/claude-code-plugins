@@ -29,7 +29,9 @@
 #   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
 #
 # Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
-# inert-assertion | constant-restatement (source-text-read comes from S).
+# inert-assertion | constant-restatement | conditional-assertion |
+# recomputed-derived | snapshot-only | weak-oracle (source-text-read comes
+# from S).
 # The driver owns the qualified rule-id form and the thresholds' prose.
 #
 # Design bias, load-bearing: every heuristic errs toward NOT firing. Assertion
@@ -102,6 +104,18 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   # Statement-initial forms: anchored here, so an adapter lists bare starts.
   R_ASYNC = V["assertion.async"] == "" ? "" : "^(" V["assertion.async"] ")"
   R_INERT = V["assertion.inert"] == "" ? "" : "^(" V["assertion.inert"] ")"
+  R_WEAK = V["assertion.weak"]
+  R_SNAP = V["snapshot"]
+  R_COUNT = V["assertion.count"]
+  R_FAILC = V["assertion.fail"]
+  RULES_OFF = "|" V["rules_off"] "|"
+  # A property marker anywhere in the file exempts every test in it, so the
+  # file is read once up front: a marker below the first test comes too late.
+  PROP_FILE = 0
+  if (V["property_markers"] != "" && ARGV[1] != "") {
+    while ((getline line < ARGV[1]) > 0) if (line ~ V["property_markers"]) { PROP_FILE = 1; break }
+    close(ARGV[1])
+  }
 
   # Two-argument equality helpers, matched by substring in list order.
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
@@ -464,6 +478,7 @@ function in_scope(lo, hi,    i) {
 }
 
 function emit(kind, slug, line, detail,    rec) {
+  if (index(RULES_OFF, "|" slug "|")) return
   rec = sprintf("%s\t%s\t%d\t%s\n", kind, slug, line, clean_detail(detail))
   if (SCOPE == "") printf "%s", rec
   else if (closing) { if (in_scope(block_line, block_hi)) printf "%s", rec }
@@ -500,7 +515,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
         emit(tkind, "recomputed-expectation", FNR, RW_NAME[i] "(" expr ") compared to itself")
         return
       }
-      if (const_check(a, b, tkind)) return
+      if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
     }
   }
   # two-argument equality helpers
@@ -531,7 +546,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       emit(tkind, "recomputed-expectation", FNR, fn "(" expr ", " expr ")")
       return
     }
-    if (const_check(a, b, tkind)) return
+    if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
   }
   # pipeline form, e.g. A | Should -Be A: A runs from the statement start to
   # the last pipe before the matcher; the other side is the matcher's first word.
@@ -551,7 +566,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       emit(tkind, "recomputed-expectation", FNR, expr " | " PIPE[i] " " expr)
       return
     }
-    if (const_check(a, b, tkind)) return
+    if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
   }
   # python assert EXPR == EXPR: the statement is language syntax, not adapter data
   if (LEXER == "python" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
@@ -562,7 +577,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       expr = norm(EQL)
       if (expr != "" && expr == norm(EQR)) {
         emit(tkind, "recomputed-expectation", FNR, "assert " expr " == " expr)
-      } else const_check(EQL, EQR, tkind)
+      } else if (!const_check(EQL, EQR, tkind)) derived_check(EQL, EQR, tkind)
     }
   }
 }
@@ -601,7 +616,10 @@ function const_check(a, b, tkind,    x, y) {
   x = trim(a); y = trim(b)
   if (is_lit(x) && !is_lit(y)) { x = y; y = trim(a) }
   if (!is_lit(y) || x == "") return 0
+  # No act step before the assertion: a call, or in shell any command after the
+  # last source line, may be what gave the uppercase name its value.
   if (is_const(x)) {
+    if (SHELL_LEX ? SH_ACT : !g8_no_calls()) return 0
     emit(tkind, "constant-restatement", FNR, "constant " x " compared to the literal " y)
     return 1
   }
@@ -622,7 +640,8 @@ function g8_bind(m, r,    re) {
 }
 
 # 1 when every call in the block body, the test-start line aside, is an
-# assertion: expect, assert*, a to* matcher, or node:assert's bare helpers.
+# assertion: expect, assert*, a to* matcher, or node:assert's bare helpers,
+# or an import. Run mid-block, it covers the lines read so far, this one included.
 function g8_no_calls(    rest, n, lines, i, s, name) {
   n = split(block_masked, lines, "\n")
   for (i = 2; i <= n; i++) {
@@ -633,7 +652,7 @@ function g8_no_calls(    rest, n, lines, i, s, name) {
       gsub(/[[:space:](]/, "", name)
       if (name ~ /^(if|for|while|switch|catch|function|return|typeof|await|and|or|not|in|assert|elif)$/) continue
       sub(/^.*\./, "", name)
-      if (name !~ /^(expect|assert[A-Za-z_]*|to[A-Z][A-Za-z]*|strictEqual|deepStrictEqual|deepEqual|equal|notEqual|ok)$/) return 0
+      if (name !~ /^(expect|assert[A-Za-z_]*|to[A-Z][A-Za-z]*|strictEqual|deepStrictEqual|deepEqual|equal|notEqual|ok|require|import)$/) return 0
     }
   }
   return 1
@@ -675,6 +694,38 @@ function sh_assign(m,    s, name) {
     gsub(/[^A-Za-z0-9_]/, "", name)
     SH_SET[name] = 1
   }
+}
+
+# SH_ACT: a command ran in the test since its last source line, so a name it
+# reads may hold that command's output. Settings, declarations without a
+# substitution, [ ] tests, assertions, block keywords and the bodies of
+# functions the test defines run nothing under test.
+function sh_act_scan(m,    s, n, seg, i) {
+  s = m
+  sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  if (SH_FN) { SH_FN += brace_delta(m); return }
+  if (s == "" || FNR == block_line) return
+  if (s ~ /^(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_:]*[[:space:]]*\([[:space:]]*\)[[:space:]]*\{?/ || s ~ /^function[[:space:]]/) {
+    SH_FN = brace_delta(m)
+    return
+  }
+  # One command at a time: source lib.sh; parse_args ...; assert_equal ...
+  gsub(/&&|\|\|/, ";", s)
+  n = split(s, seg, ";")
+  for (i = 1; i <= n; i++) sh_act_cmd(seg[i])
+}
+
+function sh_act_cmd(s,    w, w2) {
+  sub(/^[[:space:]]+/, "", s)
+  if (s == "") return
+  match(s, /^[^[:space:];&|]+/); w = substr(s, 1, RLENGTH)
+  w2 = substr(s, RLENGTH + 1); sub(/^[[:space:]]+/, "", w2); sub(/[[:space:]].*/, "", w2)
+  if (w ~ /^(source|\.|load)$/) { SH_ACT = 0; return }
+  if (w ~ /^(if|elif|while|until|!)$/) w = w2
+  if (w ~ /^(set|shopt|\[|\[\[|test|then|else|fi|do|done|esac|\{|\}|\(|\)|true|:)$/ || has(w, R_ANY)) return
+  if (w ~ /^(local|export|readonly|declare|typeset)$/ || w ~ /^[A-Za-z_][A-Za-z0-9_]*\+?=/)
+    if (s !~ /\$\(|`/) return
+  SH_ACT = 1
 }
 
 # Whole-file bash facts the shell forms depend on: set -e (a failing [ ] then
@@ -781,7 +832,8 @@ function sh_inert(s, r) {
 function inert_close(    n, recs, i, f) {
   if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
   if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
-  RUN_PEND = BANG_PEND = 0
+  if (PS_PEND) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
+  RUN_PEND = BANG_PEND = PS_PEND = 0
   if (!SET_E && !SOURCED && BRK_OUT != "") {
     n = split(BRK_OUT, recs, "\n")
     for (i = 1; i < n; i++) {
@@ -797,13 +849,19 @@ function inert_close(    n, recs, i, f) {
 function go_inert(s, m) {
   if (GO_IF == 0) {
     if (s !~ /^if[[:space:]]/) return
-    GO_IF = FNR; GO_KIND = line_kind(); GO_BUF = s; GO_D = brace_delta(m); GO_N = 0
+    GO_IF = FNR; GO_KIND = line_kind(); GO_BUF = s; GO_D = brace_delta(m); GO_N = 0; GO_S0 = OR_S0
   } else {
     GO_BUF = GO_BUF " " s; GO_D += brace_delta(m)
   }
   if (GO_D > 0 && ++GO_N <= 30) return
   if (GO_D <= 0 && has(GO_BUF, R_INERT) && GO_BUF !~ /(^|[^A-Za-z0-9_])nil([^A-Za-z0-9_]|$)/)
     emit(GO_KIND, "inert-assertion", GO_IF, "an if branch that only logs never fails the test: " snippet(GO_BUF))
+  # A nil check whose branch only fails is a weak oracle: its failing calls
+  # were counted strong line by line, and are taken back here.
+  if (GO_D <= 0 && has(GO_BUF, R_WEAK)) {
+    OR_S = GO_S0
+    if (!OR_W++) { OR_WLINE = GO_IF; OR_WSNIP = snippet(GO_BUF) }
+  }
   GO_IF = 0
 }
 
@@ -812,6 +870,11 @@ function inert_scan(m, r,    s, d) {
   sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
   if (LEXER == "bash") { sh_inert(s, r); return }
   if (LEXER == "go") { if (GO_IF || stmt_start()) go_inert(s, m); return }
+  # A PowerShell 7 line opening with a pipe continues the one before it.
+  if (PS_PEND && s != "") {
+    if (s !~ /^\|/) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
+    PS_PEND = 0
+  }
   if (s == "" || !stmt_start()) return
   # A Pester script block nested in the test (a ParameterFilter, a
   # Where-Object) returns its bare comparison; only the It body discards it.
@@ -820,7 +883,9 @@ function inert_scan(m, r,    s, d) {
   if (has(s, R_ASYNC)) d = "an async assertion nothing awaits never runs before the test ends"
   else if (has(s, R_INERT)) d = "the statement looks like an assertion and asserts nothing"
   else if (LEXER == "python" && s ~ /^assert[[:space:](]/) d = py_assert_inert(r)
-  if (d != "") emit(line_kind(), "inert-assertion", FNR, d ": " snippet(r))
+  if (d == "") return
+  if (LEXER == "pwsh") { PS_PEND = FNR; PS_KIND = line_kind(); PS_DET = d ": " snippet(r) }
+  else emit(line_kind(), "inert-assertion", FNR, d ": " snippet(r))
 }
 
 # ---------------------------------------------------------------------------
@@ -877,13 +942,36 @@ function join_lits(args,    out, part, more) {
   return out
 }
 
+# A read counts only when the test then searches the text (indexOf, toContain,
+# `in`, Contains, -match, grep) and nothing parses or executes it: a test that
+# compares a generated file whole, walks a syntax tree or runs the script is
+# exercising it. Candidates wait in SRC_PEND until the block closes.
+function src_flush(    blk, s, n, recs, i, f) {
+  blk = block_masked
+  if (index(RULES_OFF, "|source-text-read|")) { SRC_PEND = ""; return }
+  if (LEXER == "js") s = "\\.[[:space:]]*(indexOf|lastIndexOf|includes|match|matchAll|search|startsWith|endsWith|test)[[:space:]]*\\(|to(Contain|Match)|stringContaining|(^|[^A-Za-z0-9_$.])(match|doesNotMatch)[[:space:]]*\\("
+  else if (LEXER == "python") s = "\\.[[:space:]]*(index|rindex|find|rfind|count|startswith|endswith)[[:space:]]*\\(|(^|[^A-Za-z0-9_])re[[:space:]]*\\.[[:space:]]*(search|match|findall|fullmatch|finditer)|assert(Not)?(In|Regex)|(^|[[:space:]])assert[[:space:]].*[[:space:]]in[[:space:]]"
+  else if (LEXER == "cs") s = "Contain|IndexOf|StartsWith|EndsWith|Regex|StringAssert|Does[[:space:]]*\\.[[:space:]]*Match"
+  else if (LEXER == "go") s = "(strings|bytes)[[:space:]]*\\.[[:space:]]*(Contains|Index|HasPrefix|HasSuffix|Count)|regexp[[:space:]]*\\."
+  else if (LEXER == "pwsh") { blk = tolower(blk); s = "-(not)?(match|like|contains)|-(belike|contain)|select-string|\\.(contains|indexof)[[:space:]]*\\(" }
+  else s = "(^|[^A-Za-z0-9_-])(grep|egrep|fgrep)([[:space:]]|$)|=~"
+  if (blk ~ s && blk !~ /ast[[:space:]]*\.[[:space:]]*parse|(^|[^A-Za-z0-9_$.])(compile|exec|eval)[[:space:]]*\(|runIn(New|This)?Context|vm[[:space:]]*\.[[:space:]]*(run|compileFunction|Script)|new[[:space:]]+Function|SyntaxTree[[:space:]]*\.[[:space:]]*ParseText|parser[[:space:]]*\.[[:space:]]*Parse|invoke-expression|scriptblock\]::create/) {
+    n = split(SRC_PEND, recs, "\n")
+    for (i = 1; i < n; i++) {
+      split(recs[i], f, "\t")
+      emit("S", f[1], f[2], f[3])
+    }
+  }
+  SRC_PEND = ""
+}
+
 function src_emit(path) {
   gsub(/\\/, "/", path)
   sub(/^\.\//, "", path)
   if (path == "" || path ~ /[*?[$]/ || path ~ /^\//) return
-  if (tolower(path) ~ /(^|\/)(tmp|temp|fixtures?|testdata|__fixtures__|__snapshots__|snapshots?)(\/|$)/) return
+  if (tolower(path) ~ /(^|\/)(tmp|temp|fixtures?|testdata|__fixtures__|__testfixtures__|__snapshots__|snapshots?)(\/|$)/) return
   if (path !~ /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$/) return
-  emit("S", line_kind(), FNR, path)
+  SRC_PEND = SRC_PEND line_kind() "\t" FNR "\t" path "\n"
 }
 
 # A shell word naming a path: a literal, or one joined onto the test's own
@@ -973,6 +1061,275 @@ function src_scan(m, r,    p, args, low, w) {
 }
 
 # ---------------------------------------------------------------------------
+# Oracle strength: every assertion line of a block is strong, weak (only an
+# assertion.weak call) or a snapshot (only a snapshot call). rule-weak-oracle
+# and rule-snapshot-only fire when a block holds nothing but that kind. The
+# adapter entries match whole calls over the line with strings standing as
+# `_`, so a matcher argument (toThrow('boom')) is never read as absent.
+# ---------------------------------------------------------------------------
+
+function fill(m, r,    i, n, out, c) {
+  if (m == r) return m
+  out = ""; n = length(m)
+  for (i = 1; i <= n; i++) {
+    c = substr(m, i, 1)
+    if (c == " " && substr(r, i, 1) != " ") c = "_"
+    out = out c
+  }
+  return out
+}
+
+# 1 when the line's only assertions are calls re covers.
+function only_calls(m, r, re,    f) {
+  if (!has(m, re)) return 0
+  f = fill(m, r)
+  if (!has(f, re)) return 0
+  gsub(re, "", f)
+  return !has(f, R_ANY) && !has(f, R_MOCKA)
+}
+
+function oracle_line(m, r) {
+  if (!has(m, R_ANY) && !has(m, R_MOCKA)) return
+  # go: the nil check is an if statement, judged whole in go_inert.
+  if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
+  if (only_calls(m, r, R_SNAP)) { if (!OR_P++) OR_PLINE = FNR; return }
+  OR_S++
+}
+
+# ---------------------------------------------------------------------------
+# rule-conditional-assertion: every assertion of the block sits inside an if,
+# a catch or a loop over a value the test computed, so some path asserts
+# nothing. A call that fails the test outright (assertion.fail) is the
+# assertion an if or catch exists to make, and counts as conditional only
+# inside such a loop. A loop over a literal table, a range or a name bound
+# outside the test is a table-driven test and asserts on every row.
+# ---------------------------------------------------------------------------
+
+# The name an assignment statement binds, left in AS_NAME with its raw
+# right-hand side in AS_RHS; 0 when s (masked, leading blanks removed) is no
+# declaration. A plain reassignment sets AS_NAME with AS_RHS "".
+function assign_of(s, rl,    re, p) {
+  AS_NAME = AS_RHS = ""
+  if (LEXER == "js") re = "^(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?="
+  else if (LEXER == "python") re = "^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(:[^=]*)?="
+  else if (LEXER == "cs") re = "^(var|[A-Za-z_][A-Za-z0-9_<>,.?]*(\\[\\])?)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*="
+  else if (LEXER == "go") re = "^(var[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[^=]*=|[A-Za-z_][A-Za-z0-9_]*([[:space:]]*,[[:space:]]*[A-Za-z_][A-Za-z0-9_]*)*[[:space:]]*:=)"
+  else if (LEXER == "pwsh") re = "^\\$[A-Za-z_][A-Za-z0-9_]*[[:space:]]*="
+  else return 0
+  if (match(s, re) && substr(s, RLENGTH + 1, 1) !~ /[=>]/) {
+    p = substr(s, 1, RLENGTH)
+    AS_RHS = trim(substr(rl, RLENGTH + 1))
+    sub(/;[[:space:]]*$/, "", AS_RHS)
+    if (LEXER == "cs") { sub(/[[:space:]]*=$/, "", p); sub(/^.*[^A-Za-z0-9_]/, "", p) }
+    else { sub(/^(const|let|var)[[:space:]]+/, "", p); sub(/^\$/, "", p); match(p, /^[A-Za-z_$][A-Za-z0-9_$]*/); p = substr(p, 1, RLENGTH) }
+  } else if (match(s, /^\$?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[-+*\/%]?=/) && substr(s, RLENGTH + 1, 1) !~ /[=>]/) {
+    p = substr(s, 1, RLENGTH); gsub(/[^A-Za-z0-9_]/, "", p)
+  } else return 0
+  AS_NAME = LEXER == "pwsh" ? tolower(p) : p
+  return 1
+}
+
+function literal_rhs(v) {
+  if (LEXER == "js") return v ~ /^([[{'"`0-9-]|(true|false|null|undefined)([^A-Za-z0-9_$]|$)|new[[:space:]]+(Array|Set|Map)[^A-Za-z0-9_$])/
+  if (LEXER == "python") return v ~ /^([[({'"0-9-]|[rbfu]['"]|(True|False|None)([^A-Za-z0-9_]|$)|range[[:space:]]*\()/
+  if (LEXER == "cs") return v ~ /^([[{"'0-9-]|@"|\$"|new[[:space:]]*\[[[:space:]]*\]|new[[:space:]]+[A-Za-z0-9_.<>,]+[[:space:]]*(\[[[:space:]]*\])?[[:space:]]*(\([[:space:]]*\))?[[:space:]]*\{|(true|false|null)([^A-Za-z0-9_]|$)|Enumerable[[:space:]]*\.[[:space:]]*Range)/
+  if (LEXER == "go") return v ~ /^(\[|map\[|&?[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*\{|["'`0-9-]|(true|false|nil)([^A-Za-z0-9_]|$))/
+  return tolower(v) ~ /^(@\(|@\{|['"0-9-]|\$(true|false|null)([^a-z0-9_]|$)|\[)/
+}
+
+# Per statement: which names the test bound to a literal and which to a
+# computed value (a loop over the latter is a loop over a result), and the
+# right-hand side of each for rule-recomputed-derived.
+function bind_scan(m, r,    s, rl) {
+  if (LEXER == "python" ? bracket_depth > 0 : !stmt_start()) return
+  s = m; sub(/^[[:space:]]+/, "", s)
+  rl = r; sub(/^[[:space:]]+/, "", rl)
+  if (!assign_of(s, rl)) return
+  DV_N[BID, AS_NAME]++
+  DV_RHS[BID, AS_NAME] = AS_RHS
+  if (AS_RHS != "") RES[BID, AS_NAME] = literal_rhs(AS_RHS) ? "l" : "r"
+}
+
+function cr_push(k, l) {
+  CR_N++; CR_L[CR_N] = l; CR_K[CR_N] = k
+  if (k == "l") CR_LOOPS++; else CR_BR++
+}
+
+function cr_pop() {
+  if (CR_K[CR_N] == "l") CR_LOOPS--; else CR_BR--
+  CR_N--
+}
+
+# One assertion-bearing text, inside the open regions plus k.
+function ca_class(t, k,    loops, br) {
+  if (!has(t, R_ANY) && !has(t, R_MOCKA)) return
+  loops = CR_LOOPS + (k == "l"); br = CR_BR + (k == "b")
+  if (has(t, R_FAILC) ? loops > 0 : loops + br > 0) { if (!CA_IN++) { CA_LINE = FNR; CA_SNIP = snippet(raw) } }
+  else CA_OUT++
+}
+
+# The loop kind when name (a root identifier) was computed in the test.
+function loop_kind(name) {
+  if (LEXER == "pwsh") name = tolower(name)
+  return RES[BID, name] == "r" ? "l" : ""
+}
+
+function cond_brace(m,    cdb, s, k, low, pos, pre, post, e) {
+  cdb = CD
+  CD += brace_delta(m)
+  s = m; sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  if (FNR == block_line || s == "") return
+  while (CR_N > 0 && CR_L[CR_N] > cdb) cr_pop()
+  if (COND_NEXT != "") {
+    k = COND_NEXT; COND_NEXT = ""
+    if (s !~ /^\{/) { ca_class(m, k); return }
+    cr_push(k, cdb + 1)
+  }
+  k = ""; pos = 0
+  low = LEXER == "pwsh" ? tolower(m) : m
+  if (LEXER == "go") {
+    if (match(m, /^[[:space:]]*for[[:space:]].*range[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
+      e = substr(m, RSTART, RLENGTH); sub(/.*[[:space:]]/, "", e)
+      if ((k = loop_kind(e)) != "") pos = RSTART
+    }
+  } else if (match(low, /^[[:space:]]*(\}[[:space:]]*)?(if|elseif|catch)([[:space:]]*[({]|[[:space:]]|$)/)) {
+    k = "b"; pos = RSTART
+  } else if (LEXER == "js" && match(m, /\.[[:space:]]*catch[[:space:]]*\(/)) {
+    k = "b"; pos = RSTART
+  } else if (LEXER == "js" && match(m, /^[[:space:]]*for[[:space:]]*\(.*[[:space:]](of|in)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$.]*[[:space:]]*\)/)) {
+    e = substr(m, RSTART, RLENGTH); sub(/[[:space:]]*\)$/, "", e); sub(/.*[[:space:]]/, "", e); sub(/\..*/, "", e)
+    if ((k = loop_kind(e)) != "") pos = RSTART
+  } else if (LEXER == "js" && match(m, /[A-Za-z_$][A-Za-z0-9_$.]*[[:space:]]*\.[[:space:]]*forEach[[:space:]]*\(/)) {
+    pos = RSTART; e = substr(m, RSTART, RLENGTH); sub(/[.[:space:]].*/, "", e)
+    if ((k = loop_kind(e)) == "") pos = 0
+  } else if (LEXER == "cs" && match(m, /^[[:space:]]*foreach[[:space:]]*\(.*[[:space:]]in[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*\)/)) {
+    e = substr(m, RSTART, RLENGTH); sub(/[[:space:]]*\)$/, "", e); sub(/.*[[:space:]]/, "", e); sub(/\..*/, "", e)
+    if ((k = loop_kind(e)) != "") pos = RSTART
+  } else if (LEXER == "pwsh" && (match(low, /^[[:space:]]*foreach[[:space:]]*\([[:space:]]*\$[a-z_][a-z0-9_]*[[:space:]]+in[[:space:]]+\$[a-z_][a-z0-9_]*/) ||
+             match(low, /\$[a-z_][a-z0-9_]*[[:space:]]*\|[[:space:]]*(foreach-object|%)[[:space:]]*\{/))) {
+    pos = RSTART; e = substr(low, RSTART, RLENGTH)
+    if (e ~ /^[[:space:]]*foreach/) sub(/.*\$/, "", e); else { sub(/^\$/, "", e); sub(/[^a-z0-9_].*/, "", e) }
+    if ((k = loop_kind(e)) == "") pos = 0
+  }
+  if (k == "" || pos == 0) { ca_class(m, ""); return }
+  pre = substr(m, 1, pos - 1); post = substr(m, pos)
+  # "} catch (e) {": the brace closing the try belongs before the region.
+  if (match(post, /^[[:space:]]*\}/)) { pre = pre substr(post, 1, RLENGTH); post = substr(post, RLENGTH + 1) }
+  ca_class(pre, "")
+  ca_class(post, k)
+  if (brace_delta(post) > 0) cr_push(k, cdb + brace_delta(pre) + 1)
+  # The body is the next statement: after a keyword's closed condition, or
+  # inside a call (forEach, catch) whose parentheses are still open.
+  else if (post ~ /^[[:space:]]*(if|for|foreach|catch)/ ? post ~ /\)[[:space:]]*$/ && delta(post, "(", ")") == 0 : delta(post, "(", ")") > 0) COND_NEXT = k
+}
+
+function cond_indent(m,    s, ind, k, e) {
+  s = m; sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  if (FNR == block_line || s == "") return
+  if (bracket_depth > 0) { ca_class(m, ""); return }
+  ind = indent_of(raw)
+  while (CR_N > 0 && CR_L[CR_N] >= ind) cr_pop()
+  k = ""
+  if (s ~ /^(if|elif)[[:space:]]/ || s ~ /^except([[:space:]]|:)/) k = "b"
+  else if (match(s, /^(async[[:space:]]+)?for[[:space:]].*[[:space:]]in[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*:/)) {
+    e = substr(s, RSTART, RLENGTH); sub(/[[:space:]]*:$/, "", e); sub(/.*[[:space:]]/, "", e); sub(/\..*/, "", e)
+    k = loop_kind(e)
+  }
+  ca_class(m, k)
+  if (k != "" && s ~ /:$/) cr_push(k, ind)
+}
+
+function cond_scan(m) {
+  if (LEXER == "python") cond_indent(m)
+  else if (LEXER != "bash") cond_brace(m)
+}
+
+# ---------------------------------------------------------------------------
+# rule-recomputed-derived: the expected side of an equality is built from the
+# arguments of the call on the other side with an operator or an aggregate
+# (items.reduce(...), sum(xs), a + b), directly or through the one in-test
+# binding of a name. Its free identifiers (lambda parameters and member names
+# dropped) must all be arguments of that call. A file holding a property-test
+# marker is never judged, and an adapter turns the rule off with rules_off.
+# ---------------------------------------------------------------------------
+
+# The free identifiers of s, space-separated: no member names, no lambda
+# parameters, no keywords or aggregate names, nothing inside a string. For
+# PowerShell, its $variables.
+function idents(s,    params, out, t, name, prev) {
+  gsub(/'[^']*'|"[^"]*"|`[^`]*`/, "\"\"", s)
+  out = ""
+  if (LEXER == "pwsh") {
+    while (match(s, /\$[A-Za-z_][A-Za-z0-9_]*/)) {
+      name = tolower(substr(s, RSTART + 1, RLENGTH - 1))
+      s = substr(s, RSTART + RLENGTH)
+      if (name !~ /^(_|true|false|null|psitem)$/) out = out " " name
+    }
+    return out
+  }
+  params = ""
+  t = s
+  while (match(t, /(\([^()]*\)|[A-Za-z_$][A-Za-z0-9_$]*)[[:space:]]*=>/)) { params = params " " substr(t, RSTART, RLENGTH); t = substr(t, RSTART + RLENGTH) }
+  t = s
+  while (match(t, /lambda[^:]*:/)) { params = params " " substr(t, RSTART + 6, RLENGTH - 7); t = substr(t, RSTART + RLENGTH) }
+  gsub(/[^A-Za-z0-9_$]+/, " ", params)
+  params = " " params " "
+  t = s
+  while (match(t, /[A-Za-z_$][A-Za-z0-9_$]*/)) {
+    name = substr(t, RSTART, RLENGTH)
+    prev = RSTART > 1 ? substr(t, RSTART - 1, 1) : ""
+    t = substr(t, RSTART + RLENGTH)
+    if (prev ~ /[.0-9]/ || index(params, " " name " ")) continue
+    if (name ~ /^(new|await|typeof|true|false|null|undefined|this|function|return|async|lambda|for|in|if|else|and|or|not|None|True|False|var|nil|reduce|sum|Sum|map|len|Math)$/) continue
+    out = out " " name
+  }
+  return out
+}
+
+# x is the call under test, y the expected side.
+function derived_side(x, y,    name, args, key, short, ids, n, id, i, ar) {
+  x = trim(x); y = trim(y)
+  sub(/^await[[:space:]]+/, "", x)
+  if (LEXER == "pwsh") {
+    x = unparen(x)
+    if (!match(x, /^[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9]+([[:space:]]|$)/)) return 0
+    name = trim(substr(x, 1, RLENGTH)); args = substr(x, RLENGTH + 1)
+  } else {
+    if (!match(x, /^[A-Za-z_$][A-Za-z0-9_$.]*[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/)) return 0
+    name = substr(x, 1, RLENGTH)
+    if (!extract_parens(x, RLENGTH)) return 0
+    args = EXTRACT
+    sub(/[[:space:]]*(<[^<>()]*>)?[[:space:]]*\($/, "", name)
+  }
+  if (y ~ (LEXER == "pwsh" ? "^\\$[A-Za-z_][A-Za-z0-9_]*$" : "^[A-Za-z_$][A-Za-z0-9_$]*$")) {
+    key = y; sub(/^\$/, "", key)
+    if (LEXER == "pwsh") key = tolower(key)
+    if (DV_N[BID, key] != 1) return 0
+    y = DV_RHS[BID, key]
+  }
+  if (y !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0
+  short = LEXER == "pwsh" ? tolower(name) : name
+  sub(/^.*\./, "", short)
+  if (index(LEXER == "pwsh" ? tolower(y) : y, short (LEXER == "pwsh" ? "" : "("))) return 0
+  ids = idents(y)
+  n = split(ids, id, " ")
+  if (n == 0) return 0
+  ar = " " idents(args) " "
+  for (i = 1; i <= n; i++) if (!index(ar, " " id[i] " ")) return 0
+  DV_DETAIL = "expected value " snippet(y) " is recomputed from the arguments of " name
+  return 1
+}
+
+function derived_check(a, b, tkind) {
+  if (!LINE_IN_TEST || PROP_FILE) return 0
+  if (derived_side(a, b) || derived_side(b, a)) {
+    emit(tkind, "recomputed-derived", FNR, DV_DETAIL)
+    return 1
+  }
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Block evaluation — CF1 and CF3
 # ---------------------------------------------------------------------------
 
@@ -981,6 +1338,7 @@ function eval_block(    blk, stripped, mocka_n, kind) {
   # A test that skips itself from inside its body does not run: not judged.
   if (has(blk, R_BODY_SKIP)) return
   blocks++
+  if (SRC_PEND != "") src_flush()
   g8_eval()
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
@@ -988,6 +1346,14 @@ function eval_block(    blk, stripped, mocka_n, kind) {
     emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
     return
   }
+  if (OR_W && !OR_S && !OR_P)
+    emit(kind, "weak-oracle", OR_WLINE, "test '" block_name "': the only oracle passes for almost any value: " OR_WSNIP)
+  if (OR_P && !OR_S && !OR_W)
+    emit(kind, "snapshot-only", OR_PLINE, "test '" block_name "': snapshot is the only oracle: review it as code")
+  # An else gives the other path its own assertions; a length check makes an
+  # empty result fail. Either way some assertion runs.
+  if (CA_IN && !CA_OUT && blk !~ /(^|[^A-Za-z0-9_$])else([^A-Za-z0-9_$]|$)/ && !has(blk, R_COUNT))
+    emit(kind, "conditional-assertion", CA_LINE, "test '" block_name "': every assertion sits inside an if, a catch or a loop over a result, so a path runs none: " CA_SNIP)
   if ((has(blk, R_MOCKC) || file_mock) && has(blk, R_MOCKA)) {
     stripped = blk
     if (R_STRIP != "") gsub(R_STRIP, "", stripped)
@@ -1007,6 +1373,11 @@ function open_block(line, name) {
   block_raw = 0; BW1 = BW2 = ""
   prev_code = G8_CAND = G8_BOUND = ""
   RUN_PEND = BANG_PEND = GO_IF = 0
+  BID++
+  OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
+  CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
+  COND_NEXT = SRC_PEND = ""
+  SH_ACT = SH_FN = PS_PEND = 0
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
@@ -1021,6 +1392,12 @@ function append_block(m, r) {
     if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = r
   }
+  # The start line names the test; in cs, python and go that name is code, and
+  # a test named check_x would read as an assertion.
+  OR_S0 = OR_S
+  if (FNR != block_line || LEXER == "js" || LEXER == "pwsh") oracle_line(m, r)
+  if (LEXER != "bash") { cond_scan(m); bind_scan(m, r) }
+  else sh_act_scan(m)
   if (FNR != block_line) inert_scan(m, r)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)

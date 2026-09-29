@@ -5,8 +5,9 @@
 # pipes hand-built PostToolUse payloads through the hook. Covers the option
 # gate (through the exec-form launcher), findings on a create, the once-per-
 # file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, the doubtful-hit prompt (recomputed expectations
-# and constant restatements), and the per-call dedup that keeps two
+# timeout, gitignored paths, the doubtful-hit prompt (recomputed and derived
+# expectations, constant restatements), the lead for findings of tests that
+# can fail, the marker prune, and the per-call dedup that keeps two
 # overlapping `if` rows from reporting twice.
 
 set -uo pipefail
@@ -82,6 +83,24 @@ import { MAX_ITEMS } from './sum';
 
 test('caps the cart', () => {
   expect(MAX_ITEMS).toBe(50);
+});
+EOF
+
+cat >"$REPO/src/derived.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { add } from './sum';
+
+test('adds', () => {
+  expect(add(a, b)).toBe(a + b);
+});
+EOF
+
+cat >"$REPO/src/weak.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { sum } from './sum';
+
+test('adds', () => {
+  expect(sum(1, 2)).toBeDefined();
 });
 EOF
 
@@ -172,6 +191,31 @@ if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]] && [[ -z "$(find "$CLAUDE_PL
 else
   fail "markers are plain files"
 fi
+
+# The 7-day prune removes old markers of both shapes: files, and the
+# directories the earlier mkdir scheme left behind.
+mkdir -p "$CLAUDE_PLUGIN_DATA/marks/call-old-dir"
+touch "$CLAUDE_PLUGIN_DATA/marks/call-old-file"
+touch -d '10 days ago' "$CLAUDE_PLUGIN_DATA/marks/call-old-dir" "$CLAUDE_PLUGIN_DATA/marks/call-old-file"
+run Write "$REPO/src/sum.test.ts"
+if [[ ! -e "$CLAUDE_PLUGIN_DATA/marks/call-old-dir" && ! -e "$CLAUDE_PLUGIN_DATA/marks/call-old-file" ]]; then
+  ok "prune: old marker files and directories are removed"
+else
+  fail "prune: old marker files and directories are removed"
+fi
+if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]]; then ok "prune: a fresh marker stays"; else fail "prune: a fresh marker stays"; fi
+
+# (i) a recomputed-derived expectation carries the doubtful-hit prompt.
+run Write "$REPO/src/derived.test.ts"
+assert_contains "(i) names rule-recomputed-derived" "$out" "rule-recomputed-derived"
+assert_contains "(i) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(i) leads with tests that cannot fail" "$out" "tests that cannot fail"
+
+# (j) a weak oracle alone can fail, so it is not called a test that cannot fail.
+run Write "$REPO/src/weak.test.ts"
+assert_contains "(j) names rule-weak-oracle" "$out" "rule-weak-oracle"
+assert_not_contains "(j) does not call a weak oracle a test that cannot fail" "$out" "tests that cannot fail"
+assert_not_contains "(j) a weak oracle carries no doubtful-hit prompt" "$out" "where the expected value"
 
 # Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call

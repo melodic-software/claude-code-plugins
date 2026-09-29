@@ -1,5 +1,6 @@
-// good-for: rule-zero-assertion
-// The test context's t.assert is node:assert plus snapshot assertions.
+// expect: rule-snapshot-only
+// The test context's t.assert.snapshot is an assertion, so zero-assertion does
+// not fire; it is the only oracle, so snapshot-only does.
 import { test } from 'node:test';
 import { renderInvoice } from '../src/invoice.mjs';
 

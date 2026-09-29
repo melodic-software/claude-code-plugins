@@ -157,6 +157,55 @@
         "Output proposes rendering or calling the code instead of reading its source text",
         "Output notes that a glob or directory walk over many files is not flagged and that the rule does not gate --check"
       ]
+    },
+    {
+      "id": 14,
+      "name": "conditional-assertion-empty-path",
+      "prompt": "These two tests are green: one checks every row a query returns, the other checks the error inside a catch. Can they pass without checking anything?",
+      "expected_output": "Runs the detector and reports testing/audit/rule-conditional-assertion for both: every assertion sits in a loop over the query's rows or in the catch, so an empty result or a call that stops throwing passes with no assertion run. Proposes asserting the row count before the loop and asserting the error with the framework's throws assertion, and notes the rule is report-only.",
+      "files": [
+        "evals/fixtures/corpus/js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture",
+        "evals/fixtures/corpus/js-jest/bad/jest-parse-error-in-catch.test.ts.fixture"
+      ],
+      "expectations": [
+        "Output reports testing/audit/rule-conditional-assertion for the loop and for the catch",
+        "Output proposes a length check before the loop and a throws assertion instead of the catch",
+        "Output states the finding is report-only and does not fail --check or --check --strict"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "recomputed-derived-restates-the-code",
+      "prompt": "Review Pocock's calculateTotal test: the expected value is built with items.reduce. Run the audit.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-recomputed-derived: the expected value is rebuilt from the same items the call under test receives, the way the code computes it, so a wrong formula passes. Proposes a literal worked out by hand (15), and notes property-based tests are exempt and the rule is report-only.",
+      "files": ["evals/fixtures/corpus/js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-recomputed-derived with the fired threshold",
+        "Output proposes stating the expected total as an independent literal",
+        "Output does not propose deleting the test"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "snapshot-only-review-as-code",
+      "prompt": "Our receipt test only calls toMatchSnapshot. Is that enough?",
+      "expected_output": "Runs the detector and reports testing/audit/rule-snapshot-only with the text 'snapshot is the only oracle: review it as code'. Explains an approved wrong snapshot stays green, proposes keeping the snapshot and adding one literal assertion on the value the test exists for, and notes image comparisons such as toHaveScreenshot are never flagged.",
+      "files": ["evals/fixtures/corpus/js-jest/bad/jest-receipt-snapshot.test.ts.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-snapshot-only and says the snapshot is the only oracle to review as code",
+        "Output proposes a literal assertion beside the snapshot rather than removing the snapshot"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "weak-oracle-passes-most-values",
+      "prompt": "Pocock's createUser test ends with expect(row).toBeDefined(). Audit it.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-weak-oracle: toBeDefined is the only oracle and passes for almost any row the query returns. Proposes asserting the saved value (the user's name), notes that the side channel (reading the database instead of the module's API) is a separate judgment the rule does not make, and that the rule is report-only.",
+      "files": ["evals/fixtures/corpus/js-jest/bad/jest-create-user-defined-verbatim.test.ts.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-weak-oracle with the fired threshold",
+        "Output proposes asserting the exact saved value instead of only that a row exists"
+      ]
     }
   ]
 }

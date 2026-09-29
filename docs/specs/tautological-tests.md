@@ -202,8 +202,9 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
 - Fields: `id`, `extends`, `language`, `block_model`, `advisory`, `files`, `detect.any_regex`,
   `test_start`, `test_skip`, `body_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`,
-  `assertion.async`, `assertion.inert`, `delegation`, `mock.create`, `mock.verify`,
-  `mock.strip`, `snapshot`, `equality.call2`, `equality.receiver`, `equality.pipeline`, `suppress_marker`.
+  `assertion.async`, `assertion.inert`, `assertion.weak`, `assertion.count`, `assertion.fail`,
+  `delegation`, `mock.create`, `mock.verify`, `mock.strip`, `snapshot`, `equality.call2`,
+  `equality.receiver`, `equality.pipeline`, `property_markers`, `rules_off`, `suppress_marker`.
   - `language` names the lexer: `js`, `cs`, `python`, `bash`, `pwsh`, `go`.
   - `block_model` is `brace`, `indent` (Python only) or `file` (Bash only: the whole file is one
     test, for a harness with no per-case marker). C# `brace` uses the attribute-then-signature
@@ -228,6 +229,16 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   never asserts (Python `m.called_once_with(`, a bare `.Should();`). Both feed
   `rule-inert-assertion`; language-syntax forms (the Python tuple assert, bats `run` and `!`) stay
   in the engine.
+- `assertion.weak` and `snapshot` match a whole assertion call: a block whose only assertions they
+  cover has a weak or a snapshot oracle (`rule-weak-oracle`, `rule-snapshot-only`).
+  `assertion.count` matches a length or count check, which clears `rule-conditional-assertion` for
+  a loop; `assertion.fail` matches a call that fails the test outright, which is the assertion of
+  the `if` or `catch` around it.
+- `property_markers` match any raw line of a file whose tests derive expected values on purpose
+  (Hypothesis `@given`, fast-check, FsCheck, `testing/quick`); such a file never reports
+  `rule-recomputed-derived`. `rules_off` lists rule slugs an adapter never reports:
+  `js-playwright` turns off `recomputed-derived` (seed data), and the C#, Go and Pester adapters
+  turn off `constant-restatement` (their constants need a declaration lookup).
 - `astgrep_rules` is reserved and not implemented. It is research switch SW1: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
@@ -267,7 +278,7 @@ rule are in the Phase 4a table.
 
 | Rule | Detects | Category |
 |---|---|---|
-| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited or never-evaluated async matcher, `expect` only inside `catch`, bats `run` with no status check, Python mock attributes that are not assertions | blocking tier: eligible to gate `--check` in a later minor version after 0 false positives in Phase 8 (D4, A13) |
+| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited or never-evaluated async matcher, bats `run` with no status check, Python mock attributes that are not assertions | blocking tier: eligible to gate `--check` in a later minor version after 0 false positives in Phase 8 (D4, A13) |
 | `rule-constant-restatement` | expected value equals a literal defined in the production module the test imports, or a local literal tested with no call | change-detector |
 | `rule-source-text-read` | test reads a tracked, non-test production source file as text (`readFileSync`, `open(...).read()`, `File.ReadAllText`, `Get-Content`, `cat`) | change-detector |
 | `rule-conditional-assertion`, `rule-weak-oracle`, `rule-snapshot-only`, `rule-recomputed-derived` | Phase 4b | advisory |
@@ -613,7 +624,14 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 - `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-source-text-read'` equals the count recorded in `precision-run.md` "This repo, source-text read".
 - `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-### Phase 4b: Remaining rules, crosswalk rows, audit docs [TODO]
+### Phase 4b: Remaining rules, crosswalk rows, audit docs [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. All four rules are `n/a` for `bash-bats` and
+`bash-harness`: shell `if` and `for` close with `fi` and `done`, derived and golden-file
+provenance is invisible, and a shell check has no weak-matcher vocabulary. `rule-snapshot-only` is
+`n/a` for `pwsh-pester` (a golden file read with `Get-Content`). NUnit `Assert.That(x,
+Is.EqualTo(y))` is not parsed as an equality yet, so the NUnit derived pair uses
+`ClassicAssert.AreEqual`.
 
 - Advisory rules, report-only in Release 1 (A2, A4, A5):
   - `rule-conditional-assertion`: assertions only inside `if`, `catch` or a loop, with no length

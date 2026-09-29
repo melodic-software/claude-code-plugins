@@ -5,27 +5,27 @@ file in `<adapter>/bad/` carrying `expect: <rule>` and a good file in `<adapter>
 `good-for: <rule>`. Any other cell reads `n/a: <reason>`. `scripts/check-corpus-grid.sh` enforces
 both for this first table only.
 
-| Adapter | rule-zero-assertion | rule-recomputed-expectation | rule-inert-assertion | rule-constant-restatement | rule-source-text-read |
-|---|---|---|---|---|---|
-| bash-bats | pair | pair | pair | pair | pair |
-| bash-harness | pair | pair | pair | pair | pair |
-| cs-mstest | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair |
-| cs-nunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair |
-| cs-xunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair |
-| go-testing | pair | pair | pair | n/a: needs a declaration lookup (Go constants are CamelCase) | pair |
-| js-jest | pair | pair | pair | pair | pair |
-| js-node-test | pair | pair | pair | pair | pair |
-| js-playwright | pair | pair | pair | pair | pair |
-| js-vitest | pair | pair | pair | pair | pair |
-| pwsh-pester | pair | pair | pair | n/a: needs a declaration lookup (PowerShell has no uppercase constant convention) | pair |
-| py-pytest | pair | pair | pair | pair | pair |
-| py-unittest | pair | pair | pair | pair | pair |
+| Adapter | rule-zero-assertion | rule-recomputed-expectation | rule-inert-assertion | rule-constant-restatement | rule-source-text-read | rule-conditional-assertion | rule-recomputed-derived | rule-snapshot-only | rule-weak-oracle |
+|---|---|---|---|---|---|---|---|---|---|
+| bash-bats | pair | pair | pair | pair | pair | n/a: bats if and for close with fi and done, which the engine does not track | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a bats check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary |
+| bash-harness | pair | pair | pair | pair | pair | n/a: the whole file is one block, and if and for close with fi and done | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a harness check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary |
+| cs-mstest | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
+| cs-nunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
+| cs-xunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
+| go-testing | pair | pair | pair | n/a: needs a declaration lookup (Go constants are CamelCase) | pair | pair | pair | pair | pair |
+| js-jest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
+| js-node-test | pair | pair | pair | pair | pair | pair | pair | pair | pair |
+| js-playwright | pair | pair | pair | pair | pair | pair | n/a: exempt, expected values come from seed data checked in another process | pair | pair |
+| js-vitest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
+| pwsh-pester | pair | pair | pair | n/a: needs a declaration lookup (PowerShell has no uppercase constant convention) | pair | pair | pair | n/a: partial, a golden file read with Get-Content hides whether it was reviewed | pair |
+| py-pytest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
+| py-unittest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
 
 ## Pocock examples
 
 Each Pocock example from `.work/tautological-tests/phase4-pocock-examples.md` names its rule, or
 `judge` when only reasoning can catch it. A judge row is a Release 2 judge calibration candidate
-and has no corpus file. Rows marked 4b get their fixture with that phase's rule.
+and has no corpus file.
 
 | Id | Source | Rule or judge | Phase | Fixture |
 |---|---|---|---|---|
@@ -38,10 +38,10 @@ and has no corpus file. Rows marked 4b get their fixture with that phase's rule.
 | M4 | tests.md | rule-mock-only-oracle | 4a | `js-jest/bad/jest-sync-call-count.test.ts.fixture` |
 | M5 | tests.md | judge: Release 2 judge calibration candidate | Release 2 | none |
 | M6 | tests.md | judge: Release 2 judge calibration candidate | Release 2 | none |
-| M7-weak | tests.md | rule-weak-oracle | 4b | written in 4b |
+| M7-weak | tests.md | rule-weak-oracle | 4b | `js-jest/bad/jest-create-user-defined-verbatim.test.ts.fixture` (verbatim) |
 | M7-side-channel | tests.md | judge: Release 2 judge calibration candidate | Release 2 | none |
-| M8 | tests.md | rule-recomputed-derived | 4b | written in 4b |
-| S2 | SKILL.md | rule-recomputed-derived | 4b | written in 4b |
+| M8 | tests.md | rule-recomputed-derived | 4b | `js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture` (verbatim, vitest import added) |
+| S2 | SKILL.md | rule-recomputed-derived | 4b | `js-vitest/bad/vitest-add-recomputed.test.ts.fixture` |
 | S3 | SKILL.md | judge: Release 2 judge calibration candidate | Release 2 | none |
 | S4 | SKILL.md | rule-recomputed-expectation | 4a | `js-vitest/bad/vitest-limit-against-itself.test.ts.fixture` |
 | S5 | SKILL.md | judge: Release 2 judge calibration candidate | Release 2 | none |
@@ -50,8 +50,7 @@ and has no corpus file. Rows marked 4b get their fixture with that phase's rule.
 
 The twelve planted tests from `.work/tautological-tests-verify/taxonomy/fx/`, one per file under
 `planted/bad/`, each naming its adapter in an `adapter:` header. The taxonomy marks none of the
-twelve as needing reasoning. The three `rule-recomputed-derived` files carry a `pending:` header
-and no `expect:` line, so they report nothing until Phase 4b adds the rule.
+twelve as needing reasoning.
 
 | File | Test | Rule | Phase |
 |---|---|---|---|

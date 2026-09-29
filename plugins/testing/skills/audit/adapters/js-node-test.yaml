@@ -31,6 +31,10 @@ assertion:
   # assert.rejects and assert.doesNotReject return promises.
   async:
     - '(t[[:space:]]*\.[[:space:]]*)?(assert[[:space:]]*\.[[:space:]]*)?(rejects|doesNotReject)[[:space:]]*\('
+  # Not null or undefined, and a throws or rejects given no expected error.
+  weak:
+    - '(assert[[:space:]]*\.[[:space:]]*)?(notStrictEqual|notEqual)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*(null|undefined)[[:space:]]*\)'
+    - '(assert[[:space:]]*\.[[:space:]]*)?(throws|rejects)[[:space:]]*\([^(),]*(\([^()]*\)[^(),]*)*\)'
 mock:
   create:
     - '(^|[^A-Za-z0-9_$])mock[[:space:]]*\.[[:space:]]*(fn|method|getter|setter|property|module)[[:space:]]*\('
@@ -39,6 +43,8 @@ mock:
   # An assert.x(...) call reading a mock's call record, one nesting level.
   strip:
     - 'assert[[:space:]]*\.[[:space:]]*[A-Za-z]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\.[[:space:]]*mock[[:space:]]*\.[[:space:]]*(calls|callCount)[^()]*(\([^()]*\)[^()]*)*\)'
+snapshot:
+  - '(^|[^A-Za-z0-9_$.])(t|ctx|context)[[:space:]]*\.[[:space:]]*assert[[:space:]]*\.[[:space:]]*snapshot[[:space:]]*\('
 equality:
   # camelCase keeps strictEqual from matching notStrictEqual or deepStrictEqual.
   call2: [assert.equal, strictEqual, deepEqual, deepStrictEqual, partialDeepStrictEqual]

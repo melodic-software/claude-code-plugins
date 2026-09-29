@@ -35,6 +35,18 @@ assertion:
   # .Should() with no matcher chained, as a whole statement.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
+  # Not null, and a throw of any exception. cs-nunit and cs-mstest inherit these.
+  weak:
+    - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*That[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*Is[[:space:]]*\.[[:space:]]*Not[[:space:]]*\.[[:space:]]*Null[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*ThrowsAny(Async)?[[:space:]]*<[[:space:]]*(System[[:space:]]*\.[[:space:]]*)?Exception[[:space:]]*>[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+  count:
+    - '\.[[:space:]]*(Count|Length|LongLength)([^A-Za-z0-9_]|$)'
+    - 'Assert[[:space:]]*\.[[:space:]]*(Single|Empty|NotEmpty)'
+    - '(HaveCount|ContainSingle|BeEmpty|ShouldHaveSingleItem|ShouldBeEmpty)'
+    - '(Has|Is)[[:space:]]*\.[[:space:]]*(Count|Length|Exactly|Empty|Not[[:space:]]*\.[[:space:]]*Empty)'
+  fail:
+    - '(Classic)?Assert[[:space:]]*\.[[:space:]]*Fail[[:space:]]*\('
 mock:
   create:
     - 'new[[:space:]]+Mock<'
@@ -62,6 +74,16 @@ mock:
     - '\.[[:space:]]*DidNotReceive(WithAnyArgs)?[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
     - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
     - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
+# Verify, statement-initial: Moq's mock.Verify( is a mock assertion instead.
+snapshot:
+  - '^[[:space:]]*(return[[:space:]]+|await[[:space:]]+)*(Verifier[[:space:]]*\.[[:space:]]*)?Verify(Json|Xml|File)?[[:space:]]*\('
+# FsCheck and CsCheck: the expected value is derived from generated inputs on purpose.
+property_markers:
+  - '\[[[:space:]]*(FsCheck[[:space:]]*\.[[:space:]]*)?(Xunit[[:space:]]*\.[[:space:]]*)?Property([[:space:]]*[](]|$)'
+  - 'Prop[[:space:]]*\.[[:space:]]*ForAll'
+  - '(^|[^A-Za-z0-9_])Gen[[:space:]]*\.[[:space:]]*[A-Z]'
 equality:
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
+# C# constants are PascalCase, so an uppercase name says nothing about constness.
+rules_off: [constant-restatement]
 suppress_marker: 'cant-fail-ok:'

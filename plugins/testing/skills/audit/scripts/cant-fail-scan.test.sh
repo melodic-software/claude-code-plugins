@@ -885,6 +885,9 @@ assert_contains "loader names the unsupported model" "$err" "block_model file is
 load_yaml ad.yaml $'id: ad\nlanguage: bash\nadvisory: yes\n'
 assert_exit "loader rejects an advisory value other than true or false (exit 2)" 2 "$rc"
 assert_contains "loader states the advisory values" "$err" "advisory is true or false"
+load_yaml rf.yaml $'id: rf\nlanguage: js\nrules_off: [flaky-passes-suite]\n'
+assert_exit "loader rejects a rules_off slug no test adapter can turn off (exit 2)" 2 "$rc"
+assert_contains "loader says rules_off takes test-body rule slugs" "$err" "test-body rule slugs"
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
 assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
@@ -985,6 +988,7 @@ corpus_files=(
   bash-bats/good/bats-greet-skipped.bats.fixture
   bash-bats/good/bats-greet-test-command.bats.fixture
   bash-bats/good/bats-init-writes-config.bats.fixture
+  bash-bats/good/bats-parsed-args-count.bats.fixture
   bash-bats/good/bats-repaired-oracles.bats.fixture
   bash-harness/bad/bracket-status-dropped.test.sh.fixture
   bash-harness/bad/deploy-source-text.test.sh.fixture
@@ -1000,97 +1004,141 @@ corpus_files=(
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
+  cs-mstest/bad/OrderDiscountIfTests.cs.fixture
+  cs-mstest/bad/OrderIsNotNullTests.cs.fixture
+  cs-mstest/bad/OrderLinesSumTests.cs.fixture
   cs-mstest/bad/OrderPlacementTests.cs.fixture
+  cs-mstest/bad/OrderReceiptVerifyTests.cs.fixture
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
+  cs-mstest/good/OrderRepaired4bTests.cs.fixture
   cs-mstest/good/OrderRepairedOraclesTests.cs.fixture
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
   cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
+  cs-nunit/bad/CartIsNotNullTests.cs.fixture
+  cs-nunit/bad/CartPlaceOrderCatchTests.cs.fixture
   cs-nunit/bad/CartPurchaseTests.cs.fixture
+  cs-nunit/bad/CartReceiptVerifyTests.cs.fixture
   cs-nunit/bad/CartRefundTests.cs.fixture
   cs-nunit/bad/CartSourceTextTests.cs.fixture
+  cs-nunit/bad/CartTotalSumTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
   cs-nunit/good/CartPurchaseAssertedTests.cs.fixture
+  cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
+  cs-xunit/bad/InvoiceNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
-  cs-xunit/good/InvoiceRenderSnapshotTests.cs.fixture
+  cs-xunit/good/InvoiceRepaired4bTests.cs.fixture
   cs-xunit/good/InvoiceRepairedOraclesTests.cs.fixture
   cs-xunit/good/InvoiceTotalFluentTests.cs.fixture
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
+  go-testing/bad/go_render_snapshot_test.go.fixture
+  go-testing/bad/go_rows_loop_unchecked_test.go.fixture
   go-testing/bad/go_slugify_logs_mismatch_test.go.fixture
   go-testing/bad/go_slugify_runs_test.go.fixture
+  go-testing/bad/go_user_nil_check_test.go.fixture
   go-testing/good/go_cart_helper_test.go.fixture
   go-testing/good/go_codec_fuzz_test.go.fixture
   go-testing/good/go_export_skipped_test.go.fixture
   go-testing/good/go_hash_bench_test.go.fixture
+  go-testing/good/go_log_branches_test.go.fixture
   go-testing/good/go_query_diff_literal_test.go.fixture
+  go-testing/good/go_repaired_4b_test.go.fixture
   go-testing/good/go_repaired_oracles_test.go.fixture
   go-testing/good/go_slugify_checked_test.go.fixture
+  js-jest/bad/jest-cart-total-reduce.test.ts.fixture
   js-jest/bad/jest-checkout-calls-payment-verbatim.test.ts.fixture
   js-jest/bad/jest-checkout-calls-payment.test.ts.fixture
   js-jest/bad/jest-checkout-source-text.test.ts.fixture
+  js-jest/bad/jest-create-user-defined-verbatim.test.ts.fixture
   js-jest/bad/jest-discount-runs.test.ts.fixture
+  js-jest/bad/jest-parse-error-in-catch.test.ts.fixture
+  js-jest/bad/jest-receipt-snapshot.test.ts.fixture
   js-jest/bad/jest-slug-itself.test.js.fixture
   js-jest/bad/jest-split-call-runs.test.ts.fixture
   js-jest/bad/jest-sync-call-count.test.ts.fixture
   js-jest/bad/jest-upload-limit-restated.test.ts.fixture
   js-jest/bad/jest-user-resolves-unawaited.test.ts.fixture
+  js-jest/good/jest-codemod-testfixtures.test.ts.fixture
   js-jest/good/jest-discount-checked.test.ts.fixture
+  js-jest/good/jest-repaired-4b.test.ts.fixture
   js-jest/good/jest-repaired-oracles.test.ts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
   js-jest/good/jest-split-call.test.ts.fixture
   js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
+  js-node-test/bad/node-test-context-assert.test.mjs.fixture
   js-node-test/bad/node-test-csv-itself.test.mjs.fixture
   js-node-test/bad/node-test-page-source-text.test.mjs.fixture
+  js-node-test/bad/node-test-parse-throws-any.test.mjs.fixture
   js-node-test/bad/node-test-post-limit-restated.test.mjs.fixture
   js-node-test/bad/node-test-price-runs.test.mjs.fixture
-  js-node-test/good/node-test-context-assert.test.mjs.fixture
+  js-node-test/bad/node-test-rows-foreach-unchecked.test.mjs.fixture
+  js-node-test/bad/node-test-total-reduce.test.mjs.fixture
   js-node-test/good/node-test-context-skip.test.mjs.fixture
   js-node-test/good/node-test-csv-literal.test.mjs.fixture
   js-node-test/good/node-test-destructured.test.js.fixture
   js-node-test/good/node-test-price-checked.test.mjs.fixture
+  js-node-test/good/node-test-repaired-4b.test.mjs.fixture
   js-node-test/good/node-test-repaired-oracles.test.mjs.fixture
   js-node-test/good/node-test-suite-skip.test.mjs.fixture
   js-node-test/good/node-test-todo-option.test.mjs.fixture
+  js-node-test/good/node-test-userscript-vm.test.mjs.fixture
+  js-playwright/bad/playwright-banner-if-visible.spec.ts.fixture
   js-playwright/bad/playwright-login-clicks.spec.ts.fixture
+  js-playwright/bad/playwright-nav-aria-snapshot.spec.ts.fixture
   js-playwright/bad/playwright-page-size-restated.spec.ts.fixture
   js-playwright/bad/playwright-page-source-text.spec.ts.fixture
   js-playwright/bad/playwright-saved-unawaited.spec.ts.fixture
   js-playwright/bad/playwright-title-itself.spec.ts.fixture
+  js-playwright/bad/playwright-token-truthy.spec.ts.fixture
   js-playwright/good/playwright-body-skip.spec.ts.fixture
   js-playwright/good/playwright-configured-expect.spec.ts.fixture
   js-playwright/good/playwright-describe-fixme.spec.ts.fixture
   js-playwright/good/playwright-login-asserted.spec.ts.fixture
   js-playwright/good/playwright-poll.spec.ts.fixture
+  js-playwright/good/playwright-repaired-4b.spec.ts.fixture
   js-playwright/good/playwright-repaired-oracles.spec.ts.fixture
   js-playwright/good/playwright-soft-step.spec.ts.fixture
   js-playwright/good/playwright-title-literal.spec.ts.fixture
+  js-vitest/bad/vitest-add-recomputed.test.ts.fixture
   js-vitest/bad/vitest-cart-runs.test.ts.fixture
   js-vitest/bad/vitest-duration-itself.test.ts.fixture
+  js-vitest/bad/vitest-invoice-inline-snapshot.test.ts.fixture
   js-vitest/bad/vitest-limit-against-itself.test.ts.fixture
+  js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture
   js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture
   js-vitest/bad/vitest-post-limit-restated.test.ts.fixture
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
+  js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
+  js-vitest/bad/vitest-session-truthy.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
+  js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
+  js-vitest/good/vitest-parsed-config-fields.test.ts.fixture
+  js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
   planted/bad/PlantedShouldAloneTests.cs.fixture
@@ -1107,9 +1155,15 @@ corpus_files=(
   planted/bad/test_planted_tuple_assert.py.fixture
   pwsh-pester/bad/pester-module-source-text.Tests.ps1.fixture
   pwsh-pester/bad/pester-report-invoke-only.Tests.ps1.fixture
+  pwsh-pester/bad/pester-report-not-empty.Tests.ps1.fixture
+  pwsh-pester/bad/pester-rows-foreach-unchecked.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-against-itself.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-bare-comparison.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-writes-host.Tests.ps1.fixture
+  pwsh-pester/bad/pester-total-measure-derived.Tests.ps1.fixture
+  pwsh-pester/good/pester-continued-comparison.Tests.ps1.fixture
+  pwsh-pester/good/pester-exit-code.Tests.ps1.fixture
+  pwsh-pester/good/pester-repaired-4b.Tests.ps1.fixture
   pwsh-pester/good/pester-repaired-oracles.Tests.ps1.fixture
   pwsh-pester/good/pester-report-invoke-and-value.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-against-literal.Tests.ps1.fixture
@@ -1122,12 +1176,20 @@ corpus_files=(
   py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
   py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
   py-pytest/bad/test_pytest_price_recomputed.py.fixture
+  py-pytest/bad/test_pytest_price_sum_recomputed.py.fixture
+  py-pytest/bad/test_pytest_render_snapshot.py.fixture
+  py-pytest/bad/test_pytest_rows_loop_unchecked.py.fixture
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
+  py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_exec_tool_script.py.fixture
+  py-pytest/good/test_pytest_loaded_config_fields.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
   py-pytest/good/test_pytest_raises.py.fixture
+  py-pytest/good/test_pytest_repaired_4b.py.fixture
   py-pytest/good/test_pytest_repaired_oracles.py.fixture
   py-pytest/good/test_pytest_skip_marker.py.fixture
   py-pytest/good/test_pytest_skipif_split.py.fixture
@@ -1140,10 +1202,15 @@ corpus_files=(
   py-unittest/bad/test_unittest_deliver_awaits.py.fixture
   py-unittest/bad/test_unittest_limit_restated.py.fixture
   py-unittest/bad/test_unittest_notify_called_once_with.py.fixture
+  py-unittest/bad/test_unittest_parse_except_only.py.fixture
+  py-unittest/bad/test_unittest_parse_raises_exception.py.fixture
+  py-unittest/bad/test_unittest_render_snapshot.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
+  py-unittest/bad/test_unittest_total_recomputed.py.fixture
   py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_raises.py.fixture
+  py-unittest/good/test_unittest_repaired_4b.py.fixture
   py-unittest/good/test_unittest_repaired_oracles.py.fixture
   py-unittest/good/test_unittest_skipped_class.py.fixture
   py-unittest/good/test_unittest_skiptest.py.fixture
@@ -1318,14 +1385,139 @@ assert_matches "a source-text-read row is SUGGESTION with Confidence omitted" "$
 assert_contains "Surfaces counts the report-only rules" "$out" \
   "report-only findings (never gate --check): testing/audit/rule-inert-assertion 1, testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
 
-# (e) every rule id the scanner can emit has a positive evals.json expectation.
+# --- Phase 4b report-only rules -------------------------------------------------
+# (a) conditional-assertion, recomputed-derived, snapshot-only and weak-oracle
+# print, and gate neither --check nor --check --strict.
+for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
+  derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
+  snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
+  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs; do
+  IFS=: read -r name rule rel <<<"$pair"
+  ro_repo "$RO/$name"
+  cp "$CORPUS/$rel.fixture" "$RO/$name/test/${rel##*/}"
+  run_scan "$RO/$name" --check
+  assert_exit "(a) --check passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+  assert_contains "(a) --check names $rule report-only" "$out" "report-only and never gate --check, --strict included"
+  run_scan "$RO/$name" --check --strict
+  assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+done
+
+# Each "gives 0 findings" case below runs beside a control: the same body
+# without the exemption fires, so the silent run cannot pass vacuously.
+# b4 <file> <line>...: write a test file under $B4 from its lines.
+B4="$TMP_ROOT/b4"
+mkdir -p "$B4"
+b4() {
+  local f="$B4/$1"
+  shift
+  printf '%s\n' "$@" >"$f"
+  run_file --file "$f"
+}
+
+# (b) the snapshot-only finding says to review the snapshot as code, and an
+# image comparison is never a snapshot finding.
+b4 aria.spec.ts "import { expect, test } from '@playwright/test';" "test('nav', async ({ page }) => {" \
+  "  await expect(page.getByRole('navigation')).toMatchAriaSnapshot();" "});"
+assert_contains "(b) control: an aria snapshot alone fires snapshot-only" "$out" "rule-snapshot-only"
+assert_contains "(b) the finding says snapshot is the only oracle: review it as code" "$out" \
+  "snapshot is the only oracle: review it as code"
+b4 shot.spec.ts "import { expect, test } from '@playwright/test';" "test('nav', async ({ page }) => {" \
+  "  await expect(page).toHaveScreenshot();" "});"
+assert_contains "(b) the screenshot test was parsed" "$out" "test blocks parsed: 1;"
+assert_finding_count "(b) a toHaveScreenshot test gives 0 findings" 0
+
+# (c) a derived expectation in a property-test file, or in a Playwright file,
+# gives 0 findings; the same body elsewhere fires.
+DERIVED_JS=("test('adds', () => {" "  expect(add(a, b)).toBe(a + b);" "});")
+b4 derived.test.ts "import { expect, test } from 'vitest';" "${DERIVED_JS[@]}"
+assert_contains "(c) control: the vitest body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 derived-fc.test.ts "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => add(a, b) === add(b, a)));" "});"
+assert_finding_count "(c) the same body in a fast-check file gives 0 findings" 0
+b4 derived.spec.ts "import { expect, test } from '@playwright/test';" "${DERIVED_JS[@]}"
+assert_contains "(c) the Playwright file was parsed" "$out" "test blocks parsed: 1;"
+assert_finding_count "(c) the same body in a js-playwright file gives 0 findings" 0
+b4 test_derived.py "def test_adds():" "    assert add(a, b) == a + b"
+assert_contains "(c) control: the pytest body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 test_derived_given.py "from hypothesis import given, strategies as st" "" "" "@given(st.integers(), st.integers())" \
+  "def test_adds(a, b):" "    assert add(a, b) == a + b"
+assert_finding_count "(c) the same body under @given gives 0 findings" 0
+GO_DERIVED=("func TestAdd(t *testing.T) {" "	if !reflect.DeepEqual(Add(a, b), a+b) {" "		t.Error(a, b)" "	}" "}")
+b4 derived_test.go "package calc" "" 'import "reflect"' "" "${GO_DERIVED[@]}"
+assert_contains "(c) control: the go body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 derived_quick_test.go "package calc" "" 'import (' '	"reflect"' '	"testing/quick"' ')' "" "${GO_DERIVED[@]}"
+assert_finding_count "(c) the same body in a testing/quick file gives 0 findings" 0
+
+# (d) an assertion inside a loop over a result, with a length check, gives 0
+# findings; without the check it fires.
+LOOP_JS=("  const rows = await activeUsers();" "  for (const row of rows) {" "    expect(row.active).toBe(true);" "  }" "});")
+b4 loop.test.ts "import { expect, it } from 'vitest';" "it('rows', async () => {" "${LOOP_JS[@]}"
+assert_contains "(d) control: the loop alone fires conditional-assertion" "$out" "rule-conditional-assertion"
+b4 loop-checked.test.ts "import { expect, it } from 'vitest';" "it('rows', async () => {" "  expect(await activeUsers()).toHaveLength(2);" \
+  "${LOOP_JS[@]}"
+assert_finding_count "(d) the same loop after a length check gives 0 findings" 0
+
+# (e) toBeDefined beside a value assertion gives 0 findings; alone it fires.
+b4 defined.test.ts "import { expect, it } from 'vitest';" "it('user', async () => {" "  const user = await createUser('ada');" \
+  "  expect(user).toBeDefined();" "});"
+assert_contains "(e) control: toBeDefined alone fires weak-oracle" "$out" "rule-weak-oracle"
+b4 defined-beside.test.ts "import { expect, it } from 'vitest';" "it('user', async () => {" "  const user = await createUser('ada');" \
+  "  expect(user).toBeDefined();" "  expect(user.name).toBe('ada');" "});"
+assert_finding_count "(e) toBeDefined beside a value assertion gives 0 findings" 0
+
+# Remedies for the four rules, asserted in each language they fire in here.
+for f in js-vitest/bad/vitest-rows-loop-unchecked.test.ts py-unittest/bad/test_unittest_parse_except_only.py \
+  cs-nunit/bad/CartPlaceOrderCatchTests.cs; do
+  a="$(remedy "$C/$f" rule-conditional-assertion)"
+  assert_contains "conditional remedy ($f) makes every path assert" "$a" "Make every path assert"
+  assert_contains "conditional remedy ($f) asks for a length check before a loop" "$a" "assert the length of a result before looping over it"
+  assert_not_contains "conditional remedy ($f) is not the inert remedy" "$a" "Make the assertion evaluate"
+done
+for f in js-vitest/bad/vitest-order-total-recomputed.test.ts py-unittest/bad/test_unittest_total_recomputed.py \
+  cs-mstest/bad/OrderLinesSumTests.cs pwsh-pester/bad/pester-total-measure-derived.Tests.ps1; do
+  a="$(remedy "$C/$f" rule-recomputed-derived)"
+  assert_contains "derived remedy ($f) states the value independently" "$a" "State the expected value independently"
+  assert_not_contains "derived remedy ($f) is not the self-identical remedy" "$a" "recomputing it with the same expression"
+done
+for f in js-jest/bad/jest-receipt-snapshot.test.ts py-pytest/bad/test_pytest_render_snapshot.py \
+  go-testing/bad/go_render_snapshot_test.go; do
+  a="$(remedy "$C/$f" rule-snapshot-only)"
+  assert_contains "snapshot remedy ($f) reviews it and adds a literal" "$a" "Review the snapshot as code"
+  assert_not_contains "snapshot remedy ($f) never removes the snapshot" "$a" "remove"
+done
+for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/test_unittest_parse_raises_exception.py \
+  go-testing/bad/go_user_nil_check_test.go pwsh-pester/bad/pester-report-not-empty.Tests.ps1; do
+  a="$(remedy "$C/$f" rule-weak-oracle)"
+  assert_contains "weak remedy ($f) asks for the exact value or exception" "$a" "Assert the value the code should produce"
+  assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
+done
+
+# The findings file carries the tiers: conditional and derived are can't-fail,
+# snapshot-only and weak-oracle can fail.
+for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
+assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
+assert_matches "a conditional-assertion row is IMPORTANT with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| IMPORTANT \|  \| test/vitest-rows-loop-unchecked.test.ts:10 \|'
+assert_matches "a recomputed-derived row is IMPORTANT with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| IMPORTANT \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
+assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
+assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
+assert_contains "Surfaces counts the 4b report-only rules" "$out" \
+  "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
+
+# (e), and 4b (f): every rule id the scanner can emit, the seven report-only
+# rules included, has a positive evals.json expectation.
 EVALS="$SCRIPT_DIR/../evals/evals.json"
 expected="$(jq -r '.evals[] | .expected_output, .expectations[]' "$EVALS")"
 emitted="$({
   grep -ohE 'emit\([^,]*, "[a-z-]+"' "$SCRIPT_DIR/cant-fail-scan.awk" "$SCRIPT_DIR/runner-config-scan.awk"
   grep -ohE 'slug=[a-z-]+' "$SCRIPT_DIR/cant-fail-scan.sh"
 } | sed -E 's/.*[" =]([a-z-]+)"?$/\1/' | sort -u)"
-if [[ "$(printf '%s\n' "$emitted" | grep -c .)" -ge 8 ]]; then
+if [[ "$(printf '%s\n' "$emitted" | grep -c .)" -ge 12 ]]; then
   pass "(e) the emitted rule ids were extracted from the engines"
 else
   fail "(e) the emitted rule ids were extracted from the engines" "got: $emitted"

@@ -1,6 +1,7 @@
-// good-for: rule-zero-assertion
-// A Verify snapshot is the assertion: the rendered text is compared to the
-// approved .verified.txt file.
+// expect: rule-snapshot-only
+// A Verify snapshot is an assertion, so zero-assertion does not fire; it is the
+// only oracle, so snapshot-only does: the rendered text is whatever the
+// approved .verified.txt file says.
 using VerifyXunit;
 using Xunit;
 
