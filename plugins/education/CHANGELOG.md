@@ -9,7 +9,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 - **Argument hints** on `teach` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
-  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+  The examples moved into the skill body.
 
 ## [0.11.5] - 2026-09-28
 
@@ -27,7 +27,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 ### Fixed
 
-- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked (#4119).
+- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
 
 ## [0.11.2] - 2026-09-27
 
