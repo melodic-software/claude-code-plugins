@@ -1,5 +1,33 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.15] - 2026-09-29
+
+### Fixed
+
+- **`audit-derivability` keep verdicts are sampled, and recorded decisions are checked before every
+  delete.** The rubric names the routing-index row as an explicit exception to the
+  derivable-from-primary-sources rule, so a launch-loaded routing doc is never `delete`. A keep
+  sample has a size rule, a diverged and a converged outcome, and `sampled`/`overturned` counts in
+  the aggregate line. `git log` runs before every `delete` and `convert-to-pointer`, and a
+  commit-recorded decision ships the verdict provisional as `reverses a recorded decision`. A
+  spot-test of a launch-loaded file must use `Explore` or `Plan`. Three evals cover the new cases
+  ([#4573](https://github.com/melodic-software/claude-code-plugins/issues/4573)).
+- **`extract-ssot identify` documents `--inline` and uses one term for an all-refused survey.** The
+  identify Flags table and the `Full form:` argument line list `--inline`, and both files call an
+  all-refused survey a "closed record"
+  ([#4713](https://github.com/melodic-software/claude-code-plugins/issues/4713)).
+- **`write-for-agents` states the CLI append-flag facts once.** The three flag rows in
+  `reference/agent-doc-surfaces.md` are one pointer row to the "CLI prompt appends" section, and the
+  tracker tag is gone.
+- **The plugin contract is marked proposed.** `reference/plugin-contract.md` and the README say the
+  charter is pending the owner's decision on
+  [#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142). The Decision text
+  is unchanged.
+- **Changelog bodies corrected in place, headings kept.** Edited entries: 0.23.8 (a copy of 0.23.5,
+  now "No functional change"), 0.23.9 (drops the tracker item id), 0.23.10 (now describes the "CLI
+  prompt appends" section it shipped), and 0.23.11 (a copy of 0.23.10, now "No functional
+  change").
+
 ## [0.23.14] - 2026-09-28
 
 ### Fixed
