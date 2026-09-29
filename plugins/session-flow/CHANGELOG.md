@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [0.39.0] - 2026-09-29
+
+### Added
+
+- **The retro transcript parser emits `data.plugin_usage`** ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)): each plugin skill invoked in the session with a count, and hook events grouped by plugin. Existing keys are unchanged.
+- **`workflow` wrap-up offers `/plugin-quality:audit session`** in one line when the session invoked at least one plugin skill. The offer is presence-gated on `plugin-quality`; the run stays operator-gated.
+
 ## [0.38.29] - 2026-09-29
 
 ### Fixed
