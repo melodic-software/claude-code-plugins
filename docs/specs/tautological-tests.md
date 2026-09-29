@@ -611,7 +611,7 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 | `rule-constant-restatement` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
 | `rule-source-text-read` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
 | `rule-conditional-assertion` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
-| `rule-recomputed-derived` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-recomputed-derived` | SUGGESTION (checks little: can fail) | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-snapshot-only` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-weak-oracle` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-flaky-passes-suite` (existing) | unchanged | already deterministic: keep the `testing:audit` detector; no analyzer pack reads Playwright `retries` against `failOnFlakyTests` (judgment) | 4b |
@@ -781,7 +781,8 @@ ms at load 33-36); the idle re-measure moves to Phase 8.
 Starts after PR B merges ([Execution shape](#execution-shape)).
 
 - New model-invoked `plugins/testing/skills/test-value/SKILL.md`, kept to at most 120 lines because
-  every preload carries it (the figure is judgment). It ends with `## Next`. It covers (A6):
+  every preload carries it (the figure is judgment). Its `## Next` sits before its last H2, per
+  `.claude/rules/skill-bodies-state-current-rules.md`. It covers (A6):
   - the expected value names its independent source (literal, worked example, spec, bug report,
     hand-computed value); no independent source means no unit test;
   - call-count or interaction checks are legitimate at unmanaged, state-changing boundaries
@@ -980,6 +981,8 @@ Amendment: attended. Approved by Kyle Sexton on 2026-09-28, from
   can't-fail rules, SUGGESTION for the change-detector rules, `rule-snapshot-only` and
   `rule-weak-oracle`; `analyzer-pack-rule` for `rule-inert-assertion`; argued rungs for the two
   Playwright rows.
+  Amended 2026-09-29 (#5388 review): `rule-recomputed-derived` is SUGGESTION (checks little), not
+  IMPORTANT; `expect(add(a, b)).toBe(a + b)` fails when `add` is wrong, so it can fail.
 
 Re-approved by Kyle Sexton on 2026-09-29 after a fresh plan review (16 findings fixed). The formal
 devils-advocate pass was skipped: the base plan was stress-tested twice and no new rule blocks in

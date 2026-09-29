@@ -934,10 +934,11 @@ confidence_of() {
 
 tier_of() {
   # The two change-detector rules flag tests that CAN fail, on a harmless
-  # change, and a snapshot or weak oracle can fail too, so all four sit below
-  # the can't-fail rules (detector-findings crosswalk).
+  # change, and a derived expectation, a snapshot or a weak oracle can fail
+  # too, so all five sit below the can't-fail rules (detector-findings
+  # crosswalk).
   case "$1" in
-  constant-restatement | source-text-read | snapshot-only | weak-oracle) printf 'SUGGESTION' ;;
+  constant-restatement | source-text-read | recomputed-derived | snapshot-only | weak-oracle) printf 'SUGGESTION' ;;
   *) printf 'IMPORTANT' ;;
   esac
 }
