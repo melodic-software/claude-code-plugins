@@ -22,7 +22,7 @@ only after that version increases.
 
 - **`history.sh` decides partial coverage from the newest merged sweep PR that names the step.**
   An older `partial coverage:` line no longer forces a rerun once a newer sweep ran the step clean,
-  and a `, not applicable:` line does not count as a mention.
+  and neither a `, not applicable:` line nor a bare `[x]` line counts as a mention.
 - **`repo-sweep` review and next order.** `review.md` asks the user first, then dispatches the
   reviewer, and maps the reviewer's four classes to four routing rows. `next.md` re-checks
   applies-when before priming, skips that check when resuming, and names the prime column as
@@ -30,7 +30,8 @@ only after that version increases.
 - **The hygiene catalog primes per entry.** `catalog.test.sh` covers `- prime: false` and other
   values. Script-only detectors (`lint`, `skill-quality`, `evals-validate`, `testing-audit`) set
   `prime: false`; `batch-simplify` and `tidy` pass `in-place`, and `extract-ssot` applies with
-  `batch --commit-mode=none`, so the #4503 and #4504 overrides are gone.
+  `batch --commit-mode=none`, so the #4503 and #4504 overrides are gone. Entries that prime carry
+  no rationale note: priming is the default and `prime: false` is the exception.
 - **`repo-sweep` records carry the Claude Code version they were rechecked against.** The
   worktree-guard record names 2.1.284 and states that no live isolated session was probed; the
   bundled-skill gotcha cites the observed bundled-skills path.

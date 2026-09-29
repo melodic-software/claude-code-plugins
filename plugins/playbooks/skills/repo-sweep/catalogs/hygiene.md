@@ -17,18 +17,12 @@ brackets are resolved per repo by `plan` before the step runs.
 Authorize the candidate-count consent gate for the whole repo. Tag any `alive` notes it adds with
 `dissolve-comments-ignore` so the residue-dissolve step keeps them.
 
-Stays primed: the audit fans out fresh-context subagents when the candidate set is large.
-
 ### batch-simplify
 
 - skill: code-tidying:batch-simplify
 - args: repo docs in-place
 - applies-when: repo has source code
 - checked: true
-
-#### Notes
-
-Stays primed: it spawns agents for each wave.
 
 ### residue-dissolve
 
@@ -65,8 +59,6 @@ are fixed upstream, never in this sweep; filter them out before fixing.
 Resolve or delete each marker in place. Do not file work items to a tracker; list any marker that
 needs tracked work in the step's `Scope decisions:` instead.
 
-Stays primed: the model decides per marker whether to resolve or delete it.
-
 ### tidy
 
 - skill: code-tidying:tidy
@@ -84,8 +76,6 @@ Present findings from every lane together for review; one step commit covers all
 `in-place` on every tidy invocation: it stays on the current branch, opens no branch or PR, and
 leaves the changes staged for the step commit. Glob scope runs through tidy's `<glob>...` row.
 
-Stays primed: each lane hunt is a multi-phase workflow with self-review, not a script run.
-
 Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
 bundled lanes, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
 Basis: `code-tidying` 0.23.20 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
@@ -102,10 +92,6 @@ call, changes where it reads lanes from, or renames `in-place`; prefer the lane 
 - applies-when: repo has tracked markdown
 - checked: true
 
-#### Notes
-
-Stays primed: `sweep` runs fresh read-only subagents over the corpus.
-
 ### provenance
 
 - skill: attribution:audit
@@ -120,8 +106,6 @@ Runs before every prose rewriter so fingerprints stay intact. `audit` is the rea
 approved findings with `attribution:audit fix <file>`, one file at a time when the per-file
 closure record is wanted.
 
-Stays primed: the audit dispatches nominating subagents and blind judges.
-
 ### codebase-health
 
 - skill: codebase-health:audit
@@ -134,8 +118,6 @@ Stays primed: the audit dispatches nominating subagents and blind judges.
 The audit's `--fix` applies nothing: it suggests `/implementation:implement` and then
 `/verification:confirm`, and tells the model not to invoke either. The bare audit stops at the
 report, and the step applies the agreed fixes itself.
-
-Stays primed: the audit fans out parallel subagents to verify each claim.
 
 ### overengineering
 
@@ -158,10 +140,6 @@ them as delegated. Audit those four in a separate org- or machine-level pass.
 - applies-when: repo ships Claude Code skills or agents
 - checked: false
 
-#### Notes
-
-Stays primed: the script only emits candidate pairs, and each verdict row needs a reading.
-
 ### claude-config
 
 - skill: claude-config:audit
@@ -172,9 +150,6 @@ Stays primed: the script only emits candidate pairs, and each verdict row needs 
 #### Notes
 
 Project scope only. Drop findings on user-scope or managed settings.
-
-Stays primed: an engine script settles the deterministic rows, then the model judges the rest and
-applies `--fix`.
 
 ## Phase 3: instruction content
 
@@ -191,8 +166,6 @@ Audit agent-instruction files only (CLAUDE.md, AGENTS.md, rules, skill and agent
 strings in code), never human-facing docs. Ask it to apply the accepted edits. Apply deletes and
 rewrites only; moves belong to the instruction-placement step.
 
-Stays primed: the model reads each instruction file and applies the accepted edits.
-
 ### audit-instructions
 
 - skill: claude-config:audit-instructions
@@ -204,8 +177,6 @@ Stays primed: the model reads each instruction file and applies the accepted edi
 
 Apply repo-scope delete and rewrite findings only; moves belong to the instruction-placement step.
 Drop findings on `~/.claude`; the dotfiles sweep handles them.
-
-Stays primed: it fans out fresh-context subagents to judge each instruction.
 
 ### claude-memory
 
@@ -221,8 +192,6 @@ the instruction-placement step. C9 additions are in scope too: one line per miss
 command, verified against the repo's manifest or task runner. Drop findings on `~/.claude` and
 auto-memory; the dotfiles sweep handles them.
 
-Stays primed: a script spine covers a few checks, and the rest need model reading before `fix`.
-
 ### prompting-postures
 
 - skill: claude-config:audit-prompting-postures
@@ -234,18 +203,12 @@ Stays primed: a script spine covers a few checks, and the rest need model readin
 
 Project scope only.
 
-Stays primed: it dispatches a fresh-context verifier per surface batch.
-
 ### mcp-tools
 
 - skill: mcp-tools:audit
 - args:
 - applies-when: repo defines MCP servers
 - checked: false
-
-#### Notes
-
-Stays primed: phase 2 may fan out subagents when the repo defines five or more tools.
 
 ## Phase 4: structure
 
@@ -260,8 +223,6 @@ Stays primed: phase 2 may fan out subagents when the repo defines five or more t
 
 Accept its offered repo-wide tracked run rather than passing `.`.
 
-Stays primed: past a small file count it fans out subagents with a verification pass.
-
 ### extract-ssot
 
 - skill: docs-hygiene:extract-ssot
@@ -273,8 +234,6 @@ Stays primed: past a small file count it fans out subagents with a verification 
 
 Apply the identified clusters with `batch --commit-mode=none`, which makes no commits and leaves the
 migrations in the working tree for the step commit.
-
-Stays primed: `batch` orchestrates worker subagents in waves.
 
 ### instruction-placement
 
@@ -298,18 +257,12 @@ One step: audit, then realign the accepted findings, then check.
 
 Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), not `.`.
 
-Stays primed: `detect.sh` only emits facts, and the model judges the findings.
-
 ### encapsulation
 
 - skill: docs-hygiene:audit-encapsulation
 - args: sweep
 - applies-when: repo ships skills
 - checked: true
-
-#### Notes
-
-Stays primed: the model classifies each citation, optionally with concurrent workers.
 
 ### file-names
 
@@ -325,10 +278,6 @@ Stays primed: the model classifies each citation, optionally with concurrent wor
 - applies-when: repo has several modules or cross-linked docs
 - checked: false
 
-#### Notes
-
-Stays primed: it fans out fresh-context scan subagents.
-
 ## Phase 5: prose
 
 ### be-concise
@@ -342,8 +291,6 @@ Stays primed: it fans out fresh-context scan subagents.
 
 Name each human-facing file explicitly. Never pass agent-instruction files.
 
-Stays primed: the model rewrites each file, then a subagent checks the semantic diff.
-
 ### compress
 
 - skill: docs-hygiene:compress
@@ -355,18 +302,12 @@ Stays primed: the model rewrites each file, then a subagent checks the semantic 
 
 Run only on files the be-concise step did not edit.
 
-Stays primed: a semantic-diff subagent reverts any meaning loss.
-
 ### ai-slop
 
 - skill: ai-slop:audit
 - args: audit fix .
 - applies-when: repo has tracked markdown
 - checked: true
-
-#### Notes
-
-Stays primed: it runs subagents per batch and a semantic-diff subagent over each fix.
 
 ## Phase 6: checks
 
@@ -400,7 +341,3 @@ Stays primed: it runs subagents per batch and a semantic-diff subagent over each
 - args:
 - applies-when: always
 - checked: true
-
-#### Notes
-
-Stays primed: it dispatches subagents and judges the outcome against the intent, not only a script.

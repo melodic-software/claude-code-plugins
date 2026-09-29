@@ -57,11 +57,11 @@ body() { # <done lines...>
 # shellcheck disable=SC2016 # literal payload, never expanded
 jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run: new:x' \
     '- [x] e-cleared: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-still: b:x@1.0, no findings' \
-    '- [x] e-na: n:x@0.5, no findings')" \
+    '- [x] e-na: n:x@0.5, no findings' '- [x] e-bare-x: b:x@1.0, no findings, partial coverage: docs only')" \
   --arg new "$(body '- [x] e-rerun: a:x@1.0, committed 2222222' '- [x] e-unknown: gone:x@3.0, no findings' \
     '- [x] e-multi: c:x@2.0, d:x, no findings' '- [x] e-bare: d:x' \
     '- [x] e-same: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-commit-partial: p:x@1.0, committed abc1234, partial coverage: 2 files' '- [x] e-declined: p:x@1.0, findings declined (2)' \
-    '- [x] e-still: b:x@1.0, no findings, partial coverage: docs only')" \
+    '- [x] e-still: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-bare-x: b:x')" \
   --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" \
   --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings, partial coverage: docs only' \
     '- [x] e-cleared: b:x@1.0, no findings' '- [x] e-na: n:x@1.0, not applicable: no tracked tests')" '[
@@ -75,7 +75,7 @@ printf '%s\n' '# Playbook: fixture' '## Phase 1: x' \
   '### e-run' '- skill: new:x' '### e-rerun' '- skill: a:x' '### e-same' '- skill: b:x' \
   '### e-builtin' '- skill: claude-api' '### e-builtin-same' '- skill: loop' '### e-unknown' '- skill: gone:x' \
   '### e-multi' '- skill: c:x, d:x' '### e-cleared' '- skill: b:x' '### e-still' '- skill: b:x' \
-  '### e-na' '- skill: n:x' '### e-commit-partial' '- skill: p:x' '### e-declined' '- skill: p:x' >"$TMP/cat.md"
+  '### e-na' '- skill: n:x' '### e-commit-partial' '- skill: p:x' '### e-declined' '- skill: p:x' '### e-bare-x' '- skill: b:x' >"$TMP/cat.md"
 
 run() {
   (cd "$repo" && PATH="$TMP/bin:$PATH" GH_DIR="$TMP/gh" GH_LOG="$TMP/gh.log" CLAUDE_CONFIG_DIR="$TMP/cfg" \
@@ -98,7 +98,8 @@ e-cleared${T}rerun-optional${T}same version ran: b:x@1.0
 e-still${T}rerun${T}partial coverage on a prior sweep
 e-na${T}rerun${T}version changed: n:x 0.5 -> 1.0
 e-commit-partial${T}rerun${T}partial coverage on a prior sweep
-e-declined${T}rerun-optional${T}same version ran: p:x@1.0" "$out"
+e-declined${T}rerun-optional${T}same version ran: p:x@1.0
+e-bare-x${T}rerun${T}partial coverage on a prior sweep" "$out"
 assert_eq "no warning when gh works" "" "$(cat "$TMP/err")"
 case "$(cat "$TMP/gh.log")" in
 *"--limit 1000"*"--json headRefName,body,mergedAt,isCrossRepository"*) pass "gh called with --limit 1000" ;;

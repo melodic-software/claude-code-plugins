@@ -143,8 +143,8 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   inference from the observed path: a bundled skill loaded from
   `/tmp/claude-1000/bundled-skills/2.1.283/...` while `claude --version` printed 2.1.283
   ([#4601](https://github.com/melodic-software/claude-code-plugins/issues/4601)); no docs page
-  states it. Recheck when that docs table changes or a Claude Code release note
-  gives bundled skills their own versions.
+  states it. As of 2026-09-29, from that observation. Recheck when that docs table changes or a
+  Claude Code release note gives bundled skills their own versions.
 - A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
   `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
   reports the installed version, which may never have run; `next` passes each skill's loaded
