@@ -27,7 +27,8 @@ Sources: [Saint11 Tiles](https://saint11.art/img/pixel-tutorials/Tiles.gif),
 
 ## Autotile sets: pick by engine
 
-The "Use when" column's Godot pairings are judgment; the Godot 3 bitmask mapping is unverified.
+The "Use when" column's Godot pairings are judgment. Do not treat them as a Godot 3 bitmask
+mapping; that pairing is unsettled (`engine-layouts.md`).
 
 | Set | Drawn tiles | Covers | Use when |
 |---|---|---|---|

@@ -270,7 +270,12 @@ TS_FILES=()
 PY_FILES=()
 GO_FILES=()
 SYM_FILES=()
+NOLANE_FILES=()
 SOURCE_FILES=()
+# Filled by the grep lane. Declared here so `set -u` can see the array before
+# that lane runs.
+FILE_REF_FILES=()
+FILE_REF_EMITTED=0
 
 while IFS= read -r scope_line; do
   scope_line="${scope_line//$'\r'/}"
@@ -282,7 +287,7 @@ while IFS= read -r scope_line; do
   py) PY_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   go) GO_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   shell | pwsh) SYM_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
-  nolane) SOURCE_FILES+=("$scope_line") ;;
+  nolane) NOLANE_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   *) ;;
   esac
 done < <(list_scope_files | LC_ALL=C sort -u)
@@ -722,24 +727,155 @@ lane_gopls() {
 # it `core.ts` matches `coreXts`.
 # ---------------------------------------------------------------------------
 
+# 0 when a package.json root owns the repo-relative path. JS/TS inside a root
+# is knip's unused-file finding; unreferenced-file does not repeat it.
+# The caller names its package-root array; nested/owns_path read it through a nameref.
+dc_path_owned_by_package() {
+  local path="$1" roots_name="$2" r
+  local -n _dc_pkg_roots="$roots_name"
+  # shellcheck disable=SC2034
+  local -a nested=()
+  [[ ${#_dc_pkg_roots[@]} -eq 0 ]] && return 1
+  for r in ${_dc_pkg_roots[@]+"${_dc_pkg_roots[@]}"}; do
+    nested_roots "$r" "$roots_name" nested
+    owns_path "$r" nested "$path" && return 0
+  done
+  return 1
+}
+
+# Shell, PowerShell, Python entry points, JS/TS no package.json root owns, and
+# source files with no lane. Go stays with gopls: a module compiles files the
+# path never names.
+collect_file_ref_files() {
+  local f
+  local -a PKG_ROOTS=()
+  FILE_REF_FILES=()
+  # shellcheck disable=SC2034  # read by dc_path_owned_by_package through a nameref
+  mapfile -t PKG_ROOTS < <(project_roots package.json)
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${PY_FILES[@]+"${PY_FILES[@]}"}; do
+    dc_is_py_entry "$f" || continue
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
+    dc_path_owned_by_package "$f" PKG_ROOTS && continue
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
+    FILE_REF_FILES+=("$f")
+  done
+}
+
+# Repo-wide literal search on each file's basename and repo-relative path.
+# A hit in any other tracked file saves it, including CI workflows, settings,
+# manifests, and docs. A hit inside the file itself does not. A computed path
+# or a glob never spells those keys, so a miss is an uncertain candidate.
+emit_unreferenced_files() {
+  local f base stem key pair
+  local -A KEY_SEEN=()
+  local -A PAIR_SEEN=()
+  FILE_REF_EMITTED=0
+  : >"$WORK/owners.tsv"
+  : >"$WORK/filekeys.txt"
+  for f in ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
+    [[ -n "$f" ]] || continue
+    base="${f##*/}"
+    # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
+    # `#include "util.h"` spells the name), so a no-lane file is also keyed on
+    # its stem. That saves more, never less: a stem match is a weaker miss.
+    stem=''
+    [[ "$(dc_lang_of_path "$f")" == 'nolane' ]] && stem="${base%.*}"
+    for key in "$base" "$f" ${stem:+"$stem"}; do
+      dc_ref_key_ok "$key" || continue
+      pair="${key}"$'\x1f'"${f}"
+      [[ -n "${PAIR_SEEN[$pair]:-}" ]] && continue
+      PAIR_SEEN["$pair"]=1
+      printf '%s\t%s\n' "$key" "$f" >>"$WORK/owners.tsv"
+      if [[ -z "${KEY_SEEN[$key]:-}" ]]; then
+        KEY_SEEN["$key"]=1
+        printf '%s\n' "$key" >>"$WORK/filekeys.txt"
+      fi
+    done
+  done
+  [[ -s "$WORK/filekeys.txt" ]] || return 0
+  : >"$WORK/refhits.txt"
+  # -I skips binary files. -H -o attribute each match to the file that held it
+  # so a mention inside the candidate itself can be dropped.
+  if [[ "$GIT_OK" == '1' ]]; then
+    git ls-files -z 2>/dev/null |
+      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
+  else
+    find . -type f -print0 2>/dev/null |
+      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
+  fi
+  awk -F '\t' '
+    NR == FNR {
+      key = $1
+      path = $2
+      if (key == "" || path == "") next
+      owners[key, ++nowners[key]] = path
+      want[path] = 1
+      next
+    }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      best = ""
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        if (substr(line, i, 1) != ":") continue
+        cand = substr(line, i + 1)
+        if ((cand in nowners) && length(cand) > length(best)) best = cand
+      }
+      if (best == "") next
+      file = substr(line, 1, length(line) - length(best) - 1)
+      sub(/^\.\//, "", file)
+      for (j = 1; j <= nowners[best]; j++) {
+        path = owners[best, j]
+        if (path != file) saved[path] = 1
+      }
+    }
+    END {
+      for (path in want) if (!(path in saved)) print path
+    }
+  ' "$WORK/owners.tsv" "$WORK/refhits.txt" | LC_ALL=C sort -u >"$WORK/unreferenced.txt"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    add_candidate "$f" 1 'unreferenced-file' \
+      'no literal basename or path reference; a computed path or glob can still load it (uncertain)'
+    FILE_REF_EMITTED=$((FILE_REF_EMITTED + 1))
+  done <"$WORK/unreferenced.txt"
+}
+
 lane_grep() {
   local f lang d_line d_name d_text cnt nm defs hits
+  local inspected_n=0 emitted=0 sym_detail names_n
+  local -A INSPECTED=()
   declare -A DEFS=()
   declare -A HITS=()
-  if [[ ${#SYM_FILES[@]} -eq 0 ]]; then
+  collect_file_ref_files
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"} ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
+    [[ -n "$f" ]] || continue
+    [[ -n "${INSPECTED[$f]:-}" ]] && continue
+    INSPECTED["$f"]=1
+    inspected_n=$((inspected_n + 1))
+  done
+  if [[ "$inspected_n" -eq 0 ]]; then
     lane_line grep '.' scanned-zero-files 0 \
-      'no shell or PowerShell file in candidate scope — a scan of nothing, not a clean bill'
+      'no shell, PowerShell, or other unreferenced-file input in candidate scope — a scan of nothing, not a clean bill'
     return 0
   fi
   printf 'dc_probe_symbol\n' >"$WORK/probe.txt"
-  if ! grep -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
+  if ! grep -H -o -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
     dc_account_lane_files skipped ${SYM_FILES[@]+"${SYM_FILES[@]}"}
-    lane_line grep '.' skipped "${#SYM_FILES[@]}" \
+    lane_line grep '.' skipped "$inspected_n" \
       'grep -w -F did not run here — presence is proven by invocation, never by command -v'
     return 0
   fi
   : >"$WORK/defs.tsv"
-  for f in "${SYM_FILES[@]}"; do
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
     lang="$(dc_lang_of_path "$f")"
     while IFS="$TAB" read -r d_line d_name d_text; do
       [[ -n "$d_name" ]] || continue
@@ -747,41 +883,44 @@ lane_grep() {
       DEFS["$d_name"]=$((${DEFS["$d_name"]:-0} + 1))
     done < <(dc_symbol_defs "$f" "$lang")
   done
-  if [[ ! -s "$WORK/defs.tsv" ]]; then
-    dc_account_lane_files ran ${SYM_FILES[@]+"${SYM_FILES[@]}"}
-    lane_line grep '.' ran "${#SYM_FILES[@]}" 'no symbol definition matched the extractor set'
-    return 0
-  fi
-  printf '%s\n' "${!DEFS[@]}" | LC_ALL=C sort -u >"$WORK/names.txt"
-  # Reference search is REPOSITORY-WIDE and deliberately separate from candidate
-  # scope: a reference from anywhere saves a symbol. -h drops filenames so the
-  # counted token is the match itself; xargs splits the file list for us.
-  : >"$WORK/hits.txt"
-  if [[ "$GIT_OK" == '1' ]]; then
-    git ls-files -z 2>/dev/null |
-      xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-  else
-    find . -type f -print0 2>/dev/null |
-      xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-  fi
-  while read -r cnt nm; do
-    [[ -n "$nm" ]] || continue
-    HITS["$nm"]="$cnt"
-  done < <(LC_ALL=C sort "$WORK/hits.txt" | uniq -c)
-  local emitted=0
-  while IFS="$TAB" read -r f d_line d_name d_text; do
-    [[ -n "$d_name" ]] || continue
-    defs="${DEFS["$d_name"]:-1}"
-    hits="${HITS["$d_name"]:-0}"
-    # Only the definition sites themselves matched anywhere in the repository.
-    if [[ "$hits" -le "$defs" ]]; then
-      add_candidate "$f" "$d_line" 'unreferenced-symbol' "$d_text"
-      emitted=$((emitted + 1))
+  if [[ -s "$WORK/defs.tsv" ]]; then
+    printf '%s\n' "${!DEFS[@]}" | LC_ALL=C sort -u >"$WORK/names.txt"
+    # Reference search is REPOSITORY-WIDE and deliberately separate from candidate
+    # scope: a reference from anywhere saves a symbol. -h drops filenames so the
+    # counted token is the match itself; xargs splits the file list for us.
+    : >"$WORK/hits.txt"
+    if [[ "$GIT_OK" == '1' ]]; then
+      git ls-files -z 2>/dev/null |
+        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
+    else
+      find . -type f -print0 2>/dev/null |
+        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
     fi
-  done <"$WORK/defs.tsv"
+    while read -r cnt nm; do
+      [[ -n "$nm" ]] || continue
+      HITS["$nm"]="$cnt"
+    done < <(LC_ALL=C sort "$WORK/hits.txt" | uniq -c)
+    while IFS="$TAB" read -r f d_line d_name d_text; do
+      [[ -n "$d_name" ]] || continue
+      defs="${DEFS["$d_name"]:-1}"
+      hits="${HITS["$d_name"]:-0}"
+      # Only the definition sites themselves matched anywhere in the repository.
+      if [[ "$hits" -le "$defs" ]]; then
+        add_candidate "$f" "$d_line" 'unreferenced-symbol' "$d_text"
+        emitted=$((emitted + 1))
+      fi
+    done <"$WORK/defs.tsv"
+    names_n="$(wc -l <"$WORK/names.txt" | tr -d ' ')"
+    sym_detail="$emitted symbol candidate(s) from $names_n distinct definition name(s)"
+  elif [[ ${#SYM_FILES[@]} -eq 0 ]]; then
+    sym_detail='no shell or PowerShell file in candidate scope'
+  else
+    sym_detail='no symbol definition matched the extractor set'
+  fi
+  emit_unreferenced_files
   dc_account_lane_files ran ${SYM_FILES[@]+"${SYM_FILES[@]}"}
-  lane_line grep '.' ran "${#SYM_FILES[@]}" \
-    "$emitted candidate(s) from $(wc -l <"$WORK/names.txt" | tr -d ' ') distinct definition name(s)"
+  lane_line grep '.' ran "$inspected_n" \
+    "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
 }
 
 # ---------------------------------------------------------------------------

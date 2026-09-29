@@ -18,8 +18,8 @@ removal, so Q1 reached for it. But it answers a different question:
 | | unhobble's shipped gate | what Q1's consequential tier needs |
 |---|---|---|
 | Question | should this rule come *back*? | may this rule be *removed*? |
-| Default | stays deleted absent evidence | stays present absent evidence |
-| Evidence | stumbles observed while it was absent | dispensability while it is present |
+| Default | stays deleted absent evidence | restored absent a warrant |
+| Evidence | stumbles observed while it was absent | stumbles attributed to it while it is removed and watched |
 | Scope | everything stripped at once | one rule at a time |
 
 The last row is the mechanical blocker. The experiment strips the whole surface, so a stumble is
@@ -42,6 +42,10 @@ A consequential deletion candidate enters a **watch**, recorded before any remov
   nothing. Qualifying means a session that actually entered the rule's governed situation
 - the disqualifier: what would end the watch immediately (any stumble attributable to the rule)
 
+The rule is then removed and stays removed for the whole window. A watched rule is never kept
+loaded: a rule still in context prevents the stumble it exists to prevent, so a clean window would
+say nothing about whether it can go. A disqualifying stumble ends the watch and restores the rule.
+
 A watch that never accumulates qualifying sessions expires unresolved. That is a real outcome and
 it is reported as one; it is never read as evidence of dispensability, which is the asymmetry the
 whole design turns on.
@@ -62,8 +66,8 @@ governs and the outcome went wrong in the way the rule exists to prevent. Two gu
 ### 3. The warrant, and what it is not
 
 A consequential deletion is warranted when the watch closes with its qualifying-session count met
-and zero attributed rows. The removing commit cites the watch record, exactly as unhobble's
-restoring commit cites its ledger rows.
+and zero attributed rows. The commit that makes the removal permanent cites the watch record,
+exactly as unhobble's restoring commit cites its ledger rows.
 
 Three things this explicitly is not:
 
@@ -86,8 +90,14 @@ degrades honestly (an expired watch resolves nothing) where a shortcut would deg
 
 ## Adoption
 
-Not yet wired into a skill. The mechanism is recorded here so the sign-off's consequential tier has
-a specification to point at; wiring it into `claude-config:unhobble` (as a deletion mode alongside
-the re-add gate, sharing the ledger grammar) is tracked separately. Until that lands, the
-consequential tier remains unclearable in practice, which is the honest state and is preferable to
-a tier that clears itself on absent evidence.
+Wired. `claude-config:unhobble` `watch` is the deletion direction of the re-add gate, and the
+re-add gate stays the only grammar: a ledger row, same-cause aggregation, and a commit that cites
+the rows. `claude-config:audit-instructions` treats an editorial cut as applicable on its normal
+criteria, holds a protected class, and treats a consequential deletion as applicable only when the
+commit that makes the removal permanent cites a closed watch whose qualifying-session count is met
+and whose attributed row count is zero. That citation is what clears the consequential tier. An empty watch is not a warrant.
+
+The signed-off contract lived at `docs/topics/context-engineering-integration/PLAN.md` and was
+pruned before merge. This file is the durable record. The grammar is not re-filed under
+`docs/topics/`: `scripts/check-contract-slice-prune.sh --check-diff` fails a pull request that
+leaves a path there, and that slice is pruned before merge, which would drop the record.

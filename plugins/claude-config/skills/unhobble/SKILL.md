@@ -1,6 +1,6 @@
 ---
 description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
-argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
+argument-hint: "[phase]: snapshot|bare|observe|readd|watch|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -84,13 +84,15 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
   the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
   No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
-  did, what was expected, suspected missing instruction, severity).
+  did, what was expected, suspected missing instruction, severity), with any deletion watch
+  recorded above the table (see Deletion watch).
 - `backups/`, under `${CLAUDE_PLUGIN_DATA}` only: pre-strip copies of any non-git-tracked file
   modified or removed (settings hook entries, and an untracked instruction file the plan classified
   behavioral, which git cannot restore and so is never stripped through the git helper). Never
   commit `backups/`.
 
-`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
+`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates,
+open and closed deletion watches.
 
 ## Phase 1: snapshot
 
@@ -268,6 +270,9 @@ rows after real work is a licensed permanent deletion.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
+   This gate is the evidence grammar, and only the grammar: a row is one ledger line, rows that
+   share an underlying cause count as one, and the commit that acts cites the rows. The deletion
+   watch uses this grammar and does not define a second one.
 2. For a root instruction file being restored whole,
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
@@ -304,6 +309,45 @@ rows after real work is a licensed permanent deletion.
    instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
    enforces. Without the plugin, record in the pull request body that the retired rules got no
    security pass.
+
+## Deletion watch
+
+`watch` is the deletion direction of the re-add grammar above. It does not add a row shape, a
+second ledger, or a second gate. Use it for one consequential rule: a rule that governs a
+situation and does not match the instruction exception register. An editorial candidate (removal
+would not change behavior, the content is derivable, or it restates the obvious) does not enter
+a watch; `audit-instructions` clears that tier on its normal criteria. A protected-class rule
+never enters a watch. Name the class and stop.
+
+A watch runs inside an experiment. When none is open, start one for the single rule: mint an
+experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
+`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with the
+watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
+ledger table: the rule, quoted,
+and the surface it lives on; the governed situation, stated as where its absence would show; the
+window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
+duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
+
+Present the rule, its surface, and the watch record, and wait for confirmation. Then remove the
+rule and keep it removed for the whole window. A watched rule is never kept
+loaded: a rule still in context prevents the stumble it exists to prevent, so zero attributed rows
+would say nothing about whether it can go. A disqualifying stumble ends the watch and restores the
+rule.
+
+Attribute a stumble by that governed situation. Same-cause aggregation is the re-add gate's rule.
+Co-absence is not attribution. When several rules were removed together, a stumble attaches to
+one rule only when exactly one removed rule governs the situation. When two do, the row attaches
+to the group and those deletions are reverted together.
+
+A watch that never accumulates qualifying sessions expires unresolved. Report that. It is not
+evidence the rule can go.
+
+The deletion is warranted when the qualifying-session count is met and the attributed row count,
+after same-cause aggregation, is zero. The commit that makes the removal permanent cites the watch
+the way a restoring commit cites its ledger rows. Present the closed watch and wait for
+confirmation before the removal is kept. A closed watch with
+zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
+is not clear, and silence is not a warrant.
 
 ## Cadence wiring (optional)
 

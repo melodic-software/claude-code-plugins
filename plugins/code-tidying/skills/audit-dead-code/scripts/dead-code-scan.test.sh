@@ -467,7 +467,7 @@ assert_contains "stderr-degraded gopls counts zero findings" "$goerr_out" "Summa
 grep_exit=0
 grep_out="$(cd "$SH_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || grep_exit=$?
 assert_exit "grep lane scan exits 0" 0 "$grep_exit"
-assert_contains "grep lane ran over the one shell file" "$grep_out" "Lane: grep | root=. | state=ran | files=1 | detail=2 candidate(s) from 3 distinct definition name(s)"
+assert_contains "grep lane ran over the one shell file" "$grep_out" "Lane: grep | root=. | state=ran | files=1 | detail=2 symbol candidate(s) from 3 distinct definition name(s); 1 unreferenced-file candidate(s)"
 # If the fixture named both symbols in its own header comment, `grep -w -F`
 # would count the prose mention as a reference: the fixture would save the very
 # symbols it exists to condemn, and the lane would produce nothing at all.
@@ -478,8 +478,10 @@ assert_contains "the genuinely dead function is a candidate" "$grep_out" "Findin
 assert_contains "the indirect-dispatch trap is also a candidate" "$grep_out" "Finding excerpt: handle_alpha() {"
 assert_contains "dead function line number" "$grep_out" "Finding line: 22"
 assert_contains "trap function line number" "$grep_out" "Finding line: 26"
-assert_contains "both candidates attributed to the one file" "$grep_out" "Summary file: dead-and-dynamic.sh | T1=2 T2=0 T3=0"
-assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findings=1 T1=2 T2=0 T3=0"
+assert_contains "both symbol candidates attributed to the one file" "$grep_out" "Summary file: dead-and-dynamic.sh | T1=2 T2=1 T3=0"
+assert_contains "the shell file itself is an unreferenced-file candidate" "$grep_out" "Finding shape: unreferenced-file"
+assert_contains "unreferenced-file is tier 2" "$grep_out" "Finding tier: 2"
+assert_contains "grep lane totals" "$grep_out" "Summary total: files-with-findings=1 T1=2 T2=1 T3=0"
 # The referenced control: main is called literally, so a literal search saves it.
 assert_not_contains "the literally called function is not a candidate" "$grep_out" "Finding excerpt: main() {"
 
@@ -614,7 +616,144 @@ else
   assert_contains "live vulture lane reports a state" "$live_out" "Lane: vulture | root=. | state="
 fi
 
-# --- 12. Coverage accounting: every source file is covered or listed (#4521) --------
+# --- 12. unreferenced-file: one referenced script, one referenced nowhere ---
+# A workflow, settings, a manifest, and a doc each count as alive evidence.
+# The file's own text does not. A computed path does not. Python modules are
+# not entry points. JS inside a package.json root is knip's finding, not this
+# shape. A language with no lane is in scope. Markdown is not.
+
+count_shape() {
+  printf '%s\n' "$1" | grep -c -F "$2" || true
+}
+
+REF_REPO="$TEST_TMPDIR/unref-workflow"
+init_repo "$REF_REPO"
+mkdir -p "$REF_REPO/scripts" "$REF_REPO/.github/workflows"
+printf '%s\n' '#!/usr/bin/env bash' 'echo used' >"$REF_REPO/scripts/used.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# scripts/orphan.sh' 'echo orphan' >"$REF_REPO/scripts/orphan.sh"
+cat >"$REF_REPO/.github/workflows/ci.yml" <<'EOF'
+name: ci
+on: push
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bash scripts/used.sh
+EOF
+stage_repo "$REF_REPO"
+ref_exit=0
+ref_out="$(cd "$REF_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || ref_exit=$?
+assert_exit "unreferenced-file scan exits 0" 0 "$ref_exit"
+assert_equal "exactly one unreferenced-file candidate" "1" "$(count_shape "$ref_out" "Finding shape: unreferenced-file")"
+assert_contains "the orphan script is the candidate" "$ref_out" "File: scripts/orphan.sh"
+assert_contains "the candidate is tier 2" "$ref_out" "Finding tier: 2"
+assert_contains "the candidate names the computed-path blind spot" "$ref_out" \
+  "Finding excerpt: no literal basename or path reference; a computed path or glob can still load it (uncertain)"
+assert_not_contains "the workflow-referenced script is not a candidate" "$ref_out" "File: scripts/used.sh"
+assert_not_contains "unreferenced-file is not reported as dead tier 1 alone" "$ref_out" "Finding tier: 1"
+
+EVID_REPO="$TEST_TMPDIR/unref-evidence"
+init_repo "$EVID_REPO"
+mkdir -p "$EVID_REPO/scripts" "$EVID_REPO/.claude"
+printf '%s\n' '#!/usr/bin/env bash' 'echo s' >"$EVID_REPO/scripts/from-settings.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo d' >"$EVID_REPO/scripts/from-docs.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo m' >"$EVID_REPO/scripts/from-manifest.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo o' >"$EVID_REPO/scripts/nowhere.sh"
+printf '%s\n' '{"hooks":{"command":"bash scripts/from-settings.sh"}}' >"$EVID_REPO/.claude/settings.json"
+printf '%s\n' 'Run scripts/from-docs.sh nightly.' >"$EVID_REPO/README.md"
+printf '%s\n' '{"scripts":{"lint":"bash scripts/from-manifest.sh"}}' >"$EVID_REPO/package.json"
+stage_repo "$EVID_REPO"
+evid_out="$(cd "$EVID_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "settings, docs, and manifest each save a script" "1" "$(count_shape "$evid_out" "Finding shape: unreferenced-file")"
+assert_contains "the unreferenced script is nowhere.sh" "$evid_out" "File: scripts/nowhere.sh"
+assert_not_contains "settings reference saves the script" "$evid_out" "File: scripts/from-settings.sh"
+assert_not_contains "doc reference saves the script" "$evid_out" "File: scripts/from-docs.sh"
+assert_not_contains "manifest reference saves the script" "$evid_out" "File: scripts/from-manifest.sh"
+
+BASE_REPO="$TEST_TMPDIR/unref-basename"
+init_repo "$BASE_REPO"
+mkdir -p "$BASE_REPO/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'echo b' >"$BASE_REPO/scripts/only-base.sh"
+printf '%s\n' 'Invoke only-base.sh by name.' >"$BASE_REPO/NOTE.md"
+stage_repo "$BASE_REPO"
+base_out="$(cd "$BASE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "a basename mention in a doc saves the file" "0" "$(count_shape "$base_out" "Finding shape: unreferenced-file")"
+
+GLOB_REPO="$TEST_TMPDIR/unref-glob"
+init_repo "$GLOB_REPO"
+mkdir -p "$GLOB_REPO/scripts" "$GLOB_REPO/.github/workflows"
+printf '%s\n' '#!/usr/bin/env bash' 'echo g' >"$GLOB_REPO/scripts/generated.sh"
+# The ${name} is workflow text, not a shell expansion. Quoting keeps it literal.
+# shellcheck disable=SC2016
+printf '%s\n' 'run: bash "scripts/${name}.sh"' >"$GLOB_REPO/.github/workflows/ci.yml"
+stage_repo "$GLOB_REPO"
+glob_out="$(cd "$GLOB_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "a computed path does not count as a reference" "1" "$(count_shape "$glob_out" "Finding shape: unreferenced-file")"
+assert_contains "the computed-path script stays uncertain" "$glob_out" "File: scripts/generated.sh"
+
+PYE_REPO="$TEST_TMPDIR/unref-py"
+init_repo "$PYE_REPO"
+mkdir -p "$PYE_REPO/pkg" "$PYE_REPO/.github/workflows"
+printf '%s\n' 'def helper():' '    return 1' >"$PYE_REPO/pkg/mod.py"
+printf '%s\n' '#!/usr/bin/env python3' 'print("entry")' >"$PYE_REPO/pkg/entry.py"
+printf '%s\n' '#!/usr/bin/env python3' 'print("used")' >"$PYE_REPO/pkg/used_entry.py"
+printf '%s\n' 'print("main")' >"$PYE_REPO/pkg/__main__.py"
+printf '%s\n' 'def main():' '    print("guard")' 'if __name__ == "__main__":' '    main()' >"$PYE_REPO/pkg/guard.py"
+printf '%s\n' 'def main():' '    print("saved")' 'if __name__ == "__main__":' '    main()' >"$PYE_REPO/pkg/guard_used.py"
+printf '%s\n' 'run: python3 pkg/used_entry.py' 'run: python3 pkg/guard_used.py' >"$PYE_REPO/.github/workflows/ci.yml"
+stage_repo "$PYE_REPO"
+pye_out="$(cd "$PYE_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "python entry points only, and only the unreferenced ones" "3" "$(count_shape "$pye_out" "Finding shape: unreferenced-file")"
+assert_contains "the shebang entry with no reference is a candidate" "$pye_out" "File: pkg/entry.py"
+assert_contains " __main__.py with no reference is a candidate" "$pye_out" "File: pkg/__main__.py"
+assert_contains "a __name__ guard with no reference is a candidate" "$pye_out" "File: pkg/guard.py"
+assert_not_contains "an imported module is not an unreferenced-file" "$pye_out" "File: pkg/mod.py"
+assert_not_contains "a referenced python entry is saved" "$pye_out" "File: pkg/used_entry.py"
+assert_not_contains "a referenced __name__ guard is saved" "$pye_out" "File: pkg/guard_used.py"
+
+JS_REPO="$TEST_TMPDIR/unref-js"
+init_repo "$JS_REPO"
+mkdir -p "$JS_REPO/pkg" "$JS_REPO/scripts"
+printf '%s\n' '{"name":"pkg","version":"0.0.0","private":true}' >"$JS_REPO/pkg/package.json"
+printf '%s\n' 'export const owned = 1' >"$JS_REPO/pkg/owned.mjs"
+printf '%s\n' 'export const loose = 1' >"$JS_REPO/scripts/loose.mjs"
+stage_repo "$JS_REPO"
+js_out="$(cd "$JS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "standalone js is one unreferenced-file" "1" "$(count_shape "$js_out" "Finding shape: unreferenced-file")"
+assert_contains "the mjs outside the package root is a candidate" "$js_out" "File: scripts/loose.mjs"
+assert_not_contains "mjs inside a package.json root is not repeated here" "$js_out" "File: pkg/owned.mjs"
+
+RS_REPO="$TEST_TMPDIR/unref-rs"
+init_repo "$RS_REPO"
+mkdir -p "$RS_REPO/src"
+printf '%s\n' 'fn main() {}' >"$RS_REPO/src/main.rs"
+printf '%s\n' 'fn used() {}' >"$RS_REPO/src/used.rs"
+printf '%s\n' 'See src/used.rs.' >"$RS_REPO/README.md"
+stage_repo "$RS_REPO"
+rs_out="$(cd "$RS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_equal "a language with no lane still yields one unreferenced file" "1" "$(count_shape "$rs_out" "Finding shape: unreferenced-file")"
+assert_contains "the unreferenced rust file is a candidate" "$rs_out" "File: src/main.rs"
+assert_not_contains "a doc path saves the other rust file" "$rs_out" "File: src/used.rs"
+
+# A compiled unit is named by its stem, never its filename.
+CS_REPO="$TEST_TMPDIR/unref-cs"
+init_repo "$CS_REPO"
+printf '%s\n' 'class Widget {}' >"$CS_REPO/Widget.cs"
+printf '%s\n' 'class Orphan {}' >"$CS_REPO/Orphan.cs"
+printf '%s\n' 'class App { Widget w = new Widget(); }' >"$CS_REPO/App.cs"
+stage_repo "$CS_REPO"
+cs_out="$(cd "$CS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_not_contains "a stem reference saves a no-lane file" "$cs_out" "File: Widget.cs"
+assert_contains "a stem named nowhere else is a candidate" "$cs_out" "File: Orphan.cs"
+
+MD_REPO="$TEST_TMPDIR/unref-md"
+init_repo "$MD_REPO"
+printf '%s\n' 'just docs' >"$MD_REPO/README.md"
+stage_repo "$MD_REPO"
+md_only="$(cd "$MD_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
+assert_contains "markdown is not unreferenced-file input" "$md_only" "state=scanned-zero-files"
+assert_equal "markdown produces no unreferenced-file candidate" "0" "$(count_shape "$md_only" "Finding shape: unreferenced-file")"
+# --- 13. Coverage accounting: every source file is covered or listed ---
 # A clean result is uncovered=0. Shell files a grep lane scanned must not hide .mjs
 # files that no package.json root owns, and a manifest root must not hide a
 # standalone file that sits outside it.
@@ -634,7 +773,7 @@ assert_contains "knip with no package.json reports the real mjs count" "$mix_out
 assert_contains "gopls with no go.mod reports zero go files, not a hidden count" "$mix_out" \
   "Lane: gopls | root=- | state=no-manifest | files=0 |"
 assert_contains "grep still covers the shell file" "$mix_out" \
-  "Lane: grep | root=. | state=ran | files=1 |"
+  "Lane: grep | root=. | state=ran | files=3 |"
 assert_contains "coverage counts the shell file covered and both mjs uncovered" "$mix_out" \
   "Summary coverage: covered=1 uncovered=2"
 assert_contains "first uncovered mjs is listed" "$mix_out" \
