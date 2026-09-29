@@ -1,0 +1,25 @@
+// good-for: rule-zero-assertion
+// waitForAll rejects with a message when the condition never holds, so the
+// awaited call is the assertion.
+import { describe, it } from 'vitest';
+import { startBroker, postEvent } from '../src/broker';
+
+function waitForAll(subs: { out(): string }[], needle: string, ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + ms;
+    const tick = () => {
+      if (subs.every((s) => s.out().includes(needle))) return resolve();
+      if (Date.now() > deadline) return reject(new Error(`no ${needle}`));
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
+
+describe('broker', () => {
+  it('delivers events in order', async () => {
+    const subs = await startBroker(2);
+    await postEvent(1);
+    await waitForAll(subs, '"id":1', 3000);
+  });
+});
