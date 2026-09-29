@@ -1,6 +1,6 @@
 ---
 description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment', 'deletion watch', 'watch this rule before deleting it'. Human-gated, resumable."
-argument-hint: "[snapshot|bare|observe|readd|watch|status]"
+argument-hint: "[snapshot|bare|observe|readd|watch|status|decide]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,8 @@ metadata:
   summary: Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns
 ---
 
-**Arguments.** `[snapshot|bare|observe|readd|watch|status]`. Omit the phase for the guided full flow.
+**Arguments.** `[snapshot|bare|observe|readd|watch|status|decide]`. Omit the phase for the guided full flow.
+`decide` is not a phase; see Decide.
 
 ## Purpose
 
@@ -86,7 +87,8 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
   the plugin data dir), `origin_url`, `branch`, `base_commit`, `branch_deviation` (empty, or why the
   experiment branch is not `experiment/unhobble-<model-version>`), target model, `phase`
   (`snapshot` | `bare` | `observe` | `readd` | `closed`, or `watch` for a Deletion watch experiment),
-  phase timestamps. No absolute host path, in any field.
+  phase timestamps, and optionally `pr_url` (the experiment pull request, written when one opens).
+  No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity), with any deletion watch
   recorded above the table (see Deletion watch).
@@ -95,8 +97,15 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
   behavioral, which git cannot restore and so is never stripped through the git helper). Never
   commit `backups/`.
 
-`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates,
-open and closed deletion watches.
+`status` reads `manifest.json` and `stumbles.md` and prints:
+
+- phase: manifest `phase`.
+- elapsed days: today minus the first phase timestamp.
+- ledger row count: table rows in `stumbles.md`.
+- register holds: rules the close recorded as register holds (0 before `readd` closes).
+- confounds: every `unstripped-*` record in the manifest, plus any confound the observe phase noted.
+- PR URL: manifest `pr_url`; the line is omitted while the manifest lacks that optional field.
+- re-add candidates and open and closed deletion watches.
 
 ## Phase 1: snapshot
 
@@ -312,6 +321,13 @@ restore and close rules are under Deletion watch, unchanged.
    grammar, only its own threshold: one attributed row after aggregation ends a watch, where restoring
    here takes two. That asymmetry is this skill's rule, not the spec's: restoring is cheap and
    reversible, and the removal is the risky act.
+
+   **Ledger grouping.** No script parses `stumbles.md` (`instruction-files.sh` handles instruction
+   files only), so read the table and cluster it by hand. Put each row under its suspected missing
+   instruction, then merge groups whose rows share one underlying cause. Report every group as:
+   the instruction, its row dates, and `clears` (two or more rows) or `below the gate` (one row).
+   Rows marked `improvement` never count toward a group. Present the report and stop; restoring
+   goes through steps 2 to 5.
 2. For a root instruction file being restored whole,
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
@@ -393,6 +409,22 @@ the way a restoring commit cites its ledger rows. Present the closed watch and w
 confirmation before the removal is kept. A closed watch with
 zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
 is not clear, and silence is not a warrant.
+
+## Decide
+
+`decide` resolves the open decisions an experiment leaves (a convention unit's default, a
+consequential rule that needs a watch, a kept-or-retired call) without a new engine, script, or
+manifest schema. It composes skills that are already there:
+
+1. List the open decisions from the manifest and ledger, one line each.
+2. When the `discovery` plugin is installed, run `/discovery:research` once per decision and keep
+   one memo per decision. When it is absent, say so and ask the operator each decision as a
+   question instead; the steps below do not run.
+3. Give each decision's memo to two blind decision agents that never see each other's answer.
+4. Two agents that agree give a consensus: present it with the memo and stop for confirmation.
+   Two that disagree return to the operator as a question that states both positions.
+
+`decide` never mutates. A confirmed decision is applied by the phase that owns it.
 
 ## Cadence wiring (optional)
 

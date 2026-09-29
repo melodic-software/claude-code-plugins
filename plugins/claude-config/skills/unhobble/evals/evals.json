@@ -338,6 +338,64 @@
         "Restores nothing in this turn",
         "Says the operator ends the observation window to move the phase to readd"
       ]
+    },
+    {
+      "id": 27,
+      "name": "status-prints-holds-confounds-and-pr-url",
+      "narration": true,
+      "prompt": "/claude-config:unhobble status",
+      "expected_output": "Reads manifest.json and stumbles.md and prints the phase, the elapsed days since the first phase timestamp, the ledger row count, the register holds, the confounds (the unstripped-* records and any confound the observe phase noted), and the pull request URL from the manifest pr_url field. When the manifest has no pr_url, the URL line is omitted and the optional field is named. Mutates nothing.",
+      "files": [],
+      "expectations": [
+        "Prints phase, elapsed days and ledger row count",
+        "Prints register holds and confounds, taking confounds from the manifest unstripped-* records",
+        "Prints the PR URL from manifest pr_url, or omits it and names pr_url as the optional field when absent",
+        "Mutates nothing"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "readd-groups-ledger-rows-and-reports-the-gate",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — manifest phase is readd. The ledger has four rows: two where the model committed to main (different tasks), one where it skipped the changelog, and one marked improvement about naming. Which groups clear the gate?",
+      "expected_output": "Reads the ledger by hand, since no script parses stumbles.md, and clusters the rows by suspected missing instruction. Reports the commit-to-main group as clearing the two-row same-cause gate, the changelog row as below the gate, and does not count the improvement row toward any group. Presents the report and stops before restoring anything.",
+      "files": [],
+      "expectations": [
+        "Clusters ledger rows by suspected missing instruction without inventing a parsing script",
+        "Reports the two commit-to-main rows as clearing the two-row same-cause gate",
+        "Reports the single changelog row as below the gate",
+        "Does not count the improvement row toward a group",
+        "Stops after the report without restoring anything"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "decide-composes-research-and-blind-agents-when-discovery-installed",
+      "narration": true,
+      "prompt": "/claude-config:unhobble decide — the experiment has two open decisions and the discovery plugin is installed. Resolve them.",
+      "expected_output": "Runs discovery:research once per open decision for one memo each, gives each memo to two blind decision agents that never see each other's answer, treats agreement as a consensus presented for confirmation, and returns disagreement to the operator as a question stating both positions. Adds no script, engine, or manifest schema and mutates nothing.",
+      "files": [],
+      "expectations": [
+        "Runs one discovery:research memo per open decision",
+        "Uses two blind decision agents per decision that do not see each other's answer",
+        "Presents agreement as a consensus for operator confirmation",
+        "Returns disagreement to the operator as a question stating both positions",
+        "Adds no new engine, script, or manifest schema and mutates nothing"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "decide-without-discovery-says-so-and-asks-the-operator",
+      "narration": true,
+      "prompt": "/claude-config:unhobble decide — the discovery plugin is not installed here. There are two open decisions.",
+      "expected_output": "States that discovery is absent, does not run the research or blind-agent steps, and asks the operator each open decision as a question. Mutates nothing.",
+      "files": [],
+      "expectations": [
+        "States that the discovery plugin is absent",
+        "Does not run the research memo or blind decision agent steps",
+        "Asks the operator each open decision as a question",
+        "Mutates nothing"
+      ]
     }
   ]
 }
