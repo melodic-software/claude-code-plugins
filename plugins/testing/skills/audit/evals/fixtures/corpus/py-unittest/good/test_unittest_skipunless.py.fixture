@@ -1,0 +1,13 @@
+# good-for: rule-zero-assertion
+# A bare skipUnless decorator: a test that does not run is not judged.
+import shutil
+import unittest
+from unittest import skipUnless
+
+from repo import clone_fixture
+
+
+class CloneTests(unittest.TestCase):
+    @skipUnless(shutil.which("git"), "needs git on PATH")
+    def test_clone_fixture_repo(self):
+        clone_fixture("tiny-repo")

@@ -1,0 +1,13 @@
+// expect: rule-zero-assertion
+// A test call split over lines whose body applies the discount and never
+// looks at the result.
+import { applyDiscount } from '../src/pricing';
+
+test(
+  'applies a percentage coupon',
+  () => {
+    const cart = { items: [{ sku: 'A1', price: 5000 }], coupon: 'SAVE10' };
+    applyDiscount(cart);
+  },
+  10000,
+);

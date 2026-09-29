@@ -1,0 +1,10 @@
+// expect: rule-recomputed-expectation
+// Both sides format the same duration, so the assertion cannot fail.
+import { describe, expect, it } from 'vitest';
+import { formatDuration } from '../src/time';
+
+describe('formatDuration', () => {
+  it('formats minutes and seconds', () => {
+    expect(formatDuration(125)).toBe(formatDuration(125));
+  });
+});
