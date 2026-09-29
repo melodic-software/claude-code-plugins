@@ -17,12 +17,12 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "Run a memory health audit and while you're at it audit my MCP servers, hooks, and subagents too.",
-      "expected_output": "Audits only the instruction/memory layer it owns, and routes MCP servers, hooks, agents, and skills to the audit / automation-gaps skills (in the claude-config plugin) rather than auditing them here.",
+      "expected_output": "Audits only the instruction/memory layer it owns, and routes MCP servers, hooks, agents, and skills to the `audit` and `audit-automation-gaps` skills (in the claude-config plugin) rather than auditing them here.",
       "files": [],
       "expectations": [
         "Output audits only the instruction/memory layer (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, rules, auto-memory)",
         "Output does NOT audit MCP servers, hooks, agents, or skills within this skill",
-        "Output routes those out-of-scope entities to audit / automation-gaps"
+        "Output routes MCP servers and hooks to audit and agents and skills to audit-automation-gaps (both in the claude-config plugin)"
       ]
     },
     {
