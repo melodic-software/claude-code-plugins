@@ -2204,6 +2204,193 @@ class DismissalDetectTests(unittest.TestCase):
         )
         self.assertIsNone(candidate["resurfaced"])
 
+    def below_cut(self, report):
+        return [
+            c for c in self.discovered(report) if c["component"]["skill"] == "rhyme"
+        ]
+
+    def test_an_unchanged_dismissal_below_the_cut_still_counts_as_suppressed(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.below_cut(report), [])
+        [suppressed] = report["discovery"]["suppressed"]
+        self.assertEqual(suppressed["component"]["skill"], "rhyme")
+        self.assertEqual(report["discovery"]["dismissals_orphaned"], [])
+
+    def test_drift_below_the_cut_still_resurfaces(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        self.repo.write_skill(
+            "songwriting", "rhyme", description="Find slant rhymes for a lyric."
+        )
+        _code, report = self.detect()
+        [candidate] = self.below_cut(report)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["component"])
+        self.assertTrue(
+            any(e.startswith("below the discovery cut") for e in candidate["evidence"])
+        )
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
+    def test_a_dismissal_whose_side_is_gone_is_reported_orphaned(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        (self.repo.root / "plugins/songwriting/skills/rhyme/SKILL.md").unlink()
+        _code, report = self.detect()
+        [orphan] = report["discovery"]["dismissals_orphaned"]
+        self.assertEqual(orphan["missing"], ["component"])
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.write_inventory(bundled_skills={})
+        _code, report = self.detect()
+        [orphan] = report["discovery"]["dismissals_orphaned"]
+        self.assertEqual(orphan["missing"], ["native", "component"])
+
+    def test_resurfaced_evidence_caps_a_hand_edited_reason(self):
+        store = make_store([])
+        # Stale fingerprints resurface the pair; the reason is over the cap.
+        store["dismissals"] = [make_dismissal(reason="x" * 5000)]
+        self.repo.write_store(store)
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        [line] = [e for e in candidate["evidence"] if e.startswith(overlap.RESURFACED)]
+        self.assertIn("x" * overlap.REASON_MAX, line)
+        self.assertNotIn("x" * (overlap.REASON_MAX + 1), line)
+
+    def dismiss_stderr(self, *extra, **kwargs):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = self.dismiss("--as-of", "2.1.284", *extra, **kwargs)
+        return code, err.getvalue()
+
+    def test_dismiss_rejects_a_component_that_escapes_the_repo(self):
+        self.write_inventory()
+        outside = self.repo.root.parent / "outside.md"
+        for component in (
+            "..:x",
+            "source-control:..",
+            "../..:outside",
+            "source-control:../../x",
+            "source-control:a/b",
+            ".:commit",
+        ):
+            with self.subTest(component=component):
+                code, err = self.dismiss_stderr(component=component)
+                self.assertEqual(code, 1)
+                self.assertNotIn(str(outside.parent), err)
+        stored = json.loads(self.repo.store_path.read_text("utf-8"))
+        self.assertEqual(stored.get("dismissals") or [], [])
+
+    def test_dismiss_rejects_a_pair_not_in_the_repo(self):
+        self.write_inventory()
+        code, _err = self.dismiss_stderr(component="source-control:nope")
+        self.assertEqual(code, 1)
+        # A skill exists, but not as an agent.
+        code, _err = self.dismiss_stderr("--kind", "agent")
+        self.assertEqual(code, 1)
+
+    def test_dismiss_rejects_an_overlong_reason(self):
+        self.write_inventory()
+        code, _err = self.dismiss_stderr("--reason", "x" * (overlap.REASON_MAX + 1))
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            self.dismiss_stderr("--reason", "x" * overlap.REASON_MAX)[0], 0
+        )
+
+    def test_dismiss_strips_version_and_date(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284\n", "--date", " 2026-09-29\n"), 0
+        )
+        [entry] = self.stored_dismissals()
+        self.assertEqual((entry["as_of"], entry["date"]), ("2.1.284", "2026-09-29"))
+
+
+class DismissalHardeningTests(unittest.TestCase):
+    def problems(self, **overrides):
+        store = make_store([])
+        store["dismissals"] = [make_dismissal(**overrides)]
+        return overlap.validate_store(store)
+
+    def test_a_trailing_newline_version_date_or_fingerprint_is_rejected(self):
+        for field, bad in (
+            ("as_of", "2.1.284\n"),
+            ("date", "2026-09-29\n"),
+            ("fingerprint", {"native": "0" * 32 + "\n", "component": "1" * 32}),
+        ):
+            with self.subTest(field=field):
+                self.assertTrue(
+                    any(f"`{field}`" in p for p in self.problems(**{field: bad}))
+                )
+        row = deep_copy(BASE_ROW)
+        row["observation"]["date"] = "2026-08-23\n"
+        self.assertTrue(
+            any(
+                "observation.date" in p
+                for p in overlap.validate_store(make_store([row]))
+            )
+        )
+
+    def test_a_path_segment_component_is_rejected_in_the_store(self):
+        for plugin, skill in (("..", "x"), ("a/b", "x"), ("demo", "."), ("", "x")):
+            with self.subTest(plugin=plugin, skill=skill):
+                component = {"plugin": plugin, "skill": skill, "kind": "skill"}
+                self.assertTrue(self.problems(component=component))
+                row = deep_copy(BASE_ROW)
+                row["component"] = component
+                self.assertTrue(overlap.validate_store(make_store([row])))
+
+    def test_an_overlong_reason_is_rejected(self):
+        self.assertEqual(self.problems(reason="x" * overlap.REASON_MAX), [])
+        self.assertTrue(
+            any(
+                "`reason`" in p
+                for p in self.problems(reason="x" * (overlap.REASON_MAX + 1))
+            )
+        )
+
+    def test_a_native_name_outside_the_strict_pattern_is_rejected(self):
+        native = {"name": "commit`<b>", "class": "bundled-skill"}
+        self.assertTrue(any("native.name" in p for p in self.problems(native=native)))
+        spaced = {"name": "plugin eval", "class": "bundled-skill"}
+        self.assertEqual(self.problems(native=spaced), [])
+
+    def test_malicious_cell_text_renders_inert(self):
+        reason = "a\rb\nc d e `code` <script> [x](http://e) | \\ end"
+        [row] = [
+            line
+            for line in overlap.render_dismissals(
+                [
+                    make_dismissal(
+                        reason=reason,
+                        native={"name": "x|<y>", "class": "bundled-skill"},
+                        component={"plugin": "p]", "skill": "[s", "kind": "skill"},
+                    )
+                ]
+            )
+            if line.startswith("| `")
+        ]
+        self.assertEqual(row.count("\n"), 0)
+        self.assertIn(
+            "a b c d e \\`code\\` \\<script\\> \\[x\\](http://e) \\| \\\\ end", row
+        )
+        self.assertIn("`x\\|\\<y\\>`", row)
+        self.assertIn("`p\\]:\\[s`", row)
+        # Every pipe that is not a cell border is escaped.
+        unescaped = [
+            i
+            for i, ch in enumerate(row)
+            if ch == "|" and (i == 0 or row[i - 1] != "\\")
+        ]
+        self.assertEqual(len(unescaped), 7)
+
 
 if __name__ == "__main__":
     unittest.main()

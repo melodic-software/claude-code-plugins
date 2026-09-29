@@ -16,6 +16,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **The store takes an optional `dismissals` list.** The self-check validates each dismissal and
   rejects one beside a verdict row for the same pair; `generate` renders a Dismissed section in
   the registry view.
+- **Dismissals are checked every run and validated strictly.** `detect` checks every dismissal
+  against the current descriptions, including a pair that no longer scores above the discovery
+  cut, and lists one whose surface or component is gone under `discovery.dismissals_orphaned`.
+  `dismiss` accepts only a component this repo has, named by plain name segments. The store
+  rejects a path-like component name, a reason over 300 characters, and a version, date, or
+  fingerprint with trailing characters, and the Dismissed table escapes markdown in every cell.
 - **Eval cases** for `inventory` answering "is /foo real" under a degraded lane and classifying a
   command the docs mark removed, and for `audit-native-overlap` recommending `suggest` for a
   user-only surface and suppressing then resurfacing a dismissed pair.

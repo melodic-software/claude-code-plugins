@@ -187,13 +187,19 @@ PRESENCE_MENTION_RE = re.compile(
 START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
 
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-AS_OF_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# Every pattern below is applied with `fullmatch`, so a trailing newline fails.
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+AS_OF_RE = re.compile(r"\d+\.\d+\.\d+")
+# One plugin or component name segment: never `.`/`..`, never a path separator.
+SEGMENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+# A dismissed native surface name, rendered into a generated markdown table.
+NATIVE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._: -]*")
+REASON_MAX = 300
 # A description fingerprint: the first 32 hex chars of the SHA-256 of the
 # whitespace-collapsed description, so a reflowed line never resurfaces a pair.
 # Shorter digests trip the typos spell check on word-like hex fragments.
 FINGERPRINT_LEN = 32
-FINGERPRINT_RE = re.compile(rf"^[0-9a-f]{{{FINGERPRINT_LEN}}}$")
+FINGERPRINT_RE = re.compile(rf"[0-9a-f]{{{FINGERPRINT_LEN}}}")
 RESURFACED = "resurfaced: description changed"
 # A trigger that is nothing but a date (however spelled) fails the observability
 # bar: a date alone is not an observable event.
@@ -607,6 +613,14 @@ def _native_problems(native: Any, label: str, *, markers: bool) -> list[str]:
     return problems
 
 
+def valid_segment(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and value not in (".", "..")
+        and SEGMENT_RE.fullmatch(value) is not None
+    )
+
+
 def _component_problems(
     component: Any, label: str, *, kind_required: bool
 ) -> list[str]:
@@ -620,8 +634,11 @@ def _component_problems(
         return [f"{label}: missing or malformed `component`"]
     problems: list[str] = []
     for key in ("plugin", "skill"):
-        if not isinstance(component.get(key), str) or not component.get(key):
-            problems.append(f"{label}: `component.{key}` must be a non-empty string")
+        if not valid_segment(component.get(key)):
+            problems.append(
+                f"{label}: `component.{key}` must be one name segment matching "
+                f"{SEGMENT_RE.pattern}"
+            )
     if kind_required:
         if component.get("kind") not in COMPONENT_KINDS:
             problems.append(
@@ -685,7 +702,7 @@ def validate_row(row: Any, index: int) -> list[str]:
                 "in its `detail` (8+ hex chars) - source evidence without a pin cannot "
                 "be re-derived when its trigger fires"
             )
-        if not DATE_RE.match(str(observation.get("date", ""))):
+        if not DATE_RE.fullmatch(str(observation.get("date", ""))):
             problems.append(f"{label}: `observation.date` must be YYYY-MM-DD")
 
     recheck = row.get("recheck")
@@ -702,7 +719,7 @@ def validate_row(row: Any, index: int) -> list[str]:
                 f"{label}: `recheck.trigger` is a bare date - a trigger names an "
                 "observable event (upstream-drift observability bar)"
             )
-        if not DATE_RE.match(str(recheck.get("verified", ""))):
+        if not DATE_RE.fullmatch(str(recheck.get("verified", ""))):
             problems.append(f"{label}: `recheck.verified` must be YYYY-MM-DD")
 
     baked = row.get("baked")
@@ -876,18 +893,29 @@ def validate_dismissal(entry: Any, index: int) -> list[str]:
     problems.extend(
         _component_problems(entry.get("component"), label, kind_required=True)
     )
+    native = entry.get("native")
+    if isinstance(native, dict) and isinstance(native.get("name"), str):
+        if not NATIVE_NAME_RE.fullmatch(native["name"]):
+            problems.append(
+                f"{label}: `native.name` must match {NATIVE_NAME_RE.pattern}"
+            )
     if not isinstance(entry.get("reason"), str) or not entry["reason"].strip():
         problems.append(f"{label}: `reason` must be a non-empty string")
-    if not AS_OF_RE.match(str(entry.get("as_of", ""))):
+    elif len(entry["reason"]) > REASON_MAX:
+        problems.append(
+            f"{label}: `reason` is {len(entry['reason'])} characters; the limit is "
+            f"{REASON_MAX}"
+        )
+    if not AS_OF_RE.fullmatch(str(entry.get("as_of", ""))):
         problems.append(
             f"{label}: `as_of` must be the Claude Code version the ruling was made "
             "against (X.Y.Z)"
         )
-    if not DATE_RE.match(str(entry.get("date", ""))):
+    if not DATE_RE.fullmatch(str(entry.get("date", ""))):
         problems.append(f"{label}: `date` must be YYYY-MM-DD")
     prints = entry.get("fingerprint")
     if not isinstance(prints, dict) or not all(
-        FINGERPRINT_RE.match(str(prints.get(side, "")))
+        FINGERPRINT_RE.fullmatch(str(prints.get(side, "")))
         for side in ("native", "component")
     ):
         problems.append(
@@ -930,8 +958,14 @@ def validate_pairs(pairs_data: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+_CELL_BREAKS = re.compile("[\r\n  ]")
+_CELL_SPECIALS = re.compile(r"([\\`<>\[\]|])")
+
+
 def _escape_cell(text: str) -> str:
-    return str(text).replace("|", "\\|").replace("\n", " ").strip()
+    """Neutralize text for one markdown table cell: no line break, and no
+    character that can end the cell or open a code span, link, or HTML tag."""
+    return _CELL_SPECIALS.sub(r"\\\1", _CELL_BREAKS.sub(" ", str(text))).strip()
 
 
 def render_block(
@@ -1054,12 +1088,16 @@ def render_dismissals(dismissals: list[dict[str, Any]]) -> list[str]:
         dismissals, key=lambda d: pair_key(d["native"]["name"], d["component"])
     ):
         component = entry["component"]
-        target = f"{component['plugin']}:{component['skill']}"
+        target = (
+            f"{_escape_cell(component['plugin'])}:{_escape_cell(component['skill'])}"
+        )
         if component["kind"] == "agent":
             target += " (agent)"
         lines.append(
-            f"| `{entry['native']['name']}` | {entry['native']['class']} | `{target}` | "
-            f"{_escape_cell(entry['reason'])} | {entry['as_of']} | {entry['date']} |"
+            f"| `{_escape_cell(entry['native']['name'])}` | "
+            f"{_escape_cell(entry['native']['class'])} | `{target}` | "
+            f"{_escape_cell(entry['reason'])} | {_escape_cell(entry['as_of'])} | "
+            f"{_escape_cell(entry['date'])} |"
         )
     lines.append("")
     return lines
@@ -1418,6 +1456,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
     store_verdicts = _store_verdicts(Path(args.store))
     store_dismissals = _store_dismissals(Path(args.store))
     suppressed: list[dict[str, Any]] = []
+    orphaned: list[dict[str, Any]] = []
+    examined: set[tuple[str, str, str, str]] = set()
 
     def broken_lane_evidence(lanes_in_play: set[str]) -> tuple[bool | None, list[str]]:
         if not lanes_in_play:
@@ -1483,6 +1523,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         entry = store_dismissals.get(key)
         if entry is None or key in store_verdicts:
             return False, None
+        examined.add(key)
         native_text = (
             native_description(registrations) if registrations is not None else None
         )
@@ -1511,7 +1552,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         return [
             f"{RESURFACED} ({' and '.join(resurfaced['sides'])} side) since the "
             f"dismissal of {dismissed['date']} against {dismissed['as_of']}: "
-            f"{dismissed['reason']}"
+            f"{str(dismissed['reason'])[:REASON_MAX]}"
         ]
 
     def keyed(scored: list[discover.Scored]) -> dict[tuple[str, str, str, str], Any]:
@@ -1597,6 +1638,45 @@ def cmd_detect(args: argparse.Namespace) -> int:
             }
         )
 
+    def discovered_candidate(
+        key: tuple[str, str, str, str],
+        klass: str,
+        lane: str | None,
+        registrations: list[dict[str, Any]],
+        score: Any,
+        matched: list[str] | None,
+        scored_line: str,
+        resurfaced: dict[str, Any] | None,
+    ) -> None:
+        name, plugin, skill, kind = key
+        block = native_block(name, klass, {"class": klass, "entry": registrations})
+        re_derivable, notes = broken_lane_evidence({lane} if lane else set())
+        candidates.append(
+            {
+                "origin": "discovered",
+                "native": block,
+                "component": {"plugin": plugin, "skill": skill, "kind": kind},
+                "component_present": True,
+                "re_derivable": re_derivable,
+                "score": score,
+                "matched_tokens": matched,
+                "recommended_integration": discover.recommended_integration(
+                    klass, block["invocable_by"]
+                ),
+                "store_verdict": None,
+                "verdict": None,
+                "fingerprints": fingerprints(key, registrations),
+                "resurfaced": resurfaced,
+                "evidence": [
+                    f"`{name}` present in the extraction as {klass}",
+                    *registration_evidence(registrations),
+                    scored_line,
+                    *notes,
+                    *resurfaced_evidence(resurfaced),
+                ],
+            }
+        )
+
     existing: list[dict[str, Any]] = []
     for key, (surface, score, matched) in sorted(
         scores.items(), key=lambda item: (item[0][0], -item[1][1], item[0][1:])
@@ -1619,34 +1699,58 @@ def cmd_detect(args: argparse.Namespace) -> int:
         )
         if suppress:
             continue
-        seen = {"class": surface.klass, "entry": surface.registrations}
-        block = native_block(name, surface.klass, seen)
-        re_derivable, notes = broken_lane_evidence({surface.lane})
-        evidence = [
-            f"`{name}` present in the extraction as {surface.klass}",
-            *registration_evidence(surface.registrations),
+        discovered_candidate(
+            key,
+            surface.klass,
+            surface.lane,
+            surface.registrations,
+            score,
+            matched,
             f"discovered: score {score} from shared tokens {', '.join(matched[:8])}",
-            *notes,
-            *resurfaced_evidence(resurfaced),
+            resurfaced,
+        )
+
+    # Every dismissal is checked against the current descriptions, not only the
+    # pairs that scored above the cut: a description that drifted far enough to
+    # drop a pair out of discovery is exactly the change a dismissal must catch.
+    for key, entry in sorted(store_dismissals.items()):
+        if key in examined or key in store_verdicts:
+            continue
+        seen = native_index.get(key[0])
+        missing = [
+            side
+            for side, present in (
+                ("native", seen is not None),
+                ("component", key[1:] in component_text),
+            )
+            if not present
         ]
-        candidates.append(
-            {
-                "origin": "discovered",
-                "native": block,
-                "component": component,
-                "component_present": True,
-                "re_derivable": re_derivable,
-                "score": score,
-                "matched_tokens": matched,
-                "recommended_integration": discover.recommended_integration(
-                    surface.klass, block["invocable_by"]
-                ),
-                "store_verdict": None,
-                "verdict": None,
-                "fingerprints": fingerprints(key, surface.registrations),
-                "resurfaced": resurfaced,
-                "evidence": evidence,
-            }
+        if missing:
+            orphaned.append(
+                {
+                    "native": key[0],
+                    "component": {"plugin": key[1], "skill": key[2], "kind": key[3]},
+                    "missing": missing,
+                    "as_of": entry.get("as_of"),
+                    "date": entry.get("date"),
+                }
+            )
+            continue
+        registrations = registrations_of(seen["entry"])
+        suppress, resurfaced = dismissal_state(key, seen["class"], registrations)
+        if suppress:
+            continue
+        _surface, score, matched = seed_scores.get(key, (None, None, None))
+        discovered_candidate(
+            key,
+            seen["class"],
+            LANE_OF_CLASS.get(seen["class"]),
+            registrations,
+            score,
+            matched,
+            "below the discovery cut"
+            + (f": score {score}" if score is not None else ": not scored"),
+            resurfaced,
         )
 
     report_integrity: dict[str, Any] = {
@@ -1703,6 +1807,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             "existing": existing,
             "suppressed": suppressed,
             "resurfaced": sum(1 for c in candidates if c["resurfaced"]),
+            "dismissals_orphaned": orphaned,
         },
         "candidates": candidates,
         "note": (
@@ -1973,15 +2078,30 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
             "the native description, so the surface must be observed"
         )
         return 1
-    plugin, _sep, skill = args.component.partition(":")
-    if not plugin or not skill:
-        _fail(f"--component must be <plugin>:<name>, got {args.component!r}")
+    if not NATIVE_NAME_RE.fullmatch(args.native):
+        _fail(f"--native must match {NATIVE_NAME_RE.pattern}")
         return 1
-    path = component_path(Path(args.repo).resolve(), plugin, skill, args.kind)
+    reason = args.reason.strip()
+    if not reason or len(reason) > REASON_MAX:
+        _fail(f"--reason must be 1 to {REASON_MAX} characters, got {len(reason)}")
+        return 1
+    plugin, _sep, skill = args.component.partition(":")
+    if not valid_segment(plugin) or not valid_segment(skill):
+        _fail(
+            "--component must be <plugin>:<name>, each segment matching "
+            f"{SEGMENT_RE.pattern}"
+        )
+        return 1
+    repo = Path(args.repo).resolve()
+    group = "agents" if args.kind == "agent" else "skills"
+    if f"{plugin}:{skill}" not in scan_components(repo)[group]:
+        _fail(f"component {plugin}:{skill} ({args.kind}) is not in this repo")
+        return 1
+    path = component_path(repo, plugin, skill, args.kind)
     try:
         frontmatter, _body = split_frontmatter(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError):
-        _fail(f"component {args.component} ({args.kind}) not found at {path}")
+        _fail(f"component {plugin}:{skill} ({args.kind}) is unreadable")
         return 1
     component = {"plugin": plugin, "skill": skill, "kind": args.kind}
     key = pair_key(args.native, component)
@@ -1991,13 +2111,15 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
             "overlap is never dismissed (change the row instead)"
         )
         return 1
-    as_of = args.as_of or (inventory.get("integrity") or {}).get("cli_version")
+    as_of = str(
+        args.as_of or (inventory.get("integrity") or {}).get("cli_version") or ""
+    ).strip()
     entry = {
         "native": {"name": args.native, "class": seen["class"]},
         "component": component,
-        "reason": args.reason.strip(),
+        "reason": reason,
         "as_of": as_of,
-        "date": args.date or datetime.date.today().isoformat(),
+        "date": (args.date or datetime.date.today().isoformat()).strip(),
         "fingerprint": {
             "native": fingerprint(native_description(registrations_of(seen["entry"]))),
             "component": fingerprint(frontmatter_description(frontmatter)),
