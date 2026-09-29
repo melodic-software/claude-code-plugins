@@ -84,7 +84,7 @@
       "id": 7,
       "name": "toggle-off-node-missing-stays-fail",
       "prompt": "/markdown-format:setup check\n\nI turned the hook off (markdown_format_enabled=false) and this machine has no working node. jq is also missing. What does check say?",
-      "expected_output": "Reports Node.js as FAIL even though the toggle is off, because Claude Code must spawn `node` for the hook row before the enabled gate can run, and reports the other missing prerequisites (jq, markdownlint-cli2) as INFO. Node is probed with `node --version`.",
+      "expected_output": "Reports Node.js as FAIL even though the toggle is off, because Claude Code must spawn `node` for the hook row before the enabled gate can run, and reports the missing jq as INFO. Node is probed with `node --version`.",
       "files": [],
       "expectations": [
         "Reports the Node.js item as FAIL with an install-or-repair remediation line, despite the disabled toggle",
