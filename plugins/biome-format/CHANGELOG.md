@@ -11,7 +11,7 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
 
 ### Changed
 
-- README Requirements states the two skip-notice latch classes once, lists Node.js (every hook row launches through `hooks/exec-bash.mjs`) and describes the session-start probe. `/biome-format:setup check` names the probe as a separate resolver, gains a Node row and reports `biome_format_lint_gitignored`. `/biome-format:check` states that setup's pre-computed rows are not rendered when it reads the file, so it runs every probe through Bash.
+- README Requirements states the two skip-notice latch classes once, lists Node.js (every hook row launches through `hooks/exec-bash.mjs`) and describes the session-start probe. `/biome-format:setup check` names the probe as a separate resolver, gains a Node row (still FAIL when the toggle is off, and a PASS is scoped to Bash's `PATH`), reads the probe script for its walk instead of restating it, and reports `biome_format_lint_gitignored`. `/biome-format:check` states that setup's pre-computed rows are not rendered when it reads the file, so it runs every probe through Bash.
 - The 0.7.2, 0.6.59 and 0.6.58 entries are reworded in place to "shared launcher/library sync; no change to this plugin's behavior". The 0.7.2 entry said this plugin's hook rows were unchanged, but 0.7.1 (the same commit) changed them. The 0.6.59 and 0.6.58 entries described `hook::shell_c_operand` and `hook::bash_parse_segments`, which no hook here calls.
 
 ## [0.7.5] - 2026-09-28
