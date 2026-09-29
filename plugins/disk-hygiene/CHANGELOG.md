@@ -37,8 +37,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   never to delete outside the engine while describing the manual lane; it now says never to delete
   without a clear `handoff-verify` verdict
   ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)).
+- **The Stop detector stays silent when the transcript file is missing.** It printed "did not run;
+  fail-open" on stderr; it now exits 0 with no output, as it does for a missing `transcript_path`.
+  An unexpected exception still prints the fail-open line.
 
 ### Changed
+
+- **`node` and bash are declared prerequisites.** Every hook runs `node hooks/exec-bash.mjs`, so
+  the README Requirements list Node.js on `PATH` and a bash the launcher can find, and
+  `/disk-hygiene:setup check` FAILs when either is missing. The README failure table gains the
+  launcher row: the hook fails to launch, the user sees a hook error notice, the guard is not
+  enforced, and the model is not told; the Stop detector cannot report it. Setup and the README
+  say the launcher also finds bash on `PATH`.
+- **The README states the launch form and the volume-root file rule without release history.**
 
 - **`--quiet`, `--root-children`/`--root-child` and `--sizes-only` detail** moved from the `clean`
   skill body into `reference/scan-flags.md`. The skill keeps the parse contract and one line per
@@ -60,7 +71,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   0.28.2: version-serialization sentence removed. 0.28.1: added the `kind`, `logical_size`, `mtime`
   and `attributes` fields the entry omitted. 0.27.0: "Volume-root behavior is unchanged" replaced
   with the non-volume scope statement. 0.26.3: version-serialization and operator-park sentences
-  removed.
+  removed. 0.28.5: added a line saying the version was never released on its own and its change
+  shipped in 0.28.6.
 
 ## [0.28.18] - 2026-09-29
 
@@ -176,6 +188,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - The `clean` skill's frontmatter `args` is a YAML sequence. A single-quoted JSON string is one argument, so the belt would not have received `exec-bash.mjs` and `run-python-hook.sh` as separate argv entries ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
 
 ## [0.28.5] - 2026-09-28
+
+This version was never released on its own: its change shipped in 0.28.6, together with the 0.28.6 fix.
 
 ### Changed
 

@@ -547,7 +547,7 @@ tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsAp
 in monitor mode, emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
-host where `node` is missing, or where that launcher cannot resolve Git Bash, takes the guard and
+host where `node` is missing, or where that launcher resolves no bash, takes the guard and
 its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
