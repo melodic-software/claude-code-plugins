@@ -124,8 +124,8 @@ versions against it. An unreadable version turns those rows into `skip`, never c
 
 It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
 It fetches the docs index (`llms.txt`), resolves each page it needs from a link there, and reads
-the page verbatim. The `docs` object in the document is the coverage record: the index and each
-page with its URL or path, byte count, and one `state`: `read`; `unread`, with a `reason` such as
+page with its URL or path, byte count, line count, `sha256`, content type, read time, and one `state`: `read`; `unread`, with a `reason` such as
+`fetch-failed`, `http-404`, `unexpected-content-type`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
 `fetch-failed`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
 settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
 404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
