@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.34] - 2026-09-29
+
+### Fixed
+
+- **The OTEL prune trims the store on Windows
+  ([#5232](https://github.com/melodic-software/claude-code-plugins/issues/5232)).** A
+  backslash `CC_OTEL_STORE` (as Machine-scope env delivers it) is normalized to forward
+  slashes, since `awk -v` stripped the backslashes and the trim could not write its temps.
+  Cold compaction of log records emitted without tracing no longer fails: `cc_logs_from`
+  reads `traceId`/`spanId` through a by-name struct cast that yields NULL when the key is
+  absent, which also fixes the `cc_logs` view on a store with no traced records. A failing
+  duckdb or jq step now prints its stderr instead of aborting silently.
+
 ## [0.63.33] - 2026-09-28
 
 ### Fixed
