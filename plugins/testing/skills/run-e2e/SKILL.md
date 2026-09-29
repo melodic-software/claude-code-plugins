@@ -36,9 +36,12 @@ not named.
 **Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
 launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, the
 drive subagent probes the URL or port the scenario or the project's documented start command
-names (`curl -fsS --max-time 5 <url>`, or a connect to the port). A response skips the step, so
-`run` never starts a second instance. No named URL or port, or no response, means not running and
-the step proceeds.
+names. The scenario is free-form input, so the target is used only when it is a bare
+`http://` or `https://` URL on `localhost` or `127.0.0.1`, or a bare port number, with no
+whitespace or shell metacharacters; the subagent passes it as one quoted argument
+(`curl -fsS --max-time 5 "<url>"`, or a connect to the port). Any other value is not probed. A
+response skips the step, so `run` never starts a second instance. No usable target, or no
+response, means not running and the step proceeds.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the

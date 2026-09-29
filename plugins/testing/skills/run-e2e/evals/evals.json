@@ -79,7 +79,7 @@
       "files": [],
       "narration": true,
       "expectations": [
-        "Probes the named URL or port before invoking run",
+        "Probes the named localhost URL or port before invoking run, passing it as one quoted argument",
         "Records 'skipped (app already running)' in the result block",
         "Does not invoke run",
         "Drives the existing instance and launches nothing"
