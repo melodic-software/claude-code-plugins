@@ -240,7 +240,7 @@ conflated whenever the request is "run simplify":
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
   and a docs mode for factual staleness.
 
-**Routing.** When the bundled `simplify` skill resolves in your session, prefer it for a single
+**Routing.** When the bundled `simplify` skill resolves in this session, prefer it for a single
 file or one diff. Prefer this skill when the scope is a window of sessions, a whole branch, or a
 repository, or when the passes need grouping and tracking.
 

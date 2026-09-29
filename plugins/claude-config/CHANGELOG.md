@@ -3,11 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.25] - 2026-09-28
+## [0.51.26] - 2026-09-28
 
 ### Changed
 
 - **`unhobble` watch clears a consequential deletion with the re-add grammar** ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)). The re-add gate stays the only evidence grammar: ledger rows, same-cause aggregation, and a commit that cites the rows. `watch` records a per-rule window before removal. A protected class never enters a watch. An editorial cut does not need one. A consequential deletion is applicable only when the watch closes with its qualifying-session count met and zero attributed rows, and the removing commit cites that watch. `audit-instructions` requires that citation before a consequential cut may proceed.
+
+## [0.51.25] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `audit-instructions` routing line and its `bundled-claude-api` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
 
 ## [0.51.24] - 2026-09-28
 

@@ -167,7 +167,7 @@ when a chapter names a model, a price, or an API mechanism:
   communicate, with model-adaptation chapters that carry behavioral deltas and an API prompt-caching
   chapter that carries mechanisms. By standing rule the chapters carry no model ID, price, or limit.
 
-**Routing.** When the bundled `claude-api` skill resolves in your session, prefer it for every
+**Routing.** When the bundled `claude-api` skill resolves in this session, prefer it for every
 current fact a chapter points at (a price, a model list, a beta boundary, a parameter's current
 shape) and for the cost audit itself; this playbook for the judgment around those facts and for the
 mechanisms that outlive any one price. A chapter that says "resolve through the `claude-api` skill"

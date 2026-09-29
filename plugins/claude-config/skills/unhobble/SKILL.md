@@ -319,7 +319,11 @@ would not change behavior, the content is derivable, or it restates the obvious)
 a watch; `audit-instructions` clears that tier on its normal criteria. A protected-class rule
 never enters a watch. Name the class and stop.
 
-Before any removal, record the watch in `stumbles.md`, above the ledger table: the rule, quoted,
+A watch runs inside an experiment. When none is open, start one for the single rule: mint an
+experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
+`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with the
+watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
+ledger table: the rule, quoted,
 and the surface it lives on; the governed situation, stated as where its absence would show; the
 window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
 duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
