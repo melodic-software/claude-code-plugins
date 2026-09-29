@@ -101,15 +101,20 @@ never combined with `&&` or other commands in one call. The record for these sha
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
 3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): tick only
-   after section 3 steps 3–4. Decide the base outcome first. Count findings the skill marks
-   report-only (tiers the procedure says never edit in this pass, such as
+   after section 3 steps 3–4. Decide the base outcome first. When findings were shown and the
+   user declined every fix-eligible one, no commit will carry the section 3 step 4 questions
+   and answers. Write them to `W/scope-decisions.md`, its body starting `repo-sweep scope
+   decisions: <id>`, post them with `gh pr comment --body-file W/scope-decisions.md` (this
+   session's own sweep PR only), then `S/tick.sh <id> declined <n> <skill@version>...` where
+   `<n>` is the number of declined findings, never `no-findings`. Otherwise count findings the
+   skill marks report-only (tiers the procedure says never edit in this pass, such as
    `source-fetched-similar` or `not-found`). When that count is greater than zero, `S/tick.sh
    <id> report-only <n> <skill@version>...` where `<n>` is that count. When there are zero
    findings of any kind, `S/tick.sh <id> no-findings <skill@version>...`. Then, when the skill
    reported uncovered scope, add it: `S/tick.sh <id> --partial "<what was not covered>"
-   report-only <n> <skill@version>...` for report-only findings, or `S/tick.sh <id> partial
-   "<what was not covered>" <skill@version>...` for zero findings (one line, no commas), so
-   partial never hides a report-only count. No commit.
+   report-only <n> <skill@version>...` (or `declined <n>`) for findings shown, or `S/tick.sh
+   <id> partial "<what was not covered>" <skill@version>...` for zero findings (one line, no
+   commas), so partial never hides a findings count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,

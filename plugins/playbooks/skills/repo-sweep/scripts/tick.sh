@@ -8,6 +8,7 @@
 #   tick.sh <id> partial <detail> <skill@version>...     zero findings, partial coverage
 #   tick.sh <id> not-applicable <evidence> <skill@version>...
 #   tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
+#   tick.sh <id> [--partial <detail>] declined <n> <skill@version>...
 #
 # Reads the body with `gh pr view --json body`, writes it with `gh pr edit --body-file -`,
 # re-reads it, and prints the new line. Only the first line for <id> between the repo-sweep
@@ -23,6 +24,7 @@ usage() {
   printf '       tick.sh <id> partial <detail> <skill@version>...\n' >&2
   printf '       tick.sh <id> not-applicable <evidence> <skill@version>...\n' >&2
   printf '       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...\n' >&2
+  printf '       tick.sh <id> [--partial <detail>] declined <n> <skill@version>...\n' >&2
   exit 2
 }
 (($# >= 2)) || usage
@@ -30,7 +32,7 @@ id=$1 mode=$2
 shift 2
 cover=""
 if [[ $mode == --partial ]]; then
-  [[ ${1-} == ?* && $1 != *","* && ${2-} =~ ^(committed|report-only)$ ]] || usage
+  [[ ${1-} == ?* && $1 != *","* && ${2-} =~ ^(committed|report-only|declined)$ ]] || usage
   cover=", partial coverage: $1" mode=$2
   shift 2
 fi
@@ -58,6 +60,11 @@ report-only)
   suffix=", no fix-eligible findings ($1 report-only)$cover"
   shift
   ;;
+declined)
+  [[ ${1-} =~ ^[0-9]+$ ]] || usage
+  suffix=", findings declined ($1)$cover"
+  shift
+  ;;
 *) usage ;;
 esac
 versions=""
@@ -81,7 +88,7 @@ printf '%s\n' "$body" | awk -v id="$id" -v done_text="$versions$suffix" -v newf=
     rest = substr($0, 7); i = index(rest, ": ")
     if (i && substr(rest, 1, i - 1) == id) {
       hit = 1; tail = substr(rest, i + 2)
-      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\))(, partial coverage: .+)?$|, not applicable: .+$/) { done = 1; exit }
+      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$|, not applicable: .+$/) { done = 1; exit }
       $0 = done_text == "" ? "- [~] " id ": " tail : "- [x] " id ": " done_text
       print > newf
     }

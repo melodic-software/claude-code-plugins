@@ -102,7 +102,26 @@ assert_eq "partial mode still reads as zero findings" "0 - [x] four: p:q@2.0, no
 run four in-progress
 assert_eq "no-findings line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
 
-for bad in "four --partial x no-findings p:q@1" "four --partial x in-progress" "four --partial x partial y p:q@1" \
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four declined 2 p:q@2.0
+assert_eq "declined" "0 - [x] four: p:q@2.0, findings declined (2)" "$rc $out"
+cp "$TMP/body" "$TMP/before"
+run four in-progress
+assert_eq "declined line cannot be re-ticked: exit 1" "1" "$rc"
+if cmp -s "$TMP/before" "$TMP/body"; then pass "declined re-tick leaves the body alone"; else fail "declined re-tick" "unchanged" "changed"; fi
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four --partial 'docs only' declined 2 p:q@2.0
+assert_eq "--partial with declined keeps the count" "0 - [x] four: p:q@2.0, findings declined (2), partial coverage: docs only" "$rc $out"
+run four in-progress
+assert_eq "declined line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+
+for bad in "four declined x p:q@1" "four declined p:q@1" "four declined 2" "four --partial x declined y p:q@1"; do
+  read -ra args <<<"$bad"
+  run "${args[@]}"
+  assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
+done
+
+for bad in "four --partial x no-findings p:q@1""four --partial x in-progress" "four --partial x partial y p:q@1" \
   "four --partial x not-applicable y p:q@1" "four --partial a,b committed abc1234 p:q@1" "four --partial x" "four --partial"; do
   read -ra args <<<"$bad"
   run "${args[@]}"

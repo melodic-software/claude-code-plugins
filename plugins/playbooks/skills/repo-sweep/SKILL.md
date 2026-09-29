@@ -56,7 +56,7 @@ error everywhere; codes 10 and up carry the meanings below; any other non-zero c
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
 | `state.sh` | `key value` lines: `pr`, `branch`, `pr-state`, `playbook`, `dirty`, `untick-committed <id> <sha> <skill@version>...`, `done-unverified <id>`, `next <id> in-progress\|pending`, `sweep <n> <branch>` | 0 next step found; 1 no markers; 10 no sweep PR; 11 PR merged or closed; 12 dirty tree, step pending; 13 all done; 14 one open sweep on another branch; 15 several open sweeps |
-| `tick.sh <id> in-progress` / `[--partial <detail>] committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `partial <detail> <skill@version>...` / `not-applicable <evidence> <skill@version>...` / `[--partial <detail>] report-only <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
+| `tick.sh <id> in-progress` / `[--partial <detail>] committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `partial <detail> <skill@version>...` / `not-applicable <evidence> <skill@version>...` / `[--partial <detail>] report-only <n> <skill@version>...` / `[--partial <detail>] declined <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
 | `guard.sh <base-sha> <pr-snapshot-file>` | Checks a step stayed on the branch and opened no PR | 10 stop (prints `branch-changed`, `base-not-ancestor`, `new-pr` lines); 11 prints `squash git reset --soft <base-sha>` |
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
@@ -84,12 +84,15 @@ Arguments in angle brackets are resolved per repo before the step runs.
 `[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done. A done
 line is one base outcome, then an optional partial suffix, or the separate not-applicable form:
 
-- Base outcomes: `committed <short-sha>`, `no findings`, or `no fix-eligible findings (N
-  report-only)` when the skill produced report-only tiers the user reviewed and nothing was edited.
+- Base outcomes: `committed <short-sha>`, `no findings`, `no fix-eligible findings (N
+  report-only)` when the skill produced report-only tiers the user reviewed and nothing was edited,
+  or `findings declined (N)` when the user declined every fix-eligible finding shown. No commit
+  carries the scope decisions of a declined step, so they live in a `repo-sweep scope decisions:
+  <id>` comment on the sweep PR.
 - Suffix `, partial coverage: <detail>` (one line, no commas) when the skill ran but did not
   cover the whole repo. It follows any base outcome, so partial never hides a commit or a
   report-only count. `tick.sh <id> partial <detail>` is the shorthand for `no findings` plus the
-  suffix; `--partial <detail>` right after `<id>` adds it to `committed` and `report-only`.
+  suffix; `--partial <detail>` right after `<id>` adds it to `committed`, `report-only`, and `declined`.
   `history.sh` recommends `rerun` after partial coverage.
 - `not applicable: <evidence>` replaces the base outcome. `history.sh` ignores such a line for
   version history.
