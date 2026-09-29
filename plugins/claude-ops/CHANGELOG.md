@@ -3,13 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.66.1] - 2026-09-29
+## [0.66.2] - 2026-09-29
 
 ### Added
 
 - **`observability` carries a Boundary section for the bundled skill `explain-usage`.** When it
   resolves, it answers where this session's tokens went in plain language; this skill keeps local
   telemetry, cross-session trends, hooks, and cost.
+
+## [0.66.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:audit-skill-visibility` resolves `bash` through `PATH` when enumerating managed
+  scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
+  managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
+  the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
 
 ## [0.66.0] - 2026-09-29
 
