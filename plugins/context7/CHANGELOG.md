@@ -3,6 +3,15 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **`lookup` restores the clause "even for libraries you 'know.'" in its philosophy line
+  ([#4120](https://github.com/melodic-software/claude-code-plugins/issues/4120)).** The 0.5.9 removal
+  contradicted #4120's acceptance criterion, which left the clause unedited pending a human decision.
+  The decision (keep the removal or keep the clause) is open on #4120.
+
 ## [0.5.11] - 2026-09-28
 
 ### Changed

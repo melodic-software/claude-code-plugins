@@ -25,7 +25,7 @@ MCP availability: check your own tool list. If `mcp__context7__resolve-library-i
 
 A primary source of up-to-date library documentation. Two equivalent interfaces: CLI (`ctx7`) via npm, and the Context7 HTTP MCP server (`mcp__context7__*`) when the consuming project has it configured. Both read the same backend. Pick by workflow (see [When to use CLI vs MCP](#when-to-use-cli-vs-mcp)).
 
-**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7.
+**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7, even for libraries you "know."
 
 ## Actions
 
