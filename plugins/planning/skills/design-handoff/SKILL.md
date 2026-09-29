@@ -95,6 +95,10 @@ Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` 
 - **Implementation planning**. That's `/planning:plan` (this skill packages its input)
 - **Mid-session save-point**. That's a session-handoff capability (a journal entry plus status for a later clear-and-resume). This skill is the design→plan stage seam, not a pause-point
 
+## Next
+
+/planning:plan consumes the plan-ready summary.
+
 ## Gotchas
 
 - A thread marked "decided" without recorded rationale is NOT RESOLVED. The rationale must be in the artifact, or `/planning:plan` inherits an unexplainable decision. FAIL it back by invoking `/planning:design` via the Skill tool to record the why

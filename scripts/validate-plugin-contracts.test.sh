@@ -1377,6 +1377,79 @@ for shape in "check — apply" "check (e.g., apply)" "check (for example apply)"
   fi
 done
 
+agree_case() {
+  reset_fixture
+  make_plugin hintfix ""
+  write_arg_body hintfix "$1" "[mode] <path>"
+  out="$(run_fixture)"
+}
+
+AGREE='does not lead with the argument-hint'
+
+agree_case match < <(printf '**Arguments.** `[mode] <path>`. Full form: `[mode] [--x] <path>`.\n')
+if grep -q 'hintfix/skills/match/SKILL.md' <<<"$out"; then
+  fail "an Arguments line leading with the hint should be silent: $out"
+else
+  ok "an Arguments line leading with the hint is silent"
+fi
+
+agree_case differ < <(printf '**Arguments.** `[mode]`.\n')
+if grep -q "^warning: .*hintfix/skills/differ/SKILL.md.*$AGREE.*$HINT_DOC" <<<"$out" &&
+  ! has_fail_line "$AGREE"; then
+  ok "an Arguments line that differs from the hint warns, names the owner doc, and does not fail"
+else
+  fail "a differing Arguments line should warn without failing: $out"
+fi
+
+agree_case noline < <(printf 'Body.\n')
+if grep -q 'hintfix/skills/noline/SKILL.md' <<<"$out"; then
+  fail "a hint with no Arguments line should be silent: $out"
+else
+  ok "a hint with no Arguments line is silent"
+fi
+
+agree_case fenced < <(printf '```\n**Arguments.** `[other]`\n```\n')
+if grep -q 'hintfix/skills/fenced/SKILL.md' <<<"$out"; then
+  fail "an Arguments line inside a fence should be ignored: $out"
+else
+  ok "an Arguments line inside a fenced block is ignored"
+fi
+
+agree_case nospan < <(printf '**Arguments.** none listed here.\n')
+if grep -q "^warning: .*hintfix/skills/nospan/SKILL.md.*$AGREE" <<<"$out"; then
+  ok "an Arguments line without an inline span warns"
+else
+  fail "an Arguments line without a span should warn: $out"
+fi
+
+agree_case longfence < <(printf '````\n```\n**Arguments.** `[other]`\n````\n')
+if grep -q 'hintfix/skills/longfence/SKILL.md' <<<"$out"; then
+  fail "a shorter fence line should not close a longer fence: $out"
+else
+  ok "an Arguments line inside a four-backtick fence holding a three-backtick line is ignored"
+fi
+
+agree_case tildefence < <(printf '~~~\n```\n~~~\n**Arguments.** `[other]`\n')
+if grep -q "^warning: .*hintfix/skills/tildefence/SKILL.md.*$AGREE" <<<"$out"; then
+  ok "a fence closes only on its own marker, so the line after it is checked"
+else
+  fail "the line after a closed tilde fence should be checked: $out"
+fi
+
+# The scan starts after the closing frontmatter delimiter, so a frontmatter
+# value ending in a fence marker cannot open a fence in the body.
+reset_fixture
+make_plugin hintfix ""
+mkdir -p "$TMP/plugins/hintfix/skills/fmfence"
+printf -- '---\nargument-hint: "[mode]"\ndescription: "Fixture. Ends with ```"\n---\n\n**Arguments.** `[other]`\n' \
+  >"$TMP/plugins/hintfix/skills/fmfence/SKILL.md"
+out="$(run_fixture)"
+if grep -q "^warning: .*hintfix/skills/fmfence/SKILL.md.*$AGREE" <<<"$out"; then
+  ok "a fence marker ending the frontmatter does not hide the Arguments line"
+else
+  fail "frontmatter ending in a fence marker should not hide the Arguments line: $out"
+fi
+
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?

@@ -1,0 +1,16 @@
+Lane: knip | root=- | state=no-manifest | files=0 | detail=no package.json project root in this repository
+Lane: vulture | root=. | state=scanned-zero-files | files=0 | detail=no .py file in candidate scope — a scan of nothing, not a clean bill
+Lane: gopls | root=- | state=no-manifest | files=0 | detail=no go.mod module root in this repository
+Lane: grep | root=. | state=ran | files=1 | detail=no shell, PowerShell, or standalone JS/TS file in candidate scope; 1 unreferenced-file candidate(s)
+File: src/Legacy.java
+Finding tier: 2
+Finding shape: unreferenced-file
+Finding line: 1
+Finding excerpt: no literal basename or path reference; a computed path or glob can still load it (uncertain)
+---
+Summary file: src/Legacy.java | T1=0 T2=1 T3=0
+Summary lanes: ran=1 skipped=0 degraded=0 scanned-zero-files=1 no-manifest=2
+Summary coverage: covered=0 uncovered=1
+Summary candidates: total=1 emitted=1 dropped-by-cap=0 cap=0
+Summary total: files-with-findings=1 T1=0 T2=1 T3=0
+Note: uncovered src/Legacy.java — no lane for the language

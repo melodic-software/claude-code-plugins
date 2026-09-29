@@ -37,7 +37,7 @@ dc_trim_excerpt() {
 dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
-  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | unreferenced-file) printf '2' ;;
+  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | ts-unreferenced-symbol | unreferenced-file) printf '2' ;;
   *) printf '3' ;;
   esac
 }
@@ -481,28 +481,36 @@ dc_knip_config_module() {
 # ---------------------------------------------------------------------------
 
 # Emit `<line><TAB><name><TAB><text>` for every symbol DEFINITION in one file.
-# The extractor set is this lane's declared coverage: shell functions and
-# PowerShell functions. Names under three characters are dropped — at that
-# length the reference search is noise, not evidence.
+# The extractor set is this lane's declared coverage: shell functions,
+# PowerShell functions, and function, class, const, let, and var declarations in
+# JS/TS (with or without `export`). Names under three characters are dropped:
+# at that length the reference search is noise, not evidence.
 dc_symbol_defs() {
   local file="$1" lang="$2"
   local line name num=0
   local sh_paren='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\)[[:space:]]*\{'
   local sh_kw='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_:.-]*)'
   local ps_kw='^[[:space:]]*[Ff]unction[[:space:]]+([A-Za-z_][A-Za-z0-9_-]*)'
+  local ts_decl='^[[:space:]]*(export[[:space:]]+)?(default[[:space:]]+)?(async[[:space:]]+)?(function[*]?|class|const|let|var)[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)'
   while IFS= read -r line || [[ -n "$line" ]]; do
     num=$((num + 1))
     line="${line//$'\r'/}"
     name=""
-    if [[ "$lang" == 'shell' ]]; then
+    case "$lang" in
+    shell)
       if [[ $line =~ $sh_paren ]]; then
         name="${BASH_REMATCH[2]}"
       elif [[ $line =~ $sh_kw ]]; then
         name="${BASH_REMATCH[1]}"
       fi
-    elif [[ $line =~ $ps_kw ]]; then
-      name="${BASH_REMATCH[1]}"
-    fi
+      ;;
+    ts)
+      [[ $line =~ $ts_decl ]] && name="${BASH_REMATCH[5]}"
+      ;;
+    *)
+      [[ $line =~ $ps_kw ]] && name="${BASH_REMATCH[1]}"
+      ;;
+    esac
     [[ -n "$name" ]] || continue
     ((${#name} >= 3)) || continue
     printf '%s\t%s\t%s\n' "$num" "$name" "$(dc_trim_excerpt "$line")"

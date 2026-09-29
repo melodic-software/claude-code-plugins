@@ -1,0 +1,11 @@
+CREATE TABLE notifications (
+    id INTEGER PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    body TEXT NOT NULL,
+    sent_at TIMESTAMP
+);
+
+CREATE TABLE delivery_receipts (
+    notification_id INTEGER NOT NULL REFERENCES notifications (id),
+    opened_at TIMESTAMP NOT NULL
+);
