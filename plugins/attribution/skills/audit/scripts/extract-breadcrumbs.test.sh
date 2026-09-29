@@ -337,18 +337,19 @@ mkdir -p "$YEAR_DIR"
   echo 'Checked as of 2024 and not revisited since.'                   # 8
   echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
   echo 'Read on 2026-01-02 from the vendor page.'                      # 10
+  echo 'We _read_ the source on 2025-01-01 as a check.'                # 11
 } >"$YEAR_DIR/year-shapes.md"
 
 YEAR_OUT="$(run --files "$YEAR_DIR/year-shapes.md" 2>/dev/null)"
 YEAR_FILE='.directories[0].files[0]'
-assert_eq "only the four dated lines are stamp lines" \
-  "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | [.stamp_lines[].line] | join(\",\")")" "7,8,9,10"
+assert_eq "only the five dated lines are stamp lines" \
+  "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | [.stamp_lines[].line] | join(\",\")")" "7,8,9,10,11"
 
 YEAR_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
   "$YEAR_DIR/year-shapes.md" 2>/dev/null | jq -r '.counts.candidates')"
 assert_eq "both scripts agree on the year-shapes candidates" \
   "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | .stamp_lines | length")" "$YEAR_CANDIDATES"
-assert_eq "and they agree on four" "$YEAR_CANDIDATES" "4"
+assert_eq "and they agree on five" "$YEAR_CANDIDATES" "5"
 
 # --- Fences ----------------------------------------------------------------------
 

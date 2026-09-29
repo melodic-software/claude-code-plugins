@@ -16,7 +16,7 @@
 - `check-stamps.sh` and `extract-breadcrumbs.sh` stop reading four digits that are not a date as a
   stamp year: a year inside a longer token (`SC2034`, `20260901T100000Z`, `Finder_2024`) or behind
   another number after the keyword (`verified real (Issue 9, 2025`), and `read` inside an identifier
-  (`cache_read_input_tokens`). Both scripts carry the same test and their suites pin the shared
+  (`cache_read_input_tokens`; an emphasized `_read_` still counts). Both scripts carry the same test and their suites pin the shared
   count. A `2026-07` stamp now declines as `year and month only, no day` instead of `bare year, no
   month or day`. Over the 1,623 files of this repository's corpus on run date 2026-09-29: candidates 1,195 to
   1,172, declined 51 to 28, `parsed` unchanged at 1,144 and `findings` unchanged at 268, so no

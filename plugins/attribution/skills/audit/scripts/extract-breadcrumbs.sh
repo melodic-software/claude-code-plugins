@@ -247,7 +247,7 @@ function year_form(w,   off, s, pre, post) {
 # and leaves RSTART on the leftmost of its two signals, so a signal out in the
 # slack cannot hide one the wlen guard below would have taken.
 # check-stamps.sh carries that split at both of its sites.
-function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
+function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen, s) {
   low = tolower(line)
   off = 0
   while (1) {
@@ -257,7 +257,11 @@ function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
     # "read" inside an identifier ("cache_read_input_tokens") is a name, not the verb.
-    if (kw ~ /_read|read_/) {
+    # Underscores that wrap the word alone ("_read_", Markdown emphasis) are not a name.
+    s = off + RSTART
+    if (kw ~ /_read|read_/ &&
+        ((substr(kw, 1, 1) == "_" && s > 1 && substr(low, s - 1, 1) ~ /[a-z0-9]/) ||
+         (substr(kw, length(kw), 1) == "_" && substr(low, pos + 1, 1) ~ /[a-z0-9]/))) {
       off = pos
       if (off >= length(low)) return 0
       continue

@@ -345,6 +345,7 @@ assert_eq "no slack May line becomes a finding" \
   echo 'Checked as of 2024 and not revisited since.'                   # 8
   echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
   echo 'Read on 2026-01-02 from the vendor page.'                      # 10
+  echo 'We _read_ the source on 2025-01-01 as a check.'                # 11
 } >"$DIR/year-shapes.md"
 
 OUT="$(run "$DIR/year-shapes.md" 2>/dev/null)"
@@ -361,9 +362,9 @@ assert_eq "a bare year after a keyword still declines as a bare year" \
   "$(echo "$OUT" | jq -r '.declined[] | select(any(.examples[]; .line == 8)) | .reason')" \
   "unparsed stamp date: bare year, no month or day"
 assert_eq "an ISO stamp behind an underscore keyword is still parsed" \
-  "$(echo "$OUT" | jq -r '.counts.parsed')" "2"
-assert_eq "four lines in the year-shapes fixture are candidates" \
-  "$(echo "$OUT" | jq -r '.counts.candidates')" "4"
+  "$(echo "$OUT" | jq -r '.counts.parsed')" "3"
+assert_eq "five lines in the year-shapes fixture are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "5"
 
 # --- Trigger-less check ----------------------------------------------------------
 

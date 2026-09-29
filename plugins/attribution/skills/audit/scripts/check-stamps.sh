@@ -414,7 +414,7 @@ function year_form(w,   off, s, pre, post) {
 # every real form the corpus uses ("read <ISO>", "read on <ISO>", "read of the
 # page on <ISO>") while the prose uses fall out, measured 2026-08-28 over 1,347
 # tracked files.
-function keyword_window(line,   low, pos, off, kw, wlen) {
+function keyword_window(line,   low, pos, off, kw, wlen, s) {
   low = tolower(line)
   off = 0
   while (1) {
@@ -424,7 +424,11 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
     # "read" inside an identifier ("cache_read_input_tokens") is a name, not the verb.
-    if (kw ~ /_read|read_/) {
+    # Underscores that wrap the word alone ("_read_", Markdown emphasis) are not a name.
+    s = off + RSTART
+    if (kw ~ /_read|read_/ &&
+        ((substr(kw, 1, 1) == "_" && s > 1 && substr(low, s - 1, 1) ~ /[a-z0-9]/) ||
+         (substr(kw, length(kw), 1) == "_" && substr(low, pos + 1, 1) ~ /[a-z0-9]/))) {
       off = pos
       if (off >= length(low)) return ""
       continue
