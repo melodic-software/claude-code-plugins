@@ -178,6 +178,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | `plan` | `plan/*` | named by hand |
    | `stranded` | `stranded/*` | named by hand |
    | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
+
 5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
