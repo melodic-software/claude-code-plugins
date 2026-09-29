@@ -35,14 +35,8 @@ else
 fi
 
 # unrelated entries and comments survive
-cat >"$CONF" <<'EOF'
-# keep this comment
-[fleet]
-	repo = ../keep-me
-	maxDepth = 4
-[canonical "github.com/o/r"]
-	path = ../canon
-EOF
+printf '%s\n' '# keep this comment' '[fleet]' '  repo = ../keep-me' '  maxDepth = 4' \
+  '[canonical "github.com/o/r"]' '  path = ../canon' >"$CONF"
 if run --extend-skip vendored --max-depth 6 >/dev/null && grep -Fq '# keep this comment' "$CONF" &&
   grep -Fq 'repo = ../keep-me' "$CONF" && grep -Fq 'path = ../canon' "$CONF" &&
   [[ "$(git config --file "$CONF" --get fleet.maxDepth)" == "6" ]] &&
@@ -55,7 +49,8 @@ fi
 # invalid input exits 2 and leaves the file byte-identical
 before="$(cat "$CONF")"
 bad_ok=1
-for bad in "" "a/b" 'a\b' ".." "."; do
+backslash=$'\\'
+for bad in "" "a/b" "a${backslash}b" ".." "."; do
   out="$(run --extend-skip "$bad")"
   code=$?
   if [[ $code -ne 2 || "$(cat "$CONF")" != "$before" ]]; then
