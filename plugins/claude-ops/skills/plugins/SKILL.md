@@ -320,6 +320,10 @@ report it as an invalid value. Only a rendered value that is a real word other t
 flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`
 default when that render is still the placeholder token, not on the option's name or description above.
 
+## Next
+
+- Which external binaries the enabled fleet is missing: /claude-ops:prerequisites
+
 ## Reference index. Load on demand
 
 | File | Load when |
