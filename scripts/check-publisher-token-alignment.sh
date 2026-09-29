@@ -13,13 +13,20 @@ PORT_FILE="${PUBLISHER_TOKEN_PORT_FILE:-scripts/skill-portability-tokens.txt}"
   exit 2
 }
 
-org_patterns=()
-while IFS= read -r line; do
-  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-  org_patterns+=("${line#* }")
-done <"$ORG_FILE"
+# Lines go through the portability gate's parser (read_list, `leading`
+# comments), so both sides compare with surrounding whitespace trimmed.
+# shellcheck source=lib/read-list.sh
+source scripts/lib/read-list.sh || exit 2
 
-port_active=()
+org_lines=() pattern=() port_active=()
+read_list::into org_lines "$ORG_FILE" --comments leading || exit 2
+org_patterns=()
+for line in "${org_lines[@]}"; do
+  read_list::into_text pattern "${line#*[[:space:]]}" --comments leading || exit 2
+  org_patterns+=("${pattern[@]}")
+done
+
+active_text=""
 in_active=0
 saw_active=0
 while IFS= read -r line; do
@@ -32,10 +39,9 @@ while IFS= read -r line; do
     in_active=0
     continue
   fi
-  [[ $in_active -eq 1 ]] || continue
-  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-  port_active+=("$line")
+  ((in_active == 1)) && active_text+="$line"$'\n'
 done <"$PORT_FILE"
+read_list::into_text port_active "$active_text" --comments leading || exit 2
 
 # An input the gate cannot use must not read as a clean pass: nothing was compared.
 ((saw_active == 1)) || {

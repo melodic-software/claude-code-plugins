@@ -32,6 +32,10 @@ write_org "$PUBLISHER_TOKEN"
 write_port "$PUBLISHER_TOKEN"
 run 0 "aligned publisher-like active token passes"
 
+printf 'fleet-id   %s  \r\n' "$PUBLISHER_TOKEN" >"$TMP/org.txt"
+write_port "  $PUBLISHER_TOKEN	"
+run 0 "surrounding whitespace on either side does not break alignment"
+
 write_org 'other-token'
 run 1 "publisher-like active token absent from org file fails"
 assert_output_contains "failure names the token" "$PUBLISHER_TOKEN"
