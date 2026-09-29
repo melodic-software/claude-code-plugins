@@ -128,6 +128,7 @@ plugins/source-control/skills/babysit-prs/reference/safety.md 13
 plugins/source-control/skills/babysit-prs/reference/worktrees.md 4
 plugins/source-control/skills/commit/reference/exec-bit.md 1
 plugins/source-control/skills/pull-request/reference/create.md 6
+plugins/source-control/skills/pull-request/reference/merge.md 1
 plugins/source-control/skills/pull-request/reference/monitor.md 3
 plugins/source-control/skills/pull-request/reference/ready-for-review.md 1
 plugins/source-control/skills/setup/reference/apply-convention.md 2
