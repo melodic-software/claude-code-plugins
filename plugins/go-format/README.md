@@ -9,9 +9,9 @@ surfaces the syntax error back to Claude as advisory context.
 
 ## Behavior
 
-- **Unconditional, no consumer-config opt-in gate.** Unlike sibling
-  formatter plugins (`ruff-format`, `typos-format`), this hook runs on every
-  edited `.go` file regardless of repository configuration. `goimports`'
+- **No consumer-config opt-in gate.** Unlike sibling formatter plugins
+  (`ruff-format`, `typos-format`), this hook needs no repository
+  configuration to run on an edited `.go` file. `goimports`'
   own docs describe it as "a replacement for your editor's gofmt-on-save
   hook" and it has no meaningful config-divergence axis when left
   unconfigured. Running it does not impose a style choice a repo hasn't
@@ -28,6 +28,11 @@ surfaces the syntax error back to Claude as advisory context.
   (a `//` or `/* */` block) precedes the marker, common for
   `addlicense`/`goheader` output. `goimports` itself has no awareness of
   that convention, so this hook adds the guard itself.
+- **Leaves gitignored files alone.** By default a `.go` file the repository
+  gitignores is neither rewritten nor reported, since a rewrite of an ignored
+  file has no git checkout to undo it. A tracked file that matches an ignore
+  pattern stays in scope. Set `go_format_lint_gitignored=true` to act on
+  gitignored files too.
 - **Fix in place.** Formatting and import changes are applied silently. No
   advisory noise on a successful fix, the same posture as a successful
   `ruff-format`/`typos-format` autofix pass.
@@ -104,11 +109,12 @@ Then verify prerequisites with `/go-format:setup check`.
 ## Configuration
 
 There are no rules to configure. `goimports` runs with no consumer-config
-surface to read. One `userConfig` option tunes the hook itself:
+surface to read. Two `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `go_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
+| `go_format_lint_gitignored` | `false` | Set `true` to also act on files the repository gitignores. |
 
 Set it interactively with `/plugin configure go-format@<marketplace>`, or headless on the
 install command:

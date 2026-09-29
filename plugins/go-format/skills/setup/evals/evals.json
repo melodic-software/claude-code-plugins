@@ -18,10 +18,10 @@
       "id": 2,
       "name": "no-consumer-config-probe-is-by-design-not-a-gap",
       "prompt": "/go-format:setup check\n\nEvery other formatter plugin here checks for a repo config first. Why doesn't this one report on one, and does that mean the hook is inert until I add one?",
-      "expected_output": "Answers that the hook runs unconditionally — there is no consumer-config opt-in gate, unlike sibling formatter plugins Ruff and typos — so the absent config probe is reported plainly as INFO by design, not as a coverage gap, and nothing needs adding to activate it.",
+      "expected_output": "Answers that the hook has no consumer-config opt-in gate, unlike sibling formatter plugins Ruff and typos — so the absent config probe is reported plainly as INFO by design, not as a coverage gap, and nothing needs adding to activate it.",
       "files": [],
       "expectations": [
-        "States that this hook runs unconditionally with no consumer-config opt-in gate, and names the contrast with the sibling plugins that do gate",
+        "States that this hook has no consumer-config opt-in gate, and names the contrast with the sibling plugins that do gate",
         "Reports the missing probe as INFO by design, never as a gap or a defect to repair",
         "Does not tell the user to add a repository config to activate the hook",
         "Does not write any repository configuration"
@@ -78,6 +78,20 @@
         "Reports \"already configured\" and performs no write",
         "Does not re-print install guidance for a prerequisite that now passes",
         "Does not prompt interactively — the action was given in the invocation"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-reports-gitignore-option",
+      "prompt": "/go-format:setup check\n\nI edited .work/scratch.go and it was not formatted. Why?",
+      "expected_output": "Reports the effective go_format_lint_gitignored value (default false) in the check table and explains that the hook skips files the repository gitignores by default, while a tracked file that matches an ignore pattern stays in scope. Nothing is modified.",
+      "files": [],
+      "expectations": [
+        "Reports the effective go_format_lint_gitignored value in the check table, treating unset or empty as the default false",
+        "Explains that the hook skips gitignored files by default, so .work/scratch.go was left alone, and that a tracked file matching an ignore pattern stays in scope",
+        "Names go_format_lint_gitignored=true as the way to act on gitignored files, set through the native userConfig flow",
+        "Does not tell the user to add repository configuration",
+        "Modifies nothing"
       ]
     }
   ]

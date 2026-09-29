@@ -21,9 +21,10 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. It runs
-unconditionally (no consumer-config opt-in gate, unlike sibling formatter plugins Ruff/typos),
-so the only tunable is the native `userConfig` toggle. Like `typos-format`, `goimports` has no
+reports, `apply` resolves. This plugin owns no consumer-project configuration. It has
+no consumer-config opt-in gate (unlike sibling formatter plugins Ruff/typos), so the only
+tunables are the two native `userConfig` options, `go_format_enabled` and
+`go_format_lint_gitignored`. Like `typos-format`, `goimports` has no
 per-repo dependency-manager install path in the way Ruff's `.venv` does. It is conventionally
 `go install`ed to the machine-global `$GOPATH/bin`, never as a project dependency. `apply` is
 therefore guidance-only: it never installs anything, matching the hook's own PATH-only
@@ -57,11 +58,15 @@ restores the FAIL semantics.
    when absent. The hook then emits a visible once-per-session skip notice instead of running.
 4. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
-5. **Hook registration.** INFO: confirm the plugin is enabled for this project
+5. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
+   `${user_config.go_format_lint_gitignored}` (unexpanded or empty means default `false`). At
+   `false` the hook skips files the repository gitignores; a tracked file matching an ignore
+   pattern stays in scope.
+6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
-There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook runs
-unconditionally by design; report that plainly as INFO, not as a gap.
+There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook has
+no consumer-config gate by design; report that plainly as INFO, not as a gap.
 
 ## `apply` (idempotent)
 
@@ -84,7 +89,7 @@ re-verifying. For everything else `apply` only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
   interactive `/plugin configure go-format@<marketplace>` any time, or headless
   `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
+  (repeatable per key; `go_format_lint_gitignored` is set the same way). Against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports

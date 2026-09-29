@@ -2,7 +2,7 @@
 # Black-box contract test for go-format.sh (the go-format plugin hook).
 #
 # Proves WIRING: the hook fires only on *.go files (extension pre-filter),
-# runs goimports UNCONDITIONALLY (no consumer-config opt-in gate — the one
+# runs goimports with no consumer-config opt-in gate (gitignored files aside; the one
 # deliberate shape difference from ruff-format/typos-format; see
 # docs/topics/832-go-ecosystem/PLAN.md Open Decision 1), skips files carrying
 # Go's generated-code marker, autofixes imports/formatting in place, surfaces
