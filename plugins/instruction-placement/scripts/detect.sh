@@ -126,6 +126,7 @@ if [[ "${1:-}" == "identity" ]]; then
     shift 2
   done
   [[ -n "$ID_FILE" ]] || id_die "--file is required"
+  [[ "$ID_FILE" != /* ]] || id_die "--file must be a path relative to --root: $ID_FILE"
   [[ "$ID_START" =~ ^[0-9]+$ ]] || id_die "--start must be an integer"
   case "$ID_LANE" in
   demote | promote) ;;

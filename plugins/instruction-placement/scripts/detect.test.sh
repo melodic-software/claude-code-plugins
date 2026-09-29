@@ -249,7 +249,7 @@ assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 # identity subcommand
 #
 # The two golden vectors below equal the output of claude-config's
-# audit-pass finding-identity.sh `finding-id` for one site (surface=anchor), so
+# audit-pass finding-identity.sh `finding-id` for one site (surface=<repo-relative path>, anchor=<anchor>), so
 # a change here that drifts from that formula fails this suite.
 # ==========================================================================
 idr="$(mktemp -d)"
@@ -317,6 +317,8 @@ ident --file CLAUDE.md --lane demote --destination skill >/dev/null
 assert_eq "identity: a missing --start is a usage error" "2" "$?"
 ident --file CLAUDE.md --start 1 --lane demote >/dev/null
 assert_eq "identity: a missing --destination is a usage error" "2" "$?"
+ident --file "$idr/CLAUDE.md" --start 1 --lane demote --destination skill >/dev/null
+assert_eq "identity: an absolute --file is a usage error" "2" "$?"
 out="$(ident --file CLAUDE.md --start 1 --lane bogus --destination skill)"
 assert_has "identity: a usage error prints usage text" "$out" "  detect.sh identity [--root <dir>] --file <path> --start <n>"
 
