@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Sourced by the dispatcher and by every audit entry point: the four pieces
+# Sourced by the dispatcher and by every audit entry point: the five pieces
 # each of them would otherwise repeat verbatim.
 #
 #   cm_usage_banner <file> <last line>    print <file>'s leading comment block,
@@ -12,6 +12,10 @@
 #                                         resolve the configuration cascade into
 #                                         <destination>; return the resolver's
 #                                         own status
+#   cm_anchor_document <document>        record the report's root and make its
+#                                         measured paths relative to it, in
+#                                         place; a document already anchored is
+#                                         left unchanged
 #   cm_emit_document <skill> <json flag> <document> [<render argument>...]
 #                                         print <document> when the flag is 1,
 #                                         else persist it and render the markdown
@@ -52,6 +56,25 @@ cm_resolve_config() {
   "${PY[@]}" "$CM_ENTRY_LIB_DIR/resolve-config.py" \
     --ladder "${2:-$CM_ENTRY_LIB_DIR/collector-ladder.tsv}" \
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$1"
+}
+
+cm_anchor_document() {
+  # The root is the repository's top level, else the working directory. `-W`
+  # (Git Bash) gives the Windows path the interpreter reports; elsewhere `-P`
+  # gives the physical path, the one `git` and the interpreter's own working
+  # directory report, so the two compare.
+  local document="$1" kind="directory" root top anchored
+  root="$(pwd -W 2>/dev/null || pwd -P)"
+  if top="$(git rev-parse --show-toplevel 2>/dev/null)" && top="${top%$'\r'}" && [[ -n "$top" ]]; then
+    kind="repository"
+    root="$top"
+  fi
+  anchored="$(mktemp)"
+  if ! "${PY[@]}" "$CM_ENTRY_LIB_DIR/report.py" anchor --root "$root" --kind "$kind" <"$document" >"$anchored"; then
+    rm -f "$anchored"
+    return 2
+  fi
+  mv "$anchored" "$document"
 }
 
 cm_emit_document() {

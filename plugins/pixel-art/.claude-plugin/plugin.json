@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "pixel-art",
   "version": "0.4.0",
-  "description": "Creates pixel art with no external tools: static sprites, animation cycles laid out as sprite sheets for the target engine (RPG Maker MZ, Godot, PICO-8, plain strips) with Aseprite-shaped frame data and GIF previews, terrain tilesets and parallax, UI skins and bitmap fonts, effect sheets, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, including scripts/kit.py, a humanoid kit of proportion presets, hair and head shapes, clothing layers, material ramps, shading, a selective outline, and direction handling. A bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional Aseprite, PixelLab, and Retro Diffusion adapters share that artifact contract and fall back to the native renderer when the tool or a spend confirmation is absent.",
+  "description": "Creates pixel art with no external tools: static sprites, animation cycles laid out as sprite sheets for the target engine (RPG Maker MZ, Godot, PICO-8, plain strips) with Aseprite-shaped frame data and GIF previews, terrain tilesets and parallax, UI skins and bitmap fonts, effect sheets, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, including scripts/kit.py, a humanoid kit of proportion presets, hair and head shapes, clothing layers, material ramps, shading, a selective outline, and direction handling. A bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. An optional Aseprite adapter shares that artifact contract and falls back to the native renderer when the tool is absent.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -27,7 +27,7 @@
     "backend": {
       "type": "string",
       "title": "Rendering backend",
-      "description": "native (default, no external tools), aseprite, pixellab, or retrodiffusion. A named backend that is not present falls back to native with a notice.",
+      "description": "native (default, no external tools) or aseprite. A named backend that is not present falls back to native with a notice.",
       "default": "native"
     }
   }

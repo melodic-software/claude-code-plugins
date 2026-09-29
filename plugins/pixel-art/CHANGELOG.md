@@ -17,6 +17,14 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 - `scene-canvas.md` and the `scene` skill document the `audio` hook and the ffmpeg mux in place of the
   video-only statement.
 
+## [0.3.8] - 2026-09-29
+
+### Removed
+
+- The PixelLab and Retro Diffusion adapters, `hosted_backends.py`, the `--confirm` flag and
+  `PIXEL_ART_BACKEND_CONFIRM`. The backend is `native` (default) or `aseprite`; an unknown
+  configured name falls back to native with a notice. Hosted generators can return as separate items.
+
 ## [0.3.7] - 2026-09-29
 
 ### Changed

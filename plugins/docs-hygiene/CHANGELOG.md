@@ -1,5 +1,27 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.18] - 2026-09-29
+
+### Fixed
+
+- **`audit-progressive-disclosure` checks upstream ownership before proposing a treatment.** A new
+  hard rule greps the repo for synced, vendored, generated or upstream markers on the target and
+  reads `docs/adr/` and `docs/decisions/` for a recorded tier or owner. On a hit the finding
+  stays, its treatment is `file with the owner, citing the decision`, and its disposition is
+  `upstream`. A Tier 3 row never carries a treatment. `tier-model.md` states the recorded-reason
+  and upstream-owner exemptions, and a synced-rule eval covers the routing
+  ([#5173](https://github.com/melodic-software/claude-code-plugins/issues/5173)).
+
+## [0.23.17] - 2026-09-29
+
+### Fixed
+
+- **`audit-file-names` no longer reads an empty scan root as a clean tree.** `inventory.sh` warns
+  on stderr when it scans no files, and `emit-findings.sh` exits 3 when the inventory scanned zero
+  files over an existing plan that holds findings, unless `--replace` is passed, so a re-audit
+  cannot drop recorded decisions. `SKILL.md` and `reference/config.md` define `SCANNED 0` as an
+  empty root and direct the zero-offender run to a `findings: 0` plan.
+
 ## [0.23.16] - 2026-09-29
 
 ### Changed

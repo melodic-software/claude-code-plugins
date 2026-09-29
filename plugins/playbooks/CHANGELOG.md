@@ -4,6 +4,34 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.6] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` records a not-applicable step without a skill version** ([#5181](https://github.com/melodic-software/claude-code-plugins/issues/5181)).
+  A step whose `applies-when` no longer holds invokes no skill, yet `tick.sh` required
+  `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
+  takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
+  `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
+## [0.14.5] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep next` stops when the sweep PR conflicts with its base** ([#5206](https://github.com/melodic-software/claude-code-plugins/issues/5206)).
+  GitHub runs no `pull_request` workflows on a conflicting PR, so step commits pushed to it got no
+  CI. `state.sh` now prints `mergeable CONFLICTING`, and `next` stops before any step and asks the
+  user to merge the base branch into the sweep branch and push.
+
+## [0.14.4] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `ai-slop` step is audit-only** ([#5194](https://github.com/melodic-software/claude-code-plugins/issues/5194)).
+  The catalog entry passed `audit fix .`, which chains the audit and the fix in one invocation and
+  rewrote prose before the findings review. The entry now passes `audit .`, and a note directs
+  running `fix` on the findings the user approves.
+
 ## [0.14.3] - 2026-09-29
 
 ### Fixed
