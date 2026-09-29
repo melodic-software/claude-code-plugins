@@ -1818,10 +1818,9 @@ PROJ_ENV=CLAUDE_PROJECT_DIR
 # to close. The tension with docs/conventions/topic-docs/, which states raw
 # output including credentials belongs in the tier, is filed, not decided here.
 #
-# The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`
-# is the command session-flow's save-point procedure prescribes. It still blocks,
-# and the conflict routes to the skill (use Write, which is scanned) rather than
-# to this guard.
+# The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`.
+# It still blocks because the memory tier is not exempt; write that file with
+# Write, which the content guards scan.
 run_cwd "memory tier: relative append still blocks" \
   "printf '*' >> .work/.gitignore" "$PROJ" 2 "$PROJ_ENV=$PROJ"
 run_cwd "memory tier: relative write still blocks" \

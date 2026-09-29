@@ -489,9 +489,9 @@ printf '%s\n' "$STUB_MOUNT_LINES"
 EOF
 chmod +x "$MOUNT_STUB/cygpath" "$MOUNT_STUB/mount"
 MOUNT_ROOT='C:/Program Files/Git on / type ntfs (binary,noacl,posix=0)'
-MOUNT_TMP_USERTEMP='C:/Users/u/AppData/Local/Temp on /tmp type ntfs (binary,noacl,posix=0,usertemp)'
+MOUNT_TMP_USERTEMP='C:/Users/<user>/AppData/Local/Temp on /tmp type ntfs (binary,noacl,posix=0,usertemp)'
 MOUNT_TMP_PLAIN='C:/tmp on /tmp type ntfs (binary,noacl,posix=0)'
-MOUNT_OTHER_USERTEMP='C:/Users/u/AppData/Local/Temp on /other type ntfs (binary,noacl,posix=0,usertemp)'
+MOUNT_OTHER_USERTEMP='C:/Users/<user>/AppData/Local/Temp on /other type ntfs (binary,noacl,posix=0,usertemp)'
 run_win_payload "mount fallback: usertemp on the /tmp line (allowed)" \
   "$(msys_command_json 'echo x > /tmp/x')" 0 PATH="$MOUNT_STUB:$PATH" \
   STUB_MOUNT_LINES="$MOUNT_ROOT"$'\n'"$MOUNT_TMP_USERTEMP"

@@ -1682,8 +1682,8 @@ expect_both 'PS multi-line scriptblock without a delete allowed' 0 \
 # `$X/build` and `${X}/build` pass). Each PowerShell row below runs beside the Bash
 # row it mirrors, with and without a cwd. The four rows that allow a subpath
 # (`$env:TEMP\build`, `$env:TEMP/build`, `$Env:TEMP\build` and
-# `${env:LOCALAPPDATA}\cache\x`) used to be refused as a bare variable; they now
-# match the Bash lane's `$X/build` and `${X}/build`, which are allowed.
+# `${env:LOCALAPPDATA}\cache\x`) match the Bash lane's `$X/build` and `${X}/build`,
+# which are allowed.
 while IFS='|' read -r rdt_want rdt_ps rdt_bash; do
   [[ -n "$rdt_ps" ]] || continue
   # The rows write a backslash as `~`.

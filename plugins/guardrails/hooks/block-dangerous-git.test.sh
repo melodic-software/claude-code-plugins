@@ -1697,13 +1697,12 @@ run_pwsh "PS hs: the removed token string does not open the expandable-body sink
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
 # THE BUDGET REFUSES (#4682). Once the loop has blanked five granted sink shapes
 # and the remainder, re-classified once more, still cannot be read, the guard
-# refuses. It used to exit 0 there with the destructive text still visible.
+# refuses; it does not exit 0 with the destructive text still visible.
 #
-# Fewer shapes reach that cap than when it was written. A here-string opener with
-# trailing whitespace, or an opener on a closer line, used to spend rounds on
-# itself; both are refused earlier now as untrusted reductions, so a case built
-# on one exits 2 whether or not the budget holds. A case that claims the budget
-# is therefore pinned on the MESSAGE only the exhaustion refusal prints.
+# Few shapes reach that cap. A here-string opener with trailing whitespace, or an
+# opener on a closer line, is refused earlier as an untrusted reduction, so a case
+# built on one exits 2 whether or not the budget holds. A case that claims the
+# budget is therefore pinned on the MESSAGE only the exhaustion refusal prints.
 #
 # Five distinct triggers fill the budget exactly and the command is still read.
 # The rounds are special-construct, dynamic-invocation, launcher,

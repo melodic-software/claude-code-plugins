@@ -77,13 +77,16 @@ nothing. It only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record). Two routes: interactive
   `/plugin configure guardrails@<marketplace>` any time, or headless
-  `claude plugin install guardrails@<marketplace> -s user --config KEY=VALUE` (repeatable per
+  `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` (repeatable per
   key); against an already-installed plugin it prints `already installed` and still writes the
   value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Pass `-s user` and do not copy a scope from `claude plugin list`; the
-  convention gives the reason. A rejected value prints a warning yet exits 0, so read the
-  output, not the exit code. This skill never writes user settings or `pluginConfigs`.
+  manifest default. Pass the scope `claude plugin list` reports for this plugin: `-s` places the
+  install record and `enabledPlugins`, the value always lands in user settings, and a rerun at
+  another scope adds an install record there and enables the plugin. From the home directory the
+  list can label one file both `user` and `project`: pass `user`. A rejected value prints a
+  warning yet exits 0, so read the output, not the exit code. This skill never writes user
+  settings or `pluginConfigs`.
   Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each
   hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.
