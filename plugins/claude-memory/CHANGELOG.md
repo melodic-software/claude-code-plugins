@@ -20,15 +20,23 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 ## [0.13.7] - 2026-09-28
 
-### Fixed
+### Changed
 
-- **`lib/managed-scope.sh` matches the claude-config canonical copy** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings), [managed settings](https://code.claude.com/docs/en/managed-settings)).
+- Re-release with no `claude-memory` change: this version repeats 0.13.6 (see
+  [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027) under 0.13.6). Only
+  `plugin.json` and this changelog changed.
 
 ## [0.13.6] - 2026-09-28
 
-### Fixed
+### Changed
 
-- **`lib/managed-scope.sh` matches the claude-config canonical copy** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings), [managed settings](https://code.claude.com/docs/en/managed-settings)).
+- **`lib/managed-scope.sh` synced** byte-identical to the claude-config canonical copy
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Adds the unused
+  `mscope::remote_cache_file` helper and comments; no `claude-memory` script calls the helper, so
+  behavior is unchanged. The helper names the server-managed settings cache
+  `~/.claude/remote-settings.json`, read by the Organization policy line in `/status`
+  ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings),
+  [managed settings](https://code.claude.com/docs/en/managed-settings)).
 
 ## [0.13.5] - 2026-09-27
 
