@@ -204,7 +204,7 @@ jobs:
   #     extensionless node_modules/.bin/claude stub does not run.
   #   audit_skill_visibility — NOT here yet. Two managed-scope unit tests fail on
   #     windows-2025 (`bash exited 1 sourcing the lib` for lib/managed-scope.sh),
-  #     so the run stops before its cygpath probe.
+  #     so the run stops before its cygpath probe (#5323).
   # They stub markdownlint-cli2 and claude, so no step installs either. The
   # PASS/FAIL/SKIPPED totals in each step's log say whether the probe fired or
   # the cases ran.

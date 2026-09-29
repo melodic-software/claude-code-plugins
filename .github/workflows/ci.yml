@@ -367,10 +367,9 @@ jobs:
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
       # another branch cannot fail it (#3599). A push to main scans main's full
-      # history (HEAD). A manual dispatch scans every ref (--all) and reports
-      # findings on other branches. This step is pinned ahead of the other
-      # composites (v0.27.1) because only its event-scoped scan is wanted from
-      # v0.30.0.
+      # history (HEAD). A manual dispatch scans every ref present in the clone
+      # (--all). This step is pinned ahead of the other composites (v0.27.1)
+      # because only its event-scoped scan is wanted from v0.30.0.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
