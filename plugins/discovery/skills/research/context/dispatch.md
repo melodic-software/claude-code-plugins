@@ -82,8 +82,11 @@ against a run that produced none):
 
    Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
    index's outcome-gate result: the frontmatter's `verification: pending` becomes the verifier's
-   `verification_line` (its values are in `artifact-shape.md`), the verifier rows carry pass or the
-   criterion that failed, and project fit is recorded as its own finding
+   `verification_line` (its values are in `artifact-shape.md`; the shared write-back shape and
+   what to write when no verifier can be dispatched are in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+   "The sibling verifier, stated once"), the verifier
+   rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
    its own failure.

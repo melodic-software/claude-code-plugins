@@ -3,6 +3,20 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.16] - 2026-09-28
+
+### Added
+
+- **`in-place` mode for `tidy` and `batch-simplify` repo mode.** Runs on the current branch with
+  no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
+  and the report prints to the user.
+
+## [0.23.15] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `batch-simplify` and `tidy` routing lines named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
 ## [0.23.14] - 2026-09-28
 
 ### Fixed

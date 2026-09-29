@@ -28,6 +28,9 @@ contains git.
 
 Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
+Consumer gotchas:
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh"`
+
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -372,6 +375,11 @@ verified: say so plainly and name the lane and rung, so the next run rotates on.
   when history is absent; the four lenses read the scope unranked.
 - **A lane with no verified findings is a result.** Report it, advance the cursor, do not refill past
   the cap looking for something to say.
+- **Consumer `## Gotchas` concatenate after these bullets.** The pre-computed Consumer gotchas block
+  is the cascade `## Gotchas` from `.claude/bugs.md` layers (user-global, team, local overlay) in
+  layer order. Treat those lines as additional gotchas for this invocation. Missing layers are
+  absent, not an error. Generalizable lines belong in this shipped skill via an issue, not in the
+  consumer file.
 
 ## Reference index. Load on demand
 
