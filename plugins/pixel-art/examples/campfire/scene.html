@@ -141,11 +141,16 @@ function ditherFade(level, c) {
 
 const LINE = "The road ends here... for tonight.";
 const LOOP = 14;
-let last = performance.now(), acc = 0, t = 0;
+let last = performance.now(), acc = 0, t = 0, paused = false;
 const STEP = 1 / 60;
-function tick(now) {
-  acc += Math.min(0.1, (now - last) / 1000); last = now;
-  while (acc >= STEP) { acc -= STEP; t += STEP; stepEmbers(STEP); }
+
+function resetSim() {
+  seed = SIM_SEED;
+  for (const e of embers) e.life = 0;
+  t = 0;
+}
+
+function paint() {
   const lt = t % LOOP;
   sky(); drawStars(t); mountains(); fire(t);
 
@@ -164,13 +169,41 @@ function tick(now) {
   if (lt > LOOP - 1) ditherFade(lt - (LOOP - 1), PAL.sky0);
 
   out.drawImage(buf, 0, 0, screen.width, screen.height);
+}
+
+function simulateTo(seconds) {
+  resetSim();
+  const steps = Math.max(0, Math.round(seconds / STEP));
+  for (let i = 0; i < steps; i++) { t += STEP; stepEmbers(STEP); }
+}
+
+function tick(now) {
+  if (paused) return;
+  acc += Math.min(0.1, (now - last) / 1000); last = now;
+  while (acc >= STEP) { acc -= STEP; t += STEP; stepEmbers(STEP); }
+  paint();
   requestAnimationFrame(tick);
 }
 
+function frameDataURL(scale) {
+  const s = scale || 1;
+  const shot = document.createElement("canvas");
+  shot.width = W * s; shot.height = H * s;
+  const sx = shot.getContext("2d");
+  sx.imageSmoothingEnabled = false;
+  sx.drawImage(buf, 0, 0, shot.width, shot.height);
+  return shot.toDataURL("image/png");
+}
+
+window.__pixelScene = {
+  duration: LOOP,
+  seek(seconds) { paused = true; simulateTo(seconds); paint(); },
+  frameDataURL,
+  play() { paused = false; last = performance.now(); acc = 0; requestAnimationFrame(tick); },
+};
+
 function rewind() {
-  seed = SIM_SEED;
-  for (const e of embers) e.life = 0;
-  t = 0;
+  resetSim();
   acc = 0;
   last = performance.now();
 }
@@ -196,7 +229,10 @@ function startAudio() {
   });
 }
 addEventListener("pointerdown", startAudio, { once: true });
-requestAnimationFrame(tick);
+
+const params = new URLSearchParams(location.search);
+if (params.has("t")) window.__pixelScene.seek(Number(params.get("t")) || 0);
+else requestAnimationFrame(tick);
 </script>
 </body>
 </html>
