@@ -22,7 +22,7 @@ declarative adapter files.
 | Layer | Form | Closed or open | Contents |
 |---|---|---|---|
 | Rules | awk, language-neutral | closed (plugin release) | zero-assertion, recomputed-expectation, mock-only-oracle, plus the new rules in section 4 |
-| Lexer families | awk | closed | `c-like` (JS/TS, C#, Go, Rust, Java, Kotlin), `shell` (Bash, bats, PowerShell `<# #>`), `python` |
+| Lexers | awk | closed | one per language: `js`, `cs`, `go`, `python`, `bash` (Bash and bats), `pwsh` (PowerShell, `<# #>` and here-strings); wave 2 adds Rust and Java/Kotlin |
 | Block models | awk | closed | `brace`, `indent`, `file` (hand-rolled Bash, which has no per-case marker) |
 | Adapters | data files | open (consumers add) | globs, detection, test start, skips, assertion calls and idioms, delegation, mocks, snapshots, equality forms |
 
@@ -38,21 +38,29 @@ new lexer family or block model needs a plugin release.
   portable ERE subset for gawk, mawk and BSD awk. The awk loader parses exactly that subset and
   rejects anything else with exit 2, naming the file and line. This adds no dependency (`jq`, `yq`,
   Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
-- Fields: `id`, `extends`, `language`, `block_model`, `files`, `detect.any_regex`, `test_start`,
-  `test_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`, `mock.create`, `mock.verify`,
-  `mock.strip`, `snapshot`, `equality.call2`, `equality.receiver`, `suppress_marker`.
-  - `language` names the lexer and block state machine, one per language: `js`, `cs`, `python`.
-    JS and C# need different comment/string maskers, so they do not share a family key. Phase 3
-    adds a key per new lexer it needs.
-  - `block_model` is `brace` or `indent`, and must suit the language.
+- Fields: `id`, `extends`, `language`, `block_model`, `advisory`, `files`, `detect.any_regex`,
+  `test_start`, `test_skip`, `body_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`,
+  `delegation`, `mock.create`, `mock.verify`, `mock.strip`, `snapshot`, `equality.call2`,
+  `equality.receiver`, `equality.pipeline`, `suppress_marker`.
+  - `language` names the lexer, one per language: `js`, `cs`, `python`, `bash`, `pwsh`, `go`. JS
+    and C# need different comment/string maskers, so they do not share a key.
+  - `block_model` is `brace`, `indent` (Python only) or `file` (Bash only: the whole file is one
+    test, for a harness with no per-case marker). C# `brace` uses the attribute-then-signature
+    state machine; every other `brace` adapter opens a block on its `test_start` line.
+  - `advisory: true` keeps the adapter's findings out of the `--check` gate unless `--strict`.
+  - `test_skip` matches the start line or the decorators and attributes above it; `body_skip`
+    matches inside the body (`t.Skip`, bats `skip`, Playwright `test.skip(`).
+  - `assertion.idioms` and `delegation` match raw text, strings and comments included, over a
+    window of three consecutive body lines. The other regex fields match masked code.
   - Every list field is a list of EREs, except `files` (basename globs), `equality.call2` (helper
-    names matched as substrings) and `equality.receiver` (`<wrapper>.<matcher>`, as in
-    `expect.toBe`).
+    names matched as substrings; for `bash` and `pwsh` also the command form `fn A B`),
+    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`) and `equality.pipeline`
+    (literal matchers after a pipe, as in `A | Should -Be B`).
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
-    file, the one whose `detect.any_regex` matches wins; otherwise the first in load order
-    (sorted file names).
-- `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
-  them until engine code reads them, so a value is never dropped silently.
+    file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
+    otherwise the first claimant with no `detect` list; otherwise the first claimant.
+- `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
+  value is never dropped silently.
 - `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.

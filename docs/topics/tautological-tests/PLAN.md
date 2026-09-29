@@ -302,7 +302,7 @@ test file and feeds findings back.
 - `bash scripts/sync-exec-bash.sh --check`, `bash scripts/check-hook-exec-form.sh`, `bash scripts/check-hook-userconfig-argv.sh`, `bash scripts/check-hooks-description.sh` and `bash scripts/check-hook-wiring-liveness.sh` exit 0.
 - `grep -c 'p95' docs/topics/tautological-tests/probes.md` is at least 2 (WSL and Windows), at most 150 ms on WSL and 1 s on Windows.
 
-### Phase 3: Wave-1 adapters for every fleet language [TODO]
+### Phase 3: Wave-1 adapters for every fleet language [DONE]
 
 - Add the `shell` lexer family and the `file` block model to the awk engine.
 - `rule-recomputed-expectation` exists today for JS and Python only (`cant-fail-scan.awk:277,315`).
