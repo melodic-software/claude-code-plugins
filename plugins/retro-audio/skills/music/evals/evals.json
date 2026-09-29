@@ -1,0 +1,40 @@
+{
+  "skill_name": "music",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-chiptune-loop",
+      "prompt": "compose a short gameboy chiptune loop, calm, and give me a wav",
+      "expected_output": "Fires /retro-audio:music. Writes an MML score within four parts and one noise part, renders it with the mml command --chip gameboy, and delivers the WAV path and the score.",
+      "files": [],
+      "expectations": [
+        "Invokes the music skill, not sfx",
+        "Uses the gameboy chip preset",
+        "Renders a WAV with mml.py and keeps the score text"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "pasted-mml-is-rendered",
+      "prompt": "render this MML to wav on the NES chip: t140 o4 l8 c e g > c",
+      "expected_output": "Fires /retro-audio:music. Passes the user's score through mml.py with --chip nes rather than rewriting it into a different melody. Delivers the WAV.",
+      "files": [],
+      "expectations": [
+        "Uses the nes chip because the user named it",
+        "Keeps the pasted notes",
+        "Writes a WAV"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "near-miss-one-shot-routes-to-sfx",
+      "prompt": "I need a pickup sound effect, not a song",
+      "expected_output": "Does not fire /retro-audio:music. A one-shot effect is /retro-audio:sfx. Routes there instead of scoring a loop.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the music skill for a one-shot effect",
+        "Routes to /retro-audio:sfx"
+      ]
+    }
+  ]
+}
