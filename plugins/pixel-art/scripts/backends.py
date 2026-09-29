@@ -29,6 +29,10 @@ NOTICES = {
 }
 
 
+# Credentials of the removed hosted backends; Aseprite never needs them.
+REMOVED_SERVICE_KEYS = ("PIXELLAB_API_TOKEN", "RD_API_KEY")
+
+
 def backend_name(explicit, env):
     name = (explicit or env.get("CLAUDE_PLUGIN_OPTION_BACKEND") or "native").strip().lower()
     if name in ("", "native"):
@@ -208,7 +212,8 @@ def run(spec, out_dir, backend, scale, spec_path, env):
     if name == "native":
         return _native(spec, out_dir, scale, spec_path, None)
     if name == "aseprite":
-        return _run_aseprite(spec, out_dir, scale, spec_path, env)
+        local_env = {k: v for k, v in env.items() if k not in REMOVED_SERVICE_KEYS}
+        return _run_aseprite(spec, out_dir, scale, spec_path, local_env)
     return _native(spec, out_dir, scale, spec_path, f"Unknown backend {name}; rendered with the native backend")
 
 
@@ -217,7 +222,7 @@ def main(argv=None):
     parser.add_argument("spec", nargs="?", type=pathlib.Path)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--scale", type=int, default=8)
-    parser.add_argument("--backend", choices=["native", "aseprite"])
+    parser.add_argument("--backend", help="native (default) or aseprite; an unknown name falls back to native")
     parser.add_argument("--ingest", type=pathlib.Path, help="snap this PNG instead of reading a spec")
     parser.add_argument("--palette", help="preset, palette file, or inline JSON (with --ingest)")
     parser.add_argument("--width", type=int, default=32)

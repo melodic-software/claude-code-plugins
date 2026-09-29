@@ -8,6 +8,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import aseprite_backend  # noqa: E402
@@ -155,6 +156,30 @@ class BackendTest(unittest.TestCase):
                 files = backends.run(SPEC, out, "pixellab", 1, None, quiet_env())
             self.assertIn("Unknown backend pixellab", buf.getvalue())
             self.assertIn("sheet.png", files)
+
+    def test_stale_backend_flag_falls_back_through_main(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            spec = root / "spec.json"
+            spec.write_text(json.dumps(SPEC))
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = backends.main([str(spec), "--out", str(root / "out"), "--backend", "pixellab"])
+            self.assertEqual(code, 0)
+            self.assertIn("Unknown backend pixellab", buf.getvalue())
+
+    def test_removed_service_keys_stay_out_of_aseprite(self):
+        seen = {}
+
+        def fake(spec, out_dir, scale, spec_path, env):
+            seen.update(env)
+
+        env = quiet_env(PIXELLAB_API_TOKEN="x", RD_API_KEY="y")
+        with unittest.mock.patch.object(backends, "_run_aseprite", fake):
+            backends.run(SPEC, "out", "aseprite", 1, None, env)
+        self.assertNotIn("PIXELLAB_API_TOKEN", seen)
+        self.assertNotIn("RD_API_KEY", seen)
+        self.assertEqual(seen["PATH"], "/usr/bin:/bin")
 
     def test_native_and_missing_aseprite(self):
         with tempfile.TemporaryDirectory() as tmp:
