@@ -24,9 +24,10 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   `tool_use_id`, `trace_id`, `span_id`) are always retained. They bridge cold rows to
   on-disk transcript lookups.
 
-Hot is far larger than cold because log lines carry inline API bodies: 7 days of logs held 790 MB.
-Unpruned, `cc-logs.json` reached 2.8 GB and `cc-metrics.json` 361 MB. The size cap below bounds each
-hot file even when every line is inside the age windows.
+Hot is far larger than cold because log lines carry inline API bodies. Measured on melo-lap-001
+on 2026-09-28: 7 days of logs held 790 MB; unpruned, `cc-logs.json` reached 2.8 GB and
+`cc-metrics.json` 361 MB. Recheck if the store traffic mix changes (for example body capture
+turned off). The size cap below bounds each hot file even when every line is inside the age windows.
 
 ### Retention knobs
 
