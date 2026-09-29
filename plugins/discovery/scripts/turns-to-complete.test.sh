@@ -18,17 +18,18 @@ fail() {
   fails=$((fails + 1))
 }
 
-# mkagent <name> <agentType> <date> <turns> [parallel]
+# mkagent <name> <agentType> <date> <turns> [parallel] [running]
 # Writes <turns> assistant turns; with "parallel" each turn is three records
-# (thinking, text, tool_use) sharing one message.id.
+# (thinking, text, tool_use) sharing one message.id. The last turn ends with
+# stop_reason end_turn unless "running" is given.
 mkagent() {
-  local name="$1" type="$2" day="$3" turns="$4" parallel="${5:-}"
+  local name="$1" type="$2" day="$3" turns="$4" parallel="${5:-}" running="${6:-}"
   local dir="$ROOT/proj/sess/subagents"
   mkdir -p "$dir"
   printf '{"agentType":"%s"}\n' "$type" >"$dir/agent-$name.meta.json"
-  python3 - "$dir/agent-$name.jsonl" "$day" "$turns" "$parallel" <<'PY'
+  python3 - "$dir/agent-$name.jsonl" "$day" "$turns" "$parallel" "$running" <<'PY'
 import json, sys
-path, day, turns, parallel = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+path, day, turns, parallel, running = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 with open(path, "w") as fh:
     fh.write(json.dumps({"type": "user", "timestamp": f"{day}T01:00:00.000Z",
                          "message": {"role": "user", "content": "secret prompt"}}) + "\n")
@@ -36,6 +37,7 @@ with open(path, "w") as fh:
         for kind in (["thinking", "text", "tool_use"] if parallel else ["tool_use"]):
             fh.write(json.dumps({"type": "assistant", "timestamp": f"{day}T01:00:01.000Z",
                                  "message": {"id": f"msg_{i}", "role": "assistant",
+                                             "stop_reason": "end_turn" if i == turns - 1 and not running else "tool_use",
                                              "content": [{"type": kind}]}}) + "\n")
         fh.write(json.dumps({"type": "user", "timestamp": f"{day}T01:00:02.000Z",
                              "message": {"role": "user",
@@ -75,6 +77,7 @@ mkagent full discovery:explorer 2026-08-02 40
 mkagent below discovery:explorer 2026-08-03 39
 mkagent other general-purpose 2026-08-04 7
 mkagent late discovery:researcher 2026-09-10 3
+mkagent live discovery:researcher 2026-09-11 6 "" running
 mkdir -p "$ROOT/proj/sess/subagents"
 : >"$ROOT/proj/sess/subagents/agent-nometa.jsonl"
 
@@ -93,6 +96,7 @@ expect_absent "--since drops earlier dispatches" '2026-08-0' --root "$ROOT" --si
 expect "--since keeps later dispatches" 0 '2026-09-10' --root "$ROOT" --since 2026-09-01
 expect "--json emits per-dispatch rows and a summary" 0 '"at_ceiling": 1' --root "$ROOT" --json
 expect_absent "transcript content is never printed" 'secret prompt' --root "$ROOT" --json
+expect_absent "a dispatch with no final stop_reason is excluded" '2026-09-11' --root "$ROOT"
 expect "a missing root exits 2" 2 'cannot read root' --root "$WORK/absent"
 
 mkagent resumed discovery:researcher 2026-08-05 40

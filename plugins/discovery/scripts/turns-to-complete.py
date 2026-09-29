@@ -16,6 +16,10 @@ Usage:
   python3 turns-to-complete.py [--root DIR] [--agent-type A,B] [--since YYYY-MM-DD]
                                [--ceiling N] [--json]
 
+A dispatch enters the statistics only when it finished: its last assistant
+message has a stop_reason other than tool_use, or it reached the ceiling. Running,
+cancelled and aborted dispatches are counted in a stderr note, not in the table.
+
 Columns:
   turns        distinct assistant message ids in the dispatch
   hit_ceiling  yes when turns >= --ceiling (default 40) or a record carries
@@ -55,6 +59,7 @@ def analyze(jsonl: Path, ceiling: int) -> dict | None:
     ids: set[str] = set()
     first_ts = None
     stopped = False
+    last_stop = None
     resumed = False
     try:
         with jsonl.open(encoding="utf-8") as fh:
@@ -70,7 +75,8 @@ def analyze(jsonl: Path, ceiling: int) -> dict | None:
                 msg = msg if isinstance(msg, dict) else {}
                 if rec.get("type") == "assistant" and msg.get("id"):
                     ids.add(msg["id"])
-                    stopped = stopped or msg.get("stop_reason") == "max_turns"
+                    last_stop = msg.get("stop_reason")
+                    stopped = stopped or last_stop == "max_turns"
                 elif (
                     rec.get("type") == "user"
                     and (len(ids) >= ceiling or stopped)
@@ -80,7 +86,10 @@ def analyze(jsonl: Path, ceiling: int) -> dict | None:
     except (OSError, UnicodeDecodeError):
         return None
     hit = len(ids) >= ceiling or stopped
+    if not (hit or last_stop not in (None, "tool_use")):
+        return {"complete": False}
     return {
+        "complete": True,
         "date": first_ts[:10]
         if isinstance(first_ts, str) and len(first_ts) >= 10
         else "unknown",
@@ -144,6 +153,7 @@ def main() -> int:
     since = args.since.isoformat() if args.since else None
     rows: list[dict] = []
     skipped = 0
+    unfinished = 0
     for dirpath, _, files in os.walk(root):
         for name in files:
             if not (name.startswith("agent-") and name.endswith(".jsonl")):
@@ -161,6 +171,8 @@ def main() -> int:
             info = analyze(Path(dirpath, name), args.ceiling)
             if info is None:
                 skipped += 1
+            elif not info["complete"]:
+                unfinished += 1
             elif not since or (info["date"][:1].isdigit() and info["date"] >= since):
                 rows.append({"agentType": agent, **info})
 
@@ -168,6 +180,12 @@ def main() -> int:
     summary = summarize(rows)
     if skipped:
         print(f"note: {skipped} unreadable transcript(s) skipped", file=sys.stderr)
+    if unfinished:
+        print(
+            f"note: {unfinished} unfinished dispatch(es) excluded "
+            "(no final stop_reason, below the ceiling)",
+            file=sys.stderr,
+        )
     if args.json:
         print(json.dumps({"dispatches": rows, "summary": summary}, indent=2))
         return 0
