@@ -34,6 +34,43 @@
         "States plainly when no security issues are found",
         "Does not invent non-security commentary to fill the review"
       ]
+    },
+    {
+      "id": 4,
+      "name": "reports-unenforced-guardrail-deletion",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 47\nHEAD SHA: 1111111111111111111111111111111111111111\n\nThe PR is titled as a docs trim. Among wording cleanups it deletes the standing CLAUDE.md rule \"Never delete files outside the working tree or run rm -rf on a path built from input; ask first.\" The repository has no PreToolUse hook, no permissions.deny rule and no validator that gates file deletion, so the rule was the only control.",
+      "expected_output": "Does not skip the review as prose-only. Reports the deleted rule as a finding that names the class of protected instruction (irreversible, destructive file deletion), the action the rule prevented (deleting files outside the working tree), and the request that now reaches that action with no check (an instruction in untrusted context to delete files).",
+      "files": [],
+      "expectations": [
+        "Does not stop at the skip gate on the ground that the diff is prose-only",
+        "Reports the deletion of the file-deletion rule as a finding",
+        "Names the class of protected instruction (irreversible file deletion), the action the rule prevented, and the request that now reaches that action with no check",
+        "States that no hook, permission deny rule or validator still enforces the removed rule"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "skips-deletion-still-enforced-by-mechanism",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 48\nHEAD SHA: 2222222222222222222222222222222222222222\n\nThe PR deletes the CLAUDE.md line \"Never run rm -rf on the repository root\" as redundant. The repository's Claude settings, untouched by this diff, still carry a permissions.deny rule for Bash(rm -rf:*) and a PreToolUse hook that blocks recursive deletes.",
+      "expected_output": "Does not report the deletion: a permission deny rule and a hook still enforce what the removed rule forbade, so no request reaches the action unchecked. Says plainly that no security issues were found.",
+      "files": [],
+      "expectations": [
+        "Does not report the deleted rule as a finding because a deny rule and a hook still enforce it",
+        "States plainly that no security issues were found",
+        "Does not add wording or style commentary about the deletion"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "skips-scope-preserving-compression",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 49\nHEAD SHA: 3333333333333333333333333333333333333333\n\nThe PR shortens the CLAUDE.md rule on file deletion from a three-sentence paragraph to one line: \"Never delete files outside the working tree; ask first.\" The forbidden action, its scope and the ask-first requirement are unchanged; only explanatory wording is removed, and no other control is touched.",
+      "expected_output": "Does not report the compression: the rule forbids exactly what it forbade before, so nothing is ungated. Says plainly that no security issues were found.",
+      "files": [],
+      "expectations": [
+        "Does not report the shortened rule as a finding because its scope and what it forbids are unchanged",
+        "States plainly that no security issues were found",
+        "Does not add wording or style commentary about the compression"
+      ]
     }
   ]
 }

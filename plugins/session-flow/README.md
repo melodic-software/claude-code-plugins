@@ -44,6 +44,7 @@ arm it for delegation-heavy tasks.
   - [setup](#setup)
 - [Consumer conventions](#consumer-conventions)
 - [Install](#install)
+- [Requirements](#requirements)
 - [Configuration](#configuration)
   - [Options reference](#options-reference)
   - [How to set these](#how-to-set-these)
@@ -328,7 +329,7 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 ### setup
 
 A check-centric setup for the **observer substrate only**. The other thirteen skills are zero-config.
-`check` (default) verifies the observer's runtime prerequisites (Python 3.10+ for the tailer, `jq` for
+`check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
 `observer_idle_seconds` below the machine's longest single turn). It has no write path. Reconfiguration
@@ -359,6 +360,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install session-flow@<marketplace>
 ```
+
+## Requirements
+
+- Node.js on PATH: every hook launches through `node hooks/exec-bash.mjs`, so without it the hooks do not run.
+- The observer substrate only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
 
 ## Configuration
 

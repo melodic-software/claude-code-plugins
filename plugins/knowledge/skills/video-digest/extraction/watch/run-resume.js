@@ -5,9 +5,9 @@
  * Usage: node watch/run-resume.js <slice-slug>
  */
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
 import {

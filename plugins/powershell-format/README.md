@@ -72,6 +72,11 @@ directory outside the project.
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
+- **Node.js** on `PATH`. Every handler in `hooks/hooks.json` runs through
+  `node hooks/exec-bash.mjs`, which starts the Bash script. Claude Code's native binary neither
+  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29),
+  so without `node` the hooks do not launch and nothing is formatted, with no notice.
+  [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`. The hook probes `pwsh` only; legacy
@@ -110,6 +115,10 @@ is the number that transfers to the Windows 11 Git Bash reference host the conve
 binding, and that host's figure for this plugin has not been taken. The residual is `pwsh` and
 PSScriptAnalyzer themselves plus the shared library's payload reader (`jq`), working-tree probe
 and root resolver (`git` twice, `realpath`) and the disclosure snapshot.
+
+The figures above were taken on 0.7.45 (2026-09-07), before the `node` launcher. Each fire now
+adds one `node` process ahead of the hook's `bash`, and the census has not been re-run for that
+path.
 
 ## Install
 

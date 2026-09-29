@@ -68,6 +68,19 @@ crlf="$TMP/crlf.md"
 awk '{ printf "%s\r\n", $0 }' "$cat_file" >"$crlf"
 assert_eq "CRLF catalog parses the same" "$expected" "$(bash "$SCRIPT" "$crlf")"
 
+prime="$TMP/prime.md"
+printf '%s\n' \
+  '### quiet' '- skill: p:quiet' '- prime: false' '- checked: true' \
+  '### loud' '- skill: p:loud' '- prime: true' '- checked: true' \
+  '### plain' '- skill: p:plain' '- checked: true' \
+  >"$prime"
+assert_eq "prime: false lands in column 8 as exactly false" "false" "$(bash "$SCRIPT" "$prime" | awk -F'\t' '$1 == "quiet" {print $8}')"
+assert_eq "prime with another value is not false" "true" "$(bash "$SCRIPT" "$prime" | awk -F'\t' '$1 == "loud" {print $8}')"
+assert_eq "no prime key leaves column 8 empty" "" "$(bash "$SCRIPT" "$prime" | awk -F'\t' '$1 == "plain" {print $8}')"
+assert_eq "prime fixture keeps 8 columns" "8
+8
+8" "$(bash "$SCRIPT" "$prime" | awk -F'\t' '{print NF}')"
+
 bad_run() { # <label> <file> <stderr-substring>
   local out err rc
   out=$(bash "$SCRIPT" "$2" 2>"$TMP/err")

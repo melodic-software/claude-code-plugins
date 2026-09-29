@@ -29,6 +29,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 observer = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(observer)
+import claude_cli  # noqa: E402  (observer.py put the plugin scripts dir on sys.path)
 
 
 def make_observer(tmp: Path, **overrides):
@@ -984,13 +985,16 @@ class PidAlive(unittest.TestCase):
 
 
 @contextlib.contextmanager
-def fake_analysis_run(captured: dict):
+def fake_analysis_run(
+    captured: dict, version: tuple[int, int, int] | None = (2, 1, 259)
+):
     """Drive `_run_analysis` against a stubbed `claude -p`, recording the call.
 
     Patches `_find_claude` (so no CLI need exist) and `subprocess.run` (so
     nothing is spawned), recording the command list under `cmd` and every
     kwarg the analysis run passes, so a caller can assert on the command
-    shape, the stdin prompt, or the subprocess kwargs.
+    shape, the stdin prompt, or the subprocess kwargs. `version` is what
+    `claude --version` reports to the flag gate (None: unparsable).
     """
 
     class FakeProc:
@@ -1006,12 +1010,15 @@ def fake_analysis_run(captured: dict):
         return FakeProc()
 
     saved_find, saved_run = observer._find_claude, observer.subprocess.run
+    saved_version = claude_cli._CLAUDE_VERSION_CACHE
     observer._find_claude = lambda: "claude"
     observer.subprocess.run = fake_run
+    claude_cli._CLAUDE_VERSION_CACHE = version
     try:
         yield
     finally:
         observer._find_claude, observer.subprocess.run = saved_find, saved_run
+        claude_cli._CLAUDE_VERSION_CACHE = saved_version
 
 
 class LedgerAndRetention(unittest.TestCase):
@@ -1059,6 +1066,21 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIsInstance(captured["input"], str)
             self.assertNotIn("--bare", cmd)
             self.assertIsNotNone(ob._find_session_ledger())
+
+    def test_permission_prompts_flag_needs_a_cli_that_knows_it(self):
+        for version in (None, (2, 1, 258)):
+            with tempfile.TemporaryDirectory() as d:
+                tmp = Path(d)
+                ob = make_observer(tmp, analysis=True, session_id="pp")
+                ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+                captured: dict = {}
+                with fake_analysis_run(captured, version=version):
+                    self.assertTrue(ob._run_analysis())
+                cmd = captured["cmd"]
+                self.assertNotIn("--permission-prompts", cmd)
+                self.assertNotIn("none", cmd)
+                self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "dontAsk")
+                self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
 
     def test_analysis_subprocess_encoding_and_creationflags(self):
         # #1472: the analysis subprocess.run must (a) always decode captured

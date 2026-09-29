@@ -68,7 +68,7 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_date_bearing_reset_form_is_unparsed(self) -> None:
-        """#3915: `resets Sep 8, 6pm` is not a parseable reset clause (exit 2, never 0)."""
+        """`resets Sep 8, 6pm` is not a parseable reset clause (exit 2, never 0)."""
         msg = (
             "You've hit your weekly limit · resets Sep 8, 6pm (America/New_York)"
         )

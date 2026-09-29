@@ -295,7 +295,11 @@ flags legacy version-pinned wiring if you have it.
 The scripts run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows); the statusline wiring
 invokes `bash` explicitly) and need [`jq`](https://jqlang.org/download/) on `PATH` for the tee, the
-zone resolver, and the standalone statusline. The snapshot updates only while an interactive
+zone resolver, and the standalone statusline. Every hook row runs through `node hooks/exec-bash.mjs`,
+so the hooks need [Node.js](https://nodejs.org/en/download) on `PATH`: Claude Code's native binary
+neither ships nor uses Node ([setup](https://code.claude.com/docs/en/setup)), and without it the
+hooks do not launch and are not enforced. The statusline tee does not use Node.
+`/context-guard:setup check` reports both prerequisites. The snapshot updates only while an interactive
 session refreshes the statusline; `context_window` fields can be `null` early in a session and
 right after `/compact`, per the
 [statusline reference](https://code.claude.com/docs/en/statusline). Readers own null handling.

@@ -3,7 +3,7 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.0] - 2026-09-28
+## [0.11.0] - 2026-09-29
 
 ### Added
 
@@ -99,6 +99,19 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - **audit:** `check-corpus-grid.sh` reads only the `GRID.md` table headed `Adapter`.
 - **hooks:** `test-scan` claims its once-per-call and once-per-file markers as files created with
   `noclobber` (`O_EXCL`) instead of `mkdir`, which is not atomic under uutils coreutils.
+
+## [0.10.0] - 2026-09-29
+
+### Changed
+
+- **run-e2e:** the Native step carries the full wrap grammar: an identity check that also accepts a
+  project skill named `run`, a mutation fingerprint, skip and refuse states that name the axis line
+  and the enable path, a result block, and an unattended run never invokes `run`.
+- **run-e2e:** one launch path per verification. An orchestrator-governed start skips the Native step.
+- **run-e2e:** the Boundary section and `context/bundled-run.md` match the compose decision.
+- **diagnose, plan, write, run-e2e:** Arguments are stated once.
+- **run-e2e:** the evals replace a duplicate case with one that covers the Native step.
+- **diagnose, plan, write:** the evals carry a literal em dash where a `—` escape stood; the parsed JSON is unchanged.
 
 ## [0.9.7] - 2026-09-28
 

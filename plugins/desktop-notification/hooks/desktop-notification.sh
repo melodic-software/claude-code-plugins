@@ -62,7 +62,7 @@ hook::buffer_stdin_to INPUT \
   '.notification_type // "unknown"' \
   '.message // "Needs your attention"' || exit 0
 
-# jq is load-bearing for parsing; absent → visible once-per-session notice
+# jq is load-bearing for parsing; absent → visible notice (once per session and agent, renewed every eighth skip)
 # instead of silently dropping every notification (dim-9 doctrine).
 # systemMessage-only: the Notification event has no additionalContext channel.
 if ! command -v jq >/dev/null 2>&1; then

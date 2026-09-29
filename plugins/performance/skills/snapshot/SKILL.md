@@ -46,24 +46,28 @@ The refusal names what it can still report. That matters: an unexplained refusal
 reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
+**Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
+variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
+pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
+< 1 ms) are warnings. Presenting this refusal as consensus would be a miscitation.
+
 ### 1b. Measuring-tool integrity (before timing)
 
 Before any timed arm runs, record the **measuring tool's identity** for every executable the goal's
 metric command names (harness scripts, summarizers, census wrappers): resolved path, `git rev-parse
 HEAD` or content hash when the tree is a checkout, and `--version` output when the tool provides it.
 Check that **every flag** the goal's metric command uses appears in that copy's `--help` (or is
-exercised in a dry run). A stale checkout, wrong plugin root, or missing flag support **stops the
-run** and names the fix (update the tool, point at the installed plugin copy, or change the goal's
-command). Carry the record in the report:
+exercised in a dry run). Check whether the checkout is behind its upstream, when determinable from
+local refs (`git rev-list --count HEAD..@{u}`, never a fetch); with no upstream ref, report `not
+determinable`. Check that the output column or field the goal's metric names is produced (a dry run
+or sample output contains it). A stale checkout, wrong plugin root, missing flag support, a copy
+behind its upstream, or a missing output column **stops the run**, names both fixes (update the
+tool, point at the installed plugin copy, or change the goal's metric command), and reports no
+partial numbers. Carry the record in the report:
 
 ```text
-Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing>
+Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>
 ```
-
-**Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
-variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
-pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
-< 1 ms) are warnings. Presenting this refusal as consensus would be a miscitation.
 
 ### 2. Capture the drift-immune counter first
 
@@ -82,25 +86,29 @@ tracks a Windows Job Object or other host counter, state that label explicitly a
 [harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash)
 so a +2 delta is not chased as a mystery third process.
 
-### 2b. Code path under test (before each arm)
-
-The goal must name which **code path(s)** the metric is meant to exercise (for example skip with no
-interpreter versus Python run path, cold cache versus warm). Before **each** arm, either **reset**
-the state files that select the path (markers, sentinel files, cache keys) or **record** their
-values and carry them in the report. After the arm, report which path actually ran, with evidence
-(a marker file, exit code, or the set of processes spawned). Use a line per arm:
-
-```text
-Path (<arm>): <intended path from goal> -> <observed path> (evidence: <marker | exit | processes>)
-```
-
-An arm whose observed path does not match the goal's named path is **flagged**; its duration is not
-reported as the goal's headline metric. A harness that always exercised the rare path while the
-common session path stayed unmeasured is exactly the failure this step prevents.
-
 A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
 fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
 average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
+
+### 2b. Code path under test (before each arm)
+
+The goal names which **code path(s)** the metric is meant to exercise, and the observable that
+identifies each (for example skip with no interpreter versus Python run path, cold cache versus
+warm). A goal with no `Path:` line goes back to `/performance:goal`. Before **each** arm, either
+**reset** the state files that select the path (markers, sentinel files, cache keys) or **record**
+their values and carry them in the report; say which was done. After the arm, report which path
+actually ran, with evidence (a marker file, exit code, or the set of processes spawned). A path
+that cannot be observed is reported `unobserved`, never assumed. One line per arm, required in the
+report beside the step 3 rig line:
+
+```text
+Path (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)
+```
+
+An arm whose observed path does not match the goal's named path, or is `unobserved`, is
+**flagged**; its duration is not reported as the goal's headline metric. A harness that always
+exercised the rare path while the common session path stayed unmeasured is exactly the failure
+this step prevents.
 
 ### 3. Capture durations, only if step 1 allowed it
 
@@ -112,11 +120,18 @@ with, so a duration taken through `ab.sh` below already carries it.
 
 Never a single sample. Never a bare mean.
 
+Run every size the goal's `Scaling:` line records, and capture the event-level metric its `Event:`
+line names as well as the unit metric; carry the per-size results into the report, so
+`/performance:verify` can check the bound at each size.
+
 Every duration carries a rig line, because a number without its rig cannot be reproduced:
 
 ```text
 Rig:  <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
 ```
+
+Every arm's `Path (<arm>):` line from step 2b sits beside its rig line; a duration without both is
+not reported.
 
 ### 4. Evidence for the goal's `Correlation:` line
 
@@ -127,6 +142,10 @@ size, so report both and never infer one from the other. No evidence yet means `
 guess. See [prove the proxy](../../reference/techniques.md#d-prove-the-proxy).
 
 ## Comparing before and after
+
+A post snapshot records the same `Tool:` line and flags any difference in path, revision or hash,
+or version from the baseline's recorded line. A pair measured with two tool copies is not a
+comparison of the change alone, so its ratio is not reported.
 
 **Never compare two separate passes on a drifting host.** A bare `bash -c true` can cost 1825 ms and
 283 ms in the same hour on the same machine at ~10% CPU. Any two-pass comparison attributes that 6x
@@ -195,15 +214,17 @@ repeats hides the cost a first-time user pays.
 
 ## The override
 
-Gates here hard-block. A named per-gate override exists, and using it **records itself in the
-report**:
+Gates here hard-block. A named per-gate override exists for each gate, and using it **records itself
+in the report**:
 
 ```text
 OVERRIDE: unmeasurable-host  reason: <stated by the human>  gate: is_measurable
+OVERRIDE: tool-identity  reason: <stated by the human>  gate: tool-identity
 ```
 
-An override without a recorded reason is not available. A report carrying an override says so at the
-top, not in a footnote.
+The second gate is the step 1b stop and the post-versus-baseline tool comparison. An override
+without a recorded reason is not available, for either gate. A report carrying an override says so at
+the top, not in a footnote.
 
 ## Storage
 
@@ -269,5 +290,5 @@ stored one.
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.
 - **Stale markers send every sample down the wrong path.** Reset or record path-selecting state
-  before each arm, and report observed path with evidence; a mismatch is flagged, not folded into
-  the headline metric.
+  before each arm, and report observed path with evidence; a mismatch, or a path that could not be
+  observed (`unobserved`), is flagged, not folded into the headline metric.

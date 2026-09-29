@@ -11,9 +11,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { normalizeVttCues } from "./cue-normalize.js";
 import { orchestrateWatching } from "./orchestrate-watching.js";
 
