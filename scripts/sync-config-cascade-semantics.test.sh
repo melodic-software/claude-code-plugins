@@ -3,6 +3,7 @@
 #
 # Every case runs the generator against a fixture README under a mktemp dir, passed
 # as the positional override, so the real README is only ever read (last case).
+# shellcheck disable=SC2016  # fixture rows are literal markdown table text with backticks, never expanded
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,6 +34,9 @@ write_readme() {
 
 run() { python3 "$SUT" "$@" "$readme" 2>&1; }
 
+# edit_readme <sed-expression>: in-place edit that also works with BSD sed.
+edit_readme() { sed "$1" "$readme" >"$readme.tmp" && mv "$readme.tmp" "$readme"; }
+
 # expect <label> <expected-rc> <rc> <out>
 expect() {
   if [[ $3 -eq $2 ]]; then ok "$1"; else fail "$1: expected rc=$2, got rc=$3: $4"; fi
@@ -46,18 +50,22 @@ expect "default mode rewrites the block" 0 $? "$out"
 out="$(run --check)"
 expect "clean fixture passes --check" 0 $? "$out"
 
-sed -i 's/^| `a` | first | per-key |$/| `a` | hand edit | per-key |/' "$readme"
+edit_readme 's/^| `a` | first | per-key |$/| `a` | hand edit | per-key |/'
 out="$(run --check)"
 expect "hand-editing the generated region fails --check" 1 $? "$out"
 run >/dev/null
 
-sed -i 's/^| `a` | p | first | per-key |$/| `a` | p | first | concatenate |/' "$readme"
+edit_readme 's/^| `a` | p | first | per-key |$/| `a` | p | first | concatenate |/'
 out="$(run --check)"
 expect "an Implementers cell change makes --check fail" 1 $? "$out"
 run >/dev/null
 out="$(run --check)"
 expect "default mode then --check passes" 0 $? "$out"
-grep -qF '| `a` | first | concatenate |' "$readme" && ok "the new cell reaches the generated block" || fail "the new cell is missing from the generated block"
+if grep -qF '| `a` | first | concatenate |' "$readme"; then
+  ok "the new cell reaches the generated block"
+else
+  fail "the new cell is missing from the generated block"
+fi
 
 write_readme '| `a` | p |  | per-key |'
 out="$(run --check)"
