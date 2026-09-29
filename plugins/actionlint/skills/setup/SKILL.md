@@ -92,8 +92,8 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   to its manifest default. Pass `-s user`: `-s` places the install record and `enabledPlugins`,
   while the option value always lands in user settings. Do not copy a scope from
   `claude plugin list`; a rerun at another scope adds an install record and enables the plugin
-  there. A rejected value prints a warning yet exits 0, so read the output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
+  there. A rejected value prints a warning yet exits 0, so read the output. This skill never writes
+  user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
   `check` still reports the OLD value; report the observed effective value, never an
