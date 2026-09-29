@@ -48,7 +48,8 @@ stripped, a missing file exits 2) and the config keys `fleet.skip` and `fleet.sk
 directories during discovery with the same semantics as
 [`/repo-fleet-hygiene:audit`](../audit/SKILL.md): an explicit `--skip` set replaces the default,
 `--extend-skip` adds to whichever set is in effect, and names are bare directory names.
-The skip set does not filter `--repo` or `--repos-from` paths.
+The skip set does not filter `--repo` or `--repos-from` paths. To leave out one repository found under
+a root, pass `--extend-skip <its directory name>`; `--skip` also drops the default names.
 
 Discovery under a root is the walker `/repo-fleet-hygiene:audit` runs
 (`scripts/fleet-discovery.sh`): it stops at the first checkout on each path, does not follow
