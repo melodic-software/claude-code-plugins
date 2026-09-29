@@ -10,8 +10,7 @@ source "$SCRIPT_DIR/../../tests/lib.sh"
 source "$SCRIPT_DIR/common.sh"
 
 for fn in gh_write wit_run_gh wit_resolve_repo wit_emit_item wit_lease_json \
-  wit_lease_is_live wit_list_lease_comments wit_help_if_requested wit_map_gh_error \
-  wit_gh_issue_view_json_fields; do
+  wit_lease_is_live wit_list_lease_comments wit_help_if_requested wit_map_gh_error; do
   assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
@@ -51,9 +50,9 @@ assert_eq "falls back to bundled path when CLAUDE_PROJECT_DIR unset" "$BUNDLED" 
 
 rm -rf "$CONSUMER_ROOT" "$EMPTY_ROOT"
 
-# --- get-item / create-item emit omit 2.94 JSON fields on older gh (#3598) ---
-# A stub that rejects issueType/blockedBy/parent (what gh 2.45 does) proves
-# wit_emit_item still succeeds, and a 2.94 stub proves those fields come back.
+# --- wit_emit_item / wit_resolve_repo take the REST path below gh 2.94 ---
+# The stub 403s every GraphQL-backed call (`issue view`, `repo view`) the way a
+# sandboxed session does and serves `gh api`; gh 2.94 reads through `issue view`.
 if command -v jq >/dev/null 2>&1; then
   EMIT_STUB="$(mktemp -d)"
   cat >"$EMIT_STUB/gh" <<'EOF'
@@ -62,57 +61,61 @@ if [[ "$1" == "--version" ]]; then
   printf 'gh version %s (test)\n' "${GH_STUB_VERSION:-2.45.0}"
   exit 0
 fi
-json=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --json)
-    json="$2"
-    shift 2
-    ;;
-  *)
-    shift
-    ;;
+printf '%s\n' "$*" >>"${GH_STUB_DIR:?}/calls.log"
+case "$1" in
+issue)
+  if [[ "${GH_STUB_VERSION:-2.45.0}" == 2.94.0 ]]; then
+    printf '{"number":1,"title":"t","state":"OPEN","assignees":[],"labels":[],"url":"https://github.com/o/r/issues/1"}\n'
+    exit 0
+  fi
+  printf 'HTTP 403: GitHub GraphQL is not available\n' >&2
+  exit 1
+  ;;
+repo)
+  printf 'HTTP 403: GitHub GraphQL is not available\n' >&2
+  exit 1
+  ;;
+api)
+  case "$*" in
+  *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
+  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1"}\n' ;;
   esac
-done
-printf 'JSON:%s\n' "$json" >>"${GH_STUB_DIR:?}/calls.log"
-if [[ "${GH_STUB_REJECT_NATIVE:-}" == "1" ]]; then
-  case "$json" in
-  *blockedBy* | *parent* | *issueType*)
-    printf 'Unknown JSON field\n' >&2
-    exit 1
-    ;;
-  *) ;;
-  esac
-fi
-printf '{"number":1,"title":"t","state":"OPEN","assignees":[],"labels":[],"url":"https://github.com/o/r/issues/1"}\n'
+  exit 0
+  ;;
+esac
+exit 90
 EOF
   chmod +x "$EMIT_STUB/gh"
 
-  FIELDS_OLD="$(GH_STUB_VERSION=2.45.0 PATH="$EMIT_STUB:$PATH" wit_gh_issue_view_json_fields)"
-  assert_not_contains "gh 2.45 view fields omit blockedBy" "$FIELDS_OLD" "blockedBy"
-  assert_not_contains "gh 2.45 view fields omit parent" "$FIELDS_OLD" "parent"
-  assert_not_contains "gh 2.45 view fields omit issueType" "$FIELDS_OLD" "issueType"
-
-  FIELDS_NEW="$(GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_gh_issue_view_json_fields)"
-  assert_contains "gh 2.94 view fields include blockedBy" "$FIELDS_NEW" "blockedBy"
-  assert_contains "gh 2.94 view fields include parent" "$FIELDS_NEW" "parent"
-  assert_contains "gh 2.94 view fields include issueType" "$FIELDS_NEW" "issueType"
-
   : >"$EMIT_STUB/calls.log"
-  OUT="$(GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.45.0 GH_STUB_REJECT_NATIVE=1 \
-    PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1)"
+  OUT="$(GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.45.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1)"
+  rc=$?
+  assert_eq "wit_emit_item on gh 2.45 → exit 0" "0" "$rc"
   assert_eq "wit_emit_item on gh 2.45 → id" "github:o/r#1" "$(jq -r '.id' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → state" "open" "$(jq -r '.state' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → assignees" '["u"]' "$(jq -c '.assignees' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → labels" '["a"]' "$(jq -c '.labels' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → type null" "null" "$(jq -r '.type' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → url from html_url" "https://github.com/o/r/issues/1" \
+    "$(jq -r '.url' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → parent_id null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → blocked_by_count 0" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
-  CALLS="$(<"$EMIT_STUB/calls.log")"
-  assert_not_contains "wit_emit_item on gh 2.45 does not request blockedBy" "$CALLS" "blockedBy"
+  assert_contains "wit_emit_item on gh 2.45 reads over REST" "$(<"$EMIT_STUB/calls.log")" \
+    "api repos/o/r/issues/1"
+  assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
 
   : >"$EMIT_STUB/calls.log"
-  GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 GH_STUB_REJECT_NATIVE=0 \
-    PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1 >/dev/null
+  GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1 >/dev/null
   CALLS="$(<"$EMIT_STUB/calls.log")"
   assert_contains "wit_emit_item on gh 2.94 requests blockedBy" "$CALLS" "blockedBy"
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
+  assert_contains "wit_emit_item on gh 2.94 requests issueType" "$CALLS" "issueType"
+
+  : >"$EMIT_STUB/calls.log"
+  REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"
+  assert_eq "wit_resolve_repo resolves over REST" "o/r" "$REPO"
+  assert_not_contains "wit_resolve_repo skips repo view" "$(<"$EMIT_STUB/calls.log")" "repo view"
+  assert_eq "wit_resolve_repo keeps an explicit override" "x/y" "$(wit_resolve_repo x/y)"
 
   rm -rf "$EMIT_STUB"
 fi

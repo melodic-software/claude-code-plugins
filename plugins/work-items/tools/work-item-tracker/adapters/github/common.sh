@@ -157,7 +157,8 @@ wit_resolve_repo() {
     printf '%s\n' "$explicit"
     return 0
   fi
-  wit_run_gh read repo view --json owner,name --jq '.owner.login + "/" + .name'
+  # REST, not `gh repo view`: that is GraphQL-backed and 403s in sandboxed sessions.
+  wit_run_gh read api 'repos/{owner}/{repo}' --jq .full_name
   printf '%s\n' "$WIT_GH_OUT"
 }
 
@@ -260,26 +261,24 @@ readonly WIT_ITEM_JQ='{
   url: .url
 }'
 
-# wit_gh_issue_view_json_fields: --json field list `gh issue view` accepts on
-# this binary. 2.94+ adds issueType / blockedBy / parent; older gh (cloud images
-# ship 2.45) rejects those names, so get-item and create-item's emit path omit
-# them and WIT_ITEM_JQ fills type/parent_id with null and blocked_by_count with 0.
-wit_gh_issue_view_json_fields() {
-  if wit_gh_has_native_surface; then
-    printf '%s\n' "number,title,state,assignees,labels,issueType,blockedBy,parent,url"
-  else
-    printf '%s\n' "number,title,state,assignees,labels,url"
-  fi
-}
-
 # wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
 # item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
 # blockers only (closed blockers stay in blockedBy.totalCount — Tier-0 verified).
+# gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
+# Older gh reads REST, which sandboxed sessions serve where GraphQL 403s, and maps
+# the REST shape onto the same fields; type comes from .type, and parent and
+# blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
-  local owner="$1" repo="$2" number="$3" fields
-  fields="$(wit_gh_issue_view_json_fields)"
-  wit_run_gh read issue view "$number" -R "$owner/$repo" --json "$fields"
-  jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+  local owner="$1" repo="$2" number="$3"
+  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url}'
+  if wit_gh_has_native_surface; then
+    wit_run_gh read issue view "$number" -R "$owner/$repo" \
+      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url
+    jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+  else
+    wit_run_gh read api "repos/$owner/$repo/issues/$number"
+    jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$rest_to_view | $WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+  fi
 }
 
 # wit_patch_lease_comment <owner> <repo> <comment-id> <lease-json>: rewrite a
