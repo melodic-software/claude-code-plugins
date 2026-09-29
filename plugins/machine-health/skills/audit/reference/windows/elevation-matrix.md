@@ -27,6 +27,8 @@ pwsh -NoProfile -File '<skill-root>\scripts\windows\Invoke-MachineHealthCheck.ps
      -OutputBase '<OutputBase>'
 ```
 
+Output from an elevated console is not readable by the Claude session that suggested the run. To read the results back, have the elevated run write a transcript under `<StateBase>/logs/`, print the transcript path, and read that file from the calling session. Check the file's timestamp before trusting it: a transcript left by an earlier run reads as fresh output.
+
 Or schedule the weekly task to run as `SYSTEM` / an admin account. That is out of scope for this skill (see SKILL.md "Not in scope for this skill"), but it is the conventional long-term answer for recurring coverage.
 
 ## Adding a new admin-gated capability

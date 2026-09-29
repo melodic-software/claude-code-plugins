@@ -31,20 +31,17 @@ Describe 'Get-WindowsDiscoveryProbe' -Tag 'lib' {
 
     It 'reports detected=$false for absent tools' {
         $probes = @(Get-WindowsDiscoveryProbe)
-        $docker = $probes | Where-Object dimension -EQ 'Docker Desktop'
-        $docker.detected | Should -BeFalse
-        $wsl = $probes | Where-Object dimension -EQ 'WSL distros'
-        $wsl.detected | Should -BeFalse
+        $containers = $probes | Where-Object dimension -EQ 'Container runtimes'
+        $containers.detected | Should -BeFalse
     }
 
-    It 'includes .NET, Node, Python, Docker, WSL, Cert-store, Scheduled-tasks, Reliability' {
+    It 'includes .NET, Node, Python, Container runtimes, Cert-store, Scheduled-tasks, Reliability' {
         $probes = @(Get-WindowsDiscoveryProbe)
         $dimensions = $probes | ForEach-Object dimension
         $dimensions | Should -Contain '.NET SDK'
         $dimensions | Should -Contain 'Node.js runtime'
         $dimensions | Should -Contain 'Python runtime'
-        $dimensions | Should -Contain 'Docker Desktop'
-        $dimensions | Should -Contain 'WSL distros'
+        $dimensions | Should -Contain 'Container runtimes'
         $dimensions | Should -Contain 'User certificate store'
         $dimensions | Should -Contain 'Scheduled task failures'
         $dimensions | Should -Contain 'Reliability Monitor data'
