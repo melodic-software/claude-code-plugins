@@ -31,7 +31,7 @@
 #   (exit 1). It writes `packet.sha256.<N>` (N starts at 2), a manifest of the
 #   bytes as they are now, so notes added afterwards can be sealed. verify reads
 #   `packet.sha256` exactly as before and also every entry of the LATEST
-#   generation (highest N by numeric value), labelled GEN-MATCH / GEN-CHANGED /
+#   generation (highest N by numeric value), labeled GEN-MATCH / GEN-CHANGED /
 #   GEN-MISSING, so a second edit of an already-diverged file is still caught.
 #   A file in neither manifest is UNSEALED. Once a generation exists an ordinary
 #   `record` is refused (it would launder the acknowledged divergence), and

@@ -56,7 +56,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   and this run's own packets carry today's nonce, so they are never in range. A recursive delete over the tree
   holding the only durable copy of the findings is the last thing to leave to model obedience, so
   the two safety properties live in the script and hold whether or not this paragraph is read: it
-  is **dry-run by default**, and it **never deletes a packet containing `item.md`** at any age,
+  is **dry-run by default**, and it **never deletes a packet containing `item*.md`** at any age,
   because step 6's unattended clause makes that file the sole copy of an entire audit's output. Default
   window 30 days (`--days N`); a directory whose name is not a parsable nonce is reported and kept,
   never deleted. Omitting `--apply` reports what would go without touching anything.
@@ -89,7 +89,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
   evidence below), and read the exit code, the three non-zero cases mean different things and
   must not be collapsed:
-  - **1**, a sealed file CHANGED or is MISSING. Altered evidence: weigh it, never treat it as
+  - **1**, a sealed file CHANGED or is MISSING (or `GEN-CHANGED` / `GEN-MISSING`). Altered evidence: weigh it, never treat it as
     ground truth.
   - **3**. Every sealed file matches but some file was never sealed. **Not** tampering, and
     routine: a packet legitimately gains files after its last seal, and an interrupted run, the
@@ -103,9 +103,9 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   altered packet (exit 1) can read as a clean pass. When a pipe is unavoidable, capture
   `${PIPESTATUS[0]}` and use that, not `$?`.
 
-  Exit **0** means nothing changed *since the seal*. It is not a claim the content is pristine,
-  because a rewrite before the first seal is invisible to any digest. It is also not a claim the
-  audited world still matches; see [What a sealed packet asserts](#what-a-sealed-packet-asserts).
+  Exit **0** means nothing changed *since the seal*; what that does and does not assert, and the
+  `GEN-*`, `ACKNOWLEDGED` and `sealed-at` lines `verify` may print, are owned by
+  [What a sealed packet asserts](#what-a-sealed-packet-asserts).
   When reading a packet back, probe a **closed set** of grounded-findings basenames, in this order:
   `audit-notes.md` (current), `audit-data.md` (the single documented fallback below), `findings.md`
   (older packets may carry this name). The set is closed **by design**: the
@@ -206,82 +206,55 @@ These escapes do not hold: a non-`.md` extension evades `markdown-format` but no
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
 evasion.
 
-**Write-once is a discipline, not a filesystem guarantee (#3866).** The producing agent
-holds Write (and the main thread can Edit). Nothing makes a sealed file physically
-unwritable. `packet-seal.sh verify` reports CHANGED after the fact; `record` then refuses
-to reseal, so later files in that packet stay UNSEALED against `packet.sha256`. That
-original manifest is never overwritten. `record --acknowledge-divergence` writes
-`packet.sha256.<n>` for the bytes as they are now and leaves `packet.sha256` in place, so
-`verify` still reports CHANGED. The generation is a forward record, not a clean bill of
-health. Mechanical chmod, or a write proxy that refuses sealed files, is unpaid.
-A sealed packet asserts bytes at seal time, not current world state; see
-[What a sealed packet asserts](#what-a-sealed-packet-asserts). Corrections go in a new file
-(`audit-notes-2.md`, `evidence-<n>.md`), never an edit of a file already on disk. If live
-state contradicts a packet claim about mutable configuration, treat that as a timeline
-question (the world may have moved since the capture), not as a correction that the packet
-was wrong.
-
-| Claim | Basis | As of | Recheck |
-|---|---|---|---|
-| Write-once is an agent discipline with after-the-fact verify. The system does not make sealed files unwritable. Breaking it is terminal for `packet.sha256`. `--acknowledge-divergence` writes `packet.sha256.<n>` and does not replace the original. | `packet-seal.sh` record/verify; `packet-seal.test.sh` acknowledge cases; this section's three rules; `agents/auditor.md` Write grant. | 2026-09-28 | `verify` starts treating `packet.sha256.<n>` as a replacement for `packet.sha256`, or a platform lock makes sealed files unwritable without breaking the documented re-seal of `packet.sha256`. |
-
 ## What a sealed packet asserts
 
-A sealed packet is a snapshot. `verify` checks the packet's files against the manifest
-written at the last `packet-seal.sh record`; it does not show that the audited world still
-matches.
+- **Claim:** Write-once is a discipline with after-the-fact verify, not a filesystem guarantee
+  ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)): the producing
+  agent holds Write, and nothing makes a sealed file unwritable. Breaking it is terminal for
+  `packet.sha256`: `record` refuses to reseal over a CHANGED file, so later files stay UNSEALED
+  against it. `record --acknowledge-divergence` writes `packet.sha256.<n>` for the bytes as they
+  are now and leaves `packet.sha256` in place, so `verify` still exits 1; the generation is a
+  forward record, not a clean bill of health. A sealed packet asserts bytes at seal time, never the
+  current state of the audited world
+  ([#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867)).
+- **Basis:** this file's three rules and Resume verify cases; the `scripts/packet-seal.sh` header
+  (COVERED / NOT COVERED, ACKNOWLEDGED DIVERGENCE, SEAL MOMENT, exits 0 / 1 / 2 / 3);
+  `packet-seal.test.sh` acknowledge cases; the `agents/auditor.md` Write grant.
+- **As of:** 2026-09-29.
+- **Recheck:** a mechanical write-once lock ships, `sealed-at` becomes signed or `verify` starts
+  gating on it, `packet-seal.sh` grows a currency or superseded marker, or the Resume rule stops
+  grouping packets by run-nonce.
 
-- **Claim:** A sealed packet asserts the bytes of every file named in `packet.sha256` as
-  they were at the last successful `record`. `verify` exit 0 means those files still
-  match and nothing regular in the packet is unsealed. It does not mean the audited
-  component still looks like that, that the producing session stopped, or that the
-  bytes were pristine before the first seal. A later `evidence-<n>.md` or a later
-  run-nonce is a newer snapshot; the producing session has no obligation to re-seal or
-  mark an earlier packet superseded when the audited world moves. Write-once remains
-  an agent discipline with after-the-fact `verify` ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)):
-  a correction is a new file, then a re-seal, never an edit of a sealed file.
-- **Basis:** This file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
-  COVERED / NOT COVERED header and exits 0 / 1 / 2 / 3; issue
-  [#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867).
-- **As of:** 2026-09-28.
-- **Recheck:** `packet-seal.sh` grows a currency or superseded marker, a mechanical
-  write-once lock ships ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)),
-  or the Resume rule stops grouping packets by run-nonce.
+What `verify` reads and prints:
 
-### Assertion list (what `verify` actually proves)
+- `packet.sha256`, and in addition every entry of the latest generation (highest `<n>`), labeled
+  `GEN-MATCH` / `GEN-CHANGED` / `GEN-MISSING`. The original `CHANGED` still exits 1. Once a
+  generation exists `verify` prints `ACKNOWLEDGED generation=<n>` on every run, even at exit 0
+  after a restore, and an ordinary `record` is refused; the next generation comes from
+  `--acknowledge-divergence`.
+- `sealed-at=` (and `gen-sealed-at=`): the `# sealed-at` line each manifest carries, when the
+  packet claims to have been sealed. It is self-attested and unsigned, so anyone who can write the
+  manifest can edit it. A manifest written before the header reports `unknown`. It never changes
+  an exit code.
 
 | Asserts | Does not assert |
 | --- | --- |
-| Each `packet.sha256` entry still hashes to that digest (`MATCH`) | The audited plugin or component still matches the packet (currency) |
-| No regular packet file is missing from the manifest (`verify` exit 0, not 3) | Bytes were pristine before the first seal (the writer's read-back catches that) |
-| The packet held those bytes at last `record` (snapshot at seal time) | The producing session has stopped, or later flushes have not landed |
-| `CHANGED` / `MISSING` (exit 1) is altered evidence, not ground truth | A later numbered `evidence-<n>.md` is invalid; it is a newer snapshot |
+| Each manifest entry still hashes to its digest (`MATCH`) | The audited component still looks like that (currency) |
+| No regular file is missing from the manifests (exit 0, not 3) | Bytes were pristine before the first seal (the writer's read-back catches that) |
+| The packet held those bytes at seal time | The producing session stopped, or no later flush landed |
+| `CHANGED` / `MISSING` (exit 1) is altered evidence, not ground truth | A later `evidence-<n>.md` or run-nonce is invalid: it is a newer snapshot, and the producer need not re-seal or mark the earlier packet superseded |
+| `sealed-at` is the moment the packet claims | `sealed-at` is proof of when, or of a legitimate successor |
 
-### How a reader tells snapshot from superseded, without the producing session
+A correction goes in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an edit of a file on
+disk. If live state contradicts a packet claim about mutable configuration, that is a timeline
+question (the world may have moved since the capture), not a correction that the packet was wrong.
 
-- **Run identity.** `<run-nonce>` (`YYYYMMDDTHHMMSSZ`) is one run. A greater nonce in the
-  same session directory is a later run. The Resume rule already groups by nonce and
-  reports every group; a group you did not select is set aside, not superseded: it may
-  audit a different target, and nonce order alone cannot prove a legitimate successor,
-  because a planted high-sorting nonce is possible.
-- **Flush identity.** Supplementary evidence is `evidence-<n>.md` beside `evidence.md`,
-  never an append. A higher `n` in the same packet is a later flush of that snapshot
-  sequence.
-- **Unsealed files.** `verify` exit 3 names files that arrived after the last seal.
-  Their integrity is unknown. They are not a claim that the sealed files are current
-  world state.
+Telling snapshot from superseded without the producing session:
 
-### Producer obligations after sealing
-
-- **Packet files:** write-once. Never edit a sealed file. A correction is a new file,
-  then `record` again. `record` refuses to reseal over a `CHANGED` entry;
-  `--acknowledge-divergence` writes `packet.sha256.<n>` and leaves `packet.sha256` as is.
-- **The audited world:** no obligation to re-seal, delete, or mark the packet
-  superseded when later operations change the thing the packet described. The packet
-  remains a seal-time snapshot. A same-target re-audit in a later run already gets its
-  own nonce directory.
-- **Multi-flush:** already a sequence of snapshots. Each numbered flush is a new
-  artifact. That is the whole answer to "what each asserts relative to its successors."
-
-Nothing in this plugin's surfaces may be read as "the seal proves the packet is still
-true of the world." `verify` exit 0 proves only that the current files match the current manifest.
+- **Run identity.** `<run-nonce>` is one run and a greater nonce in the same session directory is a
+  later run. The Resume rule groups by nonce and reports every group; a group you did not select is
+  set aside, not superseded, because it may audit a different target. Nonce order cannot prove a
+  legitimate successor (a planted high-sorting nonce is possible), and `sealed-at`, now recorded,
+  still is not proof of one.
+- **Flush identity.** A higher `n` in `evidence-<n>.md` within the same packet is a later flush of
+  that snapshot sequence.
