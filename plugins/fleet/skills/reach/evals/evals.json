@@ -11,13 +11,13 @@
     {
       "id": 2,
       "prompt": "Have melo-desk-001 read its provisioning runbook, then ask it a follow-up about what it found.",
-      "expected_output": "Recognizes this needs more than one turn. First call uses claude -p --output-format json to obtain a session_id; the follow-up uses claude -p --resume <session_id> over the same host. States that the id belongs to that machine and account and does not travel.",
+      "expected_output": "Recognizes this needs more than one turn. First call either chooses the id with claude -p --session-id <uuid> or reads session_id from claude -p --output-format json; the follow-up uses claude -p --resume <id> over the same host and lane. States that the id belongs to that machine and account and does not travel.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "List the Claude sessions running on the desktop and send a message to the one in the sandbox checkout.",
-      "expected_output": "Does NOT call ListAgents or SendMessage locally and does not claim they reach the desktop. Explains that the accounts are split per machine, so the peer tools are same-account. Uses the Windows-side relay through port 2222: a claude.exe turn started by absolute path from the target's scratch checkout, whose own peer tools list and message that machine's Windows sessions. May load reference/relay.md.",
+      "expected_output": "Does NOT call ListAgents or SendMessage locally and does not claim they reach the desktop. Explains that accounts are per lane, so the peer tools see only this lane. Picks the route matrix row for the desktop's Windows lane from this origin (R3 from WSL, R6 from Windows): a claude.exe turn started by absolute path through the desktop's WSL hop, from a Windows-side scratch directory, whose own peer tools list and then message the sessions. Lists first and messages a name from that list. May load reference/relay.md.",
       "files": []
     },
     {
@@ -29,7 +29,7 @@
     {
       "id": 5,
       "prompt": "Message my other Claude session that's running in the same repo on this laptop.",
-      "expected_output": "Declines to apply this skill's SSH path and routes to the built-in peer tools instead: a session on this machine is reachable directly, no SSH and no relay. Draws the boundary rather than composing a remote command.",
+      "expected_output": "Asks or determines which lane the other session is in. If it is in this same lane, routes to the built-in peer tools with no SSH and no relay. If it is in the other lane on this machine (WSL versus native Windows), uses the same-machine cross-lane row (R1 or R4) instead, because each lane lists only its own sessions.",
       "files": []
     },
     {
@@ -49,6 +49,48 @@
       "prompt": "Ask the desktop what's using the most disk space.",
       "expected_output": "Reads ~/.config/fleet/FLEET.md, then composes the one-shot WSL hop. Escapes the apostrophe in what's before substituting into the single-quoted remote command: replace each ' with '\\'' or wrap the remote command in $'...' quoting. Does not paste the contraction unescaped into the outer single quotes, because that would close the local shell quote before ssh runs.",
       "narration": true,
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "I'm in WSL on the desktop. Tell the Claude session running in native Windows on this same machine to pause its build.",
+      "expected_output": "Uses row R1: runs claude.exe from WSL by absolute path (/mnt/c/Users/<user>/.local/bin/claude.exe) after cd to a Windows-side scratch directory, with < /dev/null, and asks that turn to list sessions and then SendMessage to the named one. Does not use ssh for a same-machine hop and does not rely on the local ListAgents, which shows only the WSL lane. Notes that starting the turn prompts under auto mode.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "From a PowerShell window on the laptop, ask the WSL side of the laptop to run the test suite in my repo and report back.",
+      "expected_output": "Uses row R4: resolves the distro name from wsl.exe -l -q rather than guessing, then wsl.exe -d <distro> --cd /tmp --exec <shell> -lc (--exec, not --) with claude -p \"<prompt>\" < /dev/null inside single quotes. Gives the prompt the whole task and a stop condition. Escapes any apostrophe by doubling it, which is the pwsh rule; notes that Git Bash (a native-Windows Claude's Bash tool) needs '\\'' instead, because doubling drops the apostrophe there. Prefers WSL as the agent lane since the repos and toolchain live there.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "The relay to the desktop's Windows side came back with 'Failed to authenticate: OAuth session expired and could not be refreshed'. Fix the route.",
+      "expected_output": "Diagnoses a signed-out Windows lane on the target, not a routing fault: the hop reached claude.exe. The fix is /login at that machine's console or over RDP. Does not change the route, does not try to copy or send credentials, and does not propose sharing an account.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "Ask the laptop's WSL session named lap-wsl whether its migration finished, and wait for its answer.",
+      "expected_output": "Uses the cross-machine WSL row through the Windows OpenSSH client and the laptop's wsl-shell alias from FLEET.md. Sends to lap-wsl with a relay turn, and does not rely on notify_when_idle from a -p sender, whose turn ends before the notice arrives. Gets the answer by polling claude agents --json in that lane until the session is idle, then reading the reply with --resume or a second relay turn.",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "Start a Claude session on the desktop's Windows side that other sessions can keep sending messages to.",
+      "expected_output": "Starts a named headless receiver: claude.exe -p -n <name> --settings with crossSessionInbound set to accept, with standing instructions saying what to do with messages and when to stop. Handles the JSON quoting inside an outer single-quoted remote command (escaped double quotes). States that the receiver lives only as long as its turn; for a session that must stay up, offers a background session (claude --bg --name, which needs a trusted directory) or --resume for durable multi-turn work. Does not use --bare for a receiver, since a bare session binds no inbox socket.",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "This per-lane account split is a pain. Just sign every lane into one Claude account so ListAgents sees everything.",
+      "expected_output": "Declines to propose sharing an account: the per-lane split is deliberate so one lane's usage does not draw down another's. Explains that the relay routes in the matrix already reach every lane by starting a turn inside the target lane.",
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "Run Get-ChildItem C:\\Users on the laptop, no agent needed.",
+      "expected_output": "Treats this as the run-a-script verb, which starts no agent. Routes a Windows command on another machine over the port 22 windows-shell alias as ssh-admin with pwsh quoting, not through a claude turn. Notes that ssh-admin has no DPAPI, so anything needing the console user's credentials goes through the on-demand tasks.",
       "files": []
     }
   ]
