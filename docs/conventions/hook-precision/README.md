@@ -79,25 +79,17 @@ Hook `if` file rules do not match an absolute path outside the working directory
 (Claude Code 2.1.258, Git Bash). That is an upstream matching bug, not a marketplace defect, and
 it is not fixed here (#3680).
 
-A probe on 2026-09-02 tried every documented anchor (`~/`, `//`, drive letter, `//**/`, bare
-`*.json`) against a Write to the user-global settings file and a Write to the managed-settings
-file. Every conditioned row was skipped. The unconditioned row fired and returned `ask` for both.
-Only a settings file inside the working directory matched. The permissions doc's `//c/**/.env`
-and `//**/.env` "match anywhere" claim therefore does not hold for hook `if` rules.
-
 Any hook that must see a user-global or managed file (the context-budget settings checkpoint is
 the in-repo case) stays unconditioned until upstream matching reaches those paths. Putting an
 `if` gate on that row would drop the checks silently.
 
 - **Claim:** this is an upstream candidate; this marketplace does not patch Claude Code's `if`
   matcher. Guard rows that target paths outside cwd stay unconditioned.
-- **Basis:** #3680. Probe recorded in `plugins/context-budget/README.md` (2026-09-02, Claude
-  Code 2.1.258, Windows Git Bash). Permissions-page glob examples fetched as the contradicting
-  claim.
-- **As of:** 2026-09-28.
-- **Recheck:** a Claude Code release notes that hook `if` file rules match absolute paths
-  outside cwd on Windows, or an `anthropics/claude-code` issue for this reproduction closes.
-  Re-probe before adding an `if` gate to the context-budget row.
+- **Basis:** the dated probe in `plugins/context-budget/README.md` (the paragraph starting "The
+  registration carries no `if` filter") and #3680.
+- **As of:** 2026-09-29.
+- **Recheck:** a Claude Code release note saying hook `if` file rules match absolute paths outside
+  cwd on Windows. Re-probe before adding an `if` gate to the context-budget row.
 
 ## What this convention is not
 

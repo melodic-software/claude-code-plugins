@@ -45,8 +45,8 @@ Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
   of a `user`-installed plugin added a project install record and `enabledPlugins` entry.
 - **Home directory, one file, two labels.** When the working directory is the home directory,
   project scope resolves to the same settings file as user scope, so `claude plugin list` can
-  show that one file as both `user` and `project`. Observed on the context-budget audit
-  (cwd `$HOME`). Pass `user`. This is not part of the 2026-09-27 sandbox probe.
+  show that one file as both `user` and `project`. Pass `user`. This is not part of the 2026-09-27
+  sandbox probe.
 
 Not covered by that probe: a `sensitive` option, a same-scope `string` rerun at `local` scope,
 same-scope `boolean` or `directory` reruns at `user` or `project` scope, and uninstall dropping

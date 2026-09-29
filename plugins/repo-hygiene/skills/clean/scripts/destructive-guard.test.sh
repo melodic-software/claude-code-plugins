@@ -225,7 +225,7 @@ assert_contains "ungated tool block reason says there is no ack path" "$ungated_
 assert_not_contains "ungated tool block reason offers no ack spelling" "$ungated_reason" "CLEAN_GUARD_ACK"
 
 # --- 2e. Apply scripts and forced worktree removal are in the net ---------------
-# Dry-run stays reachable. Branch deletion stays out (#3852). The ack prefix
+# Dry-run stays reachable. Branch deletion is not matched (open on #3852). The ack prefix
 # still lifts an apply block after the confirmation gate.
 
 for cmd in \
@@ -259,7 +259,7 @@ for cmd in \
   "git branch -d feature/x" \
   "git push origin --delete feature/x" \
   "git push origin --delete refs/heads/feature/x"; do
-  assert_exit "allows (outside the net): $cmd" 0 "$(guard_exit "$cmd")"
+  assert_exit "allows (not matched by is_destructive): $cmd" 0 "$(guard_exit "$cmd")"
 done
 
 assert_exit "ack prefix allows clean-batch --apply" 0 \
