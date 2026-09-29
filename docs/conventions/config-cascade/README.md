@@ -337,7 +337,7 @@ unification. The Implementers row remains the contract for path, layers, and con
 | `source-control` | later layer; team on the merge-rung; fail-closed on a bad `branch_issue_pattern` | per-key |
 | `toolchain` / `ecosystem-commands` | later layer | per-key |
 | `codebase-health` | later layer | concatenate |
-| `bugs` | later layer | lanes concatenate; `filing_posture` nearest-wins |
+| `bugs` | later layer | lanes concatenate; `## Gotchas` concatenates; `filing_posture` nearest-wins |
 | `github` | team on write-posture keys; later layer otherwise | per-key (`routing.yaml`); concatenate (`conventions.md`) |
 | `autonomy` | later layer except security axes | declared |
 | `standards` | team on conflict (policy-floor) | add/tighten |
@@ -363,7 +363,7 @@ A generated table off the Implementers rows, and a one-line "who wins" in each s
 out of this change. Either would unify presentation without unifying engines; file that as its own
 slice if an operator still cannot find the row.
 
-- **Claim:** per-surface cascade semantics stay; this index plus the Implementers pointer is the
+- **Claim:** per-surface cascade semantics stay; this index is the
   operator-facing summary; engines are not unified.
 - **Basis:** #3575. The Implementers table already declared each variant. Standard later-wins,
   policy-floor inversion, `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
