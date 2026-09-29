@@ -278,7 +278,10 @@ available, and skipping it is what manufactures the resume rule's problem one co
 **Grade the ledger before presenting it**, once a closed-set file exists. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
 Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
-the collector's `problem:` lines, and do not present a ledger the collector rejects.
+the collector's `problem:` lines, and do not present a ledger the collector rejects. The corrected
+ledger is a new packet file, `audit-notes-2.md`, which the Resume rule's closed set does not
+include: after a compaction the rejected ledger is what resumes, so grade it again on resume
+before presenting.
 `research: open-question` and `verdict: unvalidated` pass the collector; the effort table says
 when they are enough. When the component emits findings to a user, the Emitted findings section
 samples them; otherwise it is `not-applicable`. `verdict: false` is the class "the plugin reported
