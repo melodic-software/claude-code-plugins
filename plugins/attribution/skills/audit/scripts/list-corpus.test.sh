@@ -213,6 +213,19 @@ printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.jso
 USER_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig" bash "$LIST_CORPUS" 2>/dev/null)"
 assert_not_contains "the user-global layer is read" \
   "$(echo "$USER_OUT" | jq -r '.files[]')" "README.md"
+
+# Config-cascade step 2: at a home root the user-global file is the only layer and
+# is listed once, never again as team; a non-repo root has no team layer either.
+printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
+HOME_SC="$(cd "$HOME" && CLAUDE_PROJECT_DIR="$HOME" bash "$LIST_CORPUS" --show-config 2>&1)"
+assert_eq "home root: the user-global file is listed once" \
+  "$(printf '%s\n' "$HOME_SC" | grep -c "^  $HOME/.claude/attribution.json")" "1"
+NONREPO="$TEST_TMPDIR/nonrepo-cfg"
+mkdir -p "$NONREPO/.claude"
+printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$NONREPO/.claude/attribution.json"
+NONREPO_SC="$(cd "$NONREPO" && CLAUDE_PROJECT_DIR="$NONREPO" bash "$LIST_CORPUS" --show-config 2>&1)"
+assert_not_contains "a non-repo root: its .claude file is not a team layer" \
+  "$NONREPO_SC" "$NONREPO/.claude/attribution.json"
 rm -f "$HOME/.claude/attribution.json"
 
 # --- Legacy config name ----------------------------------------------------------

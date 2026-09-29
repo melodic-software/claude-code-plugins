@@ -296,9 +296,10 @@ git_probe_allowed() {
       [[ $# -eq 6 && "$4" == "-1" && "$5" == "--format=%ct" && "$6" == "HEAD" ]]
       ;;
     for-each-ref)
-      [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$5" == "--" ]] || return 1
-      [[ "$6" == "refs/heads/" ]] && return 0
-      [[ "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
+      [[ $# -eq 6 && "$5" == "--" ]] || return 1
+      [[ "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$6" == "refs/heads/" ]] && return 0
+      [[ "$4" == "--format=%(refname:short)%09%(objectname)%09%(committerdate:unix)%00" &&
+        "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
       ;;
     ls-remote)
       # Read-only live remote probe: prove a named head still exists upstream without fetch/prune.
@@ -311,8 +312,8 @@ git_probe_allowed() {
     merge-base)
       ref="${6:-}"
       [[ $# -eq 6 && "$4" == "--is-ancestor" && -n "${5:-}" && "${5:-}" != -* &&
-        ! "${5:-}" =~ [[:cntrl:][:space:]] && "$ref" == refs/remotes/* &&
-        ! "$ref" =~ [[:cntrl:][:space:]] ]]
+        ! "${5:-}" =~ [[:cntrl:][:space:]] && ! "$ref" =~ [[:cntrl:][:space:]] &&
+        ("$ref" == refs/remotes/* || "$ref" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$) ]]
       ;;
     *) return 1 ;;
     esac
@@ -580,6 +581,7 @@ merged-worktree|HIGH|no|yes|Candidate worktree dry-run handoff before branch cle
 merged-protected-branch|HIGH|no|no|Informational only; protected branches are never branch-cleanup candidates
 merged-pr-tip-drift|MEDIUM|no|no|Manual review; not a cleanup candidate
 merged-remote-branch|HIGH/MEDIUM|no|no|Optional remote-branch deletion preview; separate from local branch/worktree cleanup
+remote-branch-family|LOW|no|no|Report only; no cleanup handoff and no deletion preview for family branches
 local-ancestry-only|LOW|no|no|Informational only
 local-ancestry-unavailable|UNKNOWN|no|no|Do not infer local ancestry
 prunable-worktree|HIGH|no|yes|Candidate dry-run handoff
@@ -615,7 +617,7 @@ git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
-ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
+ls-remote-fleet-unavailable|UNKNOWN|no|no|Per-repository merged-remote-branch findings are withheld; every live probe in this run failed
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -714,6 +716,32 @@ record_finding() {
   F_REPO_IDX+=("$CURRENT_REPO_IDX")
 }
 
+# Takes every buffered MEDIUM finding of <kind> back out of the store and the tier tally, keeping
+# the remaining rows in order. Compacts in place (no array rebuild) so bash 3.2 stays safe under
+# `set -u`.
+withhold_medium_findings() {
+  local kind="$1" i n=${#F_KIND[@]} keep=0
+  for ((i = 0; i < n; i++)); do
+    if [[ "${F_KIND[$i]}" == "$kind" && "${F_CONF[$i]}" == "MEDIUM" ]]; then
+      FINDINGS_MEDIUM=$((FINDINGS_MEDIUM - 1))
+      continue
+    fi
+    if [[ "$keep" -ne "$i" ]]; then
+      F_CONF[keep]="${F_CONF[$i]}"
+      F_KIND[keep]="${F_KIND[$i]}"
+      F_TARGET[keep]="${F_TARGET[$i]}"
+      F_EVIDENCE[keep]="${F_EVIDENCE[$i]}"
+      F_DISP[keep]="${F_DISP[$i]}"
+      F_HANDOFF[keep]="${F_HANDOFF[$i]}"
+      F_REPO_IDX[keep]="${F_REPO_IDX[$i]}"
+    fi
+    keep=$((keep + 1))
+  done
+  for ((i = n - 1; i >= keep; i--)); do
+    unset "F_CONF[$i]" "F_KIND[$i]" "F_TARGET[$i]" "F_EVIDENCE[$i]" "F_DISP[$i]" "F_HANDOFF[$i]" "F_REPO_IDX[$i]"
+  done
+}
+
 # The ordinary emitter: the kind decides the tier and the disposition.
 emit_finding() {
   local kind="$1" target="$2" evidence="$3" handoff="${4:-}"
@@ -755,6 +783,19 @@ branch_action_kind() {
 
 worktree_action_kind() {
   finding_registry_lookup "$1" && [[ "$FINDING_ROW_WORKTREE_ACTION" == "yes" ]]
+}
+
+# branch_family <branch>: where the branch name says it came from; empty when it names no known
+# family. Information only.
+branch_family() {
+  case "$1" in
+  claude/*) printf claude ;;
+  plan/*) printf plan ;;
+  stranded/*) printf stranded ;;
+  pre-wipe/*) printf pre-wipe ;;
+  *) [[ "$1" =~ ^agent-[0-9a-f]+$ ]] && printf agent ;;
+  esac
+  return 0
 }
 
 # --- Path and layout helpers ------------------------------------------------
@@ -2311,7 +2352,10 @@ repo_verdict() {
     kind="${F_KIND[$i]}"
     target="${F_TARGET[$i]}"
     if [[ "$conf" == "UNKNOWN" ]]; then
-      unknown=$((unknown + 1))
+      case "$kind" in
+      discovery-skip | discovery-symlink-skip) ;;
+      *) unknown=$((unknown + 1)) ;;
+      esac
     elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
       array_contains "$target" "${cand_targets[@]:-}" || cand_targets+=("$target")
     fi
@@ -2446,6 +2490,8 @@ analyze_repo() {
   local -a WT_COMMON_DIR_STATUS=() WT_COMMON_DIR=()
   local WT_ORIGIN_OWNER="" WT_ORIGIN_REPO=""
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
+  local -a REMOTE_BRANCH_DATES=() MERGED_REMOTE_REPORTED=()
+  local remote_date family now_epoch age_days on_default ancestor_status
   local -a BRANCH_ATTACHED=() BRANCH_IS_MAIN=() BRANCH_PROTECTED=()
   local -a BRANCH_PR_MATCH=() BRANCH_PR_ANY=() BRANCH_ANCESTRY=()
   local -a GQL_BRANCHES=()
@@ -2736,6 +2782,11 @@ analyze_repo() {
       [[ "$remote_ref_record" == *$'\t'* ]] || continue
       remote_branch_short="${remote_ref_record%%$'\t'*}"
       remote_tip="${remote_ref_record#*$'\t'}"
+      remote_date=""
+      if [[ "$remote_tip" == *$'\t'* ]]; then
+        remote_date="${remote_tip#*$'\t'}"
+        remote_tip="${remote_tip%%$'\t'*}"
+      fi
       # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
       # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
       # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
@@ -2744,17 +2795,19 @@ analyze_repo() {
         if [[ -n "$remote_branch_short" ]]; then
           REMOTE_BRANCH_NAMES+=("$remote_branch_short")
           REMOTE_BRANCH_TIPS+=("$remote_tip")
+          REMOTE_BRANCH_DATES+=("$remote_date")
         fi
       fi
     done < <(
       run_git_probe -C "$canonical" for-each-ref \
-        '--format=%(refname:short)%09%(objectname)%00' -- "refs/remotes/$canonical_remote/" 2>/dev/null
+        '--format=%(refname:short)%09%(objectname)%09%(committerdate:unix)%00' -- "refs/remotes/$canonical_remote/" 2>/dev/null
       printf '\0__repo_fleet_ref_status__ %s\0' "$?"
     )
     if [[ "$remote_branch_status" != "0" ]]; then
       # Partial producer output is discarded so tip-drift push-state never trusts a half-built list.
       REMOTE_BRANCH_NAMES=()
       REMOTE_BRANCH_TIPS=()
+      REMOTE_BRANCH_DATES=()
       remote_inventory_failed=true
       emit_finding remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
@@ -2893,15 +2946,29 @@ analyze_repo() {
       remote_tip="${REMOTE_BRANCH_TIPS[$ri]}"
       [[ -n "$remote_branch_short" && -n "$remote_tip" ]] || continue
       [[ "$remote_branch_short" == "$default_branch" ]] && continue
-      pr_match=""
+      pr_match="" pr_any=""
       while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
         [[ -n "$pr_num" ]] || continue
         [[ "$pr_branch" == "$remote_branch_short" ]] || continue
+        [[ -z "$pr_any" ]] && pr_any="$pr_num|$pr_oid|$pr_merged|$pr_url"
         if [[ "$pr_oid" == "$remote_tip" ]]; then
           pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
           break
         fi
       done <<<"$repo_pr_rows"
+      if [[ -z "$pr_match" && -n "$pr_any" ]]; then
+        # The merged head moved past the remote-tracking tip. When the tip is an ancestor of the
+        # head and the head object is in this clone, every commit on the remote branch was in the
+        # merged PR. The probe exits non-zero for a missing head object, so that case stays
+        # silent. No ls-remote runs, so the finding is never HIGH.
+        IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
+        if run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" "$pr_oid" 2>/dev/null; then
+          emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
+            "GitHub PR #$pr_num MERGED at headRefOid $pr_oid; last-fetched $canonical_remote/$remote_branch_short tip $remote_tip differs, but tip is an ancestor of the merged head ($pr_url); current remote existence was not verified" \
+            "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
+        fi
+      fi
       if [[ -n "$pr_match" ]]; then
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
@@ -2921,6 +2988,7 @@ analyze_repo() {
           emit_finding_as HIGH - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); ls-remote confirmed refs/heads/$remote_branch_short still at $live_oid (delete_branch_on_merge not enabled or blocked for this repository)" \
             "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
         elif [[ "$live_status" -eq 0 ]]; then
           # Empty or tip-mismatched ls-remote: remote head is gone or moved; do not blame
           # delete_branch_on_merge on a stale local remote-tracking observation.
@@ -2929,8 +2997,40 @@ analyze_repo() {
           emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); current remote existence could not be verified (ls-remote failed) — may be a stale local remote-tracking observation after a prune-less fetch" \
             "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
         fi
       fi
+    done
+  fi
+
+  # Remote branches in a known family that no merged-remote-branch finding covers. Everything
+  # here reads the last-fetched inventory above plus local ancestry; no remote probe runs, and
+  # nothing here names a deletion.
+  if [[ "$remote_inventory_failed" == "false" && -n "$canonical_remote" ]]; then
+    printf -v now_epoch '%(%s)T' -1
+    for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
+      remote_branch_short="${REMOTE_BRANCH_NAMES[$ri]}"
+      remote_tip="${REMOTE_BRANCH_TIPS[$ri]}"
+      [[ "$remote_branch_short" != "$default_branch" ]] || continue
+      family="$(branch_family "$remote_branch_short")"
+      [[ -n "$family" ]] || continue
+      array_contains "$remote_branch_short" "${MERGED_REMOTE_REPORTED[@]:-}" && continue
+      remote_date="${REMOTE_BRANCH_DATES[$ri]}"
+      age_days="unknown"
+      [[ "$remote_date" =~ ^[0-9]+$ ]] && age_days=$(((now_epoch - remote_date) / 86400))
+      on_default="unknown"
+      if [[ -n "$default_branch" && -n "$remote_tip" ]]; then
+        run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" \
+          "refs/remotes/$canonical_remote/$default_branch" 2>/dev/null
+        ancestor_status=$?
+        case "$ancestor_status" in
+        0) on_default="yes" ;;
+        1) on_default="no" ;;
+        *) ;;
+        esac
+      fi
+      emit_finding remote-branch-family "$canonical :: $canonical_remote/$remote_branch_short" \
+        "family $family; tip $remote_tip; age $age_days days (committer date); on $canonical_remote/$default_branch: $on_default"
     done
   fi
 
@@ -3119,12 +3219,14 @@ else
 fi
 
 # When every attempted ls-remote failed, N MEDIUM merged-remote-branch findings are one
-# transport/binding problem, not N independent stale heads (#4211). Empty ls-remote (head
-# already gone) is a successful probe and does not count as a failure.
+# transport/binding problem, not N independent stale heads (#4211). The per-repository rows are
+# withheld and the single fleet finding replaces them. Empty ls-remote (head already gone) is a
+# successful probe and does not count as a failure.
 if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
+  withhold_medium_findings merged-remote-branch
   emit_finding ls-remote-fleet-unavailable "fleet" \
-    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings stay MEDIUM cached observations" \
-    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun. The per-repository MEDIUM findings are not independent live-probe failures"
+    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings are withheld because no live probe succeeded" \
+    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------
@@ -3157,8 +3259,9 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
 done
 
 # Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
-# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
-# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
+# get their own rollup row. Their evidence gaps (all UNKNOWN kinds except the disclosed
+# discovery skips) must also move the overall Fleet verdict off CLEAN — repo_verdict -1
+# already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))

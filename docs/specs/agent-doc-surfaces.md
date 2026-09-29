@@ -62,7 +62,7 @@ guidance <200 lines per CLAUDE.md.
 | Cline | `.clinerules` file or folder; global `~/Documents/Cline/Rules/` | Appended to system prompt; workspace wins |
 | Roo Code | `~/.roo/rules/`, `.roo/rules/` (+ per-mode variants); `.roorules` fallback | Auto-loaded, workspace wins |
 | Aider | `CONVENTIONS.md` | **NOT auto-read**; explicit `/read` / `--read` / `.aider.conf.yml` only |
-| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure. The spec defines the folder format only; `.agents/skills/` (project) + `~/.agents/skills/` (user) is the shared cross-tool DISCOVERY convention across Codex CLI (layered lookup incl. `$REPO_ROOT/.agents/skills`, `$HOME/.agents/skills`, `/etc/codex/skills`), Cursor (also `.cursor/skills/`), Gemini CLI, VS Code Copilot, Zed. Claude Code notably uses its own `~/.claude/skills/`/`.claude/skills/` paths; whether it also reads `.agents` paths is a lane 9 (#2911) verification item |
+| Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure. The spec defines the folder format only; `.agents/skills/` (project) + `~/.agents/skills/` (user) is the shared cross-tool DISCOVERY convention across Codex CLI (layered lookup incl. `$REPO_ROOT/.agents/skills`, `$HOME/.agents/skills`, `/etc/codex/skills`), Cursor (also `.cursor/skills/`), Gemini CLI, VS Code Copilot, Zed. Claude Code notably uses its own `~/.claude/skills/`/`.claude/skills/` paths; the harness verdict for `~/.agents/skills` is REFUTED (`docs/upstream/aihero-course.md`, harness verdict row 5); this spec decides nothing on adding an `.agents` root |
 | OpenAI Codex | AGENTS.md root + nested | Native (standard's originator) |
 | Zed | `.rules` (accepts `.cursorrules`, AGENTS.md, CLAUDE.md); skills `~/.agents/skills/` | Auto-included; Rules Library → Skills in v1.4.0 |
 | JetBrains Junie | `.junie/guidelines.md` | Auto-read during generation |
@@ -91,8 +91,9 @@ corroborate the competitor paths themselves.
 - `.agents/skills/` cross-tool convention (corrected 2026-08-17, user-raised): confirmed
   directionally from multiple independent secondary pools + Cursor's own docs surfaced via
   search (vendor hosts egress-blocked here), so MEDIUM; the spec repo itself confirms it defines
-  no directory locations. The Claude-Code-reads-`.agents`-paths question stays with #2911's
-  harness-claims bundle.
+  no directory locations. Whether Claude Code reads `~/.agents/skills` is answered by harness
+  verdict row 5 in `docs/upstream/aihero-course.md` (REFUTED); that verdict does not cover the
+  project `.agents/skills/` path. This spec decides nothing on adding an `.agents` root.
 - Fresh-context verifier catches (recorded 2026-08-17): Roo and Aider rows are single-pool
   (vendor primary only, accepted on the same vendor-authority basis, now flagged); the AGENTS.md
   "nearest wins" nested-precedence detail is thinly corroborated (standard's FAQ only); the

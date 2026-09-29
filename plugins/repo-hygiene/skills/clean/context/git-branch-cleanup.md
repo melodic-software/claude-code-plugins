@@ -10,7 +10,7 @@ Run the branch-audit script. Do not reimplement collection inline:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 ```
 
-**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>` or `TipCaptureError: <why>`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
+**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:`, `Family:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>` or `TipCaptureError: <why>`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
 
 **Across repos.** `--repo DIR...`, `--repos-from FILE|-`, `--skip ENTRY` and `--skip-from FILE` (the selection `clean-batch.sh` takes) audit several repositories in one run, sequentially and read-only. Each audited repo is a `Repo: <path>` block holding the output above, ended by `---`, with its own `TipCapture:` under its own common git dir. A repo that shares a git common dir with one already audited (a linked worktree, whose branches the first audit already lists) is a `Repo:` / `Outcome: skipped` block, so each repository is audited once, from the first-named worktree. A skip-listed repo, an unresolvable input (`Outcome: blocked`), or an audit that exits nonzero (`Outcome: failed`) is reported without stopping the rest, and `FleetSummary: repos=N audited=A skipped=S duplicate=D blocked=B failed=F` closes the run with exit 0. `--capture-file PATH` names one file, so with more than one repo it is a usage error (exit 2); each repo gets its default capture. With none of these flags the script audits the current repository and its output is unchanged.
 
@@ -38,7 +38,8 @@ The script applies rules in priority order (first match wins), then refines a RE
 | 3 | Branch glob-matches protected pattern (see list below) | PROTECTED | protected pattern |
 | 4 | Branch checked out in a linked worktree | WORKTREE | checked out in worktree — clean up the worktree first |
 | 5 | `PR` = MERGED and local tip matches PR headRefOid | SAFE | PR merged |
-| 5b | `PR` = MERGED and local tip differs from headRefOid | REVIEW | PR merged but branch has commits since merge |
+| 5a | `PR` = MERGED, local tip differs from headRefOid, the headRefOid commit exists locally, and the tip is an ancestor of it | SAFE | PR merged (tip is an ancestor of the merged head) |
+| 5b | `PR` = MERGED, local tip differs from headRefOid, and 5a does not hold | REVIEW | PR merged but branch has commits since merge |
 | 6 | Branch in git `--merged` ancestry | SAFE | merged (non-squash) |
 | 7 | `PR` = CLOSED | REVIEW | PR closed without merge |
 | 8 | Upstream gone (`: gone]` in `branch -vv`) | LIKELY-SAFE | upstream deleted |
@@ -71,6 +72,19 @@ Every missing or failed signal therefore lands in REVIEW, never in LOSSY and nev
 
 **Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When the PR map is unavailable or truncated, the affected squash-merged branches land in REVIEW tier, which is safe-conservative handling only because the audit says so out loud: that is what the `PRDataUnavailable:` and `PRDataTruncated:` lines are for. A silently short map produces the same REVIEW verdicts with nothing to distinguish them from a genuine one.
 
+A merged PR whose head the local branch has moved off (priority 5a and 5b) is settled by ancestry: when the PR's `headRefOid` commit exists in this clone and the local tip is an ancestor of it, every local commit was in the merged PR, so the branch is SAFE (5a). When the commit is absent (never fetched, or pruned) or the tip is not an ancestor of it, nothing shows the merged PR carried every local commit and the branch stays REVIEW (5b). The 5a row is recorded in the capture as `#<n> MERGED (tip drift)`, the merged-PR form `git-branch-delete.sh` already treats as a force delete.
+
+**`Family:` line**, where the branch name says the branch came from. It is information for the report and never changes a tier, a loss count, or a deletion rule.
+
+| Family | Branch name | Source |
+|--------|-------------|--------|
+| `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch |
+| `claude` | `claude/*` | Claude Code on the web |
+| `plan` | `plan/*` | named by hand |
+| `stranded` | `stranded/*` | named by hand |
+| `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
+| `none` | anything else | no known source |
+
 ## 4.6 Present report
 
 Map script output to a table:
@@ -78,14 +92,14 @@ Map script output to a table:
 ```markdown
 ## Branch Audit
 
-| Branch | Tier | Age | PR | Unpushed | Loss | Reason |
-|--------|------|-----|----|----------|------|--------|
-| main | PROTECTED | 0d | none | 0 ahead of origin/<default> | not assessed | default branch |
-| feat/parked | WORKTREE | 3d | none | 0 ahead of origin/feat/parked | not assessed | checked out in worktree, clean up the worktree first |
-| feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | not assessed | PR merged |
-| refactor/x | LIKELY-SAFE | 12d | none | no upstream (no origin/<default> to compare) | not assessed | upstream gone |
-| draft/local | LOSSY | 4d | none | no upstream, 5 commits not on origin/<default> | 5 commits only on this branch | no upstream, 5 commits not on origin/<default> |
-| experiment | REVIEW | 120d | none | 0 ahead of origin/experiment | none | stale (120d), orphaned |
+| Branch | Tier | Age | PR | Unpushed | Loss | Reason | Family |
+|--------|------|-----|----|----------|------|--------|--------|
+| main | PROTECTED | 0d | none | 0 ahead of origin/<default> | not assessed | default branch | none |
+| feat/parked | WORKTREE | 3d | none | 0 ahead of origin/feat/parked | not assessed | checked out in worktree, clean up the worktree first | none |
+| feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | not assessed | PR merged | none |
+| refactor/x | LIKELY-SAFE | 12d | none | no upstream (no origin/<default> to compare) | not assessed | upstream gone | none |
+| draft/local | LOSSY | 4d | none | no upstream, 5 commits not on origin/<default> | 5 commits only on this branch | no upstream, 5 commits not on origin/<default> | none |
+| experiment | REVIEW | 120d | none | 0 ahead of origin/experiment | none | stale (120d), orphaned | none |
 
 **Summary:** N protected, W worktree, M safe, P likely-safe, L lossy, Q review
 **Deletion candidates (M+P):** <SAFE + LIKELY-SAFE branches only, never WORKTREE, LOSSY or REVIEW>

@@ -1,0 +1,8 @@
+# expect: rule-source-text-read
+# reads: src/Mod.psm1
+# Matches the module's source text instead of importing it.
+Describe 'Mod' {
+    It 'exports its members' {
+        Get-Content "$PSScriptRoot/../src/Mod.psm1" -Raw | Should -Match 'Export-ModuleMember'
+    }
+}

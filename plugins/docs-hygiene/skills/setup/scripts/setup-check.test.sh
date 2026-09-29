@@ -39,10 +39,11 @@ assert_contains() {
   esac
 }
 
-# A fixture repository carrying the bundled defaults as its team layer.
+# A fixture repository carrying the bundled defaults as its team layer, with an empty
+# HOME beside it: a root that contains the home is a home root and has no team layer.
 new_repo() {
-  root="$TEST_TMPDIR/repo-$CASES-$RANDOM"
-  mkdir -p "$root/home"
+  root="$TEST_TMPDIR/case-$CASES-$RANDOM/repo"
+  mkdir -p "$root" "${root%/repo}/home"
   git init -q "$root"
   git -C "$root" config user.email fixture@example.invalid
   git -C "$root" config user.name "Fixture"
@@ -52,11 +53,11 @@ new_repo() {
 }
 
 check() {
-  bash "$SUT" --root "$1" --home "$1/home" 2>&1
+  bash "$SUT" --root "$1" --home "${1%/repo}/home" 2>&1
 }
 
 status() {
-  bash "$SUT" --root "$1" --home "$1/home" >/dev/null 2>&1
+  bash "$SUT" --root "$1" --home "${1%/repo}/home" >/dev/null 2>&1
   printf '%s' "$?"
 }
 

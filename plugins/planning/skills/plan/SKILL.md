@@ -69,6 +69,8 @@ Parse `$ARGUMENTS` to determine the action:
 
 These hold after a compaction re-attach. Later steps say how to carry them out.
 
+**Verification.** Claim: after auto-compaction Claude Code re-attaches each skill's most recent invocation keeping its first 5,000 tokens, within a shared 25,000-token budget. Basis: https://code.claude.com/docs/en/skills (auto-compaction paragraph); `tests/reattach-slice.test.sh` stands in for the 5,000 tokens with the first 20,000 bytes. As-of: 2026-09-29. Recheck when that paragraph changes either figure, or when the page stops describing a per-skill re-attach.
+
 - **Reviewer.** Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent. The producing thread does not self-attack the plan inline.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
 - **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory.
@@ -93,7 +95,7 @@ The rest are judgment checked by reading, or have their own script:
 
 This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
 
-**The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet).
+**The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet). The default run above does not look for the `Approval:` line, which exists only after approval; the final persist step checks it with `--approval-only`.
 
 ### Step 5: Present for Approval
 
@@ -217,13 +219,12 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 Apply the reviewer rule under Planning Process before blast radius or presentation. The producing main thread MUST NOT self-attack the plan inline. Fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
-2. **Surface the cost.** Tell the user a fresh-context plan review runs now: one bounded sub-agent
-   (default `effort: medium`, capped turns) versus blocking the orchestrator for a long serial review
-   at session effort. One sentence is enough; the user picks consciously.
+2. **Surface the cost.** Tell the user a fresh-context plan review runs now, whatever they answer:
+   one bounded sub-agent (default `effort: medium`, capped turns). One sentence is enough.
 3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
    sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
-   lower per invocation (per Claude Code sub-agent docs).
+   lower per invocation (the verification record in `agents/plan-reviewer.md`).
 4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
 5. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 
@@ -250,7 +251,7 @@ This step runs only when the blast-radius assessment triggers it. Note: Step 3 (
 
 1. **Surface the cost.** Tell the user a formal `/planning:devils-advocate` run is starting in fresh
    context (another serial sub-agent, typically higher turn budget than Step 3) before dispatching.
-2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
+2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Keep the brief short: findings table, not a narrative. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
 
    **Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against
    the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's
@@ -330,7 +331,7 @@ Read [context/review-mode.md](context/review-mode.md) when invoked with `review`
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes and its `Approval:` line (who approved and when, or the unattended basis Step 5 names), and write each `superseded-by-plan` row's result to the ledger once the user has replied to that row (reconfirmed or restored, per "Plan changes after the Brief"). The plan is not approved while any listed change lacks its reply: when an interview ledger exists, rerun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>` before handing off and require exit 0 (no `open` or `superseded-by-plan` row left); with or without a ledger, a listed change still lacking its reply means asking for it and not handing off. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged. The PR-description paste is its only publication surface. It is the **living source of truth** for the stage. A fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
+After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes and its `Approval:` line (who approved and when, or the unattended basis Step 5 names), and write each `superseded-by-plan` row's result to the ledger once the user has replied to that row (reconfirmed or restored, per "Plan changes after the Brief"). The plan is not approved while any listed change lacks its reply: when an interview ledger exists, rerun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>` before handing off and require exit 0 (no `open` or `superseded-by-plan` row left); with or without a ledger, a listed change still lacking its reply means asking for it and not handing off. After writing the `Approval:` line, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" --approval-only <PLAN.md>` and require exit 0 before handoff; on an unattended run a failure means reporting the plan as unapproved. The script checks only that the line exists and its value is neither empty, the template placeholder, nor TBD; whether the recorded mandate is adequate stays a judgment. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged. The PR-description paste is its only publication surface. It is the **living source of truth** for the stage. A fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` /
 `[DOING]` / `[DONE]`), never in a separate status block. Copy the skeleton from
@@ -356,6 +357,10 @@ Write the plan even for small changes. A cleared session or a fresh agent has on
 - **Does not write code**. It produces a plan. Execution is a separate stage
 - **Does not block execution**. It advises and gates on user approval. The user can always override
 - **Does not make decisions**. It structures the decision for the user. The user approves or rejects
+
+## Next
+
+/implementation:implement executes the approved plan.
 
 ## Gotchas
 

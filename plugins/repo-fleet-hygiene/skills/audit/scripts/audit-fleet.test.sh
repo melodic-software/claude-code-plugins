@@ -398,6 +398,14 @@ for-each-ref)
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\norigin/feature/remote-only\tremote-only-tip\0\norigin/feature/stale-cached\tstale-cached-tip\0\norigin/feature/ls-fail\tls-fail-tip\0\n'
+      # Family inventory (#5220): committer dates are unix seconds; 259260 s is 3 days and a minute.
+      now_ts="$(date +%s)"
+      printf 'origin/pre-wipe/x\tprewipe-tip\t%s\0\norigin/agent-1a2b3c\tagent-tip\t%s\0\norigin/scratch/other\tother-tip\t%s\0\n' \
+        "$((now_ts - 259260))" "$((now_ts - 259260))" "$((now_ts - 259260))"
+      # Merged-head ancestor cases: the remote tip differs from headRefOid. ancestor-ok's head is in the
+      # clone (merge-base answers 0); ancestor-missing's head is not (merge-base answers 128).
+      printf 'origin/feature/ancestor-ok\t%s\0\norigin/feature/ancestor-missing\t%s\0\n' \
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa dddddddddddddddddddddddddddddddddddddddd
       ;;
     # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
     # push-state wording; GraphQL merge evidence uses the resolved identity independently.
@@ -468,7 +476,15 @@ ls-remote)
   *) exit 96 ;;
   esac
   ;;
-merge-base) exit 1 ;;
+merge-base)
+  # merge-base --is-ancestor <tip> <ref-or-oid>: 0 ancestor, 1 not, 128 unknown object.
+  case "${2:-}|${3:-}" in
+  prewipe-tip\|refs/remotes/origin/main) exit 0 ;;
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb) exit 0 ;;
+  dddddddddddddddddddddddddddddddddddddddd\|cccccccccccccccccccccccccccccccccccccccc) exit 128 ;;
+  esac
+  exit 1
+  ;;
 log)
   [[ "${1:-}" == "-1" && "${2:-}" == "--format=%ct" && "${3:-}" == "HEAD" ]] || exit 96
   case "$base" in
@@ -588,6 +604,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
+        feature/ancestor-ok) printf '60|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/60' ;;
+        feature/ancestor-missing) printf '61|cccccccccccccccccccccccccccccccccccccccc|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/61' ;;
         # F2: exact-OID merged evidence on a main-worktree-attached branch.
         feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
@@ -922,9 +940,40 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+# #5220: remote branch families are reported from the last-fetched inventory; no deletion preview.
+assert_kind_targets "remote-only pre-wipe branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/pre-wipe/x" "scratch/other"
+assert_kind_targets "agent-hex remote branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "scratch/other"
+assert_not_contains "a remote branch outside every family gets no row" \
+  "origin/scratch/other"
+assert_contains "family rows are emitted as remote-branch-family findings" "Finding: remote-branch-family"
+assert_contains "family row reports family, age and on-default" \
+  "family pre-wipe; tip prewipe-tip; age 3 days (committer date); on origin/main: yes"
+assert_contains "agent family row reports off-default" \
+  "family agent; tip agent-tip; age 3 days (committer date); on origin/main: no"
+if grep -A8 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "Confidence: LOW" &&
+  ! grep -A12 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "push --delete"; then
+  printf 'PASS: family row is LOW and names no deletion\n'
+else
+  printf 'FAIL: family row is LOW and names no deletion\n' >&2
+  failures=$((failures + 1))
+fi
+assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
+# #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output" |
+  grep -Fq "Confidence: MEDIUM"; then
+  printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
+else
+  printf 'FAIL: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "ancestor finding states its reason" "tip is an ancestor of the merged head"
+assert_not_contains "missing head object gives no ancestor finding" "origin/feature/ancestor-missing"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+# #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -938,17 +987,35 @@ else
   printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+assert_not_contains_file "all-fail withholds per-repo merged-remote-branch rows" \
   "Finding: merged-remote-branch" "$all_fail_out"
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out")" == 1 ]]; then
+  printf 'PASS: all-fail emits the fleet finding exactly once\n'
+else
+  printf 'FAIL: all-fail emits the fleet finding exactly once\n' >&2
+  failures=$((failures + 1))
+fi
+all_fail_medium_rows="$(grep -c -F 'Confidence: MEDIUM' "$all_fail_out")"
+assert_contains_file "all-fail tally drops the withheld MEDIUM rows" \
+  " medium=$all_fail_medium_rows " "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+# at another repository cannot stand in for the pinned remote, so every probe counts as a failure
+# and only the fleet finding remains.
 instead_of_out="$TMP/instead-of.txt"
-for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|withheld'; do
   FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
     HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
     bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
-  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+  if [[ "${rewrite#*|}" == withheld ]]; then
+    if ! grep -Fq "Finding: merged-remote-branch" "$instead_of_out" &&
+      grep -Fq "Finding: ls-remote-fleet-unavailable" "$instead_of_out"; then
+      printf 'PASS: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}"
+    else
+      printf 'FAIL: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}" >&2
+      failures=$((failures + 1))
+    fi
+  elif grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
     grep -Fq "Confidence: ${rewrite#*|}"; then
     printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
   else
@@ -1230,7 +1297,8 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 STALEONLY
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" --detail >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
-  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
+  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out" &&
+  grep -Fq "Fleet verdict: BLOCKED" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
 else
   printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
@@ -1371,6 +1439,12 @@ if [[ "$husk_status" -ne 2 ]] &&
 else
   printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
   sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+if grep -Fq "Fleet verdict: CLEAN" "$husk_out"; then
+  printf 'PASS: a discovery-skip alone does not block the fleet\n'
+else
+  printf 'FAIL: a discovery-skip alone does not block the fleet\n%s\n' "$(cat "$husk_out")" >&2
   failures=$((failures + 1))
 fi
 # The operator named this path directly, so the typo-stops-the-run rule still holds.
@@ -2456,7 +2530,7 @@ else
       grep -Fq "Windows directory junctions" "$sym_mid_out" &&
       grep -Fq "/repo-fleet-hygiene:setup apply --extend-skip via-link" "$sym_mid_out" &&
       grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
-      grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
+      ! grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
       ! grep -Fq "buried-repo" "$sym_mid_out"; then
       printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
     else
@@ -2465,6 +2539,31 @@ else
     fi
   else
     printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+
+  # A disclosed skip alone does not BLOCK the fleet next to a clean repo; a genuine evidence gap
+  # still does.
+  mkdir -p "$sym_mid_root/repo-b/.git"
+  sym_gap_out="$TMP/sym-gap-out.txt"
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1
+  if grep -Fq "Repo: $TMP/repo-b" "$sym_mid_out" &&
+    grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+    grep -Fq "Fleet verdict: CLEAN" "$sym_mid_out"; then
+    printf 'PASS: a symlink skip beside a clean repository does not block the fleet\n'
+  else
+    printf 'FAIL: a symlink skip beside a clean repository does not block the fleet\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+  FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --root "$sym_mid_root" --repo "$TMP/canonical-a" --detail >"$sym_gap_out" 2>&1 || true
+  if grep -Fq "Finding: discovery-symlink-skip" "$sym_gap_out" &&
+    grep -Fq "Finding: ls-remote-fleet-unavailable" "$sym_gap_out" &&
+    grep -Fq "Fleet verdict: BLOCKED" "$sym_gap_out"; then
+    printf 'PASS: a genuine evidence gap still blocks the fleet beside a symlink skip\n'
+  else
+    printf 'FAIL: a genuine evidence gap still blocks the fleet beside a symlink skip\n%s\n' "$(cat "$sym_gap_out")" >&2
     failures=$((failures + 1))
   fi
 fi

@@ -149,7 +149,7 @@ A correct seam is one where the test exercises the **real bug pattern as it occu
 
 If a correct seam exists:
 
-1. Turn the minimized repro into a failing test at that seam. Follow your project's test naming + structure conventions
+1. Turn the minimized repro into a failing test at that seam. Follow your project's test naming + structure conventions. Take the expected value from the bug report (the behavior the reporter expected, or the documented correct output), never from what the fixed code returns
 2. Watch it fail (Red), and confirm it fails **for the intended reason**. A test that errors on a
    typo, a bad import, or an unrelated defect is also red, and a fix that turns *that* red green has
    not touched the bug. Read the failure message against the root cause you are targeting; if they

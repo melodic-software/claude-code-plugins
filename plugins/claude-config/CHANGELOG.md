@@ -5,7 +5,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [0.52.1] - 2026-09-29
+## [0.52.2] - 2026-09-29
 
 ### Added
 
@@ -24,6 +24,14 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **`audit` carries a Boundary section for the bundled skill `update-config`.** When it resolves in
   the session it is preferred for making a requested settings change, and this skill for auditing
   configuration.
+
+## [0.52.1] - 2026-09-29
+
+### Changed
+
+- **`audit-instructions` / I15:** record the user-request-conflict axis as a non-member in the
+  Boundary section, with the co-residency reason; `conflict-criteria.md` 1.6.2
+  ([#3565](https://github.com/melodic-software/claude-code-plugins/issues/3565)).
 
 ## [0.52.0] - 2026-09-29
 

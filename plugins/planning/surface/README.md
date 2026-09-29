@@ -49,7 +49,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`) or alternatives (at least two) |
 | `handle --seq N [M ...]` | Mark events handled with no reply |
 | `note-reply` op | Reply in the Notes to Claude thread |
-| `record-terminal` op | Record an answer the user gave in the terminal |
+| `record-terminal` op | Mirror an answer the user gave in the terminal, or a decision this session recorded |
 | `archive` op | Take off-path questions out of the open count; the server derives their state |
 | `set-status` op | `{"op": "set-status", "text": "..."}` sets the page's Claude line (top-level `status`); `"clear": true` removes it |
 | `wait` op | `{"op": "wait", "id": "Q10", "waitsOn": "...", "by": "claude"}` holds a question (`waiting`, `waitsOn`). `by` is `claude` (the default: pending research) or `user` (needs the user's answer: writes `waitingBy: "user"` and stamps `setAsideAt`, `setAsideSeq` (the page's seq then) and `setAsideRev` (the rev of this write); a page decision whose seq is not above `setAsideSeq`, a terminal one whose `rev` is not above `setAsideRev`, or a terminal one without a `rev` not later than `setAsideAt`, stops counting as an answer; a `record-terminal` later in the same `apply` still counts). `"clear": true` removes `waiting`, `waitsOn` and `waitingBy` and keeps the stamps |
@@ -105,7 +105,7 @@ The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}
 
 ## Known gaps
 
-- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run.
+- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run. CI does not install `playwright-cli`, so the browser checks print SKIP there. That is deliberate: the SKIP line in `surface.test.sh` stays as a stated choice, and the Python unit tests cover the server side in CI.
 - Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.

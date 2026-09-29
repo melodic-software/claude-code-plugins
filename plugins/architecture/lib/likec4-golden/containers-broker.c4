@@ -1,0 +1,43 @@
+specification {
+  element softwareSystem
+  element container
+  element store {
+    style {
+      shape storage
+    }
+  }
+  element queue {
+    style {
+      shape queue
+    }
+  }
+}
+model {
+  e_sys = softwareSystem "three-repo" {
+    e_Api = container "Api" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Batch = container "Batch" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Worker = container "Worker" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_bus_servicebus_windows_net = queue "bus.servicebus.windows.net" {
+      technology "Azure Service Bus"
+      description "store"
+    }
+  }
+  e_sys.e_Api -> e_sys.e_bus_servicebus_windows_net "Uses"
+  e_sys.e_Batch -> e_sys.e_bus_servicebus_windows_net "Uses"
+  e_sys.e_Worker -> e_sys.e_bus_servicebus_windows_net "Uses"
+}
+views {
+  view containers of e_sys {
+    title "Container diagram for three-repo"
+    include *
+  }
+}

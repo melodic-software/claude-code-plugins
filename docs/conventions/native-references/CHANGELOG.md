@@ -6,7 +6,7 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
-## [3.1.1] - 2026-09-29
+## [3.2.1] - 2026-09-29
 
 Patch: clarification.
 
@@ -15,7 +15,7 @@ Patch: clarification.
   context-budget, session-flow, planning, and prototype. A stray blank line that split the table in
   two is removed.
 
-## [3.1.0] - 2026-09-29
+## [3.2.0] - 2026-09-29
 
 Minor: additive guidance.
 
@@ -23,6 +23,16 @@ Minor: additive guidance.
   beside its skills, and the overlap store can now record a row against one. Its runtime
   relationship is `route` or `suggest`, never `wrap`, because the Native step invokes through the
   Skill tool and a workflow is not a skill.
+
+## [3.1.0] - 2026-09-29
+
+Minor: additive guidance in the Runtime relationship section.
+
+- **A model-disabled `suggest` row carries no description phrase.** The model never lists a
+  `bundled-skill` carrying `model-invocation-disabled`, so a phrase in the component's description
+  is dead text; the body's suggest sentence is the only baked line. The overlap self-check fails a
+  row that sets `baked.description_phrase` on that combination
+  ([#5303](https://github.com/melodic-software/claude-code-plugins/issues/5303)).
 
 ## [3.0.0] - 2026-09-28
 

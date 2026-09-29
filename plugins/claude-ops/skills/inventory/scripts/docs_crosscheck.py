@@ -10,6 +10,7 @@ Python 3.11+, standard library only.
 
 from __future__ import annotations
 
+import http.client
 import re
 import sys
 import urllib.error
@@ -60,6 +61,10 @@ _EVENT_WORDS = (
     ("alias", re.compile(r"\balias(?:es|ed)?\b", re.I)),
 )
 _EVENT_TEXT_MAX = 240
+# Bounds on untrusted fetched text: the row regexes backtrack polynomially on a
+# pathological line, and the fetch has no other size limit.
+_ROW_MAX = 8_000
+_FETCH_MAX = 16_000_000
 
 
 def fetch_text(url: str, timeout: float = 20.0) -> tuple[str | None, str | None]:
@@ -67,8 +72,17 @@ def fetch_text(url: str, timeout: float = 20.0) -> tuple[str | None, str | None]
     req = urllib.request.Request(url, headers={"User-Agent": "claude-ops-inventory"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8", "replace"), None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+            body = resp.read(_FETCH_MAX + 1)
+            if len(body) > _FETCH_MAX:
+                return None, f"response exceeds {_FETCH_MAX} bytes"
+            return body.decode("utf-8", "replace"), None
+    except (
+        urllib.error.URLError,
+        http.client.HTTPException,
+        TimeoutError,
+        OSError,
+        ValueError,
+    ) as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 
@@ -90,6 +104,8 @@ def parse_commands_table(text: str) -> dict[str, dict[str, Any]]:
     end = text.find("\n## ", start + len(_SECTION))
     rows: dict[str, dict[str, Any]] = {}
     for line in text[start : end if end > 0 else len(text)].splitlines():
+        if len(line) > _ROW_MAX:
+            continue
         m = _ROW_RE.match(line)
         if not m:
             continue

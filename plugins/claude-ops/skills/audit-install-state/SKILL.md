@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in this session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
+description: "Read-only audit of `~/.claude` and `~/.claude.json`: the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
 argument-hint: "[unattended] [root]"
 user-invocable: true
 disable-model-invocation: false
@@ -78,7 +78,8 @@ its own.
 `authToken`), and the values inside `~/.claude.json`. These are inventory line-items: name, size,
 mtime, and nothing more. **Every subagent this skill dispatches inherits this rule; say so
 explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
-content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`; each entry
+content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`,
+`plugins/installed_plugins.json` and the `plugins/cache/*/*/*/.orphaned_at` markers; each entry
 it read by content carries `content_read: true` with the paths opened. Everything else is stat-only.
 
 ## Run it
@@ -149,6 +150,27 @@ unit other than the file. Per-path rules: [reference/surfaces.md](reference/surf
 is my install so big", read `largest_subtrees` (top directories by measured bytes) and
 `node_modules` (bytes the product installed into the cache's version directories, upstream basis in
 its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attributed to nobody).
+
+`unreferenced_versions` lists each `plugins/cache/<marketplace>/<plugin>/<version>/` directory that
+no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
+`.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
+days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
+sweep is documented as starting from the marker, so it has no removal date. When the registry is missing, unparsable, or belongs to another root, the
+list is empty and `unreferenced_versions_note` says why; an empty list then means "not checked",
+not "none". The list is a report, not a deletion list, and removing anything stays with
+`/disk-hygiene:clean`. That skill treats the cache as managed state and leaves version directories
+to the product's own sweep; do not remove them by hand.
+
+A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
+the previous version's path after an update. Restart the session to pick up the new version; the
+old path is expected, not a defect.
+
+Basis for the 14-day window, the marker, and the running-session behavior: the plugin caching
+section of <https://code.claude.com/docs/en/plugins/loading> ("removes that directory in a
+background cleanup 14 days later, so a session that already loaded the old version keeps running").
+Verified 2026-09-29 against Claude Code 2.1.285 and that page as fetched that day. Recheck when the
+page changes the window, the marker name, or the sweep condition, or a release note names plugin
+cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `scripts/install_state.py`.
 
 ## Phase 4. Numeric names and liveness
 

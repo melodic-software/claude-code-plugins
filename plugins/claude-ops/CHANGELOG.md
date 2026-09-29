@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.1] - 2026-09-29
+## [0.66.1] - 2026-09-29
 
 ### Added
 
@@ -11,7 +11,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   resolves, it answers where this session's tokens went in plain language; this skill keeps local
   telemetry, cross-session trends, hooks, and cost.
 
-## [0.64.0] - 2026-09-29
+## [0.66.0] - 2026-09-29
 
 ### Added
 
@@ -36,6 +36,88 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   code, so a quote inside a regex in `${...}` no longer desynchronizes the brace reader (15 of 152
   commands resolved before). `registerSlidesSkill`, literal-table skill rosters and
   constant-named commands resolve. Validated against 2.1.284.
+- **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
+  instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
+  cannot stall the parser on regex backtracking. A body truncated after its headers
+  (`http.client.HTTPException`) degrades the block instead of raising.
+- **`audit-native-overlap detect` scores a plugin-backed command once**, under its plugin-backed
+  class and with the description the extractor enriched it with, instead of adding a bare second
+  surface.
+- **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
+  rule that rejects `wrap` on a bundled-workflow row.
+
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
+  directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
+  `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
+  removal stays with `/disk-hygiene:clean`. A missing or unparsable registry yields an empty list
+  and a note, so an empty list reads as "not checked". The report schema is now
+  `claude-install-state/3`, and `content_read_paths` lists only the registry and markers actually
+  opened. Marker reads refuse symlinks and non-regular files.
+- **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
+  can name the previous version's path after an update until the session restarts.
+
+## [0.64.3] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+- **The three `doctor` registry rows drop the budget caveat and the evidence that assumed a baked
+  phrase**, so the registry no longer describes a routing phrase that does not exist.
+
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:changelog diff` emits decisions grouped by owner surface, not a triage of items.**
+  Each row carries one of five action lenses (`correct`, `replace`, `adopt`, `note`, `skip`) and
+  the sentence its lens requires: the false-versus-true pair for `correct`, the problem solved for
+  `replace` and `adopt`. `skip` items leave no row and count toward the read. A docs-lag section
+  lists where the changelog and the docs page disagree, with the changelog cited as the newer
+  source.
+- **Decisions have named homes.** Corrections go in the owning plugin's CHANGELOG, replace
+  candidates are nominated to the `audit-native-overlap` gate and never written by a run, and
+  adoptions, declines and the read marker live in `docs/upstream/claude-code.md`.
+- **`diff` saves its working set** under `<memory_dir>/claude-code-changelog/<range>/`, and `apply`
+  reads it back, re-fetching only what a recheck trigger names.
+- **New `context/decisions.md` spoke** for decision rows, decision homes, the fan-out shape and
+  persistence. An eval covers decisions grouped by owner surface, with a fixture release and
+  owner-surface list.
+
+### Changed
+
+- **The classification rubric is the five action lenses** in place of the P1/P2/P3 priority tiers.
+  `adopt` gains a defer-pending-probe outcome with an evidence bar, and `replace` covers a harness
+  behavior that overlaps a component with no routable native surface.
+
+## [0.63.36] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
 
 ## [0.63.35] - 2026-09-29
 

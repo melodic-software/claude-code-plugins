@@ -1,0 +1,12 @@
+// good-for: rule-zero-assertion
+// The repaired twin: the cart's line count is compared with a stated value.
+import { describe, expect, it } from 'vitest';
+import { createCart } from '../src/cart';
+
+describe('cart', () => {
+  it('adds an item', () => {
+    const cart = createCart();
+    cart.add({ sku: 'A1', qty: 2 });
+    expect(cart.lines()).toHaveLength(1);
+  });
+});

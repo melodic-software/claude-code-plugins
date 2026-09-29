@@ -1,0 +1,37 @@
+// good-for: rule-inert-assertion
+// good-for: rule-source-text-read
+// The repaired twins: .Should() carries a matcher, the async assertion is
+// awaited, and the component is rendered rather than read as text.
+using System.Threading.Tasks;
+using Bunit;
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceRepairedOraclesTests
+{
+    [Fact]
+    public void Total_AddsLines()
+    {
+        var invoice = new Invoice(new[] { 10m, 5m });
+        invoice.Total.Should().Be(15m);
+        invoice.Lines
+            .Should()
+            .HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Pay_Twice_Throws()
+    {
+        var invoice = new Invoice(new[] { 10m });
+        await invoice.PayAsync();
+        await Assert.ThrowsAsync<AlreadyPaidException>(() => invoice.PayAsync());
+    }
+
+    [Fact]
+    public void Videos_FollowContentPlan()
+    {
+        using var ctx = new TestContext();
+        var page = ctx.RenderComponent<Page>();
+        Assert.True(page.Markup.IndexOf("videos") > page.Markup.IndexOf("content-plan"));
+    }
+}
