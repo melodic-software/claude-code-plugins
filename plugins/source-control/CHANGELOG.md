@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.28] - 2026-09-29
+
+### Added
+
+- **`commit` carries a Boundary section for the bundled `commit` skill.** Prefer this skill when
+  the repository carries a commit convention or a `source-control.md` layer; the bundled skill fits
+  a plain commit where this skill's contract is not wanted, and one commit never runs both.
+- **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
+  `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
+  lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
+
 ## [0.62.27] - 2026-09-29
 
 ### Fixed
