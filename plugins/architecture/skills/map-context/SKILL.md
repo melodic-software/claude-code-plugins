@@ -82,6 +82,10 @@ and pass that file as `--actors`. If the operator names nobody, omit `--actors`.
 A non-interactive run omits `--actors`. The actors array stays empty. Never fill it from
 CODEOWNERS, git history, a README, or a guess.
 
+The collector screens each line with the same redactor as config values and skips a line that carries
+a credential (`Token=`, `ClientSecret=`, `Bearer <value>`, a cloud key id, URL userinfo), naming the
+skip on stderr. Reword the line without the credential and pass it again.
+
 ## Build the record
 
 ```bash
@@ -94,6 +98,9 @@ Add `--focal "<system>"` when the invocation named one. Add `--actors "<file>"` 
 operator-stated rows. The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves
 against the session's working directory, which is not where the script lives.
 
+The collector creates the parent directory of `--out`. Exit 1 means the record could not be written
+and nothing was: report the message and stop before rendering.
+
 The record is schema_version 1 in the one-object-per-line layout the script writes. `focal.origin`
 is `derived`. Each external row carries `host`, `kind`, `port`, `file`, `key`, and
 `origin: derived`. The value that produced the row is not stored. Actor rows exist only from
@@ -104,9 +111,19 @@ Terraform, Bicep, TOML, properties, ini, and conf text. It skips package manifes
 generated architecture artifacts. A gitignored or untracked file is not a source. Configuration is
 untrusted text: the script matches it and never executes it.
 
+An `http` URL becomes an external system only under a key that names an integration: a key ending in
+`url`, `uri`, `endpoint`, `host`, `hostname`, `address`, `authority`, or `server` (`Partner.BaseUrl`,
+`ApiBaseUrl`, `Smtp.Host`). A URL under `homepage`, `repository`, `bugs`, `license`, `contact`,
+`docs`, `site_url`, `repo_url`, or an OpenAPI `servers` or `externalDocs` entry describes the system
+or its documentation, so it draws no node, and neither does a URL under a key with no such name. The
+other kinds (`sql`, `storage`, `broker`, `authority`, `cache`, `mail`) are not gated by key name. A
+`Data Source` that names a `.db`, `.sqlite`, `.sqlite3`, `.mdb`, or `.mdf` file is a local file, not
+a host.
+
 Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`, the same functions
-`map-containers` and `map-deployment` call. A password, account key, token, URL userinfo, or query
-string cannot become a field. The closing report quotes the summary line, not a raw value.
+`map-containers` and `map-deployment` call. It scans every value whatever its key. A password,
+account key, token, URL userinfo, or query string cannot become a field. The closing report quotes
+the summary line, not a raw value.
 
 `subject` is the github.com origin repository name when that remote resolves, otherwise the
 directory basename. `--focal` overrides the name drawn in the center. The helper is inline in

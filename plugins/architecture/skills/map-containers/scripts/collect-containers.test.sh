@@ -580,7 +580,8 @@ cat >"$TECH/src/Api/appsettings.json" <<EOF
     "My": "mysql://svc:${leak_sql}@my.example.com:3306/shop",
     "Plain": "Server=plain.example.com;Database=misc;User ID=sa;Password=${leak_sql}",
     "Azure": "Server=tcp:az.database.windows.net,1433;Initial Catalog=x;User ID=sa;Password=${leak_sql}",
-    "Search": "https://acct.search.windows.net"
+    "Search": "https://acct.search.windows.net",
+    "Lite": "Data Source=embedded-app.db;Foreign Keys=True"
   }
 }
 EOF
@@ -596,6 +597,7 @@ assert_equals "technology: an Azure SQL host is Azure SQL" "$(field "$(node_line
 assert_equals "technology: every one of those stays kind sql" "$(grep -c '"store_kind":"sql"' "$XREC" || true)" "5"
 assert_not_contains "technology: nothing is labelled SQL" "$xtext" '"technology":"SQL"'
 assert_not_contains "technology: a search index is not a store kind that is read" "$xtext" "acct.search.windows.net"
+assert_not_contains "technology: a SQLite Data Source file is not a store" "$xtext" "embedded-app.db"
 assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"
 
 # A store with three owners is one shared row per owner pair.

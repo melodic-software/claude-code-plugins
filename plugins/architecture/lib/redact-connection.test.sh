@@ -118,6 +118,16 @@ pg_bad="$(shape "Pg.Uri" "postgres://pg.example.com/orders;pass""word=${leak_sql
 assert_equals "scheme: a path that is not an identifier names no database" "$pg_bad" $'sql\tpg.example.com\t\t\tpostgres'
 assert_not_contains "scheme: path credential is absent" "$pg_bad" "$leak_sql"
 
+# A Data Source that names a local file is not a server.
+for lite_file in app.db APP.DB data.sqlite data.sqlite3 legacy.mdb northwind.mdf; do
+  lite_shape="$(shape "ConnectionStrings.Lite" "Data Source=${lite_file};Foreign Keys=True" || true)"
+  assert_equals "file source: Data Source=$lite_file is not a host" "$lite_shape" ""
+done
+lite_server="$(shape "ConnectionStrings.Lite" "Server=tcp:legacy.mdf,1433;User ID=sa" || true)"
+assert_equals "file source: a Server value naming a file is not a host either" "$lite_server" ""
+lite_real="$(shape "Db" "Data Source=sql.example.com;Initial Catalog=Sales")"
+assert_equals "file source: a Data Source server is still a host" "$lite_real" $'sql\tsql.example.com\t\tsales\t'
+
 bare="$(shape "Owner" "alice@example.com" || true)"
 assert_equals "an email is not a connection" "$bare" ""
 
@@ -163,6 +173,8 @@ clean "image" "Image" "ghcr.io/acme/api:1.0.0"
 clean "image digest" "Image" "ghcr.io/acme/api@sha256:$(printf 'a%.0s' {1..64})"
 clean "plain url" "Auth.Authority" "https://login.example.com/tenant"
 clean "host and port" "Cache" "cache.example.com:6380"
+clean "an empty key with a plain line" "" $'Clerk\tFiles a claim'
+secret "an empty key with a bearer line" "" $'Gate\tsends Bearer '"${fake}"
 
 exec_out="$(bash "$SCRIPT_DIR/redact-connection.sh" 2>&1)"
 assert_equals "executing the wrapper exits 2" "$?" "2"

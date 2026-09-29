@@ -15,8 +15,9 @@
 # source, so a local secret file cannot become a node. Configuration is matched
 # as text and never executed.
 #
-# Output: context.json, schema_version 1, on stdout or in --out. A failed
-# --out write exits 1. generated_on defaults to the date of the repository's
+# Output: context.json, schema_version 1, on stdout or in --out. --out gets
+# its parent directory created; a write that still fails exits 1 and leaves
+# no record. generated_on defaults to the date of the repository's
 # HEAD commit ("unknown" when there is no commit); --generated-on overrides it.
 # The physical shape readers accept is fixed:
 #
@@ -36,15 +37,20 @@
 #   externals.origin is always "derived". Each row is host, kind, port, file,
 #   and key. The value that produced the row is not stored.
 #
-# Kinds: http, sql, storage, broker, authority, cache, mail.
+# Kinds: http, sql, storage, broker, authority, cache, mail. An http row is an
+# external system only when its config key names an integration (a key ending
+# in url, uri, endpoint, host, hostname, address, authority, or server). A
+# homepage, repository, bugs, license, contact, docs, site URL, or an OpenAPI
+# servers or externalDocs entry is not one. Other kinds are not gated.
 #
-# Redaction is plugins/architecture/lib/redact-connection.awk. A credential,
-# token, account key, or URL userinfo cannot become a field.
+# Redaction is plugins/architecture/lib/redact-connection.awk, and it scans
+# every value whatever its key. A credential, token, account key, or URL
+# userinfo cannot become a field, and an actor line carrying one is skipped.
 #
 # Portability: bash plus POSIX awk/sed. No jq, no python.
 #
-# Exit: 0 = a record was written; 1 = the path is not a readable directory;
-# 2 = usage.
+# Exit: 0 = a record was written; 1 = the path is not a readable directory or
+# the --out file cannot be written; 2 = usage.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,6 +60,8 @@ ASSIGN_AWK="$SCRIPT_DIR/../../../lib/config-assignments.awk"
 source "$SCRIPT_DIR/../../../lib/family-records.sh"
 # shellcheck source=../../../lib/github-remote.sh
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
+# shellcheck source=../../../lib/redact-connection.sh
+source "$SCRIPT_DIR/../../../lib/redact-connection.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -73,18 +81,6 @@ json_escape() {
   s="${s//$'\r'/\\r}"
   s="${s//$'\n'/\\n}"
   JSON_ESC="$s"
-}
-
-actor_line_is_secret() {
-  local line="$1"
-  case "$line" in
-  *[Pp]assword=* | *[Aa]ccount[Kk]ey=* | *'?'sig=* | *'&'sig=* | *'://'*':'*'@'*)
-    return 0
-    ;;
-  *)
-    return 1
-    ;;
-  esac
 }
 
 repo=""
@@ -219,12 +215,30 @@ while IFS= read -r -d '' rel; do
   # tab is IFS whitespace, and the config key would slide into the port.
   ASSIGN_MODE="$mode" awk -f "$REDACT_AWK" -f "$ASSIGN_AWK" "$abs" |
     awk -F'\t' -v rel="$rel" '
+      function norm(s) {
+        gsub(/\[[0-9]+\]/, "", s)
+        gsub(/[^a-z0-9]/, "", s)
+        return s
+      }
+      # A URL under a key that names an integration (BaseUrl, Endpoint, Host)
+      # is an external system. A homepage, license, contact, bugs, docs or
+      # OpenAPI servers URL describes the system itself or its documentation.
+      function http_signal(key,    n, seg, leaf, parent) {
+        gsub(/__/, ".", key)
+        n = split(tolower(key), seg, ".")
+        leaf = norm(seg[n])
+        parent = (n > 1 ? norm(seg[n - 1]) : "")
+        if (parent ~ /^(license|contact|servers|externaldocs|bugs|repository|homepage)$/) return 0
+        if (leaf ~ /^(homepage|repository|repo|bugs|license|site|docs|documentation)(url|uri)$/) return 0
+        return leaf ~ /(url|uri|endpoint|host|hostname|address|authority|server)s?$/
+      }
       $1 != "" && $2 != "" && $4 != "" {
         kind = $1
         host = $2
         port = $3
         key = $4
         if (kind !~ /^(http|sql|storage|broker|authority|cache|mail)$/) next
+        if (kind == "http" && !http_signal(key)) next
         if (host ~ /[^a-z0-9.-]/ || index(host, ".") == 0 || index(host, "..") > 0) next
         if (port != "" && port !~ /^[0-9]+$/) next
         printf "%s\034%s\034%s\034%s\034%s\n", kind, host, port, rel, key
@@ -246,7 +260,7 @@ if [[ -n "$actors_file" ]]; then
     \#*) continue ;;
     *) ;;
     esac
-    if actor_line_is_secret "$line"; then
+    if redact_is_secret "" "$line"; then
       printf 'collect-context.sh: skipped an actor line that contained connection material\n' >&2
       continue
     fi
@@ -319,6 +333,7 @@ record_body="$(
 rm -f "$ext_body"
 
 if [[ -n "$out_file" ]]; then
+  mkdir -p "$(dirname "$out_file")" 2>/dev/null
   printf '%s\n' "$record_body" >"$out_file" || die "cannot write --out file: $out_file" 1
 else
   printf '%s\n' "$record_body"

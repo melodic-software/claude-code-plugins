@@ -150,6 +150,8 @@ function redact_server(raw, kind, db,    port, host) {
     if (index(host, ":") > 0) return
   } else host = raw
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
+  # Data Source=app.db names a local file, not a server.
+  if (tolower(host) ~ /\.(db|sqlite|sqlite3|mdb|mdf)$/) return
   redact_emit(kind, host, port, db, "")
 }
 
