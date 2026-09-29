@@ -151,8 +151,8 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    (`core.sshCommand`, `credential.helper`, proxies). It runs only when the remote URL names the
    same github.com repository with and without that config; otherwise it counts as a failure.
    When every attempted probe in the run fails (non-zero status; empty success does not count),
-   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding. The per-repository
-   MEDIUM findings stay; they are not independent live-probe failures.
+   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding and withhold the
+   per-repository `MEDIUM` rows, because no live probe succeeded.
    Remote-only heads (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
@@ -306,7 +306,7 @@ Related fleet contracts that remain separate:
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
 | `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
 | `worktree-root-unconfigured` | Set `worktreeroot.path` (git config) or source-control `worktree_root`, then rerun |
-| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun. Per-repository MEDIUM `merged-remote-branch` findings are not independent |
+| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |
