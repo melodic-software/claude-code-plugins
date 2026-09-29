@@ -50,13 +50,15 @@ your `PATH`.
   with a visible notice, once per session (all agents share it), renewed every eighth skip
   with the install route kept. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
+  A SessionStart probe reports a missing `actionlint` once per session, from
+  `prerequisites.json`, and the PostToolUse notice names the same install route.
   `/actionlint:check` reports whether the binary resolves and installs nothing.
 
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write` and `Edit` of a `.yml` or `.yaml` file under
-`.github/workflows/` (every handler in `hooks/hooks.json` carries one of the two `if` rows,
+`.github/workflows/` (every PostToolUse handler in `hooks/hooks.json` carries one of the two `if` rows,
 which keep every other file from spawning it, and the suite pins the whole handler set to the
 script's own workflow filter), so its cost on a clean workflow is the figure that counts.
 Measured on Linux x86_64 under bash 5.2 in a container with `HOOK_TELEMETRY_SINK` and
