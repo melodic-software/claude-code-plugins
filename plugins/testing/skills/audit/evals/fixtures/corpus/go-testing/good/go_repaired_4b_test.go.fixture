@@ -1,0 +1,53 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the row count is checked before the loop, a table test
+// loops over literal cases, the sum is a literal, the snapshot sits beside a
+// literal check, and the nil check sits beside the value.
+package store
+
+import (
+	"testing"
+
+	"github.com/gkampitakis/go-snaps/snaps"
+)
+
+func TestActiveUsersAreActive(t *testing.T) {
+	rows := ActiveUsers()
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
+	}
+	for _, row := range rows {
+		if !row.Active {
+			t.Errorf("row %d is not active", row.ID)
+		}
+	}
+}
+
+func TestAddTable(t *testing.T) {
+	cases := []struct{ a, b, want int }{{2, 3, 5}, {0, 0, 0}}
+	for _, c := range cases {
+		if got := Add(c.a, c.b); got != c.want {
+			t.Errorf("Add(%d, %d) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+func TestRenderOrder(t *testing.T) {
+	got := RenderOrder(Order{ID: 7, Total: 15})
+	if got.Total != 15 {
+		t.Errorf("total %d", got.Total)
+	}
+	snaps.MatchSnapshot(t, got)
+}
+
+func TestCreateUserReturnsTheUser(t *testing.T) {
+	user := CreateUser("ada")
+	if user == nil {
+		t.Fatal("no user")
+	}
+	if user.Name != "ada" {
+		t.Errorf("name %q", user.Name)
+	}
+}

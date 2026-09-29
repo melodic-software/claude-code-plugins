@@ -13,28 +13,68 @@
 #   - block list items `- value`, one-line flow lists `[a, 'b']`
 #   - plain or single-quoted scalars ('' is a literal quote), # comments
 # Every list field is a list of EREs except files (basename globs),
-# equality.call2 (helper names matched as substrings) and equality.receiver
-# (<wrapper>.<matcher>, as in expect.toBe).
+# equality.call2 (helper names matched as substrings), equality.receiver
+# (<wrapper>.<matcher>, as in expect.toBe), equality.pipeline (literal
+# matchers after a pipe, as in `Should -Be`; a space matches any run of blanks)
+# and rules_off (rule slugs).
+#
+# language picks the lexer: js, cs, python, bash, pwsh or go. block_model is
+# indent for python, brace or file for bash (file: the whole file is one test,
+# for harnesses with no per-case marker), and brace for the rest. advisory:
+# true keeps the adapter's findings out of the --check gate unless --strict.
+# test_skip matches the start line (or a decorator or attribute above it);
+# body_skip matches inside the body, as in t.Skip. assertion.idioms and
+# delegation match RAW text, strings and comments included, over a window of
+# three consecutive body lines, so `echo "FAIL"` then `exit 1` counts.
+# assertion.async matches the start of a statement that asserts nothing unless
+# it is awaited or returned; assertion.inert the start of a statement that
+# looks like an assertion and never asserts. Both match masked code with its
+# leading blanks removed (for go, an if statement joined onto one line).
+# assertion.weak and snapshot match a whole assertion call (strings stand as
+# `_`), bounded the way mock.strip is: a line whose only assertions they cover
+# is a weak or a snapshot oracle (go: weak matches the joined if statement).
+# assertion.count matches a length or count check anywhere in a test body, and
+# assertion.fail a call that fails the test outright, which is the assertion
+# of the if or catch around it. property_markers match any raw line of a file
+# whose tests derive expected values on purpose (property-based tests), and
+# rules_off lists rule slugs (constant-restatement) the adapter never reports.
 # No double quotes, flow maps, anchors, aliases, tags, block scalars or
-# document markers. A trailing \r is stripped, so CRLF files load.
+# document markers. A trailing \r is stripped, so CRLF files load, and so is
+# a UTF-8 byte-order mark at the start of a file.
 #
 # Every regex field must use the ERE subset gawk, mawk and BSD awk agree on:
 # no \s \S \d \D \w \W \b \B \< \>, no backreferences, and no {n,m}
 # intervals, which mawk 1.3.3 does not implement.
+#
+# -v EXTEND=<file> appends `<id> <tab> <field> <tab> <value>` lines to those
+# adapters' list fields after extends is resolved; an unknown id or a field
+# that is not a list exits 2.
+#
+# -v MODE=config parses .claude/testing.yaml layers instead, in cascade order,
+# with the same subset (keys may also hold - and /) and prints the merged
+# config as `<key> <tab> <value>`: lists concatenate with the first occurrence
+# kept, and a later layer's scalar overrides. Keys: adapters.enable,
+# adapters.disable, paths.include, paths.exclude, adapter_dirs (lists),
+# extend.<adapter>.<list field> (validated as the adapter field is), and
+# rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
+# or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
+# test-weaken hook's deny switch. A glob starting with * must be single-quoted.
 
 BEGIN {
-  split("id extends language block_model suppress_marker", t, " ")
+  split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip suite_skip additional_test_blocks assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
   split("detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip suite_skip assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
+  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
-  split("additional_test_blocks delegation equality.pipeline", t, " ")
+  split("additional_test_blocks", t, " ")
   for (i in t) RESERVED[t[i]] = 1
-  nf = 0; nr = 0
+  RULE_RE = "^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|flaky-passes-suite|only-not-forbidden)$"
+  KEY_RE = MODE == "config" ? "^[A-Za-z_][A-Za-z0-9_./-]*:" : "^[A-Za-z_][A-Za-z0-9_.]*:"
+  nf = 0; nr = 0; nl = 0; ns = 0
 }
 
 function die(msg) {
@@ -46,6 +86,11 @@ function die(msg) {
 function die_file(fi, msg) {
   printf "adapter-load: %s: %s\n", F_NAME[fi], msg > "/dev/stderr"
   FAILED = 1
+  exit 2
+}
+
+function die_ext(msg) {
+  printf "adapter-load: %s: %s\n", EXTEND, msg > "/dev/stderr"
   exit 2
 }
 
@@ -79,7 +124,7 @@ function scalar(s,    j, c, out) {
     die("unterminated single-quoted scalar")
   }
   if (s ~ /^"/) die("double-quoted scalars are not supported; use single quotes")
-  if (s ~ /^[&*!|>{%@`]/) die("unsupported YAML syntax: " s)
+  if (s ~ /^[&*!|>{%@`]/) die("unsupported YAML syntax (single-quote a value that starts with it): " s)
   SCALAR = s
   return ""
 }
@@ -97,17 +142,58 @@ function plain_value(s,    rest) {
   return SCALAR
 }
 
-function add(key, v) {
-  if (!(key in KIND)) die("unknown key: " key)
-  if (KIND[key] == "m") die(key " is a map, not a value")
+# m (map), l (list), s (scalar), or "" for an unknown key.
+function kind_of(k,    f) {
+  if (MODE != "config") return (k in KIND) ? KIND[k] : ""
+  if (k ~ /^(adapters|paths|rules|extend)$/ || k ~ /^extend\.[A-Za-z0-9_-]+$/) return "m"
+  if (k ~ /^(adapters\.(enable|disable)|paths\.(include|exclude)|adapter_dirs)$/) return "l"
+  if (k ~ /^rules\.[^.]+$/) return "s"
+  if (!match(k, /^extend\.[A-Za-z0-9_-]+\./)) return ""
+  f = substr(k, RLENGTH + 1)
+  return (f in KIND) && KIND[f] != "s" ? KIND[f] : ""
+}
+
+# A config record: lists keep the first occurrence of each item, scalars the
+# last layer's value.
+function cfg_add(key, v,    r) {
   if (index(v, "\t") > 0) die("tab in value of " key)
-  if (key in RESERVED) die(key " is reserved and not implemented yet")
-  if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
-    die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
-  if (key in IS_RE) portable_ere(v)
+  if (key ~ /^rules\./) {
+    r = substr(key, 7)
+    sub(/^testing\/audit\//, "", r)
+    if (r == "test-weaken-block" || r == "rule-test-weaken-block") r = "rule-test-weaken-block"
+    else if (r !~ /^rule-/ || substr(r, 6) !~ RULE_RE) die("unknown rule: " substr(key, 7))
+    if (v !~ /^(off|warn|error)$/) die(key " is off, warn or error, got: " v)
+    r = "rules." substr(r, 6)
+    if (!(r in SCAL)) SC_KEY[++ns] = r
+    SCAL[r] = v
+    return
+  }
+  if (match(key, /^extend\.[A-Za-z0-9_-]+\./)) check_value(substr(key, RLENGTH + 1), v)
+  if ((key, v) in LSEEN) return
+  LSEEN[key, v] = 1
+  L_KEY[++nl] = key; L_VAL[nl] = v
+}
+
+function add(key, v) {
+  if (kind_of(key) == "") die("unknown key: " key)
+  if (kind_of(key) == "m") die(key " is a map, not a value")
+  if (MODE == "config") { cfg_add(key, v); return }
+  check_value(key, v)
   nr++; R_F[nr] = nf; R_K[nr] = key; R_V[nr] = v
   if (key == "id") F_ID[nf] = v
   if (key == "extends") F_EXT[nf] = v
+}
+
+function check_value(key, v) {
+  if (index(v, "\t") > 0) die("tab in value of " key)
+  if (key in RESERVED) die(key " is reserved and not implemented yet")
+  if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
+  # The config rules read a Playwright config, which no test adapter claims.
+  if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle)$/)
+    die("rules_off entries are test-body rule slugs such as recomputed-derived, got: " v)
+  if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
+    die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
+  if (key in IS_RE) portable_ere(v)
 }
 
 function open_key(key) {
@@ -120,6 +206,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
 {
   line = $0
   sub(/\r$/, "", line)
+  if (FNR == 1) sub(/^\357\273\277/, "", line)
   if (line ~ /^[ ]*(#.*)?$/) next
   if (line ~ /^[ ]*\t/) die("tab in indentation")
   if (line ~ /^(---|\.\.\.)/) die("document markers are not supported")
@@ -131,7 +218,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     while (sp > 0 && S_IND[sp] > ind) sp--
     if (sp == 0) die("list item with no open key")
     key = S_KEY[sp]
-    if (KIND[key] != "l") die(key " does not take a list")
+    if (kind_of(key) != "l") die(key " does not take a list")
     v = substr(body, 2)
     sub(/^[ ]+/, "", v)
     if (v ~ /^\[/) die("nested list")
@@ -139,7 +226,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     next
   }
 
-  if (!match(body, /^[A-Za-z_][A-Za-z0-9_.]*:/)) die("expected `key: value` or `- item`")
+  if (!match(body, KEY_RE)) die("expected `key: value` or `- item`")
   key = substr(body, 1, RLENGTH - 1)
   rest = substr(body, RLENGTH + 1)
   if (rest != "" && rest !~ /^ /) die("missing space after colon")
@@ -148,7 +235,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
   # A key sits at column 0 or at the one child indent its open parent set.
   if (sp == 0 ? ind != 0 : ((sp in S_CHILD) && S_CHILD[sp] != ind)) die("bad indentation")
   if (sp > 0) { S_CHILD[sp] = ind; key = S_KEY[sp] "." key }
-  if (!(key in KIND)) die("unknown key: " key)
+  if (kind_of(key) == "") die("unknown key: " key)
   open_key(key)
 
   if (rest ~ /^(#.*)?$/) {
@@ -157,7 +244,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     next
   }
   if (rest ~ /^\[/) {
-    if (KIND[key] != "l") die(key " does not take a list")
+    if (kind_of(key) != "l") die(key " does not take a list")
     rest = substr(rest, 2)
     for (;;) {
       sub(/^[ ]+/, "", rest)
@@ -181,7 +268,7 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
     if (substr(rest, 2) !~ /^[ ]*(#.*)?$/) die("text after a flow list")
     next
   }
-  if (KIND[key] != "s") die(key " takes a " (KIND[key] == "l" ? "list" : "map") ", not a scalar")
+  if (kind_of(key) != "s") die(key " takes a " (kind_of(key) == "l" ? "list" : "map") ", not a scalar")
   add(key, plain_value(rest))
 }
 
@@ -205,12 +292,23 @@ function resolve(fi, depth,    p, j, n0) {
 
 END {
   if (FAILED) exit 2
+  if (MODE == "config") {
+    for (i = 1; i <= nl; i++) printf "%s\t%s\n", L_KEY[i], L_VAL[i]
+    for (i = 1; i <= ns; i++) printf "%s\t%s\n", SC_KEY[i], SCAL[SC_KEY[i]]
+    exit 0
+  }
   for (fi = 1; fi <= nf; fi++) {
     if (!(fi in F_ID) || F_ID[fi] == "") die_file(fi, "no id")
     if (F_ID[fi] in BY_ID) die_file(fi, "duplicate adapter id: " F_ID[fi])
     BY_ID[F_ID[fi]] = fi
   }
   for (fi = 1; fi <= nf; fi++) resolve(fi, 0)
+  while (EXTEND != "" && (getline ln < EXTEND) > 0) {
+    split(ln, x, "\t")
+    if (!(x[1] in BY_ID)) die_ext("extend names an unknown adapter: " x[1])
+    if (!(x[2] in KIND) || KIND[x[2]] != "l") die_ext("extend." x[1] "." x[2] " is not a list field")
+    nr++; R_F[nr] = BY_ID[x[1]]; R_K[nr] = x[2]; R_V[nr] = x[3]
+  }
   for (fi = 1; fi <= nf; fi++) {
     lang = ""; bm = ""; hf = 0; hts = 0
     for (j = 1; j <= nr; j++) if (R_F[j] == fi) {
@@ -220,9 +318,10 @@ END {
       if (R_K[j] == "test_start") hts = 1
     }
     # A claimed file with no test matcher parses zero blocks and reads clean.
-    if (hf && !hts) die_file(fi, "claims files but has no test_start")
-    if (lang !~ /^(js|cs|python)$/) die_file(fi, "language must be js, cs or python, got: " lang)
-    if (bm != "" && bm != (lang == "python" ? "indent" : "brace"))
+    # The file model makes the whole file one block, so it needs no matcher.
+    if (hf && !hts && bm != "file") die_file(fi, "claims files but has no test_start")
+    if (lang !~ /^(js|cs|python|bash|pwsh|go)$/) die_file(fi, "language must be js, cs, python, bash, pwsh or go, got: " lang)
+    if (bm != "" && bm != (lang == "python" ? "indent" : "brace") && !(lang == "bash" && bm == "file"))
       die_file(fi, "block_model " bm " is not supported for language " lang)
   }
   for (fi = 1; fi <= nf; fi++)

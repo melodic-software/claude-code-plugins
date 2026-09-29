@@ -33,6 +33,7 @@ assertion:
   # the test-context object.
   calls:
     - 'expect[[:space:]]*\('
+    - 'expect[[:space:]]*\.[[:space:]]*(poll|soft)[[:space:]]*\('
     - '[Aa]ssert'
     - '[Ss]hould'  # spellchecker:disable-line
     - '[Vv]erify'
@@ -40,11 +41,32 @@ assertion:
     - 'rejects'
     - 'resolves'
     - '[Ss]napshot'
-    - '[Cc]heck'
+    # checkout() is a call under test, not a check.
+    - '[Cc]heck([^o]|$)'
     - '[Ee]nsure'
     - '[Vv]alidate'
     - 'fail[[:space:]]*\('
     - '(^|[^A-Za-z0-9_$.])t[[:space:]]*\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)'  # spellchecker:disable-line
+  # Statement starts that assert nothing unless awaited or returned; jest-dom's
+  # toBeVisible is synchronous here, so only the promise forms are listed.
+  async:
+    - 'expect[[:space:]]*\(.*\)[[:space:]]*\.[[:space:]]*(resolves|rejects)[[:space:]]*\.'
+    - 'expect[[:space:]]*\.[[:space:]]*poll[[:space:]]*\('
+  # An expect with no matcher, or a matcher never called: whole statements.
+  inert:
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*;$'
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*(not|resolves|rejects)[[:space:]]*)?\.[[:space:]]*to[A-Za-z]*[[:space:]]*;$'
+  # Matchers most wrong values pass, and a toThrow that names no error.
+  weak:
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toBeDefined|toBeTruthy|not[[:space:]]*\.[[:space:]]*(toBeNull|toBeUndefined))[[:space:]]*\([[:space:]]*\)'
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(rejects[[:space:]]*\.[[:space:]]*)?(toThrow|toThrowError)[[:space:]]*\([[:space:]]*\)'
+  count:
+    - 'toHaveLength'
+    - 'toHaveCount'
+    - '\.[[:space:]]*(length|size)([^A-Za-z0-9_$]|$)'
+  fail:
+    - '(^|[^A-Za-z0-9_$.])fail[[:space:]]*\('
+    - 'assert[[:space:]]*\.[[:space:]]*fail[[:space:]]*\('
 mock:
   create:
     - 'jest\.(mock|fn|spyOn)'
@@ -72,6 +94,13 @@ mock:
   strip:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*not)?[[:space:]]*\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'sinon\.assert\.[A-Za-z]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+# Up to the matcher's opening parenthesis, so an inline snapshot whose
+# template spans lines still reads as one.
+snapshot:
+  - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toMatchSnapshot|toMatchInlineSnapshot|toMatchFileSnapshot|toThrowErrorMatchingSnapshot|toThrowErrorMatchingInlineSnapshot)[[:space:]]*\('
+# fast-check: the expected value is derived from generated inputs on purpose.
+property_markers:
+  - 'fc[[:space:]]*\.[[:space:]]*(assert|property|asyncProperty)[[:space:]]*\('
 equality:
   # Inequality asserts are deliberately absent: Assert.NotEqual(f(2), f(2)) is
   # an always-fail defect, not a recomputed expectation.

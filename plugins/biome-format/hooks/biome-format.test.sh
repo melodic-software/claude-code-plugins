@@ -186,32 +186,8 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # new_biome_repo <dir> [config_body] -> init a git repo with a node_modules
 # biome shim and (unless config_body is the literal NO_CONFIG) a biome.json.

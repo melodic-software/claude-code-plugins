@@ -1,0 +1,12 @@
+# expect: rule-recomputed-expectation
+# Both sides call parse_config on the same text, so the assertion passes
+# whatever parse_config returns.
+import unittest
+
+from settings import parse_config
+
+
+class ParseConfigTests(unittest.TestCase):
+    def test_parse_config_reads_pairs(self):
+        text = "retries=3\ntimeout=30"
+        self.assertDictEqual(parse_config(text), parse_config(text))
