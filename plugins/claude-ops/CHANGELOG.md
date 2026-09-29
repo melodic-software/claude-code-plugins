@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.0] - 2026-09-29
+
+### Fixed
+
+- **The shared `hook-events.jsonl` no longer grows without bound.** The telemetry sink now rotates
+  it to `hook-events.jsonl.1` (replacing any older `.1`) under its existing append lock once it
+  passes the new `hook_events_max_bytes` option (default 10 MiB), so the pair stays near twice
+  that. Rotation runs whether or not the per-session event log is enabled, which the SessionEnd
+  retention sweep never covered for this file. `observability` clean treats the rotated file like
+  the live one, and the README and observability references describe the cap.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
