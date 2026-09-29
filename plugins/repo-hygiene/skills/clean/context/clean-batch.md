@@ -93,7 +93,11 @@ Linked worktrees share the main clone's objects, so `git gc` / prune must run on
 per unique `git rev-parse --git-common-dir`, not once per worktree. The `git` and
 `all` tiers group repos by common dir and record each store once (as a `GITDIR`
 plan line with a representative worktree to `cd` into); `gitdirs=N` in the summary
-reports the deduped count.
+reports the deduped count. The dry-run measures each store once (`git count-objects -v`
+loose objects and garbage, plus worktrees `git worktree prune --dry-run` would remove) and
+folds it into `planned=` and `bytes=`. The git and all tiers end the summary with
+`git_bytes=B`; `all` also adds `caches_bytes=C build_bytes=D`, split by manifest class.
+These fields come after the existing ones.
 
 **Known limitation.** The plan stores only the first-seen worktree as each store's
 representative. If that specific worktree vanishes before apply while a live

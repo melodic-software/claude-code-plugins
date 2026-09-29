@@ -332,6 +332,18 @@ out="$(bash "$BATCH" --tier build --apply --batch-plan "$PLAN3")"
 assert_file_absent "build dir removed" "$R5/bin/b"
 assert_file_absent "cache removed by build tier (folds caches)" "$R5/.pytest_cache/x"
 
+# --- 6b. git tier dry-run measures loose objects; all tier splits bytes per tier ---
+LR="$(mkrepo looserepo)"
+for n in 1 2 3; do echo "blob $n" | git -C "$LR" hash-object -w --stdin >/dev/null; done
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+gp="$(sed -n 's/.*planned=\([0-9]*\).*/\1/p' <<<"$out" | tail -1)"
+gb="$(sed -n 's/.* bytes=\([0-9]*\).*/\1/p' <<<"$out" | tail -1)"
+if [[ "$gp" -gt 0 && "$gb" -gt 0 ]]; then pass "--tier git dry-run plans loose objects"; else fail "git planned/bytes" ">0" "planned=$gp bytes=$gb"; fi
+out="$(bash "$BATCH" --tier all --repo "$LR")"
+assert_contains "--tier all prints caches_bytes" "$out" "caches_bytes="
+assert_contains "--tier all prints build_bytes" "$out" "build_bytes="
+assert_contains "--tier all prints git_bytes" "$out" "git_bytes="
+
 # --- 7. git tier: one prune per shared object store (worktree deduped) ---
 GR="$(mkrepo gitrepo)"
 git -C "$GR" worktree add "$TEST_TMPDIR/gitrepo-wt" -b wt >/dev/null 2>&1

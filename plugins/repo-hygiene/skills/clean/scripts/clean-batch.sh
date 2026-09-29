@@ -83,7 +83,9 @@ Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
 Gate:
   --dry-run          write a batch plan; print per-repo Outcome/Reason, a
                      `BatchPlan: <path>` line, and `Summary: repos=N planned=P
-                     bytes=K` (gitdirs=G for git/all). NEVER mutates.
+                     bytes=K` (git/all append gitdirs=G git_bytes=B; all also
+                     appends caches_bytes=C build_bytes=D). The git tier counts
+                     loose objects, garbage and prunable worktrees. NEVER mutates.
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
@@ -490,6 +492,9 @@ batch_reset_skip_hits
 REPOS=${#BATCH_TOPS[@]}
 PLANNED=0
 PLAN_BYTES=0
+CACHES_BYTES=0
+BUILD_BYTES=0
+GIT_BYTES=0
 SKIPPED=${#BATCH_DUPS[@]}
 BLOCKED=0
 
@@ -515,6 +520,21 @@ printf '%s\n' '---'
 # collapses (e.g. `repo-a` vs `repo_a` -> both `repo_a`) never share a manifest —
 # a collision would let the second dry-run truncate the first, dropping the first
 # repo's planned artifacts from apply. The sanitized key stays for readability.
+# git_plan_measure <worktree> prints "<items> <bytes>": what gc/prune would act on
+# in that object store: loose objects and garbage from `git count-objects -v`
+# (size figures are KiB), plus worktrees `git worktree prune` would remove.
+git_plan_measure() {
+  local n=0 kib=0 k v wt
+  while IFS=': ' read -r k v; do
+    case "$k" in
+    count | garbage) n=$((n + v)) ;;
+    size | size-garbage) kib=$((kib + v)) ;;
+    esac
+  done < <(git -C "$1" count-objects -v 2>/dev/null)
+  wt="$(git -C "$1" worktree prune --dry-run -v 2>/dev/null | grep -c .)"
+  printf '%s %s\n' "$((n + wt))" "$((kib * 1024))"
+}
+
 manifest_for() {
   local idx="$1" key="$2"
   printf '%s/%03d-%s.manifest' "$PLAN_DIR" "$idx" "${key//[^[:alnum:]]/_}"
@@ -560,6 +580,10 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     bytes="${bytes:-0}"
     PLANNED=$((PLANNED + planned))
     PLAN_BYTES=$((PLAN_BYTES + bytes))
+    # Split by manifest class (`<class>\t<bytes>\t<rel>`): a build manifest folds caches in.
+    read -r cb bb < <(awk -F'\t' '$1=="caches"{c+=$2} $1=="build"{b+=$2} END{print c+0, b+0}' "$manifest" 2>/dev/null)
+    CACHES_BYTES=$((CACHES_BYTES + ${cb:-0}))
+    BUILD_BYTES=$((BUILD_BYTES + ${bb:-0}))
     printf 'REPO\t%s\t%s\t%s\n' "$top" "$tok" "$manifest" >>"$PLAN"
     reason_parts+=("$tok: $planned path(s), $(clean_human_size "$bytes")")
   fi
@@ -573,7 +597,11 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     if batch_add_gitdir "$top"; then
       k="${BATCH_GITDIR_KEYS[${#BATCH_GITDIR_KEYS[@]} - 1]}"
       printf 'GITDIR\t%s\t%s\n' "$top" "$k" >>"$PLAN"
-      reason_parts+=("git: shared object store (new)")
+      read -r gpaths gbytes < <(git_plan_measure "$top")
+      PLANNED=$((PLANNED + gpaths))
+      PLAN_BYTES=$((PLAN_BYTES + gbytes))
+      GIT_BYTES=$((GIT_BYTES + gbytes))
+      reason_parts+=("git: shared object store (new): $gpaths item(s), $(clean_human_size "$gbytes")")
     else
       reason_parts+=("git: shared object store (deduped with a sibling worktree)")
     fi
@@ -601,8 +629,13 @@ batch_report_unmatched_skips
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then
-  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s gitdirs=%s\n' \
+  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s gitdirs=%s' \
     "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED" "${#BATCH_GITDIR_KEYS[@]}"
+  if [[ "$TIER" == all ]]; then
+    printf ' caches_bytes=%s build_bytes=%s git_bytes=%s\n' "$CACHES_BYTES" "$BUILD_BYTES" "$GIT_BYTES"
+  else
+    printf ' git_bytes=%s\n' "$GIT_BYTES"
+  fi
 else
   printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s\n' \
     "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED"
