@@ -13,7 +13,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **The vendored `hook-utils.sh` gains an optional `prerequisite` notice class (#4240).** `hook::notice_once` takes it as a
+  third argument: the notice latches once per session instead of once per agent, and a renewal keeps its install route
+  instead of cutting to the first line. No guardrails hook passes the class, so guard behavior is unchanged.
 
 ## [0.41.6] - 2026-09-28
 
@@ -90,8 +92,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
-- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. [#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235) lets some interrogation forms through that sink; the rewrite already works.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded.
 
 ## [0.39.2] - 2026-09-28
 
@@ -119,7 +121,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the five guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. `block-hook-bypass`, `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand, so `wsl.exe -e bash -c "echo secret > …"` is still allowed by this version ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)).
+- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the six guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The README `wsl` scope note owns the current guard list. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. Only `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand. `block-hook-bypass` has re-parsed it since 0.38.9 ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)), so `wsl.exe -e bash -c "echo secret > …"` blocks.
 
 ## [0.38.10] - 2026-09-28
 
@@ -194,30 +196,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.38.1] - 2026-09-27
 
-### Fixed
-
-- **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
-  ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
-  command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
-  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)), so a long enough command passed every
-  guard on the row unchecked. On `main` the row took 7.23 s for a 10 KB heredoc and 12.6 s for 16 KB, and a
-  ~70 KB one was still running at 120 s. Now it takes 132 ms, 203 ms and 64 ms.
-  - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
-    which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
-    blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
-    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
-    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
-    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
-    `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
-    shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
-  - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is
-    recorded and replayed to the other five, `HOOK_SEG_*` arrays included. A parse that a guard cut short with
-    `exit` is not kept, and a callback's re-parse of a substring is never cached.
-  - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
-
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- Changelog-only bump with no code change. The over-length fail-closed row, the linear tokenizer and the
+  parse-once replay for [#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)
+  shipped in 0.38.0.
 
 ## [0.38.0] - 2026-09-27
 
@@ -250,6 +233,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   guards' notices still renew. Without `jq` the guard allows before it could block, so the latch is not
   spent on a run that never delivered it.
 - Exit code 2, the verdict text, the telemetry `form` strings and every pinned block are unchanged.
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
 
 ### Fixed
 
@@ -259,11 +243,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   ([hooks: Exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), fetched 2026-09-27).
   `docs/conventions/hook-observability/README.md` is corrected to match and admits this notice to its
   carve-out list.
-
-## [0.37.3] - 2026-09-27
-
-### Fixed
-
 - **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
   ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
   command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
@@ -283,9 +262,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     `exit` is not kept, and a callback's re-parse of a substring is never cached.
   - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
 
-### Changed
+## [0.37.3] - 2026-09-27
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+Not released as its own version; see 0.38.0.
 
 ## [0.37.2] - 2026-09-27
 
