@@ -1,0 +1,15 @@
+// good-for: rule-zero-assertion
+// pin() asserts, so the test that only calls it still checks the pin.
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { readPins } = require('../src/pins');
+
+function pin() {
+  const refs = readPins();
+  assert.equal(new Set(refs.map((r) => r.sha)).size, 1, 'one SHA');
+  return refs[0];
+}
+
+test('references use one SHA', () => {
+  pin();
+});

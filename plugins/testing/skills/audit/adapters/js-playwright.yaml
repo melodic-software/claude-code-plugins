@@ -1,0 +1,45 @@
+# Playwright Test. Inherits js-jest's files, mocks and expect receivers.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: js-playwright
+extends: js-jest
+detect:
+  any_regex:
+    - '[''"]@playwright/(test|experimental-ct-[a-z0-9-]+)[''"]'
+# test.describe and test.step are not tests; a step stays inside its test.
+test_start:
+  - '(^|[^A-Za-z0-9_$.])test[[:space:]]*(\.[[:space:]]*only)?[[:space:]]*\('
+# test.fail inverts the oracle, so those tests are not judged either.
+test_skip:
+  - '(^|[^A-Za-z0-9_$.])test[[:space:]]*\.[[:space:]]*(skip|fixme|fail)[[:space:]]*\('
+body_skip:
+  - '(^|[^A-Za-z0-9_$.])test[[:space:]]*\.[[:space:]]*(skip|fixme|fail)[[:space:]]*\('
+  - '(testInfo|info[[:space:]]*\([[:space:]]*\))[[:space:]]*\.[[:space:]]*(skip|fixme|fail)[[:space:]]*\('
+suite_skip:
+  - '(^|[^A-Za-z0-9_$.])test[[:space:]]*\.[[:space:]]*describe[[:space:]]*\.[[:space:]]*(skip|fixme)[[:space:]]*\('
+assertion:
+  # expect(), expect.soft(), expect.poll(), expect.configure() and a configured
+  # instance such as slowExpect(). Web-first matchers ride on expect.
+  calls:
+    - '[Ee]xpect[[:space:]]*(\.[[:space:]]*(soft|poll|configure))?[[:space:]]*\('
+    # Navigation and locator waits throw on timeout.
+    - '\.[[:space:]]*waitFor(URL|Selector|Function)?[[:space:]]*\('
+    - '[Aa]ssert'
+    - '[Ss]hould'  # spellchecker:disable-line
+    - '[Vv]erify'
+    # checkX() helpers, not the locator.check() action.
+    - '[Cc]heck[A-Z_]'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+  # Web-first matchers retry until they pass or time out, so each returns a
+  # promise; unawaited, the test ends before the check runs.
+  async:
+    - 'expect[[:space:]]*(\.[[:space:]]*soft[[:space:]]*)?\(.*\)[[:space:]]*(\.[[:space:]]*not[[:space:]]*)?\.[[:space:]]*(toBeAttached|toBeChecked|toBeDisabled|toBeEditable|toBeEmpty|toBeEnabled|toBeFocused|toBeHidden|toBeInViewport|toBeVisible|toBeOK|toContainClass|toContainText|toHaveAccessibleDescription|toHaveAccessibleErrorMessage|toHaveAccessibleName|toHaveAttribute|toHaveClass|toHaveCount|toHaveCSS|toHaveId|toHaveJSProperty|toHaveRole|toHaveScreenshot|toHaveText|toHaveTitle|toHaveURL|toHaveValue|toHaveValues|toMatchAriaSnapshot|toPass)[[:space:]]*\('
+    - 'expect[[:space:]]*\(.*\)[[:space:]]*\.[[:space:]]*(resolves|rejects)[[:space:]]*\.'
+    - 'expect[[:space:]]*\.[[:space:]]*poll[[:space:]]*\('
+# toMatchAriaSnapshot compares an accessibility tree. toHaveScreenshot, and a
+# toMatchSnapshot over a screenshot, compare images, the primary e2e oracle,
+# and are never a snapshot finding.
+snapshot:
+  - 'expect[[:space:]]*(\.[[:space:]]*soft[[:space:]]*)?\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*toMatchAriaSnapshot[[:space:]]*\('
+# Expected values come from seed data the test wrote, checked in another process.
+rules_off: [recomputed-derived]

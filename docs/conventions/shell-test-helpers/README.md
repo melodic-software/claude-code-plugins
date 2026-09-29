@@ -19,16 +19,13 @@ worked example.
 That mechanism exists for clusters that are meant to stay **byte-identical**. The assert-helper copies
 below are not that: they are three genuinely different *assertion-primitive* shapes (`ok`/`bad`,
 `pass`/`fail`, vendored-seam), not one library that drifted. The telemetry-sink pair
-`make_sink` / `wait_for_sink` is outside those three shapes and a different fact: one helper
-family that drifted, recorded below as sanctioned copy. Do not hoist it unpaid.
+`make_sink` / `wait_for_sink` is a different fact and does use the mechanism; see
+[The telemetry-sink helper](#the-telemetry-sink-helper).
 
-- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; both files also carry a
-  `make_sink`/`wait_for_sink` copy that is not one of the three assertion-primitive shapes):
+- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; both files also keep their own
+  plugin-local `make_sink`, outside the vendored sink helper):
   [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
   [`claude-ops/hooks/claude-ops-test-helpers.sh`](../../../plugins/claude-ops/hooks/claude-ops-test-helpers.sh).
-  Fourteen other suites still define `make_sink` inline (formatter family, `actionlint`,
-  `desktop-notification`, `context-guard`, `autonomy`, and `lib/hook-utils.test.sh`). Those
-  copies are sanctioned; see [make_sink copies](#make_sink-copies-sanctioned-until-a-plugin-local-helper).
 - **Skill-script shape** (`pass`/`fail`, `FAILED`/`CASE_NUM` counters, file-existence assertions):
   [`source-control/scripts/test-helpers.sh`](../../../plugins/source-control/scripts/test-helpers.sh),
   and `/repo-hygiene:clean`'s bundled test-helper copy, named rather than linked because it sits
@@ -71,42 +68,52 @@ A shared usage/exit helper would need to either flatten these distinct contracts
 denominator or grow branching per caller. Neither is simpler than each script documenting its own
 `Exit:` line, which every script here already does at its own usage banner.
 
-## make_sink copies (sanctioned until a plugin-local helper)
+## The telemetry-sink helper
 
-Park a repo-wide hoist. Declare the remaining inline copies sanctioned. Do not rewrite the
-formatter fleet unpaid.
+`make_sink` / `wait_for_sink` is one vendored helper. The canonical file is
+[`lib/hook-test-sink.sh`](../../../lib/hook-test-sink.sh). Each plugin whose suites need it carries a
+byte-identical copy at `plugins/<p>/hooks/hook-test-sink.sh` and sources it from its own directory.
+[`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh)
+gates the copies through
+[`scripts/cross-plugin-source-registry.txt`](../../../scripts/cross-plugin-source-registry.txt). The
+contract suite is [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.test.sh).
 
-- **Claim:** `make_sink` / `wait_for_sink` is one helper family that drifted. A repo-wide
-  hoist into `lib/` plus `sync-*.sh`, or a rewrite of the fourteen inline suites onto a new
-  shared file, is unpaid and parked. The copies stay. When a plugin family grows enough pain,
-  it adds a *plugin-local* `*-test-helpers.sh`, the pattern `guardrails` and `claude-ops`
-  already followed. `ok` / `fail` counters stay duplicated.
-- **Basis:** Issue [#3412](https://github.com/melodic-software/claude-code-plugins/issues/3412)
-  and the 2026-09-05 triage comment (34 suites reference `make_sink`; 14 still define it
-  inline; two plugin-local helpers already exist). Re-measured 2026-09-28: 16 `make_sink()`
-  definitions (14 inline + `guardrails-test-helpers.sh` + `claude-ops-test-helpers.sh`).
-  `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change
-  the per-plugin rule. Fourteen suites is not a tiny rewrite.
-- **As of:** 2026-09-28.
-- **Recheck:** a maintainer funds a plugin-local helper for the formatter family, the
-  remaining inline definitions drop to a handful that a single-plugin PR can absorb, or
-  `guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` become byte-identical (the
-  vendoring trigger already in [Deferred, not rejected](#deferred-not-rejected)).
+- `guardrails` and `claude-ops` keep their own plugin-local `make_sink`. The two differ in contract
+  (guardrails' takes a stub body, claude-ops' takes a capture file) and stay outside the vendored
+  helper.
+- The `ok` / `fail` counters stay duplicated per plugin. Only the sink pair is shared.
+- `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change the
+  per-plugin rule.
+
+## Probe awk-sensitive suites under two awks
+
+Run this on a changed `*.test.sh` that passes a regex or other backslash-bearing value through
+`awk -v`:
+
+```sh
+scripts/check-shell-portability.sh --awk-probe path/to/changed.test.sh
+```
+
+It needs gawk and mawk installed; `SHELL_PORTABILITY_AWKS` overrides the candidate list. Exit `0` is
+no divergence, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. A suite that
+fails under every awk also exits `0`; it still needs the normal test run. CI does not run it.
+The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh).
 
 ## Deferred, not rejected
 
-`guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` are the one pair above that already
-share a shape closely (both hook-contract helpers with near-identical `ok`/`bad` bodies; their
-`make_sink` differs in contract: guardrails' takes a stub body, claude-ops' takes a capture file).
-If they converge to byte-identical, vendoring just that pair through the existing `lib/`,
-`sync-*.sh`, and registry mechanism, the same pattern `hook-utils.sh` already uses, is the smaller,
-precedented move, revisited then rather than spread across all five plugins now.
+`guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` share a shape closely (both are
+hook-contract helpers with near-identical `ok`/`bad` bodies). If they converge to byte-identical,
+vendoring just that pair through the existing `lib/` and registry mechanism, the same pattern
+`hook-utils.sh` and `hook-test-sink.sh` use, is the smaller, precedented move, revisited then rather
+than spread across all the plugins now.
 
 ## Conformance
 
-Each copy site above carries a one-line pointer back to this doc. A new plugin adding its own
-`*.test.sh` assertion helper is not required to register anything here. Duplication of this shape is
-the accepted default, not an opt-in.
+Each assertion-helper copy site above (the guardrails, claude-ops, source-control, repo-hygiene and
+work-item-tracker helpers) carries a one-line pointer back to this doc. The vendored sink copies are
+byte-identical to the canonical file and are governed by the drift gate instead. A new plugin adding
+its own `*.test.sh` assertion helper is not required to register anything here. Duplication of this
+shape is the accepted default, not an opt-in.
 
 A whole-tree `/code-metrics:audit-duplication --all` run with this repo's registry reports these
 helpers, counters, and result footers as its largest surviving clone classes, because no sync

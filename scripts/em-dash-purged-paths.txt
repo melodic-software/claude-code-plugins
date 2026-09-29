@@ -37,8 +37,8 @@
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
 # docs/adr/** (decision records are a historical account, not prose to restyle),
-# plugins/*/skills/*/vendor/** (vendored third-party text, which the repo's own
-# vendor-docs-are-not-style rule puts out of scope), the per-source ledgers
+# plugins/*/skills/*/vendor/** (vendored third-party text is upstream content,
+# not this repository's prose), the per-source ledgers
 # docs/upstream/*.md (each records one third-party source and quotes it at
 # length, so the source's own punctuation rides along), and the eval fixtures
 # under plugins/ai-slop/skills/audit/evals/, which contain the tells they exist

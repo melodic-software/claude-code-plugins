@@ -3,7 +3,7 @@
 
     replica-collapse.py [--prefix <git show-prefix>] [--registry <file>]... [< report.json]
 
-Reads a `code-metrics/v1` document on stdin and prints it back with every set
+Reads a `code-metrics/v2` document on stdin and prints it back with every set
 of per-file or per-function rows that a registry line sanctions collapsed
 into one row. A repository that vendors one file into several plugins
 measures that file's functions once per copy, and every copy over a reference
