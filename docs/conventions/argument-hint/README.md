@@ -42,7 +42,7 @@ is additional; it does not replace that contract.
 
 `scripts/validate-plugin-contracts.mjs` reads every `plugins/<plugin>/skills/<skill>/SKILL.md`.
 
-- **FAIL** when the key is present and the value is empty (`""`, `''`, or whitespace only). The
+- **FAIL** when the key is present and the value is empty (`""`, `''`, whitespace only, or only a YAML comment). The
   failure names this doc.
 - **WARN** when the value is over the budget, is a YAML block scalar, contains an em dash, contains
   a parenthetical example, contains `Default:` prose, or uses an unspaced `|` outside brackets.

@@ -1339,6 +1339,17 @@ else
   fail "an empty-string argument-hint should fail: $out"
 fi
 
+for commented in '"" # none' '# none'; do
+  hint_case commented x
+  sed -i "s/^argument-hint: \"x\"\$/argument-hint: $commented/" "$TMP/plugins/hintfix/skills/commented/SKILL.md"
+  out="$(run_fixture)"
+  if has_fail_line 'argument-hint must be omitted' && grep -q 'hintfix/skills/commented/SKILL.md' <<<"$out"; then
+    ok "an argument-hint that is only a YAML comment fails as empty: $commented"
+  else
+    fail "an argument-hint that is only a YAML comment should fail as empty ($commented): $out"
+  fi
+done
+
 hint_case long "$(printf 'x%.0s' {1..101})"
 if grep -q "^warning: .*hintfix/skills/long/SKILL.md.*101 characters, over the 100-character budget.*$HINT_DOC" <<<"$out" &&
   ! has_fail_line 'budget'; then

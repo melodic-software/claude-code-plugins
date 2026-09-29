@@ -1191,9 +1191,10 @@ for (const path of argumentSkills) {
   const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
   const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
   if (!hint) continue;
+  // A trailing YAML comment is not part of the value: `"" # none` is empty.
   const raw = hint[1].trim();
-  const quoted = /^(["']).*\1$/.test(raw) && raw.length >= 2;
-  const value = quoted ? raw.slice(1, -1) : raw;
+  const quoted = /^(["'])(.*?)\1\s*(?:#.*)?$/.exec(raw);
+  const value = quoted ? quoted[2] : raw.replace(/(?:^|\s+)#.*$/, "");
   if (value.trim() === "") {
     fail(
       path,
