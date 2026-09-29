@@ -21,8 +21,8 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   `NonZero` branches, and that every check dot-sources the shared envelope.
 - **audit:** the guide for adding a check and the Windows check catalog name the envelope contract
   (`Invoke-HealthCheckEnvelope.ps1`) instead of `Write-HealthResult.ps1`.
-- **setup:** the argument hint lists `disable=<check-id>`, `deprecate=<check-id>`,
-  `demote=<check-id>` and `approve=<remediation-id>`, the only forms the body accepts.
+- **setup:** the argument hint lists `disable=<check>`, `deprecate=<check>`,
+  `demote=<check>` and `approve=<remediation>`, the only forms the body accepts.
 
 ## [0.14.5] - 2026-09-28
 
