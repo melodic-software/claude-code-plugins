@@ -319,8 +319,7 @@ first session after an upgrade), where the import is still what carries it.
   available, or through a `CLAUDE.md` that imports or symlinks it, on that `CLAUDE.md`'s row.
   Directly read, it fires no `InstructionsLoaded` hook, and `/memory` lists it from v2.1.280
   (before that, `/memory` and `/context` did not); imported, it behaves as part of its
-  `CLAUDE.md`. The quotes are in `plugins/instruction-placement/skills/migrate/reference/sources.md`,
-  "What shim removal costs".
+  `CLAUDE.md`.
 - **Basis**: code.claude.com/docs/en/memory, "AGENTS.md", "When Claude Code reads AGENTS.md", "When
   AGENTS.md support is unavailable", "Where AGENTS.md differs from CLAUDE.md", "My AGENTS.md isn't
   loading"; fetched 2026-09-29.
