@@ -274,6 +274,8 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .frow .ttl{flex:1;font:500 12px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .tabs{display:flex;flex-wrap:wrap;gap:4px}
 .tabs button{border:1px solid var(--line);background:var(--ground);border-radius:5px;padding:4px 8px;font:12.5px var(--sans);cursor:pointer}
+.tgroup{margin-bottom:6px}
+.tgh{font:600 11px var(--mono);color:var(--faint);margin-bottom:3px}
 .tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .fbody{overflow:auto;padding:12px 14px;display:grid;gap:10px;align-content:start;overflow-wrap:anywhere}
 .fbody .md,.fsstage .md{font-size:max(var(--min-text),14px)}
@@ -808,12 +810,28 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- detail ----------
   function visualsFor(q){
-    const live = (S.doc.visuals || []).filter(v => !v.archived).sort((a, b) => (a.order || 0) - (b.order || 0));
-    if (!q) return live.filter(v => v.scope === "all");
+    const live = (S.doc.visuals || []).filter(v => !v.archived), byOrder = (a, b) => (a.order || 0) - (b.order || 0);
+    if (!q) return live.filter(v => v.scope === "all").sort(byOrder);
     const scopes = ["all", "question:" + q.id, "group:" + q.group, "round:" + (q.stage || "") + ":" + (q.round || 1)];
     const own = (q.visuals || []).map(v => typeof v === "string" ? live.find(x => x.id === v) : v).filter(v => v && !v.archived);
     return [...own.map(v => Object.assign({where: "this question"}, v)),
-      ...live.filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))];
+      ...live.filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))].sort(byOrder);
+  }
+  const TAB_MAX = 28;
+  function vtabGroups(vis){ // grouped tabs in first-seen group order, ungrouped last; labels distinct within a group
+    const by = new Map(); vis.forEach(v => { const k = v.group || ""; by.set(k, (by.get(k) || []).concat(v)); });
+    const cut = s => s.length > TAB_MAX ? s.slice(0, TAB_MAX - 1).trimEnd() + "…" : s;
+    return [...by].sort((a, b) => !a[0] - !b[0]).map(([group, vs]) => {
+      const titles = vs.map(v => (v.title || v.id).trim());
+      let p = titles.length > 1 ? titles.reduce((a, t) => { let i = 0; while (i < a.length && a[i] === t[i]) i++; return a.slice(0, i); }) : "";
+      p = (p.match(/^.*\s/) || [""])[0];
+      const seen = new Map();
+      return {group, tabs: vs.map((v, i) => {
+        const label = v.label || cut(titles[i].slice(p.length)), n = seen.get(label) || 0;
+        seen.set(label, n + 1);
+        return {id: "v:" + v.id, v, title: n ? label + " (" + (n + 1) + ")" : label, tip: v.title || ""};
+      })};
+    });
   }
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
@@ -1139,11 +1157,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.fly === "notes") { $("flyTitle").textContent = "Notes to Claude"; renderNotes(body); return; }
     if (S.fly === "activity") { $("flyTitle").textContent = "Activity"; renderActivity(body); return; }
     if (S.fly === "settings") { $("flyTitle").textContent = "Settings"; renderSettings(body); return; }
-    const vis = visualsFor(q), subs = vis.map(v => ({id: "v:" + v.id, title: v.title || v.id, v})).concat([{id: "map", title: "Map"}]);
-    if (!subs.some(t => t.id === S.vtab)) S.vtab = subs[0].id;
+    const vgs = vtabGroups(visualsFor(q)), flat = vgs.flatMap(g => g.tabs), subs = flat.concat([{id: "map", title: "Map"}]);
+    if (!subs.some(t => t.id === S.vtab)) S.vtab = (flat.find(x => x.v.primary) || subs[0]).id;
     $("flyTitle").textContent = q ? "Visuals for " + q.id : "Visuals";
     const t = subs.find(x => x.id === S.vtab);
-    let h = '<div class="tabs">' + subs.map(x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '">' + esc(x.title) + "</button>").join("") + "</div>";
+    const tabBtn = x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '"' + (x.tip ? ' title="' + esc(x.tip) + '"' : "") + ">" + esc(x.title) + "</button>";
+    let h = vgs.map(g => '<div class="tgroup"' + (g.group ? ' role="group" aria-label="' + esc(g.group) + '"' : "") + ">" + (g.group ? '<div class="tgh">' + esc(g.group) + "</div>" : "") + '<div class="tabs">' + g.tabs.map(tabBtn).join("") + "</div></div>").join("") +
+      '<div class="tgroup"><div class="tabs">' + tabBtn(subs[subs.length - 1]) + "</div></div>";
     if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true); return; }
     const vb = visualBody(t.v);
     h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.v.title || t.v.id)) +

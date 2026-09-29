@@ -263,6 +263,26 @@ async page => {
     const vpSrc = (await state()).questions.questions.find(q => q.id === "Q2").visuals.find(v => v.id === "vp").content;
     const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
     ok("inline image renders its content as the img src", img === vpSrc, String(img).slice(0, 60));
+
+    // grouped visual tabs: group headers, order, primary default, archived hidden, distinct labels
+    await pick("Q3"); await page.waitForTimeout(150);
+    const gt = await page.evaluate(() => ({
+      heads: [...document.querySelectorAll("#fbody .tgh")].map(e => e.textContent),
+      tabs: [...document.querySelectorAll("#fbody [data-vtab]")].map(e => ({id: e.dataset.vtab, text: e.textContent, tip: e.title, sel: e.getAttribute("aria-selected") === "true"})),
+      body: document.getElementById("fbody").innerText}));
+    ok("grouped tabs: one header per group, in order", JSON.stringify(gt.heads) === '["Checkout","Timeline"]', JSON.stringify(gt.heads));
+    ok("grouped tabs: sorted by order, ungrouped last, Map after them, archived hidden", gt.tabs.map(t => t.id).join() === "v:ga,v:gb,v:gt,v:gl,map", gt.tabs.map(t => t.id).join());
+    ok("grouped tabs: the primary opens by default", gt.tabs.filter(t => t.sel).map(t => t.id).join() === "v:gb" && /bodymark-b/.test(gt.body) && !/bodymark-a/.test(gt.body));
+    const lab = gt.tabs.slice(0, 2);
+    ok("grouped tabs: long similar titles get distinct labels without the shared prefix, full title in the tooltip", lab[0].text !== lab[1].text && lab.every(t => !/^Checkout flow/.test(t.text) && t.text.length <= 28) && lab[0].tip === "Checkout flow, option A: single page with inline payment form" && lab[1].tip === "Checkout flow, option B: two steps with a review page", JSON.stringify(lab));
+    ok("grouped tabs: no raw id shows while a title exists", gt.tabs.every(t => !/^(ga|gb|gt|gl)$/.test(t.text)));
+    await page.click('[data-vtab="v:gl"]'); await page.waitForTimeout(150);
+    ok("Replay stays on a frame visual in a grouped set", !!(await page.$("#fbody [data-replay]")));
+    await page.click('[data-vtab="v:ga"]'); await page.click("[data-full]"); await page.waitForTimeout(200);
+    ok("full screen opens the selected grouped visual", await page.evaluate(() => !document.getElementById("fs").hidden && /bodymark-a/.test(document.getElementById("fsStage").innerText)));
+    await page.click("#fsClose");
+    await pick("Q2"); await page.waitForTimeout(150);
+    ok("a question without a primary opens its first tab", await page.evaluate(() => document.querySelector("#fbody [data-vtab][aria-selected=true]").dataset.vtab) === "v:vk");
     await page.click("#flyClose");
 
     // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px
