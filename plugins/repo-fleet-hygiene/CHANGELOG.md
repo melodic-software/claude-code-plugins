@@ -46,6 +46,9 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   `ls-remote` transport change released in 0.23.37 and changed no behavior. 0.23.39 no longer
   overstates how a repository with no worktree root key of its own resolves its root; 0.23.41 changed
   that.
+- **`audit` default-origin rejection exit code is 3, not 2.** A run with no scope that resolves
+  nothing on the no-scope ladder has exited 3 since 0.23.43. That change was never recorded. An
+  explicitly supplied bad path still exits 2.
 
 ## [0.23.44] - 2026-09-28
 
