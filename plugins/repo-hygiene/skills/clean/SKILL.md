@@ -50,7 +50,7 @@ metadata:
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
-**Arguments.** Bare → menu or auto-detect. The action list is [context/action-router.md](context/action-router.md) "Canonical actions".
+**Arguments.** `[scan|caches|build|git|stash|tree|all|<tier>-batch|aliases…]`. Bare → menu or auto-detect. The action list is [context/action-router.md](context/action-router.md) "Canonical actions".
 
 ## Repository context. Gather first
 
