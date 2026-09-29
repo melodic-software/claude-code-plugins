@@ -62,6 +62,11 @@ own and runs only when your repo has opted into Ruff.
   syntax errors, and on much older releases the flags the hook passes may be
   absent, in which case the run is reported as a tool break rather than a
   finding.
+- A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, and
+  the PostToolUse notice names the same install route. The probe looks on `PATH` and at
+  `.venv/bin/ruff` under the working directory; the edit hook also resolves a `.venv` ruff by
+  walking up from the edited file. Run `/ruff-format:check` to see what resolves; it is read-only
+  and installs nothing.
 - A **Ruff config** (`.ruff.toml`, `ruff.toml`, or `pyproject.toml` with
   `[tool.ruff]`) in the repo, the opt-in.
 
