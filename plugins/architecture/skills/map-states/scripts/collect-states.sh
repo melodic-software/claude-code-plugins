@@ -10,8 +10,10 @@
 #   collect-states.sh --help
 #
 # Output: states.json, schema_version 1, one object per line.
-# confidence is high only when every transition in a shipped library was read.
-# A refusal still writes the record and draws no transitions.
+# confidence is high when every transition came from a table, medium when a table
+# is drawn and ad hoc status assignments elsewhere in the source bypass it, and
+# refused when nothing is drawn. A refusal still writes the record and draws no
+# transitions.
 #
 # Exit: 0 = a record was written, including a refusal; 1 = bad path; 2 = usage.
 set -uo pipefail
@@ -102,7 +104,7 @@ done < <(git -C "$repo" ls-files) >"$TMP/list"
 
 [[ -s "$TMP/list" ]] || refuse "no-state-machine"
 
-awk -v root="$repo" -v list="$TMP/list" -v ents="$ENTS" -v states="$STATES" -v trans="$TRANS" -v finds="$FINDS" -v flag="$TMP/flag" '
+awk -v root="$repo" -v list="$TMP/list" -v ents="$ENTS" -v states="$STATES" -v trans="$TRANS" -v finds="$FINDS" -v flag="$TMP/flag" -v adhocf="$TMP/adhoc" '
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 function jesc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
 function unquote(s) { gsub(/^[\047"]|[\047"]$/, "", s); return s }
@@ -111,9 +113,11 @@ function add_state(ent, name) { if (ent != "" && name != "") declared[ent SUBSEP
 function add_trans(ent, from, to, trigger, guard) {
   ntr++; tr_e[ntr]=ent; tr_f[ntr]=from; tr_t[ntr]=to; tr_g[ntr]=trigger; tr_u[ntr]=guard
 }
-function finish_entity(ent, initial, library, evidence,    i, k, q, qh, qt, cur, outn) {
+function finish_entity(ent, initial, library, evidence,    i, k, q, qh, qt, cur, outn, tgt) {
   if (failed) return
   if (ent == "" || initial == "") { fail("unsupported-syntax"); return }
+  if (ent in done) { fail("duplicate-entity"); return }
+  done[ent] = 1
   if (!((ent SUBSEP initial) in declared)) { fail("undeclared-target"); return }
   for (i = 1; i <= ntr; i++) if (tr_e[i] == ent) {
     if (!((ent SUBSEP tr_f[i]) in declared) || !((ent SUBSEP tr_t[i]) in declared)) { fail("undeclared-target"); return }
@@ -126,7 +130,9 @@ function finish_entity(ent, initial, library, evidence,    i, k, q, qh, qt, cur,
     printf "{\"state\":\"%s\",\"entity\":\"%s\",\"name\":\"%s\",\"final\":\"%s\"}\n", jesc(p[2]), jesc(ent), jesc(p[2]), (final[k] ? "yes" : "no") >> states
   }
   delete outn
+  delete tgt
   for (i = 1; i <= ntr; i++) if (tr_e[i] == ent) {
+    tgt[tr_t[i]] = 1
     printf "{\"from\":\"%s\",\"entity\":\"%s\",\"to\":\"%s\",\"trigger\":\"%s\",\"guard\":\"%s\"}\n", jesc(tr_f[i]), jesc(ent), jesc(tr_t[i]), jesc(tr_g[i]), jesc(tr_u[i]) >> trans
     outn[tr_f[i]]++
     if (tr_u[i] == "true")
@@ -144,6 +150,8 @@ function finish_entity(ent, initial, library, evidence,    i, k, q, qh, qt, cur,
     if (p[1] != ent) continue
     if (!(p[2] in reach))
       printf "{\"kind\":\"unreachable\",\"entity\":\"%s\",\"state\":\"%s\",\"detail\":\"%s\"}\n", jesc(ent), jesc(p[2]), jesc("not reachable from " initial) >> finds
+    else if (!final[k] && (outn[p[2]] + 0) == 0 && library == "stateless" && (p[2] in tgt))
+      printf "{\"kind\":\"terminal_inferred\",\"entity\":\"%s\",\"state\":\"%s\",\"detail\":\"%s\"}\n", jesc(ent), jesc(p[2]), jesc("targeted, no outgoing permit; Stateless declares no final state") >> finds
     else if (!final[k] && (outn[p[2]] + 0) == 0)
       printf "{\"kind\":\"dead_end\",\"entity\":\"%s\",\"state\":\"%s\",\"detail\":\"%s\"}\n", jesc(ent), jesc(p[2]), jesc("reachable, not final, no outgoing transition") >> finds
   }
@@ -211,43 +219,57 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
   }
   if (mode != "out") fail("unsupported-syntax")
 }
-function parse_stateless(path, evidence,    raw, buf, n, i, stmt, ent, initial, cur, rest, trig, dest, guard) {
+function last_ident(s) { return match(s, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$/) ? trim(substr(s, RSTART)) : "" }
+function parse_stateless(path, evidence,    raw, buf, n, i, stmt, v, e, initial, cur, rest, seg, trig, dest, guard, nm, k, ment, minit, kind) {
   buf = ""
   while ((getline raw < path) > 0) { sub(/\r$/, "", raw); sub(/\/\/.*/, "", raw); buf = buf " " raw }
   close(path)
+  if (match(buf, /\.(PermitDynamic[A-Za-z]*|PermitReentryIf|SubstateOf|InternalTransition[A-Za-z]*|Ignore(If)?|OnEntry[A-Za-z]*|OnExit[A-Za-z]*|OnActivate|OnDeactivate|InitialTransition)[[:space:]]*[(<]/)) {
+    v = substr(buf, RSTART, RLENGTH); gsub(/[^A-Za-z.]/, "", v)
+    fail("unsupported-syntax: " v); return
+  }
+  delete vent
+  nm = 0
   n = split(buf, parts, ";")
   for (i = 1; i <= n; i++) {
     stmt = parts[i]
-    if (index(stmt, "new StateMachine<") > 0 || stmt ~ /new[[:space:]]+StateMachine</) {
-      ent = stmt; sub(/.*StateMachine</, "", ent); sub(/,.*/, "", ent)
-      initial = stmt; sub(/.*\(/, "", initial); sub(/\).*/, "", initial); sub(/.*\./, "", initial)
-      if (ent == "" || initial == "") { fail("unsupported-syntax"); return }
-      add_state(ent, initial)
+    if (stmt ~ /new[[:space:]]+StateMachine</) {
+      e = stmt; sub(/.*StateMachine</, "", e); sub(/,.*/, "", e); e = trim(e)
+      initial = stmt; sub(/.*\(/, "", initial); sub(/\).*/, "", initial); sub(/.*\./, "", initial); initial = trim(initial)
+      if (e !~ /^[A-Za-z0-9_.]+$/ || initial !~ /^[A-Za-z0-9_]+$/) { fail("unsupported-syntax"); return }
+      v = stmt; sub(/=[[:space:]]*new[[:space:]]+StateMachine<.*/, "", v)
+      nm++; ment[nm] = e; minit[nm] = initial; vent[last_ident(v)] = e
+      add_state(e, initial)
       continue
     }
     if (index(stmt, ".Configure(") == 0) continue
+    v = stmt; sub(/\.Configure\(.*/, "", v); v = last_ident(v)
+    if (v in vent) e = vent[v]
+    else if (nm == 1) e = ment[1]
+    else { fail("unsupported-syntax"); return }
     cur = stmt; sub(/.*Configure\(/, "", cur); sub(/\).*/, "", cur); sub(/.*\./, "", cur)
-    add_state(ent, cur)
+    add_state(e, cur)
     rest = stmt
     while (match(rest, /\.Permit(If|Reentry)?\(/)) {
       kind = substr(rest, RSTART, RLENGTH)
       rest = substr(rest, RSTART + RLENGTH)
+      seg = rest
+      if (match(seg, /\)\.[A-Za-z]/)) seg = substr(seg, 1, RSTART)
+      trig = rest; sub(/^[A-Za-z0-9_]*\./, "", trig); sub(/[^A-Za-z0-9_].*/, "", trig)
       if (index(kind, "Reentry") > 0) {
-        trig = rest; sub(/^[A-Za-z0-9_]*\./, "", trig); sub(/[^A-Za-z0-9_].*/, "", trig)
-        add_trans(ent, cur, cur, trig, "")
+        add_trans(e, cur, cur, trig, "")
       } else {
-        trig = rest; sub(/^[A-Za-z0-9_]*\./, "", trig); sub(/[^A-Za-z0-9_].*/, "", trig)
         dest = rest; sub(/^[^,]*,[[:space:]]*/, "", dest); sub(/^[A-Za-z0-9_]*\./, "", dest); sub(/[^A-Za-z0-9_].*/, "", dest)
         guard = ""
-        if (index(kind, "If") > 0) guard = (index(rest, "=> true") > 0 || index(rest, "=>true") > 0) ? "true" : "declared"
-        add_state(ent, dest)
-        add_trans(ent, cur, dest, trig, guard)
+        if (index(kind, "If") > 0) guard = (index(seg, "=> true") > 0 || index(seg, "=>true") > 0) ? "true" : "declared"
+        add_state(e, dest)
+        add_trans(e, cur, dest, trig, guard)
       }
       if (match(rest, /\)/)) rest = substr(rest, RSTART + 1)
       else break
     }
   }
-  if (ent != "") finish_entity(ent, initial, "stateless", evidence)
+  for (k = 1; k <= nm; k++) finish_entity(ment[k], minit[k], "stateless", evidence)
 }
 BEGIN {
   while ((getline rel < list) > 0) {
@@ -256,7 +278,7 @@ BEGIN {
     while ((getline raw < path) > 0) {
       if (raw ~ /createMachine[[:space:]]*\(/) seen = 1
       if (index(raw, "StateMachine<") > 0) seen = 2
-      if (raw ~ /\.status[[:space:]]*=/ || raw ~ /\.Status[[:space:]]*=/ || raw ~ /status[[:space:]]*=[[:space:]]*[\047"]/ || raw ~ /Status[[:space:]]*=[[:space:]]*[\047"]/) adhoc = 1
+      if (raw ~ /\.status[[:space:]]*=[^=]/ || raw ~ /\.Status[[:space:]]*=[^=]/ || raw ~ /status[[:space:]]*=[[:space:]]*[\047"]/ || raw ~ /Status[[:space:]]*=[[:space:]]*[\047"]/) adhoc = 1
     }
     close(path)
     if (seen == 1) { parse_xstate(path, rel); if (failed) exit }
@@ -264,10 +286,15 @@ BEGIN {
   }
   if (!wrote && adhoc) printf "ad-hoc\n" > flag
   else if (!wrote) printf "no-state-machine\n" > flag
+  else if (adhoc) printf "1\n" > adhocf
 }
 '
 if [[ -s "$TMP/flag" ]]; then refuse "$(head -n 1 "$TMP/flag")"; fi
 [[ -s "$ENTS" ]] || refuse "no-state-machine"
 sort -u -o "$ENTS" "$ENTS"; sort -u -o "$STATES" "$STATES"; sort -u -o "$TRANS" "$TRANS"; sort -u -o "$FINDS" "$FINDS"
-write_record drawn "" high
+if [[ -s "$TMP/adhoc" ]]; then
+  write_record drawn "ad-hoc-status-assignments-beside-table" medium
+else
+  write_record drawn "" high
+fi
 exit 0
