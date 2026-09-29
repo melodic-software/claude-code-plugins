@@ -3,6 +3,30 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2] - 2026-09-29
+
+### Changed
+
+- **audit:** fewer `rule-zero-assertion` false positives, from a precision run over this repository,
+  `medley` and `ci-runner` (`docs/specs/tautological-tests/precision-run.md`). A test that calls a
+  function defined in the same file, bare or on `self`, `this` or `cls`, whose own body asserts,
+  throws, raises or rejects has an assertion; the helper's own calls are not followed. A call on
+  `self` or `this`, and a bare C# call, resolves to the test's own class when that class defines
+  the name (every C# overload must assert), so another class's asserting helper of the same name
+  does not count. The C# adapters count `}.RunAsync(` as an assertion only in a file that imports
+  `Microsoft.CodeAnalysis.Testing` or aliases one of its types, and `bash-harness` counts
+  `exit "$((FAIL > 0))"`.
+- **audit:** `rule-conditional-assertion` treats a loop over `.map` of a nonempty array literal,
+  or of a name the test bound to one, awaited through `Promise.all` or not, as a loop over a
+  literal table.
+- **audit:** `rule-recomputed-expectation` keeps firing on a deliberate determinism check,
+  `f(x) == f(x)`; its remedy says to mark one `cant-fail-ok: determinism contract`.
+
+### Fixed
+
+- **audit:** a `cant-fail-ok:` comment at the end of a Python `assert` line no longer drops the
+  recomputed-expectation finding without counting it as exempt.
+
 ## [0.11.1] - 2026-09-29
 
 ### Added
