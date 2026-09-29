@@ -20,6 +20,15 @@ trap 'rm -rf "$WORK"' EXIT
 source "$SCRIPT_DIR/test-helpers.sh"
 test_helpers::contract_lane
 
+# lacks <phrase> <label> - the last run's combined output does NOT carry <phrase>.
+lacks() {
+  if [[ "$last_out" != *"$1"* ]]; then
+    pass "$2"
+  else
+    fail "$2 — output was: $last_out"
+  fi
+}
+
 fresh_packet() {
   local p="$WORK/packet"
   rm -rf "$p"
@@ -48,6 +57,8 @@ fi
 
 run 0 "verify passes on an untouched packet" verify "$packet"
 has "sealed files intact" "an untouched packet reports its sealed files intact"
+lacks "gen-" "no generation counters appear without a generation"
+lacks "ACKNOWLEDGED" "no acknowledgment line appears without a generation"
 has "BEFORE the first seal" "the intact verdict states what it cannot detect"
 has "MATCH audit-notes.md" "each sealed file is reported"
 
@@ -154,7 +165,8 @@ run 0 "record before the laundering attempt" record "$packet"
 printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
 run 1 "record refuses to reseal over an already-divergent file" record "$packet"
 has "CHANGED audit-notes.md" "the divergent file is named at reseal time"
-has "permanently unsealable" "the refusal states that later notes stay unsealed"
+has "later notes are sealed into that generation" "the refusal says later notes go into a generation"
+has "verify reads the latest one" "the refusal says which generation verify reads"
 run 1 "verify still reports the divergence after the refused reseal" verify "$packet"
 has "CHANGED audit-notes.md" "the rewrite was not laundered into a fresh digest"
 
@@ -203,6 +215,109 @@ empty="$WORK/empty-packet"
 mkdir -p "$empty"
 run 2 "acknowledge without a manifest is a usage error" record --acknowledge-divergence "$empty"
 has "needs an existing packet.sha256" "acknowledge requires the original seal"
+
+# --- verify reads the latest generation --------------------------------------
+#
+# A generation must not read as `UNSEALED packet.sha256.N`, and a note sealed
+# into it must not stay UNSEALED forever. It is graded on top of packet.sha256,
+# never in place of it.
+
+# make_acked_packet - sets $packet: audit-notes.md rewritten after the seal, a
+# later note beside it, both acknowledged into generation 2.
+make_acked_packet() {
+  packet="$(fresh_packet)"
+  run 0 "record before the divergence" record "$packet"
+  cp "$packet/audit-notes.md" "$WORK/audit-notes.orig"
+  printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
+  printf 'a later note\n' >"$packet/audit-notes-2.md"
+  run 0 "acknowledge writes generation 2" record --acknowledge-divergence "$packet"
+}
+
+make_acked_packet
+run 1 "verify exits 1 on the original divergence, generation or not" verify "$packet"
+has "CHANGED audit-notes.md" "the original divergence is still CHANGED"
+has "ACKNOWLEDGED generation=2" "the acknowledgment stays visible"
+has "GEN-MATCH audit-notes-2.md" "a note sealed into the generation matches it"
+lacks "UNSEALED audit-notes-2.md" "a generation-sealed note is not unsealed"
+lacks "UNSEALED packet.sha256.2" "a generation manifest is never reported unsealed"
+lacks "outside the manifest" "no spurious outside-the-manifest line"
+has "matched=1 changed=1 missing=0 unsealed=0 gen-matched=3 gen-changed=0 gen-missing=0" "the summary keeps its fields and appends the generation counters"
+
+printf 'after the generation\n' >"$packet/audit-notes-3.md"
+run 1 "verify exits 1 with a note added after the generation" verify "$packet"
+has "UNSEALED audit-notes-3.md" "a note added after the generation is unsealed"
+lacks "UNSEALED audit-notes-2.md" "the generation-sealed note stays sealed"
+
+# A second edit of a file that already diverged, after the acknowledgment.
+make_acked_packet
+printf 'rewritten a second time\n' >"$packet/audit-notes.md"
+run 1 "verify exits 1 on a second edit of an acknowledged file" verify "$packet"
+has "GEN-CHANGED audit-notes.md" "the second edit is named against the generation"
+has "gen-changed=1" "the generation tally counts it"
+
+# Restore the altered file, then add notes: the generation must still take them.
+make_acked_packet
+original="$(cat "$packet/packet.sha256")"
+cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
+run 1 "a restore alone leaves the latest generation reporting a change" verify "$packet"
+has "GEN-CHANGED audit-notes.md" "the restored file no longer matches generation 2"
+printf 'a note after the restore\n' >"$packet/audit-notes-3.md"
+run 0 "acknowledge after a restore writes the next generation" record --acknowledge-divergence "$packet"
+has "generation=3" "the restore path writes generation 3"
+if [[ -f "$packet/packet.sha256.3" ]]; then
+  pass "packet.sha256.3 exists"
+else
+  fail "no generation 3 was written after the restore"
+fi
+run 0 "verify exits 0 once the restored packet is acknowledged" verify "$packet"
+has "ACKNOWLEDGED generation=3" "exit 0 still prints the acknowledgment"
+has "matched=2 changed=0 missing=0 unsealed=0 gen-matched=4 gen-changed=0 gen-missing=0" "every digest matches"
+lacks "UNSEALED" "nothing is unsealed after the second acknowledgment"
+run 1 "ordinary record is still refused after the restore path" record "$packet"
+has "acknowledged divergence" "the laundering guard still names the acknowledged divergence"
+if [[ "$(cat "$packet/packet.sha256")" == "$original" ]]; then
+  pass "packet.sha256 is untouched by the restore path"
+else
+  fail "the restore path rewrote packet.sha256"
+fi
+
+printf 'a note after generation 3\n' >"$packet/audit-notes-4.md"
+run 3 "a note added after the latest generation exits 3 when nothing else differs" verify "$packet"
+has "UNSEALED audit-notes-4.md" "the new note is unsealed"
+has "ACKNOWLEDGED generation=3" "the acknowledgment is printed on exit 3 too"
+run 0 "acknowledge with nothing differing still seals the next generation" record --acknowledge-divergence "$packet"
+has "generation=4" "the next generation follows the latest"
+run 0 "verify exits 0 against generation 4" verify "$packet"
+has "ACKNOWLEDGED generation=4" "the latest generation is the one reported"
+
+printf 'edited after generation 4\n' >"$packet/audit-notes-2.md"
+run 1 "editing a generation-only file exits 1 with the original clean" verify "$packet"
+has "GEN-CHANGED audit-notes-2.md" "the edit is named against the generation"
+has "matched=2 changed=0 missing=0 unsealed=0 gen-matched=4 gen-changed=1 gen-missing=0" "only the generation tally moved"
+printf 'a later note\n' >"$packet/audit-notes-2.md"
+rm -f "$packet/audit-notes-3.md"
+run 1 "deleting a generation-only file exits 1" verify "$packet"
+has "GEN-MISSING audit-notes-3.md" "the deletion is named against the generation"
+
+# Generation numbers compare numerically: 10 is later than 9. A lexical sort
+# would read 9 and grade the packet against a stale manifest.
+make_acked_packet
+mv "$packet/packet.sha256.2" "$packet/packet.sha256.10"
+printf '%064d  audit-notes.md\n' 0 >"$packet/packet.sha256.9"
+run 1 "verify reads generation 10, not 9" verify "$packet"
+has "ACKNOWLEDGED generation=10" "the highest number is the latest generation"
+has "GEN-MATCH audit-notes.md" "the file is graded against generation 10"
+lacks "GEN-CHANGED" "generation 9 is not consulted"
+run 0 "acknowledge numbers the next generation after the latest" record --acknowledge-divergence "$packet"
+has "generation=11" "the next generation is 11"
+
+# A name that only resembles a generation is a stray file, not a manifest.
+packet="$(fresh_packet)"
+run 0 "record before the look-alike case" record "$packet"
+printf 'stray\n' >"$packet/packet.sha256.2x"
+run 3 "a look-alike name is unsealed content" verify "$packet"
+has "UNSEALED packet.sha256.2x" "the look-alike is reported"
+lacks "ACKNOWLEDGED" "the look-alike is not a generation"
 
 # --- symlinks are visible, and escaping ones are refused --------------------
 #
