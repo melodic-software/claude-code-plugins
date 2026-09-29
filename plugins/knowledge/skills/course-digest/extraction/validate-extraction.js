@@ -28,10 +28,16 @@ import {
   PASS,
   WARN,
 } from "./lib/validators.js";
+import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
-const args = parseCliArgs();
-const log = createLogger(resolveLogLevel(args));
+let args;
+let log;
+
+function bindCli() {
+  args = parseCliArgs();
+  log = createLogger(resolveLogLevel(args));
+}
 
 function summarize(checks) {
   return {
@@ -52,6 +58,7 @@ function logChecks(heading, glyph, checks) {
 }
 
 function main() {
+  bindCli();
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
   const reportPath = join(courseDir, "validation-report.json");
@@ -114,4 +121,6 @@ function main() {
   }
 }
 
-main();
+if (invokedAsCli(import.meta.url)) {
+  main();
+}

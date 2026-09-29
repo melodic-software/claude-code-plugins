@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatWindow, parseWindowRange } from "../lib/window.js";
+import { formatWindow, parseWindowRange } from "../emit-slides-data.js";
 
 const OPEN = "2026-04-24T19:00:00Z";
 const CLOSE = "2026-05-05T20:30:00Z";
