@@ -16,10 +16,14 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../scripts/scope-resolve.sh
 source "$SCRIPT_DIR/../../../scripts/scope-resolve.sh"
+# shellcheck source=../../../scripts/fleet-discovery.sh
+source "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh"
 
 REPOS=()
 ROOTS=()
 NAMED=()
+SKIP_NAMES=()
+SKIP_APPEND_NAMES=()
 CONFIG=""
 PROJECT_DIR=""
 APPLY=0
@@ -87,32 +91,20 @@ done
 
 [[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
 
-# Relative fleet.root and fleet.repo entries resolve against the config file's
-# directory, as audit resolves them, never against the caller's cwd.
-load_config_scope() {
-  [[ -n "$CONFIG" && -f "$CONFIG" ]] || return 0
-  local path base
-  base="$(cd "$(dirname "$CONFIG")" && pwd)"
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    [[ "$path" == /* ]] || path="$base/$path"
-    ROOTS+=("$path")
-  done < <(git config --file "$CONFIG" --get-all fleet.root 2>/dev/null || true)
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    [[ "$path" == /* ]] || path="$base/$path"
-    REPOS+=("$path")
-  done < <(git config --file "$CONFIG" --get-all fleet.repo 2>/dev/null || true)
-}
-
-if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
-  if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
-  elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
-  fi
-  load_config_scope
+if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
+  CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
+elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
+  CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
 fi
+if [[ -n "$CONFIG" ]]; then
+  if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
+    fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
+    ROOTS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
+    REPOS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
+  fi
+  fleet_load_config_skip "$CONFIG"
+fi
+fleet_finalize_skip_names
 
 if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
   fallback="$(mktemp)"
@@ -154,24 +146,10 @@ EOF
   rm -f "$fallback"
 fi
 
-# The same package-manager cache trees audit skips: Cargo, pnpm, and uv keep
-# real git checkouts in them, and this verb would switch and pull those.
-SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget __pycache__ .tox)
-
-discover_root() {
-  local root="$1" gitdir name
-  local prune=()
-  [[ -d "$root" ]] || return 0
-  for name in "${SKIP_NAMES[@]}"; do
-    prune+=(${prune[@]+-o} -name "$name")
-  done
-  while IFS= read -r gitdir; do
-    REPOS+=("$(dirname "$gitdir")")
-  done < <(find "$root" -maxdepth 5 \( "${prune[@]}" \) -prune -o -name .git -print -prune 2>/dev/null)
-}
-
 for root in "${ROOTS[@]}"; do
-  discover_root "$root"
+  while IFS= read -r repo; do
+    REPOS+=("$repo")
+  done < <(fleet_discover_root "$root")
 done
 
 main_worktree() {

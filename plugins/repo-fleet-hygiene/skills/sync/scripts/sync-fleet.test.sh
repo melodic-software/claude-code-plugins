@@ -111,12 +111,26 @@ pruned="$(bash "$SCRIPT" --root "$TMP/drive")"
 expect "a --root walk does not descend into a .git directory" "$pruned" \
   is "$([[ "$pruned" == *"/.git/inner"* ]] && echo found)" ""
 
-# Sync keeps its own copy of audit's default skip list; the two must not drift.
-sync_skips="$(sed -n 's/^SKIP_NAMES=(\(.*\))$/\1/p' "$SCRIPT")"
-audit_skips="$(sed -n '/-eq 0 \]\]; then$/,/^fi$/{/^  SKIP_NAMES=(/,/)$/p}' "$SCRIPT_DIR/../../audit/scripts/audit-fleet.sh" |
-  sed 's/^  SKIP_NAMES=(//; s/)$//' | tr '\n' ' ' | tr -s ' ' | sed 's/ $//')"
-expect "sync's skip list matches audit's default skip list" "sync=[$sync_skips] audit=[$audit_skips]" \
-  is "$sync_skips" "$audit_skips"
+mkdir -p "$TMP/skipdrive/vendor" "$TMP/skipdrive/foo"
+git clone -q "$bare" "$TMP/skipdrive/vendor/dep"
+git clone -q "$bare" "$TMP/skipdrive/foo/dep"
+git clone -q "$bare" "$TMP/skipdrive/app"
+printf '[fleet]\n\tskip = foo\n' >"$TMP/skip-replace.conf"
+replaced="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-replace.conf")"
+expect "fleet.skip stops discovery descending into the named directory" "$replaced" \
+  is "$([[ "$replaced" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "fleet.skip replaces the default set, so a repo under vendor/ is found" "$replaced" \
+  has "$replaced" "$TMP/skipdrive/vendor/dep"
+printf '[fleet]\n\tskipAppend = foo\n' >"$TMP/skip-append.conf"
+appended="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-append.conf")"
+expect "fleet.skipAppend prunes the appended directory" "$appended" \
+  is "$([[ "$appended" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "fleet.skipAppend keeps the defaults, so vendor/ is still pruned" "$appended" \
+  is "$([[ "$appended" == *"$TMP/skipdrive/vendor/dep"* ]] && echo found)" ""
+expect "fleet.skipAppend keeps ordinary repos" "$appended" has "$appended" "$TMP/skipdrive/app"
+printf '[fleet]\n\tskip = a/b\n' >"$TMP/skip-bad.conf"
+bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-bad.conf" >/dev/null 2>&1
+expect "a path-shaped fleet.skip entry is refused with exit 2" "code=$?" is "$?" 2
 
 git clone -q --bare "$bare" "$TMP/evil.git"
 git -C "$TMP/evil.git" update-ref refs/heads/-evil refs/heads/main

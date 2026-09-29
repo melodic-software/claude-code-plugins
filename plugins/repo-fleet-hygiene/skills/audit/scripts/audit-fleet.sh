@@ -1174,6 +1174,9 @@ fi
 
 # shellcheck source=../../../scripts/scope-resolve.sh
 source "${BASH_SOURCE[0]%/*}/../../../scripts/scope-resolve.sh"
+# shellcheck source=../../../scripts/fleet-discovery.sh
+source "${BASH_SOURCE[0]%/*}/../../../scripts/fleet-discovery.sh"
+FLEET_GIT_CMD=run_git_probe
 
 # Data mode: answers before argument parsing, config resolution, and discovery, so a gate reads
 # the registry without running an audit and without requiring git.
@@ -1198,19 +1201,6 @@ DETAIL=false
 PLAN_FILE=""
 APPLY_PLAN=""
 PLAN_FILE_EXPLICIT=false
-
-# Bare directory-name validation for --skip / fleet.skip. Reject empty values and anything with a
-# path separator so a mistaken path cannot silently widen or narrow discovery.
-validate_skip_name() {
-  local name="$1" origin="$2"
-  [[ -n "$name" ]] || fail "invalid ${origin} value (expected a bare directory name): (empty)"
-  case "$name" in
-  */* | *\\*)
-    fail "invalid ${origin} value (expected a bare directory name, no path separator): $name"
-    ;;
-  *) ;;
-  esac
-}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -1456,15 +1446,6 @@ MAX_DEPTH="${MAX_DEPTH:-5}"
 [[ "$MAX_DEPTH" =~ ^[0-9]+$ && "$MAX_DEPTH" -ge 1 && "$MAX_DEPTH" -le 12 ]] ||
   fail "max depth must be an integer from 1 through 12"
 
-resolve_input_path() {
-  local value="$1" base="$2"
-  if [[ "$value" =~ ^/ || "$value" =~ ^[A-Za-z]:[\\/] ]]; then
-    printf '%s\n' "$value"
-  else
-    printf '%s/%s\n' "$base" "$value"
-  fi
-}
-
 # Entries before these counts came from the command line; entries appended from config below sit
 # at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
 # config-sourced path that has since been deleted degrades per-entry (stale-config-entry UNKNOWN)
@@ -1472,12 +1453,9 @@ resolve_input_path() {
 CLI_ROOT_COUNT=${#ROOT_ARGS[@]}
 CLI_REPO_COUNT=${#REPO_ARGS[@]}
 if [[ -n "$CONFIG_FILE" ]]; then
-  while IFS= read -r -d '' value; do
-    [[ -n "$value" ]] && ROOT_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.root 2>/dev/null || true)
-  while IFS= read -r -d '' value; do
-    [[ -n "$value" ]] && REPO_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
+  fleet_load_config_scope "$CONFIG_FILE" "$CONFIG_DIR"
+  ROOT_ARGS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
+  REPO_ARGS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
 fi
 
 # Acknowledged known-inaccessible GitHub identities (fleet.ackUnavailable,
@@ -1502,26 +1480,8 @@ fi
 # vendor plus the package-cache names. --extend-skip / fleet.skipAppend add to whichever list is in
 # effect (#4220). . , .. , and .git stay skipped unconditionally even when an explicit list omits
 # them (#2826).
-if [[ -n "$CONFIG_FILE" ]]; then
-  while IFS= read -r -d '' value; do
-    # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
-    # `skip =` line that git-config returns as an empty string. Do not silently drop them:
-    # an empty-only list would otherwise restore the defaults and quietly omit vendor/.
-    validate_skip_name "$value" "fleet.skip"
-    SKIP_NAMES+=("$value")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
-  while IFS= read -r -d '' value; do
-    validate_skip_name "$value" "fleet.skipAppend"
-    SKIP_APPEND_NAMES+=("$value")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skipAppend 2>/dev/null || true)
-fi
-if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  # Package-manager cache trees never hold an operator's repository, and pnpm and uv lay junctions
-  # and bare .git markers inside them (#4220).
-  SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget
-    __pycache__ .tox)
-fi
-[[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
+[[ -z "$CONFIG_FILE" ]] || fleet_load_config_skip "$CONFIG_FILE"
+fleet_finalize_skip_names
 
 should_skip_dir_name() {
   local name="$1" skip
