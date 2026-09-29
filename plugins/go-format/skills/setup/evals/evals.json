@@ -57,13 +57,13 @@
       "id": 5,
       "name": "headless-toggle-off-reruns-install-never-uninstalls",
       "prompt": "/go-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
-      "expected_output": "Routes the headless change to a plain `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false` rerun, tells the user to pass the scope `claude plugin list` reports for the plugin (`user` when the list labels the home-directory file as both `user` and `project`), cites the marketplace's plugin-reconfiguration convention, rules out uninstalling to reconfigure, and ends by rerunning check in a fresh session and reporting the observed effective value.",
+      "expected_output": "Routes the headless change to a plain `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false` rerun, tells the user to pass `-s user` and not copy a scope from `claude plugin list`, cites the marketplace's plugin-reconfiguration convention, rules out uninstalling to reconfigure, and ends by rerunning check in a fresh session and reporting the observed effective value.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install … --config go_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim (no CLI version restated), and requires the check rerun to happen in a fresh session because a same-session check still reports the OLD value",
-        "Passes the scope `claude plugin list` reports for the plugin, not a fixed `-s user`, and says a rerun at another scope adds an install record there",
+        "Passes `-s user` rather than a scope copied from `claude plugin list`, and says a rerun at another scope adds an install record there",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]
     },

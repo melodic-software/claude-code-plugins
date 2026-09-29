@@ -12,8 +12,8 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 ### Changed
 
 - README and the setup skill state the `go_format_lint_gitignored` exemption (gitignored files are skipped by default; a tracked file matching an ignore pattern stays in scope) and no longer describe the hook as unconditional. The setup `check` action reports the option's effective value, with a matching eval.
-- The setup skill's toggle-off step prints the reconfiguration convention's short form: pass the scope `claude plugin list` reports (`user` when the home directory labels one file as both `user` and `project`), never uninstall to reconfigure, next-session observation, read the output rather than the exit code.
-- README Requirements and the setup `check` action declare Node.js: every hook row launches through `node hooks/exec-bash.mjs`, so without node the hooks do not start.
+- The setup skill's toggle-off step prints the reconfiguration convention's short form: pass `-s user` (not a scope copied from `claude plugin list`), never uninstall to reconfigure, next-session observation, read the output rather than the exit code.
+- README Requirements and the setup `check` action declare Node.js: every hook row launches through `node hooks/exec-bash.mjs`, so without node the hooks do not start. A missing `node` stays a FAIL when the toggle is off, and a PASS on the shell probe does not establish that hooks launch.
 - Corrected released entries, declared here: 0.3.62, 0.3.63, 0.4.2 and 0.4.3 now read "Shared launcher/library sync; no change to this plugin's behavior", since they describe shared code this plugin never calls (or, for 0.4.2, hook rows an earlier entry already changed); 0.4.1 drops the sentence that a row needing a shell stays shell form, which no longer holds.
 
 ## [0.4.5] - 2026-09-28

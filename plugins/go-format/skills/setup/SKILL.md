@@ -44,10 +44,11 @@ what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report those probes informationally and note that re-enabling
+restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
+`node` before the launcher can read the toggle, so both hook rows fail to start.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
@@ -55,6 +56,9 @@ restores the FAIL semantics.
    once-per-session notice instead of formatting.
 3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, so without node the hooks do not start and nothing is enforced.
+   The row reflects Bash's PATH, while Claude Code resolves the hook's `node` from its own
+   environment (`docs/formatter-path-probes.md`), so a PASS here does not establish that hooks
+   launch. If hooks fail to start despite a PASS, report hook availability as unestablished.
 4. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
    `.venv`-style per-repo convention). Report the resolved path and `goimports -h`'s first line
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
@@ -92,17 +96,15 @@ re-verifying. For everything else `apply` only points:
   writes the value) and its verification record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
   Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
-  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
+  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
   (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
   - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
     resets every option to its manifest default.
-  - Scope. Pass the scope `claude plugin list` reports for the plugin, and for a `project` or
-    `local` scope run from that project's directory, so the rerun matches the existing install
-    record. `-s` places the install record and the `enabledPlugins` entry in that scope's settings
-    file; the option value always lands in user settings. A rerun at another scope adds an install
-    record at that scope and enables the plugin there (measured in both directions). When the
+  - Scope. Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option value
+    always lands in user settings. Do not copy a scope from `claude plugin list`: a rerun at
+    another scope adds an install record at that scope and enables the plugin there. When the
     working directory is the home directory, project scope and user scope are the same settings
-    file, so the list can label that one file as both `user` and `project`: pass `user`.
+    file, so the list can label that one file as both `user` and `project`.
   - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
     `check` in a **fresh session** and report the observed effective value, never an unobserved
     change.
