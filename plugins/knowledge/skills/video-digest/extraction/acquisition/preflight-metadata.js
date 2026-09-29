@@ -22,12 +22,12 @@
  * Exit code 2 when any URL resolves to `reject` (lets a caller fail-fast on bad input).
  */
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { classifyErrorDetail, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";

@@ -134,10 +134,8 @@ $CheckBody = {
         $severity = 'OK'
         $summary = 'No winget upgrades available.'
         if ($kevMatches.Count -gt 0) {
-            # The KEV feed carries no affected-version range, so every match is a
-            # vendor/product name match with the installed version never
-            # compared. severity-rubric.md: ambiguous evidence takes the lower
-            # tier, so a name-only match is WARN. CRIT needs a version check.
+            # Name-only match, so WARN: see the KEV feed record in
+            # reference/windows/check-catalog.md (winget-upgrades).
             $severity = 'WARN'
             $cveIds = @($kevMatches | ForEach-Object { "$($_.cve_id)" } | Select-Object -Unique)
             $cveList = ($cveIds | Select-Object -First 5) -join ', '

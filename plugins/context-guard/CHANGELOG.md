@@ -5,17 +5,30 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.88] - 2026-09-29
+## [0.7.89] - 2026-09-29
 
 ### Fixed
 
 - **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
 
+## [0.7.88] - 2026-09-29
+
+### Fixed
+
+- **`zone-crossing-inject` keeps the no-`hook-utils.sh` path for Windows payloads** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The id proof rejected any header containing a backslash, and `transcript_path` and `cwd` carry escaped backslashes on Windows, so every Windows fire loaded the library. The proof now covers the session id and event name only: a backslash inside either value, or a key text that repeats inside another field, still falls back to the library.
+- **`statusline-tee.sh` builds the snapshot body with `jq` when there is no clock** ([#4675](https://github.com/melodic-software/claude-code-plugins/issues/4675)). On bash below 4.2 `printf %(...)T` is missing, and the builtin reader's byte match with `jq` is proven on bash 5.x only, so those hosts skip the reader.
+
+### Changed
+
+- `zone-crossing-inject.sh` names its copies of the shipped band edges and the staleness window, and a test pins them to `context-zone.sh` so the two cannot drift ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
+- `reference/reader-contract.md`: the prompt-cache miss cause section sits after the auto-compact caveats instead of splitting them. `CHANGELOG.md` drops the entries 0.7.82 repeated from 0.7.77 and 0.7.79.
+- README Requirements and `/context-guard:setup check` declare Node.js on `PATH`, which every hook row's `node hooks/exec-bash.mjs` launcher needs. `reference/zone-crossing/PLAN.md` states that its wall-time table and realistic band exclude the launcher and records the launcher's measured start-up.
+
 ## [0.7.87] - 2026-09-28
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- hook-utils.sh: resynced from `lib/` (prerequisite notice latch).
 
 ## [0.7.86] - 2026-09-28
 
@@ -34,7 +47,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows pass neither flag.
 
 ## [0.7.83] - 2026-09-28
 
@@ -44,15 +57,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.7.82] - 2026-09-28
 
-### Added
-
-- **`prompt-cache-cause.py` reads `prompt_cache.last_miss_cause`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The script prints the native cause names from a statusline payload (`tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, `likely_server_side`, and the counts that ride with the first two). A missing object and a null cause are distinct. The tee snapshot still copies `context_window` only.
-
-### Changed
-
-- **1M auto-compact exception list re-fetched.** `reference/reader-contract.md` stamps the model-config default-threshold list at 2026-09-28. Opus and Fable compacting shortly before the 1M limit is that page's "about 967K tokens by default" for native 1M models.
-
-- **The README no longer says no auto-compact threshold is published** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The model-config page read on 2026-09-28 still publishes about 967K tokens for a native 1M window. The reader contract already carried that figure. The README now points at it.
+No plugin change in this release.
 
 ## [0.7.79] - 2026-09-28
 

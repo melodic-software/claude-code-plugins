@@ -509,7 +509,7 @@ class MypyReportCollectTests(unittest.TestCase):
                     ("ok/other.py", (1, 5, 80.0)),
                 ],
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
             self.assertEqual(
                 note.read_text(encoding="utf-8"),
                 "1 of 3 scope file(s) not measured: mypy derives the same module "
@@ -550,10 +550,11 @@ class MypyReportCollectTests(unittest.TestCase):
                 cwd=Path(tmp),
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            rows = rows_of(result)
             self.assertEqual(
-                [r["file"] for r in rows_of(result)],
-                [None, "pkg/mod.py", "ok/other.py"],
+                [r["file"] for r in rows], [None, "pkg/mod.py", "ok/other.py"]
             )
+            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
             self.assertIn(
                 "not measured: mypy derives the same module name as an earlier "
                 'scope file for other/mod.py (as "mod")',
@@ -599,6 +600,7 @@ class MypyReportCollectTests(unittest.TestCase):
                 [r["file"] for r in rows], [None, "a-dir/mod.py", "ok/other.py"]
             )
             self.assertGreater(rows[0]["values"]["expressions_total"], 0)
+            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
             self.assertIn("b-dir/mod.py", note.read_text(encoding="utf-8"))
 
     def test_a_usage_error_that_is_not_the_pairing_rule_is_still_exit_4(self) -> None:

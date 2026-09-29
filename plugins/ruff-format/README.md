@@ -49,6 +49,8 @@ own and runs only when your repo has opted into Ruff.
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash. A missing `node` is a hook launch error, not a skip notice.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **Ruff** available to the repo. Installed in the repo's `.venv` (the hook

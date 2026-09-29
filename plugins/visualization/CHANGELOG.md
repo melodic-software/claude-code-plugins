@@ -3,6 +3,16 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-09-29
+
+### Fixed
+
+- **The plugin manifest description gates the design canvas clause** ([#4054](https://github.com/melodic-software/claude-code-plugins/issues/4054)). `plugin.json` still listed "where the bundled design skill is available" inside the form list, an ungated presence claim the `visualize` skill description dropped in 0.8.0. The clause leaves the list, and the description now says "When the bundled design skill resolves in this session, it is preferred for a hand-editable design canvas; this skill chooses the form and medium."
+
+### Changed
+
+- **The `design` registry row cites the description phrase** ([#4055](https://github.com/melodic-software/claude-code-plugins/issues/4055)). The `design` to `visualization:visualize` row in `docs/native-surfaces` claimed a baked description phrase without an evidence bullet quoting it. The row now quotes the gated description sentence, as the sibling `explore-directions` row does.
+
 ## [0.8.1] - 2026-09-28
 
 ### Changed

@@ -9,7 +9,7 @@
     },
     {
       "id": 2,
-      "prompt": "The test I wrote is failing. I think the fix is obvious \u2014 let me just change the code.",
+      "prompt": "The test I wrote is failing. I think the fix is obvious — let me just change the code.",
       "expected_output": "Routes to context/loop.md (test failure + fix intent). Enforces the full feedback loop: reproduce (write failing test first), isolate (root cause, not symptom), fix (minimal change), retest (original test must pass), regression (all affected tests). Does not skip steps even if the fix seems obvious.",
       "files": []
     },

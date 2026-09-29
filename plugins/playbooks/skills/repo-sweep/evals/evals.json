@@ -31,7 +31,7 @@
       "id": 3,
       "name": "next-runs-one-step-and-ticks",
       "prompt": "/playbooks:repo-sweep next",
-      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the override as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
+      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the entry's override and notes, when it has them, as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
       "files": [],
       "expectations": [
         "Ticks the step in progress with tick.sh before invoking the skill",
@@ -67,7 +67,7 @@
     {
       "id": 6,
       "name": "review-files-only-after-approval",
-      "prompt": "/playbooks:repo-sweep review. batch-simplify opened its own PR even with the override, and the audit-noise entry should run before derivability.",
+      "prompt": "/playbooks:repo-sweep review. batch-simplify opened its own PR even with the in-place flag, and the audit-noise entry should run before derivability.",
       "expected_output": "Runs plugin-quality:audit on batch-simplify and drafts an issue against code-tidying, drafts a separate catalog issue for the ordering problem, shows both drafts, and files each only after approval.",
       "files": [],
       "expectations": [

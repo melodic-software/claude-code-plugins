@@ -1,6 +1,7 @@
 # Official source record
 
-Fetched and re-verified 2026-07-16. Recheck trigger: any GitHub GraphQL or REST rate-limit change,
+Fetched and re-verified 2026-07-16, except the Git entries dated 2026-09-29 under "Git claims the
+skill bodies restate", which were fetched that day. Recheck trigger: any GitHub GraphQL or REST rate-limit change,
 any change to the Git commands or porcelain fields the collector parses, and each Claude Code
 minor release that touches skills, plugins, or `allowed-tools`. These sources define the runtime
 and evidence contracts; the plugin does not rely on remembered behavior.
@@ -31,6 +32,44 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 - [`git worktree`](https://git-scm.com/docs/git-worktree): stable porcelain output, `locked` and
   `prunable` annotations, the linked-worktree `.git` file/common-directory relationship, repair after
   moves, and the instruction to use Git plumbing instead of assuming administrative paths.
+
+### Git claims the skill bodies restate
+
+Each entry: claim, basis, as-of date, recheck trigger.
+
+- **`ls-remote` probes the remote's live refs and reports no match as success.** Basis:
+  [`git ls-remote`](https://git-scm.com/docs/git-ls-remote): `--exit-code` "Usually the command
+  exits with status 0 to indicate it successfully talked with the remote repository, whether it
+  found any matching refs." As of 2026-09-29. Recheck when the collector's ls-remote probe changes
+  or that page changes the exit-status text.
+- **`--heads` limits output to `refs/heads`.** Basis: the same page, where `--heads` and `-h` are
+  "deprecated synonyms for `--branches` and `-b` and may be removed in the future". As of
+  2026-09-29. Recheck when a Git release removes `--heads` or the collector moves to `--branches`.
+- **`ls-remote --symref origin HEAD` names the remote's default branch.** Basis: the same page,
+  `--symref`: shows "the underlying ref pointed by" a symbolic ref, and "upload-pack only shows the
+  symref HEAD". As of 2026-09-29. Recheck when the sync skill's default-branch probe changes or
+  that page changes the `--symref` text.
+- **`git -C <path> config` honors `includeIf`, so a repository's own `worktreeroot.path` is read
+  per repository.** Basis: [`git config`](https://git-scm.com/docs/git-config), Includes: the
+  `gitdir` condition matches when "the location of the .git directory matches the pattern", and
+  for a linked worktree the location is the final `.git` directory, not the `.git` file. As of
+  2026-09-29. Recheck when the collector's worktree-root read changes or that section changes.
+- **`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and `GIT_CONFIG_COUNT` replace or neutralize the
+  global, system and environment configuration layers.** Basis: the same page, Environment:
+  `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` "take the configuration from the given files instead
+  from global or system-level configuration"; `GIT_CONFIG_COUNT` adds `GIT_CONFIG_KEY_<n>` /
+  `GIT_CONFIG_VALUE_<n>` pairs, and an empty or zero count processes none. As of 2026-09-29.
+  Recheck when the collector's environment scrub changes or that section changes.
+- **The `ls-remote` transport comes from global and system configuration.** Basis:
+  [`core.sshCommand`](https://git-scm.com/docs/git-config) (read from the page source,
+  `Documentation/config/core.adoc`): "`git fetch` and `git push` will use the specified command
+  instead of `ssh`" and it is "overridden when the environment variable is set"; and
+  [`gitcredentials`](https://git-scm.com/docs/gitcredentials): `credential.helper` is read from
+  configuration, and helpers are tried in turn until Git has a username and password. As of
+  2026-09-29. Recheck when either entry changes or a transport setting the probe depends on is
+  added or removed. The `core.sshCommand` text names fetch and push, not `ls-remote`; that
+  `ls-remote` also uses it is not stated on the page and rests on `ls-remote` connecting through
+  the same transport.
 
 ## GitHub
 

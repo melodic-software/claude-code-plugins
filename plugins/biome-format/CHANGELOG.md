@@ -3,11 +3,22 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.6] - 2026-09-29
+## [0.7.7] - 2026-09-29
 
 ### Fixed
 
 - **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.7.6] - 2026-09-29
+
+### Fixed
+
+- The session-start prerequisite probe honors the `biome_format_enabled` kill switch: its `hooks.json` row launches with `--run-if-unset-or-true BIOME_FORMAT_ENABLED`, so a disabled plugin no longer prints the missing-Biome notice ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).
+
+### Changed
+
+- README Requirements states the two skip-notice latch classes once, lists Node.js (every hook row launches through `hooks/exec-bash.mjs`) and describes the session-start probe. `/biome-format:setup check` names the probe as a separate resolver, gains a Node row (still FAIL when the toggle is off, and a PASS is scoped to Bash's `PATH`), reads the probe script for its walk instead of restating it, and reports `biome_format_lint_gitignored`. `/biome-format:check` states that setup's pre-computed rows are not rendered when it reads the file, so it runs every probe through Bash.
+- The 0.7.2, 0.6.59 and 0.6.58 entries are reworded in place to "shared launcher/library sync; no change to this plugin's behavior". The 0.7.2 entry said this plugin's hook rows were unchanged, but 0.7.1 (the same commit) changed them. The 0.6.59 and 0.6.58 entries described `hook::shell_c_operand` and `hook::bash_parse_segments`, which no hook here calls.
 
 ## [0.7.5] - 2026-09-28
 
@@ -31,7 +42,7 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- Shared launcher/library sync; no change to this plugin's behavior ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
 
 ## [0.7.1] - 2026-09-28
 
@@ -49,13 +60,13 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
 
 ### Changed
 
-- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+- hook-utils.sh: shared launcher/library sync; no change to this plugin's behavior ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
 
 ## [0.6.58] - 2026-09-27
 
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- hook-utils.sh: shared launcher/library sync; no change to this plugin's behavior ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
 
 ## [0.6.57] - 2026-09-27
 

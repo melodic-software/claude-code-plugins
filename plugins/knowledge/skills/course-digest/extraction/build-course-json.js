@@ -13,8 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { invokedAsCli } from "./lib/cli-main.js";
-
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { resolveAuthStatePath } from "./lib/auth-store.js";
@@ -247,7 +246,7 @@ async function main() {
   await closeBrowser(context, browser);
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     writeStderr("Fatal:", e);
     process.exit(1);

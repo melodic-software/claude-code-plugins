@@ -5,13 +5,13 @@
       "id": 1,
       "name": "privilege-boundary-not-interactive-wizard",
       "prompt": "The operator has to run the machine configuration elevated. Every step is scriptable. Write the script I will launch. Do not walk me through clicks.",
-      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It copies template.ps1, leaves the library above # STAGES unchanged, and writes the procedure in the -Stages block of the Invoke-UnattendedRun call below # STAGES, with Assert-Elevation -Mode Required and no per-step confirmation. It prints the # STAGES block for approval, names the result-latest.json path (cutover.result/1) the agent will read back, and does not run the script.",
+      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It copies template.ps1, leaves the library above # STAGES unchanged, and writes the procedure in the -Stages block of the Invoke-UnattendedRun call below # STAGES, with Assert-Elevation -Mode Required and no per-step confirmation. It prints the # STAGES block for approval, names the result-latest.json path (cutover.result/1) the agent will read back, and does not launch the real run; it runs `-Test` only after the human approves the block.",
       "expectations": [
         "Chooses unattended rather than the interactive generate wizard",
         "Authors PowerShell from template.ps1 without editing the library above # STAGES",
         "Demands elevation with Assert-Elevation -Mode Required",
         "Names the result-latest.json path the agent will read back",
-        "Does not execute the script"
+        "Does not launch the real run"
       ]
     },
     {
@@ -34,6 +34,44 @@
       "expectations": [
         "Does not emit an unattended script for a dashboard click",
         "Routes that procedure to /wizard:generate"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "failed-proof-keeps-resource-held",
+      "prompt": "Write the unattended script that drains the build pool, restarts the agent host, and puts the pool back. Drain requests can exit nonzero even when the drain worked, and the check I have returns false while pools are still active.",
+      "expected_output": "The script uses Use-GuardedResource with a Prove block that throws or emits a truthy value; a Prove that returns $false keeps the resource held and Release never runs. The drain is proven with Wait-ForState polling the outcome (an assertion of a non-empty observation plus none active), not the exit code of the drain request, and -TolerateTakeExit is used because the request can exit nonzero.",
+      "expectations": [
+        "Wraps the drain in Use-GuardedResource with Take, Prove and Release blocks",
+        "States that a Prove result of false, no output or a nonzero native exit keeps the resource held and skips Release",
+        "Proves the state with Wait-ForState polling the outcome rather than trusting the exit code of the request",
+        "Makes the Wait-ForState predicate assert a non-empty observation so an empty listing cannot pass",
+        "Does not launch the real run"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "wsl-list-parse-is-guarded",
+      "prompt": "Write the unattended script that unregisters the WSL distro Ubuntu-26.04 only if it exists. Skip it when the distro is already gone.",
+      "expected_output": "The script reads the distro listing through Invoke-NativeUtf8 (wsl.exe writes UTF-16 otherwise) and passes the parsed names through Assert-ParsedState before any -Done guard, so an empty or failed read stops the run instead of reading as already absent. The unregister is declared with -Irreversible 'wsl --unregister Ubuntu-26.04', runs last, and sits behind Confirm-Irreversible. It re-verifies the distro is gone with Wait-ForState afterwards.",
+      "expectations": [
+        "Wraps the wsl.exe listing in Invoke-NativeUtf8",
+        "Passes the parsed listing through Assert-ParsedState before the -Done guard",
+        "Declares the unregister in -Irreversible on Invoke-UnattendedRun",
+        "Places the destructive step last behind Confirm-Irreversible",
+        "Re-verifies the outcome with Wait-ForState after the destructive step"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "preview-the-run-with-whatif-and-test",
+      "prompt": "Before I launch the elevated cutover script, I want to see what it would do without changing anything. How do I preview it, and can you check it yourself?",
+      "expected_output": "The skill tells the human to run the script with -WhatIf first and read its narration and blast radius counts, then make the real launch. After the human approves the # STAGES block, the agent's own safe entry is pwsh -File <script> -Test (safe only when every effect sits inside a helper's block), which reports the delta in result-dry-latest.json and invokes no mutating block. It notes the agent never launches the real run and that a dry run checks the plan and prerequisites, not that a state is reached.",
+      "expectations": [
+        "Tells the human to run -WhatIf first and read the narration and blast radius",
+        "Names -Test as the agent-safe entry and reads result-dry-latest.json",
+        "Does not launch the real run",
+        "States that a dry run does not prove the target state is reached"
       ]
     }
   ]

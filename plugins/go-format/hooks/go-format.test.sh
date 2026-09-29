@@ -2,7 +2,7 @@
 # Black-box contract test for go-format.sh (the go-format plugin hook).
 #
 # Proves WIRING: the hook fires only on *.go files (extension pre-filter),
-# runs goimports UNCONDITIONALLY (no consumer-config opt-in gate — the one
+# runs goimports with no consumer-config opt-in gate (gitignored files aside; the one
 # deliberate shape difference from ruff-format/typos-format; see
 # docs/topics/832-go-ecosystem/PLAN.md Open Decision 1), skips files carrying
 # Go's generated-code marker, autofixes imports/formatting in place, surfaces
@@ -560,12 +560,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   # The one row outside this gate is the SessionStart prerequisite probe, exec
   # form, which is asserted on its own here.
   ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, $probe])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "GO_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "GO_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh"
+    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind the go_format_enabled gate"
   else
-    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row, found $PROBE_COUNT"
+    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row gated on GO_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -583,6 +583,48 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+
+# --- SessionStart probe honors go_format_enabled ------------------------------
+# With the option false the plugin is off, so the missing-goimports notice is
+# noise. The row's --run-if-unset-or-true gate makes the launcher exit 0 before
+# bash starts. The argv is read out of hooks.json, so the row and this test
+# cannot disagree. The unset and true cases guard against gating everything off.
+NODE_BIN="$(command -v node || true)"
+SYS_PATH="/usr/bin:/bin"
+if [[ -z "$NODE_BIN" ]] || ! command -v jq >/dev/null 2>&1; then
+  echo "SKIP: node or jq not on PATH -- SessionStart probe gate cases skipped"
+elif PATH="$SYS_PATH" command -v goimports >/dev/null 2>&1; then
+  echo "SKIP: goimports is under $SYS_PATH -- SessionStart probe gate cases skipped"
+else
+  PROBE_ARGS=()
+  while IFS= read -r probe_arg; do
+    PROBE_ARGS+=("${probe_arg//\$\{CLAUDE_PLUGIN_ROOT\}/${HOOK_DIR%/*}}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  # run_probe_row <data-dir> [NAME=value ...]: the row under a clean environment.
+  run_probe_row() {
+    local data="$1"
+    shift
+    env -i PATH="$SYS_PATH" CLAUDE_PLUGIN_DATA="$data" "$@" "$NODE_BIN" "${PROBE_ARGS[@]}" <<<'{"session_id":"s1"}'
+  }
+  for probe_case in false unset true; do
+    PROBE_DATA="$(mktemp -d "$WORK/probe-data.XXXXXX")"
+    probe_env=()
+    [[ "$probe_case" == unset ]] || probe_env=("CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=$probe_case")
+    PROBE_OUT="$(run_probe_row "$PROBE_DATA" ${probe_env[@]+"${probe_env[@]}"})"
+    PROBE_RC=$?
+    if [[ "$probe_case" == false ]]; then
+      if [[ $PROBE_RC -eq 0 && -z "$PROBE_OUT" ]]; then
+        ok "probe-gate/false: go_format_enabled=false exits 0 with no goimports notice"
+      else
+        fail "probe-gate/false: want rc 0 and empty stdout (rc=$PROBE_RC out=$PROBE_OUT)"
+      fi
+    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports was not found"* ]]; then
+      ok "probe-gate/$probe_case: go_format_enabled $probe_case still reports the missing goimports"
+    else
+      fail "probe-gate/$probe_case: want rc 0 and the missing-goimports notice (rc=$PROBE_RC out=$PROBE_OUT)"
+    fi
+  done
 fi
 
 # --- Gitignored path (#4671): not rewritten by default ------------------------

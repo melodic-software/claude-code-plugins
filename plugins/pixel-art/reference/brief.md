@@ -62,13 +62,6 @@ When the request is vague (no subject, or no checkable done criterion) or high-s
 
 ## Recorded decisions
 
-Three-way check, 2026-09-28. Aseprite's CLI exports a sheet and data and has no authoring-brief field, so done criteria stay out of `sheet.json`. `craft-static.md` treats silhouette, palette, and grid as what change the pixels, so style references and proportions are brief fields and everything else is a stated default. Claude Code loads a plugin's skills only when that plugin is installed, so the planning interview is a presence-gated offer and this file is the fallback.
-
-- **Claim.** Aseprite's CLI export surface is `--sheet`, `--data`, and related sprite export flags. It does not define an authoring brief or a done-criteria sidecar.
-- **Basis.** [Aseprite CLI](https://www.aseprite.org/docs/cli/), read 2026-09-28.
-- **As of.** 2026-09-28.
-- **Recheck.** An Aseprite release whose CLI docs add a brief, a review rubric, or a metadata sidecar that this plugin's `sheet.json` would be expected to carry.
-
 - **Claim.** An enabled Claude Code plugin contributes its skills to the session; a skill from another plugin is not available unless that plugin is installed. The full skill text loads when the skill is used.
 - **Basis.** [Plugins overview](https://code.claude.com/docs/en/plugins), sections "Decide whether you need a plugin" and "What an enabled plugin adds to your sessions", read 2026-09-28.
 - **As of.** 2026-09-28.

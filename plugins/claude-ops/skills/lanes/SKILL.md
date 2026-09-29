@@ -252,10 +252,8 @@ minor version moves, or a release note names background sessions, the
 background session, return immediately; `--permission-mode auto` is what makes
 an unattended lane run past its first permission prompt instead of stalling
 under a machine's Manual default; `--permission-prompts none` is added when
-`claude --version` is at least 2.1.259 and denies whatever would still fall
-through to a prompt, including `AskUserQuestion`, while auto mode keeps
-deciding; older CLIs reject the flag, so it is omitted there; a probe on
-Claude Code 2.1.282 accepted that flag together with `--bg`; `--settings`
+`claude --version` is at least 2.1.259, and older CLIs reject it, so it is
+omitted there (see the Record below); `--settings`
 accepts inline JSON and applies session-only, per the CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
@@ -265,47 +263,19 @@ sessionId, name, status),
 only for a configured lane name.
 
 **Record.** Claim: an unattended lane launches with `--permission-mode auto`, and
-with `--permission-prompts none` when `claude --version` is at least 2.1.259, so
-auto mode still decides and a prompt that would have asked a person is denied.
+with `--permission-prompts none` when `claude --version` is at least 2.1.259.
+The flag is documented for print mode and unattended runs; whether a `--bg` lane
+honors it, and so denies a prompt that would have asked a person, is not probed.
 Basis:
 <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs>
 and the `--permission-prompts` row of
 <https://code.claude.com/docs/en/cli-reference> (the row says print mode). A
-probe on Claude Code 2.1.282 accepted the flag together with `--bg` and
-`--permission-mode auto` and backgrounded a session, which was then stopped.
+probe on Claude Code 2.1.282 showed only that `--bg` accepts the flag together
+with `--permission-mode auto` and backgrounds a session, which was then stopped.
 As of: 2026-09-28. Recheck: the CLI flag row stops listing `none`, a `--bg`
-launch rejects the flag, or a release note changes what `none` denies.
-
-### Not wired, recorded 2026-09-28
-
-Three Claude Code 2.1.257 to 2.1.263 capabilities stay out of the launcher.
-
-- **`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** **Claim:** lanes do not set it. It
-  ignores the `model` field of every subagent definition, which is what the
-  fleet's tier bindings are. A skill that runs in a subagent with
-  `model: inherit` still uses the main conversation's model, and setting only
-  the force variable runs subagents on the main conversation's model.
-  **Basis:** [env-vars](https://code.claude.com/docs/en/env-vars) and
-  [sub-agents: run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
-  **As of:** 2026-09-28. **Recheck trigger:** that sub-agents section stops
-  saying the force variable ignores definition `model` fields.
-- **`/advisor` in the launch prompt.** **Claim:** lanes do not invoke it. The
-  text form works in `-p`, the Agent SDK, the desktop app, and Remote Control
-  from v2.1.260, and the page calls the tool experimental and says it may use
-  more tokens. **Basis:**
-  [advisor](https://code.claude.com/docs/en/advisor#use-the-advisor-command).
-  **As of:** 2026-09-28. **Recheck trigger:** a lane prompt or this skill's
-  launch contract starts requiring an advisor.
-- **`claude --resume <id> --bg` for `lanes restart`.** **Claim:** restart
-  stops the running session and launches a new one. It does not resume the
-  old id in the background. The cli-reference documents `--resume` and `--bg`
-  as separate flags and does not document the combination, including prompt
-  and `--name` handling. **Basis:**
-  [cli-reference](https://code.claude.com/docs/en/cli-reference), the
-  `--resume` and `--bg` rows, fetched 2026-09-28 (the `--resume` cell does not
-  mention `--bg`). **As of:** 2026-09-28. **Recheck trigger:** the
-  `--resume` row documents combining it with `--bg`, including what happens
-  to the prompt and the session name.
+launch rejects the flag, a release note changes what `none` denies, or a probe of
+a `--bg` lane whose prompt would ask (`AskUserQuestion` or a `permissions.ask`
+rule) records what the lane does.
 
 ## Gotchas
 
