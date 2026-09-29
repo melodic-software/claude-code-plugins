@@ -21,8 +21,8 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   among the record's fields again (a splice had detached them from the sentence) and documents
   the two harness-only `cli-parse` marker lines, `Caveat:` and `<!-- synthesized-zero: -->`, as
   the hermetic test's input contract. The README's ConfigChange wording now matches the hooks
-  page (Claude Code 2.1.284): a block does not apply to `policy_settings` changes, and the hook
-  can surface a `systemMessage`.
+  page (Claude Code 2.1.284): a block does not apply to `policy_settings` changes, the hook
+  discards `systemMessage`, and a blocked change surfaces no message.
 - **Connectors lever.** The 2.1.259 `allowedMcpServers` fact is stated once, in the caveat,
   and the lever rows no longer cite changelog item ids. The manifest description says `fix`
   applies one approved project-scope trim instead of "applies nothing".
