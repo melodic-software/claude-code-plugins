@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.13] - 2026-09-29
+
+### Fixed
+
+- **The interview defenses suite pins the current `interview` frontmatter.** The 0.45.11 argument-hint rewrite changed the frontmatter digest the suite compares against, so the suite failed on every pull request. Neither pinned defense changed. Test-only.
+
 ## [0.45.12] - 2026-09-28
 
 ### Fixed
