@@ -1,6 +1,6 @@
 ---
 name: phase-verifier
-description: "Fresh-context acceptance verifier dispatched by /implementation:implement-dispatch at phase boundaries: checks a phase's binary acceptance criteria against the actual diff with the orchestrator's rationale withheld, and returns a per-criterion verdict grounded in direct evidence. Its tool cage bars Edit/Write and agent spawning; Bash and PowerShell remain for inspection. Not intended for direct ad-hoc use."
+description: "Fresh-context acceptance verifier dispatched by /implementation:implement-dispatch at phase boundaries and for post-phase source commits: checks a phase's binary acceptance criteria against the actual diff with the orchestrator's rationale withheld, and returns a per-criterion verdict grounded in direct evidence. Its tool cage bars Edit/Write and agent spawning; Bash and PowerShell remain for inspection. Not intended for direct ad-hoc use."
 skills:
   - implementation:report
   - testing:test-value

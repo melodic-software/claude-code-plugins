@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.2] - 2026-09-29
+
+### Changed
+
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return that is neither a findings table nor `No plan gaps found.` as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+
 ## [0.46.1] - 2026-09-29
 
 ### Changed
 
-- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a partial reviewer return (the subagent stopped at `maxTurns`) as incomplete instead of as a finished review ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+- **The surface README states that CI skips the browser checks by choice.** The SKIP line in `surface.test.sh` stays, and the Python unit tests cover the server side in CI ([#4652](https://github.com/melodic-software/claude-code-plugins/issues/4652)).
 
 ## [0.46.0] - 2026-09-29
 
