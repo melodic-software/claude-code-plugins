@@ -967,32 +967,19 @@ def test_legacy_positional_still_works(tmp_path):
     assert "aggregate" not in output
 
 
-def test_plugin_usage_skills_and_hooks(tmp_path):
-    """Plugin skills and plugin-path hook events are counted; others are not."""
-    plugin_cmd = "/home/u/.claude/plugins/cache/mkt/guardrails/1.0.0/hooks/run.sh"
+def test_plugin_usage_counts_plugin_skills_only(tmp_path):
+    """Only `<plugin>:<skill>` Skill invocations count; there is no hooks key."""
 
     def skill(name):
         block = {"type": "tool_use", "name": "Skill", "input": {"skill": name}}
         return {"type": "assistant", "message": {"content": [block]}}
 
-    def hook(command):
-        att = {"type": "hook_success", "hookEvent": "PreToolUse", "command": command}
-        return {"type": "attachment", "attachment": att}
-
     events = [
         skill("plugin-quality:audit"),
         skill("plugin-quality:audit"),
         skill("simplify"),
-        hook(plugin_cmd),
-        hook("/usr/bin/x"),
-        {
-            "type": "system",
-            "subtype": "stop_hook_summary",
-            "hookInfos": [{"command": plugin_cmd}],
-        },
     ]
     result = _run_events(tmp_path, events)
     result.check_returncode()
     usage = json.loads(result.stdout)["data"]["plugin_usage"]
-    assert usage["skills"] == {"plugin-quality:audit": 2}
-    assert usage["hooks"] == {"guardrails": {"PreToolUse": 1, "Stop": 1}}
+    assert usage == {"skills": {"plugin-quality:audit": 2}}

@@ -52,13 +52,13 @@ Run at session end, over what the session used.
    `/plugin-quality:audit <plugin>:<component>` by name.
 2. **Parse this session.** `<python> <path> <session_id> <session-data-dir>`, with the session
    data directory resolved as `/session-flow:retro` "Paths" resolves it. Read
-   `data.plugin_usage`: `skills` maps `<plugin>:<skill>` to an invocation count, and `hooks` maps
-   a plugin to its hook events and counts. A missing `plugin_usage` key means the found parser
-   predates it: say so and stop.
-3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. A
-   plugin with hook events and no skill use gets one `<plugin>` row marked `hooks only`; a plugin
-   with both shows its hook events on its skill rows. Drop this audit's own row unless the
-   operator adds it back.
+   `data.plugin_usage`: `skills` maps `<plugin>:<skill>` to an invocation count. Discovery is by Skill
+   invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot be
+   attributed to a plugin. A missing `plugin_usage` key means the found parser predates it: say
+   so and stop.
+3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. Drop
+   this audit's own row unless the operator adds it back. A plugin whose hooks ran but whose
+   skills did not is added by hand at the confirm step.
 4. **Confirm.** Show the list and wait: the operator removes rows, adds targets by hand, or
    accepts. An empty confirmed list ends the run with "nothing to audit". The list is never
    applied unconfirmed while an operator is present.

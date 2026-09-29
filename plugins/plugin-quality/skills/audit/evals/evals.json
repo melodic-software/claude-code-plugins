@@ -206,12 +206,12 @@
     {
       "id": 16,
       "name": "session-discovers-and-confirms-targets-before-pipeline",
-      "prompt": "The session is over and I used a few plugin skills and hooks. Run /plugin-quality:audit session.",
+      "prompt": "The session is over and I used a few plugin skills. Run /plugin-quality:audit session.",
       "expected_output": "The audit locates the session-flow retro parser (reused, no second parser), parses this session, and reads plugin_usage. It builds a list of used skills ordered by count, shows it, and waits for the operator to confirm, edit or accept before any evidence capture or dispatch. Only the confirmed list becomes the target list.",
       "files": [],
       "expectations": [
         "Reuses the session-flow retro parse_transcript.py rather than writing or embedding a second transcript parser",
-        "Reads the plugin_usage block (skills keyed <plugin>:<skill>, hooks keyed by plugin) from the parser output",
+        "Reads the plugin_usage block (skills keyed <plugin>:<skill>) from the parser output",
         "Presents the discovered list and waits for confirmation before running step 1",
         "Feeds only the confirmed list into the existing target resolution and steps 1 to 6",
         "Stops with a statement that the parser is absent, and does not build a substitute, when the parser cannot be found"
