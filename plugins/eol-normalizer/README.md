@@ -37,6 +37,9 @@ imposes no rules of its own.
 
 ## Requirements
 
+- **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, which then
+  starts Bash. Claude Code's native binary neither ships nor uses Node, so without `node` the
+  hook does not launch and nothing is normalized. [Install Node.js](https://nodejs.org/en/download).
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
@@ -235,14 +238,12 @@ the chunked builtin probe cannot answer across chunk boundaries.
 longer opened for writing, so the hook no longer touches its mtime. No content
 and no reported message changes.
 
-**A disabled hook costs one shell.** The `hooks/hooks.json` row reads
-`eol_normalizer_enabled` itself and exits before the script starts, so the
-harness's shell is the only process a disabled hook creates. Measured on a
-heavily loaded Windows Git Bash host, 15 interleaved trials with the switch off,
-the old row cost about 1.9 times the `bash -c :` floor and the new row ran at
-the floor (medians: old 663 ms, new 289 ms, floor 356 ms). With the
-switch on the row `exec`s the script in place of its own shell, so the process
-count is unchanged.
+**The hook row is exec form.** `hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the
+launcher reads `eol_normalizer_enabled` itself. A disabled hook costs one node process and never
+starts bash. An enabled edit costs that node process plus the bash it spawns for the script. The
+figures above were measured before the launcher, so they exclude the node process. The convention's
+[Exec-form fleet sweep](../../docs/conventions/hook-budget/README.md#exec-form-fleet-sweep)
+records why every hook row takes this form.
 
 ## License
 
