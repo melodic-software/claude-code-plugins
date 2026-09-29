@@ -1,0 +1,72 @@
+{
+  "skill_name": "map-data",
+  "evals": [
+    {
+      "id": 1,
+      "name": "prisma-cardinality-offline",
+      "prompt": "/architecture:map-data\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has orders/schema.prisma and no database connection. User has many Post. Post.authorId is a required foreign key to User.id. diagram_dialect.data is unset. The run is non-interactive.",
+      "expected_output": "collect-data.sh writes data-model.json from the Prisma schema. The source tier is model / prisma. render-data.sh writes an erDiagram whose cardinality is User ||--o{ Post. Column names such as title are absent. The report names the tier.",
+      "narration": true,
+      "expectations": [
+        "Runs collect-data.sh and render-data.sh rather than drawing the diagram by hand",
+        "Does not open a database connection",
+        "The artifact says the source tier is model (prisma)",
+        "The mermaid relationship is User ||--o{ Post",
+        "title does not appear, because --include-columns was not passed",
+        "The dialect is mermaid by default and the report says so"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "several-modules-refuse",
+      "prompt": "/architecture:map-data\n\norders/schema.prisma declares Order and billing/schema.prisma declares Invoice. No --scope argument. The run is non-interactive.",
+      "expected_output": "render-data.sh exits 3. data-model.md lists orders and billing, says scope-unresolved, and contains no erDiagram.",
+      "narration": true,
+      "expectations": [
+        "Does not draw both modules into one diagram",
+        "Names orders and billing as the choices",
+        "The artifact states the refusal",
+        "Stops after the refusal in a non-interactive run"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "migration-mismatch-is-reported",
+      "prompt": "/architecture:map-data --scope shop\n\nshop/schema.prisma declares Post.authorId as required. shop/prisma/migrations/20240101000000_init/migration.sql declares authorId without NOT NULL. Both are tracked.",
+      "expected_output": "The diagram follows the Prisma schema (required, ||--o{). The artifact contains an optionality mismatch and does not drop either declaration.",
+      "narration": true,
+      "expectations": [
+        "source_tool is prisma",
+        "The mismatch kind is optionality",
+        "The drawn cardinality stays ||--o{",
+        "The SQL declaration is not silently treated as the diagram"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "django-and-live-refuse",
+      "prompt": "/architecture:map-data --live\n\nThe repository has a Prisma schema and also app/models.py with a Django model. The operator passed --live.",
+      "expected_output": "The record reason is live-connection-requested. No diagram is drawn and the Prisma file is not read. A separate run without --live, facing Prisma plus Django, refuses with partial-read and still draws nothing.",
+      "narration": true,
+      "expectations": [
+        "Does not open a connection when --live is passed",
+        "Does not fall through to the offline schema on --live",
+        "A Django model beside Prisma is a partial-read refusal, not a Prisma-only diagram",
+        "The artifact names the reason"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "columns-and-dbml",
+      "prompt": "/architecture:map-data --include-columns --dialect dbml\n\nThe team authoring-formats doc is absent. The operator passed --dialect dbml and --include-columns. The schema has Post.title.",
+      "expected_output": "The dialect layer is the argument, not the default. data-model.dbml contains the title column and a Ref for the foreign key.",
+      "narration": true,
+      "expectations": [
+        "Passes --include-columns and --dialect dbml to render-data.sh",
+        "Reports the dialect layer as argument",
+        "title appears in data-model.dbml",
+        "The foreign key is a DBML Ref"
+      ]
+    }
+  ]
+}

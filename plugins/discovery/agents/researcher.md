@@ -83,7 +83,8 @@ load-time machinery, no user turn, no unresolved scope.
   degrade; that pin is why a substituted effort in a preloaded skill body is not this
   value. Follow the envelope line for the source-breadth table in the research skill,
   or the lower row `Budget:` authorizes when it names one. If the line is absent, treat the run
-  as `high`, name that default in the artifact, and mention the omission in `open_questions`. Dated record:
+  as `high`, name that default in the artifact, and mention the omission in `open_questions`.
+  Dated record:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
 - **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
@@ -161,6 +162,11 @@ context, local extractors.
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
 includes projecting names or counts out of it rather than values. Record the gap in
 `open_questions`: what you did not read, and what barred it.
+
+**A credential stays unread too: verify it is present, never read or print its value.** That
+rule, the commands and files it covers, and why no frontmatter key can enforce it are stated once
+in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Credentials stay unread, stated once"). Read it there rather than a restatement here.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
