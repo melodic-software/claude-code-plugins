@@ -16,7 +16,9 @@ plugin.
   model-invocable. The per-plugin form shipped in `biome-format`, `go-format`
   and `markdown-format` (a separate model-invocable `check` skill beside the
   manual `setup`) with no invocation-mode amendment; the class list in
-  `docs/conventions/invocation-mode/README.md` is still three.
+  `docs/conventions/invocation-mode/README.md` is still three. Whether to keep that per-plugin split
+  is an open owner question,
+  [#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240) question 2.
 - **Option 3 (declined):** relax `disable-model-invocation` on `check` only.
   Same effect as option 2 with less structure.
 
@@ -60,6 +62,7 @@ consumes.
 ## Revisit when
 
 - a `setup` skill becomes model-invocable (the Recheck condition above), or
+- the owner rules on the check/setup split in #4240 (question 2), or
 - an operator go names a read-only host-fact document with no setup-skill
   orchestration.
 
