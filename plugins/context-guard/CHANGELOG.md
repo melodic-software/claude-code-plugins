@@ -5,6 +5,18 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.88] - 2026-09-29
+
+### Fixed
+
+- **`zone-crossing-inject` keeps the no-`hook-utils.sh` path for Windows payloads** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The id proof rejected any header containing a backslash, and `transcript_path` and `cwd` carry escaped backslashes on Windows, so every Windows fire loaded the library. The proof now covers the session id and event name only: a backslash inside either value, or a key text that repeats inside another field, still falls back to the library.
+- **`statusline-tee.sh` builds the snapshot body with `jq` when there is no clock** ([#4675](https://github.com/melodic-software/claude-code-plugins/issues/4675)). On bash below 4.2 `printf %(...)T` is missing, and the builtin reader's byte match with `jq` is proven on bash 5.x only, so those hosts skip the reader.
+
+### Changed
+
+- `zone-crossing-inject.sh` names its copies of the shipped band edges and the staleness window, and a test pins them to `context-zone.sh` so the two cannot drift ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
+- `reference/reader-contract.md`: the prompt-cache miss cause section sits after the auto-compact caveats instead of splitting them. `CHANGELOG.md` drops the entries 0.7.82 repeated from 0.7.77 and 0.7.79.
+
 ## [0.7.87] - 2026-09-28
 
 ### Changed
