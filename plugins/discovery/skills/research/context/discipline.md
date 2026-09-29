@@ -137,7 +137,9 @@ numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
    version, the source categories to try, and the fetch recipe under "Primary-source-first
    protocol", with `<scratch>` set to a directory inside this run's memory slice. It returns, per
    gap, each source's URL, its on-disk artifact path, the quoted span, and what the source measures.
-   It returns no verdict. Done when every worker is dispatched in one turn.
+   It returns no verdict. The brief also carries one line: `Credentials: verify presence only, never
+   read or print a value; rule and forbidden commands: ${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md,
+   Credentials stay unread`. Done when every worker is dispatched in one turn.
 3. **Keep the falsification query yourself.** It tests the leading hypothesis the whole run rests
    on, so it never goes to a gap worker.
 4. **Merge, then confirm.** Append each worker's fetches to the fetch log. A worker's return is

@@ -773,6 +773,9 @@ fi
 # token. No frontmatter key can block one shell command, so the rule is
 # instruction held in one place, with every agent pointing at it.
 # ---------------------------------------------------------------------------
+# flat <file>: the file's prose on one line, blockquote markers dropped, so a
+# phrase matches wherever the source wraps it.
+flat() { sed 's/^> //' "$PLUGIN_ROOT/$1" | tr '\n' ' ' | tr -s ' '; }
 cred_heading='^## Credentials stay unread, stated once$'
 assert_present 'the parent contract owns the credential read boundary' \
   'reference/parent-contract.md' "$cred_heading"
@@ -793,6 +796,38 @@ for agent in explorer researcher intent-tracer; do
     "agents/$agent.md" 'gh auth token'
 done
 
+# The rule reaches every agent that holds a shell, not only the three producers:
+# the per-gap workers Phase 2 dispatches and the general-purpose sibling verifier
+# carry the same Bash pool. The sandbox settings live in the claude-config audit
+# reference, so the section points there instead of restating them.
+cred_section="$(sed -n '/^## Credentials stay unread, stated once$/,/^## Read each file once/p' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ' | tr -s ' ')"
+for scope in 'per-gap workers' 'sibling verifier'; do
+  if [[ "$cred_section" == *"$scope"* ]]; then
+    pass "the credential section names the $scope"
+  else
+    fail "the credential section names the $scope"
+  fi
+done
+if [[ "$cred_section" == *allowUnsandboxedCommands* ]]; then
+  fail 'the credential section does not restate the sandbox settings'
+else
+  pass 'the credential section does not restate the sandbox settings'
+fi
+cred_pointer='verify presence only, never read or print a value; rule and forbidden commands: .*parent-contract\.md, Credentials stay unread'
+if [[ "$(flat skills/research/context/discipline.md)" =~ Credentials:\ $cred_pointer ]]; then
+  pass "discipline.md's per-gap worker brief carries the credential pointer"
+else
+  fail "discipline.md's per-gap worker brief carries the credential pointer"
+fi
+assert_present 'the sibling verifier Posture line carries the credential pointer' \
+  'reference/parent-contract.md' "^Posture: .*credentials: $cred_pointer"
+if [[ "$(flat agents/research-verifier.md)" == *'credential file is not to be `Read` either'* ]]; then
+  pass 'agents/research-verifier.md bars a credential file from Read'
+else
+  fail 'agents/research-verifier.md bars a credential file from Read'
+fi
+
 # ---------------------------------------------------------------------------
 # The read-each-file-once rule is stated once and pointed at (#4258)
 #
@@ -801,9 +836,6 @@ done
 # parent contract now, and the agents point at it. The rule's body text must
 # not come back into any agent, so a copy cannot drift.
 # ---------------------------------------------------------------------------
-# flat <file>: the file's prose on one line, blockquote markers dropped, so a
-# phrase matches wherever the source wraps it.
-flat() { sed 's/^> //' "$PLUGIN_ROOT/$1" | tr '\n' ' ' | tr -s ' '; }
 readonce_heading='^## Read each file once, stated once$'
 readonce_phrases=(
   'A file you have already read in this run is still in your context'
