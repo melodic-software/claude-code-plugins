@@ -61,7 +61,7 @@ printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settin
 # NOCLAUDE_PATH holds only the tools the script needs, so no claude resolves and
 # the settings fallback runs; STUB_PATH puts a stub claude ahead of them.
 mkdir -p "$WORK/tools" "$WORK/stub"
-for tool in bash git python3 dirname find sort timeout; do
+for tool in bash git python3 dirname find sort timeout mktemp rm; do
   ln -s "$(command -v "$tool")" "$WORK/tools/$tool"
 done
 NOCLAUDE_PATH="$WORK/tools"
@@ -131,10 +131,12 @@ out="$(run_stub "[]")"
 rc=$?
 expect_eq "cli: an empty list is an empty fleet, not a repository scan" 0 "$rc"
 
-# Unparsable claude output falls back to the settings merge.
+# Unparsable claude output is an error, not a settings fallback.
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
-out="$(run_stub "not json")"
-expect_has "unparsable claude output uses the settings fallback" $'absent-b\tplugin-b\tmissing' "$out"
+out="$(run_stub "not json" 2>&1)"
+rc=$?
+expect_eq "unparsable claude output exits 2" 2 "$rc"
+expect_has "unparsable claude output names the listing" 'claude plugin list --json' "$out"
 rm "$PROJECT/.claude/settings.local.json"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
