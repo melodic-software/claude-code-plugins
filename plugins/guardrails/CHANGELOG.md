@@ -29,6 +29,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - 0.38.1 is a changelog-only-bump note; the over-length fail-closed row, parse-once replay and linear tokenizer text moved to 0.38.0, which shipped that code.
   - 0.37.3 is reduced to "Not released as its own version; see 0.38.0."
 
+## [0.41.9] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.41.8] - 2026-09-28
 
 ### Fixed

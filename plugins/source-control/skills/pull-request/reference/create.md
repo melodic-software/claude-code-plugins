@@ -167,8 +167,9 @@ The script's stderr is left visible on purpose: it carries the deprecation note 
 
 ```bash
 CLOSES_LINE=""
-REFS_LINES=""  # newline-separated `Refs #Y — <why>` lines, populated by the multi-issue or
-                # orphan-PR prompts below; never a closing keyword — see §2.4.1 for routing.
+REFS_LINES=""  # newline-separated `Refs #Y — <why>` bullets for the ## Related section, populated
+                # by the multi-issue or orphan-PR prompts below; never a closing keyword and
+                # not a linkage line — see §2.4.1 for routing.
 if [[ -n "$ISSUE_NUM" ]]; then
   # Validate issue exists in current repo BEFORE shipping `Closes #N`.
   # GitHub auto-close only fires when the issue exists, lives in this repo,
@@ -198,16 +199,17 @@ if [[ "$ISSUE_STATE" == "open" ]]; then   # REST returns `open`/`closed`, not `O
 
 **Multi-issue PR (same branch closes 2+ issues):** after primary line is set, ask user inline:
 
-> *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
+> *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to mention an issue without closing it (a `## Related` bullet, not a linkage line), or `no` to skip."*
 
 Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); collect each accepted `Refs #Y` line into `${REFS_LINES}` instead, never onto the closing-keyword line. §2.4.1 routes `${REFS_LINES}` into a `## Related` section (required by resolved config, or emitted ad hoc when non-empty and not required, per §2.4.1's section-scaffold resolution). GitHub accepts one keyword per issue, comma- or newline-separated.
 
 **Branch lacks issue number (orphan PR, such as a drift sweep, hotfix, or refactor):** prompt with two options:
 
 1. `Closes #<N>`: provide a number to auto-close on merge
-2. `No related issue: <reason>` for an orphan PR, no linkage
+2. `Refs: #<N>`: reference an issue this PR does not close, on a line of its own
+3. `No related issue: <reason>` for an orphan PR, no linkage
 
-To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the repository's own `pr-contract` check's closing-keyword half, so such a PR still picks one of the two options above.
+`Refs: #N` (or `Relates to: #N`) counts as linkage only with the colon and alone on its line; the exact accepted forms are in the header of [`hooks/pr-linkage-validator.sh`](../../../hooks/pr-linkage-validator.sh). A `Refs #N` without the colon is not linkage at the §2.4.2 pre-create gate, the hook, or CI, and a `Refs #N — <why>` entry collected into `${REFS_LINES}` (§2.4.1) is a `## Related` bullet, so a PR carrying only those still needs one of the three options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment. `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -231,7 +233,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
 # REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
@@ -335,7 +337,7 @@ BODY+="$TEMPLATE"
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create. It is a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
 - **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist: sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
-A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the repository's own `pr-contract` check. Only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
+A PR that references an issue without closing it carries `Refs: #N` (or `Relates to: #N`) alone on its own line. That non-closing marker satisfies the §2.4.2 pre-create gate, the `pr-body-linkage-gate` hook, and the repository's own `pr-contract` check; the accepted forms are in the header of [`hooks/pr-linkage-validator.sh`](../../../hooks/pr-linkage-validator.sh). A `Refs #N` without the colon, and the `Refs #Y — <why>` bullets that `${REFS_LINES}` carries into `## Related`, are not linkage. A closing keyword under a negation (`does not close #N`) still registers as a closing reference on GitHub, so the hook and CI block it; use the `Refs:` line instead. When the branch resolves a real `Closes #N` (the common path) linkage is met; a PR that closes nothing needs a `Refs: #N` line or a `No related issue:` line.
 
 ### 2.4.2 Pre-create gate
 
@@ -345,7 +347,7 @@ A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same c
 
 #### 2.4.2.1 Verify closing-keyword line
 
-Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
+Grep assembled `$BODY` for a valid closing keyword, a non-closing `Refs:` marker, or an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
 
 ```bash
 # Case-insensitive — covers ALL 9 valid keywords (close/closes/closed/fix/
@@ -353,21 +355,24 @@ Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches
 # linked-issues docs. The 3-keyword shortcut (Closes|Fixes|Resolves)
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
-# Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
-# satisfy the pr-contract check's closing-keyword half, so accepting
-# it here would clear a body the CI gate then rejects.
+# Non-closing linkage, mirroring NON_CLOSING_ERE in hooks/pr-linkage-validator.sh:
+# `Refs: #N` / `Relates to: #N`, colon required, alone on its line. A bare
+# `Refs #N` is not linkage, so it is not accepted here.
+NON_CLOSING_REGEX='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 OPTOUT_REGEX='^No related issue:'
 
 if printf '%s\n' "$BODY" | grep -iE "$KEYWORD_REGEX" >/dev/null; then
   :  # closing keyword present — gate passes
+elif printf '%s\n' "$BODY" | grep -iE "$NON_CLOSING_REGEX" >/dev/null; then
+  :  # non-closing Refs:/Relates to: marker present — gate passes
 elif printf '%s\n' "$BODY" | grep -E "$OPTOUT_REGEX" >/dev/null; then
   :  # explicit opt-out present — gate passes
 else
-  # No closing keyword AND no opt-out marker. §2.4.0's orphan-PR prompt
+  # No closing keyword, non-closing marker, or opt-out. §2.4.0's orphan-PR prompt
   # should have populated one. If we reach here, either the prompt was
   # skipped or `$CLOSES_LINE` is empty.
-  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (No related issue:)." >&2
-  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | No related issue: <reason>" >&2
+  echo "⚠ PR body lacks a native closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon), a non-closing \"Refs: #N\" (or \"Relates to: #N\") on its own line, and a \"No related issue:\" opt-out." >&2
+  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | Refs: #N | No related issue: <reason>" >&2
   echo "  Aborting PR creation. (Silent proceed would orphan the PR from any tracked issue.)" >&2
   exit 1
 fi

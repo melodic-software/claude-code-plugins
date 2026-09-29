@@ -352,6 +352,22 @@
         "Q1 is recorded `answered` (per API key) from the reply",
         "Asking Q2 and Q4 was not held for the lookup, and Q5, which was downstream of it, is asked once the return lands"
       ]
+    },
+    {
+      "id": 26,
+      "name": "scope-returns-resolved-and-unresolved-rows-and-writes-no-plan-md",
+      "prompt": "/planning:interview scope the nightly report warmup job\n\n[Invoked by a caller skill that records the returned answers in its own commit and wants no plan. The caller declares the run unattended once the first round is answered, so nobody is available after that. The round asks Q1 (which report tables the warmup covers; the survey found the job reads exactly two, so the recommendation is those two), Q2 (how many warmup workers to run, an execution-shape detail), and Q3 (whether to buy the paid cache tier, a spend decision with real tradeoffs and no codebase answer). The user replies: Q1 the two it reads today. Q2 park it, whoever plans this can pick. There is no reply on Q3, and the caller says nobody can answer it.]",
+      "expected_output": "Runs the scope path and stops after returning the decisions. No PLAN.md is created or edited and no Brief is written. The open-question ledger is written to the memory slice, and the register gate runs on the ledger alone, with no --brief cross-check because there is no Brief. The reply carries a `Scope decisions:` section: the resolved row (Q1, the two tables the job reads today) as an answer line, Q2 as a `Deferred:` line led by its Q2 id and carrying the default arbiter `/planning:plan`, and Q3 as a `Blocked:` line led by its Q3 id and carrying `arbiter: USER-RESERVED`. The Q3 line tells the caller to stop and ask the user, so the spend decision is visible to the caller and never assumed. No /planning:plan handoff or other next-step recommendation is offered.",
+      "files": [],
+      "expectations": [
+        "No PLAN.md is created or edited and no Brief section is written; the contract slice is untouched",
+        "A `Scope decisions:` section is returned, and it lists Q1 as resolved with the answer that the warmup covers the two tables the job reads today",
+        "Q2 appears as a `Deferred:` line that leads with its Q2 id and carries the arbiter `/planning:plan`; it is not omitted and not folded into the resolved lines",
+        "Q3 appears as a `Blocked:` line that leads with its Q3 id and carries `arbiter: USER-RESERVED`; it is not omitted, not recorded as an assumption, and not resolved to the paid cache tier or to its absence",
+        "The Q3 line tells the caller to stop and ask the user that question before going on, rather than letting the caller proceed on it",
+        "No /planning:plan handoff, and no other next-step recommendation, is offered; the run stops after returning the decisions",
+        "The open-question ledger is written to the memory slice with Q1 `answered`, Q2 `deferred` and Q3 `blocked`, and the register gate is run on the ledger only, with no --brief cross-check"
+      ]
     }
   ]
 }

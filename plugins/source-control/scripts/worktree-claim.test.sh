@@ -256,6 +256,27 @@ assert_exit "whitespace session id is usage" 2 "$?"
 run_claim report --repo-dir "$UNRELATED"
 assert_exit "report outside a git repo is environment (exit 5)" 5 "$?"
 
+# A git older than 2.36 rejects `worktree list -z`: fail closed (no non-z
+# fallback) and name the floor and the installed version.
+OLD_GIT_BIN="$TEST_TMPDIR/old-git-bin"
+mkdir -p "$OLD_GIT_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the $@ belongs to the generated stub, not here.
+  printf 'case " $* " in *" worktree list "*" -z "*) echo "error: unknown switch z" >&2; exit 129 ;; esac\n'
+  # shellcheck disable=SC2016
+  printf 'if [[ "${1:-}" == --version ]]; then echo "git version 2.35.0"; exit 0; fi\n'
+  printf 'exec %q "$@"\n' "$REAL_GIT"
+} >"$OLD_GIT_BIN/git"
+chmod +x "$OLD_GIT_BIN/git"
+PATH="$OLD_GIT_BIN:$PATH_SAVED"
+run_claim report --repo-dir "$REPO"
+old_git_rc=$?
+PATH="$PATH_SAVED"
+assert_exit "git without worktree list -z fails closed (exit 5)" 5 "$old_git_rc"
+assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
+assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
+
 # s1 must not match s10
 git -C "$REPO" worktree add -q "$EXT/wt-s10" -b feat/s10
 run_claim claim "$EXT/wt-s10" --repo-dir "$REPO" --session-id s10
