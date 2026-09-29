@@ -12,59 +12,23 @@ metadata:
 
 ## Routing. Dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** first, six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open.
+**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** and baseline first ("Pre-dispatch envelope and baseline" below) and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open. Inline runs, and why an un-runnable gate is no reason for one: "Running inline" below.
 
-```text
-Topic: <the resolved topic>
-Reason: <the decision this feeds, and who the output is for>
-Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
-Memory root: <memory_dir>
-Budget: <low|medium|full>, optionally followed by words on the depth this session authorized
-Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
-Capability flags: nested spawning <available|unavailable>
-Source breadth: <low|medium|high|xhigh|max>
-Evidence use: <internal|publish>
-```
-
-`Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
-
-**Run inline instead when any of these holds**, and inline runs the identical discipline; the escape hatch relaxes nothing below:
-
-- **Tight turn-by-turn iteration**. You will redirect the queries as they land. Dispatch is a pre-run choice; the steering loss is mid-run.
-- **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name. Inline moves that cost into this context without reducing it; `breadth=low` (see "Effort, source breadth") is what reduces it.
-- **The invoking context is already a subagent**. Dispatch-by-default is scoped to the main-conversation boundary, so a subagent invoking this skill runs it inline. The outer dispatch already supplied the fresh context. Hoisting, not nesting.
-
-**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker, chained in one call so an unconfigured session sees one prompt; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. The allow rules `/discovery:setup apply` offers cover the probes and the gates alike. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-
-**Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired.
+**Discipline-liveness token.** The dispatched agent echoes this token as `preload_token`, and a missing or mismatched one is a **hard failure: the parent discards the run**.
 
 ```text
 discovery-research-preload-4c1f9a
 ```
 
-A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery. Rationale and the full parent-side contract: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`.
+The disk fallback Reads this same file, so a matching token is file-identity, **not** proof that preload fired. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery. Why a token at all: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Discipline liveness: why a token at all").
 
-**Post-dispatch acceptance gate. Parent-side, before the payload is believed.** `status: complete` and `coverage: complete` are the agent's claims about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope, **carry that path across the dispatch, because it is this gate's input**, never a path read out of the payload: the failure this gate exists to catch is a payload carrying no pointer at all. In order:
+**Post-dispatch acceptance gate. Parent-side, before the payload is believed.** `status: complete` and `coverage: complete` are the agent's claims about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope, **carry that path across the dispatch, because it is this gate's input**, never a path read out of the payload, which may carry no pointer at all. In order:
 
-**Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
+1. **The payload is well-formed**. `preload_token` matches the token verbatim, `preload:` is `fired` or `fallback`, and an `artifact:` pointer is present. Missing token or artifact is a **failed dispatch** whatever the `status` field says. A missing or unrecognized `preload:` field is an out-of-date agent definition, not a pass.
 
-```bash
-# POSIX shells (bash, zsh, Git Bash)
-mkdir -p <memory-slice path> && touch <memory-slice path>/.research-dispatch
-```
+   **And `topic_as_received` matches the topic the parent actually sent**. Compared against the envelope the parent wrote, not against what it meant. A mismatch is a **failed dispatch**: re-dispatch with the topic restated in a form that survives the trip (see "Topic caveats"); do not accept the artifact and mentally translate it. A well-formed payload carrying no `topic_as_received` is an out-of-date agent definition, not a pass.
 
-```powershell
-# PowerShell
-New-Item -ItemType Directory -Force -Path '<memory-slice path>' | Out-Null
-New-Item -ItemType File -Force -Path '<memory-slice path>/.research-dispatch' | Out-Null
-```
-
-The one obligation this gate does not grade (the memory root's `.gitignore` guard) is in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-
-1. **The payload is well-formed**. `preload_token` matches the token verbatim, `preload:` is `fired` or `fallback`, and an `artifact:` pointer is present. Missing token or artifact is a **failed dispatch** whatever the `status` field says. A missing or unrecognized `preload:` field is an out-of-date agent definition, not a pass. A matching token does not prove preload fired; `preload: fallback` is not a discard.
-
-   **And `topic_as_received` matches the topic the parent actually sent**. Compared against the envelope the parent wrote, not against what it meant. It is the only check here that fires on an input that is present and wrong. A mismatch is a **failed dispatch**: re-dispatch with the topic restated in a form that survives the trip (see the caveat under **Topic**); do not accept the artifact and mentally translate it. A well-formed payload carrying no `topic_as_received` is an out-of-date agent definition, not a pass.
-2. **The artifact set is actually on disk, and this run put it there:**
+2. **The artifact set is actually on disk, and this run put it there**, graded against the `.research-dispatch` baseline touched before dispatch:
 
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
@@ -72,19 +36,17 @@ The one obligation this gate does not grade (the memory root's `.gitignore` guar
      --newer-than <that slice>/.research-dispatch --expect-index <the payload's artifact: value>
    ```
 
-   Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. Prefer the shebang path above; `bash "…"` is fine where direct exec is awkward. Only the slice path and `--index-name` are required, and that bare form is still a real gate: every optional check reports `unchecked` rather than passing quietly. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**. **The `index=` path in that output is authoritative** downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
+   Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. `bash "…"` is fine where direct exec is awkward. Only the slice path and `--index-name` are required, and that bare form is still a real gate: every optional check reports `unchecked` rather than passing quietly. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**. **The `index=` path in that output is authoritative** downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
 
-   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The gate grades exactly the path it is given and never scans, so a synthesized root index beside its sub-slice indexes confuses nothing, but a slice-root invocation grades only the synthesis, never any dispatched run. The synthesis then goes to a fresh verifier for criterion 12 before it is surfaced: the dispatch contract's fan-out section.
-3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**. When a `research-checklist.md` sits beside the index step 2 named, run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh"` (or the `.py` twin) on `<that index's directory>/research-checklist.md` and cite its exit status. 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. A gate that could not run is also a FAIL, never a table reading. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
+   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The gate grades exactly the path it is given, so a slice-root invocation grades only the synthesis, never a dispatched run. The synthesis then goes to a fresh verifier for criterion 12 before it is surfaced: the dispatch contract's fan-out section.
 
-   Two limits here are deliberate, and together they are why the ladder clears the slice before any re-dispatch: `--newer-than` binds the **index**, never the ledger, and the ledger gate reads marks rather than provenance, so a ledger an earlier run left behind grades as this one's whenever the new run wrote none.
+3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**. When a `research-checklist.md` sits beside the index step 2 named, run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh"` (or the `.py` twin) on `<that index's directory>/research-checklist.md` and cite its exit status. 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
+
 4. **Source applicability is graded from the headers, not from the payload.** `applicability:` mirrors criterion 13. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <that index's directory> --expect-evidence-use <the envelope's Evidence use value>` and cite its exit status: 0 pass, 1 a violation, 2 ungradeable, and both non-zero values are FAILs.
 
-**Any non-zero exit halts the workflow, and a gate that could not run at all is a FAIL, never a skip.** An invocation above that is denied, prompts and is declined, or errors out halts exactly as a non-zero exit does; do not fall back to reading the directory. Do **not** proceed to planning, a decision, or an edit on research that did not happen. Proceeding is the damage a silently-empty return causes; the missing artifact is only how it starts. Recovery ladder, and the resume-before-discard ordering it takes: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
+**Any non-zero exit halts the workflow, and a gate that could not run at all is a FAIL, never a skip.** An invocation above that is denied, prompts and is declined, or errors out halts exactly as a non-zero exit does; do not fall back to reading the directory. Do **not** proceed to planning, a decision, or an edit on research that did not happen. Recovery ladder, and the resume-before-discard ordering it takes: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`. Clear the slice before any re-dispatch: `--newer-than` binds the **index**, never the ledger, and the ledger gate reads marks, not provenance.
 
-**One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch, and then **re-runs the identical checks above, the artifact gate and the source-applicability gate always, and the coverage-ledger gate whenever a ledger was owed.** The workflow proceeds only when every check that applied comes back 0; otherwise the halt stands and the ladder resumes at the rung it was on.
-
-Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md). It carries the two conditions that bind the write (filename checking and the unchanged unbounded-corpus rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
+**One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write. The parent then **writes the slice itself** and re-runs the identical checks that applied; the workflow proceeds only when every one returns 0. Read the by-value rung before writing: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Recovery ladder"), which binds the write and says when a by-value payload is a failed dispatch.
 
 **Then dispatch the sibling verifier**, once every gate above exits 0, for every row the outcome gate's Owner column marks verifier:
 
@@ -97,7 +59,7 @@ Agent({
 })
 ```
 
-Write its `verification_line` into the index frontmatter, replacing `verification: pending`. A FAIL row sends the run back to the phase that row names. **When you choose not to pay for the verifier** (the cost path), write `verification: skipped (cost)` instead; never leave `pending` once this boundary closes. The artifact gate prints the current value as `verification=<value>`, so a re-run after the write shows it landed. Brief, write-back and project-fit rules: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase. **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
@@ -121,39 +83,13 @@ Each criterion is binary. Read it off an artifact, not from memory. **Any FAIL r
 | 12 | Every accepted claim follows jointly from its cited sources: the claim's primary source measures the claim's variable and population, every cited source passes the variable, population, era and scenario checks or is recorded and not counted toward criterion 4, counter-evidence already read is resolved, and every recorded qualifier survives. Under `evidence_use: publish`, the answer quotes only `current` sources as support. Recipe: the discipline file's "Joint-inference check" | **verifier** | Phase 2. Fetch a source that measures the claim's variable, population, version and scenario, or reattach the qualifier or resolve the counter-evidence in the artifact; else a Gap or Conflicts entry |
 | 13 | **Source applicability recorded and consistent**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py <slice>` exits 0. It checks that every claim names its target `applies_to:`, every source its `published:`, `applies_to:` and `standing:`, that each stored `standing:` matches the one derived from those fields, and that each primary is dated and `current`. Cite the **exit status**; 1 and 2 FAIL, and so does a script that could not run. Applies to every run with claims, inline included | run, **script verdict** | Phase 2. Record the fields, or relabel the source, or find a `current` primary |
 
-**Authoritative + consensus, reconciled:** the primary is the SPINE of a claim and independent corroborators are the CONFIRMATION, so when blog consensus contradicts the primary the primary wins and the conflict is flagged. Subagent returns are Tier 3 until their cited primaries are fetched this turn. **A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations.
-
-> **Scoped exception, a dispatched run of THIS skill is not a Tier-3 subagent return**, because the tier attaches to the artifact and the sources captured in it, never to the transport that carried the pointer. Its exact width, and the two returns it does not cover: the discipline file's "Source tiers".
-
-## Repository context. Gather first
-
-**Only when no topic argument was supplied** (the line under `## Topic` below renders no topic), collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-
-The branch is only a topic fallback: the topic-docs convention derives the topic from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
-
-## Purpose
-
-External research is mandatory before acting on external facts, and its sources are authoritative and official ones fetched this session. Training data drifts, library APIs change, SEO content farms outrank authoritative sources, and AI synthesis tools repackage the same secondary blogs as "multi-source", so cross-tool consensus, primary-source priority and recency verification are what drive accuracy.
-
-Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. A local folder outside any repository (a vendor install directory) or machine state is this skill's too: read it directly and cite those reads as Tier 0 primaries. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline.
+**A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations. Tier-3 reconciliation: "Reconciling sources at the gate" below.
 
 ## Topic
 
 Research the following topic: $ARGUMENTS
 
-A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth".
-
-**A dispatched run does not read that line.** The topic does not reach a preloaded body by argument substitution, and a non-fork subagent has no conversation to fall back on, so **do not rely on seeing an unfilled slot**. Whatever the line above renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. What is and is not documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no topic supplied above, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
-
-**Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `topic_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
+A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth". A dispatched run and a run with no topic: "Topic caveats" below.
 
 ## Disciplines
 
@@ -180,7 +116,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
 one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and run every phase below.
-Dated record: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+Dated record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
 
@@ -200,6 +136,81 @@ version.
 
 The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
 file's "Effort, source breadth".
+
+## Pre-dispatch envelope and baseline
+
+Resolve these before dispatching. The envelope is six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse:
+
+```text
+Topic: <the resolved topic>
+Reason: <the decision this feeds, and who the output is for>
+Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
+Memory root: <memory_dir>
+Budget: <low|medium|full>, optionally followed by words on the depth this session authorized
+Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
+Capability flags: nested spawning <available|unavailable>
+Source breadth: <low|medium|high|xhigh|max>
+Evidence use: <internal|publish>
+```
+
+`Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
+
+**Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
+
+```bash
+# POSIX shells (bash, zsh, Git Bash)
+mkdir -p <memory-slice path> && touch <memory-slice path>/.research-dispatch
+```
+
+```powershell
+# PowerShell
+New-Item -ItemType Directory -Force -Path '<memory-slice path>' | Out-Null
+New-Item -ItemType File -Force -Path '<memory-slice path>/.research-dispatch' | Out-Null
+```
+
+The one obligation the acceptance gate does not grade (the memory root's `.gitignore` guard) is in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+
+## Running inline
+
+**Run inline instead when any of these holds**, and inline runs the identical discipline; the escape hatch relaxes nothing in this skill:
+
+- **Tight turn-by-turn iteration**. You will redirect the queries as they land. Dispatch is a pre-run choice; the steering loss is mid-run.
+- **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name. Inline moves that cost into this context without reducing it; `breadth=low` (see "Effort, source breadth") is what reduces it.
+- **The invoking context is already a subagent**. Dispatch-by-default is scoped to the main-conversation boundary, so a subagent invoking this skill runs it inline. The outer dispatch already supplied the fresh context. Hoisting, not nesting.
+
+**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker, chained in one call so an unconfigured session sees one prompt; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. The allow rules `/discovery:setup apply` offers cover the probes and the gates alike. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+
+## Reconciling sources at the gate
+
+**Authoritative + consensus, reconciled:** the primary is the SPINE of a claim and independent corroborators are the CONFIRMATION, so when blog consensus contradicts the primary the primary wins and the conflict is flagged. Subagent returns are Tier 3 until their cited primaries are fetched this turn.
+
+> **Scoped exception, a dispatched run of THIS skill is not a Tier-3 subagent return**, because the tier attaches to the artifact and the sources captured in it, never to the transport that carried the pointer. Its exact width, and the two returns it does not cover: the discipline file's "Source tiers".
+
+## Topic caveats
+
+**A dispatched run does not read the `Research the following topic:` line.** The topic does not reach a preloaded body by argument substitution, and a non-fork subagent has no conversation to fall back on, so **do not rely on seeing an unfilled slot**. Whatever the `## Topic` line renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. What is and is not documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no topic supplied under `## Topic`, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
+
+**Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `topic_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
+
+## Repository context. Gather first
+
+**Only when no topic argument was supplied** (the line under `## Topic` above renders no topic), collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+The branch is only a topic fallback: the topic-docs convention derives the topic from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
+
+## Purpose
+
+External research is mandatory before acting on external facts, and its sources are authoritative and official ones fetched this session. Training data drifts, library APIs change, SEO content farms outrank authoritative sources, and AI synthesis tools repackage the same secondary blogs as "multi-source", so cross-tool consensus, primary-source priority and recency verification are what drive accuracy.
+
+Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. A local folder outside any repository (a vendor install directory) or machine state is this skill's too: read it directly and cite those reads as Tier 0 primaries. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline.
 
 ## Phases
 
@@ -236,6 +247,12 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 - **Does not write code**. Researches only; execution is a separate step
 - **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases, at the row caller effort or a `breadth=` token selects
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
+
+## Next
+
+- Findings are ready to act on: `/planning:plan`.
+- A multi-topic or workflow-driven pass: `/discovery:research-deep`.
+- The reasons behind a past decision: `/discovery:trace-intent <subject>`.
 
 ## See also
 

@@ -206,6 +206,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `visualization:visualize` (skill)
 - **Evidence:**
+  - our SKILL.md description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium'; the plugin.json description carries the same gate
   - our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check
   - catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line
   - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build
