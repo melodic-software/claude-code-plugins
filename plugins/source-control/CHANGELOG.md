@@ -7,7 +7,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three string plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. Step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three string plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
 
 ## [0.62.23] - 2026-09-29
 
