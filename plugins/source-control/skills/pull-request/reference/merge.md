@@ -46,9 +46,20 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
+In a regular checkout:
+
 ```bash
 gh pr merge <pr_number> --squash --delete-branch
 ```
+
+In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`, or `git worktree list` shows more than one entry), omit `--delete-branch`: gh then tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote branch separately, unless the repo deletes head branches on merge:
+
+```bash
+gh pr merge <pr_number> --squash
+[ "$(gh repo view --json deleteBranchOnMerge -q .deleteBranchOnMerge)" = true ] || git push origin --delete <branch>
+```
+
+4.3 deletes the local branch.
 
 **Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
