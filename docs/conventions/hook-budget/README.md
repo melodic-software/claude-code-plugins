@@ -137,7 +137,9 @@ Every shipped hook row is exec form ([#3686](https://github.com/melodic-software
   is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
   the sweep. No paired before-and-after run with the launcher is recorded here, so the launcher's
-  added time is unmeasured in this doc.
+  added time is unmeasured in this doc. The operator's paired run is carried by
+  [#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686); its k and S figures
+  go into this section when it is posted.
 
 ## Rules
 
