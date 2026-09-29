@@ -2491,7 +2491,7 @@ analyze_repo() {
   local WT_ORIGIN_OWNER="" WT_ORIGIN_REPO=""
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
   local -a REMOTE_BRANCH_DATES=() MERGED_REMOTE_REPORTED=()
-  local remote_date family now_epoch age_days on_default anc_status
+  local remote_date family now_epoch age_days on_default ancestor_status
   local -a BRANCH_ATTACHED=() BRANCH_IS_MAIN=() BRANCH_PROTECTED=()
   local -a BRANCH_PR_MATCH=() BRANCH_PR_ANY=() BRANCH_ANCESTRY=()
   local -a GQL_BRANCHES=()
@@ -3022,8 +3022,8 @@ analyze_repo() {
       if [[ -n "$default_branch" && -n "$remote_tip" ]]; then
         run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" \
           "refs/remotes/$canonical_remote/$default_branch" 2>/dev/null
-        anc_status=$?
-        case "$anc_status" in
+        ancestor_status=$?
+        case "$ancestor_status" in
         0) on_default="yes" ;;
         1) on_default="no" ;;
         *) ;;

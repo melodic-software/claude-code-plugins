@@ -454,7 +454,7 @@ classify_branch() {
   local branch="$1" age_days="$2" refname="$3" tip="$4" otype="$5" upfull="$6" upshort="$7" track="$8"
   local tier reason pr_line="none" local_tip bulk=0
   local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up="" behind_up=""
-  local loss_line lost="" row anc
+  local loss_line lost="" row ancestor
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
@@ -512,14 +512,14 @@ classify_branch() {
       # The tip differs from the merged head. When the head object is here and
       # the tip is an ancestor of it, every local commit was in the merged PR.
       if [[ $bulk -eq 1 && -n "${ANCESTOR["$local_tip:${PR_REFOID[$branch]}"]+x}" ]]; then
-        anc="${ANCESTOR["$local_tip:${PR_REFOID[$branch]}"]}"
+        ancestor="${ANCESTOR["$local_tip:${PR_REFOID[$branch]}"]}"
       elif git -C "$REPO_ROOT" rev-parse --verify --quiet "${PR_REFOID[$branch]}^{commit}" >/dev/null 2>&1 &&
         git -C "$REPO_ROOT" merge-base --is-ancestor "$local_tip" "${PR_REFOID[$branch]}" 2>/dev/null; then
-        anc=1
+        ancestor=1
       else
-        anc=0
+        ancestor=0
       fi
-      if [[ $anc -eq 1 ]]; then
+      if [[ $ancestor -eq 1 ]]; then
         tier="SAFE"
         reason="PR merged (tip is an ancestor of the merged head)"
       else

@@ -402,9 +402,9 @@ for-each-ref)
       now_ts="$(date +%s)"
       printf 'origin/pre-wipe/x\tprewipe-tip\t%s\0\norigin/agent-1a2b3c\tagent-tip\t%s\0\norigin/scratch/other\tother-tip\t%s\0\n' \
         "$((now_ts - 259260))" "$((now_ts - 259260))" "$((now_ts - 259260))"
-      # Merged-head ancestor cases: the remote tip differs from headRefOid. anc-ok's head is in the
-      # clone (merge-base answers 0); anc-missing's head is not (merge-base answers 128).
-      printf 'origin/feature/anc-ok\t%s\0\norigin/feature/anc-missing\t%s\0\n' \
+      # Merged-head ancestor cases: the remote tip differs from headRefOid. ancestor-ok's head is in the
+      # clone (merge-base answers 0); ancestor-missing's head is not (merge-base answers 128).
+      printf 'origin/feature/ancestor-ok\t%s\0\norigin/feature/ancestor-missing\t%s\0\n' \
         aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa dddddddddddddddddddddddddddddddddddddddd
       ;;
     # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
@@ -604,8 +604,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
-        feature/anc-ok) printf '60|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/60' ;;
-        feature/anc-missing) printf '61|cccccccccccccccccccccccccccccccccccccccc|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/61' ;;
+        feature/ancestor-ok) printf '60|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/60' ;;
+        feature/ancestor-missing) printf '61|cccccccccccccccccccccccccccccccccccccccc|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/61' ;;
         # F2: exact-OID merged evidence on a main-worktree-attached branch.
         feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
@@ -947,6 +947,7 @@ assert_kind_targets "agent-hex remote branch gets a family row" \
   remote-branch-family "canonical-a :: origin/agent-1a2b3c" "scratch/other"
 assert_not_contains "a remote branch outside every family gets no row" \
   "origin/scratch/other"
+assert_contains "family rows are emitted as remote-branch-family findings" "Finding: remote-branch-family"
 assert_contains "family row reports family, age and on-default" \
   "family pre-wipe; tip prewipe-tip; age 3 days (committer date); on origin/main: yes"
 assert_contains "agent family row reports off-default" \
@@ -961,7 +962,7 @@ fi
 assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
   remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
 # #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
-if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/anc-ok" "$output" |
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output" |
   grep -Fq "Confidence: MEDIUM"; then
   printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
 else
@@ -969,7 +970,7 @@ else
   failures=$((failures + 1))
 fi
 assert_contains "ancestor finding states its reason" "tip is an ancestor of the merged head"
-assert_not_contains "missing head object gives no ancestor finding" "origin/feature/anc-missing"
+assert_not_contains "missing head object gives no ancestor finding" "origin/feature/ancestor-missing"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
 # #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.

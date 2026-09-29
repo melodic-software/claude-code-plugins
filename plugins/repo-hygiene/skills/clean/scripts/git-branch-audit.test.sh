@@ -876,8 +876,8 @@ build_audit_fixture() {
     fx_commit "drift$i.b" "$NOWTS" "drift$i.a"
     fx_ref "refs/heads/feat/drift-$i" "drift$i.b"
     fx_pr "feat/drift-$i" MERGED $((1100 + i)) "drift$i.a"
-    fx_ref "refs/heads/feat/drift-anc-$i" "drift$i.a"
-    fx_pr "feat/drift-anc-$i" MERGED $((1150 + i)) "drift$i.b"
+    fx_ref "refs/heads/feat/drift-ancestor-$i" "drift$i.a"
+    fx_pr "feat/drift-ancestor-$i" MERGED $((1150 + i)) "drift$i.b"
   done
   # PR closed: unpushed (LOSSY) and pushed (REVIEW); PR open
   n=$((10 * pct / 100))
@@ -1271,9 +1271,9 @@ if command -v jq >/dev/null 2>&1; then
     for ((k = 1; k <= $2; k++)); do git -C "$AN" commit -q --allow-empty -m "$1 $k"; done
     git -C "$AN" checkout -q main
   }
-  an_branch feat/anc 2
-  anc_head="$(git -C "$AN" rev-parse refs/heads/feat/anc)"
-  git -C "$AN" branch -q -f feat/anc "$anc_head~1"
+  an_branch feat/ancestor 2
+  ancestor_head="$(git -C "$AN" rev-parse refs/heads/feat/ancestor)"
+  git -C "$AN" branch -q -f feat/ancestor "$ancestor_head~1"
   an_branch feat/ahead 2
   ahead_head="$(git -C "$AN" rev-parse refs/heads/feat/ahead~1)"
   an_branch feat/diverged 1
@@ -1285,8 +1285,8 @@ if command -v jq >/dev/null 2>&1; then
   for b in agent-a1b2c3 agent-xyz claude/web1 plan/p stranded/s pre-wipe/w feat/plain; do an_branch "$b" 1; done
   an_bin="$TEST_TMPDIR/ancestor-bin"
   mkdir -p "$an_bin"
-  printf '[{"headRefName":"feat/anc","state":"MERGED","number":1,"headRefOid":"%s"},{"headRefName":"feat/ahead","state":"MERGED","number":2,"headRefOid":"%s"},{"headRefName":"feat/diverged","state":"MERGED","number":3,"headRefOid":"%s"},{"headRefName":"feat/missing","state":"MERGED","number":4,"headRefOid":"%s"}]\n' \
-    "$anc_head" "$ahead_head" "$diverged_head" "$missing_head" >"$an_bin/prs.json"
+  printf '[{"headRefName":"feat/ancestor","state":"MERGED","number":1,"headRefOid":"%s"},{"headRefName":"feat/ahead","state":"MERGED","number":2,"headRefOid":"%s"},{"headRefName":"feat/diverged","state":"MERGED","number":3,"headRefOid":"%s"},{"headRefName":"feat/missing","state":"MERGED","number":4,"headRefOid":"%s"}]\n' \
+    "$ancestor_head" "$ahead_head" "$diverged_head" "$missing_head" >"$an_bin/prs.json"
   printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$an_bin/prs.json" >"$an_bin/gh"
   chmod +x "$an_bin/gh"
   # field <audit output> <branch> <field>: the value of one line of a branch's record
@@ -1297,8 +1297,8 @@ if command -v jq >/dev/null 2>&1; then
     an_out="$(cd "$AN" && SHIM_FAIL_ON="$fail_on" PATH="$SHIM_BIN:$PATH" SHIM_PRS="$an_bin/prs.json" bash "$AUDIT" --capture-file "$TEST_TMPDIR/an${fail_on// /}.tsv")"
     an_views+=("$(printf '%s\n' "$an_out" | sed 's|^TipCapture: .*|TipCapture: <path>|')")
     lbl="${fail_on:+ (failing$fail_on)}"
-    assert_contains "tip is an ancestor of the merged head: SAFE$lbl" "$an_out" "Branch: feat/anc
-Tip: $(git -C "$AN" rev-parse refs/heads/feat/anc)
+    assert_contains "tip is an ancestor of the merged head: SAFE$lbl" "$an_out" "Branch: feat/ancestor
+Tip: $(git -C "$AN" rev-parse refs/heads/feat/ancestor)
 Tier: SAFE
 Age days: 0
 PR: #1 MERGED (tip drift)
