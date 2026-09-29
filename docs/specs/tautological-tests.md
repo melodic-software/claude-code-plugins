@@ -230,7 +230,13 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   `rule-inert-assertion`; language-syntax forms (the Python tuple assert, bats `run` and `!`) stay
   in the engine.
 - `assertion.weak` and `snapshot` match a whole assertion call: a block whose only assertions they
-  cover has a weak or a snapshot oracle (`rule-weak-oracle`, `rule-snapshot-only`).
+  cover has a weak or a snapshot oracle (`rule-weak-oracle`, `rule-snapshot-only`). Two snapshot
+  forms need their library in reach, which the engine checks as language syntax: C# `Verify(`
+  counts only in a file that imports `VerifyXunit`, `VerifyNUnit`, `VerifyMSTest` or `VerifyTests`
+  (or carries `[UsesVerify]`) and declares no `Verify` method of its own; Python `== snapshot`
+  counts only when `snapshot` is a parameter of the test (the syrupy fixture).
+  For `rule-recomputed-derived`, an input read only as a length (`.length`, `.Length`, `.Count`,
+  `.size`, `len()`) or copied whole by a `{ ...x }` or `{**x}` spread is not an input.
   `assertion.count` matches a length or count check, which clears `rule-conditional-assertion` for
   a loop; `assertion.fail` matches a call that fails the test outright, which is the assertion of
   the `if` or `catch` around it.

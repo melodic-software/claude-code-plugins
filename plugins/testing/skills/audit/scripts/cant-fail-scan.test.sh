@@ -1050,6 +1050,8 @@ corpus_files=(
   cs-xunit/good/InvoiceRepairedOraclesTests.cs.fixture
   cs-xunit/good/InvoiceTotalFluentTests.cs.fixture
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
+  cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
+  cs-xunit/good/OrderPricedHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
@@ -1137,6 +1139,7 @@ corpus_files=(
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
+  js-vitest/good/vitest-length-invariant.test.ts.fixture
   js-vitest/good/vitest-parsed-config-fields.test.ts.fixture
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
@@ -1186,6 +1189,7 @@ corpus_files=(
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
   py-pytest/good/test_pytest_exec_tool_script.py.fixture
+  py-pytest/good/test_pytest_length_invariant.py.fixture
   py-pytest/good/test_pytest_loaded_config_fields.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
   py-pytest/good/test_pytest_raises.py.fixture
@@ -1195,7 +1199,9 @@ corpus_files=(
   py-pytest/good/test_pytest_skipif_split.py.fixture
   py-pytest/good/test_pytest_skipped_class.py.fixture
   py-pytest/good/test_pytest_slugify.py.fixture
+  py-pytest/good/test_pytest_snapshot_local.py.fixture
   py-pytest/good/test_pytest_split_signature.py.fixture
+  py-pytest/good/test_pytest_try_fail.py.fixture
   py-pytest/good/test_pytest_unittest_mock.py.fixture
   py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture

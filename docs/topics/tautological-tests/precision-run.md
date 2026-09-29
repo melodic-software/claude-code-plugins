@@ -115,3 +115,17 @@ mawk; one 4a finding changed line only, because its test file grew.
 - No false positive surfaced, so no adapter fix was needed. Two fixtures moved while the rules were
   built: a lone `Verify` and a lone `t.assert.snapshot`, kept as good zero-assertion fixtures, are
   snapshot-only by definition and now sit in `bad/` with `expect: rule-snapshot-only`.
+
+## Verifier probes, Phase 4b rules
+
+A verifier's probe files, outside this repo, found six false positives. Each is now a good corpus
+fixture; the repo's findings did not move.
+
+| Probe | Rule | Fix | Good fixture |
+|---|---|---|---|
+| `expect(total(items)).toBe(items.length * 5)` | `rule-recomputed-derived` | an input read only as `.length`, `.Length`, `.Count`, `.size` or `len()` is not an input | `js-vitest/good/vitest-length-invariant.test.ts` |
+| `expect(merge(a, b).length).toBe(a.length + b.length)` | `rule-recomputed-derived` | the same | `js-vitest/good/vitest-length-invariant.test.ts` |
+| `assert with_id(payload) == {**payload, "id": 1}` | `rule-recomputed-derived` | a `{**x}` or `{ ...x }` spread is not an input, and its `**` is not an operator | `py-pytest/good/test_pytest_length_invariant.py` |
+| `pytest.fail("no raise")` in the try, the assertion in the `except` | `rule-conditional-assertion` | `pytest.fail` is an assertion call in `py-pytest` | `py-pytest/good/test_pytest_try_fail.py` |
+| `Verify(order)` calling the file's own `Verify` helper | `rule-snapshot-only` | C# `Verify(` is a snapshot only in a file importing a Verify package or marked `[UsesVerify]`, and declaring no `Verify` method | `cs-xunit/good/OrderPricedHelperTests.cs`, `cs-xunit/good/InvoiceVerifyHelperTests.cs` |
+| `snapshot = store.save(...)` then `assert store.latest() == snapshot` | `rule-snapshot-only` | `== snapshot` is syrupy only when `snapshot` is a parameter of the test | `py-pytest/good/test_pytest_snapshot_local.py` |

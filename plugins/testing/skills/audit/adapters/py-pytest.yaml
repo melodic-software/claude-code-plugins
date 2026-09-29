@@ -15,7 +15,7 @@ assertion:
     - '[Aa]ssert'
     - '\.raises'
     - '\.warns'
-    - 'self\.fail'
+    - '(self|pytest)\.fail'
     - '[Ee]xpect'
     - '[Vv]erify'
     - '[Ss]hould'  # spellchecker:disable-line

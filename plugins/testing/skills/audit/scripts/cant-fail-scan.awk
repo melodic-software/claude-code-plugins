@@ -116,6 +116,16 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     while ((getline line < ARGV[1]) > 0) if (line ~ V["property_markers"]) { PROP_FILE = 1; break }
     close(ARGV[1])
   }
+  # C#: a statement-initial Verify( is Verify's snapshot only in a file that
+  # imports a Verify package and declares no Verify method of its own.
+  CS_VERIFY = 0
+  if (LEXER == "cs" && ARGV[1] != "") {
+    while ((getline line < ARGV[1]) > 0) {
+      if (line ~ /using[[:space:]]+(static[[:space:]]+)?Verify(Xunit|NUnit|MSTest|Tests)([^A-Za-z0-9_]|$)|\[[[:space:]]*UsesVerify/) CS_VERIFY = 1
+      if (line !~ /^[[:space:]]*(return|await)[[:space:]]/ && line ~ /^[[:space:]]*([A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_<>,.?]*[[:space:]]+Verify(Json|Xml|File)?[[:space:]]*(<[^<>]*>)?[[:space:]]*\(/) { CS_VERIFY = 0; break }
+    }
+    close(ARGV[1])
+  }
 
   # Two-argument equality helpers, matched by substring in list order.
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
@@ -1092,8 +1102,16 @@ function oracle_line(m, r) {
   if (!has(m, R_ANY) && !has(m, R_MOCKA)) return
   # go: the nil check is an if statement, judged whole in go_inert.
   if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
-  if (only_calls(m, r, R_SNAP)) { if (!OR_P++) OR_PLINE = FNR; return }
+  if (only_calls(m, r, R_SNAP) && snap_ok(m)) { if (!OR_P++) OR_PLINE = FNR; return }
   OR_S++
+}
+
+# A snapshot call needs its library in reach: in C#, Verify's (CS_VERIFY); in
+# Python, syrupy's snapshot fixture, which is a parameter of the test.
+function snap_ok(m) {
+  if (LEXER == "cs") return CS_VERIFY
+  if (LEXER == "python" && m ~ /(^|[^A-Za-z0-9_.])snapshot([^A-Za-z0-9_]|$)/) return SIG ~ /[(,][[:space:]]*snapshot[[:space:]]*[,:)=]/
+  return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -1287,7 +1305,7 @@ function idents(s,    params, out, t, name, prev) {
 }
 
 # x is the call under test, y the expected side.
-function derived_side(x, y,    name, args, key, short, ids, n, id, i, ar) {
+function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
   x = trim(x); y = trim(y)
   sub(/^await[[:space:]]+/, "", x)
   if (LEXER == "pwsh") {
@@ -1307,11 +1325,18 @@ function derived_side(x, y,    name, args, key, short, ids, n, id, i, ar) {
     if (DV_N[BID, key] != 1) return 0
     y = DV_RHS[BID, key]
   }
-  if (y !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0
+  # A spread copies an input whole ({ ...input, id: 1 }, {**payload, "id": 1}),
+  # and a length (a.length + b.length, len(items) * 5) states an invariant:
+  # neither rebuilds the value the way the code does, so neither is an input.
+  e = y
+  gsub(/[{,][[:space:]]*(\.\.\.|\*\*)[[:space:]]*[A-Za-z_$][A-Za-z0-9_$.]*/, "{", e)
+  if (e !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0
   short = LEXER == "pwsh" ? tolower(name) : name
   sub(/^.*\./, "", short)
   if (index(LEXER == "pwsh" ? tolower(y) : y, short (LEXER == "pwsh" ? "" : "("))) return 0
-  ids = idents(y)
+  gsub(/[A-Za-z_$][A-Za-z0-9_$.]*[[:space:]]*\.[[:space:]]*(length|Length|Count|size)([^A-Za-z0-9_$]|$)/, " ", e)
+  gsub(/(^|[^A-Za-z0-9_.])len[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)/, " ", e)
+  ids = idents(e)
   n = split(ids, id, " ")
   if (n == 0) return 0
   ar = " " idents(args) " "
@@ -1376,7 +1401,8 @@ function open_block(line, name) {
   BID++
   OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
-  COND_NEXT = SRC_PEND = ""
+  COND_NEXT = SRC_PEND = SIG = ""
+  SIG_OPEN = LEXER == "python"
   SH_ACT = SH_FN = PS_PEND = 0
 }
 
@@ -1387,6 +1413,8 @@ function append_block(m, r) {
   block_masked = block_masked m "\n"
   block_last = FNR
   LINE_IN_TEST = 1
+  # The def's signature, up to the parenthesis that closes its parameters.
+  if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
     if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
