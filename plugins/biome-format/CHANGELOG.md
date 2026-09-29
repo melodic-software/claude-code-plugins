@@ -3,6 +3,16 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6] - 2026-09-29
+
+### Fixed
+
+- The session-start prerequisite probe honors the `biome_format_enabled` kill switch: its `hooks.json` row launches with `--run-if-unset-or-true BIOME_FORMAT_ENABLED`, so a disabled plugin no longer prints the missing-Biome notice ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).
+
+### Changed
+
+- README Requirements states the two skip-notice latch classes once, lists Node.js (every hook row launches through `hooks/exec-bash.mjs`) and describes the session-start probe. `/biome-format:setup check` names the probe as a separate resolver, gains a Node row and reports `biome_format_lint_gitignored`. `/biome-format:check` states that setup's pre-computed rows are not rendered when it reads the file, so it runs every probe through Bash.
+
 ## [0.7.5] - 2026-09-28
 
 ### Changed
