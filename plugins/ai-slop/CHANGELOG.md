@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.1] - 2026-09-29
+
+### Fixed
+
+- **audit:** a config root that is the home directory (or an ancestor of it) or is not inside a git
+  working tree no longer reads `.claude/ai-slop.json` and `.claude/ai-slop.local.json` as team and
+  overlay layers, and a team or overlay path that is the user-global file is read once. The
+  classifier is `lib/config-root.sh`, a synced copy of the source-control resolver.
+
 ## [0.12.0] - 2026-09-29
 
 ### Added
