@@ -375,7 +375,7 @@ assert_not_contains "the scaffold's forbidOnly idiom passes (an expression is pr
 assert_contains "the projects[] spread sits below depth 1 and does not decline the config" "$out" "rule-flaky-passes-suite"
 assert_contains "smoke.spec.ts is the examined test file of the scaffold tree" "$out" "test files: 1 examined of 1 enumerated"
 assert_contains "config findings are advisory in --check" "$out" "advisory in --check (use --strict"
-assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1, advisory adapters (bash-harness) 0."
+assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1, advisory adapters (bash-bats, bash-harness) 0."
 assert_contains "coverage reports the config denominator" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 assert_contains "an advisory-only config finding still passes the gate" "$out" "PASS: no gating findings"
@@ -862,7 +862,10 @@ assert_contains "loader names the duplicate id" "$out" "duplicate adapter id: ba
 rc=0
 out="$(awk -f "$LOAD" "$SCRIPT_DIR"/../adapters/*.yaml 2>&1)" || rc=$?
 assert_exit "every shipped adapter loads (exit 0)" 0 "$rc"
-for id in js-jest js-vitest py-pytest cs-xunit; do
+# Named by file so affected-tests.sh maps each adapter to this suite.
+for f in bash-bats.yaml bash-harness.yaml cs-mstest.yaml cs-nunit.yaml cs-xunit.yaml go-testing.yaml \
+  js-jest.yaml js-node-test.yaml js-playwright.yaml js-vitest.yaml pwsh-pester.yaml py-pytest.yaml py-unittest.yaml; do
+  id="${f%.yaml}"
   assert_contains "shipped adapter $id loads" "$out" "$id${TAB}language${TAB}"
 done
 load_yaml rs.yaml $'id: rs\nlanguage: js\nadditional_test_blocks: [x]\n'
@@ -914,6 +917,11 @@ run_file --file "$PREC/plain.test.ts"
 assert_contains "no detect match falls back to the first adapter in load order" "$out" "adapter: js-jest"
 run_file --file "$SCRIPT_DIR/cant-fail-scan.sh"
 assert_contains "an unclaimed file names no adapter" "$out" "adapter: none"
+# cs-mstest and cs-nunit sort before cs-xunit but carry detect lists; a C# file
+# none of them detects falls to the claimant with no detect list.
+printf 'public class ATests\n{\n    [Fact]\n    public void A()\n    {\n        Assert.True(true);\n    }\n}\n' >"$PREC/ATests.cs"
+run_file --file "$PREC/ATests.cs"
+assert_contains "no detect match prefers the claimant with no detect list" "$out" "adapter: cs-xunit"
 
 # --- bash lexer: the masker keeps sync, or the file reports nothing -----------
 # A desynced masker hides every later assertion, which under the file model is
@@ -929,15 +937,32 @@ assert_finding_count "a quoted <<- heredoc ends at its tab-indented terminator" 
 printf '[ $# -eq 0 ] || fail "takes no arguments"\n' >"$SH/argc.test.sh"
 run_file --file "$SH/argc.test.sh"
 assert_finding_count "\$# is not a comment" 0
+printf 'x=$(cat <<<'"'"'not json'"'"')\npass "after the here-string"\n' >"$SH/herestring.test.sh"
+run_file --file "$SH/herestring.test.sh"
+assert_contains "a here-string does not open a heredoc" "$out" "test blocks parsed: 1;"
+printf '[[ ${#x[@]} -eq 1 ]] || fail "count"\n' >"$SH/length.test.sh"
+run_file --file "$SH/length.test.sh"
+assert_finding_count "\${#x} is not a comment" 0
+printf 'v="$(echo "it'"'"'s")"\npass "after the substitution"\n' >"$SH/subst.test.sh"
+run_file --file "$SH/subst.test.sh"
+assert_contains "quotes nest inside \$( ) inside a double-quoted string" "$out" "test blocks parsed: 1;"
+assert_finding_count "a nested quote does not hide a later assertion" 0
+printf 'gate_test::run_suite "$DIR" test_x.py\n' >"$SH/gate.test.sh"
+run_file --file "$SH/gate.test.sh"
+assert_finding_count "gate_test::run_suite delegates the assertions" 0
+printf 'exec node "$DIR/x.test.mjs"\n' >"$SH/exec.test.sh"
+run_file --file "$SH/exec.test.sh"
+assert_finding_count "exec running a suite file delegates the assertions" 0
 printf 'echo "never closed\necho done\n' >"$SH/open.test.sh"
 run_file --file "$SH/open.test.sh"
 assert_finding_count "a string still open at end of file reports nothing" 0
+assert_contains "the coverage block counts a file whose lexer lost sync" "$out" "files whose lexer lost sync (not judged): 1"
 printf 'echo done\n' >"$SH/none.test.sh"
 run_file --file "$SH/none.test.sh"
 assert_finding_count "a harness with no assertion reports zero-assertion" 1
 run_file --file "$SH/none.test.sh" --check
 assert_exit "bash-harness findings are advisory in --check" 0 "$rc"
-assert_contains "the advisory note counts the advisory adapter" "$out" "advisory adapters (bash-harness) 1."
+assert_contains "the advisory note counts the advisory adapter" "$out" "advisory adapters (bash-bats, bash-harness) 1."
 run_file --file "$SH/none.test.sh" --check --strict
 assert_exit "--strict gates bash-harness findings" 1 "$rc"
 
@@ -949,10 +974,103 @@ assert_exit "--strict gates bash-harness findings" 1 "$rc"
 # that claims the copy must be the one its directory names.
 CORPUS="$FIX/corpus"
 corpus_files=(
+  bash-bats/bad/bats-greet-against-itself.bats.fixture
+  bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/good/bats-greet-against-literal.bats.fixture
+  bash-bats/good/bats-greet-asserts-output.bats.fixture
+  bash-bats/good/bats-greet-run-status.bats.fixture
+  bash-bats/good/bats-greet-skipped.bats.fixture
+  bash-bats/good/bats-greet-test-command.bats.fixture
+  bash-bats/good/bats-init-writes-config.bats.fixture
   bash-harness/bad/prints-only.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture
   bash-harness/good/fail-and-exit.test.sh.fixture
+  bash-harness/good/failure-counter.test.sh.fixture
+  bash-harness/good/node-driver-heredoc.test.sh.fixture
+  bash-harness/good/pwsh-selftest.test.sh.fixture
+  bash-harness/good/python-in-variable.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
+  bash-harness/good/sources-test-harness.test.sh.fixture
+  cs-mstest/bad/OrderPlacementTests.cs.fixture
+  cs-mstest/bad/OrderTotalFormatTests.cs.fixture
+  cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
+  cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
+  cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
+  cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
+  cs-nunit/bad/CartDiscountTests.cs.fixture
+  cs-nunit/bad/CartPurchaseTests.cs.fixture
+  cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
+  cs-nunit/good/CartDiscountLiteralTests.cs.fixture
+  cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
+  cs-nunit/good/CartExportIgnoredTests.cs.fixture
+  cs-nunit/good/CartPurchaseAssertedTests.cs.fixture
+  cs-xunit/bad/InvoiceTotalTests.cs.fixture
+  cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/good/InvoiceMailerTests.cs.fixture
+  cs-xunit/good/InvoicePendingTests.cs.fixture
+  cs-xunit/good/InvoiceRenderSnapshotTests.cs.fixture
+  cs-xunit/good/InvoiceTotalFluentTests.cs.fixture
+  cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
+  cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  go-testing/bad/go_query_diff_itself_test.go.fixture
+  go-testing/bad/go_slugify_runs_test.go.fixture
+  go-testing/good/go_cart_helper_test.go.fixture
+  go-testing/good/go_codec_fuzz_test.go.fixture
+  go-testing/good/go_export_skipped_test.go.fixture
+  go-testing/good/go_hash_bench_test.go.fixture
+  go-testing/good/go_query_diff_literal_test.go.fixture
+  go-testing/good/go_slugify_checked_test.go.fixture
+  js-jest/bad/jest-discount-runs.test.ts.fixture
+  js-jest/bad/jest-slug-itself.test.js.fixture
+  js-jest/good/jest-discount-checked.test.ts.fixture
+  js-jest/good/jest-slug-literal.test.js.fixture
+  js-node-test/bad/node-test-csv-itself.test.mjs.fixture
+  js-node-test/bad/node-test-price-runs.test.mjs.fixture
+  js-node-test/good/node-test-context-assert.test.mjs.fixture
+  js-node-test/good/node-test-context-skip.test.mjs.fixture
+  js-node-test/good/node-test-csv-literal.test.mjs.fixture
+  js-node-test/good/node-test-destructured.test.js.fixture
+  js-node-test/good/node-test-price-checked.test.mjs.fixture
+  js-node-test/good/node-test-suite-skip.test.mjs.fixture
+  js-node-test/good/node-test-todo-option.test.mjs.fixture
+  js-playwright/bad/playwright-login-clicks.spec.ts.fixture
+  js-playwright/bad/playwright-title-itself.spec.ts.fixture
+  js-playwright/good/playwright-body-skip.spec.ts.fixture
+  js-playwright/good/playwright-configured-expect.spec.ts.fixture
+  js-playwright/good/playwright-describe-fixme.spec.ts.fixture
+  js-playwright/good/playwright-login-asserted.spec.ts.fixture
+  js-playwright/good/playwright-poll.spec.ts.fixture
+  js-playwright/good/playwright-soft-step.spec.ts.fixture
+  js-playwright/good/playwright-title-literal.spec.ts.fixture
+  js-vitest/bad/vitest-cart-runs.test.ts.fixture
+  js-vitest/bad/vitest-duration-itself.test.ts.fixture
+  js-vitest/good/vitest-cart-checked.test.ts.fixture
+  js-vitest/good/vitest-duration-literal.test.ts.fixture
+  pwsh-pester/bad/pester-report-invoke-only.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-against-itself.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-writes-host.Tests.ps1.fixture
+  pwsh-pester/good/pester-report-invoke-and-value.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-against-literal.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-context-skip.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-foreach-table.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_price_recomputed.py.fixture
+  py-pytest/bad/test_pytest_slugify_runs.py.fixture
+  py-pytest/good/test_pytest_price_literal.py.fixture
+  py-pytest/good/test_pytest_raises.py.fixture
+  py-pytest/good/test_pytest_skip_marker.py.fixture
+  py-pytest/good/test_pytest_slugify.py.fixture
+  py-pytest/good/test_pytest_unittest_mock.py.fixture
+  py-unittest/bad/test_unittest_config_recomputed.py.fixture
+  py-unittest/bad/test_unittest_deliver_awaits.py.fixture
+  py-unittest/bad/test_unittest_slugify_runs.py.fixture
+  py-unittest/good/test_unittest_config_literal.py.fixture
+  py-unittest/good/test_unittest_raises.py.fixture
+  py-unittest/good/test_unittest_skiptest.py.fixture
+  py-unittest/good/test_unittest_skipunless.py.fixture
+  py-unittest/good/test_unittest_slugify.py.fixture
 )
 on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
 listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
@@ -976,6 +1094,36 @@ for rel in "${corpus_files[@]}"; do
     fail "corpus $rel: exact rule set" "want [$want], got [$got]"
   fi
 done
+
+# --- corpus grid: GRID.md rows and pair cells ---------------------------------
+GRIDCHK="$SCRIPT_DIR/check-corpus-grid.sh"
+rc=0
+out="$(bash "$GRIDCHK" 2>&1)" || rc=$?
+assert_exit "the shipped corpus satisfies GRID.md" 0 "$rc"
+[[ "$rc" -eq 0 ]] || printf '%s\n' "$out" >&2
+G="$TMP_ROOT/grid"
+mkdir -p "$G/corpus/a/bad" "$G/corpus/a/good" "$G/adapters"
+printf 'id: a\n' >"$G/adapters/a.yaml"
+printf '| Adapter | rule-x |\n|---|---|\n| a | pair |\n' >"$G/corpus/GRID.md"
+printf '# expect: rule-x\n' >"$G/corpus/a/bad/b.fixture"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "a pair cell with no good file fails the grid" 1 "$rc"
+assert_contains "the grid names the missing good file" "$out" "a: pair cell for rule-x has no good file with 'good-for: rule-x'"
+printf '# good-for: rule-x\n' >"$G/corpus/a/good/g.fixture"
+printf 'id: b\n' >"$G/adapters/b.yaml"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "an adapter with no GRID.md row fails the grid" 1 "$rc"
+assert_contains "the grid names the rowless adapter" "$out" "adapter b has no GRID.md row"
+printf '| b | maybe |\n' >>"$G/corpus/GRID.md"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_contains "a cell that is neither pair nor n/a fails the grid" "$out" "b: cell for rule-x is 'maybe'"
+printf '| Adapter | rule-x |\n|---|---|\n| a | pair |\n| b | n/a: no such shape |\n' >"$G/corpus/GRID.md"
+rc=0
+bash "$GRIDCHK" "$G/corpus" "$G/adapters" >/dev/null 2>&1 || rc=$?
+assert_exit "pair cells with both files and n/a cells pass the grid" 0 "$rc"
 
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.

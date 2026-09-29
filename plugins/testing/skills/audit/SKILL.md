@@ -1,5 +1,5 @@
 ---
-description: "Audit the test suite for tests that cannot fail, a deterministic script detects assertion-free test bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, and C#, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists a findings file the review fix pass consumes. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a Playwright suite that cannot fail found (retries configured with no `failOnFlakyTests`, a committed `test.only` that no `forbidOnly` guards), a CI gate on can't-fail tests, or the audit's findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (gate mock-only-oracle and the Playwright config findings too), `--persist-findings` (write the findings file the review fix pass consumes). Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
+description: "Audit the test suite for tests that cannot fail, a deterministic script detects assertion-free test bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, C#, Bash, PowerShell and Go, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists a findings file the review fix pass consumes. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a Playwright suite that cannot fail found (retries configured with no `failOnFlakyTests`, a committed `test.only` that no `forbidOnly` guards), a CI gate on can't-fail tests, or the audit's findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (gate mock-only-oracle and the Playwright config findings too), `--persist-findings` (write the findings file the review fix pass consumes). Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
 argument-hint: "[--check] [--strict] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -25,7 +25,8 @@ Boundaries, each an incumbent this skill deliberately does not duplicate:
   AST-level detection of tests that cannot fail *by construction*. Complements, not rivals.
 - **`check-discriminating-test-skips.sh`** (this marketplace repo's own CI gate) owns the fourth
   can't-fail shape, a skip vacating the only discriminating assertion of a case group, for bash
-  `*.test.sh`. That rule is deliberately absent here; bash test files are out of scope v1.
+  `*.test.sh`. That rule is deliberately absent here: this skill owns assertions in those files,
+  and its `bash-harness` findings are advisory (never gating `--check` without `--strict`).
 - The **repair queue** is out of scope: findings propose an assertion (repair, not
   pruning: deleting a useless test removes the false claim and the coverage together); applying
   repairs belongs to the remediation lanes.
@@ -68,9 +69,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --file <path
 ```
 
 Scan root: the current repo's git toplevel (or `$CANT_FAIL_SCAN_ROOT` to narrow/point explicitly,
-a supported operator lever). Ecosystems v1: JS/TS (`*.test.*`/`*.spec.*`), Python
-(`test_*.py`/`*_test.py`), C# (`*Test.cs`/`*Tests.cs`), each defined by an adapter file in
-`adapters/`.
+a supported operator lever). Ecosystems: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test,
+Playwright), Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`: xUnit,
+NUnit, MSTest), Bash (`*.test.sh` harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go
+(`*_test.go`), each defined by an adapter file in `adapters/`.
 
 Present the script's findings and its coverage block as reported, the denominator is what makes a
 clean report a claim rather than an absence. A run that examined 0 test files says so and is never
@@ -128,7 +130,7 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 - **Edit, repair, or delete tests.** Findings propose an assertion; the repair itself is the
   remediation lanes' work (`/testing:write` for authoring, the review fix pass for applying).
 - **Execute the suite**. `/toolchain:check` runs tests; `mutation-testing:audit` executes mutants.
-- **Audit bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
+- **Judge skips in bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
 - **Read any runner config but Playwright's JS/TS one.** Vitest's `retry` and `allowOnly`, Jest, and
   the other runners' equivalents are out of scope v1, as are Playwright's C# and Python bindings,
   which configure the runner in their own surfaces rather than in a config object read here.

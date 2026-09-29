@@ -13,8 +13,11 @@ PostToolUse payload, or a line per matching `if` row, to a file.
   condition ... not matching" for all 32 testing rows, and no test-scan process ran.
 - Basename globs match at any depth: `Write(*.test.ts)` matched `src/deep/x.test.ts` and
   `src/deep/y.test.ts`, `Write(test_*.py)` matched `tests/test_more.py`, and `Write(*Tests.cs)`
-  matched `src/MoreTests.cs`. `*_test.go` and `*.Tests.ps1` have no row yet; Phase 3 adds their
-  adapters, and the probe is repeated then.
+  matched `src/MoreTests.cs`.
+- Phase 3 repeat (Claude Code 2.1.284, 2026-09-28), same setup with the regenerated rows: a Write
+  and then an Edit of `pkg/deep/sum_test.go` and of `tests/deep/Sum.Tests.ps1` each returned
+  `additionalContext` naming `rule-zero-assertion` (`TestSum` at line 5, `adds` at line 2). The
+  `_` in `*_test.go` and the capital `T` and extra dot in `*.Tests.ps1` match as written.
 - An `Edit(<glob>)` row does not match a Write call. With `Edit(*.test.ts)` rows only, a Write to
   `x.test.ts` skipped every row. `Write(*.test.ts)` matched the Write and `Edit(*.test.ts)` matched
   the Edit of the same file. `gen-hook-filters.sh` therefore emits a Write row and an Edit row per

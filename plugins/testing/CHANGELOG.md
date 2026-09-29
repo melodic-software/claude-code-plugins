@@ -17,6 +17,19 @@ All notable changes to the `testing` plugin are documented here. Format follows
   a scanner error or timeout lets the edit through and logs a line.
 - **audit:** `cant-fail-scan.sh --file <path> --lines <list>` reports only findings whose test
   block overlaps the listed lines.
+- **audit:** adapters for Bash harnesses (`*.test.sh`), bats, Pester, Go `testing`, `node:test`,
+  Playwright, unittest, NUnit and MSTest, with lexers for Bash, PowerShell and Go. A harness with
+  no per-case marker is judged as one test. Recomputed expectations are also caught in shell
+  command form (`assert_eq "$(f)" "$(f)"`) and pipeline form (`f | Should -Be (f)`). The
+  `bash-harness` and `bats` findings are advisory: they never fail `--check` without `--strict`.
+  The test-scan hook covers the new globs.
+- **audit:** a fixture corpus with a bad and a good file per adapter and rule, and
+  `check-corpus-grid.sh`, which fails when a `GRID.md` pair cell lacks either file.
+
+### Changed
+
+- **audit:** when no adapter's `detect` matches a file, the claimant with no `detect` list wins, so
+  `cs-xunit` stays the C# default.
 
 ## [0.9.7] - 2026-09-28
 

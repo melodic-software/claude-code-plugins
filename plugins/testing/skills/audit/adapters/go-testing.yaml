@@ -1,0 +1,31 @@
+# Go's standard testing package: TestXxx(*testing.T) and FuzzXxx(*testing.F).
+# Benchmarks and examples are not judged: their oracle is timing or output.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: go-testing
+language: go
+block_model: brace
+files: ['*_test.go']
+# Xxx must not start with a lowercase letter; *testing.M (TestMain) never matches.
+test_start:
+  - '^func[[:space:]]+(Test|Fuzz)([A-Z0-9_][A-Za-z0-9_]*)?[[:space:]]*\([^)]*\*[[:space:]]*testing[[:space:]]*\.[[:space:]]*(T|F)[[:space:]]*\)'
+body_skip:
+  - '\.[[:space:]]*(Skip|Skipf|SkipNow)[[:space:]]*\('
+assertion:
+  # Any receiver: a helper's tb.Fatal counts, and so does err.Error(), which
+  # costs a finding rather than inventing one.
+  calls:
+    - '\.[[:space:]]*(Error|Errorf|Fatal|Fatalf|Fail|FailNow)[[:space:]]*\('
+    - 'panic[[:space:]]*\('
+    # A helper handed the test's t reports through it.
+    - '[(,][[:space:]]*t[[:space:]]*[,)]'
+    - '[Aa]ssert'
+    - '(require|Require)'
+    - '[Ee]xpect'
+    - 'EXPECT'
+    - '[Vv]erify'
+    - '[Cc]heck'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+equality:
+  call2: [reflect.DeepEqual, cmp.Equal, cmp.Diff, bytes.Equal, slices.Equal, maps.Equal, errors.Is, strings.EqualFold]
+suppress_marker: 'cant-fail-ok:'

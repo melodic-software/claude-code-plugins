@@ -1,0 +1,40 @@
+# Pester v5, with the v6 Should-* assertions. PowerShell is case-insensitive,
+# so command names bracket their first letter.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: pwsh-pester
+language: pwsh
+block_model: brace
+files: ['*.Tests.ps1']
+# spellchecker:off
+# The script block must open on the It line; an It whose -ForEach table spans
+# lines before its { is not judged.
+test_start:
+  - '^[[:space:]]*[Ii]t[[:space:]].*\{'
+test_skip:
+  - '[[:space:]]-([Ss]kip|[Pp]ending)([[:space:]:]|$)'
+suite_skip:
+  - '^[[:space:]]*([Dd]escribe|[Cc]ontext)[[:space:]].*[[:space:]]-[Ss]kip([[:space:]:]|$)'
+body_skip:
+  - '[Ss]et-[Ii]t[Rr]esult[^\n;|]*-([Ss]kipped|[Pp]ending|[Ii]nconclusive)'
+assertion:
+  # Any Should counts, custom Add-ShouldOperator operators included; mock.strip
+  # removes the Should -Invoke forms before the mock-only check.
+  calls:
+    - '(^|[^A-Za-z0-9_$.-])[Ss]hould([[:space:]]|-|$)'
+    - '(^|[^A-Za-z0-9_$.-])[Tt]hrow([[:space:]]|$)'
+mock:
+  create:
+    - '(^|[^A-Za-z0-9_$.-])[Mm]ock[[:space:]]'
+    - '[Nn]ew-[Mm]ock[Oo]bject'
+  verify:
+    - '[Ss]hould([[:space:]]+-[Nn]ot)?([[:space:]]+-|-|-[Nn]ot)[Ii]nvoke'
+    - '[Aa]ssert-[Mm]ock[Cc]alled'
+    - '[Aa]ssert-[Vv]erifiable[Mm]ock'
+  strip:
+    - '[Ss]hould([[:space:]]+-[Nn]ot)?([[:space:]]+-|-|-[Nn]ot)[Ii]nvoke'
+# spellchecker:on
+equality:
+  # Self-comparison with -BeLike, -Match, -Contain or -BeIn can still fail, so
+  # only the equality matchers and their aliases are listed.
+  pipeline: [Should -Be, Should -BeExactly, Should -EQ, Should -CEQ, Should-Be, Should-Be -Expected]
+suppress_marker: 'cant-fail-ok:'

@@ -11,7 +11,7 @@ behavior with tests.
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
-| `/testing:audit` | Can't-fail test detection, a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, and C#; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
+| `/testing:audit` | Can't-fail test detection, a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, C#, Bash, PowerShell and Go; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
 
 ## Works in any repo
 

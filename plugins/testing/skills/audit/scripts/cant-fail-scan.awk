@@ -8,8 +8,9 @@
 # ADAPTER_TABLE is adapter-load.awk's output over the adapters/ directory. All
 # framework vocabulary (test starts, skips, assertion tokens, mocks, equality
 # helpers) comes from the named adapter. This file holds only what no adapter
-# can supply: the rules, one lexer per language family (js, cs, python), and
-# the block model each lexer drives (brace for js and cs, indent for python).
+# can supply: the rules, one lexer per language (js, cs, python, bash, pwsh,
+# go), and the block models the adapter picks (brace, indent for python, file
+# for a harness with no per-case marker).
 # Language syntax stays with its lexer: C# attributes and method signatures,
 # and Python's assert statement.
 #
@@ -22,6 +23,7 @@
 #   F <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding
 #   X <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding exempted by a cant-fail-ok: annotation
 #   B <tab> <count>                                    test blocks parsed (emitted once, at END)
+#   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
 #
 # Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle.
 # The driver owns the qualified rule-id form and the thresholds' prose.
@@ -190,14 +192,21 @@ function mask_sh(s,    out, i, c, n, t, k, q) {
     c = substr(s, i, 1)
     if (S_str) {
       if (c == "\\" && S_q != "'") { out = out "  "; i += 2; continue }
+      # "$( ... )" is code again, with its own quotes, until its ")".
+      if (S_q == "\"" && substr(s, i, 2) == "$(") { S_str = 0; S_sub[++S_nsub] = 0; out = out "$("; i += 2; continue }
       if (c == (S_q == "\"" ? "\"" : "'")) S_str = 0
       out = out " "; i++; continue
     }
+    if (S_nsub > 0 && c == "(") S_sub[S_nsub]++
+    if (S_nsub > 0 && c == ")" && S_sub[S_nsub]-- == 0) { S_nsub--; S_str = 1; S_q = "\""; out = out ")"; i++; continue }
     if (c == "\\") { out = out substr(s, i, 2); i += 2; continue }
-    if (c == "#" && word_start(s, i)) { out = out blanks(n - i + 1); break }
+    # ${#x} is a length, not a comment: "{" starts no word in bash.
+    if (c == "#" && word_start(s, i) && substr(s, i - 1, 1) != "{") { out = out blanks(n - i + 1); break }
     if (c == "$" && substr(s, i + 1, 1) == "'") { S_str = 1; S_q = "e"; out = out "  "; i += 2; continue }
     if (c == "'" || c == "\"") { S_str = 1; S_q = c; out = out " "; i++; continue }
-    if (substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<") {
+    # A here-string, consumed whole so its last two "<" never read as "<<".
+    if (substr(s, i, 3) == "<<<") { out = out "<<<"; i += 3; continue }
+    if (substr(s, i, 2) == "<<") {
       t = substr(s, i + 2); k = 2; S_hd_dash = 0
       if (t ~ /^-/) { S_hd_dash = 1; t = substr(t, 2); k++ }
       match(t, /^[[:space:]]*/); k += RLENGTH; t = substr(t, RLENGTH + 1)
@@ -269,7 +278,7 @@ function mask_go(s,    out, i, c, c2, n) {
 # A string, heredoc or comment still open at end of file means the masker lost
 # sync; the new lexers then report nothing rather than a guess.
 function mask_open() {
-  if (LEXER == "bash") return S_str || S_hd
+  if (LEXER == "bash") return S_str || S_hd || S_nsub > 0
   if (LEXER == "pwsh") return S_str || S_bc || S_hs != ""
   if (LEXER == "go") return S_bc || S_raw
   return 0
@@ -743,6 +752,7 @@ function brace_decl() {
 
 END {
   if (FATAL) exit 2
-  if (in_test && !mask_open()) close_block()
+  if (mask_open()) print "L\t1"
+  else if (in_test) close_block()
   printf "B\t%d\n", blocks
 }

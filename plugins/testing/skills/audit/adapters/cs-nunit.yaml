@@ -1,0 +1,18 @@
+# NUnit: cs-xunit's assertion and mock vocabulary, claimed by NUnit's namespace
+# or its test attributes (the using may be a global or implicit one).
+# Schema and YAML subset: scripts/adapter-load.awk.
+id: cs-nunit
+extends: cs-xunit
+detect:
+  any_regex:
+    - 'NUnit\.Framework'
+    - '\[[[:space:]]*(Test|TestCase|TestCaseSource|TestFixture)([^A-Za-z0-9_]|$)'
+test_start:
+  - '^[[:space:]]*\[[[:space:]]*(Test|TestCase|TestCaseSource|Theory)([^A-Za-z0-9_]|$)'
+# ExpectedResult makes the return value the assertion, which no body token shows.
+test_skip:
+  - 'Ignore'
+  - 'Explicit'
+  - 'ExpectedResult'
+equality:
+  call2: [ClassicAssert.AreEqual, ClassicAssert.AreSame, CollectionAssert.AreEqual, CollectionAssert.AreEquivalent, StringAssert.AreEqualIgnoringCase, assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]

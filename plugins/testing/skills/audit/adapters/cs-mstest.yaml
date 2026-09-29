@@ -1,0 +1,18 @@
+# MSTest: cs-xunit's assertion and mock vocabulary, claimed by MSTest's
+# namespace or its attributes (the using may be a global or implicit one).
+# Schema and YAML subset: scripts/adapter-load.awk.
+id: cs-mstest
+extends: cs-xunit
+detect:
+  any_regex:
+    - 'Microsoft\.VisualStudio\.TestTools\.UnitTesting'
+    - '\[[[:space:]]*([A-Za-z]*Test(Class|Method)|DataRow)([^A-Za-z0-9_]|$)'
+# TestMethod and the attributes derived from it: DataTestMethod, STATestMethod, UITestMethod.
+test_start:
+  - '^[[:space:]]*\[[[:space:]]*[A-Za-z]*TestMethod([^A-Za-z0-9_]|$)'
+# ExpectedException makes the attribute the assertion, which no body token shows.
+test_skip:
+  - 'Ignore'
+  - 'ExpectedException'
+equality:
+  call2: [CollectionAssert.AreEqual, CollectionAssert.AreEquivalent, Assert.AreEquivalent, Assert.AreSequenceEqual, assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]

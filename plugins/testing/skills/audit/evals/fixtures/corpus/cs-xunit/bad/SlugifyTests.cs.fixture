@@ -1,0 +1,13 @@
+// expect: rule-recomputed-expectation
+// The expected side calls the code under test with the same argument, so the
+// assertion passes whatever Slug.From returns.
+using Xunit;
+
+public class SlugifyTests
+{
+    [Fact]
+    public void From_LowercasesAndHyphenates()
+    {
+        Assert.Equal(Slug.From("Hello World"), Slug.From("Hello World"));
+    }
+}

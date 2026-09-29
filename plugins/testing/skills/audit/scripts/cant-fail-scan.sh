@@ -249,15 +249,19 @@ done <"$ADAPTER_TABLE"
 
 # pick_adapter <file>: the adapter claiming <file> by its files: globs; among
 # several, the first in load order whose detect.any_regex matches the content,
-# else the first in load order. Prints nothing when none claims the file.
+# else the first in load order with no detect list, else the first in load
+# order. Prints nothing when none claims the file.
 pick_adapter() {
-  local base="${1##*/}" id glob re first="" pats
+  local base="${1##*/}" id glob re first="" first_detects="" pats
   for id in "${adapter_ids[@]}"; do
     while IFS= read -r glob; do
       # shellcheck disable=SC2053 # the glob is a pattern on purpose
       if [[ -n "$glob" && "$base" == $glob ]]; then
-        if [[ -z "$first" ]]; then
+        # The fallback is the first claimant with no detect list (the default
+        # for its language, as cs-xunit is), else the first claimant.
+        if [[ -z "$first" || (-n "$first_detects" && -z "${a_detect[$id]:-}") ]]; then
           first="$id"
+          first_detects="${a_detect[$id]:-}"
         fi
         pats=()
         while IFS= read -r re; do [[ -n "$re" ]] && pats+=(-e "$re"); done <<<"${a_detect[$id]:-}"
@@ -347,6 +351,7 @@ enum_ps="${#ps_files[@]}"
 enum_go="${#go_files[@]}"
 examined=0
 unreadable=0
+lost=0
 blocks=0
 exempted=0
 cfg_enum="${#cfg_files[@]}"
@@ -385,6 +390,7 @@ scan_one() {
   while IFS=$'\t' read -r kind slug line detail; do
     case "$kind" in
     B) blocks=$((blocks + slug)) ;;
+    L) lost=$((lost + 1)) ;;
     F)
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
@@ -597,6 +603,7 @@ coverage_block() {
     printf '  playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable)\n' \
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
   fi
+  printf '  files whose lexer lost sync (not judged): %d\n' "$lost"
   printf '  walk/read/engine error lines: %d\n' "$walk_errors"
   printf '  never in scope here: skipped/ignored tests, test files of other ecosystems, evals/fixtures corpora, and pruned dependency/build/memory dirs; a skip that vacates a discriminating case in a bash *.test.sh is scripts/check-discriminating-test-skips.sh'"'"'s, not this scan'"'"'s\n'
   if [[ "$examined" -eq 0 ]]; then
@@ -619,8 +626,10 @@ advisory_note() {
   # mock-only-oracle and both config rules together, so the note counts them
   # apart and names the switch.
   if [[ "$strict" -eq 0 && "$advisory" -gt 0 ]]; then
-    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (bash-harness) %d.\n' \
-      "$advisory" "$n_cf3" "$cfg_findings" "$n_adv"
+    local ids
+    ids="$(printf '%s\n' "${!a_advisory[@]}" | sort | paste -sd, - | sed 's/,/, /g')"
+    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d.\n' \
+      "$advisory" "$n_cf3" "$cfg_findings" "$ids" "$n_adv"
   fi
 }
 

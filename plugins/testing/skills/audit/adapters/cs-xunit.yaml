@@ -1,5 +1,8 @@
-# xUnit, with the NUnit and MSTest test attributes and Moq, NSubstitute and
-# FakeItEasy mocks. Schema and YAML subset: scripts/adapter-load.awk.
+# xUnit, and the default for any C# test file cs-nunit and cs-mstest do not
+# detect, so it also knows their test attributes. The assertion tokens cover
+# FluentAssertions, Shouldly and Verify snapshots; the mock fields cover Moq,
+# NSubstitute and FakeItEasy. cs-nunit and cs-mstest extend this adapter.
+# Schema and YAML subset: scripts/adapter-load.awk.
 id: cs-xunit
 language: cs
 block_model: brace
@@ -30,24 +33,29 @@ mock:
   create:
     - 'new[[:space:]]+Mock<'
     - 'Mock\.Of<'
-    - 'Substitute\.For<'
+    - 'Substitute\.For(PartsOf)?<'
+    - 'new[[:space:]]+MockRepository'
     - 'A\.Fake<'
   verify:
-    - '\.Verify[[:space:]]*\('
+    - '\.Verify(Get|Set|Add|Remove)?[[:space:]]*\('
     - '\.VerifyAll'
     - '\.VerifyNoOtherCalls'
     - '\.Received'
+    - 'Received\.InOrder'
     - '\.DidNotReceive'
     - 'MustHaveHappened'
     - 'MustNotHaveHappened'
   # Each chain is stripped as a BOUNDED expression, never to end of line, so a
-  # same-line real assertion after the chain survives the strip.
+  # same-line real assertion after the chain survives the strip. Verify and
+  # Received.InOrder allow parentheses three deep, as in It.IsAny<T>() inside
+  # the verified call.
   strip:
-    - '\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
-    - '\.[[:space:]]*Received[[:space:]]*(\([^()]*\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
-    - '\.[[:space:]]*DidNotReceive[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - '\.[[:space:]]*Verify(All|NoOtherCalls|Get|Set|Add|Remove)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
+    - 'Received\.InOrder[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
+    - '\.[[:space:]]*Received(WithAnyArgs)?[[:space:]]*(\([^()]*\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - '\.[[:space:]]*DidNotReceive(WithAnyArgs)?[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
     - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
     - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
 equality:
-  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
 suppress_marker: 'cant-fail-ok:'

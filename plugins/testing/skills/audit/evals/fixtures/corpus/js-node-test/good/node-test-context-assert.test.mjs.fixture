@@ -1,0 +1,8 @@
+// good-for: rule-zero-assertion
+// The test context's t.assert is node:assert plus snapshot assertions.
+import { test } from 'node:test';
+import { renderInvoice } from '../src/invoice.mjs';
+
+test('renders the invoice header', (t) => {
+  t.assert.snapshot(renderInvoice({ id: 42, total: 1999 }));
+});

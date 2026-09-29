@@ -1,0 +1,17 @@
+// good-for: rule-zero-assertion
+// A Verify snapshot is the assertion: the rendered text is compared to the
+// approved .verified.txt file.
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceRenderSnapshotTests
+{
+    [Fact]
+    public Task Render_PrintsEveryLine()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+        invoice.AddLine("widget", 100m);
+
+        return Verify(InvoiceRenderer.Render(invoice));
+    }
+}

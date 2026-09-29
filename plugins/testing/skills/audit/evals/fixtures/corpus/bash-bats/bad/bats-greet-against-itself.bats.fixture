@@ -1,0 +1,14 @@
+#!/usr/bin/env bats
+# expect: rule-recomputed-expectation
+# The expected side runs the same command as the actual side, so the
+# assertion passes whatever greet prints.
+
+setup() {
+  load 'test_helper/bats-support/load'
+  load 'test_helper/bats-assert/load'
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet capitalizes the name" {
+  assert_equal "$(greet alice)" "$(greet alice)"
+}
