@@ -17,7 +17,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 - The work-loop background-job paragraph reports the `#4598` refusal as observed and conditional on the session not yet being isolated in a worktree, marks itself interim, and carries a verification record. `reference/escalation-marker.md` points at it, and its sections are back in writer/reader order
   ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
-- `work_dispatch_concurrency_cap`, the README, and the `work` and `work-loop` skills say that `/implementation:implement-dispatch` owns the wave cap and names its `implement_dispatch_wave_cap` operator option in the precedence. The cap does not bind under worker authority, where rows in one worktree run one per wave, and changes behavior only under commit authority `orchestrator`; the composed-budget sentence in `work-loop` says the same
+- `work_dispatch_concurrency_cap`, the README, and the `work` and `work-loop` skills say that `/implementation:implement-dispatch` owns the wave cap and names its `implement_dispatch_wave_cap` operator option in the precedence. The cap does not bind under worker authority, where rows in one worktree run one per wave, and changes behavior only under commit authority `orchestrator`, which `implement-dispatch` sets from the consuming plan; the composed-budget sentence in `work-loop` says the same
   ([#4262](https://github.com/melodic-software/claude-code-plugins/issues/4262)).
 - The triage exits point at the lane-barred branch, and the `0.41.1` entry lists the trigger phrases and routing pointers that release dropped
   ([#4605](https://github.com/melodic-software/claude-code-plugins/issues/4605),
