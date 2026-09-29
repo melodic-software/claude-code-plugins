@@ -59,7 +59,7 @@ restores the FAIL semantics.
    without `node` the hook never starts and says nothing (README Requirements). The hook process
    resolves bare `node` from the persisted Machine/User PATH, not from this shell. On Windows a
    version manager can return a per-call path whose directory name contains a process id (fnm's
-   `fnm_multishells\<pid>_<timestamp>\node`); that path is ephemeral, so FAIL when it is the only
+   `fnm_multishells\<pid>_<timestamp>\node`); that path is ephemeral, so FAIL when it is the only <!-- portability-ok: Windows path, not a shell regex -->
    hit, say so, and report the persisted resolution separately from
    `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. A non-ephemeral in-shell
    hit is INFO beside that result, not a PASS by itself. `jq` and `node` are the only FAIL-class
