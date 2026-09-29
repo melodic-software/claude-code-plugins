@@ -5,7 +5,7 @@
       "id": 1,
       "name": "no-server-names-both-supported-setups",
       "prompt": "/dometrain:setup",
-      "expected_output": "Checks Dometrain tool availability under both prefixes without inspecting the token, settings, or environment variables. When neither resolves, names the two supported setups (install dometrain-mcp, or add a user-scope dometrain server per the README) and requires a reload before rechecking.",
+      "expected_output": "Checks Dometrain tool availability by server segment and tool name, not a fixed prefix, without inspecting the token, settings, or environment variables. When neither resolves, names the two supported setups (install dometrain-mcp, or add a user-scope dometrain server per the README) and requires a reload before rechecking.",
       "files": [],
       "expectations": [
         "Never reads settings, environment variables, credential storage, logs, or the API key",
