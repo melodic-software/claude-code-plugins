@@ -743,7 +743,7 @@ $okList = @($checkResults |
 if (-not $okList) { $okList = '_none_' }
 
 $glanceRows = @($checkResults | ForEach-Object {
-        "| $($_.category) | $(Format-CheckLabel -Id $_.id) | **$($_.severity)** | $($_.summary) | - |"
+        "| $($_.category) | $(Format-CheckLabel -Id $_.id) | **$($_.severity)** | $($_.summary) | $(Format-TrendCell -Result $_) |"
     }) -join "`n"
 $glanceTable = @"
 | Category | Check | Severity | Summary | Trend |

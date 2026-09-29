@@ -402,6 +402,7 @@ $CheckBody = {
     # is a shape a human decides what to do with.
     $severity = 'OK'
     $reasons = [System.Collections.Generic.List[string]]::new()
+    $processReasons = [System.Collections.Generic.List[string]]::new()
 
     if ($userPathLength -ge $userPathCritChars) {
         $severity = 'CRIT'
@@ -438,14 +439,14 @@ $CheckBody = {
     }
     if ($shadowWarns.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        $reasons.Add("$($shadowWarns.Count) shadowed executable(s) with lower-precedence winner")
+        $processReasons.Add("$($shadowWarns.Count) shadowed executable(s) with lower-precedence winner")
     }
 
     $infoBits = [System.Collections.Generic.List[string]]::new()
     if ($missingDirs.Count -gt 0) { $infoBits.Add("$($missingDirs.Count) missing PATH dir(s)") }
     if ($duplicateFindings.Count -gt 0) { $infoBits.Add("$($duplicateFindings.Count) duplicate PATH entry group(s)") }
     $shadowInfo = $shadowed.Count - $shadowWarns.Count
-    if ($shadowInfo -gt 0) { $infoBits.Add("$shadowInfo shadowed executable name(s)") }
+    if ($shadowInfo -gt 0) { $processReasons.Add("$shadowInfo shadowed executable name(s)") }
     $falsyDisable = New-FindingList
     foreach ($d in $disableFindings) {
         if (-not $d.disables_updates) { $falsyDisable.Add($d) }
@@ -456,11 +457,15 @@ $CheckBody = {
         if ($severity -eq 'OK') { $severity = 'INFO' }
         foreach ($b in $infoBits) { $reasons.Add($b) }
     }
+    if ($processReasons.Count -gt 0 -and $severity -eq 'OK') { $severity = 'INFO' }
 
     if ($severity -eq 'OK') {
         $summary = 'Environment and PATH look healthy.'
     } else {
-        $summary = ($reasons -join '; ')
+        $parts = [System.Collections.Generic.List[string]]::new()
+        if ($reasons.Count -gt 0) { $parts.Add("Persisted PATH/environment: $($reasons -join '; ')") }
+        if ($processReasons.Count -gt 0) { $parts.Add("Process PATH: $($processReasons -join '; ')") }
+        $summary = ($parts -join '. ')
         if ($summary.Length -gt 240) { $summary = $summary.Substring(0, 237) + '...' }
     }
 
@@ -476,6 +481,8 @@ $CheckBody = {
         missing_path_dirs        = $missingDirs
         duplicate_path_entries   = $duplicateFindings
         shadowed_executables     = $shadowed
+        process_path_shadowed_count    = $shadowed.Count
+        process_path_shadow_warn_count = $shadowWarns.Count
         credential_named_vars    = $credentialFindings
         user_path_kind           = $userPathKind
         user_path_is_expand_sz   = $userPathIsExpand

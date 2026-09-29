@@ -332,3 +332,18 @@ Describe 'Invoke-TrendAnalysis -- drivers CodeIntegrity repeat' -Tag 'lib' {
         $result[0].severity | Should -Be 'CRIT'
     }
 }
+
+Describe 'Format-TrendCell' -Tag 'lib' {
+    It 'renders each trend shape as a short cell' {
+        Format-TrendCell -Result ([pscustomobject]@{ id = 'x' }) | Should -Be '-'
+        Format-TrendCell -Result ([pscustomobject]@{ trend = $null }) | Should -Be '-'
+        $none = [pscustomobject]@{ trend = [pscustomobject]@{ last_run = $null; delta = $null; adjusted_from = $null } }
+        Format-TrendCell -Result $none | Should -Be '·'
+        $up = [pscustomobject]@{ trend = [pscustomobject]@{ last_run = 'r'; delta = 'used_pct: +8 vs prior'; adjusted_from = 'WARN' } }
+        Format-TrendCell -Result $up | Should -Be '↑ +8'
+        $flat = [pscustomobject]@{ trend = [pscustomobject]@{ last_run = 'r'; delta = 'used_pct: 0 vs prior'; adjusted_from = $null } }
+        Format-TrendCell -Result $flat | Should -Be '0'
+        $noMetric = [pscustomobject]@{ trend = [pscustomobject]@{ last_run = 'r'; delta = $null; adjusted_from = $null } }
+        Format-TrendCell -Result $noMetric | Should -Be '-'
+    }
+}

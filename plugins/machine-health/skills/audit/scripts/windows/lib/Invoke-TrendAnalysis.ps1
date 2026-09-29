@@ -36,6 +36,26 @@ Neutrally named: cross-OS algorithm.
 
 . (Join-Path $PSScriptRoot 'Get-CheckLastRun.ps1')
 
+function Format-TrendCell {
+    <#
+    .SYNOPSIS
+    The glance-table Trend cell for one check result: '-' when no trend was
+    attached, '·' when the check has no baseline run, otherwise the signed
+    numeric delta, prefixed with the worsening arrow when the trend rule
+    raised the severity.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)] $Result)
+
+    $trend = $Result.PSObject.Properties['trend'] ? $Result.trend : $null
+    if (-not $trend) { return '-' }
+    if (-not $trend.last_run) { return '·' }
+    $arrow = $trend.adjusted_from ? '↑ ' : ''
+    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') { return "$arrow$($Matches[1])" }
+    return $trend.adjusted_from ? '↑' : '-'
+}
+
 function Invoke-TrendAnalysis {
     [CmdletBinding()]
     [OutputType([object[]])]
