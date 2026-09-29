@@ -1518,7 +1518,7 @@ PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
 PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   # Explicit args and fleet config produced nothing. The shared ladder tries
-  # named paths, ghq roots, then the working directory. The project directory
+  # named paths, ghq roots, the working directory, then an ancestor. The project directory
   # is still not an implicit repo (#2599).
   fallback_file="$(mktemp)"
   if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
@@ -1866,7 +1866,7 @@ No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give 
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
 
-Also tried, and none resolved: --named paths, ghq root when ghq is installed, and the current working directory when it is a Git checkout. The project directory is not a scope.
+Also tried, and none resolved: --named paths, ghq root --all when ghq is installed, the current working directory when it is a Git checkout, and an ancestor of it holding 2 or more Git repositories. The project directory is not a scope.
 EOF
     fi
     exit 3

@@ -47,14 +47,15 @@ clone="$TMP/clone"
 git clone -q "$bare" "$clone"
 git_identity "$clone"
 
-if ( cd "$TMP" && REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir "$TMP" >"$TMP/noscope.out" 2>"$TMP/noscope.err" ); then
+mkdir -p "$TMP/bare-cwd/1/2/3/4"
+if ( cd "$TMP/bare-cwd/1/2/3/4" && REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir "$TMP" >"$TMP/noscope.out" 2>"$TMP/noscope.err" ); then
   fail "no scope exits 3" "exit 0"
 else
   code=$?
   if [[ "$code" -eq 3 ]]; then pass "no scope exits 3"; else fail "no scope exits 3" "exit $code"; fi
 fi
 noscope_err="$(cat "$TMP/noscope.err")"
-for want in "--repo/--root: none given" "ghq not installed" "is not a Git checkout" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
+for want in "--repo/--root: none given" "ghq not installed" "ghq root --all" "is not a Git checkout" "6. ancestor" "remedy: cd into or beside your checkouts" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
   expect "the no-scope message carries: $want" "$noscope_err" has "$noscope_err" "$want"
 done
 

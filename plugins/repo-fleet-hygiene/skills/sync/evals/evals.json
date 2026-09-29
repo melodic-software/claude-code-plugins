@@ -57,7 +57,7 @@
       "id": 5,
       "name": "no-scope-exits-naming-the-rungs",
       "prompt": "/repo-fleet-hygiene:sync\n\nNo fleet config exists, ghq is not installed, and the working directory is not a Git checkout.",
-      "expected_output": "No scope rung resolves, so the script exits 3 with a message naming every rung (explicit paths, fleet config, --named, ghq root, the working directory). The skill relays that guidance and does not fall back to the project directory or pick a root itself.",
+      "expected_output": "No scope rung resolves, so the script exits 3 with a message naming every rung (explicit paths, fleet config, --named, ghq root --all, the working directory, an ancestor holding repositories). The skill relays that guidance and does not fall back to the project directory or pick a root itself.",
       "files": [],
       "expectations": [
         "Reports the exit-3 no-scope stop and the rungs it names",

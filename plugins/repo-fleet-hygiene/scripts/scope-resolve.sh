@@ -4,9 +4,11 @@
 # Rungs, first hit wins, after the caller has already applied explicit
 # arguments and fleet config:
 #   1. named paths (conversation paths the skill passes through)
-#   2. ghq roots, when ghq is installed
+#   2. every ghq root (`ghq root --all`), when ghq is installed
 #   3. the current working directory, when it is a Git checkout
-#   4. exit 3
+#   4. ancestor: the nearest of the 4 parents above the working directory
+#      that directly holds 2 or more Git repositories
+#   5. exit 3
 #
 # Prints tab-separated lines: repo|root <path>, then provenance <label>.
 # Exit 0 when a rung resolved, 3 when none did. No mutation.
@@ -34,7 +36,7 @@ scope_resolve_fallback() {
       [[ -n "$root" && -d "$root" ]] || continue
       printf 'root\t%s\n' "$root"
       found=1
-    done < <("$ghq_bin" root 2>/dev/null || true)
+    done < <("$ghq_bin" root --all 2>/dev/null || true)
     if [[ "$found" -eq 1 ]]; then
       printf 'provenance\tghq\n'
       return 0
@@ -54,5 +56,19 @@ scope_resolve_fallback() {
       return 0
     fi
   fi
+
+  local dir="$cwd" child count
+  for _ in 1 2 3 4; do
+    dir="$(dirname "$dir")"
+    count=0
+    for child in "$dir"/*/; do
+      [[ -e "${child}.git" ]] && count=$((count + 1))
+    done
+    if [[ "$count" -ge 2 ]]; then
+      printf 'root\t%s\n' "$dir"
+      printf 'provenance\tancestor\n'
+      return 0
+    fi
+  done
   return 3
 }

@@ -164,7 +164,7 @@ if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; 
     rm -f "$fallback"
     ghq_bin="${REPO_FLEET_GHQ_BIN:-ghq}"
     if command -v "$ghq_bin" >/dev/null 2>&1; then
-      ghq_probe="'$ghq_bin root' printed no existing directory"
+      ghq_probe="'$ghq_bin root --all' printed no existing directory"
     else
       ghq_probe="ghq not installed"
     fi
@@ -181,10 +181,12 @@ Error: no scope resolved. Probed, in order:
        remedy: run /repo-fleet-hygiene:setup apply --root <dir>
   3. --named: ${NAMED[*]:-none given}${NAMED[*]:+ (no existing directory)}
        remedy: pass --repo or --root instead
-  4. ghq root: $ghq_probe
+  4. ghq root --all: $ghq_probe
        remedy: install ghq, or pass --root <dir>
   5. working directory: ${SCOPE_CWD:-$PWD} is not a Git checkout
        remedy: cd into a checkout, or pass --repo <checkout>
+  6. ancestor: none of the 4 parents of ${SCOPE_CWD:-$PWD} directly holds 2 or more Git repositories
+       remedy: cd into or beside your checkouts, or pass --root <dir>
 EOF
     exit 3
   fi

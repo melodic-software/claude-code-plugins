@@ -1185,7 +1185,7 @@ assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
 
-mkdir -p "$TMP/proj/.claude" "$TMP/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
+mkdir -p "$TMP/proj/.claude" "$TMP/iso/1/2/3/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
 cat >"$TMP/proj/.claude/repo-fleet-hygiene.conf" <<'LADDER'
 [fleet]
     repo = ../../discovered-a
@@ -1202,7 +1202,7 @@ else
   failures=$((failures + 1))
 fi
 
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/homeg" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/homeg" \
   bash "$SCRIPT" >"$ladder_out"
 if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
   printf 'PASS: user-global config fallback consumed and named\n'
@@ -1241,8 +1241,8 @@ fi
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1265,7 +1265,7 @@ fi
 # A Git project directory still does not become scope without config or CLI paths (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1276,7 +1276,7 @@ else
 fi
 
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
   grep -Fq "Scope: cwd" "$ladder_out"; then
   printf 'PASS: cwd checkout is the no-scope fallback\n'
@@ -1292,8 +1292,8 @@ cat >"$TMP/scopeless.conf" <<'SCOPELESS'
     maxDepth = 5
 SCOPELESS
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
@@ -1310,7 +1310,7 @@ fi
 
 # The guidance belongs to the unresolved no-scope case only: an explicitly supplied bad path is a
 # typo, and the operator already knows how to pass a scope -- they just did.
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/iso/1/2/3/noconf" >"$ladder_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq -- "--config <file>" "$ladder_out"; then
@@ -1588,7 +1588,7 @@ else
   failures=$((failures + 1))
 fi
 # The argument is what the skill body substitutes, so it must win over a stale inherited env value.
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
 if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
   printf 'PASS: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n'

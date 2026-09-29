@@ -26,9 +26,10 @@ First hit wins:
 1. Explicit `--repo`, `--root`, or a bare path. `--root`, `--repo`, and `--named` repeat.
 2. Fleet config (`--config`, else the project file, else `~/.claude/repo-fleet-hygiene.conf`).
 3. `--named` paths from the conversation.
-4. `ghq root`, when `ghq` is installed.
+4. `ghq root --all` (every root), when `ghq` is installed.
 5. The current working directory, when it is a Git checkout.
-6. Exit 3. The message names the rungs. The project directory is not an implicit repo.
+6. The nearest of the 4 parents above the working directory that directly holds 2 or more Git repositories.
+7. Exit 3. The message names the rungs. The project directory is not an implicit repo.
 
 `/repo-fleet-hygiene:audit` uses the same fallback when it has no explicit or config scope.
 
