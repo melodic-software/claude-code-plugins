@@ -26,7 +26,7 @@ import { buildOutDir, configDir, meetingsDir, slidesDataPath, stateRoot } from "
  * followed by a time. Anchoring on the `YYYY-MM-DD` shape is what makes the
  * split structurally impossible — a looser class like `[0-9T:Z-]+` lets the
  * engine backtrack and satisfy the first group with just `2026`, leaving the
- * `-` of `04-24` to serve as the separator (#3364).
+ * `-` of `04-24` to serve as the separator.
  */
 const ISO_INSTANT = "\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:?\\d{2})?)?";
 

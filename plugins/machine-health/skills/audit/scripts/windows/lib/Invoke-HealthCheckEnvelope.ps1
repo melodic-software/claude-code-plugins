@@ -23,6 +23,11 @@ stopwatch.
 $PassThru stamps the duration and leaves $result for the caller to return.
 Test-Drivers tests pass it so they can read the object. The script entry
 point does not, so this file still writes the result.
+
+Every check except Test-Drivers sets `$PassThru = $false` before dot-sourcing.
+The envelope reads $PassThru through session state, which also walks parent
+scopes, so the line stops a caller's $PassThru from leaking in and suppressing
+the write. Test-Drivers declares -PassThru as a parameter instead.
 #>
 
 # Variable lookups go through the session state, not Test-Path: check suites
