@@ -1,5 +1,14 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.14] - 2026-09-28
+
+### Fixed
+
+- **An emitted file-name checker names a missing git under bash 5.3.** The checker found its own
+  directory with `dirname`, so with coreutils off PATH bash 5.3 failed `cd ""` first and printed
+  that error instead of `git is required`. It now uses parameter expansion. Re-run
+  `/docs-hygiene:generate-file-name-gate` to pick this up in an already-emitted checker.
+
 ## [0.23.13] - 2026-09-28
 
 ### Changed

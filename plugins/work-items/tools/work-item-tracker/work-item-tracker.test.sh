@@ -328,11 +328,13 @@ assert_eq "non-github provider is not version-gated" "0" "$RC"
 
 # --- gh ABSENT stays a clean exit 3 (CONTRACT.md "Degradation without gh") ---
 # Only capabilities, which never shells out, answers without the binary.
-# A PATH lacking gh: every system binary EXCEPT gh symlinked into one dir. A
-# non-executable stub fails (`command -v` skips it), and dropping dirs loses jq and git.
+# A PATH lacking gh: every binary on PATH EXCEPT gh symlinked into one dir. A
+# non-executable stub fails (`command -v` skips it), and dropping dirs loses jq
+# and git, which need not live in /usr/bin (mise, Homebrew).
 NOGH_BIN="$TEST_TMPDIR/nogh-bin"
 mkdir -p "$NOGH_BIN"
-for _d in /usr/bin /bin /usr/local/bin; do
+IFS=: read -ra _path_dirs <<<"$PATH"
+for _d in "${_path_dirs[@]}"; do
   [[ -d "$_d" ]] || continue
   for _f in "$_d"/*; do
     _b="${_f##*/}"

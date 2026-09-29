@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.20] - 2026-09-28
+
+### Fixed
+
+- **The ranking suite passes where scc is installed.** Its expectations are pygments counts, but an installed scc supplies the comment lines and counts a shebang as one, so the comment-free `plain.sh` got a nonzero score. The suite now puts a failing scc stub first on PATH, so the census falls back to pygments as it does on CI. Test-only.
+
 ## [0.23.19] - 2026-09-28
 
 ### Changed

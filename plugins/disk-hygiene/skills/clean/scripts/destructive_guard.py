@@ -1297,6 +1297,8 @@ _TRUSTED_READONLY_BIN_PREFIXES = (
     "/usr/local/bin/",
     "/sbin/",
     "/usr/sbin/",
+    # Ubuntu 25.10+ uutils coreutils: /usr/bin/ls -> /usr/lib/cargo/bin/coreutils/ls
+    "/usr/lib/cargo/bin/coreutils/",
     # Windows Git Bash / MSYS common locations
     "/mingw64/bin/",
 )

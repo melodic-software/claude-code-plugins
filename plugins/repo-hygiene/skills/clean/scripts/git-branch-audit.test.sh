@@ -429,7 +429,7 @@ git -C "$LR" checkout -q main
 # never pushed, but a tag pins the tip: a tag persists          -> REVIEW, loss none
 git -C "$LR" checkout -q -b feat/tagged
 lr_commit tg "tagged"
-git -C "$LR" tag keep/tagged
+git -C "$LR" tag --no-sign keep/tagged
 git -C "$LR" checkout -q main
 # never pushed under its own name, tip on origin under another  -> REVIEW, loss none
 git -C "$LR" checkout -q -b feat/alias

@@ -151,11 +151,16 @@ if command -v playwright-cli >/dev/null 2>&1; then
   # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
   # handle must land while the page script runs: this background handler polls for the new
   # unhandled event and handles it (playwright-cli's own start-up, about 5 s on this host,
-  # would otherwise eat the window).
+  # would otherwise eat the window). It holds the handle 2 s so the page's check at 600 ms
+  # still sees the freeze: a poll that lands at once would lift it before the check.
   (
     for _ in $(seq 1 40); do
       read -r -a late <<<"$(unhandled)"
-      if [[ "${#late[@]}" -gt 0 ]]; then "$py" "$here/round.py" --dir "$c" handle --seq "${late[@]}"; break; fi
+      if [[ "${#late[@]}" -gt 0 ]]; then
+        sleep 2
+        "$py" "$here/round.py" --dir "$c" handle --seq "${late[@]}"
+        break
+      fi
       sleep 0.5
     done
   ) >/dev/null 2>&1 &
