@@ -3,6 +3,28 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.27] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: findings carry an identity that survives a re-run.** Every finding adopts
+  `audit-pass`'s `(check, claim, sites)` identity: `check` is
+  `claude-config/audit-instructions/<id>`, each catalog check gains a claim template in the new
+  `reference/finding-identity.md`, anchors are `anchor/v1` excerpt anchors with the heading-path
+  discriminator, and an I15 conflict is one finding with two sites. New `scripts/finding-ids.sh`
+  derives the anchors, `finding_id/v1`, and `group/v1` through `audit-pass`'s
+  `finding-identity.sh`, and its records pass that script's emitter guard. The Phase D table gains
+  a Finding ID column (#4116).
+- **`audit-instructions`: `--persist-findings` emits I30, I31, I32, and I33 from lane findings.**
+  `emit-findings.sh` gains a second intake, `--from-lane`, beside the scanner-fed `--from`. The four
+  rules take new detector-findings crosswalk rows (convention 3.2.0): I30 and I31 at IMPORTANT, I32
+  at CRITICAL, I33 at SUGGESTION, none auto-applicable, I31 and I33 naming their off-site target in
+  `Action`. Lane rows omit `Confidence`. A frontmatter-located I32 row is declined as
+  `reason=frontmatter` and counted, I31 and I33 rows outside a spoke are declined as
+  `reason=outside-rule-surfaces`, and a row on the wrong intake is declined naming the intake it
+  belongs to. Every emitted row carries `finding_id=` in its `Finding` cell, and rank order is tier,
+  then `high` above omitted `Confidence` (#4116).
+
 ## [0.51.26] - 2026-09-28
 
 ### Changed
