@@ -69,6 +69,13 @@
       "description": "Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset.",
       "default": 3,
       "min": 1
+    },
+    "work_loop_in_flight_stale_days": {
+      "type": "number",
+      "title": "Work-loop stale in-flight PR age (days)",
+      "description": "A candidate whose open closing PR (draft or ready) was created more than this many days ago stops being silently excluded: the work-loop lane escalates it to the attended queue with the escalation marker, and the drain report names it. The value is an age taken from the PR's createdAt; the lane stores no state for it.",
+      "default": 14,
+      "min": 1
     }
   }
 }
