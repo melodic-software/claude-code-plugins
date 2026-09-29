@@ -4,7 +4,8 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Loss, Reason (plus Worktree, the checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
+# Loss, Reason (plus Landed, the proof, on a landed branch, and Worktree, the
+# checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
 # map is NOT the same as a repo with no PRs, and the two are distinguishable
 # here on purpose: PR state is what detects a squash merge, so without it a
@@ -21,6 +22,20 @@
 # that fails is reported without stopping the rest. Read-only throughout:
 # git-branch-delete.sh is never batched.
 #
+# LANDED PROOF. A squash or rebase merge leaves a branch that no ancestry check
+# can see as merged, and without PR data (no gh, a truncated map) nothing else
+# says so. When the chain would end at one of its REVIEW fallbacks (no upstream,
+# upstream gone, stale, orphaned) and origin/<default> exists, two pure-git
+# checks look for the work already on origin/<default>: `git cherry` finding
+# every commit's patch-id there (a rebase or cherry-pick merge), or the branch's
+# whole diff from its merge-base, re-created as one unreferenced commit, finding
+# its patch-id there (a squash merge). Either proof makes the branch LIKELY-SAFE,
+# never SAFE, with a `Landed:` line naming the proof. It runs after the PR
+# MERGED / MERGED_SET / PR CLOSED checks and never touches PROTECTED, WORKTREE,
+# a CLOSED PR, or an OPEN PR. Any failed or missing signal keeps the verdict, so
+# it can only narrow what an operator must review. A landed branch is no longer
+# REVIEW, so the LOSSY tier below never sees it.
+#
 # LOSSY TIER. A branch is LOSSY when it is deletable and deleting it loses work:
 # it would otherwise be REVIEW, origin/<default> is present so "landed" can be
 # evaluated, and `git rev-list <branch> --not --remotes --tags` counts at least
@@ -31,9 +46,9 @@
 # would overstate the loss) or OPEN (an active claim on the branch) keeps the
 # branch in REVIEW. Every missing or failed signal (no tip, no origin/<default>,
 # a failed count) yields `Loss: undetermined` and REVIEW, never LOSSY and never
-# SAFE. SAFE and LIKELY-SAFE are computed exactly as before; LOSSY is carved out
-# of REVIEW only, so this tier can widen what an operator must confirm and can
-# never narrow it.
+# SAFE. SAFE and LIKELY-SAFE are decided before this step (the landed proof
+# above included); LOSSY is carved out of REVIEW only, so this tier can widen
+# what an operator must confirm and can never narrow it.
 #
 # BULK READS. Git is asked about the branches together, not one at a time: one
 # for-each-ref carries every branch's tip, upstream and ahead/behind summary, and
@@ -104,11 +119,13 @@ is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a WORKTREE
-branch adds `Worktree: <path>`, the worktree that has it checked out.
-Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
-that is deletable but whose deletion loses commits present on no remote ref and
-no tag; its `Loss:` line carries the count. A loss that cannot be determined is
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a landed
+branch adds `Landed: <proof>`; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out.
+Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. A branch whose work
+origin/<default> already holds, by patch-id (`git cherry`) or as one squashed
+diff, is LIKELY-SAFE with a `Landed:` line, unless its PR is OPEN or CLOSED.
+LOSSY is a branch that is deletable but whose deletion loses commits present on
+no remote ref and no tag; its `Loss:` line carries the count. A loss that cannot be determined is
 `Loss: undetermined (<why>)` and the branch stays REVIEW.
 Then the loss block, `LossBlock: <n> ...` to `LossBlockEnd: <n>`, listing every
 LOSSY branch (LossBranch) and the commits it would lose (LossCommit, at most
@@ -383,11 +400,43 @@ branch_loss_count() {
   fi
 }
 
+# landed_proof <branch>: succeed with landed_reason set when origin/<default>
+# already holds the branch's work. (a) `git cherry` prints one line per commit
+# the branch has that origin/<default> lacks, `-` when an equivalent patch is
+# there: every line `-` means every commit landed (merge commits are not listed).
+# (b) A squash lands the whole diff as one commit, so the tree is re-committed
+# onto the merge-base (a new unreferenced object, no ref) and looked up the same
+# way. A branch with no net change from its merge-base has no work to prove
+# (empty patches all share one patch-id), so it proves nothing. Every failure
+# returns 1.
+landed_proof() {
+  local branch="$1" base="origin/${DEFAULT_BRANCH}" out mb synth rc=0
+  mb="$(git -C "$REPO_ROOT" merge-base "$base" "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
+  [[ -n "$mb" ]] || return 1
+  git -C "$REPO_ROOT" diff --quiet "$mb" "refs/heads/$branch" 2>/dev/null || rc=$?
+  [[ $rc -eq 1 ]] || return 1
+  out="$(git -C "$REPO_ROOT" cherry "$base" "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$out" ]] && ! grep -qv '^-' <<<"$out"; then
+    landed_reason="landed by patch-id (git cherry)"
+    return 0
+  fi
+  synth="$(GIT_AUTHOR_NAME=landed-proof GIT_AUTHOR_EMAIL=landed-proof@localhost \
+    GIT_COMMITTER_NAME=landed-proof GIT_COMMITTER_EMAIL=landed-proof@localhost \
+    git -C "$REPO_ROOT" commit-tree "refs/heads/$branch^{tree}" -p "$mb" -m landed-proof 2>/dev/null | tr -d '\r')"
+  [[ -n "$synth" ]] || return 1
+  out="$(git -C "$REPO_ROOT" cherry "$base" "$synth" 2>/dev/null | tr -d '\r')"
+  if [[ "$out" == -* && "$out" != *$'\n'* ]]; then
+    landed_reason="landed as a squash (tree patch-id)"
+    return 0
+  fi
+  return 1
+}
+
 classify_branch() {
   local branch="$1" age_days="$2" refname="$3" tip="$4" otype="$5" upfull="$6" upshort="$7" track="$8"
   local tier reason pr_line="none" local_tip bulk=0
   local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up="" behind_up=""
-  local loss_line lost="" row
+  local loss_line lost="" row landed_reason=""
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
@@ -482,6 +531,22 @@ classify_branch() {
     reason="orphaned or needs review"
   fi
 
+  # Landed proof, only for a branch the chain left in one of its REVIEW
+  # fallbacks: the PR-state REVIEW verdicts (CLOSED, merged with tip drift) and
+  # an OPEN PR are claims about the branch that a patch-id match does not
+  # answer.
+  if [[ "$tier" == REVIEW && $ORIGIN_DEFAULT -eq 1 && -n "$local_tip" && -n "$ahead_default" ]]; then
+    case "${PR_STATE[$branch]:-}" in
+    MERGED | CLOSED | OPEN) ;;
+    *)
+      landed_proof "$branch" && {
+        tier="LIKELY-SAFE"
+        reason="$landed_reason"
+      }
+      ;;
+    esac
+  fi
+
   # Loss assessment, and the REVIEW -> LOSSY refinement. Only a REVIEW verdict
   # is ever refined, and only upward into "deletable, loses work": every branch
   # the chain above already deemed safe keeps its verdict untouched, and every
@@ -562,6 +627,7 @@ classify_branch() {
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
+  [[ -n "$landed_reason" ]] && printf 'Landed: %s\n' "$landed_reason"
   [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "${WORKTREE_PATH[$branch]}"
 
   if [[ -n "$local_tip" ]]; then

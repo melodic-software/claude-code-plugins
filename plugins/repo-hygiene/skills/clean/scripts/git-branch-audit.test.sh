@@ -645,6 +645,118 @@ assert_contains "CLEAN_LOSS_COMMITS_SHOWN caps the listing" "$cap3_out" "LossCom
 LossCommit: feat/many and 9 more"
 assert_no_line "CLEAN_LOSS_COMMITS_SHOWN: the fourth commit is not listed" "$cap3_out" '^LossCommit: feat/many [0-9a-f]+ many 9$'
 
+# Landed proof. Work that origin/main already holds under other SHAs, with no PR
+# data to say so: a rebase or cherry-pick merge is found by patch-id, a squash by
+# the patch-id of the branch's whole diff. Either is LIKELY-SAFE with a Landed
+# line and never LOSSY. Work only partly on main, an empty branch, and a landed
+# branch whose PR is OPEN keep their verdicts.
+LP="$TEST_TMPDIR/landed-repo"
+git init -q --bare "$TEST_TMPDIR/landed-origin.git"
+git init -q -b main "$LP"
+git -C "$LP" config user.email "t@example.com"
+git -C "$LP" config user.name "Test"
+lp_commit() { # <file> <message>
+  echo "$1" >"$LP/$1"
+  git -C "$LP" add "$1"
+  git -C "$LP" commit -qm "$2"
+}
+lp_commit a init
+git -C "$LP" remote add origin "$TEST_TMPDIR/landed-origin.git"
+git -C "$LP" push -q origin HEAD:main
+git -C "$LP" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+for b in rebased squashed partial empty open; do
+  git -C "$LP" checkout -q -b "feat/$b" main
+  case "$b" in
+  rebased) lp_commit r1 "rebased one" ;;
+  squashed)
+    lp_commit s1 "squashed one"
+    lp_commit s2 "squashed two"
+    ;;
+  partial)
+    lp_commit p1 "partial one"
+    lp_commit p2 "partial two"
+    ;;
+  empty) git -C "$LP" commit -q --allow-empty -m "empty marker" ;;
+  open) lp_commit o1 "open one" ;;
+  *) ;;
+  esac
+  git -C "$LP" checkout -q main
+done
+lp_commit m1 "main moves on"
+git -C "$LP" cherry-pick feat/rebased >/dev/null
+git -C "$LP" merge -q --squash feat/squashed
+git -C "$LP" commit -qm "squash feat/squashed"
+git -C "$LP" cherry-pick feat/partial~1 >/dev/null
+git -C "$LP" cherry-pick feat/open >/dev/null
+git -C "$LP" commit -q --allow-empty -m "empty marker"
+git -C "$LP" push -q origin main
+git -C "$LP" fetch -q --prune origin
+lp_tip() { git -C "$LP" rev-parse "refs/heads/$1"; }
+lp_refs_before="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
+lp_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
+check_facts "landed repo" "$LP" "$lp_out"
+check_loss_invariants "landed repo" "$lp_out"
+assert_contains "cherry-picked branch: LIKELY-SAFE by patch-id, loss not assessed" "$lp_out" "Branch: feat/rebased
+Tip: $(lp_tip feat/rebased)
+Tier: LIKELY-SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: not assessed (LIKELY-SAFE)
+Reason: landed by patch-id (git cherry)
+Landed: landed by patch-id (git cherry)"
+assert_contains "squash-merged branch: LIKELY-SAFE by tree patch-id" "$lp_out" "Branch: feat/squashed
+Tip: $(lp_tip feat/squashed)
+Tier: LIKELY-SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: not assessed (LIKELY-SAFE)
+Reason: landed as a squash (tree patch-id)
+Landed: landed as a squash (tree patch-id)"
+assert_contains "half-landed branch: still LOSSY, no Landed line" "$lp_out" "Branch: feat/partial
+Tip: $(lp_tip feat/partial)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch
+Reason: no upstream, 2 commits not on origin/main"
+assert_contains "branch with no net change proves nothing: still LOSSY" "$lp_out" "Branch: feat/empty
+Tip: $(lp_tip feat/empty)
+Tier: LOSSY"
+assert_contains "only the half-landed and empty branches are in the loss block" "$lp_out" "LossBlockEnd: 2"
+assert_not_contains "no LossBranch for a landed branch" "$lp_out" "LossBranch: feat/rebased"
+assert_not_contains "no LossBranch for a squashed branch" "$lp_out" "LossBranch: feat/squashed"
+assert_contains "summary counts the landed branches as likely-safe" "$lp_out" "likely-safe=3"
+assert_no_line "only landed branches carry a Landed line" "$(printf '%s\n' "$lp_out" | awk '/^Tier: /{t=$2} /^Landed: /&&t!="LIKELY-SAFE"{print}')" '.'
+lp_refs_after="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
+if [[ "$lp_refs_before" == "$lp_refs_after" ]]; then
+  pass "landed proof creates no ref"
+else
+  fail "landed proof creates no ref" "$lp_refs_before refs" "$lp_refs_after"
+fi
+if command -v jq >/dev/null 2>&1; then
+  lp_bin="$TEST_TMPDIR/landed-pr-bin"
+  mkdir -p "$lp_bin"
+  printf '[{"headRefName":"feat/open","state":"OPEN","number":9,"headRefOid":"%s"}]\n' "$(lp_tip feat/open)" >"$lp_bin/prs.json"
+  cat >"$lp_bin/gh" <<FAKEGH
+#!/usr/bin/env bash
+case "\$*" in
+  *pr\ list*) cat "$lp_bin/prs.json" ;;
+  *) exit 1 ;;
+esac
+FAKEGH
+  chmod +x "$lp_bin/gh"
+  lp_pr_out="$(PATH="$lp_bin:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
+  assert_contains "landed branch with an OPEN PR keeps its verdict" "$lp_pr_out" "Branch: feat/open
+Tip: $(lp_tip feat/open)
+Tier: REVIEW"
+  assert_not_contains "an OPEN PR gets no Landed line" "$(printf '%s\n' "$lp_pr_out" | awk '/^Branch: feat\/open$/{p=1} p{print} /^Reason: /{if(p)exit}')" "Landed:"
+else
+  skip_case "landed proof against an OPEN PR needs jq"
+fi
+
 # PR state as a competing signal. An OPEN PR is an active claim on the branch and
 # a MERGED PR means the count overstates the loss (a squash lands the work under a
 # new SHA); both stay REVIEW with the count still shown and annotated. A CLOSED PR
@@ -1162,9 +1274,13 @@ fi
 big_out="$(run_audit_shimmed "$FIXTURES/big" "$FIXTURES/big.tsv")"
 big_spawns="$(spawn_count)"
 big_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+big_proof="$(grep -c -E ' (merge-base|diff --quiet|cherry|commit-tree) ' "$SPAWN_LOG")"
+big_mb="$(grep -c ' merge-base ' "$SPAWN_LOG")"
 small_out="$(run_audit_shimmed "$FIXTURES/small" "$FIXTURES/small.tsv")"
 small_spawns="$(spawn_count)"
 small_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+small_proof="$(grep -c -E ' (merge-base|diff --quiet|cherry|commit-tree) ' "$SPAWN_LOG")"
+small_mb="$(grep -c ' merge-base ' "$SPAWN_LOG")"
 
 check_loss_invariants "big fixture" "$big_out"
 check_facts "big fixture" "$FIXTURES/big/repo" "$big_out"
@@ -1214,8 +1330,16 @@ done
 # LossCommit listing is walked per branch: a shared walk can reorder it when
 # commit dates tie or skew). Everything else, including the ambiguous-name
 # branches that take the per-branch commands, is the same at 242 branches as at 85.
-big_fixed=$((big_spawns - big_logs))
-small_fixed=$((small_spawns - small_logs))
+# The landed-proof step is the other per-branch work: one merge-base call and at
+# most four more (diff, cherry, commit-tree, cherry) for each branch that reaches
+# it.
+big_fixed=$((big_spawns - big_logs - big_proof))
+small_fixed=$((small_spawns - small_logs - small_proof))
+if [[ "$big_proof" -le $((5 * big_mb)) && "$small_proof" -le $((5 * small_mb)) ]]; then
+  pass "landed-proof calls are at most five per branch that reaches it ($big_proof for $big_mb, $small_proof for $small_mb)"
+else
+  fail "landed-proof calls are at most five per branch that reaches it" "$((5 * big_mb)) and $((5 * small_mb))" "$big_proof and $small_proof"
+fi
 big_lossy="$(grep -c '^LossBranch: ' <<<"$big_out")"
 small_lossy="$(grep -c '^LossBranch: ' <<<"$small_out")"
 if [[ "$big_logs" == "$big_lossy" && "$small_logs" == "$small_lossy" ]]; then
