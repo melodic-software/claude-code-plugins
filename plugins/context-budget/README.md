@@ -160,8 +160,9 @@ Three supported routes, in the order most people want them:
    about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   so pass the scope `claude plugin list` reports for this plugin (`user` when the working
+   directory is your home directory, where one file can be labeled both `user` and `project`).
+   The verified-version record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh

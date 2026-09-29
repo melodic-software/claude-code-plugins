@@ -62,8 +62,8 @@ Install nothing.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment. A version
    manager can return a per-call path whose directory name contains a process id. That path is
-   ephemeral: it is not the persisted Machine or User PATH the hook process inherits. FAIL when the only hit is
-   an ephemeral shim, and say so. Report the persisted resolution separately, from
+   ephemeral: it is not the persisted Machine or User PATH the hook process inherits. FAIL when
+   the only hit is an ephemeral shim, and say so. Report the persisted resolution separately, from
    `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`, not from the current
    process PATH. An in-process hit that is not ephemeral is INFO beside that persisted result,
    not a PASS by itself. The checkpoint is a checkpoint either way, never a guarantee. A
