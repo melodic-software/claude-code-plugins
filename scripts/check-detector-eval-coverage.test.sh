@@ -1204,6 +1204,37 @@ unresolved_case 'a severity that is not a plain word' \
 # `$` in the row pattern is not the end of the string: it also matches before a
 # final newline. The id is matched from \A to \z.
 unresolved_case 'an id with a trailing newline is not a full-string match' $'emit error "P1\n"'
+# The full-string match reads \A ... \z, so a leading newline is not part of an id.
+unresolved_case 'an id with a leading newline is not a full-string match' $'emit error "\nP1"'
+
+# A quoted array subscript is a string bash evaluates later, the same class as
+# `eval '...'`: the header's "any other string bash evaluates later" covers it.
+not_a_site_case 'a quoted array subscript is text until bash evaluates it' \
+  "[[ -v 'a[\$(emit error P9)]' ]]" "let 'a[\$(emit error P9)]=1'" "unset 'a[\$(emit error P9)]'"
+
+# A row pattern that accepts whitespace is outside the header's contract, and it
+# lets an id carry a newline. The scanner's counts must stay its own: the
+# resolved count is the ID lines it wrote, the candidate count is its last
+# CANDIDATES line, and neither may be moved by text inside an id.
+multiline_id_case() {
+  local label="$1" pattern="$2" id="$3" want_rc="$4"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "emit error \"$id\""
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "surfaces/det.sh|surfaces/evals.json|$pattern" --check
+  if [[ $RC -eq $want_rc ]] && { [[ $want_rc -eq 0 && -z "$ERR" ]] || [[ $want_rc -eq 2 && "$ERR" == *"has 2 emit call site(s) but only 3 resolved"* ]]; }; then
+    ok "multiline id: $label"
+  else
+    fail "multiline id $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+multiline_id_case 'a second ID line makes the resolved count exceed the candidates' \
+  'P1|P1[[:space:]]ID[[:space:]]P2' $'P1\nID P2' 2
+multiline_id_case 'a later line that only contains "ID " is not an ID line' \
+  'P1|P1[[:space:]]xID[[:space:]]P2' $'P1\nxID P2' 0
+multiline_id_case 'a CANDIDATES line inside an id does not replace the last one' \
+  'P1|P1[[:space:]]CANDIDATES[[:space:]]7' $'P1\nCANDIDATES 7' 0
 
 # A row pattern with alternation is matched as a whole: without the group around
 # it, `\AP[0-9]|Q[0-9]\z` would take the prefix `P1` of `P1x` for an id.
