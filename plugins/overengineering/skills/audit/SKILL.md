@@ -136,12 +136,15 @@ Parse `$ARGUMENTS`:
    default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
    opening line**, naming the path just resolved. **An `unattended` run then probes the write
    path** before any layer is walked: with the file-write tool, write a neutral file in the
-   artifact's directory, rename it to a second neutral name there, and delete it. The probe never
-   renames onto the contract filename, so a prior artifact is left untouched, and it leaves no file
-   behind. It is part of the findings-artifact write, not a third auxiliary write, and a run with no
-   branch identity, which writes nothing, has nothing to probe. When the write
-   or the rename is refused, name the refusal and stop before walking, as for a run where neither
-   route is available.
+   artifact's directory, rename it to a second neutral name there, and delete exactly that second
+   path (the file-write tool's delete where the harness offers one, else one shell removal of that
+   path, which writes no content). The probe never renames onto the contract filename, so a prior
+   artifact is left untouched, and it leaves no file behind on success. It, removal included, is part
+   of the findings-artifact write, not a third auxiliary write, and a run with no branch identity,
+   which writes nothing, has nothing to probe. When the write, rename, or delete is refused, try no
+   other route: name the refusal and every probe path still on disk (the first neutral name if the
+   rename was refused, the second if the delete was) and stop before walking, as for a run where
+   neither route is available.
 2. **Resolve consumer configuration**. Protected categories, threshold overrides, the observation
    window, and suppression entries, from the consuming repo's `.claude/overengineering.md` through
    the config-cascade layering. Keys, defaults, per-key merge forms, and which layer may weaken what
