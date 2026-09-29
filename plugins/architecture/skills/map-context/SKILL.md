@@ -1,6 +1,6 @@
 ---
 description: "Chart one software system's C4 system context from tracked configuration: the focal system, operator-stated actors, and external systems named by connection strings, base URLs, authority endpoints, broker namespaces, and storage accounts. Credentials are redacted before anything is written. Use when: 'map context', 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'who uses this system', 'external systems from config'. Skip when: the question is many repositories (/architecture:map-landscape) or module depth inside one codebase (/architecture:improve)."
-argument-hint: "[system] [--actors <file>] [--focal <name>] [--out <dir>]"
+argument-hint: "[system] [--actors <file>] [--focal <name>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -175,19 +175,15 @@ End every run with this block, in this order, filled from the record and the scr
   software system in scope. Supporting elements: people and those other software systems. Verified
   2026-09-28 against <https://c4model.com/diagrams/system-context>. Recheck when that page changes
   the scope, the primary element, or the supporting elements.
-- **The diagram set does not include a build-declaration graph.** C4's diagrams are system
-  context, containers, components, and code, plus system landscape, dynamic, and deployment.
-  Verified 2026-09-28 against <https://c4model.com/> and <https://c4model.com/diagrams>. Recheck
-  when either page adds or removes a diagram type.
 - **Actors are not derived.** The system-context page lists people as supporting elements and does
   not describe reading them from configuration. This skill records an actor only from an
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
-- **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
-  on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
+- **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the code reads the key
+  the authoring-formats convention assigns to
   C4 system views, which refuses mermaid because mermaid C4 is experimental. An unset key is the
   common case: the run still writes `context.json` and a `context.md` with no diagram, and the report says no
   view was emitted. The
-  decision is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+  key is documented in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
   key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)
   produces no row. Loopback hosts are not external systems. Do not paste a raw value into the

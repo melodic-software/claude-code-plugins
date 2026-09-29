@@ -146,9 +146,6 @@ function alias(s,    a) {
   gsub(/[^A-Za-z0-9]/, "_", a)
   return "e_" a
 }
-function rel(k) {
-  return (k == "calls" ? "Calls" : "Uses")
-}
 function uniq(a,    c, cand) {
   cand = a
   c = 1
@@ -232,7 +229,7 @@ END {
         fa = idalias[efrom[i]]
         ta = idalias[edge_to[i]]
         if (fa == "" || ta == "") continue
-        print "Rel(" fa ", " ta ", \"" rel(ekind[i]) "\", \"" safe(eev[i]) "\")" > out
+        print "Rel(" fa ", " ta ", \"" "Uses" "\", \"" safe(eev[i]) "\")" > out
       }
       print "@enduml" > out
     } else {
@@ -269,7 +266,7 @@ END {
         fa = idalias[efrom[i]]
         ta = idalias[edge_to[i]]
         if (fa == "" || ta == "") continue
-        print "  e_sys." fa " -> e_sys." ta " \"" rel(ekind[i]) "\"" > out
+        print "  e_sys." fa " -> e_sys." ta " \"" "Uses" "\"" > out
       }
       print "}" > out
       print "views {" > out

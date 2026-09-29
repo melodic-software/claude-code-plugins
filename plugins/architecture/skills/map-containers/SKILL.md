@@ -1,6 +1,6 @@
 ---
-description: "Chart one software system as a C4 container diagram: deployables identified by project output, host builder, Dockerfile, or process manifest, the stores and brokers they bind in tracked configuration, dirty files flagged, and the modules contained in one deployable. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: the question is which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
-argument-hint: "[system] [--out <dir>]"
+description: "Chart one software system as a C4 container diagram: deployables identified by project output, host builder, Dockerfile, or process manifest, the stores and brokers they bind in tracked configuration, and dirty files flagged. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: the question is which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
+argument-hint: "[system] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -192,8 +192,9 @@ End every run with this block, in this order, filled from the record and the scr
   `containers.json` and `containers.md` under the resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
-- Treat two projects in one repository as an edge. An edge needs a cited config key or a configured
-  endpoint.
+- Treat two projects in one repository as an edge. An edge needs a cited store binding.
+  Deployable-to-deployable edges from configured endpoints are not extracted, so the diagram shows
+  none.
 
 ## Next
 
@@ -229,11 +230,10 @@ End every run with this block, in this order, filled from the record and the scr
   is technology `unknown`. Do not invent a runtime from the service name. The image is the last
   `FROM`, without its digest and without `--platform` and other options. A last `FROM` that names an
   earlier stage takes that stage's image.
-- **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
-  on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
-  C4 system views, the same key `/planning:design` reads for its design container view. It refuses
+- **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the
+  code reads the key the authoring-formats convention assigns to C4 system views, the same key `/planning:design` reads for its design container view. It refuses
   mermaid because mermaid C4 is experimental. Unset, `containers.md` carries the tables and no diagram,
-  and the report says no view was emitted. The decision is recorded in
+  and the report says no view was emitted. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **A reformatted record reads as empty unless the reader refuses it.** `render-containers.sh`
   exits 1 on any other shape and writes nothing.

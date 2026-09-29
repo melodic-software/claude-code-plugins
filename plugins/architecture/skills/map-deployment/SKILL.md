@@ -1,6 +1,6 @@
 ---
 description: "Chart committed infrastructure as a C4 deployment view: which containers sit on which declared nodes, per environment, and what differs between two environments. Use when: 'map deployment', 'deployment diagram', 'what is different in production', 'IaC topology', 'where does this container run'. Skip when: the question is a live cloud inventory, cost, or runtime health."
-argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--live] [--out <dir>]"
+argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash

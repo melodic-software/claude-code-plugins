@@ -1,6 +1,6 @@
 ---
 description: "Chart the modules inside one deployable as a C4 component view: group them by directory, namespace, or a declared layering, and draw a directed arrow for every internal build reference, each citing the declaration it came from. Use when: 'map components', 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'C4 component view', 'layering of this deployable'. Skip when: the question is which repositories exist (map-landscape), which deployables exist (map-containers), or module-design friction (improve)."
-argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <outside,to,inside>] [--out <dir>]"
+argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <list>] [--dialect likec4|c4-plantuml]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -214,9 +214,9 @@ End every run with this block, in this order:
 ## Gotchas
 
 - **The dialect key is `diagram_dialect.system`, and it has no default.** The
-  operator's decision on #4639 puts every C4 view of the code on the key the
+  Every C4 view of the code reads the key the
   authoring-formats convention assigns to C4 system views, which refuses
-  mermaid because mermaid C4 is experimental. That decision lives in
+  mermaid because mermaid C4 is experimental. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Unset, `components.md` carries the
   tables and no diagram, and the report says no view was emitted.
 - **A component diagram is one container.** Claim: the C4 component diagram

@@ -1,6 +1,6 @@
 ---
 description: "Draw an entity-relationship diagram from committed schema declarations, with no database connection. Prisma models win over Entity Framework fluent mappings, which win over SQL migrations, and a disagreement is reported. Use when: 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', 'which tables relate'. Skip when: the question is deployment topology, runtime state, or data volume."
-argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--live] [--out <dir>]"
+argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
