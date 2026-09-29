@@ -196,6 +196,10 @@ Never pad a quiet run by re-listing standing findings to look useful.
   says it exists. Nothing errors, and the finding is gone from both sides. The bootstrap row is the
   one sanctioned exception, and it is required to say so in its report.
 
+## Next
+
+`/instruction-placement:realign`. It applies the moved findings the operator accepts.
+
 ## Gotchas
 
 - **A quiet run is the expected outcome, not a failed one.** The pull toward finding *something* to

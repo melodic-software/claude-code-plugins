@@ -192,6 +192,11 @@ table and the two rules that keep routing from becoming silent dropping.
 - **Deterministic output.** Files sort lexically, findings sort by rank then identifier, no
   timestamps outside frontmatter.
 
+## Next
+
+`/instruction-placement:realign`. It applies the findings the operator accepts, one gated item at a
+time.
+
 ## Gotchas
 
 Observed failure modes, each producing a finding that survives review by eye: the saving that is

@@ -27,6 +27,12 @@ index Claude Code never loads. Then `audit`. Nothing changes until you accept a 
 moved. Wire `check`
 into CI beside the linters.
 
+## Requirements
+
+- Node.js on `PATH`. The `index-drift` hook launches through `node hooks/exec-bash.mjs`; without
+  `node` it does not run and the index goes unchecked. `/instruction-placement:setup` reports it.
+- `git`, for tracked-file discovery. `jq` and the Claude Code CLI are optional, for `verify-load.sh`.
+
 ## Where the artifacts land
 
 This plugin is a participant in the marketplace's lifecycle artifact protocol

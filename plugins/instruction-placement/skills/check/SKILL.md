@@ -156,6 +156,10 @@ do about it**. The three failure statuses have different fixes and saying "inval
   repository that has since broken.
 - **Exit code is the product.** 0 clean, non-zero otherwise, whatever the prose around it says.
 
+## Next
+
+`/instruction-placement:realign`. It fixes a failing glob or a stale index behind the per-item gate.
+
 ## Gotchas
 
 - **Exit 3 is not a failure.** `render-index.sh check` returns 3 when the file carries no index
