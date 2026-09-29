@@ -97,9 +97,10 @@ The shipped adapter is C# in the MassTransit shape. Orphan publishers and
 consumers are findings. The picture is a mermaid flowchart and reads no dialect
 key.
 
-`/architecture:map-flow` traces one C# route or method. Every hop cites a tracked
-call site. An interface, service locator, or reflection hop stays unresolved.
-The picture is a mermaid sequence diagram and reads no dialect key.
+`/architecture:map-flow` traces one C# route, `Type.Method` or method name. Every
+hop cites a tracked call site, and a call is followed only through its receiver's
+declared type. An interface, service locator, reflection, or outside-the-tree call
+stays unresolved. The picture is a mermaid sequence diagram and reads no dialect key.
 
 `/architecture:map-containers` charts the deployables in one repository and the
 stores they bind. Kind comes from the project output, a host builder, a

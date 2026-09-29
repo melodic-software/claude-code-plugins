@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
 ## [0.62.23] - 2026-09-29
 
 ### Fixed

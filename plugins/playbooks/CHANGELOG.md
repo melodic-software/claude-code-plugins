@@ -4,6 +4,34 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.4] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `ai-slop` step is audit-only** ([#5194](https://github.com/melodic-software/claude-code-plugins/issues/5194)).
+  The catalog entry passed `audit fix .`, which chains the audit and the fix in one invocation and
+  rewrote prose before the findings review. The entry now passes `audit .`, and a note directs
+  running `fix` on the findings the user approves.
+
+## [0.14.3] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `compress` step runs `audit` first** ([#5193](https://github.com/melodic-software/claude-code-plugins/issues/5193)).
+  The step now runs `/docs-hygiene:compress audit`, excludes always-loaded instruction files from
+  its targets, and is ticked `not-applicable` when no targets remain, instead of compressing every
+  markdown file.
+
+## [0.14.2] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `coupling` step stays on the sweep branch** ([#5188](https://github.com/melodic-software/claude-code-plugins/issues/5188)).
+  `coupling:reduce` creates its own branch, commits per reduction and opens a pull request, which
+  conflicts with the sweep's one-branch, one-commit model. The catalog entry now carries an
+  `#### Override` that keeps the work on the current branch, leaves changes uncommitted for the step
+  commit, and files tracker items only with approval.
+
 ## [0.14.1] - 2026-09-29
 
 ### Fixed
