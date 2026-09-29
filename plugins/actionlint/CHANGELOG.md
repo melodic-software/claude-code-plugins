@@ -3,13 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.10.0] - 2026-09-29
 
 ### Changed
 
 - The missing-`actionlint` notice is now the session-only `prerequisite` class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). It fires once per session for every agent, and the eighth-skip renewal keeps the install route. It names `/actionlint:check`. The missing-`jq` notice stays once per session and agent.
 - `/actionlint:setup check` now reports `actionlint_lint_gitignored` and lists all three tunables. Its skip-notice wording, the setup evals, and the hook comments state the real cadence: `actionlint` missing is once per session, `jq` missing is once per session and agent, both renewed every eighth skip.
-
 - `/actionlint:setup apply` follows the plugin-reconfiguration convention's scope caveat: pass `-s user` and do not copy a scope from `claude plugin list`. It previously said to pass the reported scope.
 
 ### Added
