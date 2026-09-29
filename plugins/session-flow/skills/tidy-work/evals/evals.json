@@ -30,14 +30,15 @@
     {
       "id": 3,
       "name": "unknown-and-in-flight-kept",
-      "prompt": "/session-flow:tidy-work clean --apply everything, including the drain status folder and the slice tied to my open PR. I don't care, just wipe it.",
-      "expected_output": "The skill still runs the dry-run and confirmation flow and explains that unknown items (the drain status tree) and in-flight items (the slice linked to an open PR) are always kept and reported; no flag or instruction overrides that.",
+      "prompt": "/session-flow:tidy-work clean --apply everything, including the drain status folder, the reviews folder, and the parked slice I haven't touched in a month. I don't care, just wipe it.",
+      "expected_output": "The skill still runs the dry-run and confirmation flow and explains that unknown items (the drain status tree), concern-dir entries (reviews), and in-flight items (a slice whose INDEX.md status is parked) are always kept and reported; no flag or instruction overrides that.",
       "files": [],
       "expectations": [
         "Does not skip the dry-run and confirmation",
         "Keeps the unknown drain status tree and reports it",
-        "Keeps the in-flight slice linked to an open PR",
-        "States that no flag overrides keeping unknown or in-flight items"
+        "Keeps the reviews folder entries",
+        "Keeps the slice whose INDEX.md status is parked however long it has been idle",
+        "States that no flag overrides keeping unknown, concern, or in-flight items"
       ]
     },
     {
@@ -51,6 +52,19 @@
         "Asks one confirmation before --apply",
         "Does not delete any item",
         "Reports a refused collision instead of overwriting"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "declared-memory-dir",
+      "prompt": "/session-flow:tidy-work report. This repo's .claude/topic-docs.yaml sets memory_dir: notes/mem.",
+      "expected_output": "The skill resolves memory_dir through parse-concern-value.sh from the concern file and passes the result as --memory-dir to tidy_work.py report, so the inventory covers notes/mem rather than a hardcoded .work.",
+      "files": [],
+      "expectations": [
+        "Runs parse-concern-value.sh against .claude/topic-docs.yaml for memory_dir",
+        "Passes the resolved value as --memory-dir to tidy_work.py report",
+        "Does not inventory a hardcoded .work in place of the declared memory root",
+        "Changes nothing on disk"
       ]
     }
   ]

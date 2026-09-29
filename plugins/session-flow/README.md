@@ -329,12 +329,15 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 
 ### tidy-work
 
-Inventories the gitignored `.work` memory tiers (the repo's memory root and `~/.work`) that no other
-skill prunes. `report` (default, read-only) lists each first-level item with age, size, kind, and
-whether it is in flight. `normalize` moves misplaced handoffs and running-retro ledgers into their
-standard directories. `clean` removes stale items of a known kind. Both are dry runs that list exact
-paths and ask one confirmation before `--apply`. Unknown items (for example a tool's own folder) and
-in-flight items are always kept. Opt-in only: nothing runs unless invoked.
+Inventories the gitignored `.work` memory tiers (the repo's memory root, resolved from the concern
+file's `memory_dir`, and `~/.work`) that no other skill prunes. `report` (default, read-only) lists
+each first-level item with age, size, kind, and whether it is in flight. `normalize` moves misplaced
+handoffs and running-retro ledgers into their standard directories. `clean` removes stale items of a
+known kind. Both are dry runs that list exact paths and ask one confirmation before `--apply`, and
+neither modifies anything git tracks. Unknown items (for example a tool's own folder), the entries
+of other skills' concern dirs (`reviews/`, `exports/`), and in-flight items (a slice whose
+`INDEX.md` status is not `done`, a recent change, a handoff naming an open issue or PR) are always
+kept. Opt-in only: nothing runs unless invoked.
 
 ```shell
 /session-flow:tidy-work                  # report

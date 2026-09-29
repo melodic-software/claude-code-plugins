@@ -4,7 +4,7 @@
 
 ### Added
 
-- **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes stale known-kind items. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, and always keep unknown and in-flight items. Opt-in only.
+- **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root (resolved from the concern file's `memory_dir`) and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes stale known-kind items. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, never modify content git tracks (a memory root without a `*` `.gitignore` is refused, and a root that is the repository root is rejected), and always keep unknown and in-flight items. A slice is in flight unless its `INDEX.md` status is `done`; a handoff or running retro that names an open issue or PR is in flight; other skills' concern dirs are reported and kept. Opt-in only.
 
 ## [0.40.0] - 2026-09-29
 

@@ -14,36 +14,52 @@ Usage:
 
 `report` lists the first-level items of the current repo's memory root and of
 `$HOME/.work`, each with its path, age, size, kind and whether it is in flight.
-Kinds come from the layout in `reference/topic-docs.md`:
+A relative `--memory-dir` resolves against the repository top level. Kinds come
+from the layout in `reference/topic-docs.md`:
 
-    handoff        `handoffs/<TS>-handoff-<topic>.md`
+    handoff        `handoffs/<TS>-handoff-<topic>.md`, with its `.slots.json`
+                   sidecar as part of the same item
     running-retro  `running-retros/<TS>-running-retro-<topic>.md`
     slice          `<slug>/` holding an `INDEX.md`
     checklist      `<slug>/` holding a `workflow-checklist.md` and no `INDEX.md`
-    scratch        an entry of a regenerable concern dir (reviews, exports, ...)
+    concern        an entry of another skill's concern dir (reviews, exports,
+                   ...): state that skill reads back; always reported, always kept
     unknown        everything else; always reported, always kept
 
 An item is in flight, and so kept, when any of these holds:
-    - its frontmatter names an issue or PR (keys issue, issues, pr, prs,
-      pull_request, pull_requests) that is open or whose state is unknown
+    - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
+      (missing and unrecognized values count as not done)
+    - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
     - it changed within `--days` days (default 14)
     - a later handoff mentions it by name
-    - its `workflow-checklist.md` has an unticked stage that is not marked SKIP
+    - a handoff or running-retro text names an issue or PR (a github.com URL,
+      `owner/repo#N`, or `#N`) that is open or whose state is unknown
 
-Issue and PR state comes from `gh api` unless `--link-state` supplies a JSON
-object mapping `#N` or `owner/repo#N` to a state, or `--offline` treats every
-link as unknown (in flight). A link missing from the table is unknown.
+A bare `#N` means the repository holding the memory root; in `$HOME/.work`, or
+any root outside a work tree, it has no repository and counts as unknown.
+Issue and PR state comes from `gh api` (one listing of the open ones per
+repository) unless `--link-state` supplies a JSON object mapping `#N` or
+`owner/repo#N` to a state, or `--offline` treats every link as unknown (in
+flight). A link missing from the table is unknown. A link is looked up only
+when nothing cheaper already keeps the item.
 
-`normalize` moves a handoff or running-retro file that sits in the wrong place
-(the root, or the other one's directory) into `handoffs/` or `running-retros/`.
-It never deletes, never touches an unknown item, and refuses to overwrite.
+`normalize` moves a handoff (with its sidecar) or running-retro file that sits
+in the wrong place (the root, or the other one's directory) into `handoffs/` or
+`running-retros/`. It never deletes, never touches an unknown item, and refuses
+to overwrite.
 
 `clean` removes only items of a known kind that are not in flight, and only
 inside a resolved root. It refuses an item holding a symlink that resolves
 outside the root. The root's `.gitignore` self-ignore file is never touched.
 
+`normalize` and `clean` never modify content git tracks: they refuse the whole
+memory root unless its `.gitignore` holds a line `*` (`$HOME/.work` excepted),
+and refuse any item with a tracked path under it. Every command rejects a
+memory root that is the repository root.
+
 Exit codes:
-    all     2 usage, or `--link-state` unreadable or not a JSON object
+    all     2 usage, `--link-state` unreadable or not a JSON object, or a
+            memory root that is the repository root
     report  0 printed
     others  0 dry run, or every planned action applied
             1 an action was refused or failed
@@ -74,17 +90,20 @@ SELF_IGNORE = ".gitignore"
 CHECKLIST = "workflow-checklist.md"
 SLICE_INDEX = "INDEX.md"
 RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-[^/\\]+\.md$")
-# Concern dirs the contract calls regenerable reports; each entry is scratch.
-SCRATCH_DIRS = (
+SLOTS_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.slots\.json$")
+# Concern dirs other skills write and read back; their entries are never removed.
+CONCERN_DIRS = (
     "reviews",
     "exports",
     "overengineering",
     "enforceability",
     "docs-hygiene",
+    "lanes",
 )
-LINK_KEYS = ("issue", "issues", "pr", "prs", "pull_request", "pull_requests")
-LINK_RE = re.compile(
-    r"(?:github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/|([\w.-]+/[\w.-]+)?#)?(\d+)"
+REF_RE = re.compile(
+    r"github\.com/(?P<url_repo>[\w.-]+/[\w.-]+)/(?:issues|pull)/(?P<url_num>\d+)"
+    r"|(?P<repo>[\w.-]+/[\w.-]+)#(?P<num>\d+)\b"
+    r"|(?<![\w&#/])#(?P<bare>[1-9]\d*)\b"
 )
 UNTICKED_RE = re.compile(r"^\s*[-*]\s+\[ \]\s")
 STAGES_HEADING = "## Stages"
@@ -98,7 +117,12 @@ class Item:
     mtime: float
     size: int
     links: list[str] = field(default_factory=list)
+    extras: list[Path] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+
+    @property
+    def paths(self) -> list[Path]:
+        return [self.path, *self.extras]
 
     @property
     def in_flight(self) -> bool:
@@ -106,7 +130,11 @@ class Item:
 
     @property
     def keep(self) -> bool:
-        return self.kind == "unknown" or self.in_flight
+        return self.kind in ("unknown", "concern") or self.in_flight
+
+
+def _plain_file(path: Path) -> bool:
+    return path.is_file() and not path.is_symlink()
 
 
 def _tree_stats(path: Path) -> tuple[float, int]:
@@ -125,24 +153,24 @@ def _tree_stats(path: Path) -> tuple[float, int]:
     return newest, size
 
 
-def _links_of(path: Path) -> list[str]:
-    if path.suffix != ".md":
-        return []
+def _refs_of(path: Path) -> list[str]:
+    """Issue and PR references in the text: `owner/repo#N`, or `#N` when bare."""
     try:
-        doc = save_point.parse_doc(path)
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
     refs: list[str] = []
-    for key in LINK_KEYS:
-        for url_repo, repo, number in LINK_RE.findall(doc.frontmatter.get(key, "")):
-            ref = f"{url_repo or repo}#{number}" if url_repo or repo else f"#{number}"
-            if ref not in refs:
-                refs.append(ref)
+    for match in REF_RE.finditer(text):
+        repo = match["url_repo"] or match["repo"]
+        number = match["url_num"] or match["num"] or match["bare"]
+        ref = f"{repo}#{number}" if repo else f"#{number}"
+        if ref not in refs:
+            refs.append(ref)
     return refs
 
 
 def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
-    """(kind, file whose frontmatter carries the links)."""
+    """(kind, file whose text names the issues and PRs it is about)."""
     if path.is_symlink():
         return "unknown", None
     if parent_kind == "handoff":
@@ -151,11 +179,11 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     if parent_kind == "running-retro":
         ok = RETRO_NAME_RE.match(path.name) and path.is_file()
         return ("running-retro", path) if ok else ("unknown", None)
-    if parent_kind == "scratch":
-        return "scratch", None
+    if parent_kind == "concern":
+        return "concern", None
     if path.is_dir():
         if (path / SLICE_INDEX).is_file():
-            return "slice", path / SLICE_INDEX
+            return "slice", None
         if (path / CHECKLIST).is_file():
             return "checklist", None
     return "unknown", None
@@ -177,6 +205,34 @@ def _unfinished_stage(slice_dir: Path) -> bool:
     return any(UNTICKED_RE.match(line) and "skip" not in line.lower() for line in lines)
 
 
+def _slice_status(index: Path) -> str:
+    try:
+        return save_point.parse_doc(index).frontmatter.get("status", "")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def _open_work(directory: Path) -> list[str]:
+    """Why a slice or checklist directory is not finished: every INDEX.md under
+    it (child slices included) whose status is not `done`, and every checklist
+    with an unfinished stage. `clean` removes the whole tree, so all of it counts."""
+    reasons: list[str] = []
+    for base, dirs, files in os.walk(directory, followlinks=False):
+        dirs.sort()
+        here = Path(base)
+        rel = here.relative_to(directory)
+        if (
+            SLICE_INDEX in files
+            and (status := _slice_status(here / SLICE_INDEX)) != "done"
+        ):
+            reasons.append(
+                f"{(rel / SLICE_INDEX).as_posix()} status is {status or 'missing'}"
+            )
+        if CHECKLIST in files and _unfinished_stage(here):
+            reasons.append(f"{(rel / CHECKLIST).as_posix()} has an unfinished stage")
+    return reasons
+
+
 def inventory(root: Path, label: str) -> list[Item]:
     items: list[Item] = []
     try:
@@ -185,8 +241,13 @@ def inventory(root: Path, label: str) -> list[Item]:
         return items
 
     def add(path: Path, kind: str, link_file: Path | None) -> None:
+        extras: list[Path] = []
+        if kind == "handoff" and _plain_file(
+            sidecar := path.with_suffix(".slots.json")
+        ):
+            extras.append(sidecar)
         try:
-            mtime, size = _tree_stats(path)
+            stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
             return
         items.append(
@@ -194,23 +255,30 @@ def inventory(root: Path, label: str) -> list[Item]:
                 path,
                 label,
                 kind,
-                mtime,
-                size,
-                _links_of(link_file) if link_file else [],
+                max(mtime for mtime, _ in stats),
+                sum(size for _, size in stats),
+                _refs_of(link_file) if link_file else [],
+                extras,
             )
         )
 
     for entry in entries:
         if entry.name == SELF_IGNORE:
             continue
-        if entry.name in ("handoffs", "running-retros", *SCRATCH_DIRS) and (
+        if entry.name in ("handoffs", "running-retros", *CONCERN_DIRS) and (
             entry.is_dir() and not entry.is_symlink()
         ):
             parent_kind = {
                 "handoffs": "handoff",
                 "running-retros": "running-retro",
-            }.get(entry.name, "scratch")
+            }.get(entry.name, "concern")
             for child in sorted(entry.iterdir()):
+                if (
+                    parent_kind == "handoff"
+                    and (slots := SLOTS_RE.match(child.name))
+                    and _plain_file(entry / f"{slots[1]}.md")
+                ):
+                    continue
                 kind, link_file = _classify(child, parent_kind)
                 add(child, kind, link_file)
             continue
@@ -219,36 +287,45 @@ def inventory(root: Path, label: str) -> list[Item]:
     return items
 
 
-def _gh_state(ref: str) -> str:
-    repo, _, number = ref.rpartition("#")
-    api_path = f"repos/{repo or '{owner}/{repo}'}/issues/{number}"
+def _gh_open_numbers(repo: str, cwd: Path | None) -> set[str] | None:
+    """Numbers of the open issues and PRs of repo (`{owner}/{repo}` from cwd when
+    repo is empty), or None when gh cannot list them."""
+    api_path = f"repos/{repo or '{owner}/{repo}'}/issues?state=open&per_page=100"
     try:
         result = subprocess.run(
-            ["gh", "api", api_path, "--jq", ".state"],
+            ["gh", "api", api_path, "--paginate", "--jq", ".[].number"],
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=120,
+            cwd=cwd,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return "unknown"
-    return result.stdout.strip() or "unknown" if result.returncode == 0 else "unknown"
+        return None
+    return set(result.stdout.split()) if result.returncode == 0 else None
 
 
 class LinkStates:
     def __init__(self, table: dict[str, str] | None, offline: bool) -> None:
         self._table = table
         self._offline = offline
-        self._cache: dict[str, str] = {}
+        self._open: dict[tuple[str, Path | None], set[str] | None] = {}
 
-    def state(self, ref: str) -> str:
+    def state(self, ref: str, root: Path) -> str:
         if self._offline:
             return "unknown"
         if self._table is not None:
             return str(self._table.get(ref, "unknown")).lower()
-        if ref not in self._cache:
-            self._cache[ref] = _gh_state(ref).lower()
-        return self._cache[ref]
+        repo, _, number = ref.rpartition("#")
+        top = None if repo else save_point._git_toplevel(root)
+        if not repo and top is None:
+            return "unknown"
+        if (repo, top) not in self._open:
+            self._open[repo, top] = _gh_open_numbers(repo, top)
+        numbers = self._open[repo, top]
+        if numbers is None:
+            return "unknown"
+        return "open" if number in numbers else "closed"
 
 
 def _mentions(text: str, name: str, is_dir: bool) -> bool:
@@ -258,7 +335,11 @@ def _mentions(text: str, name: str, is_dir: bool) -> bool:
 
 
 def mark_in_flight(
-    items: list[Item], days: float, states: LinkStates, now: float
+    items: list[Item],
+    days: float,
+    states: LinkStates,
+    now: float,
+    roots: dict[str, Path],
 ) -> None:
     handoffs: list[tuple[float, str]] = []
     for item in items:
@@ -268,9 +349,8 @@ def mark_in_flight(
             except (OSError, UnicodeDecodeError):
                 continue
     for item in items:
-        for ref in item.links:
-            if (state := states.state(ref)) not in ("closed", "merged"):
-                item.reasons.append(f"link {ref} is {state}")
+        if item.kind in ("slice", "checklist"):
+            item.reasons.extend(_open_work(item.path))
         if now - item.mtime < days * 86400:
             item.reasons.append(f"modified within {days:g} days")
         is_dir = item.path.is_dir()
@@ -279,29 +359,44 @@ def mark_in_flight(
             for mtime, text in handoffs
         ):
             item.reasons.append("named by a later handoff")
-        if item.kind in ("slice", "checklist") and _unfinished_stage(item.path):
-            item.reasons.append("checklist has an unfinished stage")
+        if item.reasons:
+            continue
+        for ref in item.links:
+            if (state := states.state(ref, roots[item.root])) not in (
+                "closed",
+                "merged",
+            ):
+                item.reasons.append(f"link {ref} is {state}")
 
 
 def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[str]]:
+    """The roots to inventory. Raises ValueError for a memory root that is the
+    repository root: every top-level `INDEX.md` directory there would be a slice."""
     notes: list[str] = []
-    memory: Path | None
-    if memory_dir:
-        memory = Path(memory_dir).expanduser().resolve()
+    top = save_point._git_toplevel(Path.cwd())
+    declared = (
+        Path(memory_dir).expanduser()
+        if memory_dir
+        else save_point._default_memory_dir()
+    )
+    memory = (
+        None
+        if declared is None
+        else (declared if declared.is_absolute() or top is None else top / declared)
+    )
+    if memory is None:
+        notes.append("no memory root: no git work tree and no plugin data dir")
     else:
-        default = save_point._default_memory_dir()
-        top = save_point._git_toplevel(Path.cwd())
-        memory = (
-            None
-            if default is None
-            else (default if default.is_absolute() or top is None else top / default)
-        )
-        if memory is None:
-            notes.append("no memory root: no git work tree and no plugin data dir")
+        memory = memory.resolve()
+        if save_point._git_toplevel(memory) == memory:
+            raise ValueError(
+                f"memory root {memory.as_posix()} is the repository root; "
+                "it must be a dedicated directory below it"
+            )
     home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or str(Path.home())
     roots: list[tuple[str, Path]] = []
     if memory is not None:
-        roots.append(("memory", memory.resolve()))
+        roots.append(("memory", memory))
     home_work = (Path(home) / ".work").resolve()
     if all(home_work != path for _, path in roots):
         roots.append(("home", home_work))
@@ -331,6 +426,8 @@ def _to_dict(item: Item, now: float) -> dict[str, object]:
 def _verdict(item: Item) -> str:
     if item.reasons:
         return "keep: " + "; ".join(item.reasons)
+    if item.kind == "concern":
+        return "keep: concern state read back by its skill"
     return "keep: unknown kind" if item.kind == "unknown" else "stale"
 
 
@@ -363,6 +460,16 @@ def _load_link_table(path: str | None) -> dict[str, str] | None:
     return table
 
 
+def _roots(
+    args: argparse.Namespace,
+) -> tuple[list[tuple[str, Path]], list[str]] | None:
+    try:
+        return resolve_roots(args.memory_dir)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+
+
 def _survey(
     args: argparse.Namespace,
 ) -> tuple[list[tuple[str, Path]], list[str], list[Item], float] | None:
@@ -371,13 +478,16 @@ def _survey(
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
-    roots, notes = resolve_roots(args.memory_dir)
+    resolved = _roots(args)
+    if resolved is None:
+        return None
+    roots, notes = resolved
     states = LinkStates(table, args.offline)
     now = datetime.now(timezone.utc).timestamp()
     items: list[Item] = []
     for label, root in roots:
         items.extend(inventory(root, label))
-    mark_in_flight(items, args.days, states, now)
+    mark_in_flight(items, args.days, states, now, dict(roots))
     return roots, notes, items, now
 
 
@@ -426,8 +536,63 @@ def _escapes(path: Path, root: Path) -> bool:
     return False
 
 
+@dataclass
+class Guard:
+    """Whether a root may be modified: git-tracked content never is."""
+
+    root: Path
+    refusal: str | None = None
+    tracked: list[str] | None = (
+        None  # root-relative tracked paths; None outside a work tree
+    )
+
+    def blocks(self, path: Path) -> str | None:
+        if self.refusal:
+            return self.refusal
+        if self.tracked is not None:
+            rel = path.relative_to(self.root).as_posix()
+            if any(t == rel or t.startswith(f"{rel}/") for t in self.tracked):
+                return f"git tracks content at {rel}"
+        return None
+
+
+def _self_ignored(root: Path) -> bool:
+    try:
+        lines = (root / SELF_IGNORE).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any(line.strip() == "*" for line in lines)
+
+
+def _guard(label: str, root: Path) -> Guard:
+    guard = Guard(root)
+    if not root.is_dir():
+        return guard
+    if label != "home" and not _self_ignored(root):
+        guard.refusal = (
+            f"memory root lacks the self-ignore guard: {(root / SELF_IGNORE).as_posix()} "
+            "must contain a line '*'"
+        )
+    elif save_point._git_toplevel(root) is not None:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(root), "ls-files", "-z"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            result = None
+        if result is None or result.returncode != 0:
+            guard.refusal = "cannot list the files git tracks"
+        else:
+            guard.tracked = [name for name in result.stdout.split("\0") if name]
+    return guard
+
+
 def plan_moves(root: Path) -> list[tuple[Path, Path]]:
-    """(source, target) for each handoff or running-retro file outside its directory."""
+    """(source, target) for each handoff (with its sidecar) or running-retro file
+    outside its directory."""
     layout = (
         ("handoffs", save_point.HANDOFF_NAME_RE),
         ("running-retros", RETRO_NAME_RE),
@@ -449,6 +614,8 @@ def plan_moves(root: Path) -> list[tuple[Path, Path]]:
         for dirname, name_re in layout:
             if name_re.match(src.name) and src.parent != root / dirname:
                 moves.append((src, root / dirname / src.name))
+                if _plain_file(sidecar := src.with_suffix(".slots.json")):
+                    moves.append((sidecar, root / dirname / sidecar.name))
     return moves
 
 
@@ -461,25 +628,50 @@ def _refusal(dst: Path) -> str | None:
 
 
 def cmd_normalize(args: argparse.Namespace) -> int:
-    roots, notes = resolve_roots(args.memory_dir)
+    resolved = _roots(args)
+    if resolved is None:
+        return 2
+    roots, notes = resolved
     for note in notes:
         print(f"note: {note}", file=sys.stderr)
     failed = total = 0
-    for _, root in roots:
-        for src, dst in plan_moves(root):
+    for label, root in roots:
+        moves = plan_moves(root)
+        guard = _guard(label, root) if moves else Guard(root)
+        for src, dst in moves:
             total += 1
-            refusal = _refusal(dst)
-            if refusal is None and args.apply:
-                dst.parent.mkdir(exist_ok=True)
-                os.rename(src, dst)
-            if refusal:
+            if refusal := guard.blocks(src) or _refusal(dst):
                 failed += 1
                 print(f"refused: {src.as_posix()} ({refusal})")
-            else:
-                verb = "moved" if args.apply else "would move"
-                print(f"{verb}: {src.as_posix()} -> {dst.as_posix()}")
+                continue
+            if args.apply:
+                try:
+                    dst.parent.mkdir(exist_ok=True)
+                    os.rename(src, dst)
+                except OSError as exc:
+                    failed += 1
+                    print(f"failed: {src.as_posix()} ({exc})")
+                    continue
+            verb = "moved" if args.apply else "would move"
+            print(f"{verb}: {src.as_posix()} -> {dst.as_posix()}")
     print(f"{total} misplaced, {failed} refused" + ("" if args.apply else ", dry run"))
     return 1 if failed and args.apply else 0
+
+
+def _blocked(item: Item, root: Path, guard: Guard) -> str | None:
+    for path in item.paths:
+        if _escapes(path, root):
+            return "outside the root"
+        if reason := guard.blocks(path):
+            return reason
+    return None
+
+
+def _remove(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
 
 
 def cmd_clean(args: argparse.Namespace) -> int:
@@ -490,26 +682,30 @@ def cmd_clean(args: argparse.Namespace) -> int:
     for note in notes:
         print(f"note: {note}", file=sys.stderr)
     root_of = dict(roots)
-    failed = removed = 0
     stale = [item for item in items if not item.keep]
+    guards = {
+        label: _guard(label, root)
+        for label, root in roots
+        if any(item.root == label for item in stale)
+    }
+    failed = removed = 0
     for item in stale:
-        if _escapes(item.path, root_of[item.root]):
+        if refusal := _blocked(item, root_of[item.root], guards[item.root]):
             failed += 1
-            print(f"refused: {item.path.as_posix()} (outside the root)")
+            print(f"refused: {item.path.as_posix()} ({refusal})")
         elif not args.apply:
-            print(f"would remove: {item.path.as_posix()}")
+            for path in item.paths:
+                print(f"would remove: {path.as_posix()}")
         else:
             try:
-                if item.path.is_dir():
-                    shutil.rmtree(item.path)
-                else:
-                    item.path.unlink()
+                for path in item.paths:
+                    _remove(path)
+                    print(f"removed: {path.as_posix()}")
             except OSError as exc:
                 failed += 1
                 print(f"failed: {item.path.as_posix()} ({exc})")
                 continue
             removed += 1
-            print(f"removed: {item.path.as_posix()}")
     kept = len(items) - len(stale)
     count = f"{removed} removed" if args.apply else f"{len(stale) - failed} to remove"
     print(f"{count}, {failed} refused or failed, {kept} kept")
