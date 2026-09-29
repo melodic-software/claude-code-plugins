@@ -892,7 +892,7 @@ action_of() {
     printf 'Repair, not pruning: add an assertion on the observable behavior this test exercises; today it passes vacuously and its coverage claim is false.'
     ;;
   recomputed-expectation)
-    printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate.'
+    printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate. A determinism contract, f(x) == f(x) on purpose, records that with a cant-fail-ok: annotation.'
     ;;
   mock-only-oracle)
     printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
