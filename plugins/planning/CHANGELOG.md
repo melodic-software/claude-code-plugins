@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.10] - 2026-09-28
+
+### Changed
+
+- **`prd` drops the `arguments:` frontmatter field**
+  ([#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001)). The body reads
+  `$ARGUMENTS` whole: a leading tier word selects the tier row, and an empty string still means
+  the skill asks for the tier. `argument-hint` is unchanged.
+
 ## [0.45.9] - 2026-09-28
 
 ### Added
