@@ -135,6 +135,17 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     }
     close(ARGV[1])
   }
+  # C#: RunAsync on an object initializer is Microsoft.CodeAnalysis.Testing's
+  # analyzer or code-fix harness, which asserts the diagnostics and fixed
+  # code, only in a file that imports that harness or aliases one of its types.
+  if (LEXER == "cs" && ARGV[1] != "") {
+    while ((getline line < ARGV[1]) > 0)
+      if (line ~ /^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+([A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*)?Microsoft\.CodeAnalysis(\.[A-Za-z]+)*\.Testing([^A-Za-z0-9_]|$)/) {
+        R_ANY = R_ANY "|\\}[[:space:]]*\\.[[:space:]]*RunAsync[[:space:]]*\\("
+        break
+      }
+    close(ARGV[1])
+  }
 
   # Two-argument equality helpers, matched by substring in list order.
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
@@ -550,6 +561,19 @@ function inv_eq(a, b) {
 # is what the expressions are read from.
 # ---------------------------------------------------------------------------
 
+# The length of a Python line before its trailing # comment, so an annotation
+# on the assert line stays out of the compared sides.
+function py_code_len(s,    i, n, c, q) {
+  n = length(s); q = ""
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == "\\") i++; else if (c == q) q = "" }
+    else if (c == "'" || c == "\"") q = c
+    else if (c == "#") return i - 1
+  }
+  return n
+}
+
 function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr, wrap_re) {
   tkind = (raw_line ~ R_EXEMPT || prev_raw ~ R_EXEMPT) ? "X" : "F"
   # Receiver form, e.g. expect(A).toBe(A). The masked match position indexes
@@ -632,7 +656,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
   }
   # python assert EXPR == EXPR: the statement is language syntax, not adapter data
   if (LEXER == "python" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
-    rest = raw_line
+    rest = substr(raw_line, 1, py_code_len(raw_line))
     sub(/^[[:space:]]*assert[[:space:]]+/, "", rest)
     if (split_top_comma(rest)) rest = SPLIT1  # drop ", msg"
     if (split_top_eq(rest)) {
@@ -1212,13 +1236,29 @@ function literal_rhs(v) {
 # computed value (a loop over the latter is a loop over a result), and the
 # right-hand side of each for rule-recomputed-derived.
 function bind_scan(m, r,    s, rl) {
-  if (LEXER == "python" ? bracket_depth > 0 : !stmt_start()) return
   s = m; sub(/^[[:space:]]+/, "", s)
+  # Promise.all( with its argument on the next line.
+  if (PM_NAME != "" && s != "") { if (mapped_literal(s)) RES[BID, PM_NAME] = "l"; PM_NAME = "" }
+  if (LEXER == "python" ? bracket_depth > 0 : !stmt_start()) return
   rl = r; sub(/^[[:space:]]+/, "", rl)
   if (!assign_of(s, rl)) return
   DV_N[BID, AS_NAME]++
   DV_RHS[BID, AS_NAME] = AS_RHS
-  if (AS_RHS != "") RES[BID, AS_NAME] = literal_rhs(AS_RHS) ? "l" : "r"
+  if (AS_RHS != "") RES[BID, AS_NAME] = literal_rhs(AS_RHS) || mapped_literal(AS_RHS) ? "l" : "r"
+  if (LEXER == "js" && AS_RHS ~ /Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\($/) PM_NAME = AS_NAME
+}
+
+# js: a map over a nonempty array literal, or over a name the test bound
+# to one, optionally awaited through Promise.all, has one entry per literal
+# element.
+function mapped_literal(v,    e) {
+  if (LEXER != "js") return 0
+  e = v
+  sub(/^(await[[:space:]]+)?(Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\([[:space:]]*)?/, "", e)
+  if (e ~ /^\[[^]]*\][[:space:]]*\.[[:space:]]*map[[:space:]]*\(/) return e !~ /^\[[[:space:]]*\]/
+  if (!match(e, /^[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*map[[:space:]]*\(/)) return 0
+  sub(/[[:space:]]*\..*$/, "", e)
+  return RES[BID, e] == "l"
 }
 
 function cr_push(k, l) {
@@ -1411,7 +1451,113 @@ function derived_check(a, b, tkind) {
 # Block evaluation — CF1 and CF3
 # ---------------------------------------------------------------------------
 
-function eval_block(    blk, stripped, mocka_n, kind) {
+# ---------------------------------------------------------------------------
+# Same-file helpers, one level deep. A function defined in the test file
+# outside any test asserts when its text, from its definition to the next
+# definition or test start, holds an assertion token, a mock verification, a
+# fail call, or a throw, raise or reject. A test with no assertion token of its
+# own that calls such a function by name is not a zero-assertion finding. The
+# helper's own calls are not followed. Bash and PowerShell are not tracked: a
+# harness file is one block, and a PowerShell call takes no parentheses.
+# ---------------------------------------------------------------------------
+
+# The name a definition line defines, or "".
+function def_name(m,    s) {
+  s = ""
+  if (LEXER == "python") {
+    if (match(m, /^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) s = substr(m, RSTART, RLENGTH)
+  } else if (LEXER == "js") {
+    if (match(m, /^[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?function[[:space:]*]+[A-Za-z_$][A-Za-z0-9_$]*/)) s = substr(m, RSTART, RLENGTH)
+    else if (match(m, /^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?=[[:space:]]*(async[[:space:]]+)?(function|\(|[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=>)/)) {
+      s = substr(m, RSTART, RLENGTH); sub(/[[:space:]]*(:[^=]*)?=.*$/, "", s)
+    }
+  } else if (LEXER == "cs") {
+    if (match(m, /^[[:space:]]*((public|private|protected|internal|static|async|override|virtual|sealed|unsafe|extern|new)[[:space:]]+)+[A-Za-z_][^=(;]*[[:space:]][A-Za-z_][A-Za-z0-9_]*[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/)) {
+      s = substr(m, RSTART, RLENGTH); sub(/[[:space:]]*(<[^<>()]*>)?[[:space:]]*\($/, "", s)
+    }
+  } else if (LEXER == "go") {
+    if (match(m, /^func[[:space:]]+(\([^)]*\)[[:space:]]*)?[A-Za-z_][A-Za-z0-9_]*/)) s = substr(m, RSTART, RLENGTH)
+  }
+  sub(/^.*[^A-Za-z0-9_$]/, "", s)
+  return s
+}
+
+# A line outside every test: it opens, continues or closes a function. A
+# code line indented no deeper than an open definition closes it, unless it
+# starts with ) or ], closing a signature split over lines, or with the {
+# opening the body on a line of its own. A definition indented deeper than
+# the open one nests in it, so a line of the inner function is also a line
+# of the outer.
+function helper_scan(m,    name, ind, k) {
+  if (m ~ /^[[:space:]]*$/) return
+  if (has(m, R_START)) { HK = 0; return }
+  ind = indent_of(m)
+  name = def_name(m)
+  while (HK > 0 && HI[HK] >= ind && (name != "" || m !~ /^[[:space:]]*([])]|\{)/)) HK--
+  if (name != "") { HK++; HI[HK] = ind; HD[HK] = ++DEF_N; DEF_NAME[DEF_N] = name; DEF_CLS[DEF_N] = CLS_K ? CLS_NAME[CLS_K] : "" }
+  if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
+    for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
+}
+
+# The class a line sits in, by indentation as helper_scan tracks functions:
+# the innermost open class is CLS_NAME[CLS_K].
+function cls_scan(m,    ind, re) {
+  if (m ~ /^[[:space:]]*$/) return
+  ind = indent_of(m)
+  while (CLS_K > 0 && CLS_I[CLS_K] >= ind && m !~ /^[[:space:]]*([])]|\{)/) CLS_K--
+  if (LEXER == "cs") re = "^[[:space:]]*([a-z]+[[:space:]]+)*(class|record|struct)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*"
+  else if (LEXER == "python" || LEXER == "js") re = "^[[:space:]]*(export[[:space:]]+(default[[:space:]]+)?)?(abstract[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*"
+  else return
+  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = substr(m, RSTART, RLENGTH); sub(/^.*[^A-Za-z0-9_$]/, "", CLS_NAME[CLS_K]) }
+}
+
+# The names blk calls bare or on self, this or cls, space-separated, a call
+# on self, this or cls marked with a leading dot, the test's own name left
+# out: os.write( is not a call to the file's write.
+function called_names(blk,    out, t, pre) {
+  out = ""
+  if (SHELL_LEX) return out
+  while (match(blk, /[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/)) {
+    t = substr(blk, RSTART, RLENGTH)
+    pre = substr(blk, 1, RSTART - 1)
+    blk = substr(blk, RSTART + RLENGTH)
+    sub(/[[:space:]]*(<[^<>()]*>)?[[:space:]]*\($/, "", t)
+    if (t == block_name) continue
+    if (pre ~ /\.[[:space:]]*$/) {
+      if (pre !~ /(^|[^A-Za-z0-9_$.])(self|this|cls)[[:space:]]*\.[[:space:]]*$/) continue
+      t = "." t
+    }
+    out = out " " t
+  }
+  return out
+}
+
+# Whether a test in class cls that makes these calls reaches an asserting
+# helper. A call on self or this, and a bare C# call, names the method of the
+# test's own class, a bare Python or JS call a module function; when that
+# scope defines the name, every definition of it there (C# overloads) must
+# assert. A name the scope does not define, as a base class's method, counts
+# when any definition of it in the file asserts.
+function calls_helper(calls, cls,    n, c, i, name, key) {
+  n = split(calls, c, " ")
+  for (i = 1; i <= n; i++) {
+    name = c[i]; sub(/^\./, "", name)
+    key = (c[i] ~ /^\./ || LEXER == "cs" ? cls : "") SUBSEP name
+    if (key in SCOPE_DEFS) { if (SCOPE_ASSERTS[key] == SCOPE_DEFS[key]) return 1 }
+    else if (name in NAME_ASSERTS) return 1
+  }
+  return 0
+}
+
+function helper_verdicts(    i, key) {
+  for (i = 1; i <= DEF_N; i++) {
+    key = DEF_CLS[i] SUBSEP DEF_NAME[i]
+    SCOPE_DEFS[key]++
+    if (i in DEF_ASSERTS) { SCOPE_ASSERTS[key]++; NAME_ASSERTS[DEF_NAME[i]] = 1 }
+  }
+}
+
+function eval_block(    blk, stripped, mocka_n, kind, calls) {
   blk = block_masked
   # A test that skips itself from inside its body does not run: not judged.
   if (has(blk, R_BODY_SKIP)) return
@@ -1421,7 +1567,13 @@ function eval_block(    blk, stripped, mocka_n, kind) {
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
   if (!has(blk, R_ANY) && !has(blk, R_MOCKA)) {
-    emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
+    # A call to a same-file function may be the assertion; the verdict waits
+    # for END, when every function in the file has been read.
+    if ((calls = called_names(blk)) == "") emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
+    else if (!INVENTORY && !index(RULES_OFF, "|zero-assertion|") && (SCOPE == "" || in_scope(block_line, block_hi))) {
+      ZA_N++; ZA_CALLS[ZA_N] = calls; ZA_CLS[ZA_N] = block_cls
+      ZA_REC[ZA_N] = sprintf("%s\tzero-assertion\t%d\t%s\n", kind, block_line, clean_detail("test '" block_name "' has 0 assertion tokens"))
+    }
     return
   }
   if (OR_W && !OR_S && !OR_P)
@@ -1446,6 +1598,7 @@ function open_block(line, name) {
   in_test = 1
   block_line = block_last = line
   block_name = name
+  block_cls = CLS_K ? CLS_NAME[CLS_K] : ""
   block_masked = ""
   block_exempt = (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT)
   block_raw = 0; BW1 = BW2 = ""
@@ -1454,7 +1607,7 @@ function open_block(line, name) {
   BID++
   OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
-  COND_NEXT = SRC_PEND = SIG = ""
+  COND_NEXT = SRC_PEND = SIG = PM_NAME = ""
   SIG_OPEN = LEXER == "python"
   SH_ACT = SH_FN = PS_PEND = 0
 }
@@ -1664,10 +1817,12 @@ function brace_decl() {
   if (SHELL_LEX) sh_assign(masked)
   if (LEXER == "bash") sh_file_facts()
 
+  if (!SHELL_LEX) cls_scan(masked)
   if (MODEL == "file") whole_file()
   else if (MODEL == "indent") indent()
   else if (LEXER == "cs") brace_decl()
   else brace_call()
+  if (!LINE_IN_TEST && !SHELL_LEX) helper_scan(masked)
   prev_raw = raw
 }
 
@@ -1678,5 +1833,7 @@ END {
   if (INVENTORY && (mask_open() || S_bc || S_tpl || S_triple || S_verb)) print INVENTORY "\tunjudged"
   else if (mask_open()) print "L\t1"
   else if (in_test) close_block()
+  helper_verdicts()
+  for (i = 1; i <= ZA_N; i++) if (!calls_helper(ZA_CALLS[i], ZA_CLS[i])) printf "%s", ZA_REC[i]
   if (!INVENTORY) printf "B\t%d\n", blocks
 }
