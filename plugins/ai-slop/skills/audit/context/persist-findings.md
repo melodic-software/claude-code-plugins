@@ -19,6 +19,13 @@ the self-ignore guard including its invalid cases, and prove the destination is 
 space before writing (the contract and its topic-docs binding own the proof; a destination that
 cannot be proven is reported and not written to).
 
+Common case, a summary that yields to the contract on any disagreement: with no
+`.claude/topic-docs.yaml` `memory_dir` and no location declared in `CLAUDE.md` or `.claude/rules`,
+the file goes to `<repo>/.work/reviews/<branch-slug>/` once `git check-ignore` confirms that path is
+ignored. The slug rule is in `plugins/review/reference/topic-docs.md` "Resolution". Any other rung,
+or a rung that cannot be resolved, follows the contract, and the run reports report-only when the
+contract would need to ask.
+
 File name: `${TS}-ai-slop.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
 Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
 
