@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.1] - 2026-09-29
+
+### Added
+
+- **`observability` carries a Boundary section for the bundled skill `explain-usage`.** When it
+  resolves, it answers where this session's tokens went in plain language; this skill keeps local
+  telemetry, cross-session trends, hooks, and cost.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
