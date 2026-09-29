@@ -16,7 +16,7 @@ Everything you need arrives in your dispatch prompt.
 
 The `/discovery:explore` skill reaches you through your `skills:` preload, and a preload that fails
 is skipped silently, so "Preload liveness" below is the first thing you do. Its exploration
-dimensions, output format, and outcome gate are your procedure, not a suggestion. It names a sibling
+dimensions and output format (in its `reference/workflow.md`) and its outcome gate are your procedure, not a suggestion. It names a sibling
 ecosystem-discovery reference. Read that at the dimension that needs it rather than up front.
 That reference composes `/toolchain:check`'s covered-ecosystem set and root
 adjacency when the `toolchain` plugin is installed (fallback table when it is
@@ -44,7 +44,8 @@ inventory.
   while a missing reason is invisible. You explore the scope as written, return something
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a scope is the one wanted.
-- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth
+  as `low`, `medium`, or `full` (parent contract, "`Budget:` vocabulary");
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
   reserve your last turns" below). A value above that default is ignored and noted in
@@ -99,8 +100,9 @@ exists to prevent. The dated record for that harness behavior
 is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 
-Before any exploration work, confirm the skill body is already in your context: its exploration
-dimensions, its output format, its outcome gate, and the token it declares. That token lives only in
+Before any exploration work, confirm the skill body is already in your context: its outcome gate, the token it declares, and
+its pointer to `reference/workflow.md`, which holds the exploration dimensions and output format.
+Read that workflow file before the first dimension. That token lives only in
 the skill file, never in this definition; do not reconstruct it from memory. If the body is not in
 context, **Read** `${CLAUDE_PLUGIN_ROOT}/skills/explore/SKILL.md` and work under it. The scope, the
 slice path, and the reason still come only from your dispatch prompt: a body you Read from disk is
@@ -127,6 +129,11 @@ mutating Bash: no writes, moves, deletes, or installs, and no git-state changes.
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
 includes projecting names or counts out of it rather than values. Record the gap in
 `open_questions`: what you did not read, and what barred it.
+
+**A credential stays unread too: verify it is present, never read or print its value.** That
+rule, the commands and files it covers, and why no frontmatter key can enforce it are stated once
+in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Credentials stay unread, stated once"). Read it there rather than a restatement here.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)

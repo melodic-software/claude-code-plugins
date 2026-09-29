@@ -1,0 +1,40 @@
+{
+  "skill_name": "sfx",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-jump-effect",
+      "prompt": "make an 8-bit jump sound effect as a wav",
+      "expected_output": "Fires /retro-audio:sfx. Renders the jump preset, or an equivalent square-wave rising parameter set, with the sfx command to a 16-bit mono WAV. Delivers the file path.",
+      "files": [],
+      "expectations": [
+        "Invokes the sfx skill, not music",
+        "Writes a WAV with the bundled sfx.py",
+        "Uses the jump preset or states the parameters in one line"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "custom-explosion-parameters",
+      "prompt": "explosion sfx, noisy and a bit longer than the default, wav please",
+      "expected_output": "Fires /retro-audio:sfx. Starts from the explosion preset (noise wave) and lengthens the decay, then renders a WAV. Does not ask a questionnaire.",
+      "files": [],
+      "expectations": [
+        "Uses a noise wave",
+        "Renders with sfx.py rather than describing the sound only",
+        "Does not switch to the music skill"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "near-miss-song-routes-to-music",
+      "prompt": "write a looping 8-bit village theme, about four bars",
+      "expected_output": "Does not fire /retro-audio:sfx. A loop or theme is /retro-audio:music. Routes there instead of rendering a one-shot effect.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the sfx skill for a looping theme",
+        "Routes to /retro-audio:music"
+      ]
+    }
+  ]
+}
