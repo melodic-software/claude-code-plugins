@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.0] - 2026-09-28
+## [0.28.11] - 2026-09-28
 
 ### Added
 
@@ -19,6 +19,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   through `gate_exact_tier_approval`, the same tier-and-exact-list gate `apply`
   uses; `preview --lane managed` issues its approval token. The engine deletion
   lane is unchanged: managed candidates stay `native-managed-report-only`.
+  The container probe lists no symlink or reparse point, so a linked `.cache`
+  or `AppData` cannot pull rows from outside the target. Each registry entry
+  that names a command carries its upstream basis, verification date, and
+  recheck trigger.
+
+## [0.28.10] - 2026-09-28
+
+### Fixed
+
+- **`os_autoclean.recommendation` acts on a large Windows temp directory** ([#4010](https://github.com/melodic-software/claude-code-plugins/issues/4010)). It stayed `null` whenever Storage Sense was enabled on a schedule, even with 7.0 GB standing in `AppData\Local\Temp`. The advisory now sums the temp directory's regular-file sizes in a read-only walk that follows no links, skips cloud placeholders, and stops after 100,000 entries, and reports that as `temp_zone`. At or above the new baseline-policy value `os_temp_recommendation_threshold_bytes` (1 GiB), it recommends running Storage Sense now when it is on, turning on temporary-files cleanup when only that is off, or enabling it with a note that a manual run is available either way. The text quotes the detected on/off state, schedule, and scope. Below the threshold the recommendation is `null` whatever the configuration. When a capped walk stays below the threshold, the size proves nothing, and the configuration-only recommendation applies as before. The advisory runs nothing and changes nothing about engine eligibility. systemd-tmpfiles is unchanged.
 
 ## [0.28.9] - 2026-09-28
 
