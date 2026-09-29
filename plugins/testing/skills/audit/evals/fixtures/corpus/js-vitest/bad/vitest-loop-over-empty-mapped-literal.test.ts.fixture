@@ -1,0 +1,13 @@
+// expect: rule-conditional-assertion
+// [].map has no entries, so the loop body never runs and nothing is asserted.
+import { describe, expect, it } from 'vitest';
+import { post } from '../src/client';
+
+describe('webhook', () => {
+  it('returns 401 for every bad signature', async () => {
+    const results = await Promise.all([].map((p) => post('/webhook', p)));
+    for (const { status } of results) {
+      expect(status).toBe(401);
+    }
+  });
+});
