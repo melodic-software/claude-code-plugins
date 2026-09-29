@@ -1440,5 +1440,90 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual(block["status"], "unavailable")
 
 
+TOOLS_DOCS = """# Tools reference
+
+| Tool | Description | Permission required |
+| :- | :- | :- |
+| `Bash` | Executes shell commands. See [Bash tool behavior](#bash) | Yes |
+| `Read` | Reads the contents of files | No |
+| `Task` | Legacy spelling | No |
+| `TaskOutput` | Retrieves output from a background task | No |
+
+## Configure tools
+
+| `NotATool` | outside the table | No |
+"""
+
+
+class TestToolsDocsCrosscheck(unittest.TestCase):
+    def setUp(self) -> None:
+        import docs_crosscheck as dc
+
+        self.dc = dc
+        self.report = {
+            "sources": {"binary": {"available": True}},
+            "builtin_tools": {
+                "Bash": {"aliases": []},
+                "Read": {"aliases": []},
+                "Agent": {"aliases": ["Task"]},
+                "Poll": {"aliases": []},
+            },
+            "integrity": {"lanes": {"builtin_tools": {"status": "ok"}}},
+        }
+
+    def _block(self, text: str, report: dict | None = None) -> dict:
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "tools-reference.md"
+            path.write_text(text, encoding="utf-8")
+            return self.dc.build_tools_crosscheck(report or self.report, str(path))
+
+    def test_rows_come_only_from_the_tools_table(self) -> None:
+        rows = self.dc.parse_tools_table(TOOLS_DOCS)
+        self.assertEqual(sorted(rows), ["Bash", "Read", "Task", "TaskOutput"])
+        self.assertEqual(
+            rows["Bash"]["summary"], "Executes shell commands. See Bash tool behavior"
+        )
+        self.assertEqual(rows["Read"]["permission_required"], "No")
+
+    def test_statuses(self) -> None:
+        block = self._block(TOOLS_DOCS)
+        self.assertEqual(block["status"], "ok")
+        names = block["names"]
+        self.assertEqual(names["Bash"]["status"], "documented")
+        self.assertEqual(names["Poll"]["status"], "undocumented")
+        self.assertEqual(names["Agent"]["status"], "undocumented")
+        self.assertEqual(names["Task"]["status"], "alias")
+        self.assertEqual(names["Task"]["binary_alias_of"], "Agent")
+        self.assertEqual(names["TaskOutput"]["status"], "docs_only")
+        self.assertEqual(block["counts"]["documented"], 2)
+
+    def test_a_page_without_the_table_is_broken(self) -> None:
+        self.assertEqual(self._block("# Tools\n\nNo table.\n")["status"], "broken")
+
+    def test_an_unhealthy_lane_degrades_the_block(self) -> None:
+        report = dict(self.report)
+        report["integrity"] = {"lanes": {"builtin_tools": {"status": "degraded"}}}
+        self.assertEqual(self._block(TOOLS_DOCS, report)["status"], "degraded")
+
+    def test_no_tools_lane_is_unavailable_without_fetching(self) -> None:
+        block = self.dc.build_tools_crosscheck({"sources": {}}, "unused")
+        self.assertEqual(block["status"], "unavailable")
+
+    def test_the_parent_block_carries_it_without_changing_its_status(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            docs = pathlib.Path(d) / "commands.md"
+            docs.write_text(DOCS, encoding="utf-8")
+            tools = pathlib.Path(d) / "tools-reference.md"
+            tools.write_text("no table", encoding="utf-8")
+            block = self.dc.build_crosscheck(
+                {**_report(), "builtin_tools": {"Bash": {}}},
+                docs_file=str(docs),
+                changelog_file=str(docs),
+                tools_file=str(tools),
+            )
+        self.assertEqual(block["tools"]["status"], "broken")
+        self.assertEqual(block["status"], "ok")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

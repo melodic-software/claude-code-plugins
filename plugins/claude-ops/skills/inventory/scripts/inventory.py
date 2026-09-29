@@ -2980,6 +2980,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             report,
             docs_file=args.docs_file,
             changelog_file=args.changelog_file,
+            tools_file=getattr(args, "tools_docs_file", None),
         )
 
     if not args.binary_only:
@@ -3041,6 +3042,10 @@ def main(argv: list[str] | None = None) -> int:
         "--changelog-file", help="read the changelog from this file (implies --docs)"
     )
     ap.add_argument(
+        "--tools-docs-file",
+        help="read the tools reference from this file (implies --docs)",
+    )
+    ap.add_argument(
         "--self-check",
         action="store_true",
         help="print only the integrity verdict; exit 0 ok, 1 broken, 3 degraded "
@@ -3052,7 +3057,9 @@ def main(argv: list[str] | None = None) -> int:
         print("--binary-only and --disk-only are mutually exclusive", file=sys.stderr)
         return 2
 
-    args.docs = bool(args.docs or args.docs_file or args.changelog_file)
+    args.docs = bool(
+        args.docs or args.docs_file or args.changelog_file or args.tools_docs_file
+    )
     if args.self_check:
         args.disk_only = False
         args.binary_only = True
