@@ -612,14 +612,18 @@ for mode in whatif test; do
   dir="$TEST_TMPDIR/dry-$mode"
   code="$(run_launch "dry-$mode" "$DRY_STAGES" "$flag")"
   summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
+  # portability-ok: false positive, plain sort with no -V option
   outside="$(cd "$dir" && find . -type f -not -path './results/*' | sort | tr '\n' ' ')"
   leftovers="$(ls "$dir"/marker* 2>/dev/null | tr '\n' ' ')"
+  prompted=0
+  # portability-ok: false positive, fixed-string grep with no -P option
+  grep -Fq 'NonInteractive' "$dir/err" && prompted=1
   if [[ "$code" == 0 ]] \
     && [[ "$summary" == "mode=$mode status=ok steps=5 resources=1 irreversible=1 $DRY_DELTA" ]] \
     && [[ -z "$leftovers" ]] \
     && [[ "$outside" == './copy.ps1 ./err ./out ' ]] \
     && [[ ! -e "$dir/results/result-latest.json" ]] \
-    && ! grep -Fq 'NonInteractive' "$dir/err"; then
+    && [[ "$prompted" == 0 ]]; then
     pass "$flag runs no block, prompts nothing, reports the plan and writes only the dry result"
   else
     fail "$flag runs no block, prompts nothing, reports the plan and writes only the dry result" "code=$code summary=$summary leftovers=$leftovers outside=$outside err=$(head -c 300 "$dir/err")"
@@ -635,6 +639,7 @@ else
 fi
 
 out="$(cat "$TEST_TMPDIR/dry-test/out")"
+# portability-ok: false positive, grep -c counts lines and no -P/-V option is used
 if [[ "$(printf '%s\n' "$out" | grep -c .)" == 1 && "$out" == 'Test: 5 step(s) would run, 1 resource(s) would be taken out of service, 1 declared irreversible action(s). Delta: '* ]]; then
   pass "-Test prints one final line and no narration"
 else
@@ -652,9 +657,12 @@ fi
 code="$(DRY_WAIT=1 run_launch real "$DRY_STAGES")"
 dir="$TEST_TMPDIR/real"
 summary="$(summarize "$dir/results/result-latest.json" 2>&1)"
+timed_out=0
+# portability-ok: false positive, fixed-string grep with no -P option
+grep -Fq 'timed out waiting for gone' "$dir/err" && timed_out=1
 if [[ "$code" != 0 && "$summary" == mode=run\ status=failed* ]] \
   && [[ -f "$dir/marker" && -f "$dir/marker.take" && -f "$dir/marker.prove" && -f "$dir/marker.release" && ! -e "$dir/marker.done" ]] \
-  && grep -Fq 'timed out waiting for gone' "$dir/err" \
+  && [[ "$timed_out" == 1 ]] \
   && [[ ! -e "$dir/results/result-dry-latest.json" ]]; then
   pass "a run without flags executes the blocks and writes result-latest.json"
 else
@@ -691,8 +699,11 @@ PS
 code="$(run_launch dry-preflight "$FAILING_STAGES" -Test)"
 dir="$TEST_TMPDIR/dry-preflight"
 summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
+preflight_failed=0
+# portability-ok: false positive, fixed-string grep with no -P option
+grep -Fq 'preflight failed: dep. Fix: install it' "$dir/err" && preflight_failed=1
 if [[ "$code" != 0 && "$summary" == 'mode=test status=failed steps=0 resources=0 irreversible=0 delta=dep held=' && ! -e "$dir/marker" ]] \
-  && grep -Fq 'preflight failed: dep. Fix: install it' "$dir/err"; then
+  && [[ "$preflight_failed" == 1 ]]; then
   pass "-Test lists a failed preflight in the delta and stops before later steps"
 else
   fail "-Test lists a failed preflight in the delta and stops before later steps" "code=$code summary=$summary err=$(head -c 300 "$dir/err")"
@@ -708,8 +719,11 @@ PS
 )"
 code="$(run_launch dry-undeclared "$UNDECLARED_STAGES" -WhatIf)"
 dir="$TEST_TMPDIR/dry-undeclared"
+undeclared_refused=0
+# portability-ok: false positive, fixed-string grep with no -P option
+grep -Fq 'irreversible step other was not declared' "$dir/err" && ! grep -Fq 'NonInteractive' "$dir/err" && undeclared_refused=1
 if [[ "$code" != 0 && "$(summarize "$dir/results/result-dry-latest.json" 2>&1)" == mode=whatif\ status=failed* ]] \
-  && grep -Fq 'irreversible step other was not declared' "$dir/err" && ! grep -Fq 'NonInteractive' "$dir/err"; then
+  && [[ "$undeclared_refused" == 1 ]]; then
   pass "a dry run still refuses an undeclared irreversible step, before any prompt"
 else
   fail "a dry run still refuses an undeclared irreversible step, before any prompt" "code=$code $(head -c 300 "$dir/err")"
