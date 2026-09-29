@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-09-29
+
+### Changed
+
+- **`explore-directions` description** no longer addresses the reader ("your own UI" becomes "the user's own UI");
+  routing is unchanged
+  ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)).
+
 ## [0.13.2] - 2026-09-28
 
 ### Changed
