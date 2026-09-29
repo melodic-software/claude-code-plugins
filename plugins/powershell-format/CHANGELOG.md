@@ -8,7 +8,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 ### Fixed
 
 - CHANGELOG: the 0.8.5 entry claimed format hooks probe at session start and that `/claude-ops:prerequisites` reads a `prerequisites.json` here. This plugin ships neither, by design (README Requirements, `skills/setup`); the entry now states what shipped ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). Adding the probe and manifest to the remaining binary-probing format plugins is tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
-- README Requirements and the setup `check` now declare Node.js on `PATH`: every hook row runs through `node hooks/exec-bash.mjs`, so without `node` the hooks do not launch. The hook budget table carries a dated note that its figures predate the launcher.
+- README Requirements and the setup `check` now declare Node.js on `PATH`: every hook row runs through `node hooks/exec-bash.mjs`, so without `node` the hooks do not launch. The `node` probe treats an ephemeral Windows version-manager shim as FAIL and reports the persisted Machine/User PATH resolution, and the setup evals now name `node` as FAIL-class beside `jq`. The hook budget table carries a dated note that its figures predate the launcher.
 
 ## [0.8.5] - 2026-09-28
 

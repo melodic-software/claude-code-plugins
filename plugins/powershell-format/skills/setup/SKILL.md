@@ -56,8 +56,14 @@ restores the FAIL semantics.
    once-per-session notice instead of running.
 3. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
    absent: every handler in `hooks/hooks.json` launches through `node hooks/exec-bash.mjs`, so
-   without `node` the hook never starts and says nothing (README Requirements). `jq` and `node`
-   are the only FAIL-class prerequisites.
+   without `node` the hook never starts and says nothing (README Requirements). The hook process
+   resolves bare `node` from the persisted Machine/User PATH, not from this shell. On Windows a
+   version manager can return a per-call path whose directory name contains a process id (fnm's
+   `fnm_multishells\<pid>_<timestamp>\node`); that path is ephemeral, so FAIL when it is the only
+   hit, say so, and report the persisted resolution separately from
+   `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. A non-ephemeral in-shell
+   hit is INFO beside that result, not a PASS by itself. `jq` and `node` are the only FAIL-class
+   prerequisites.
 4. **`pwsh` (PowerShell 7+).** Probe read-only:
    `pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'`. INFO,
    not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and stays quiet when
