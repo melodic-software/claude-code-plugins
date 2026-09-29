@@ -13,8 +13,9 @@ the tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
 
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
-`command -v` probe via Bash instead.
+A row missing, reading as literal command text (the skill was reached through
+`/markdown-format:check`, where this line never runs), or reading `[shell command execution
+disabled by policy]` carries no result: run that tool's `command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -45,7 +46,7 @@ restores the FAIL semantics.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent *and* the repository opted in per item 4: the
+2. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. FAIL if absent *and* the repository opted in per item 4: the
    hook then skips with a visible notice, once per session and agent and renewed every
    eighth skip, instead of formatting. Without
    that opt-in the hook decides the opt-in first and emits nothing at all, so report jq's
