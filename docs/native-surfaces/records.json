@@ -25,8 +25,8 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors)",
-        "date": "2026-08-23"
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
       },
       "recheck": {
         "trigger": "a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter",
@@ -62,8 +62,8 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors)",
-        "date": "2026-08-23"
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
       },
       "recheck": {
         "trigger": "a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt",
@@ -100,8 +100,8 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors)",
-        "date": "2026-08-23"
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
       },
       "recheck": {
         "trigger": "a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a path or PR reference target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md)",
@@ -136,8 +136,8 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors)",
-        "date": "2026-08-23"
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `security-review` read in the plugin_backed lane)",
+        "date": "2026-09-29"
       },
       "recheck": {
         "trigger": "an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record)",
@@ -174,8 +174,8 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors)",
-        "date": "2026-08-23"
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
       },
       "recheck": {
         "trigger": "a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode",
@@ -217,7 +217,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -259,7 +259,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -304,7 +304,7 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.284 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.284 extraction, not a re-extraction)",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
         "date": "2026-09-29"
       },
       "recheck": {
@@ -355,7 +355,7 @@
       },
       "baked": {
         "description_phrase": true,
-        "boundary_section": false,
+        "boundary_section": true,
         "native_step": false,
         "suggest_sentence": true
       },
@@ -504,7 +504,7 @@
       },
       "baked": {
         "description_phrase": true,
-        "boundary_section": false,
+        "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
       },
@@ -863,6 +863,1006 @@
         "boundary_section": false,
         "suggest_sentence": true,
         "native_step": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "commit",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "commit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "Ours resolves the repo's commit convention (layered source-control config, project convention, Conventional Commits default) and stages surgically, never `git add -A`; the bundled skill is a generic commit workflow the model is told to use whenever it is about to commit. Both create commits, so the Boundary names which one a session takes. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`commit` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Create a git commit. Use whenever you are about to create a commit, whether the user asked for one or it is a step in your current task - it gathers git context and applies the required commit workflow (message style, staging rules, attribution).",
+        "argument hint: [guidance]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin discovered, score 0.734, shared tokens commit, git, messag, stag, creat, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `commit` skill, changes its invocability or gating, or the commands reference starts documenting it",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "pr",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "pull-request",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "Ours runs the full pull-request lifecycle (prep, draft, ready, monitor, merge, CI logs) under the repo's PR contract; the bundled skill creates one PR generically. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`pr` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Create a GitHub pull request. Use whenever you are about to open a PR, whether the user asked for one or it is a step in your current task - it gathers branch context and applies the required PR workflow (gh CLI, title/body format, attribution).",
+        "argument hint: [guidance]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin discovered, score 0.5095, shared tokens pull, pr, request, creat, branch, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `pr` skill, changes its invocability or gating, or the commands reference starts documenting it",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "commit-push-pr",
+        "class": "builtin-command",
+        "markers": []
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "pull-request",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in command commits, pushes, and opens a PR in one prompt; ours owns the whole lifecycle and this repo's PR contract. Different scope, same object. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`commit-push-pr` present in the extraction as builtin-command",
+        "native description: Commit, push, and open a PR",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable (command type `prompt`)",
+        "detect: origin discovered, score 0.4092, shared tokens pr, pull, request, commit, invocable_by model+user, recommended integration route",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/commit-push-pr`, changes its command type or invocability, or the commands reference starts documenting it",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "autofix-pr",
+        "class": "builtin-command",
+        "markers": [
+          "hidden",
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "source-control",
+        "skill": "pull-request",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The native command runs a cloud session that monitors the current PR and autofixes it; ours monitors locally. Reserved for the person to run, so ours suggests it during monitor as an alternative or addition. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`autofix-pr` present in the extraction as builtin-command",
+        "markers: hidden, gated, model-invocation-disabled",
+        "native description: Monitor and autofix any issues with the current PR",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.4125, shared tokens pr, pull, request, monitor, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/autofix-pr`, un-hides it, changes its gating, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "auto-mode-setup",
+        "class": "builtin-command",
+        "markers": [
+          "hidden",
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "draft-auto-mode-rules",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The native command drafts and saves autoMode.environment entries (plus optional rule tweaks); ours interviews for full allow/deny classifier rules and prints only, never writing settings. Reserved for the person to run, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`auto-mode-setup` present in the extraction as builtin-command",
+        "markers: hidden, gated, model-invocation-disabled",
+        "native description: Teach auto mode about your environment, plus optional rule tweaks",
+        "argument hint: [--request-id <uuid>] (--wizard posture=… scope=… depth=… --propose | --expect-sha256 <64-hex> --apply-file <path>)",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)",
+        "detect: origin discovered, score 0.6585, shared tokens auto, mode, rule, file, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/auto-mode-setup`, changes its argument contract or what it writes, un-hides it, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "fewer-permission-prompts",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-permission-state",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The bundled skill writes a prioritized allowlist into project .claude/settings.json from transcript evidence; ours reports the effective permission state, read-only. One writes rules, the other reports what is in effect. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`fewer-permission-prompts` present in the extraction as bundled-skill",
+        "native description: Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin seeded, score 0.2718, shared tokens permission, sett, read, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `fewer-permission-prompts` skill, changes what it writes, or changes its invocability",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "doctor",
+        "class": "bundled-skill",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-instructions",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "`/doctor prompt-audit` (added 2.1.283) audits CLAUDE.md files, skills, agents and commands for prompting patterns; ours audits standing instructions for over-prescription, misstated Claude Code behavior, and cross-surface drift, report-only. Model invocation is disabled on the native side, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`doctor` present in the extraction as bundled-skill",
+        "markers: gated, model-invocation-disabled",
+        "aliases: checkup",
+        "native description: Health-check the user's Claude Code setup and fix issues: diagnose installation health - what the `claude doctor` terminal diagnostics cover - from local data (duplicate or leftover installs, PATH, unparseable settings files, broken or colliding agent definitions, skills whose frontmatter fails to parse); find unused skills, MCP servers, and plugins versus their context cost and disable dead weight; deduplicate local CLAUDE.md files against checked-in ones; trim checked-in CLAUDE.md files by cutting content a session could derive from the codebase (directory layouts, tech-stack lists, architecture overviews) while keeping gotchas, rationale, and non-standard conventions; migrate always-loaded CLAUDE.md guidance into lazy skills and nested CLAUDE.md files; flag slow hooks and context-heavy extensions; check the installed version is current; make auto mode the default permission mode; and pre-approve frequently denied read-only commands. Use when the user asks for a doctor run, checkup, audit, tune-up, or cleanup of their Claude Code setup or configuration.",
+        "argument hint: [prompt-audit [<path>]]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0565, shared tokens md, audit, local, path, load, agent)",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "verify",
+        "class": "bundled-skill",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "verification",
+        "skill": "confirm",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The bundled skill exercises a change end to end and observes behavior, bootstrapping a project verify skill when none exists; ours runs the mechanical prerequisite and then outcome verification against the plan or intent by change type. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`verify` present in the extraction as bundled-skill",
+        "markers: model-invocation-disabled",
+        "native description: Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior - drive the affected flow, not just tests or typecheck. Run before committing nontrivial changes; bootstraps this repo's project verify skill if none exists yet. Don't invoke it on a diff that only touches tests, docs, or other code with no runtime surface to drive (a change to product source always has one) - there's nothing to observe.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (`model_invocable` undetermined at this build, `disable_model_invocation: true` read instead)",
+        "detect: origin discovered, score 0.3204, shared tokens verif, chang, test, actuall, change, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `verify` skill, changes what it bootstraps, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "batch",
+        "class": "bundled-skill",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "implementation",
+        "skill": "implement-dispatch",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The bundled skill researches and plans a large change, then runs it across 5 to 30 isolated worktree agents that each open a PR; ours dispatches an approved plan's phases to scope-fenced workers with verification at each boundary. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`batch` present in the extraction as bundled-skill",
+        "markers: model-invocation-disabled",
+        "native description: Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.",
+        "argument hint: <instruction>",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled",
+        "detect: origin seeded, score 0.0782, shared tokens execut, plan, parallel, agent, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `batch` skill, changes its worker range or PR behavior, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "deep-research",
+        "class": "bundled-workflow",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "research-deep",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The bundled workflow is a fan-out web research harness (scope, search, fetch, verify, synthesize) producing a cited report; ours dispatches multi-topic research to the heaviest isolated tier with source tiers and a coverage ledger. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`deep-research` present in the extraction as bundled-workflow",
+        "markers: model-invocation-disabled",
+        "native description: Deep research harness - fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (`model_invocable` undetermined at this build, `disable_model_invocation: true` read instead)",
+        "detect: origin discovered, score 0.7023, shared tokens research, deep, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `deep-research` workflow, changes its phases, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "explain-usage",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "observability",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The bundled skill explains where the current session's tokens went in one chart; ours reads locally captured telemetry for cross-session trends, hook latency, and cost. Session snapshot versus captured history. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`explain-usage` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Explain where this session's tokens went, with one simple chart in plain language. Use when: explain usage, explain my usage, where did my tokens go, token usage breakdown, what used the most tokens.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin seeded, score 0.0951, shared tokens token, breakdown, did, session, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `explain-usage` skill, widens it beyond the current session, or changes its gating",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "explain-usage",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "context-budget",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The bundled skill explains after the fact where the current session's tokens went; ours measures startup context per item with a before/after ledger. Where the session spent versus what loads before it starts. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`explain-usage` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Explain where this session's tokens went, with one simple chart in plain language. Use when: explain usage, explain my usage, where did my tokens go, token usage breakdown, what used the most tokens.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin seeded, score 0.0698, shared tokens token, did, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `explain-usage` skill, adds startup or per-tool attribution to it, or changes its gating",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "recap",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "orient",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command generates a one-line recap of the current session; ours orients from durable state (ledgers, handoffs, PRs, work items, git) the recap never sees. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`recap` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "native description: Generate a one-line session recap now",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)",
+        "detect: origin seeded, score 0.1948, shared tokens recap, session, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/recap`, widens it beyond the current session, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "subtask",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "continue-in-background",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command sends a subagent off with the full context and returns its result here; ours writes a save-point and launches a detached background session seeded with a resume prompt. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`subtask` present in the extraction as builtin-command",
+        "markers: gated, model-invocation-disabled",
+        "native description: Send a subagent off with your full context; its result comes back here",
+        "argument hint: <task>",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin seeded, score 0.0771, shared tokens task, agent, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/subtask`, changes its gating, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "fork",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "continue-in-background",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command spawns a background agent that inherits the full conversation; ours hands off through a durable save-point and a detached session. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`fork` present in the extraction as builtin-command",
+        "markers: gated, model-invocation-disabled",
+        "native description: Spawn a background agent that inherits the full conversation",
+        "argument hint: <directive>",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin seeded, score 0.0611, shared tokens background, agent, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/fork` (the changelog records a 2.1.77 rename to `/branch` that the 2.1.284 registration does not show), changes its gating, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "background",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "continue-in-background",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command sends this session itself to the background and frees the terminal; ours starts a fresh detached session from a save-point. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`background` present in the extraction as builtin-command",
+        "markers: gated, model-invocation-disabled",
+        "aliases: bg",
+        "native description: Send this session to the background and free the terminal",
+        "argument hint: [prompt]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.7755, shared tokens background, bg, prompt, session, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/background` or its `bg` alias, changes its gating, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "goal",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "draft-goal-condition",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "Ours drafts the completion condition the native command runs; the person sets it with `/goal`. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`goal` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "native description: Set a goal Claude checks before stopping",
+        "argument hint: [<condition> | clear]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.8063, shared tokens goal, condition, check, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/goal`, changes its condition contract or length limit, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "permissions",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-permission-state",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command is the interactive viewer and editor for allow and deny rules (with recent denials and an auto mode tab); ours merges every settings scope into the effective set with sources, report-only. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`permissions` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "aliases: allowed-tools",
+        "native description: Manage allow and deny tool permission rules",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.8253, shared tokens permission, allow, rule, den, manag, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/permissions` or its `allowed-tools` alias, changes its tabs, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "plan",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "plan",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command enters plan mode or shows the session plan; ours produces a persisted plan with test strategy, blast radius, and an approval gate. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`plan` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "native description: Enable plan mode or view the current session plan",
+        "argument hint: [open|<description>]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.6733, shared tokens plan, session, invocable_by user-only, recommended integration suggest",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/plan`, changes what it persists, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "insights",
+        "class": "builtin-command",
+        "markers": [
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "retro",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command generates a report analyzing the person's Claude Code sessions; ours runs a structured retrospective of one session and codifies learnings durably. User-only, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`insights` present in the extraction as builtin-command",
+        "markers: model-invocation-disabled",
+        "native description: Generate a report analyzing your Claude Code sessions",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `prompt`)",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0105, shared tokens session)",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "update-config",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The bundled skill writes settings.json on request (hooks, permissions, env vars); ours audits configuration for correctness, security, and drift, report-only unless --fix. Make a change versus audit what exists. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`update-config` present in the extraction as bundled-skill",
+        "native description: Use this skill to configure the Claude Code harness via settings.json. Automated behaviors (\"from now on when X\", \"each time X\", \"whenever X\", \"before/after X\") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions (\"allow X\", \"add permission\", \"move permission to\"), env vars (\"set X=Y\"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: \"allow npm commands\", \"add bq permission to global settings\", \"move permission to user settings\", \"set DEBUG=true\", \"when claude stops show X\". For simple settings like theme/model, suggest the /config command.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.2957, shared tokens permission, sett, json, config, updat, hook)",
+        "docs cross-check (commands reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `update-config` skill, changes what it writes, or changes its invocability",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "artifact-pr-review",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "review",
+        "skill": "pr-explainer",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Deferred: the bundled skill is gated on Artifact availability, so its presence is not determinable from this session's evidence. It publishes a PR review briefing as an Artifact; ours offers a self-contained local HTML explainer beside the markdown record. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`artifact-pr-review` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Create a PR review artifact - a structured review briefing for a GitHub pull request (synthesis title and bottom line, a recommendation, reviewer judgment calls, a visual explainer, signals, and blind spots), published as a shareable page. Use when the user asks to review a PR as an artifact, publish a PR review page, or share a review briefing. NOT a narrative walkthrough. Only for CREATING a new artifact; edits to an existing artifact modify its HTML directly.",
+        "argument hint: [pr number or url]",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin discovered, score 0.5363, shared tokens pull, pr, request, explain, review, html, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release ungates the bundled `artifact-pr-review` skill, the commands reference documents it, or a live roster capture protocol exists for Artifact-gated skills",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "prototype",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants on the real stack. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`prototype` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Turn an idea into a working proof of concept and publish it as an Artifact - a single self-contained page the user can open, click through, and react to. Run a short intake, state your assumptions, build, then iterate on feedback in the same artifact. Use when the user asks to prototype an idea, mock up a concept, build a proof of concept, or wants to see something working before committing to a real build - including, on an explicit ask, a new feature shown in place on an app they already have.",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable",
+        "detect: origin discovered, score 0.3625, shared tokens prototyp, real, mock, page, build, contain, invocable_by model+user, recommended integration route-or-wrap",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release ungates the bundled `prototype` skill, the commands reference documents it, or a live roster capture protocol exists for gated skills",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "pause-memory",
+        "class": "builtin-command",
+        "markers": [
+          "hidden",
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "claude-memory",
+        "skill": "stateless",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Deferred: a hidden, gated command that pauses auto memory for one session; ours inspects and disables auto memory persistently. Hidden and undocumented, so not ruled on. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`pause-memory` present in the extraction as builtin-command",
+        "markers: hidden, gated, model-invocation-disabled",
+        "aliases: memory-pause, toggle-memory",
+        "native description: Pause automemory for this session",
+        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1724, shared tokens memor)",
+        "docs cross-check (commands reference, 2026-09-29): undocumented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release un-hides or ungates `/pause-memory` (aliases `memory-pause`, `toggle-memory`), or the commands reference documents it",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
       },
       "budget_caveat": false
     }
