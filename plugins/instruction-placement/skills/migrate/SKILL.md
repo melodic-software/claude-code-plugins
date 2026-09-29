@@ -352,7 +352,7 @@ directly at all.
   slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
   "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
   earlier AGENTS.md workaround". Canary runs on Claude Code 2.1.278 confirmed the displacement
-  rule; this 2026-09-29 pass did not repeat those runs (`claude` on this host is not logged in).
+  rule; this 2026-09-29 pass did not re-run the displacement canary.
 - **As of**: 2026-09-29.
 - **Recheck trigger**: that page changes which file names count for the check or which sessions lack
   support, or a release note names `AGENTS.md` or instruction-file loading.
@@ -369,8 +369,8 @@ Every upstream fact the cutover turns on lives as a four-part dated record in
 the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
 the CI canary result, the current fleet grade, and what shim removal costs. `cutover-check.sh`
 parses the floor, the release map and the canary run out of that file rather than carrying its own
-copy, and exits 2 on a record it cannot read: a fact it cannot parse is one it must not silently skip checking. Read it before
-arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
+copy, and exits 2 on a record it cannot read: a fact it cannot parse is one it must not silently
+skip checking. Read it before arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
 detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed** surface and
 cannot see an `AGENTS.md` that Claude reads directly.
 

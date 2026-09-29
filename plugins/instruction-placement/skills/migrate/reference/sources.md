@@ -158,7 +158,7 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
 - **Basis**: `cutover-check.sh`, no `--skip-canary`, over the ten repositories on 2026-09-29,
   Claude Code 2.1.284, exit 0. The trees were read as they stood and not fetched, so the grade is
   for those local commits, not for current `origin/main`. The per-repository commit table and the
-  full per-condition output are in the comment on tracker issue #5163, not copied here.
+  full per-condition output are in the comment on tracker issue #4281, not copied here.
 - **As of**: 2026-09-29.
 - **Recheck trigger**: a pin move in any in-scope repository, a Claude Code release whose
   changelog touches `AGENTS.md` or instruction-file loading, the monthly due date of
@@ -199,11 +199,11 @@ This is the price of the cutover, and `remove-shims` prints it before it asks.
   verbatim: "To check whether Claude read your `AGENTS.md`, run `/memory` and look for its path in
   the list." The same page says "Before v2.1.280, `/memory` and `/context` didn't list an
   `AGENTS.md` that Claude read directly."
-- **Basis**: `https://code.claude.com/docs/en/hooks.md`, "InstructionsLoaded" (330,813 bytes, the
+- **Basis**: `https://code.claude.com/docs/en/hooks.md`, "InstructionsLoaded" (246,601 bytes, the
   quoted paragraph at line 1290) and `https://code.claude.com/docs/en/memory.md`, "Where AGENTS.md
-  differs from CLAUDE.md" (54,922 bytes, table at line 412) and "My AGENTS.md isn't loading" (lines
-  581 and 583). Both fetched by the rung-1 route on 2026-09-28, both slugs present in `llms.txt`.
-- **As of**: 2026-09-28.
+  differs from CLAUDE.md" (49,601 bytes, table at line 412) and "My AGENTS.md isn't loading" (lines
+  581 and 583). Both fetched by the rung-1 route on 2026-09-29, both slugs present in `llms.txt`.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: either page changes that table, that paragraph, or the `/memory` listing
   sentence.
 
