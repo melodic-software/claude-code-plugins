@@ -784,25 +784,33 @@ load_yaml dq.yaml $'id: dq\nlanguage: js\nfiles:\n  - "*.test.js"\n'
 assert_exit "loader rejects a double-quoted scalar (exit 2)" 2 "$rc"
 assert_contains "loader names the file and line of the rejection" "$err" "dq.yaml:4:"
 load_yaml ws.yaml $'id: ws\nlanguage: js\ntest_start:\n  - \'it\\s*\\(\'\n' # portability-ok: deliberately non-portable regex the loader must reject
-assert_exit "loader rejects \\s in a regex (exit 2)" 2 "$rc"
+assert_exit "loader rejects a GNU class escape in a regex (exit 2)" 2 "$rc"
 assert_contains "loader names the non-portable regex line" "$err" "ws.yaml:4:"
+assert_contains "loader says why a GNU class escape is refused" "$err" "non-portable regex escape"
 load_yaml iv.yaml $'id: iv\nlanguage: js\ntest_start: [\'a{2}\']\n'
 assert_exit "loader rejects an interval in a regex (exit 2)" 2 "$rc"
+assert_contains "loader says why an interval is refused" "$err" "interval"
 load_yaml br.yaml $'id: br\nlanguage: js\ntest_start: [\'(a)\\1\']\n'
 assert_exit "loader rejects a backreference in a regex (exit 2)" 2 "$rc"
+assert_contains "loader says why a backreference is refused" "$err" "non-portable regex escape \\1"
 load_yaml uk.yaml $'id: uk\nlanguage: js\ntest_starts: [x]\n'
 assert_exit "loader rejects an unknown key (exit 2)" 2 "$rc"
-assert_contains "loader names the unknown key" "$err" "uk.yaml:3:"
-load_yaml fm.yaml $'id: fm\nlanguage: js\nequality: {call2: [a]}\n'
+assert_contains "loader names the unknown key" "$err" "uk.yaml:3: unknown key: test_starts"
+load_yaml fm.yaml $'id: fm\nlanguage: js\ntest_start:\n  - {a: b}\n'
 assert_exit "loader rejects a flow map (exit 2)" 2 "$rc"
-load_yaml an.yaml $'id: an\nlanguage: js\nfiles: &g [x]\n'
+assert_contains "loader says a flow map is unsupported" "$err" "fm.yaml:4: unsupported YAML syntax"
+load_yaml an.yaml $'id: &a an\nlanguage: js\n'
 assert_exit "loader rejects an anchor (exit 2)" 2 "$rc"
+assert_contains "loader says an anchor is unsupported" "$err" "an.yaml:1: unsupported YAML syntax"
 load_yaml ty.yaml $'id: ty\nlanguage: js\nfiles: x\n'
 assert_exit "loader rejects a scalar where a list belongs (exit 2)" 2 "$rc"
+assert_contains "loader says files takes a list" "$err" "files takes a list"
 load_yaml nl.yaml $'id: nl\nlanguage: cobol\n'
 assert_exit "loader rejects an unknown language (exit 2)" 2 "$rc"
+assert_contains "loader names the bad language" "$err" "got: cobol"
 load_yaml noid.yaml $'language: js\n'
 assert_exit "loader rejects an adapter without an id (exit 2)" 2 "$rc"
+assert_contains "loader says the id is missing" "$err" "noid.yaml: no id"
 printf 'id: base\nlanguage: js\nfiles: [a]\ntest_start: [b]\n' >"$ADIR/base.yaml"
 printf 'id: child\nextends: base\ntest_start: [c]\n' >"$ADIR/child.yaml"
 rc=0
@@ -814,11 +822,13 @@ assert_not_contains "extends does not merge a field the child sets" "$out" "chil
 assert_matches "load order is argument order" "$(printf '%s\n' "$out" | head -1)" "^child${TAB}"
 printf 'id: orphan\nextends: nobody\nlanguage: js\n' >"$ADIR/orphan.yaml"
 rc=0
-awk -f "$LOAD" "$ADIR/orphan.yaml" >/dev/null 2>&1 || rc=$?
+out="$(awk -f "$LOAD" "$ADIR/orphan.yaml" 2>&1)" || rc=$?
 assert_exit "loader rejects extends of an unknown adapter (exit 2)" 2 "$rc"
+assert_contains "loader names the unknown parent" "$out" "extends unknown adapter: nobody"
 rc=0
 out="$(awk -f "$LOAD" "$ADIR/base.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
 assert_exit "loader rejects a duplicate adapter id (exit 2)" 2 "$rc"
+assert_contains "loader names the duplicate id" "$out" "duplicate adapter id: base"
 rc=0
 out="$(awk -f "$LOAD" "$SCRIPT_DIR"/../adapters/*.yaml 2>&1)" || rc=$?
 assert_exit "every shipped adapter loads (exit 0)" 0 "$rc"
@@ -827,8 +837,13 @@ for id in js-jest js-vitest py-pytest cs-xunit; do
 done
 load_yaml rs.yaml $'id: rs\nlanguage: js\ndelegation: [x]\n'
 assert_exit "loader rejects a reserved, unimplemented field (exit 2)" 2 "$rc"
+assert_contains "loader says the field is reserved" "$err" "delegation is reserved"
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
+assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
+load_yaml dm.yaml $'---\nid: dm\n'
+assert_exit "loader rejects a document marker (exit 2)" 2 "$rc"
+assert_contains "loader says document markers are unsupported" "$err" "dm.yaml:1: document markers"
 
 # --- adapter precedence: two adapters claim *.test.ts ------------------------
 # js-jest and js-vitest share every glob. The one whose detect.any_regex matches
