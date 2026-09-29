@@ -886,7 +886,7 @@ done
 assert_present 'researcher states that whoever dispatched it owes the acceptance gate' \
   'agents/researcher.md' '^## Whoever dispatched you owes the acceptance gate$'
 assert_present 'the researcher payload names the gate it is owed' \
-  'agents/researcher.md' '^gate_owed: "check-dispatch-artifact\.sh, check-coverage-complete\.sh, check-source-applicability\.py, per skills/research/SKILL\.md Post-dispatch acceptance gate"$'
+  'agents/researcher.md' '^gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact\.sh, check-coverage-complete\.sh and check-source-applicability\.py: it also owes the discovery:research-verifier dispatch and project fit\. Source: the discovery plugin.s skills/research/SKILL\.md .Post-dispatch acceptance gate. and reference/parent-contract\.md .Running the acceptance gate."$'
 assert_present 'the parent contract says a direct dispatch owes the gate' \
   'reference/parent-contract.md' 'including a direct dispatch of$'
 assert_present 'the research skill still carries the gate the pointer names' \

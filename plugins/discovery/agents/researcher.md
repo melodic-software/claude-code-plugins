@@ -300,7 +300,7 @@ verification_request:
   target: <the same path as artifact: above>
   criterion: "independent corroboration, HIGH confidence, and joint-inference validity per accepted claim"
   worker: fresh-context subagent
-gate_owed: "check-dispatch-artifact.sh, check-coverage-complete.sh, check-source-applicability.py, per skills/research/SKILL.md Post-dispatch acceptance gate"
+gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact.sh, check-coverage-complete.sh and check-source-applicability.py: it also owes the discovery:research-verifier dispatch and project fit. Source: the discovery plugin's skills/research/SKILL.md 'Post-dispatch acceptance gate' and reference/parent-contract.md 'Running the acceptance gate'"
 open_questions:
   - "<question the parent must surface to the user>"
 ```
