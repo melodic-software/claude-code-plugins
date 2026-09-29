@@ -74,7 +74,10 @@ holds; the probes above stand as corroboration.
 `${CLAUDE_PLUGIN_ROOT}` expanded to the plugin root, and a relative path on the next line stayed
 literal. Hook command (`SessionStart`, token single-quoted so the shell could not expand it):
 literal; the variable was set in the hook process environment. Bash-tool environment: unset
-(`printenv CLAUDE_PLUGIN_ROOT` exited 1 with no output).
+(`printenv CLAUDE_PLUGIN_ROOT` exited 1 with no output). The shell-form hook command does not show
+the inline substitution the plugins reference documents for hook commands ("anywhere in `command`
+and `args`"), while an exec-form `args` element carrying the token expanded to the plugin root in a
+separate probe on the same version.
 
 ## Decision
 
