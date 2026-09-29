@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.4] - 2026-09-28
+
+### Changed
+
+- **Explore and research hubs keep their gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The worker procedure moved behind a load-when pointer (`explore/reference/workflow.md`, `research/context/phases.md`). The outcome gates stay in the first 20,000 bytes of each `SKILL.md`, the stand-in for the skills page's first 5,000 tokens (re-fetched 2026-09-28). Explore's `## Scope` block stays in `SKILL.md`, where `$ARGUMENTS` is substituted at invocation; a Read of the spoke would leave it literal. The `explorer` agent's preload check looks for the outcome gate, the token, and the workflow pointer, and reads `reference/workflow.md` before the first dimension.
+
 ## [0.25.3] - 2026-09-28
 
 ### Security

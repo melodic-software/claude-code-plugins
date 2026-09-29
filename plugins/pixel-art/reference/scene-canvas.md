@@ -82,6 +82,20 @@ brackets; "(judgment)" marks a rule no source states.
   plus `MediaRecorder` (container depends on the browser,
   [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static)).
 
+## Review capture
+
+- Expose `window.__pixelScene` with `duration` in seconds, `seek(seconds)` (render that instant
+  and pause), `frameDataURL(scale)` (PNG data URL of the logical frame, nearest-neighbor), and
+  `play()` to resume the fixed step. `scripts/capture.py` is the one review command and calls
+  these (judgment; the names are this plugin's contract).
+- `--record` steps `seek` at 30 fps and records those frames with `canvas.captureStream` plus
+  `MediaRecorder`, so the WebM clock matches the scene clock. Audio tracks on
+  `window.__pixelScene.audioStream` are mixed in when the scene provides them
+  ([MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static),
+  [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)).
+- Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
+  (judgment). Do not describe the picture as reviewed.
+
 ## Checklist before shipping
 
 - One file, no network requests, opens from disk.
