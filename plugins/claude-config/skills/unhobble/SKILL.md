@@ -83,8 +83,10 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
 - `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
   `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
-  the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
-  No absolute host path, in any field.
+  the plugin data dir), `origin_url`, `branch`, `base_commit`, `branch_deviation` (empty, or why the
+  experiment branch is not `experiment/unhobble-<model-version>`), target model, `phase`
+  (`snapshot` | `bare` | `observe` | `readd` | `closed`, or `watch` for a Deletion watch experiment),
+  phase timestamps. No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity), with any deletion watch
   recorded above the table (see Deletion watch).
@@ -99,7 +101,11 @@ open and closed deletion watches.
 ## Phase 1: snapshot
 
 1. Verify a clean working tree; refuse to start on a dirty tree or on the default branch. Create or
-   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). **Clean here means no
+   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). When the session is
+   pinned to a designated branch (a cloud session's assigned branch, or one the operator names), use
+   it as the experiment branch instead of creating one, and record `branch_deviation` in the
+   manifest naming that branch and the pin. The default-branch refusal still applies to it.
+   **Clean here means no
    tracked modification and no unrelated untracked file.** An untracked instruction file from the
    `instruction-files.sh` list is admitted, and only that: it is the ordinary shape of a
    `CLAUDE.local.md`, it is what step 3 is about to classify, and a gate that read it as dirt would
@@ -115,7 +121,7 @@ open and closed deletion watches.
    plugins alike: `policy` (enforces team/safety policy regardless of model, so kept), `behavioral`
    (corrects or scaffolds model behavior, so stripped), `hybrid` (one unit carrying both, with the
    split named, trimmed and never removed whole), or `convention` (team conventions in git, the
-   operator's call, default kept per the official carve-out). For hook entries specifically, the
+   operator's call, default set by the oracle test below). For hook entries specifically, the
    classification rubric, covering mechanism vs class, the hybrid trim-not-delete rule, and the
    ground-truth-oracle carve-out (behavioral purpose with a non-derivable machine oracle is a
    keep), is owned by the marketplace's plugin-philosophy "Classifying a hook" section
@@ -134,6 +140,25 @@ open and closed deletion watches.
    config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
    noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
    residue down with the behavioral surface.
+
+   **Convention units: the oracle test.** The default for a `convention` unit rests on the
+   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+   and the ground-truth-oracle rule in the plugin-philosophy section linked above. No vendor page
+   states a convention exemption, and the register's definition of "highly important areas" is this
+   repository's own. Ask per unit what still checks the convention once its text is gone.
+   **Gating oracle remains** (a CI check, hook, or ruleset that fails or blocks a violation and is
+   not itself stripped): default strip the prose and keep the gate, classified `policy`; a stumble
+   then shows as a gate failure to log. **Advisory oracle remains** (a linter warning or report that
+   blocks nothing): default kept, since a violation passes and a silent ledger says nothing; strip
+   only on the operator's explicit call, recorded in the manifest. **No oracle:** default kept, and
+   removal is permanent only through a closed Deletion watch. A unit matching a register class is
+   kept whatever the test says.
+
+   **Product surfaces.** Record any unit under `plugins/<name>/` (a skill, agent, hook, command, or
+   any shipped file) as `unstripped-product-surface` and never strip it, whatever its class. The
+   reason is changelog-parity: `check-changelog-parity.sh`, in the repository scripts directory,
+   pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change (Gotchas, two
+   hats). Only the repo's own session surfaces are strip candidates.
 
    **Plugins, every one enabled at any scope.** Inventory user, project, and local
    `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
@@ -177,8 +202,9 @@ Apply the confirmed strip plan:
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`, and that commit includes
-  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`. The clean-tree check already
-  ran in Phase 1, before those files existed; other uncommitted dirt still refuses this phase.
+  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`, with `phase: bare`. The
+  clean-tree check already ran in Phase 1, before those files existed; other uncommitted dirt still
+  refuses this phase.
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
@@ -263,7 +289,7 @@ experiment branch:
 
 | Date | Task | What happened | Expected | Suspected missing instruction | Severity |
 
-Log honestly, including surprises in the other direction (things the bare model now does *better*;
+The first ledger commit sets `phase: observe`. Log honestly, including surprises in the other direction (things the bare model now does *better*;
 mark those `improvement`, since they are the deletions proving themselves). The ledger is the experiment's
 entire evidentiary output: an unlogged stumble cannot earn an instruction back. An empty ledger after
 real work licenses deleting an editorial candidate only. The strip removed the whole surface at once,
@@ -272,6 +298,12 @@ back to a Deletion watch (or is restored) and is never made permanent by this le
 protected-class rule is restored (Phase 4).
 
 ## Phase 4: readd
+
+**Refuse to run while the manifest `phase` is `bare` or `observe`.** Print the phase and the ledger
+row count from `stumbles.md`, and stop: the strip just landed or the window is open, and rows logged
+so far are not yet the evidence the gate reads. The operator ends the window by saying so; that sets
+`phase: readd`, committed. A watch experiment (`phase: watch`) never reaches this phase; its
+restore and close rules are under Deletion watch, unchanged.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
@@ -331,8 +363,8 @@ never enters a watch. Name the class and stop.
 A watch is the only route to a permanent consequential deletion, whether the rule came from an
 audit or from a strip's undefended surface. It runs inside an experiment. When none is open, start
 one for the single rule: mint an experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
-`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with the
-watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
+`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with
+`phase: watch` and the watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
 ledger table: the rule, quoted,
 and the surface it lives on; the governed situation, stated as where its absence would show; the
 window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
@@ -376,7 +408,8 @@ scheduling surfaces vary per consumer and are the operator's choice.
   measurement; strip, then start fresh sessions for real work.
 - **A plugin marketplace repo has two hats.** Running this skill in a plugin-publishing repo
   ablates that repo's *own* session surfaces only; the components it ships to consumers are its
-  product, audited by their own acceptance gates, not stripped by this experiment.
+  product, audited by their own acceptance gates, not stripped by this experiment. Phase 1 records
+  each one under `plugins/<name>/` as `unstripped-product-surface`, and changelog-parity is why.
 - **`CLAUDE_CODE_SIMPLE=1` / `--bare` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` are not part of this
   contract.** Two distinct, documented switches (official env-vars reference; binary-verified
   2026-08-17): simple mode (`CLAUDE_CODE_SIMPLE=1`, CLI flag `--bare`) disables fetches, keychain

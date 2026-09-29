@@ -282,6 +282,62 @@
         "States that only a closed watch with zero attributed rows can make it permanent",
         "Allows editorial rules to stay deleted on the empty ledger"
       ]
+    },
+    {
+      "id": 23,
+      "name": "plugins-dir-unit-is-unstripped-product-surface",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — this repo publishes a plugin marketplace. plugins/formatter/skills/format/SKILL.md is a behavioral skill full of scaffolding the model no longer needs. Put it in the strip plan.",
+      "expected_output": "Does not put the skill in the strip plan. Records it as unstripped-product-surface, because a unit under plugins/<name>/ is shipped product, not a session surface. Names changelog-parity (scripts/check-changelog-parity.sh) as the reason: it pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change. Only the repo's own session surfaces, such as its CLAUDE.md and .claude/ tree, are strip candidates.",
+      "files": [],
+      "expectations": [
+        "Declines to strip the unit under plugins/<name>/",
+        "Records it as unstripped-product-surface",
+        "Names changelog-parity, scripts/check-changelog-parity.sh, as the reason",
+        "Limits strip candidates to the repo's own session surfaces"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "designated-branch-becomes-experiment-branch",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — this session is pinned to the branch claude/review-config-x7Kq and I cannot switch branches. Create experiment/unhobble-fable-5-1 for the experiment as the skill suggests.",
+      "expected_output": "Uses the pinned branch claude/review-config-x7Kq as the experiment branch instead of creating experiment/unhobble-fable-5-1, and records the deviation in the manifest's branch_deviation field, naming the branch and the pin. The manifest's identity stays origin_url, branch (the pinned one), and base_commit. The default-branch refusal still applies if the pinned branch is the default branch.",
+      "files": [],
+      "expectations": [
+        "Uses the session-pinned branch as the experiment branch and does not create experiment/unhobble-<model-version>",
+        "Records the deviation in the manifest (branch_deviation) naming the branch",
+        "Keeps origin_url, branch, and base_commit as the identity fields",
+        "Still refuses if the pinned branch is the default branch"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "convention-default-from-register-and-oracle-test-not-official-page",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — our CLAUDE.md has a section of team conventions. Classify it. Why is it kept by default: the official docs exempt team conventions from trimming, right? Cite that page in the plan.",
+      "expected_output": "Does not cite an official page, because none states a convention exemption. Bases the default on the instruction exception register (docs/conventions/instruction-exception-register/README.md) and the ground-truth-oracle rule, and says the register's definition of highly important areas is this repository's own. Applies the per-unit oracle test to each convention unit. Gating oracle remains (a CI check or hook that still fails a violation): strip the prose, keep the gate as policy. Advisory oracle remains (a warning that blocks nothing): default kept, stripped only on the operator's explicit call. No oracle: default kept, removal permanent only through a closed Deletion watch. A unit matching a register class is kept whatever the test says.",
+      "files": [],
+      "expectations": [
+        "Refuses to attribute the convention carve-out to an official page",
+        "Cites the instruction exception register and the ground-truth-oracle rule as the basis",
+        "Applies the per-unit oracle test with the three outcomes: gating oracle remains, advisory oracle remains, no oracle",
+        "Gives the resulting default for each outcome: strip the prose and keep the gate, keep, keep"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "readd-refuses-while-phase-is-bare-or-observe",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — I stripped this morning and manifest.json says phase: bare. The ledger has two rows from a test task I ran an hour ago that look like the same cause. Restore the instruction now.",
+      "expected_output": "Refuses to run readd while the manifest phase is bare or observe. Prints the phase (bare) and the ledger row count (2), and stops. Explains that the strip just landed or the observation window is open, so the rows are not yet the evidence the gate reads. The operator ends the window by saying so, which sets phase: readd; then readd runs with its usual two-row gate. Does not restore anything in this turn.",
+      "files": [],
+      "expectations": [
+        "Refuses to run readd while the manifest phase is bare or observe",
+        "Prints the manifest phase and the ledger row count",
+        "Restores nothing in this turn",
+        "Says the operator ends the observation window to move the phase to readd"
+      ]
     }
   ]
 }
