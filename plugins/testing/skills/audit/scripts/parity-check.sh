@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # parity-check.sh: prove a scanner change preserves findings.
 #
-# Runs the scanner at a base ref (default: the merge base with origin/main,
+# Runs the scanner at a base ref (default: the merge base with origin/HEAD,
 # extracted with git archive into .work/) and the working-tree scanner over
 # the same roots, under every awk on PATH among gawk and mawk, and diffs their
 # output and exit codes. Roots: each evals/fixtures subdirectory, then this
@@ -21,7 +21,7 @@ REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)" || exit 2
 REL_SCRIPTS="plugins/testing/skills/audit/scripts"
 FIX="$SCRIPT_DIR/../evals/fixtures"
 
-base="${1:-$(git -C "$REPO" merge-base HEAD origin/main)}" || exit 2
+base="${1:-$(git -C "$REPO" merge-base HEAD origin/HEAD)}" || exit 2
 [[ -n "$base" ]] || {
   echo "ERROR: no base ref" >&2
   exit 2
@@ -70,6 +70,7 @@ dump_engine() {
     js-vitest) id=js-vitest ;;
     py) id=py-pytest ;;
     cs) id=cs-xunit ;;
+    *) return 2 ;;
     esac
     table="$WORK/table.$$"
     awk -f "$dir/adapter-load.awk" "$dir"/../adapters/*.yaml >"$table" || return 2

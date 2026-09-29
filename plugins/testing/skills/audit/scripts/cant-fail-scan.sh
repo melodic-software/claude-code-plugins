@@ -226,6 +226,7 @@ while IFS=$'\t' read -r id key val; do
   language) a_lang[$id]="$val" ;;
   files) a_globs[$id]+="$val"$'\n' ;;
   detect.any_regex) a_detect[$id]+="$val"$'\n' ;;
+  *) ;;
   esac
 done <"$ADAPTER_TABLE"
 
@@ -300,6 +301,7 @@ while IFS= read -r f; do
   js) js_files+=("$f") ;;
   python) py_files+=("$f") ;;
   cs) cs_files+=("$f") ;;
+  *) ;;
   esac
 done < <(collect_files "${name_args[@]}")
 
