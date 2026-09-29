@@ -79,6 +79,32 @@
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]
+    },
+    {
+      "id": 7,
+      "name": "check-covers-node-and-the-probe-as-a-resolver",
+      "prompt": "/biome-format:setup check\n\nnode is not on PATH in this shell, but biome is installed under node_modules/.bin in the repo root.",
+      "expected_output": "Reports a Node.js FAIL from `command -v node` run via Bash, because every hook launch goes through node hooks/exec-bash.mjs, so a missing node is a hook launch error, not a skip notice. Resolves biome the hook's way and notes the SessionStart probe resolves it separately.",
+      "files": [],
+      "expectations": [
+        "Runs `command -v node` via Bash and reports FAIL when it is absent, not INFO or a skip-notice case",
+        "States the reason: every hook launch goes through node hooks/exec-bash.mjs, so a missing node is a hook launch error rather than a skip notice",
+        "Says the SessionStart probe resolves biome separately from the hook's walk, reads probe-prerequisite.sh for the probe's walk limit and file tests instead of reciting them, and that a PASS on the hook's resolution means the hook resolves it",
+        "Points at the README Requirements sentence for how often skip notices repeat instead of restating a latch wording of its own"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "check-reports-the-gitignore-option",
+      "prompt": "/biome-format:setup check\n\nThe hook never formats files under a gitignored directory. Is that a defect?",
+      "expected_output": "Reports the effective biome_format_lint_gitignored value next to biome_format_enabled, with an unexpanded or empty value meaning the default false, and explains that by default the hook leaves gitignored files alone.",
+      "files": [],
+      "expectations": [
+        "Reports the effective biome_format_lint_gitignored value in the toggle item, alongside biome_format_enabled",
+        "Treats an unexpanded or empty value as the default false rather than as a failure",
+        "Does not call the untouched gitignored file a defect and names setting the option to true as the way to act on gitignored files",
+        "Modifies no setting: reconfiguring goes through Claude Code's native flow"
+      ]
     }
   ]
 }

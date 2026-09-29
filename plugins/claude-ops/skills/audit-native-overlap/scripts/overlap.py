@@ -977,28 +977,41 @@ def _body_has_suggest_sentence(body: str, name: str) -> bool:
     return False
 
 
-def check_presence_mentions(repo: Path) -> list[str]:
-    """Descriptions routing on a native surface's presence without the gate token.
-
-    Advisory, never a break: the two shapes it catches on a real tree are
-    legitimate pending rows, and the fix is a store row plus a baked phrase
-    (or dropping the condition), not a red gate. A description carrying a
-    gate token anywhere is left to the parity checks, which own it.
-    """
-    advisories: list[str] = []
-    plugins_dir = repo / "plugins"
-    if not plugins_dir.is_dir():
-        return advisories
+def _presence_descriptions(plugins_dir: Path) -> list[tuple[str, str]]:
+    """(label, description) for every skill and plugin manifest under plugins/."""
+    found: list[tuple[str, str]] = []
     for skill_md in sorted(plugins_dir.glob("*/skills/*/SKILL.md")):
         try:
             frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
         except OSError:
             continue
         description = frontmatter_description(frontmatter)
-        if not description:
+        if description:
+            found.append((f"{skill_md.parents[2].name}:{skill_md.parent.name}", description))
+    for manifest in sorted(plugins_dir.glob("*/.claude-plugin/plugin.json")):
+        try:
+            description = json.loads(manifest.read_text(encoding="utf-8")).get("description")
+        except (OSError, ValueError, AttributeError):
             continue
-        plugin = skill_md.parents[2].name
-        skill = skill_md.parent.name
+        if isinstance(description, str) and description:
+            found.append((f"{manifest.parents[1].name} (plugin.json)", description))
+    return found
+
+
+def check_presence_mentions(repo: Path) -> list[str]:
+    """Descriptions routing on a native surface's presence without the gate token.
+
+    Scans skill descriptions and plugin manifest descriptions. Advisory, never
+    a break: the two shapes it catches on a real tree are legitimate pending
+    rows, and the fix is a store row plus a baked phrase (or dropping the
+    condition), not a red gate. A description carrying a gate token anywhere
+    is left to the parity checks, which own it.
+    """
+    advisories: list[str] = []
+    plugins_dir = repo / "plugins"
+    if not plugins_dir.is_dir():
+        return advisories
+    for label, description in _presence_descriptions(plugins_dir):
         for match in PRESENCE_MENTION_RE.finditer(description):
             # Token presence is judged per clause, not per description: one
             # skill may carry a gated marketplace clause and an ungated native
@@ -1012,7 +1025,7 @@ def check_presence_mentions(repo: Path) -> list[str]:
             if GATE_TOKEN in clause or MARKETPLACE_GATE_TOKEN in clause:
                 continue
             advisories.append(
-                f"{plugin}:{skill} names a native surface behind a presence condition "
+                f"{label} names a native surface behind a presence condition "
                 f'without a gate token ("{match.group(0).strip()}"); add a store row '
                 f'and bake the phrase with "{GATE_TOKEN}", or drop the condition'
             )

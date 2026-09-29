@@ -3,6 +3,21 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5] - 2026-09-29
+
+### Changed
+
+- **`audit-posture` marks `provided_by` as informational.** Phase 1 now says the column only lets
+  the operator tell organization-provided servers (which `claude mcp remove` refuses) from
+  user-configured ones; no P1-P5 criterion reads it. The Phase 3 inventory table gains a
+  `Provided by` column so the saved report keeps it.
+
+### Fixed
+
+- In-place correction of the released 0.5.2 entry: its `### Added` bullet repeated the 0.5.1
+  `provided_by` entry although 0.5.2 made no consumer-visible or implementation change. The body
+  now says so.
+
 ## [0.5.4] - 2026-09-28
 
 ### Changed
@@ -22,9 +37,11 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 ## [0.5.2] - 2026-09-28
 
-### Added
+### Changed
 
-- **`audit-posture` attributes `managedMcpServers`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The inventory TSV gains `provided_by`: `organization` for a `managedMcpServers` row, `managed-mcp.json` for a server from that file, and `-` otherwise. Those organization servers are the ones `claude mcp remove` refuses.
+- No consumer-visible change. The version was bumped by the
+  [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027) close-out chore;
+  the `provided_by` attribution shipped in 0.5.1.
 
 ## [0.5.1] - 2026-09-28
 

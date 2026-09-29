@@ -35,9 +35,7 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | Workflows | `.claude/workflows/`, plugin `workflows/` | Startup; each file becomes a command |
 | Hook-carried instruction text | hooks in settings/plugins/frontmatter | On lifecycle events; `additionalContext` capped at 10,000 chars |
 | `--append-system-prompt` | CLI flag | Per invocation, appended to the default system prompt |
-| `--append-system-prompt-file` | CLI flag | Per invocation; file contents appended (cli-reference, verified 2026-09-28; #4027 / 261-003) |
-| `--append-subagent-system-prompt` | CLI flag | `-p` only; every subagent except forked; v2.1.205+ |
-| `--append-subagent-system-prompt-file` | CLI flag | `-p` only; file form; cannot combine with the text form; v2.1.261+ |
+| `--append-system-prompt-file`, `--append-subagent-system-prompt`, `--append-subagent-system-prompt-file` | CLI flags | Per invocation; see [CLI prompt appends](#cli-prompt-appends) |
 
 Load-semantics facts that change how you write:
 
@@ -61,8 +59,8 @@ system prompt, and the cli-reference cell does not restrict it to `-p`.
 subagent system prompt except a fork, only in non-interactive `-p` mode; the file form requires
 Claude Code v2.1.261 or later and cannot be combined with the text form; the text form requires
 v2.1.205 or later. **Basis:**
-[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows.
-**As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
+[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows, fed by rows 26-28
+of `docs/specs/agent-doc-surfaces.md`. **As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
 whether the two subagent flags combine, or leaves the table.
 
 ## Other-ecosystem analogues

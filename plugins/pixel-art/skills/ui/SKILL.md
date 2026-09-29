@@ -14,24 +14,21 @@ Produce a window skin, icon set, HUD element, or bitmap font the target can use,
 
 ## 1. Brief
 
-Pin down, from the request or by asking (ask only for what changes the output):
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
+does, including the `brief.md` file, the one-line defaults, and the presence-gated
+`/planning:interview` offer. Then add:
 
 - **Kind**: window skin, icon set, HUD element, or bitmap font, and what it should feel like.
 - **Target file**: the engine image or a plain sheet. Read the system-image rows in
   [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md) and the font line in the
   Godot section. Do not restate those tables.
-- **Palette**: a color count or a short list. Fewer colors read better.
-
-Vague request: pick defaults, state them in one line, proceed.
-
-Write `brief.md` beside the spec before the first render, with 2 to 6 done criteria, as
-[`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) describes. A later run that finds it there
-reads it and does not ask again. Every review round lists each done criterion as pass or fail.
 
 ## 2. Choose the backend
 
-Same rule as `/pixel-art:sprite`: [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native`
-is the default.
+Same rule as `/pixel-art:sprite`: read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md).
+`native` is the default and always available. Honor `${user_config.backend}` when it names another
+backend, and pass no `--confirm` until the user accepts a paid call. Generative backends fit UI
+skins poorly, so stay on native unless the request or that setting names another.
 
 ## 3. Author
 
@@ -50,9 +47,13 @@ is the default.
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 4
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 4
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
+
+`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
+names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
+relying on the environment to carry it.
 
 Output location resolves as in `/pixel-art:sprite`. Keep the spec and the generator beside the output.
 

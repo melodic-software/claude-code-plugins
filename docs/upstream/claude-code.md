@@ -52,7 +52,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 | Candidate | Items | Component | Record |
 |---|---|---|---|
-| Stale sandbox mask files | 257-006 | `audit-install-state`, routed through `audit-native-overlap` | nominated, pending human verdict, [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| Stale sandbox mask files: `/doctor` warns about the 0-byte placeholders a killed session leaves on Linux and WSL2; the mask path is undocumented, so `audit-install-state` grows no pattern for it and the store verdict decides whether the audit routes that check to doctor ([sandboxing, Troubleshooting](https://code.claude.com/docs/en/sandboxing)) | 257-006 | `audit-install-state`, routed through `audit-native-overlap` | nominated, pending human verdict, [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 
 ## Adopted
 

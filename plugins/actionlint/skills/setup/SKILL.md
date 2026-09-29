@@ -11,6 +11,7 @@ shell: bash
 `check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
 tool's path when present, or `absent` when missing:
 
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
 - `actionlint`: !`{ command -v actionlint 2>/dev/null || echo "absent"; }`
 
@@ -23,7 +24,8 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. actionlint
 auto-discovers its own optional config from the repository, and the tunables are the native
-`userConfig` options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every
+`userConfig` options (`actionlint_enabled`, `actionlint_lint_gitignored` and
+`stdin_read_timeout`). Every
 prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
 system packages, so `apply` is guidance-only with **no write path**. It never modifies the
 repository, user settings, or the plugin cache.
@@ -40,18 +42,23 @@ truth for what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report those probes informationally and note that re-enabling
+restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs before the enabled-gate.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
+1a. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every hook row launches through
+   `node hooks/exec-bash.mjs`, so the hook does not launch and lint does not run. The hook cannot
+   report this itself; the transcript shows a hook error notice. Probed here through Bash, which
+   works without the launcher.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of linting.
+   notice, once per session and agent and renewed every eighth skip, instead of linting.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the hook skips workflow lint
-   with a visible once-per-session notice (it ships no binary of its own).
+   with a visible notice, once per session (all agents share it) and renewed every eighth
+   skip (it ships no binary of its own).
 4. **actionlint config.** INFO: actionlint auto-discovers an optional
    `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
    runs with its built-in defaults without one. Report whether one exists for the reader's
@@ -59,6 +66,10 @@ restores the FAIL semantics.
 5. **Hook toggle.** Report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the hook).
+5a. **Path scope, gitignored workflow files.** INFO: report the effective
+   `${user_config.actionlint_lint_gitignored}` value (unexpanded or empty means default
+   `false`; only `true` lints gitignored workflow files). A tracked file that matches an
+   ignore pattern is always in scope. Consult it when a workflow edit produced no lint.
 5b. **Stdin read timeout.** INFO: report the effective `stdin_read_timeout` value:
    `${user_config.stdin_read_timeout}` (unexpanded or empty means default `2` seconds,
    minimum `1`). It is an IDLE bound. Any byte arriving resets it, so it fires only once
@@ -73,7 +84,7 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
 
 - missing `actionlint`: platform install guidance from the README Requirements section
   (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
-- missing `jq` / Bash: platform install instructions from the README Requirements section.
+- missing `node` / `jq` / Bash: platform install instructions from the README Requirements section.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
@@ -83,12 +94,11 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   (repeatable per key). Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
-  for this plugin, and run from that project's directory for a `project`/`local` scope, or the
-  rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. A rejected value prints a warning yet exits 0,
-  so read the output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
+  to its manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
+  `project` or `local` scope run from that project's directory, so the rerun matches the existing
+  install record; from the home directory pass `user`. A rejected value prints a warning yet
+  exits 0, so read the output. This skill never writes user settings or `pluginConfigs`.
+  Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
   `check` still reports the OLD value; report the observed effective value, never an

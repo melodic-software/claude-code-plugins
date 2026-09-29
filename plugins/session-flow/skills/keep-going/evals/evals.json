@@ -107,11 +107,12 @@
       "id": 9,
       "name": "captured-limit-message-not-trusted-across-account-switch",
       "prompt": "keep going — subagents died with 'You've hit your weekly limit · resets Sep 8, 6pm (America/New_York)'. I then logged into a different account. Don't wait until Sep 8 if this account has headroom.",
-      "expected_output": "The skill does not treat the captured weekly-limit message as a still-blocked verdict for the current account. It re-checks live /usage (or a live statusline rate_limits reading when one is present). If the live reading shows headroom, it continues. The date-bearing reset form is unparsed (checker exit 2) and is never read as lifted.",
+      "expected_output": "The skill does not treat the captured weekly-limit message as a still-blocked verdict for the current account. It treats the limit as provisional until a live re-check of the current account confirms it: the operator's /usage view, or a live statusline rate_limits reading when one is exposed to the session. If the live reading shows headroom, it continues; when no live reading is obtainable it asks the operator which account is active and whether it has headroom, and never concludes still-blocked. The date-bearing reset form is unparsed (checker exit 2) and is never read as lifted.",
       "files": [],
       "expectations": [
         "Does not hand off and stop solely because a captured limit message from another account still has a future reset",
-        "Re-checks live /usage (or a live rate_limits reading) for the current account before a still-blocked verdict",
+        "Treats the limit as provisional and hands off via /session-flow:handoff only after a live re-check of the current account (operator-relayed /usage, or a rate_limits reading exposed to the session) confirms it",
+        "When no live reading is obtainable, asks the operator which account is active and whether it has headroom, and does not conclude still-blocked",
         "Does not invent a reset window from the date-bearing form, and does not treat an unparsed checker exit as lifted"
       ]
     }

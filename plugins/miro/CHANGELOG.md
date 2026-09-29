@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.16] - 2026-09-29
+
+### Changed
+
+- **`setup` eval prompt:** the `disabled-plugin-is-not-a-bad-token` case no longer carries an escaped em dash; the prompt reads `/miro:setup Miro tools are missing. Is my token wrong?`.
+
 ## [0.4.15] - 2026-09-29
 
 ### Changed

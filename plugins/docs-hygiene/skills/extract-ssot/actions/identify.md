@@ -81,6 +81,7 @@ It applies no edits. `batch` accepts the same flags and passes them through.
 | `--fix` | off | Apply ONLY the non-abstracting remedies: `trim-to-citation` and `normalize-wording`. It NEVER creates a new artifact and never applies `name-an-owner` / `edit-existing-rule` (those change which file is canonical, a judgment call that stays with the user). Honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing. Implies no edits even if `--fix` is also passed |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful alongside `--fix` |
+| `--inline` | off | Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it (step 2) |
 
 **Per-bucket review gate.** With `--fix` and without `--yes`, present the proposed edits one bucket
 at a time and take the user's decision per bucket before writing. This keeps the N=1 sweep, the
@@ -95,7 +96,7 @@ highest-volume bucket, from landing as one unreviewable diff.
    `context/orchestrated-mode.md` defaults; path-scoped surveys inherit the same concurrency
    ceiling when they fan into verify/execute
 1. Pre-flight: confirm no working notes with an active candidate roster (SKILL.md "Phases per
-   invocation" defines it; a roster marked `status: closed` is not one), which would imply
+   invocation" defines it; a closed record is not one), which would imply
    resume, not new identify
 2. Choose the survey route by corpus size. A small corpus (tens of tracked markdown files, well
    under the "hundreds to thousands" scale context/orchestrated-mode.md is sized for), or
@@ -114,8 +115,8 @@ highest-volume bucket, from landing as one unreviewable diff.
    specific clusters. With --fix, walk the non-abstracting remedies one bucket at a time through
    the review gate (skipped by --yes); without --fix, report and stop
 8. When at least one candidate is actionable, persist the roster (buckets included) to working
-   notes so the user can resume from durable state. When every candidate is refused, write no
-   roster: record the refusals as one line marked `status: closed` in the working notes
+   notes so the user can resume from durable state. When every candidate is refused, write a
+   closed record: one line marked `status: closed` in the working notes, no roster
    (context/decision-framework.md keeps refusals there), and route a new refusal pattern to
    context/lessons.md
 ```
@@ -381,7 +382,7 @@ reads as "nothing found there".
 `/docs-hygiene:extract-ssot batch <Wave-1-cluster-list>`
 ```
 
-When at least one candidate is actionable, the ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state. An all-refused roster is recorded as closed instead (step 8).
+When at least one candidate is actionable, the ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state. An all-refused survey is recorded as a closed record instead (step 8).
 
 ## Targeted mode steps
 
@@ -412,7 +413,7 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 
 | When | Check | Evidence |
 |------|-------|----------|
-| Pre-dispatch | No active working-notes candidate roster (SKILL.md "Phases per invocation"; a `status: closed` roster does not count) | Read of the notes |
+| Pre-dispatch | No active working-notes candidate roster (SKILL.md "Phases per invocation"; a closed record does not count) | Read of the notes |
 | Post-dispatch | Every returned candidate carries its evidence shape; a small roster on a well-deduplicated corpus is a valid result, not a failed dispatch | Read the roster |
 | Post-dispatch | Each candidate has a Tier 0 grep evidence path | Spot check 3 candidates |
 | Post-dispatch | Every candidate carries a bucket + instance count, and no sub-three candidate carries an artifact-creating suggested output | Scan the roster's bucket column |
