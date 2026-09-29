@@ -13,7 +13,8 @@ When the bundled `simplify` skill resolves in this session, Phase 6 step 2 invok
 group's file list as its target, in place of spawning the simplifier agent. This skill keeps the
 discovery, filtering, grouping, ordering, verification, and report around it. One mutating pass
 runs per group, never both. `docs` mode keeps the simplifier agent, since `simplify` has no
-factual-staleness pass. The skill body enters context once and stays there.
+factual-staleness pass, and records `State: skipped (docs mode)`. The skill body enters context
+once and stays there.
 
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
@@ -25,7 +26,7 @@ invocation, fingerprint the tracked files outside that group; any change there r
 **mutation detected after a scoped invocation**, and the run exits degraded.
 
 **Skip report.** When the step does not run, the state names why: `did not resolve in this
-session`, invocation refused (the reason, never retried), or identity mismatch. Each names the axis
+session`, invocation refused (the reason, never retried), or identity mismatch; those three name the axis
 line: settings or environment, plan, platform or provider, host surface; and the enable path
 (`disableBundledSkills`, `skillOverrides`). When `simplify` runs but says it ran a weaker
 procedure, the state is resolved but degraded, and the report relays its disclosure instead of
@@ -35,13 +36,13 @@ calling the group fully simplified.
 
 ```text
 Native step: simplify
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped under unattended (mutating native surface) | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
 
 **`unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
-block records `State: skipped under unattended (mutating native surface)` without asking.
+block records `State: skipped (unattended)` without asking.
 
 ## Repository context. Gather first
 

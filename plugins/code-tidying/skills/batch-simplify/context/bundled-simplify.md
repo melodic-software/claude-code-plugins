@@ -24,7 +24,7 @@ single-file cleanup, use /simplify instead` clause is the routing half of this r
 
 The bundled skill is gated by `disableBundledSkills`, a `skillOverrides` entry, the host surface,
 and the environment. When it resolves, the SKILL.md Native step runs it per group in place of the
-simplifier agent; a session where it does not resolve runs the agent as before.
+simplifier agent, except in `docs` mode or under `unattended`; otherwise the agent runs as before.
 
 ## Extraction record
 
