@@ -895,6 +895,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (done < n || lsGet("cpDismissed", 0) >= n) return "";
     return '<div class="banner"><b>' + done + " answered.</b> Past your checkpoint of " + n + '. Wrap up, or split what is left. <button class="tbtn small" data-sum="1">Wrap up</button> <button class="tbtn small" data-cpdismiss="' + n + '">Keep going</button></div>';
   }
+  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|we|i|it|my|our|your|this|these|about|from|into|than|when|where|while|just|maybe))$/i;
+  const midSentence = s => { s = String(s || "").trim(); return s.length >= 12 && !/[.!?)\]"'”’`]$/.test(s) && DANGLING.test(s); };
   function renderAnswer(){
     const q = Q[S.sel], note = $("note");
     if (!q) { $("cur").innerHTML = ""; $("choices").innerHTML = ""; $("decideRow").innerHTML = ""; $("talkRow").innerHTML = ""; note.disabled = true; renderToast(); return; }
@@ -917,9 +919,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
     const needText = armed && armed.kind === "own" && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + armed.label + (withNote(q, armed) ? " with note" : "") : "Save";
-    const asks = armed && armed.kind === "own" && /\?$/.test(text);
+    const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
     $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? "Own answer needs a note" : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
+      (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>';
@@ -972,8 +975,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
 
   // ---------- summary / completion ----------
-  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|we|i|it|my|our|your|this|these|about|from|into|than|when|where|while|just|maybe))$/i;
-  const midSentence = s => { s = String(s || "").trim(); return s.length >= 12 && !/[.!?)\]"'”’`]$/.test(s) && DANGLING.test(s); };
   function noteThread(){
     const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq}));
     const claude = (S.doc.notes || []).map(n => Object.assign({by: "claude"}, n));
