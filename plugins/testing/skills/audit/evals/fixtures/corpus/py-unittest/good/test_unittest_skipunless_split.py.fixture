@@ -1,0 +1,25 @@
+# good-for: rule-zero-assertion
+# Skip decorators split over lines, on a class and on a method: a test that
+# does not run is not judged.
+import shutil
+import unittest
+
+from repo import clone_fixture
+
+
+@unittest.skipUnless(
+    shutil.which("git"),
+    "needs git on PATH",
+)
+class CloneTests(unittest.TestCase):
+    def test_clone_fixture_repo(self):
+        clone_fixture("tiny-repo")
+
+
+class CloneShallowTests(unittest.TestCase):
+    @unittest.skipUnless(
+        shutil.which("git"),
+        "needs git on PATH",
+    )
+    def test_clone_shallow(self):
+        clone_fixture("tiny-repo", depth=1)

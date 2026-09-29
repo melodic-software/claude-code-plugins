@@ -1,0 +1,8 @@
+// expect: rule-snapshot-only
+// The accessibility-tree snapshot is the only oracle.
+import { expect, test } from '@playwright/test';
+
+test('the navigation lists the sections', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('navigation')).toMatchAriaSnapshot();
+});

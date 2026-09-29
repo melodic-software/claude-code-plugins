@@ -1,0 +1,11 @@
+# expect: rule-recomputed-derived
+# sum() over the same list the code under test totals.
+import unittest
+
+from app.cart import total
+
+
+class TotalTests(unittest.TestCase):
+    def test_total_adds_the_prices(self):
+        xs = [10, 5]
+        self.assertEqual(total(xs), sum(xs))

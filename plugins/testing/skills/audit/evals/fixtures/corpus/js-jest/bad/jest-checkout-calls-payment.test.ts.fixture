@@ -1,0 +1,14 @@
+// source: pocock M1
+// expect: rule-mock-only-oracle
+// The runnable correction of the verbatim M1 fixture: jest.mock takes the
+// module path. The only assertion is still on a mock interaction.
+import { checkout } from './checkout';
+import { paymentService } from './payment-service';
+
+jest.mock('./payment-service');
+
+test('checkout calls paymentService.process', async () => {
+  const cart = { total: 15 };
+  await checkout(cart);
+  expect(paymentService.process).toHaveBeenCalledWith(cart.total);
+});

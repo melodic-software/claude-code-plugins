@@ -1,0 +1,15 @@
+# good-for: rule-recomputed-derived
+# An expected value built only from the inputs' lengths states an invariant,
+# and a dict spread copies an input whole: neither rebuilds the value the way
+# the code does.
+from app.lib import total, with_id
+
+
+def test_prices_every_item():
+    items = ["a", "b", "c"]
+    assert total(items) == len(items) * 5
+
+
+def test_adds_an_id():
+    payload = {"name": "ann"}
+    assert with_id(payload) == {**payload, "id": 1}

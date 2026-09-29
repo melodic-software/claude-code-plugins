@@ -1,0 +1,13 @@
+// good-for: rule-zero-assertion
+// An explicit test runs only when selected by name, so it is not judged.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartBenchmarkExplicitTests
+{
+    [Test, Explicit]
+    public void Export_LargeCart()
+    {
+        new CartExporter().Export(Cart.WithItems(100000));
+    }
+}

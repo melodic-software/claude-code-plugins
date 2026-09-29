@@ -1,0 +1,11 @@
+// expect: rule-conditional-assertion
+// The only assertion sits in the catch, so a parse that stops throwing passes.
+import { parseConfig } from '../src/config';
+
+test('rejects a config without a name', () => {
+  try {
+    parseConfig('{}');
+  } catch (err) {
+    expect(err.message).toBe('name is required');
+  }
+});

@@ -1,0 +1,8 @@
+# expect: rule-inert-assertion
+# The parentheses make the assert's subject a two-item tuple, which is always
+# truthy, so the comparison inside never decides anything.
+from app.cart import total
+
+
+def test_total_sums_prices():
+    assert (total([1, 2]) == 3, "total should add the prices")

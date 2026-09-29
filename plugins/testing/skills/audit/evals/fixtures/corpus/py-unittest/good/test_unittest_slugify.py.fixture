@@ -1,0 +1,13 @@
+# good-for: rule-zero-assertion
+import unittest
+
+from slugs import slugify
+
+
+class SlugifyTests(unittest.TestCase):
+    def test_slugify_handles_spaces(self):
+        self.assertEqual(slugify("Hello World"), "hello-world")
+
+
+if __name__ == "__main__":
+    unittest.main()
