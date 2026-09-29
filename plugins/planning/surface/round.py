@@ -5,7 +5,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation or alternatives
+  revise          change a question's wording, recommendation, alternatives or commitments
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      reply in the Notes to Claude thread
   record-terminal record an answer the user gave in the terminal
@@ -29,6 +29,9 @@ flags) and at least two alternatives.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. revise --alt keeps at least two alternatives.
+revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
+changes, the recorded confirmations are dropped and confirm events at or below the question's
+commitsSinceSeq no longer count.
 reply --handled N marks every event with seq at or below N handled, including other questions'
 events; prefer `handle` with explicit seqs.
 """
@@ -450,6 +453,11 @@ def op_revise(d, doc, a):
         ("text", a.text, TEXT_CAP),
     ):
         capped(f"revise {field}", val, cap)
+    commits = None
+    if a.commit is not None:
+        commits = [] if a.commit == ["none"] else a.commit
+        for i, c in enumerate(commits, 1):
+            capped(f"revise commitment {i}", c, LINE_CAP)
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
@@ -480,6 +488,13 @@ def op_revise(d, doc, a):
             )
         q["alternatives"] = alts
         changed.append("alternatives")
+    if commits is not None and commits != (q.get("commits") or []):
+        q["commits"] = commits
+        q.pop("commitsConfirmed", None)
+        q["commitsSinceSeq"] = load_json(d / "responses.json", EMPTY_RESPONSES).get(
+            "seq", 0
+        )
+        changed.append("commitments")
     if not changed:
         sys.exit("nothing to revise")
     q["contentRev"] = (q.get("contentRev") or 0) + 1
@@ -820,6 +835,7 @@ OP_ARGS = {
             "why": None,
             "text": None,
             "alternatives": None,
+            "commits": None,
             "seq": None,
             "affects": None,
             "force": False,
@@ -897,6 +913,7 @@ def cmd_apply(d, a):
             )
             if op["op"] == "revise":
                 args.alt = args.alternatives
+                args.commit = args.commits
             if op["op"] == "handle":
                 args.seq = args.seqs
             t, msg = fn(d, doc, args)
@@ -1449,13 +1466,20 @@ def main(argv=None):
     )
     s.set_defaults(fn=write_op(op_reply, "reply"))
 
-    s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
+    s = sub.add_parser(
+        "revise", help="change wording, recommendation, alternatives or commitments"
+    )
     s.add_argument("id")
     for f in ("title", "short", "facts", "basis", "rec", "why", "text"):
         s.add_argument("--" + f)
     s.add_argument("--affects", help=affects_help)
     s.add_argument(
         "--alt", action="append", help="key:text, repeatable; replaces all alternatives"
+    )
+    s.add_argument(
+        "--commit",
+        action="append",
+        help="repeatable; replaces all commitments; `--commit none` alone clears them",
     )
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"

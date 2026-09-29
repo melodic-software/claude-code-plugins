@@ -527,7 +527,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c.length ? c : ps;
   }
   function confirmed(q){ // ticked on the page, or confirmed by Claude after a terminal confirmation
-    const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)));
+    const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && (e.seq || 0) <= q.commitsSinceSeq)).map(e => String(e.alt)));
     (q.commitsConfirmed || []).forEach(c => s.add(String(c.index)));
     return s;
   }

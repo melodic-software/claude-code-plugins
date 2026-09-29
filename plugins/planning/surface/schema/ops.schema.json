@@ -79,6 +79,11 @@
         "why": {"type": "string"},
         "text": {"type": "string"},
         "alternatives": {"$ref": "#/$defs/alternatives"},
+        "commits": {
+          "description": "Replaces the whole commitment list; an empty array clears it.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "seq": {"type": "integer"},
         "affects": {"$ref": "#/$defs/affects"},
         "force": {"type": "boolean"}

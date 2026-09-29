@@ -474,14 +474,17 @@ def latest_decision(q, responses):
 
 def commitments(q, events):
     """(confirmed, unconfirmed) commitment texts; a live `confirm` event ticks one by index, and
-    so does a `commitsConfirmed` record from the confirm-commitments op."""
+    so does a `commitsConfirmed` record from the confirm-commitments op. A confirm event at or
+    below `commitsSinceSeq` was made against an earlier commitment list and does not tick."""
     commits = q.get("commits") or []
     ticked = {c.get("index") for c in q.get("commitsConfirmed") or []}
+    since = q.get("commitsSinceSeq")
     for e in events:
         if (
             e.get("id") == q["id"]
             and e.get("kind") == "confirm"
             and not e.get("withdrawn")
+            and (since is None or (e.get("seq") or 0) > since)
         ):
             try:
                 ticked.add(int(e.get("alt")))
