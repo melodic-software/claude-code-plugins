@@ -2,6 +2,8 @@
 
 Sound effects and MML render to WAV with the standard library only.
 """
+import contextlib
+import io
 import pathlib
 import sys
 import tempfile
@@ -61,10 +63,53 @@ class AudioTest(unittest.TestCase):
             self.assertEqual(sfx.main(["--params", "{bad", "--out", out]), 1)
             self.assertEqual(sfx.main(["--params", str(pathlib.Path(tmp) / "missing.json"), "--out", out]), 1)
 
+    def test_non_object_or_null_field_params_exit_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = str(pathlib.Path(tmp) / "x.wav")
+            for body in ("[]", "null"):
+                f = pathlib.Path(tmp) / "p.json"
+                f.write_text(body)
+                self.assertEqual(sfx.main(["--params", str(f), "--out", out]), 1)
+            self.assertEqual(sfx.main(["--params", '{"freq": null}', "--out", out]), 1)
+
     def test_gameboy_rejects_a_fifth_channel(self):
         score = "c | d | e | f | g"
         with self.assertRaises(ValueError):
             mml.render_mml(score, "gameboy")
+
+    def test_presets_cap_channels_and_noise_but_not_the_voice_mix(self):
+        self.assertTrue(mml.render_mml("@1 c | @1 d | @1 e | @1 f", "gameboy", rate=22050))
+        for chip in ("gameboy", "nes", "pico-8"):
+            with self.assertRaises(ValueError):
+                mml.render_mml("c | d | e | f | g", chip)
+            with self.assertRaises(ValueError):
+                mml.render_mml("n | n", chip)
+
+    def test_stray_closing_bracket_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unmatched"):
+            mml.render_mml("c d ] e f", "gameboy")
+
+    def test_zero_tempo_or_length_exits_one_with_a_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "x.wav"
+            for score in ("t0 c", "l0 c", "c0"):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    self.assertEqual(mml.main(["--out", str(out), score]), 1)
+                self.assertIn("mml.py: ", stderr.getvalue())
+                self.assertIn("greater than zero", stderr.getvalue())
+                self.assertFalse(out.exists())
+
+    def test_zero_repeat_count_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "at least 1"):
+            mml.render_mml("[c]0", "gameboy")
+
+    def test_repeat_count_defaults_to_two_and_uses_an_explicit_count(self):
+        for score in ("[c]", "[c]2"):
+            samples = mml.render_mml(f"t120 l4 {score}", "gameboy", rate=22050)
+            self.assertAlmostEqual(len(samples) / 22050, 1.0, delta=0.01)
+        samples = mml.render_mml("t120 l4 [c]3", "gameboy", rate=22050)
+        self.assertAlmostEqual(len(samples) / 22050, 1.5, delta=0.01)
 
     def test_campfire_score_renders(self):
         score = (ROOT / "examples" / "campfire.mml").read_text()

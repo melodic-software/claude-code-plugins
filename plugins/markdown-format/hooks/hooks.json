@@ -38,6 +38,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "MARKDOWN_FORMAT_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
             ],
             "timeout": 10,

@@ -7,9 +7,8 @@
 
 import fs from "node:fs";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr } from "@melodic/video-digestion/shared/terminal";
-
-import { isMainModule } from "../lib/cli-entrypoint.js";
 
 const DEFAULT_MAX_BYTES = 25_600;
 const MIN_PHRASE_WORDS = 4;

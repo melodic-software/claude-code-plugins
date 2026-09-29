@@ -42,7 +42,7 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage over a release range, no edits), `status` (the read marker from the repo's Claude Code ledger, the default range to the newest release, and the replay cap), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
-| `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane> --permission-mode auto --permission-prompts none`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
+| `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane> --permission-mode auto`, plus `--permission-prompts none` on CLI 2.1.259 or later) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
 | `/claude-ops:setup` | `check` reports the effective known-issues-registry, skill-usage-log and hook-log-root destinations, their defaults, path containment, the hook log root's self-ignoring guard, and retired conventions (`retirements.yaml`), and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt; `apply` writes exactly one file, the guard inside the hook log root, and runs the gated retirement cleanup. |
 
 ## The audit hooks
@@ -269,19 +269,22 @@ not a per-call record: it carries the first `tool_name` and `tool_use_id` the
 payload text holds, normally the first call's. Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
-and a repo-relative file path when present. Each row is SHELL FORM and reads
-the kill switch itself, before it execs the script, so a consumer who has not
-turned it on starts nothing beyond the shell Claude Code runs the command in:
-measured on Windows Git Bash, 1 process creation per event against the 3 the
-bare script path costs (median wall 41 ms against 107 ms, n=5). The script
+and a repo-relative file path when present. Each row starts through
+`node hooks/exec-bash.mjs --require-true SESSION_EVENT_LOG_ENABLED`, which reads
+the kill switch before it resolves or spawns bash, so a consumer who has not
+turned it on starts one process (node) per event and no bash. The script
 keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
-floor on the Linux CI host). Enabled, the row execs the script and the chain is
-the same three creations as before (median 117 ms); a 2 KB payload costs about
-5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
-hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
-is still owed, and the default stays off until it is taken.
+floor on the Linux CI host). Enabled, a 2 KB payload costs about 5 ms and a
+512 KB one 36 ms. Those are serial per-event figures taken before the node
+launcher. The parallel wall, the 4 KB and 16 KB appends, `ls -t`, and the
+late-EOF stall, all through the launcher, are measured by
+[`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
+recorded in
+[`reference/hook-log-budget.md`](reference/hook-log-budget.md). The Windows
+Git Bash column there is `unmeasured` until that harness runs on Git Bash,
+and the default stays off until that capture replaces the placeholder.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
-hook, gated by the same switch in shell form, keeps the newest
+hook, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
 `session_log_pre_prune_command` hands an archiver the files about to go. The
 root carries its own `*` `.gitignore`, so nothing under it reaches
@@ -332,6 +335,11 @@ your own repository's context:
 The audit hooks are Bash scripts (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
+
+**Node.js on PATH.** Every hook row starts through `node hooks/exec-bash.mjs`, which finds the
+real Bash and runs the script. Claude Code's native binary neither ships nor uses Node.js
+([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` on PATH
+the hooks do not launch. `/claude-ops:setup check` reports whether `node` resolves.
 
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and

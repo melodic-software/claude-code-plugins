@@ -58,4 +58,4 @@ Skill data (`.claude/skills/*/data/`) is preserved unconditionally. No flag remo
 
 ## Hook interaction
 
-The session-scoped destructive guard (`scripts/destructive-guard.sh`) blocks bare `git clean -f` / `git reset --hard` while this skill is active. The wrapper script runs those as subprocesses. Invoke via `bash git-tree-reset.sh`, not inline git commands.
+The session-scoped destructive guard (`scripts/destructive-guard.sh`) blocks bare `git clean -f` / `git reset --hard` while this skill is active, and blocks `git-tree-reset.sh --apply` until the command starts with the acknowledgement prefix (`CLEAN_GUARD_ACK=1 bash git-tree-reset.sh … --apply` on Bash, `$env:CLEAN_GUARD_ACK=1; …` on PowerShell), added only after the confirmation gate. A dry-run is not blocked. Run the reset through the wrapper, not inline git commands: it runs those as subprocesses.

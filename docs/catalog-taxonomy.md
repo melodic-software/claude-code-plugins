@@ -85,9 +85,6 @@ Category-level:
 | A plugin whose subject is making games lands (engine, level editor, game build tooling) | Add a `game-development` category; games combine media, so no medium category owns them. |
 | A broader automation plugin lands (automation that is not governed-autonomy-scoped) | Broaden `autonomy` or add a sibling category rather than filing the newcomer under `autonomy`. |
 
-The `music` category was renamed to `audio` when `retro-audio` landed, so one label covers
-songwriting and sound effects.
-
 Plugin-scoped (owned by the named plugin's README):
 
 | Plugin | Possible future change |

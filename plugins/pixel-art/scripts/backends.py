@@ -101,6 +101,39 @@ def _check_sheet(sheet_path, palette):
         raise RuntimeError(f"sheet.png has {bad} pixels outside the palette")
 
 
+def _normalize_sheet_json(data_path, plan):
+    """Rewrite Aseprite's json-hash into the contract shape; return why it cannot, or None.
+
+    Aseprite emits one frame per sheet slot (null cells are empty frames) in sheet order, keyed by
+    a filename pattern, and records the absolute --sheet path as meta.image. The frames map back to
+    spec names by position, so the result does not depend on the key format.
+    """
+    try:
+        data = json.loads(data_path.read_text())
+    except (ValueError, OSError):
+        return "sheet.json is unreadable"
+    frames = data.get("frames") if isinstance(data, dict) else None
+    meta = data.get("meta") if isinstance(data, dict) else None
+    if not isinstance(frames, dict) or not isinstance(meta, dict):
+        return "sheet.json has no frames map or meta block"
+    names = [frame["name"] for frame in plan["frames"]]
+    if len(frames) != len(names):
+        return f"sheet.json has {len(frames)} frames for {len(names)} sheet cells"
+    cells = list(frames.values())
+    kept = [i for i, name in enumerate(names) if name is not None]
+    data["frames"] = {names[i]: cells[i] for i in kept}
+    meta["image"] = "sheet.png"
+    if "frameTags" in meta:
+        tags = []
+        for tag in meta["frameTags"]:
+            inside = [n for n, i in enumerate(kept) if tag["from"] <= i <= tag["to"]]
+            if inside:
+                tags.append(dict(tag, **{"from": inside[0], "to": inside[-1]}))
+        meta["frameTags"] = tags
+    data_path.write_text(json.dumps(data, indent=2))
+    return None
+
+
 def _run_aseprite(spec, out_dir, scale, spec_path, env):
     executable = find_aseprite(env)
     if executable is None:
@@ -143,6 +176,11 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
             _check_sheet(sheet_path, prepared["palette"])
         except (RuntimeError, ValueError, OSError) as exc:
             return _native(spec, out_dir, scale, spec_path, f"Aseprite sheet rejected ({exc}); rendered with the native backend")
+        problem = _normalize_sheet_json(data_path, plan)
+        if problem:
+            return _native(
+                spec, out_dir, scale, spec_path,
+                f"Aseprite sheet rejected ({problem}); rendered with the native backend")
         gif_dir = work / "gif"
         # The native render into out_dir drops GIFs of removed animations using the previous
         # sheet.json; do the same here, since this path only copies the new GIFs.

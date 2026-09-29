@@ -61,26 +61,6 @@ runners and balanced on measured wall time; every gate keeps the name it always
 had, and each half carries its own `aggregate-hygiene-results.sh` feed over
 exactly its own gate steps.
 
-## Time-to-green target
-
-This repository keeps the standing CI performance target here so GOAL.md in
-github-iac has a plain-English home that is not the snapshot tooling.
-
-**Claim:** keep the affected-only six-job workflow (changes, lint, test-linux,
-test-windows non-required, hook-utils, ci-status) under **p50 5 minutes** and
-**p95 12 minutes**, measured per pull-request head SHA from the first required-check
-workflow created to the last one green, using the first successful *full* run per
-required workflow (not a later contract-only skip). After two consecutive passing
-snapshots, each target ratchets to 90 percent of the value achieved, never below
-the longest single test suite after parallelisation. Ownership of GOAL.md,
-`snapshot.sh`, and `targets.tsv` stays in github-iac; this issue tracker is the
-explanation, not a second measurement pipeline. **Basis:**
-[#3932](https://github.com/melodic-software/claude-code-plugins/issues/3932);
-melodic-software/github-iac#378; the 2026-09-14 rescore of time-to-green onto the
-earliest successful full run. **As of:** 2026-09-28. **Recheck:** github-iac
-`docs/topics/ci-perf/GOAL.md` or `snapshots/targets.tsv` changes the numbers, or
-`ci.yml` gains or drops a required job.
-
 ## Contract-only `ci-status`
 
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
@@ -91,14 +71,16 @@ for an in-flight full run, then ends on a settled `success`, `failure`, or
 
 **Operator remedy.** When a contract-only `ci-status` is red:
 
-- If `ci-lanes` on that SHA is already `success`, re-run the red contract-only
-  `ci` run. An empty commit is the wrong move.
+- If `ci-lanes` on that SHA is already `success`, try re-running the red
+  contract-only `ci` run; if it stays red, push a new commit.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
 A body edit while a failed full run is being re-run can still read the old
 failure without waiting (#4670). Distinguishing that re-run from a
 contract-only sibling is a ci-workflows composite change; this repository
-pins the composite and documents the remedy until that pin moves.
+pins the composite and documents the remedy until that pin moves. How a ruleset
+treats two same-name `ci-status` check runs on one SHA is unverified and tracked
+in #4670.
 
 ## Toolchain integrity
 

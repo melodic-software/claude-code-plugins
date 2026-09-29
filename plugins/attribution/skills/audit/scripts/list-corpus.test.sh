@@ -261,6 +261,18 @@ assert_contains "--show-config names the team layer" "$OUT_SC" "$CFG_DIR/attribu
 assert_contains "--show-config prints the effective exclusions" "$OUT_SC" "legacy/**"
 rm -f "$CFG_DIR/attribution.json"
 
+# The script alone, with no lib.sh beside it: the pre-computed --show-config
+# probe reads "detector unavailable", never an empty configuration.
+ALONE="$TEST_TMPDIR/alone"
+mkdir -p "$ALONE"
+cp "$LIST_CORPUS" "$ALONE/list-corpus.sh"
+OUT_NL="$(bash "$ALONE/list-corpus.sh" --show-config 2>/dev/null)"
+assert_exit "--show-config without lib.sh exits 0" "$?" "0"
+assert_eq "--show-config without lib.sh prints the unavailable marker" "$OUT_NL" "detector unavailable"
+ERR_NL="$(bash "$ALONE/list-corpus.sh" 2>&1 >/dev/null)"
+assert_exit "a real run without lib.sh exits 2" "$?" "2"
+assert_contains "a real run without lib.sh explains itself on stderr" "$ERR_NL" "cannot read"
+
 # --- Targets ---------------------------------------------------------------------
 
 DIR_OUT="$(run_default docs 2>/dev/null)"

@@ -8,7 +8,7 @@
 
 import fs from "node:fs/promises";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
 /**
  * @param {string} value

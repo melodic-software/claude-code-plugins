@@ -30,7 +30,10 @@
 #
 # Cadence contract: the session's zone is resolved from the plugin's
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
-# authority — this hook never re-implements band logic). The last-seen zone
+# authority for every zones.json state; the hook holds only the shipped band
+# edges and the staleness window for its reuse arms, the percentage arm is off
+# whenever zones.json exists, and the parity test in zone-crossing-inject.test.sh
+# pins those copies to the resolver). The last-seen zone
 # is kept per session in a private state file; injection fires only when the
 # rank worsens past the highest rank already REPORTED this session (smart →
 # acceptable/dumb, acceptable → dumb, or a first observation already past
@@ -322,8 +325,13 @@ cg::leading_scalar_object() {
 
 # Session id and event from a payload this hook can prove without jq and
 # without hook-utils. The scan stops at the first nested value, so a
-# tool-result that repeats these keys is not read. A backslash is an escape
-# the builtin below does not decode; that payload takes the full parser.
+# tool-result that repeats these keys is not read. The header may carry
+# backslashes: Windows paths in transcript_path and cwd do, and they precede
+# tool_calls. Key text inside another string is escaped, so it does not match
+# the quoted key. The one spelling that does, an escaped quote before the key
+# text and the string's own quote after it (`\"session_id"`), is refused when it
+# is the only match and counts twice beside the real key. A value equal to the
+# key text counts twice. An escape inside either id value falls back too.
 # Returns 1 when the two fields are not both plain strings.
 cg_prove_scalar_ids() {
   local s="$1" header ev="" sid=""
@@ -336,7 +344,6 @@ cg_prove_scalar_ids() {
     ((${#s} <= 65536)) || return 1
     [[ "$s" == '{'* ]] || return 1
   fi
-  [[ "$header" != *\\* ]] || return 1
   cg_json_plain_string "$header" hook_event_name ev || return 1
   cg_json_plain_string "$header" session_id sid || return 1
   [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
@@ -348,11 +355,16 @@ cg_prove_scalar_ids() {
 # <json> <key> <varname>. The key appears once, and the value has no escape.
 cg_json_plain_string() {
   local s="$1" key="$2" rest stripped count
+  local re='^[[:space:]]*:[[:space:]]*"([^"\]*)"'
   stripped=${s//"\"$key\""/}
   count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
   ((count == 1)) || return 1
+  # A backslash right before the quoted key means the opening quote is escaped:
+  # the text is the tail of another string, and the real key sits elsewhere.
+  rest=${s%%"\"$key\""*}
+  [[ "$rest" != *\\ ]] || return 1
   rest=${s#*"\"$key\""}
-  [[ "$rest" =~ ^[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || return 1
+  [[ "$rest" =~ $re ]] || return 1
   # printf -v, not a nameref: namerefs need bash 4.3 and this plugin supports 3.2.
   printf -v "$3" '%s' "${BASH_REMATCH[1]}"
 }
@@ -482,7 +494,7 @@ COMPACTED_FILE=""
 # used_percentage change reuses it only when that number is the sole
 # difference, both values are plain integers, no zones.json is present, and
 # both fall in the same shipped band (smart <= 50 < acceptable <= 75 < dumb).
-# The band edges live in the resolver; this comparison only proves the
+# The resolver owns the band edges; this comparison only proves the
 # percentage shape did not move, and every other input is byte-identical, so
 # the combined word cannot have moved either.
 # STRICTLY newer, not `! -nt`. An equal timestamp is not proof the file is
@@ -556,9 +568,17 @@ cg_iso_to_epoch() {
   CG_EPOCH=$((days * 86400 + h * 3600 + mi * 60 + s))
 }
 
-# 0 when <ts> is inside the resolver's window: not more than 60s in the
-# future, not older than 600s. A clock this bash cannot format is not proof,
-# and the caller resolves instead.
+# Copies of the resolver's shipped band edges and staleness window, for the
+# reuse arms only. The parity test in zone-crossing-inject.test.sh pins each to
+# scripts/context-zone.sh.
+CG_SMART_MAX=50
+CG_ACCEPTABLE_MAX=75
+CG_STALE_MAX=600
+CG_FUTURE_SLACK=60
+
+# 0 when <ts> is inside the resolver's window: not more than CG_FUTURE_SLACK
+# seconds in the future, not older than CG_STALE_MAX. A clock this bash cannot
+# format is not proof, and the caller resolves instead.
 cg_ts_fresh() {
   local now_epoch="" snap_epoch="" delta
   printf -v now_epoch '%(%s)T' -1 2>/dev/null || return 1
@@ -566,7 +586,7 @@ cg_ts_fresh() {
   cg_iso_to_epoch "$1" || return 1
   snap_epoch=$CG_EPOCH
   delta=$((now_epoch - snap_epoch))
-  ((delta >= -60 && delta <= 600))
+  ((delta >= -CG_FUTURE_SLACK && delta <= CG_STALE_MAX))
 }
 
 # The tee writes captured_at first. SNAP_BODY is every byte after that member,
@@ -622,9 +642,9 @@ cg_pct_placeholder() {
 
 cg_shipped_band() {
   local v=$1
-  if ((v <= 50)); then
+  if ((v <= CG_SMART_MAX)); then
     CG_BAND=smart
-  elif ((v <= 75)); then
+  elif ((v <= CG_ACCEPTABLE_MAX)); then
     CG_BAND=acceptable
   else
     CG_BAND=dumb

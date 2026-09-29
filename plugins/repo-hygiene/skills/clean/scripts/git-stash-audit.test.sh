@@ -129,6 +129,74 @@ EMPTYGH
   assert_not_contains "unwritable TMPDIR reports no count here too" "$mapfail_out" "PRCount:"
 fi
 
+# --- fleet form: --repo / --repos-from / --skip / --skip-from -------------------
+# Two repositories plus a linked worktree of the first; the first holds a stash.
+FL="$TEST_TMPDIR/fleet"
+mkdir -p "$FL"
+for r in one two; do
+  git init -q -b main "$FL/$r"
+  git -C "$FL/$r" config user.email "t@example.com"
+  git -C "$FL/$r" config user.name "Test"
+  echo x >"$FL/$r/x"
+  git -C "$FL/$r" add x
+  git -C "$FL/$r" commit -qm init
+done
+echo y >"$FL/one/x"
+git -C "$FL/one" stash -q
+git -C "$FL/one" worktree add -q -b feat/linked "$FL/one-linked"
+fleet_audit() { PATH="$STUB_BIN:$PATH" bash "$AUDIT" "$@" 2>/dev/null; }
+
+plain_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$FL/one' && bash '$AUDIT'")"
+assert_not_contains "no selection flag: no Repo block" "$plain_out" "Repo: "
+assert_not_contains "no selection flag: no fleet summary" "$plain_out" "FleetSummary:"
+
+fleet_out="$(fleet_audit --repo "$FL/one" "$FL/one-linked" "$FL/two")"
+assert_contains "fleet: first repo is a block with its stash" "$fleet_out" "Repo: $FL/one
+StashStore: $FL/one/.git"
+assert_contains "fleet: second repo is a block" "$fleet_out" "Repo: $FL/two
+StashStore: $FL/two/.git"
+assert_contains "fleet: a linked worktree shares the stash store and is skipped" "$fleet_out" "Repo: $FL/one-linked
+Outcome: skipped
+Reason: shares a git common dir with an audited repo"
+assert_contains "fleet: summary counts" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=1 blocked=0 failed=0"
+stash_lines="$(grep -c '^Stash: ' <<<"$fleet_out")"
+if [[ "$stash_lines" == 1 ]]; then pass "fleet: the shared stash is listed once"; else fail "fleet: the shared stash is listed once" 1 "$stash_lines"; fi
+
+block_one="$(awk -v r="Repo: $FL/one" '$0 == r { on = 1; next } on && $0 == "---" { exit } on' <<<"$fleet_out")"
+if [[ "$block_one" == "$plain_out" ]]; then pass "fleet: a repo's block equals its single-repo output"; else fail "fleet: a repo's block equals its single-repo output" "$plain_out" "$block_one"; fi
+
+printf '%s\r\n%s\n\n' "$FL/one" "$FL/two" >"$FL/list.txt"
+assert_contains "repos-from FILE audits both" "$(fleet_audit --repos-from "$FL/list.txt")" "audited=2"
+assert_contains "repos-from - audits stdin" "$(printf '%s\n' "$FL/two" | fleet_audit --repos-from -)" "audited=1"
+
+skip_out="$(fleet_audit --repo "$FL/one" "$FL/two" --skip two --skip nowhere)"
+assert_contains "skip list reports the skipped repo" "$skip_out" "Repo: $FL/two
+Outcome: skipped
+Reason: skip-list (two)"
+assert_contains "an entry that matched nothing is reported" "$skip_out" "UnmatchedSkip: nowhere"
+assert_contains "skip summary" "$skip_out" "audited=1 skipped=1"
+printf '%s\n' "$FL/one" >"$FL/skips.txt"
+assert_contains "skip-from FILE skips the listed repo" "$(fleet_audit --repo "$FL/one" "$FL/two" --skip-from "$FL/skips.txt")" "Reason: skip-list ($FL/one)"
+
+mkdir -p "$FL/plain-dir"
+bad_out="$(fleet_audit --repo "$FL/missing" "$FL/plain-dir" "$FL/two")"
+assert_contains "missing path is blocked" "$bad_out" "Repo: $FL/missing
+Outcome: blocked
+Reason: not-a-directory"
+assert_contains "the fleet continues past blocked repos" "$bad_out" "audited=1 skipped=0 duplicate=0 blocked=2 failed=0"
+
+for bad in "--repo" "--repos-from" "--skip two" "--repos-from $FL/no-such-list.txt" "--capture-file x" "--bogus"; do
+  rc=0
+  # shellcheck disable=SC2086
+  PATH="$STUB_BIN:$PATH" bash "$AUDIT" $bad >/dev/null 2>&1 || rc=$?
+  assert_exit "usage error exits 2: $bad" 2 "$rc"
+done
+: >"$FL/empty.txt"
+rc=0
+PATH="$STUB_BIN:$PATH" bash "$AUDIT" --repos-from "$FL/empty.txt" >/dev/null 2>&1 || rc=$?
+assert_exit "an empty repo list exits 2" 2 "$rc"
+assert_contains "--help documents --repo" "$(bash "$AUDIT" --help)" "--repo DIR..."
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
