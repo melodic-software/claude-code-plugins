@@ -61,7 +61,8 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
    write, never traced; pass the pack's `palette.ink` as every ink.js call's `color` (the engine's
    own `INK` default is not the pack's). Render it at the source's size with `${CLAUDE_PLUGIN_ROOT}/scripts/render.py <scene.js> <frames dir>
    --fps <the pack's knobs.frame_rate.base_fps> --encode mp4 --playwright-core '${user_config.playwright_core}'` (it serves the scene's folder and `scripts/`), and run `inkstats.py <frames dir>.mp4 --cuts <shot starts>
-   --pack <pack dir>`. It exits 0 only when every checked row and the palette pass. Each row prints
+   --pack <pack dir>`. A produce production passes its `shots.json` as `--cuts` instead of retyping
+   the starts. It exits 0 only when every checked row and the palette pass. Each row prints
    its distance to source: 0 is the source value, 1 the band edge on either side. The film's
    distance ranks passing scenes and its margin names the row nearest failing.
 6. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
@@ -75,6 +76,12 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
 Repeat 5-7 until the check passes and the crops read as the style. Tune the scene against the
 check, never the check against the scene. `inkstats.py` also measures any film with no pack
 (`--json` for the full summary), which is how to compare two films.
+
+## Next
+
+/animation:produce <production dir>
+
+It takes a style pack this skill wrote and makes the film: boards for approval, then shots, render, and review.
 
 ## Gotchas
 

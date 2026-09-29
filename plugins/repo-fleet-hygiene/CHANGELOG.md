@@ -3,6 +3,36 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.43] - 2026-09-28
+
+### Added
+
+- **`/repo-fleet-hygiene:sync`** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
+  Bare invocation prints a dry-run plan. `--apply` fast-forwards each canonical checkout onto the
+  remote default branch after one confirmation (`--yes` when there is no terminal, passed only
+  after the user has seen the dry-run plan and explicitly said to go ahead). Dirty work is
+  parked in a linked worktree. Non-fast-forward, dubious ownership, and a partial stash apply are
+  skipped and reported. Scope with no arguments uses named paths, then `ghq` roots, then the
+  working directory, else exit 3. `audit` uses that same fallback and still does not treat the
+  project directory as a repo.
+
+## [0.23.42] - 2026-09-28
+
+### Added
+
+- `audit --extend-skip <name>` and the config key `fleet.skipAppend` add discovery skip names to
+  whichever list is in effect (the defaults, or an explicit `--skip` / `fleet.skip` list). Adding
+  one name no longer means restating the defaults. `setup` documents and writes `skipAppend`.
+
+### Changed
+
+- The default discovery skip list now covers the package-manager cache trees `.pnpm-store`,
+  `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`, `.nuget`, `__pycache__`, and `.tox`,
+  alongside `node_modules`, `vendor`, and `.venv`. None of them holds a repository, and a plain
+  `audit D:` on a dev drive no longer needs hand-found skips. A pnpm-store junction is no longer
+  reached under the defaults, so it no longer turns the fleet verdict `BLOCKED (evidence gap)`. A
+  link the operator walks into explicitly still reports `UNKNOWN`.
+
 ## [0.23.41] - 2026-09-28
 
 ### Fixed

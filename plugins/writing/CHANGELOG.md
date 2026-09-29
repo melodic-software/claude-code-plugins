@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Long reference spoke opens with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `be-concise` `reference/sources.md` is over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on it. No content moved.
+- The `be-concise` reference spoke `sources.md` opens with a Contents block of section anchors,
+  so skill-quality check 26 (long spoke files carry a table of contents) passes on it.
 
 ## [0.1.1] - 2026-09-21
 

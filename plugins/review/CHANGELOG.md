@@ -3,11 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.1] - 2026-09-28
+## [0.33.2] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `code-review` and `security-review` routing lines named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.33.1] - 2026-09-28
+
+### Added
+
+- **`security-review` gains an instruction-surface lens**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). Before this
+  change, a diff that only deleted a guardrail from `CLAUDE.md`, a rules file, or a skill or
+  agent body showed none of the surfaces the criteria named. The skip gate's "no
+  security-relevant surface" then let it through. Such a diff is now read under the new lens
+  before that skip can apply. The lens checks each removed rule against the protected classes
+  in the instruction exception register and reports a match that no mechanism still enforces.
+  Its exploit path is the request that now reaches the action with no check.
 
 ## [0.33.0] - 2026-09-28
 

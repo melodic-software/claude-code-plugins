@@ -107,6 +107,13 @@
 # injection is impossible in the other direction, because skipping only ever
 # chooses silence.
 #
+# A snapshot the tee rewrites with a new captured_at and the same other bytes
+# is not that skip: the file is newer than the mark. When the override files
+# are unchanged and the new captured_at is still inside the staleness window,
+# the hook reuses the last resolved zone and still starts no resolver. A
+# shipped-band percentage that does not cross, with every other field
+# unchanged and no zones.json, is the same. A crossing still resolves.
+#
 # State root: ${CLAUDE_PLUGIN_DATA} (plugin-private runtime state, NOT part
 # of the reader contract seam), falling back to ~/.claude/context-guard/state
 # when the harness doesn't export it.
@@ -160,10 +167,27 @@ CG_DIR=${BASH_SOURCE[0]%/*}
 # Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
 # must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
-# shellcheck source=hook-utils.sh
-source "$CG_DIR/hook-utils.sh"
+# hook-utils.sh is about five milliseconds to source on a host where one
+# process is under a millisecond. The no-crossing path never calls it: the
+# session id comes from the leading scalars, and the skip and the same-zone
+# reuse are builtins. A crossing, a payload this fast path cannot prove, and
+# any emit load it. See cg_load_utils.
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
+CG_UTILS=0
+cg_load_utils() {
+  ((CG_UTILS)) && return 0
+  # shellcheck source=hook-utils.sh
+  source "$CG_DIR/hook-utils.sh"
+  CG_UTILS=1
+}
+CG_REQUIRED=0
+cg_require_utils() {
+  cg_load_utils
+  ((CG_REQUIRED)) && return 0
+  hook::require_jq "$EVENT" "context-guard" "$INPUT"
+  CG_REQUIRED=1
+}
 
 START_EPOCH=${EPOCHREALTIME:-0}
 # Not absolutized through `cd … && pwd`: this path is only ever handed to
@@ -296,9 +320,53 @@ cg::leading_scalar_object() {
   return 0
 }
 
+# Session id and event from a payload this hook can prove without jq and
+# without hook-utils. The scan stops at the first nested value, so a
+# tool-result that repeats these keys is not read. A backslash is an escape
+# the builtin below does not decode; that payload takes the full parser.
+# Returns 1 when the two fields are not both plain strings.
+cg_prove_scalar_ids() {
+  local s="$1" header ev="" sid=""
+  header=$s
+  EVENT=""
+  SESSION=""
+  if cg::leading_scalar_object "$s"; then
+    header=$CG_HEADER
+  else
+    ((${#s} <= 65536)) || return 1
+    [[ "$s" == '{'* ]] || return 1
+  fi
+  [[ "$header" != *\\* ]] || return 1
+  cg_json_plain_string "$header" hook_event_name ev || return 1
+  cg_json_plain_string "$header" session_id sid || return 1
+  [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+  [[ "$ev" =~ ^[A-Za-z0-9]+$ ]] || return 1
+  EVENT=$ev
+  SESSION=$sid
+}
+
+# <json> <key> <varname>. The key appears once, and the value has no escape.
+cg_json_plain_string() {
+  local s="$1" key="$2" rest stripped count
+  stripped=${s//"\"$key\""/}
+  count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
+  ((count == 1)) || return 1
+  rest=${s#*"\"$key\""}
+  [[ "$rest" =~ ^[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || return 1
+  # printf -v, not a nameref: namerefs need bash 4.3 and this plugin supports 3.2.
+  printf -v "$3" '%s' "${BASH_REMATCH[1]}"
+}
+
 EVENT=""
 SESSION=""
-if ((${#INPUT} > 65536)); then
+CG_PROVED=0
+if cg_prove_scalar_ids "$INPUT"; then
+  CG_PROVED=1
+fi
+if ((CG_PROVED == 0)); then
+  cg_load_utils
+fi
+if ((CG_PROVED == 0)) && ((${#INPUT} > 65536)); then
   if cg::leading_scalar_object "$INPUT" &&
     hook::jq_fields "$CG_HEADER" '.hook_event_name' '.session_id'; then
     EVENT="${HOOK_JQ_FIELDS[0]}"
@@ -325,12 +393,16 @@ if ((${#INPUT} > 65536)) && [[ -z "$SESSION" ]]; then
   # session field to take, and the expansion above would otherwise hand back
   # the event name.
   [[ "$SESSION" != "$FIELDS" ]] || SESSION=""
-elif ((${#INPUT} <= 65536)) && hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
+elif ((CG_PROVED == 0)) && ((${#INPUT} <= 65536)) && hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
   EVENT="${HOOK_JQ_FIELDS[0]}"
   SESSION="${HOOK_JQ_FIELDS[1]}"
 fi
 [[ -n "$EVENT" ]] || EVENT="PostToolBatch"
-hook::require_jq "$EVENT" "context-guard" "$INPUT"
+# The proved path has not sourced hook-utils. A later emit loads it. The
+# unproved path already sourced it to parse, and still owes the jq notice.
+if ((CG_UTILS)); then
+  cg_require_utils
+fi
 
 [[ -n "$SESSION" ]] || exit 0
 # Same character class the tee/resolver enforce — also path containment for
@@ -358,6 +430,7 @@ fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
 ARMED_FILE="$STATE_DIR/$SESSION.armed"
 SEEN_FILE="$STATE_DIR/$SESSION.seen"
+INPUTS_FILE="$STATE_DIR/$SESSION.inputs"
 COMPACTED_FILE=""
 [[ -n "${HOME:-}" ]] && COMPACTED_FILE="$HOME/.claude/context-guard/context/$SESSION.compacted"
 
@@ -401,10 +474,27 @@ COMPACTED_FILE=""
 # comes. The converse cannot happen: skipping only ever chooses silence, so no
 # arrangement of timestamps can manufacture an injection that the full path
 # would not have made.
-if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" ]] &&
-  [[ ! "$HOME/.claude/context-guard/context/$SESSION.json" -nt "$SEEN_FILE" ]] &&
-  [[ ! "$HOME/.claude/context-guard/zones.json" -nt "$SEEN_FILE" ]] &&
-  [[ ! "$COMPACTED_FILE" -nt "$SEEN_FILE" ]]; then
+#
+# REWRITTEN SNAPSHOT, SAME ZONE. See the header. The decision record is
+# `$STATE_DIR/$SESSION.inputs`: the resolver's word, then the snapshot body
+# after its captured_at member. Written only after a non-degraded resolve
+# persists, so a failure is retried. A body match reuses that word. A
+# used_percentage change reuses it only when that number is the sole
+# difference, both values are plain integers, no zones.json is present, and
+# both fall in the same shipped band (smart <= 50 < acceptable <= 75 < dumb).
+# The band edges live in the resolver; this comparison only proves the
+# percentage shape did not move, and every other input is byte-identical, so
+# the combined word cannot have moved either.
+# STRICTLY newer, not `! -nt`. An equal timestamp is not proof the file is
+# unchanged: a rewrite can land on the same timestamp quantum as the mark,
+# and `-nt` is false both ways. That fire falls through and the body compare
+# below tells a refresh from a crossing. Absence is unchanged: a missing
+# optional file has no mtime to be newer, and the existence line catches it.
+if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" &&
+  -f "$SEEN_FILE" && "$SEEN_FILE" -nt "$HOME/.claude/context-guard/context/$SESSION.json" ]] &&
+  { [[ ! -e "$HOME/.claude/context-guard/zones.json" ]] ||
+    [[ "$SEEN_FILE" -nt "$HOME/.claude/context-guard/zones.json" ]]; } &&
+  { [[ ! -e "$COMPACTED_FILE" ]] || [[ "$SEEN_FILE" -nt "$COMPACTED_FILE" ]]; }; then
   seen_flags=""
   IFS= read -r seen_flags <"$SEEN_FILE" 2>/dev/null || :
   zones_now=0
@@ -431,10 +521,184 @@ zones_seen=0
 # so it does for an empty HOME. That check is made here instead, which saves
 # starting a second bash on every batch of a session that never wrote a
 # snapshot (no context-guard status line, or a headless `claude -p` run).
+#
+# cg_iso_to_epoch sets CG_EPOCH. It refuses a calendar-invalid date and a
+# leap second, which is the resolver's round-trip gate for those values, and
+# it matches date(1) on every well-formed UTC stamp this hook's tee writes.
+# Days-from-civil is Howard Hinnant's algorithm.
+cg_iso_to_epoch() {
+  local ts="$1" y mo d h mi s y2 era yoe mp doy doe days leap
+  local -a mdays=(0 31 28 31 30 31 30 31 31 30 31 30 31)
+  [[ "$ts" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})Z$ ]] || return 1
+  y=$((10#${BASH_REMATCH[1]}))
+  mo=$((10#${BASH_REMATCH[2]}))
+  d=$((10#${BASH_REMATCH[3]}))
+  h=$((10#${BASH_REMATCH[4]}))
+  mi=$((10#${BASH_REMATCH[5]}))
+  s=$((10#${BASH_REMATCH[6]}))
+  ((mo >= 1 && mo <= 12 && h <= 23 && mi <= 59 && s <= 59)) || return 1
+  leap=0
+  ((y % 4 == 0 && (y % 100 != 0 || y % 400 == 0))) && leap=1
+  ((mo == 2 && leap == 1)) && mdays[2]=29
+  ((d >= 1 && d <= mdays[mo])) || return 1
+  y2=$y
+  ((mo <= 2)) && y2=$((y - 1))
+  if ((y2 >= 0)); then
+    era=$((y2 / 400))
+  else
+    era=$(((y2 - 399) / 400))
+  fi
+  yoe=$((y2 - era * 400))
+  mp=$((mo + (mo > 2 ? -3 : 9)))
+  doy=$(((153 * mp + 2) / 5 + d - 1))
+  doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
+  days=$((era * 146097 + doe - 719468))
+  CG_EPOCH=$((days * 86400 + h * 3600 + mi * 60 + s))
+}
+
+# 0 when <ts> is inside the resolver's window: not more than 60s in the
+# future, not older than 600s. A clock this bash cannot format is not proof,
+# and the caller resolves instead.
+cg_ts_fresh() {
+  local now_epoch="" snap_epoch="" delta
+  printf -v now_epoch '%(%s)T' -1 2>/dev/null || return 1
+  [[ "$now_epoch" =~ ^[0-9]+$ ]] || return 1
+  cg_iso_to_epoch "$1" || return 1
+  snap_epoch=$CG_EPOCH
+  delta=$((now_epoch - snap_epoch))
+  ((delta >= -60 && delta <= 600))
+}
+
+# The tee writes captured_at first. SNAP_BODY is every byte after that member,
+# which is every zone input except the timestamp.
+cg_read_snapshot() {
+  local line rest
+  SNAP_TS=""
+  SNAP_BODY=""
+  IFS= read -r line <"$1" || return 1
+  line=${line%$'\r'}
+  [[ "$line" == '{"captured_at":"'* ]] || return 1
+  rest=${line#'{"captured_at":"'}
+  SNAP_TS=${rest%%\"*}
+  [[ "$SNAP_TS" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
+    SNAP_TS=""
+    return 1
+  }
+  rest=${rest#"$SNAP_TS"}
+  [[ "$rest" == '"'* ]] || {
+    SNAP_TS=""
+    return 1
+  }
+  SNAP_BODY=${rest#'"'}
+  [[ "$SNAP_BODY" == ,* && "$SNAP_BODY" != *$'\n'* ]] || {
+    SNAP_BODY=""
+    SNAP_TS=""
+    return 1
+  }
+}
+
+# Sets CG_PCT and CG_PLACE. One integer used_percentage, no leading zero.
+cg_pct_placeholder() {
+  local s="$1" rest num after pre stripped count
+  CG_PCT=""
+  CG_PLACE=""
+  [[ "$s" == *'"used_percentage":'* ]] || return 1
+  stripped=${s//'"used_percentage":'/}
+  count=$(((${#s} - ${#stripped}) / 18))
+  ((count == 1)) || return 1
+  pre=${s%%'"used_percentage":'*}
+  rest=${s#*'"used_percentage":'}
+  [[ "$rest" =~ ^([0-9]+) ]] || return 1
+  num=${BASH_REMATCH[1]}
+  [[ "$num" =~ ^0[0-9] ]] && return 1
+  CG_PCT=$((10#$num))
+  ((CG_PCT >= 0 && CG_PCT <= 100)) || {
+    CG_PCT=""
+    return 1
+  }
+  after=${rest#"$num"}
+  CG_PLACE="${pre}\"used_percentage\":#${after}"
+}
+
+cg_shipped_band() {
+  local v=$1
+  if ((v <= 50)); then
+    CG_BAND=smart
+  elif ((v <= 75)); then
+    CG_BAND=acceptable
+  else
+    CG_BAND=dumb
+  fi
+}
+
+# 0 when the only difference is an integer used_percentage in the same shipped
+# band. The placeholder bodies must match, so token fields and current_usage
+# did not move.
+cg_same_percentage_band() {
+  local p1 place1
+  cg_pct_placeholder "$1" || return 1
+  p1=$CG_PCT
+  place1=$CG_PLACE
+  cg_pct_placeholder "$2" || return 1
+  [[ "$place1" == "$CG_PLACE" ]] || return 1
+  cg_shipped_band "$p1"
+  place1=$CG_BAND
+  cg_shipped_band "$CG_PCT"
+  [[ "$place1" == "$CG_BAND" ]]
+}
+
+# 0 and sets zone when this fire's snapshot cannot change the last word.
+cg_try_coalesce() {
+  local seen_flags="" zones_now=0 compacted_now=0 cached_zone="" cached_body=""
+  [[ -n "$SNAP_BODY" && -n "$SNAP_TS" && -f "$SEEN_FILE" && -f "$INPUTS_FILE" ]] || return 1
+  # Same strictness as the mtime skip: an equal timestamp is not proof the
+  # override is the one the last resolve used.
+  if [[ -e "${HOME:-}/.claude/context-guard/zones.json" ]]; then
+    [[ "$SEEN_FILE" -nt "${HOME:-}/.claude/context-guard/zones.json" ]] || return 1
+  fi
+  if [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]]; then
+    [[ "$SEEN_FILE" -nt "$COMPACTED_FILE" ]] || return 1
+  fi
+  IFS= read -r seen_flags <"$SEEN_FILE" 2>/dev/null || return 1
+  [[ -e "${HOME:-}/.claude/context-guard/zones.json" ]] && zones_now=1
+  [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]] && compacted_now=1
+  [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]] || return 1
+  cg_ts_fresh "$SNAP_TS" || return 1
+  {
+    IFS= read -r cached_zone || return 1
+    IFS= read -r cached_body || return 1
+  } <"$INPUTS_FILE"
+  cached_zone=${cached_zone//$'\r'/}
+  cached_body=${cached_body//$'\r'/}
+  case "$cached_zone" in
+  smart | acceptable | dumb) ;;
+  *) return 1 ;;
+  esac
+  if [[ "$cached_body" == "$SNAP_BODY" ]]; then
+    zone=$cached_zone
+    return 0
+  fi
+  ((zones_now == 0)) || return 1
+  cg_same_percentage_band "$cached_body" "$SNAP_BODY" || return 1
+  zone=$cached_zone
+  return 0
+}
+
 zone="unknown"
-if [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
-  { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+SNAP_TS=""
+SNAP_BODY=""
+inputs_zone=""
+if [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]]; then
+  # The marker forces dumb after the resolver, including when the resolver
+  # would have said unknown. The word does not depend on the snapshot.
+  zone="dumb"
+elif [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
+  cg_read_snapshot "$HOME/.claude/context-guard/context/$SESSION.json" || true
+  if ! cg_try_coalesce; then
+    { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+  fi
 fi
+inputs_zone=$zone
 
 # Evidence-degraded marker (reader contract): a compacted session is treated
 # as dumb regardless of the resolved word — including a green post-compaction
@@ -548,6 +812,9 @@ umask 077
 # The state directory exists on every fire after the session's first, so the
 # guard pays the process once per session instead of once per tool batch.
 # `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
+# Without jq no emit can run, so exit before any marker moves; a later fire
+# with jq installed then still sees the crossing. `command -v` is a builtin.
+command -v jq >/dev/null 2>&1 || cg_require_utils
 [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 # A marker whose on-disk value already matches is not rewritten. This hook
 # fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
@@ -583,6 +850,7 @@ if [[ -z "$persist_failed" && "$next_armed" != "$armed_on_disk" ]] &&
   fi
 fi
 if [[ -n "$persist_failed" ]]; then
+  cg_require_utils
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
     '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
   exit 0
@@ -603,6 +871,17 @@ fi
 compacted_seen=0
 [[ -n "$degraded" ]] && compacted_seen=1
 printf 'z=%s c=%s\n' "$zones_seen" "$compacted_seen" >"$SEEN_FILE" 2>/dev/null || :
+# The body this decision used, so the next fire can reuse the word when only
+# captured_at moved. A degraded fire's word is the marker's, not the
+# resolver's, and saving it would answer a later non-degraded fire with dumb.
+if [[ -z "$degraded" && -n "$SNAP_BODY" ]]; then
+  case "$inputs_zone" in
+  smart | acceptable | dumb)
+    printf '%s\n%s\n' "$inputs_zone" "$SNAP_BODY" >"$INPUTS_FILE" 2>/dev/null || :
+    ;;
+  *) ;;
+  esac
+fi
 
 ((new_rank > armed_rank)) || {
   # Nothing worse than this session has already reported. Three shapes reach
@@ -610,6 +889,7 @@ printf 'z=%s c=%s\n' "$zones_seen" "$compacted_seen" >"$SEEN_FILE" 2>/dev/null |
   # drop), a re-crossing the armed rank suppressed (the flap this gate exists
   # for), and an unchanged zone, which is not an event.
   if [[ -n "$last" && "$zone" != "$last" ]]; then
+    cg_require_utils
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
       '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false}'
   fi
@@ -637,6 +917,7 @@ fi
 # install no actionable path when state must survive.
 operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed) or a hand-written resume note, then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
 
+cg_require_utils
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
   '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true}'

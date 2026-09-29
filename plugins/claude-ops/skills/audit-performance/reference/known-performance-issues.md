@@ -50,7 +50,7 @@ before any reinstall.
 
 - **Retention sweep cost is a daily stat-walk of the whole tree.** Fires ~5 s after the first
   launch of the day (24 h sentinel: `.last-cleanup`; defers 10 min while the user was active in
-  the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
+  the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an
   unlink) per file. Async and yielding, so the harm mode is sustained background I/O, amplified
   per-operation by antivirus filter drivers, not a blocked event loop.
 - **An unparsable user `settings.json` pauses the entire sweep and warns in `/status`.** Nothing
@@ -296,7 +296,7 @@ for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/
 (`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.
 *As of:* 2026-09-11. *Recheck trigger:* a kernel release that renumbers `PF_KTHREAD`, or man-pages
 documenting `Kthread:` in `proc_pid_status(5)`, which would make the status line the citable
-primary and retire the stat fallback's role as the documented path. <!-- portability-ok: prose names /proc pid stat, not GNU stat -c -->
+primary and retire the stat fallback's role as the documented path.
 
 ## The host-level floor: a kernel Token-object leak (suspect 5, Windows)
 

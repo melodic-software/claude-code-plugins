@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-28
+
+### Added
+
+- **`scan` and `write` concatenate consumer `## Gotchas` from the `.claude/bugs.md` cascade** ([#3547](https://github.com/melodic-software/claude-code-plugins/issues/3547)). `scripts/concat-gotchas.sh` reads user-global, team, and local overlay layers in order and injects the combined section at skill load. Missing layers are absent, not an error. A fenced block inside a consumer section is kept whole, and a heading inside a fence does not end the section. Consumer lines follow the same failure-driven rule as bundled ones. Per config-cascade 1.3, a project root that is home (or an ancestor of it) or outside a git work tree reads user-global only (paths compared after folding slashes, a trailing slash, and case), and a layer path naming the user-global file is not read twice. Bundled gotchas stay in each skill body; consumer lines append after them.
+
 ## [0.11.2] - 2026-09-28
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-09-28
+
+### Changed
+
+- **`reduce` remediations (#4583).** Externalize-environment-varying-values routes to
+  `docs/plugin-philosophy.md` for the hardcoded-consumer-specifics doctrine instead of restating it.
+
 ## [0.3.0] - 2026-09-27
 
 ### Added

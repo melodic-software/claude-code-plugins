@@ -66,8 +66,8 @@ this skill for <ours>.
 
 Four required parts:
 
-1. **The gate**: `resolves in this session` (or `resolves in this session`). This is the
-   canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
+1. **The gate**: `resolves in this session` (the retired spelling `resolves in your session` is
+   no longer accepted). This is the canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
    about the machine. `if installed`, `always available`, `Claude Code ships`, and `is built in`
    are all wrong here: the first is the cross-plugin gate, the rest are assertions.
 2. **The provenance class**: `bundled`, `built-in`, `plugin-backed built-in`, or

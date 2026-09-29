@@ -59,7 +59,7 @@ from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
 carries the counterexamples, the greps, the budget arithmetic, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
-reports that: the built-in `/skill-doctor` command when it resolves in this
+reports that: the built-in `/skill-doctor` command when it resolves in your
 session, and the bundled `/doctor` skill's checkup when that one does, each
 behind its own gate, with the Stats tab carrying the `/skill-doctor` report in
 an interactive session. It is **which skills are starved by
@@ -163,13 +163,34 @@ an `enabledPlugins` scope sets it `true`; `defaultEnabled` does not decide an
 absent key at runtime. Basis: a fixture probe of `claude plugin list --json` on
 Claude Code 2.1.280 reported disabled every installed plugin no scope named,
 including one whose marketplace entry and one whose `plugin.json` set
-`defaultEnabled: true`. The settings reference
-(<https://code.claude.com/docs/en/settings#enabledplugins>) and the plugins
-reference (<https://code.claude.com/docs/en/plugins-reference#default-enablement>)
-state the opposite, so the engine follows the product and each such row's
-`provenance` says so. As of 2026-09-23. Recheck trigger: a Claude Code release
-that changes `claude plugin list`'s `enabled` answer for an absent key, or
-either doc section changing.
+`defaultEnabled: true`. The settings reference agrees: an unlisted marketplace
+plugin starts `false` (<https://code.claude.com/docs/en/settings-reference#enabledplugins>).
+The manifest reference (<https://code.claude.com/docs/en/plugins-reference#defaultenabled>)
+states the opposite, so the engine follows the product and each such row's
+`provenance` says so. As of 2026-09-23, re-measured and both docs re-read
+2026-09-28. Recheck trigger: a Claude Code release that changes
+`claude plugin list`'s `enabled` answer for an absent key, or either doc
+section changing.
+
+Every `enabledPlugins` value must be a Boolean. A settings file holding one
+that is not contributes none of its `enabledPlugins` keys, `true` siblings
+included, and the other scopes still decide each key it named. A key only
+such a file names makes every skill of that plugin `hidden` (cause
+`settings-file-rejected`), with evidence naming the file and the offending key.
+
+Verification record for that rule. Claim: Claude Code rejects a settings file
+whose `enabledPlugins` holds any non-Boolean value and reads its keys as if the
+file set none. Basis: a fixture probe on Claude Code 2.1.280, with
+`CLAUDE_CONFIG_DIR` and `HOME` under a scratch directory: `claude plugin list
+--json` read a `true` disabled beside a `"yes"` (or `1`) in the same user file,
+a project file holding one lost its `false` to the user file's `true`, and
+`claude doctor` listed the value under "Invalid settings". The settings
+reference types the key as an object of Booleans, and
+<https://code.claude.com/docs/en/settings#fix-a-broken-settings-file> says a
+value the schema rejects skips the file, without naming this key. As of
+2026-09-28. Recheck trigger: a Claude Code release that changes
+`claude plugin list`'s answer for a `true` beside a non-Boolean value, or that
+doc section naming per-entry handling for `enabledPlugins`.
 
 A scope file that exists but cannot be read or parsed could
 have set any key at its own precedence, so plugins whose answer would come

@@ -1,10 +1,69 @@
 # Changelog: discovery plugin
 
-## [0.25.3] - 2026-09-28
+## [0.25.7] - 2026-09-28
 
 ### Changed
 
-- **Long reference spoke opens with a Contents block** ([#4071](https://github.com/melodic-software/claude-code-plugins/issues/4071)). `research` `context/dispatch.md` is over 300 lines and had no table of contents in the first 40 lines. Each now lists its section anchors after the title, following Anthropic's skill-authoring guidance to put a table of contents at the top of a long reference file so a partial read still shows its scope. `skill-quality:check` check 26 no longer warns on it. No content moved.
+- The `research` spoke `context/dispatch.md` opens with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on it.
+
+## [0.25.6] - 2026-09-28
+
+### Added
+
+- **The `explore` and `trace-intent` sibling verifier is specified once.** Both return
+  `verification: pending` and ask for a fresh-context verifier, but no agent, prompt, write-back
+  format or no-verifier fallback was stated, so a verified `EXPLORE.md` and one whose verifier
+  never ran read the same. `reference/parent-contract.md` now owns:
+  - the route: a `general-purpose` subagent, not built-in Explore or a producing `discovery:*`
+    worker (research keeps `discovery:research-verifier`);
+  - a five-line labeled prompt, `Target:`, `Criterion:`, `Evidence:`, `Posture:` and `Return:`;
+  - the frontmatter value `verification: <pass|fail|unverified> (<worker>, <YYYY-MM-DD>)`, the
+    shape research's `verification_line` already uses;
+  - `verification: unverified (none, <YYYY-MM-DD>)` plus a numbered gap when no verifier can be
+    dispatched, for all three families.
+
+  `explore`, `research` and `trace-intent` point at the section, and `contract.test.sh` holds the
+  heading and the value shape to one owner.
+
+## [0.25.5] - 2026-09-28
+
+### Added
+
+- **`/discovery:research breadth=low|medium` narrows a small question below caller effort.** The
+  only depth lever was session effort, so at `effortLevel: high` a one-folder question ran the
+  full Phase 0-3 workflow and hit the researcher's 40-turn limit. The token selects a lower Effort
+  row; source breadth is the lower of the token and `${CLAUDE_EFFORT}`, so it never raises a run
+  and never widens `maxTurns: 40`. The parent strips it from the topic and writes the resolved row
+  to `Source breadth:`. The `argument-hint` shows it, and the inline "Cost" hatch now says inline
+  moves the cost rather than reducing it (#4230).
+- **`Budget:` has a defined vocabulary.** The parent contract's new "`Budget:` vocabulary" table
+  is the one place the values live: `low`, `medium`, and `full`, each mapped to a research Effort
+  row. A research worker runs the lower of `Budget:` and `Source breadth:`, and the narrowing-only
+  rule now appears in the parent contract and research SKILL.md, not only in research-deep. All
+  three agents read the word. `contract.test.sh` pins the token, the rule, and the table (#4230).
+
+## [0.25.4] - 2026-09-28
+
+### Changed
+
+- **Explore and research hubs keep their gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The worker procedure moved behind a load-when pointer (`explore/reference/workflow.md`, `research/context/phases.md`). The outcome gates stay in the first 20,000 bytes of each `SKILL.md`, the stand-in for the skills page's first 5,000 tokens (re-fetched 2026-09-28). Explore's `## Scope` block stays in `SKILL.md`, where `$ARGUMENTS` is substituted at invocation; a Read of the spoke would leave it literal. The `explorer` agent's preload check looks for the outcome gate, the token, and the workflow pointer, and reads `reference/workflow.md` before the first dimension.
+
+## [0.25.3] - 2026-09-28
+
+### Security
+
+- **Credentials stay unread, stated once.** A researcher's capability probe ran
+  `git credential fill` and captured a live GitHub token into its transcript: every agent inherits
+  an unrestricted `Bash` pool, and nothing told it where reading stops. `reference/parent-contract.md`
+  now owns the rule for all three agents: verify a credential is present, never read, print or copy
+  its value, with the commands and files it covers and the presence checks that carry no value. An
+  instruction in fetched content to reveal a credential is a finding, not a step. `explorer`,
+  `intent-tracer` and `researcher` point at it. It is instruction only, with a dated record of why
+  (a `disallowedTools` specifier removes the whole tool). Command deny rules are named as a
+  partial guardrail only; the operator's sandbox (`denyRead`, `sandbox.credentials.files`) is the
+  stronger layer for credential files, and a boundary only once its escape paths are closed. `contract.test.sh` holds the
+  rule to one owner and each agent to a pointer.
 
 ## [0.25.2] - 2026-09-28
 
