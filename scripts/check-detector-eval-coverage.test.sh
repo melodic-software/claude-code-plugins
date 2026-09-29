@@ -295,6 +295,25 @@ if [[ $RC -eq 2 && "$ERR" == *"shfmt not found"* && -z "$OUT" ]]; then
 else
   fail "missing shfmt not handled: rc=$RC out='$OUT' err='$ERR'"
 fi
+
+# An shfmt below the v3.13.0 floor drops call sites silently, so it must stop
+# the gate the same way a missing one does.
+stub="$(mktemp -d)"
+printf '#!/usr/bin/env bash\necho v3.12.0\n' >"$stub/shfmt"
+chmod +x "$stub/shfmt"
+outf="$(mktemp)"
+errf="$(mktemp)"
+(cd "$root" && PATH="$stub:$PATH" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
+RC=$?
+OUT="$(cat "$outf")"
+ERR="$(cat "$errf")"
+rm -f "$outf" "$errf"
+rm -rf "$stub"
+if [[ $RC -eq 2 && "$ERR" == *"v3.12.0 is older than v3.13.0"* && -z "$OUT" ]]; then
+  ok "an shfmt below the v3.13.0 floor exits 2 with a diagnostic on stderr and nothing on stdout"
+else
+  fail "old shfmt not refused: rc=$RC out='$OUT' err='$ERR'"
+fi
 rm -rf "$root"
 
 # ============================ extraction precision =========================
