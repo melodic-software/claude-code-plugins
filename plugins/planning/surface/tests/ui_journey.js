@@ -82,6 +82,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("an Own answer ending in ? shows the Ask Claude nudge before save", /This reads as a question\. Ask Claude instead\?/.test(await text("#askNudge")) && !!(await page.$('#askNudge [data-act="ask"]')), await text("#decideRow"));
     await page.fill("#note", "We should pin the version because");
     ok("an Own note that ends mid-sentence shows the cut-off nudge and Save stays enabled", /looks cut off/.test(await text("#cutNudge")) && !(await page.$("#askNudge")) && !(await page.$("[data-save][disabled]")), await text("#decideRow"));
+    await page.fill("#note", "This is complete.");
+    ok("a finished Own note shows no cut-off nudge", !(await page.$("#cutNudge")), await text("#decideRow"));
     await page.fill("#note", "Should we pin the version?");
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
     const own = await last();
