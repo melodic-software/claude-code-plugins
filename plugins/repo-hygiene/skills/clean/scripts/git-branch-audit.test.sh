@@ -1534,6 +1534,21 @@ RemoteBranches: 6"
   assert_contains "remote fleet: a repo without origin reports its error and the fleet goes on" "$rfleet" "RemoteError: git ls-remote --heads origin failed"
   assert_contains "remote fleet: summary" "$rfleet" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
   assert_not_contains "remote fleet: no capture" "$rfleet" "TipCapture"
+
+  # Two clones of one origin list the same remote branches: --remote audits the
+  # first only. A local audit reads each clone's own branches, so it audits both.
+  rdup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote 2>/dev/null)"
+  assert_contains "remote fleet: the first clone of an origin is audited" "$rdup" "Repo: $RM/work
+RemoteBranches: 6"
+  assert_contains "remote fleet: another clone of that origin is a duplicate" "$rdup" "Repo: $RM/other
+Outcome: skipped
+Reason: skipped duplicate of $RM/work"
+  assert_contains "remote fleet: summary counts the clone duplicate" "$rdup" "FleetSummary: repos=2 audited=1 skipped=0 duplicate=1 blocked=0 failed=0"
+  rdup_skip="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote --skip "$RM/work" 2>/dev/null)"
+  assert_contains "remote fleet: skipping one clone leaves the other audited" "$rdup_skip" "Repo: $RM/other
+RemoteBranches: 6"
+  ldup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --read-only 2>/dev/null)"
+  assert_contains "local fleet: clones of one origin are both audited" "$ldup" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
 else
   skip_case "--remote tests need jq"
 fi

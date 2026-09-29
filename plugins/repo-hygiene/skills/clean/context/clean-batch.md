@@ -74,9 +74,11 @@ outcome, never silently dropped.
 
 Clones are deduped by origin remote, from every source including `--repo` and
 `--repos-from`. The URL is compared with the scheme, `user@` and a trailing `.git` or `/`
-removed, the host lowercased, and scp form (`git@host:o/r`) read as `host/o/r`. The first
-clone stays; each other is one `skipped duplicate of <path>` record, counted in `skipped=`
-and not in `repos=`. Linked worktrees of one repository are not clones and are left to the
+removed, the host lowercased (on `github.com` the owner and repo too), and scp form
+(`git@host:o/r`) read as `host/o/r`. The first
+clone that is not skip-listed stays; each other is one `skipped duplicate of <path>` record,
+counted in `skipped=` and not in `repos=`. A skip-listed clone is neither kept nor a
+duplicate, so skipping one clone never drops its sibling. Linked worktrees of one repository are not clones and are left to the
 git tier's shared-object-store dedup. A repo with no `origin` is never deduped.
 
 ### Skip list (separator-agnostic)
@@ -95,7 +97,9 @@ per unique `git rev-parse --git-common-dir`, not once per worktree. The `git` an
 plan line with a representative worktree to `cd` into); `gitdirs=N` in the summary
 reports the deduped count. The dry-run measures each store once (`git count-objects -v`
 loose objects and garbage, plus worktrees `git worktree prune --dry-run` would remove) and
-folds it into `planned=` and `bytes=`. The git and all tiers end the summary with
+folds it into `planned=` and `bytes=`. Those bytes are an upper bound: `gc` packs reachable
+loose objects instead of deleting them, and remote-prune candidates are not counted because
+finding them needs a network call. The git and all tiers end the summary with
 `git_bytes=B`; `all` also adds `caches_bytes=C build_bytes=D`, split by manifest class.
 These fields come after the existing ones.
 
@@ -116,11 +120,13 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
-Default location: a fresh `clean-batch.XXXXXX` directory under the invoking repo's
-gitignored `.work/` when the working directory is inside a repo, otherwise under
-`${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene/`. It is never under `/tmp`, so it
-also works where the guardrails `block-windows-drive-tmp` hook rejects a temp-dir path
-(Windows). `--batch-plan FILE` overrides it: pass a path outside `/tmp` there too.
+Default location: a fresh `clean-batch.XXXXXX` directory under
+`${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene/`, wherever the command runs. It is
+never under `/tmp`, so it also works where the guardrails `block-windows-drive-tmp` hook
+rejects a temp-dir path (Windows), and never inside a repo: `.work/` is ignored only by
+some repos' own convention, so a plan there would leave the working tree dirty. The
+directory is not removed after apply; delete it once the apply has finished.
+`--batch-plan FILE` overrides it: pass a path outside `/tmp` there too.
 
 Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
@@ -191,9 +197,9 @@ gated plan after confirming:
 ```bash
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
-# → BatchPlan: <repo>/.work/clean-batch.…/plan  — confirm, then:
+# → BatchPlan: <state-dir>/clean-batch.…/plan  — confirm, then:
 CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
-  --tier caches --apply --batch-plan <repo>/.work/clean-batch.…/plan
+  --tier caches --apply --batch-plan <state-dir>/clean-batch.…/plan
 ```
 
 Dry-run a git prune across an explicit set including worktrees (each shared store

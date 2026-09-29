@@ -88,13 +88,15 @@ rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent4)" --batch-plan "$VALIDPLAN" 2>&1)" || rc=$?
 assert_exit "existing batch plan is overwritable (resumable)" 0 "$rc"
 
-# --- 1b. default plan location: never /tmp; explicit --batch-plan wins ---
+# --- 1b. default plan location: the state dir, never /tmp or inside a repo; explicit --batch-plan wins ---
 RD="$(mkrepo defplan)"
 out="$(cd "$RD" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
 P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-assert_contains "in-repo default plan lands under the repo .work/" "$P" "$RD/.work/"
+assert_contains "in-repo default plan lands under the state dir" "$P" "$TEST_TMPDIR/state/repo-hygiene/"
 assert_file_exists "in-repo default plan written" "$P"
-NOREPO="$TEST_TMPDIR/norepo"; mkdir -p "$NOREPO"
+assert_not_contains "the invoking repo gains no .work/" "$(git -C "$RD" status --porcelain)" ".work"
+NOREPO="$TEST_TMPDIR/norepo"
+mkdir -p "$NOREPO"
 out="$(cd "$NOREPO" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
 P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
 assert_contains "out-of-repo default plan lands under the state dir" "$P" "$TEST_TMPDIR/state/repo-hygiene/"
@@ -521,6 +523,22 @@ out="$(bash "$BATCH" --tier scan --repo "$FL_CLONE" "$FL_A" 2>/dev/null)" || rc=
 assert_exit "scan with two clones exits 0" 0 "$rc"
 assert_contains "scan keeps the first named clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
 assert_contains "scan reports the second as a duplicate" "$out" "skipped duplicate of $FL_CLONE"
+
+# A skip-listed clone never shadows its sibling: the skipped one is reported
+# skipped, the other still runs and is not a duplicate of it.
+out="$(bash "$BATCH" --tier caches --repo "$FL_A" "$FL_CLONE" --skip "$FL_A" 2>/dev/null)"
+assert_contains "skipped clone is reported skipped" "$out" "Repo: $FL_A"$'\n'"Outcome: skipped"$'\n'"Reason: skip-list"
+assert_contains "the sibling of a skipped clone is still planned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
+assert_not_contains "the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
+assert_contains "one repo planned, one skipped" "$out" "Summary: repos=2 planned=1 "
+out="$(bash "$BATCH" --tier scan --repo "$FL_A" "$FL_CLONE" --skip "$FL_A" 2>/dev/null)"
+assert_contains "scan: the sibling of a skipped clone is still scanned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
+assert_not_contains "scan: the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
+# Skipping the ghq clone by path leaves the chezmoi source of the same origin to run.
+git -C "$FL_CZ" remote set-url origin git@github.com:owner/repo.git
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" --skip "$FL_CLONE" 2>/dev/null)"
+assert_contains "--fleet: the chezmoi source runs when its ghq clones are skipped" "$out" "Repo: $FL_CZ"$'\n'"Outcome: would-clean"
+git -C "$FL_CZ" remote set-url origin https://github.com/owner/dotfiles.git
 
 # A missing ghq/chezmoi contributes nothing; an empty fleet is the no-repos error.
 NOTOOLS="$TEST_TMPDIR/notools"

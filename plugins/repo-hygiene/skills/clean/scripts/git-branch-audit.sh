@@ -124,7 +124,10 @@ skipped`; a skip-listed, unresolvable, or failing repo is reported without
 stopping the rest; `FleetSummary: repos=N audited=A skipped=S duplicate=D
 blocked=B failed=F` closes the run (exit 0). Each repo writes its own default
 capture and prints its own `TipCapture:`; --capture-file with more than one repo
-is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
+is a usage error (exit 2). With --remote, a second clone of one origin is reported
+`skipped duplicate of <path>` and counted in duplicate=, since it would list the
+same remote branches; a local audit reads each clone's own branches, so it audits
+every clone. Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
@@ -214,6 +217,9 @@ if [[ $FLEET -eq 1 ]]; then
     exit 2
   fi
   batch_resolve_repos "${BATCH_REPO_INPUTS[@]}"
+  # Clones of one origin list the same remote branches, so --remote audits one.
+  # A local audit reads each clone's own branches and captures, so it audits all.
+  [[ $REMOTE -eq 1 ]] && batch_dedupe_clones
   if [[ -n "$CAPTURE_ARG" && ${#BATCH_TOPS[@]} -gt 1 ]]; then
     echo "git-branch-audit.sh: --capture-file names one file and cannot serve ${#BATCH_TOPS[@]} repos; omit it so each repo writes its own default capture" >&2
     exit 2

@@ -119,11 +119,14 @@ batch_report_unmatched_skips() {
   done
 }
 
-# Resolve-and-dedup accumulators, populated by batch_resolve_repos. Reset per call.
+# Resolve-and-dedup accumulators, populated by batch_resolve_repos (BATCH_DUPS and
+# BATCH_DUP_OF by batch_dedupe_clones). Reset per batch_resolve_repos call.
 BATCH_TOPS=()
 BATCH_KEYS=()
 BATCH_INVALID=()
 BATCH_INVALID_REASONS=()
+BATCH_DUPS=()
+BATCH_DUP_OF=()
 
 # batch_resolve_repos <input>... — normalize each input, resolve to its canonical
 # git toplevel, dedup by clean_path_key. A non-directory or non-git input is
@@ -135,6 +138,8 @@ batch_resolve_repos() {
   BATCH_KEYS=()
   BATCH_INVALID=()
   BATCH_INVALID_REASONS=()
+  BATCH_DUPS=()
+  BATCH_DUP_OF=()
   local input norm top key
   local -A seen_keys=()
   for input in "$@"; do
@@ -162,9 +167,11 @@ batch_resolve_repos() {
 
 # batch_remote_key <repo> — echo the repo's origin URL reduced to `host/path`: no
 # scheme, no user@, host lowercased, no trailing `/` or `.git`, scp form
-# (`git@host:o/r`) folded into the URL form. Empty when there is no origin.
+# (`git@host:o/r`) folded into the URL form. On github.com the path is lowercased
+# too (owner and repo names are case-insensitive there); on any other host it keeps
+# its case. Empty when there is no origin.
 batch_remote_key() {
-  local u scp=1
+  local u scp=1 host rest
   u="$(git -C "$1" remote get-url origin 2>/dev/null | tr -d '\r')"
   [[ -n "$u" ]] || return 0
   [[ "$u" == *://* ]] && scp=0
@@ -173,18 +180,31 @@ batch_remote_key() {
   [[ $scp -eq 1 && "$u" =~ ^[^/:]+: ]] && u="${u/:/\/}"
   u="${u%/}"
   u="${u%.git}"
-  printf '%s%s' "$(tr '[:upper:]' '[:lower:]' <<<"${u%%/*}")" "${u#"${u%%/*}"}"
+  host="$(tr '[:upper:]' '[:lower:]' <<<"${u%%/*}")"
+  rest="${u#"${u%%/*}"}"
+  [[ "$host" == github.com ]] && rest="$(tr '[:upper:]' '[:lower:]' <<<"$rest")"
+  printf '%s%s' "$host" "$rest"
 }
 
-# Duplicate-clone accumulators, populated by batch_dedupe_clones.
-BATCH_DUPS=()
-BATCH_DUP_OF=()
+# batch_is_skip_listed <repo_key> — does any skip entry cover this repo? Unlike
+# batch_skip_match it records no hit and sets no reason, so it is safe to call
+# before the hit ledger is sized.
+batch_is_skip_listed() {
+  local s
+  for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do
+    clean_skip_matches "$1" "${BATCH_SKIP_INPUTS[$s]}" && return 0
+  done
+  return 1
+}
 
 # batch_dedupe_clones — drop from BATCH_TOPS / BATCH_KEYS every repo whose origin
 # (batch_remote_key) matches an earlier one, keeping the first; the dropped path
 # and the kept path go to BATCH_DUPS / BATCH_DUP_OF. Linked worktrees of one
 # repository share a git common dir and are not clones: they stay, and the
-# per-tier common-dir dedup handles them. A repo with no origin never dedupes.
+# per-tier common-dir dedup handles them. A repo with no origin never dedupes. A
+# skip-listed repo takes no part: it is never the kept clone and never a duplicate,
+# so skipping one clone leaves its sibling to run. Call it after the skip list is
+# parsed.
 batch_dedupe_clones() {
   local i top rk kept_top common kept_common
   local -A first=()
@@ -193,6 +213,11 @@ batch_dedupe_clones() {
   BATCH_DUP_OF=()
   for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     top="${BATCH_TOPS[$i]}"
+    if batch_is_skip_listed "${BATCH_KEYS[$i]}"; then
+      tops+=("$top")
+      keys+=("${BATCH_KEYS[$i]}")
+      continue
+    fi
     rk="$(batch_remote_key "$top")"
     if [[ -n "$rk" && -n "${first[$rk]:-}" ]]; then
       kept_top="${first[$rk]}"
@@ -338,9 +363,10 @@ batch_take_selection_arg() {
 # left in BATCH_TOPS, one at a time, by running <script> (an absolute path, given
 # no selection flags) from inside the repo. An audited block is `Repo: <top>`, the
 # child's output, `---`. A skip-listed repo, a repo whose git common dir was
-# already audited (a linked worktree of an earlier repo), an unresolvable input,
-# and a child that exits nonzero each get a batch_emit block instead, and none of
-# them stops the fleet. Ends with `FleetSummary:` and returns 0.
+# already audited (a linked worktree of an earlier repo), a duplicate clone the
+# caller dropped with batch_dedupe_clones, an unresolvable input, and a child that
+# exits nonzero each get a batch_emit block instead, and none of them stops the
+# fleet. Ends with `FleetSummary:` and returns 0.
 batch_run_fleet() {
   local script="$1" i top out rc audited=0 skipped=0 dup=0 failed=0 blocked=0
   shift
@@ -371,12 +397,14 @@ batch_run_fleet() {
     printf 'Repo: %s\n%s\n%s\n' "$top" "$out" '---'
     audited=$((audited + 1))
   done
+  batch_emit_dups
+  dup=$((dup + ${#BATCH_DUPS[@]}))
   for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
     batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
     blocked=$((blocked + 1))
   done
   batch_report_unmatched_skips
   printf 'FleetSummary: repos=%s audited=%s skipped=%s duplicate=%s blocked=%s failed=%s\n' \
-    "$((${#BATCH_TOPS[@]} + blocked))" "$audited" "$skipped" "$dup" "$blocked" "$failed"
+    "$((${#BATCH_TOPS[@]} + ${#BATCH_DUPS[@]} + blocked))" "$audited" "$skipped" "$dup" "$blocked" "$failed"
   return 0
 }

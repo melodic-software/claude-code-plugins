@@ -66,7 +66,8 @@ git-tree-reset-batch.sh):
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
 
 Repo sources (combine freely; deduped by canonical toplevel, then by origin URL:
-the first clone is kept, each other is `skipped duplicate of <path>`):
+the first clone that is not skip-listed is kept, each other is `skipped duplicate
+of <path>`):
   --repo DIR...      one or more repositories (repeatable). Consumes every
                      consecutive non-flag path, so a shell glob (--repo
                      ~/repos/*) is ingested whole.
@@ -462,10 +463,10 @@ if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
 else
-  # Default under the invoking repo's gitignored .work/, else a per-user state dir:
-  # never /tmp, which the guardrails block-windows-drive-tmp hook blocks on Windows.
-  PLAN_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)/.work"
-  [[ "$PLAN_ROOT" != /.work ]] || PLAN_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene"
+  # A per-user state dir, never /tmp (the guardrails block-windows-drive-tmp hook
+  # blocks it on Windows) and never inside a repo (.work/ is ignored only by some
+  # repos' own convention, so a plan there dirties the working tree).
+  PLAN_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene"
   mkdir -p "$PLAN_ROOT" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_ROOT"
   PLAN_DIR="$(mktemp -d "$PLAN_ROOT/clean-batch.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $PLAN_ROOT"
   PLAN="$PLAN_DIR/plan"
@@ -515,26 +516,29 @@ if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
 fi
 printf '%s\n' '---'
 
-# Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
-# a sanitized key so two keys that differ only by punctuation the sanitizer
-# collapses (e.g. `repo-a` vs `repo_a` -> both `repo_a`) never share a manifest —
-# a collision would let the second dry-run truncate the first, dropping the first
-# repo's planned artifacts from apply. The sanitized key stays for readability.
 # git_plan_measure <worktree> prints "<items> <bytes>": what gc/prune would act on
 # in that object store: loose objects and garbage from `git count-objects -v`
-# (size figures are KiB), plus worktrees `git worktree prune` would remove.
+# (size figures are KiB), plus worktrees `git worktree prune` would remove. The
+# bytes are an upper bound: gc packs reachable loose objects instead of deleting
+# them. Remote-prune candidates are not counted; finding them needs a network call.
 git_plan_measure() {
   local n=0 kib=0 k v wt
   while IFS=': ' read -r k v; do
     case "$k" in
     count | garbage) n=$((n + v)) ;;
     size | size-garbage) kib=$((kib + v)) ;;
+    *) ;;
     esac
   done < <(git -C "$1" count-objects -v 2>/dev/null)
   wt="$(git -C "$1" worktree prune --dry-run -v 2>/dev/null | grep -c .)"
   printf '%s %s\n' "$((n + wt))" "$((kib * 1024))"
 }
 
+# Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
+# a sanitized key so two keys that differ only by punctuation the sanitizer
+# collapses (e.g. `repo-a` vs `repo_a` -> both `repo_a`) never share a manifest —
+# a collision would let the second dry-run truncate the first, dropping the first
+# repo's planned artifacts from apply. The sanitized key stays for readability.
 manifest_for() {
   local idx="$1" key="$2"
   printf '%s/%03d-%s.manifest' "$PLAN_DIR" "$idx" "${key//[^[:alnum:]]/_}"

@@ -7,12 +7,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL so duplicate clones are reported once.
-- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. `--read-only` writes no tip capture.
+- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed) so duplicate clones are reported once.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. `--read-only` writes no tip capture. In a fleet run, a second clone of one `origin` is reported as a duplicate.
 
 ### Changed
 
-- **`clean-batch.sh` plans default under `.work/` or a state directory, not `/tmp` (#5234),** so Windows guardrail hooks no longer block the write.
+- **`clean-batch.sh` plans default under a per-user state directory, not `/tmp` (#5234),** so Windows guardrail hooks no longer block the write and no repo gains an untracked directory.
 - **The git-tier dry-run reports real planned counts and per-tier bytes (#5234).**
 
 ### Fixed
