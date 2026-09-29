@@ -13,7 +13,7 @@ by hand.
 
 1. Start from the list file the audit's step 2 wrote with `detect.sh --list-targets`. Its keys
    are the detector's `file=` spelling, so script and rubric findings for one file share a key.
-2. Run `rubric-fanout.sh plan --out <batch dir> <list>`. It orders the files (impact class,
+2. Run `rubric-fanout.sh plan --out <rubric dir> <list>`. It orders the files (impact class,
    then 90-day change count, then key inside a repository; newest modification time first,
    then key, outside one; `--order repo|mtime` overrides the choice), packs them into batches
    of up to 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
@@ -27,14 +27,31 @@ by hand.
    occurrences, plus a `scope_digest=<sha>` line over the batch digests it was counted from.
    The catalog entry `rule-abstract-metaphor-jargon` defines the cues, the unit and the
    threshold.
-3. The batch directory is `<findings home>/rubric-lists-<TS>/`, so a later session can resume
-   from it; a non-repository target puts it in the session scratchpad. `plan` refuses a
-   directory that already holds batch lists, so a new scope gets a new batch directory. A
-   resume keeps the existing one and skips `plan`: re-planning can reorder the files (a new
-   commit moves the change counts), which changes every list's digest. A batch directory
-   planned before `plan` wrote `cues.txt` has none. A resume from it dispatches without the
-   cue counts, its batches treat both cues as unsaturated, and `merge` runs no consistency
-   check.
+3. The batch directory is the rubric working directory (below), so a later session can resume
+   from it. `plan` refuses a directory that already holds batch lists, so a new scope gets a
+   new working directory. A resume keeps the existing one and skips `plan`: re-planning can
+   reorder the files (a new commit moves the change counts), which changes every list's
+   digest. A batch directory planned before `plan` wrote `cues.txt` has none. A resume from it
+   dispatches without the cue counts, its batches treat both cues as unsaturated, and `merge`
+   runs no consistency check.
+
+## Rubric working directory
+
+One directory holds every rubric artifact of a run: the batch lists (`batch-NN.txt`,
+`batch-NN.paths`), `cues.txt`, the extracted rubric file, the `rubric-batch-NN.md` results, and
+the merged `<TS>-ai-slop-rubric.md`. Resolve it before step 3, from the target alone: no remote
+fetch, and no dependence on the findings home, which the persist contract resolves only at
+step 5 after fetching the producer contract. The fan-out can therefore start before that
+contract is reachable.
+
+- Repository target: `<repo top level>/.work/ai-slop-rubric/<TS>/`, with
+  `TS="$(date -u +%Y%m%dT%H%M%SZ)"`. Create it with `mkdir -p`, then confirm it is ignored with
+  `git -C <repo top level> check-ignore -q .work/ai-slop-rubric/<TS>/`. When the check fails or
+  the directory cannot be created, use the session scratchpad, else the system temp directory.
+- Non-repository target: the session scratchpad, else the system temp directory.
+
+These files carry no `type: review-findings` frontmatter, so `review:fanout fix` never reads
+them. That is why they need not sit beside the findings file.
 
 ## Dispatch
 
@@ -78,16 +95,14 @@ strongest findings only. The orchestrator never reads the batch's source files i
 
 ## Persistence and resume
 
-Result files live in the findings home the persist contract resolved, as
-`<findings home>/rubric-batch-NN.md`, beside the detector's findings file. That directory is
-memory tier and self-ignored, so nothing here is ever committed. A non-repository target has no
-findings home: batch lists, result files and the merged file go under the session scratchpad,
-else the system temp directory.
+Result files live in the rubric working directory, as `<rubric dir>/rubric-batch-NN.md`, beside
+the batch lists. The directory is gitignored or outside the checkout, so nothing here is ever
+committed. A later session reuses the existing directory and skips `plan`.
 
 A result file belongs to one batch list, not to a batch number: a leftover
 `rubric-batch-03.md` from an earlier scope can sit exactly where the current third batch will
 write. Before dispatching, and on every resume, run
-`rubric-fanout.sh status --batches <batch dir> --results <findings home>`. It prints one row
+`rubric-fanout.sh status --batches <rubric dir> --results <rubric dir>`. It prints one row
 per batch:
 
 - `status=complete`: the result carries exactly one of each header line: `batch:` equal to
@@ -116,8 +131,8 @@ the scope it replaced. `status` exits 0 only when every batch is complete.
 
 When `status` reports every batch complete, check each batch's evidence before accepting it:
 spot-check a sample of its findings against the cited file and line, and dispatch the batch again
-when a quoted span is not there. Then run `rubric-fanout.sh merge --batches <batch dir>
---results <findings home> --out <findings home>/<TS>-ai-slop-rubric.md`. It refuses while any
+when a quoted span is not there. Then run `rubric-fanout.sh merge --batches <rubric dir>
+--results <rubric dir> --out <rubric dir>/<TS>-ai-slop-rubric.md`. It refuses while any
 batch is incomplete, and otherwise writes summed `files_reviewed` and `files_with_findings`,
 one `rule_total:` line per rule, and each result body in batch order. Well-formed `declined:`
 lines are stripped from the bodies and summed into
