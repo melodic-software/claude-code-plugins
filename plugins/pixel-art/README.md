@@ -79,11 +79,16 @@ head and hair shapes, clothing layers, material ramps, top-left shading, a selec
 is a 4-direction walker built on it. `examples/campfire/` holds an earlier hand-written RPG Maker MZ
 walker and a cutscene that reuses it. `examples/tileset/a2_ground.py`, `examples/ui/window_mz.py`,
 and `examples/vfx/spark_mz.py` each write a spec for an engine sheet. Copy a folder somewhere
-writable (for `walker/`, with `scripts/kit.py` beside it), then:
+writable, then run it there. For `walker/`, put `scripts/kit.py` beside `blacksmith.py`:
 
 ```shell
 python3 blacksmith.py
 python3 <plugin>/scripts/render.py blacksmith.json --out out --scale 4
+```
+
+For `campfire/`:
+
+```shell
 python3 hero_mz.py
 python3 <plugin>/scripts/render.py hero_mz.json --out out --scale 4
 python3 <plugin>/scripts/embed.py scene.html out/campfire.html

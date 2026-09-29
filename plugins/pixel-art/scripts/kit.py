@@ -178,7 +178,8 @@ def _body(canvas, lay, direction, step):
     if direction == "up":
         canvas.rect(tx, ty, tw, th + lh // 2, "cape")
     if side:
-        canvas.rect(tx + tw // 2, ty, max(2, tw // 4), th, "cape")
+        # behind the tunic's trailing edge, so the tunic drawn next does not cover it
+        canvas.rect(tx + tw // 4 + tw // 2 + 2, ty, max(2, tw // 4), th, "cape")
     gap = lay["gap"]
     if side:
         back = lx + step * gap
@@ -239,7 +240,9 @@ class Walker:
 
     def materials(self, direction, step):
         """Material grid for one pose. direction is down, left, up, or right."""
-        src = "left" if direction == "right" else direction
+        if direction not in ("down", "left", "up", "right"):
+            raise ValueError(f"unknown direction {direction!r}")
+        src ="left" if direction == "right" else direction
         lay = layout(self.size, self.preset, step)
         canvas = Canvas(self.size)
         _body(canvas, lay, src, step)

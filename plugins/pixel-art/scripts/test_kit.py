@@ -75,6 +75,13 @@ class KitTest(unittest.TestCase):
     def test_unknown_preset_is_rejected(self):
         with self.assertRaises(ValueError):
             kit.Walker(preset="giant")
+        with self.assertRaises(ValueError):
+            kit.Walker().materials("north", 0)
+
+    def test_cape_shows_in_the_side_view(self):
+        for preset in ("chibi", "standard", "tall"):
+            grid = kit.Walker(size=48, preset=preset).materials("left", 0).m
+            self.assertTrue(any("cape" in row for row in grid), preset)
 
     def test_extra_material_without_a_ramp_is_a_clear_error(self):
         def mail(canvas, lay, direction, step):
