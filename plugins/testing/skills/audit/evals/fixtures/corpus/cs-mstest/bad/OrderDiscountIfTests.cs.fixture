@@ -1,0 +1,18 @@
+// expect: rule-conditional-assertion
+// The only assertion runs when a discount was applied; an order that never
+// gets one passes the test.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderDiscountIfTests
+{
+    [TestMethod]
+    public void Discount_TakesTenPercent()
+    {
+        var order = Order.Place("SAVE10", 100m);
+        if (order.Discount != null)
+        {
+            Assert.AreEqual(10m, order.Discount.Amount);
+        }
+    }
+}

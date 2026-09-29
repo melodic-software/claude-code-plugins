@@ -1,0 +1,18 @@
+// expect: rule-snapshot-only
+// A Verify snapshot is an assertion, so zero-assertion does not fire; it is the
+// only oracle, so snapshot-only does: the rendered text is whatever the
+// approved .verified.txt file says.
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceRenderSnapshotTests
+{
+    [Fact]
+    public Task Render_PrintsEveryLine()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+        invoice.AddLine("widget", 100m);
+
+        return Verify(InvoiceRenderer.Render(invoice));
+    }
+}

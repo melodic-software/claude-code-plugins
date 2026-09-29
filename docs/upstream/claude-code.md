@@ -60,7 +60,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 |---|---|---|---|
 | `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs, denial under `--bg` not probed | 259-002 | claude-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | The same flag on the running-retro observer, keeping `dontAsk` | 259-002 | session-flow observer | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
-| The same flag on `hop_chain.py`, keeping `bypassPermissions` | 259-002 | session-flow harness | this file |
+| The same flag on `hop_chain.py`, keeping `bypassPermissions` | 259-002 | session-flow harness | [#5239](https://github.com/melodic-software/claude-code-plugins/pull/5239) |
 | `claude plugin validate --json` for per-file errors and warnings, gated on >= 2.1.259 | 259-004 | `scripts/validate-plugins.sh`; plugin-quality auditor | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | Skill frontmatter `model:` is turn-scoped and safe under auto mode | 259-015, 259-010 | skill-quality; skill-authoring; `docs/plugin-philosophy.md` | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | `/status` and `claude doctor` carry policy load, helper refresh, and which credential is in use | 257-074, 260-013, 260-012, 261-001 | audit-permission-state completeness note; audit-pass doctor handoff | this file |

@@ -35,6 +35,9 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
+# shellcheck source=hook-test-sink.sh
+source "$SCRIPT_DIR/hook-test-sink.sh"
+
 CTX_REL=".claude/context-guard/context"
 
 # write_snapshot <home> <sid> <used_percentage>
@@ -419,30 +422,11 @@ fi
 # swallowed twice. Simulated portably (no chmod/permission dependence): a
 # directory sitting at the exact state-file path makes the write fail on
 # every platform, including Git Bash on Windows.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'cat >%q\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-wait_for_sink() {
-  local f="$1" tries=150
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
-
 write_snapshot "$H" spersist 90
 mkdir -p "$D/state"
 mkdir -p "$D/state/spersist.zone" # a directory blocks the write, not a permission bit
 TEL="$WORK/tel-persist.json"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >\"$TEL\"")"
 OUT=$(printf '{"session_id":"spersist","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" 2>/dev/null)
 RC=$?
@@ -468,7 +452,7 @@ write_snapshot "$H" sretryz 90
 mkdir -p "$D/state"
 mkdir -p "$D/state/sretryz.zone" # same portable obstruction as 12
 TELZ="$WORK/tel-retry-zone.json"
-SINKZ="$(make_sink "$TELZ")"
+SINKZ="$(make_sink "cat >\"$TELZ\"")"
 OUT=$(printf '{"session_id":"sretryz","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKZ" bash "$HOOK" 2>/dev/null)
 RC=$?
@@ -506,7 +490,7 @@ rm -f "$D/state/sretrya.armed"
 mkdir -p "$D/state/sretrya.armed" # now the GATE file is the blocked one
 write_snapshot "$H" sretrya 90    # dumb — a real worsening, owed an injection
 TELA="$WORK/tel-retry-armed.json"
-SINKA="$(make_sink "$TELA")"
+SINKA="$(make_sink "cat >\"$TELA\"")"
 OUT=$(printf '{"session_id":"sretrya","hook_event_name":"PostToolBatch"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINKA" bash "$HOOK" 2>/dev/null)
 RC=$?
