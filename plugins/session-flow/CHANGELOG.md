@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [0.38.28] - 2026-09-29
+
+### Fixed
+
+- **The running-retro observer gates `--permission-prompts none` on Claude Code 2.1.259+** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The version gate moved from `hop_chain.py` into `scripts/claude_cli.py`, which the observer and the hop harness now share, so older CLIs no longer reject the flag as an unknown option.
+- **`keep-going` treats exit `1` of `check-usage-limit-reset.py` as provisional** until a live re-check of the current account confirms it ([#3915](https://github.com/melodic-software/claude-code-plugins/issues/3915)). When no live reading is obtainable it asks the operator which account is active and never concludes still-blocked.
+- **`clean-stop`, `handoff` and `retro` suggest `/export` against a real record.** Each carries a `## Verification record: /export` section instead of pointing at a record that existed in none of them ([#4056](https://github.com/melodic-software/claude-code-plugins/issues/4056)). The self-ignore guard is created when absent and announced.
+- **`handoff`, `retro` and `clean-stop` parse the leading `unattended` argument** their argument hints declare, with evals for `handoff` and `retro`.
+- **One record for the plugin data dir and plain-token substitution** ([#4295](https://github.com/melodic-software/claude-code-plugins/issues/4295)).
+- **`save_point.py memory-root` is documented** on the stale surfaces (`reference/save-point.md`, `structure.md`, `topic-docs.md`, `observer.md`) and allowed in the hop harness.
+- **`orchestrate` records the hung-background-shell claim** in `context/sources.md`, `handoff`'s restatement of `implement-dispatch` matches it, and the pending-CI record is linked from `handoff`.
+
 ## [0.38.27] - 2026-09-28
 
 ### Changed
