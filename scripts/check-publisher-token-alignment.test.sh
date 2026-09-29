@@ -37,7 +37,7 @@ run 1 "publisher-like active token absent from org file fails"
 assert_output_contains "failure names the token" "$PUBLISHER_TOKEN"
 
 write_org "$PUBLISHER_TOKEN"
-printf '# --- ACCTIVE ---\n%s\n# --- STAGED ---\n' "$PUBLISHER_TOKEN" >"$TMP/port.txt"
+printf '# --- INACTIVE ---\n%s\n# --- STAGED ---\n' "$PUBLISHER_TOKEN" >"$TMP/port.txt"
 run 2 "renamed ACTIVE marker exits 2"
 assert_output_contains "marker failure is named" 'no "# --- ACTIVE" marker'
 

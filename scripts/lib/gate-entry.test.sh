@@ -213,7 +213,6 @@ BASE_REF_ALLOW=(
   'check-stale-base-overlap.sh|base_tip="$(git rev-parse "${base_ref}^{commit}")"|captures the resolved sha'
   "check-changelog-parity.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "dependabot-plugin-bump.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
-  'gitleaks-scoped-scan.sh|git rev-parse --verify|resolves HEAD and range ends under its own fail(); owned by the gitleaks lane'
 )
 
 # Prints the rev-parse lines under <scripts-dir> that peel to a commit or use

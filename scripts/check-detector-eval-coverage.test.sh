@@ -1262,7 +1262,7 @@ nested_ids_case 'a call inside each compound command, expansion and redirection'
 # A span neither shfmt nor bash accepts is a file the parser cannot read: exit 2.
 # The line walk read these three (exit 1 naming P4), and this suite asserted so
 # before shfmt became the reader; the parser's refusal is the answer now.
-unparseable_case() {
+unparsable_case() {
   local label="$1"
   shift
   mk_tree
@@ -1270,15 +1270,15 @@ unparseable_case() {
   mk_evals evals.json "$(evals_json 'exercises P1 classification')"
   run_gate "$(pair det.sh evals.json)" --check
   if [[ $RC -eq 2 && "$ERR" == *"shfmt could not parse"* && -z "$OUT" ]]; then
-    ok "unparseable: $label is exit 2, not a guess"
+    ok "unparsable: $label is exit 2, not a guess"
   else
-    fail "unparseable $label: rc=$RC out='$OUT' err='$ERR'"
+    fail "unparsable $label: rc=$RC out='$OUT' err='$ERR'"
   fi
   rm -rf "$root"
 }
-unparseable_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
-unparseable_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
-unparseable_case 'a comment opened after `(`' 'f() (#<<EOF'
+unparsable_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
+unparsable_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
+unparsable_case 'a comment opened after `(`' 'f() (#<<EOF'
 
 # ============== P4: the registry is the stopping rule =====================
 # A qualifying skill absent from the registry is unenforced, which is the same
