@@ -630,6 +630,27 @@ class SelfCheckTests(unittest.TestCase):
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("never `wrap`" in problem for problem in problems))
 
+    def test_builtin_agent_and_tool_take_route_only(self):
+        for klass, name in (("builtin-agent", "Explore"), ("builtin-tool", "Bash")):
+            for integration in ("wrap", "suggest"):
+                row = deep_copy(BASE_ROW)
+                row["native"] = {"name": name, "class": klass, "markers": []}
+                row["integration"] = integration
+                row["baked"]["boundary_section"] = False
+                row["evidence"] = ["invocation mode: model invocation via tool"]
+                problems = overlap.validate_row(row, 0)
+                self.assertTrue(
+                    any(
+                        f"`{klass}` row takes `integration` `route`" in p
+                        for p in problems
+                    ),
+                    (klass, integration, problems),
+                )
+            row = deep_copy(BASE_ROW)
+            row["native"] = {"name": name, "class": klass, "markers": ["gated"]}
+            row["integration"] = "route"
+            self.assertEqual(overlap.validate_row(row, 0), [], klass)
+
     def test_builtin_command_allows_suggest_with_invocation_evidence(self):
         row = deep_copy(BASE_ROW)
         row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
@@ -1826,6 +1847,81 @@ class DiscoveryDetectTests(unittest.TestCase):
             c["native"]["name"]: c["native"]["class"] for c in self.discovered(report)
         }
         self.assertEqual(classes.get("deep-research"), "bundled-workflow")
+
+    def test_the_agent_and_tool_lanes_are_optional_and_scored_when_present(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        for lane in ("builtin_agents", "builtin_tools"):
+            self.assertNotIn(lane, report["discovery"]["lanes_scored"])
+        self.repo.write_skill(
+            "discovery", "explore", description="Explore the local codebase."
+        )
+        self.write_inventory(
+            bundled_skills={},
+            builtin_agents={
+                "Explore": {
+                    "name": "Explore",
+                    "description": "Fast read-only search agent for exploring a codebase",
+                    "roster": "conditional",
+                    "gated": True,
+                    "user_invocable": True,
+                    "model_invocable": True,
+                }
+            },
+            builtin_tools={
+                "Commit": {
+                    "name": "Commit",
+                    "description": "",
+                    "search_hint": "create a git commit",
+                    "deferred": True,
+                    "user_invocable": False,
+                    "model_invocable": True,
+                }
+            },
+            integrity={
+                "status": "ok",
+                "lanes": {
+                    "builtin_agents": {"status": "ok"},
+                    "builtin_tools": {"status": "ok"},
+                },
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        for lane in ("builtin_agents", "builtin_tools"):
+            self.assertIn(lane, report["discovery"]["lanes_scored"])
+            self.assertEqual(report["integrity"]["lanes"][lane]["counts_are"], "totals")
+        by_name = {c["native"]["name"]: c for c in self.discovered(report)}
+        agent, tool = by_name["Explore"], by_name["Commit"]
+        self.assertEqual(agent["native"]["class"], "builtin-agent")
+        self.assertEqual(agent["native"]["invocable_by"], "model+user")
+        self.assertIn("gated", agent["native"]["markers"])
+        self.assertIn("agent roster: conditional", agent["evidence"])
+        self.assertEqual(agent["recommended_integration"], "route")
+        self.assertEqual(tool["native"]["class"], "builtin-tool")
+        self.assertEqual(tool["native"]["invocable_by"], "model-only")
+        self.assertEqual(tool["component"]["skill"], "commit")  # via search_hint
+        self.assertIn("tool loading: deferred", tool["evidence"])
+        self.assertEqual(tool["recommended_integration"], "route")
+
+    def test_a_broken_agent_lane_marks_its_candidates_not_re_derivable(self):
+        self.repo.write_skill("planning", "plan", description="Plan the work.")
+        self.write_inventory(
+            bundled_skills={},
+            builtin_agents={"Plan": {"name": "Plan", "description": "Plan the work"}},
+            integrity={
+                "status": "degraded",
+                "lanes": {"builtin_agents": {"status": "broken", "problems": ["x"]}},
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 3)
+        [candidate] = self.discovered(report)
+        self.assertIs(candidate["re_derivable"], False)
+        self.assertEqual(
+            report["integrity"]["lanes"]["builtin_agents"]["counts_are"],
+            "not reportable",
+        )
 
     def test_missing_invocability_fields_degrade_to_unknown(self):
         self.write_inventory()

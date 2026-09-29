@@ -21,6 +21,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Bundled skills | 13 | 12 | route 8, suggest 3, wrap 2 | complementary 12, defer 1 |
 | Bundled workflows | 0 | 0 | none | none |
 | Plugin-backed built-ins | 1 | 1 | route 1 | complementary 1 |
+| Built-in subagents | 0 | 0 | none | none |
+| Built-in tools | 0 | 0 | none | none |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -362,6 +364,14 @@ No rows recorded in this lane.
 - **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record) (verified 2026-09-11)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+## Built-in subagents
+
+No rows recorded in this lane.
+
+## Built-in tools
+
+No rows recorded in this lane.
 
 ## Session-provided skills (observation-only)
 

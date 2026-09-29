@@ -75,6 +75,8 @@ NATIVE_CLASSES = (
     "bundled-skill",
     "bundled-workflow",
     "plugin-backed-builtin",
+    "builtin-agent",
+    "builtin-tool",
     "session-skill",
     "marketplace-plugin",
 )
@@ -118,20 +120,29 @@ BAKED_FLAGS = (
 # Extraction lanes the sibling extractor reports integrity for, and the
 # native class each one carries. Session-provided and marketplace classes have
 # no lane: nothing about them is derivable from the binary.
-# `bundled_workflows` is optional: an extraction that predates the lane lacks
-# the key, and the lane is then not reported rather than read as broken.
+# `bundled_workflows`, `builtin_agents`, and `builtin_tools` are optional: an
+# extraction that predates a lane lacks its key, and the lane is then not
+# scored or reported rather than read as broken.
 LANE_ORDER = (
     "builtin_commands",
     "bundled_skills",
     "bundled_workflows",
     "plugin_backed",
+    "builtin_agents",
+    "builtin_tools",
 )
 LANE_OF_CLASS = {
     "builtin-command": "builtin_commands",
     "bundled-skill": "bundled_skills",
     "bundled-workflow": "bundled_workflows",
     "plugin-backed-builtin": "plugin_backed",
+    "builtin-agent": "builtin_agents",
+    "builtin-tool": "builtin_tools",
 }
+# Classes the model reaches by name (a subagent type, a tool) rather than
+# through the Skill tool: nothing wraps them and no user types them as a
+# command, so a component only routes to them.
+ROUTE_ONLY_CLASSES = ("session-skill", "builtin-agent", "builtin-tool")
 CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
 
 
@@ -143,6 +154,8 @@ LANES: tuple[tuple[str, str, str], ...] = (
     ("bundled-skill", "Bundled skills", "bundled skill"),
     ("bundled-workflow", "Bundled workflows", "bundled workflow"),
     ("plugin-backed-builtin", "Plugin-backed built-ins", "plugin-backed built-in"),
+    ("builtin-agent", "Built-in subagents", "built-in subagent"),
+    ("builtin-tool", "Built-in tools", "built-in tool"),
     (
         "session-skill",
         "Session-provided skills (observation-only)",
@@ -427,6 +440,12 @@ def registration_evidence(registrations: list[dict[str, Any]]) -> list[str]:
             evidence.append(f"{tag}aliases: {', '.join(entry['aliases'])}")
         if entry.get("description"):
             evidence.append(f"{tag}native description: {entry['description']}")
+        if entry.get("roster"):
+            evidence.append(f"{tag}agent roster: {entry['roster']}")
+        if isinstance(entry.get("deferred"), bool):
+            evidence.append(
+                f"{tag}tool loading: {'deferred' if entry['deferred'] else 'up front'}"
+            )
         model = discover.invocability([entry])["model_invocable"]
         if model is not None:
             flagged = {"disable_model_invocation", "model_invocable"} & set(
@@ -668,11 +687,9 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
                 "(nothing is baked from a defer row)"
             )
         return problems
-    if klass == "session-skill":
+    if klass in ROUTE_ONLY_CLASSES:
         if integration != "route":
-            problems.append(
-                f"{label}: a `session-skill` row takes `integration` `route`"
-            )
+            problems.append(f"{label}: a `{klass}` row takes `integration` `route`")
     elif klass in ("builtin-command", "bundled-workflow"):
         if integration not in ("route", "suggest"):
             problems.append(
@@ -1201,7 +1218,13 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if isinstance(inventory.get(lane), dict)
     }
     native_index: dict[str, dict[str, Any]] = {}
-    for lane in ("bundled_workflows", "bundled_skills", "builtin_commands"):
+    for lane in (
+        "bundled_workflows",
+        "bundled_skills",
+        "builtin_commands",
+        "builtin_agents",
+        "builtin_tools",
+    ):
         for name, entry in (lane_payloads.get(lane) or {}).items():
             native_index.setdefault(
                 name, {"class": CLASS_OF_LANE[lane], "entry": entry}

@@ -145,7 +145,7 @@ class Surface:
         text = " ".join(
             str(r.get(key) or "")
             for r in registrations
-            for key in ("description", "argument_hint")
+            for key in ("description", "argument_hint", "search_hint")
         )
         bag = _bag((name, 3.0), (" ".join(aliases), 2.0), (text, 1.0))
         name_sets = [s for s in (set(tokenize(n)) for n in [name, *aliases]) if s]
@@ -307,10 +307,15 @@ def recommended_integration(klass: str, invocable_by: str) -> str | None:
 
     A user-only surface can only be suggested (ours tells the model to suggest
     the user type it); a model-invocable one can be routed to or wrapped,
-    except a built-in command, which the store never lets take `wrap`.
+    except a built-in command, subagent, or tool, which the store never lets
+    take `wrap`.
     """
     if invocable_by == "user-only":
         return "suggest"
     if invocable_by in ("model+user", "model-only"):
-        return "route" if klass == "builtin-command" else "route-or-wrap"
+        return (
+            "route"
+            if klass in ("builtin-command", "builtin-agent", "builtin-tool")
+            else "route-or-wrap"
+        )
     return None

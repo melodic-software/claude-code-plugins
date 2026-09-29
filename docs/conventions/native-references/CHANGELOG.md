@@ -6,6 +6,15 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.2.0] - 2026-09-29
+
+Minor: additive guidance.
+
+- **`builtin-agent` and `builtin-tool` are provenance classes.** The inventory now extracts
+  Claude Code's built-in subagent types and built-in tools, and the overlap store can record a row
+  against either. Their runtime relationship is `route` only: the model reaches them through the
+  Agent tool or by tool name, never the Skill tool, and no person types them as a command.
+
 ## [3.1.0] - 2026-09-29
 
 Minor: additive guidance.

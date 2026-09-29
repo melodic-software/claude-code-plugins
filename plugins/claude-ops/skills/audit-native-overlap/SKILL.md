@@ -117,15 +117,17 @@ Every candidate carries `native.invocable_by` (`model+user`, `user-only`, `model
 `disable_model_invocation` in an older extraction; a field the extraction lacks makes it `unknown`.
 `model_invocable: false` also sets the `model-invocation-disabled` marker the store's suggest-only
 rule reads. From it comes `recommended_integration`: `suggest` for a user-only surface, `route` or
-`route-or-wrap` for a model-invocable one (`route` for a built-in command, which never takes
-`wrap`), and nothing when unknown. It is a label for the human writing the row, never a store value.
+`route-or-wrap` for a model-invocable one (`route` for a built-in command, subagent, or tool, none
+of which takes `wrap`), and nothing when unknown. It is a label for the human writing the row,
+never a store value. Built-in subagents and tools carry the invocability `/claude-ops:inventory`
+records for them; the store takes `route` only for both.
 
 Three rules:
 
 - **Carry the integrity floor through, per lane.** The inventory reports integrity per lane
-  (`builtin_commands`, `bundled_skills`, `plugin_backed`, and `bundled_workflows` when the
-  extraction has that lane; an extraction without it is not an error, the lane is simply not
-  reported). A `degraded` lane makes every count from
+  (`builtin_commands`, `bundled_skills`, `plugin_backed`, and `bundled_workflows`,
+  `builtin_agents`, `builtin_tools` when the extraction has them; an extraction without one is not
+  an error, that lane is simply not scored or reported). A `degraded` lane makes every count from
   that lane a floor, and the report says so in the same sentence as the number. A `broken` lane's
   counts are omitted, the report names the lane and its cause, and every candidate whose lane is
   broken is marked `re_derivable: false` (its presence or absence in that lane proves nothing
@@ -164,7 +166,8 @@ Which substrate produced which section, and anything the run could not resolve.
 ```
 
 Provenance classes are never merged into one list. A bundled skill, a bundled workflow, a built-in
-command, a plugin-backed built-in, and a session-provided skill have different disable switches and different
+command, a plugin-backed built-in, a built-in subagent (`builtin-agent`), a built-in tool
+(`builtin-tool`), and a session-provided skill have different disable switches and different
 rosters per host; a merged list cannot be acted on.
 
 ## Budget exposure, a presence-gated seam
