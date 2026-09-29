@@ -190,6 +190,51 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $result[0].trend.adjusted_from | Should -BeNullOrEmpty
     }
 
+    It 'does not raise a winget-upgrades KEV name-match WARN to CRIT on a count trend' {
+        $history = @(
+            New-HistoryEntry `
+                -SeverityByCategory @{ software = [pscustomobject]@{ WARN = 1 } } `
+                -TopMetrics @{ 'winget-upgrades.upgrades_count' = 12 } `
+                -ChecksRan @('winget-upgrades')
+        )
+        $checks = @(New-CheckStub -Id 'winget-upgrades' -Category 'software' -Severity 'WARN' `
+                -Detail @{ upgrades_count = 17; kev_match_count = 1 })
+        $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
+        $result[0].severity | Should -Be 'WARN'
+        $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+        $result[0].trend.delta | Should -Be 'upgrades_count: +5 vs prior'
+    }
+
+    It 'still raises a winget-upgrades WARN with no KEV match to CRIT on a count trend' {
+        $history = @(
+            New-HistoryEntry `
+                -SeverityByCategory @{ software = [pscustomobject]@{ WARN = 1 } } `
+                -TopMetrics @{ 'winget-upgrades.upgrades_count' = 12 } `
+                -ChecksRan @('winget-upgrades')
+        )
+        $checks = @(New-CheckStub -Id 'winget-upgrades' -Category 'software' -Severity 'WARN' `
+                -Detail @{ upgrades_count = 17; kev_match_count = 0 })
+        $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
+        $result[0].severity | Should -Be 'CRIT'
+        $result[0].trend.adjusted_from | Should -Be 'WARN'
+    }
+
+    It 'keeps the KEV name-match WARN after a JSON round trip of the result' {
+        $history = @(
+            New-HistoryEntry `
+                -SeverityByCategory @{ software = [pscustomobject]@{ WARN = 1 } } `
+                -TopMetrics @{ 'winget-upgrades.upgrades_count' = 12 } `
+                -ChecksRan @('winget-upgrades')
+        )
+        $checks = @(New-CheckStub -Id 'winget-upgrades' -Category 'software' -Severity 'WARN' `
+                -Detail @{ upgrades_count = 17; kev_match_count = 1 })
+        $roundTripped = @($checks | ConvertTo-Json -Depth 6 -AsArray | ConvertFrom-Json)
+        $result = Invoke-TrendAnalysis -CheckResults $roundTripped -HistoryTail $history
+        $result[0].severity | Should -Be 'WARN'
+        $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+        $result[0].trend.delta | Should -Be 'upgrades_count: +5 vs prior'
+    }
+
     It 'treats battery downward drop as worsening (fullCapacityPct going down)' {
         $history = @(
             New-HistoryEntry `

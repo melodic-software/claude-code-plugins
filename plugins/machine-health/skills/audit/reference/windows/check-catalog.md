@@ -186,7 +186,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
     name match only: the feed carries no affected-version range and the installed version is never
     compared, so a match against a long-patched build is common. The summary names the CVEs, each
     match records `match_basis: name-only`, and the appendix lists every match. The check never
-    reports `CRIT`; a CRIT tier needs version evidence the check does not have.
+    reports `CRIT`; a CRIT tier needs version evidence the check does not have. The trend rule
+    never raises a KEV name-match `WARN` (`kev_match_count` > 0) either. A `WARN` from >10 apps
+    behind with no KEV match can still be raised to `CRIT` when `upgrades_count` rises by 5 or more.
   - `INFO`: 1–10 apps behind, none on KEV.
   - `OK`: no upgrades available.
   - The "upgrade(s)" figure in a KEV summary counts distinct upgrade ids (`kev_upgrade_count`);
