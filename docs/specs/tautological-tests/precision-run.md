@@ -52,7 +52,10 @@ report-only rules added. The findings of the five existing rules did not move un
 
 - The count the Sanity Check compares: `CANT_FAIL_SCAN_ROOT=. bash
   plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-source-text-read'`
-  printed **4**.
+  printed 4 on this run and prints **5** since main added
+  `plugins/repo-fleet-hygiene/skills/sync/scripts/sync-fleet.test.sh:116`, a true positive: it seds
+  `audit-fleet.sh` for its `SKIP_NAMES` list to check that two copies do not drift, the same
+  deliberate consistency check as the eval-coverage case below.
 - The rest of the local Bash greps over source paths read through a variable path, a glob or a
   directory walk, which the rule never flags; none needed an adapter fix.
 - A later verifier pass found false positives outside this repo. The rule now keeps a read only
@@ -61,7 +64,7 @@ report-only rules added. The findings of the five existing rules did not move un
   `vm.run*`, `new Function`). `__testfixtures__` joined the excluded paths. Each false positive
   is a good corpus fixture: an `ast.parse` walk, an `exec` of a script, a `vm.runInNewContext`
   sandbox, a codegen freshness check comparing the whole file, and a codemod reading
-  `__testfixtures__`. The four findings above all search the text, so the count stays **4**.
+  `__testfixtures__`. The four findings above all search the text, so the count stayed 4.
 - The eval-coverage case in `cant-fail-scan.test.sh` greps the driver's source for the rule ids it
   emits. It is a true positive by the rule's definition, a searched read of a tracked source file,
   and a deliberate one: a consistency check between two files, not a behavior test.
@@ -129,3 +132,110 @@ fixture; the repo's findings did not move.
 | `pytest.fail("no raise")` in the try, the assertion in the `except` | `rule-conditional-assertion` | `pytest.fail` is an assertion call in `py-pytest` | `py-pytest/good/test_pytest_try_fail.py` |
 | `Verify(order)` calling the file's own `Verify` helper | `rule-snapshot-only` | C# `Verify(` is a snapshot only in a file importing a Verify package or marked `[UsesVerify]`, and declaring no `Verify` method | `cs-xunit/good/OrderPricedHelperTests.cs`, `cs-xunit/good/InvoiceVerifyHelperTests.cs` |
 | `snapshot = store.save(...)` then `assert store.latest() == snapshot` | `rule-snapshot-only` | `== snapshot` is syrupy only when `snapshot` is a parameter of the test | `py-pytest/good/test_pytest_snapshot_local.py` |
+
+## Three repositories, every rule
+
+Scanned 2026-09-29, whole tree, read-only, no flags: `CANT_FAIL_SCAN_ROOT=<repo> bash
+plugins/testing/skills/audit/scripts/cant-fail-scan.sh`. Before is the scanner at the base of this
+branch; after is with the fixes below. Every run exited 0 with `walk/read/engine error lines: 0`
+and `files whose lexer lost sync (not judged): 0`. Files examined per adapter, of all enumerated:
+
+| Repository | HEAD | Files examined | Per adapter |
+|---|---|---|---|
+| claude-code-plugins | `8da943138615` (this branch) | 753 | bash-harness 503, js-jest 5, js-vitest 90, pwsh-pester 55, py-pytest 2, py-unittest 98 |
+| medley | `4a7c01a14a31` | 486, and 1 Playwright config | bash-harness 256, cs-xunit 136, js-node-test 1, js-playwright 1, js-vitest 86, pwsh-pester 1, py-pytest 5 |
+| ci-runner | `18f5366fdb1d` | 65 | go-testing 62, js-node-test 3 |
+
+`bash-bats`, `cs-mstest` and `cs-nunit` have no file in any of the three, so every rule is
+unmeasured there.
+
+A rule is measured in an adapter only when its form occurs in that adapter's files (a grep-level
+census). With 0 findings where the form never occurs, the rule is **unmeasured** there; `n/a`
+means the adapter turns the rule off or has no vocabulary for it.
+
+| Rule | Before | After | True positives | False positives after | Unmeasured |
+|---|---|---|---|---|---|
+| `rule-zero-assertion` | 53 (ccp 10, medley 42, ci-runner 1) | 5 (ccp 2, medley 3) | 2 | 3 | none |
+| `rule-recomputed-expectation` | 2 (ccp 1, medley 1) | 2 | 0 | 0; both are determinism contracts, the annotate case | js-playwright |
+| `rule-mock-only-oracle` | 27 (ccp 13, medley 14) | 27 | 27, all benign | 0 | js-jest, js-node-test, js-playwright, py-pytest; bash-harness and go-testing n/a |
+| `rule-inert-assertion` | 0 | 0 | 0 | 0 | js-jest, js-playwright |
+| `rule-constant-restatement` | 8 (ccp 5, medley 3) | 8 | 8 | 0 | js-jest, js-node-test, js-playwright; C#, Go and Pester n/a |
+| `rule-source-text-read` | 7 (ccp 5, medley 2) | 7 | 7 | 0 | js-playwright |
+| `rule-conditional-assertion` | 5 (ccp 2, medley 3) | 4 | 4 | 0 | bash-harness n/a |
+| `rule-recomputed-derived` | 1 (ccp) | 1 | 1 | 0 | cs-xunit, js-jest, js-node-test; js-playwright and bash-harness n/a |
+| `rule-snapshot-only` | 0 | 0 | 0 | 0 | every adapter: no snapshot-library call in any file |
+| `rule-weak-oracle` | 14 (ccp) | 14 | 14 | 0 | js-jest, js-playwright; bash-harness n/a |
+| `rule-flaky-passes-suite` | 0 | 0 | 0 | 0 | js-playwright: the one config sets no `retries` |
+| `rule-only-not-forbidden` | 1 (medley) | 1 | 1 | 0 | none |
+
+Verdicts:
+
+- `rule-zero-assertion` true positives, both no-raise smoke tests: `test_hook_telemetry.py:54` calls
+  `emit` and checks nothing; medley `test_config_validation.py:32` loads a TOML file and asserts
+  nothing.
+- `rule-zero-assertion` false positives left: ccp `test_hygiene.py:10117`, whose oracle is the
+  probe `os.write(2, b"")` raising when fd 2 was left closed. No token separates a probe from a
+  no-raise smoke test, and adding `os.write(` or `os.fstat(` to the vocabulary would clear real
+  smoke tests, so it stays a known false positive for `cant-fail-ok:`. Medley
+  `broker-fanout.test.ts:305,318` await `waitForNotificationOnAll`, which returns `pollUntil(...)`,
+  and only `pollUntil` throws: two levels down, past the one level the helper rule follows.
+- `rule-recomputed-expectation`: ccp `test_observer.py:659` and medley `test_lexical.py:94` assert
+  `f(x) == f(x)` to pin determinism. The rule keeps firing on that shape, as NUnit2009, testifylint
+  `useless-assert` and staticcheck SA4000 do, with no name-based exemption; a deliberate
+  determinism contract carries `cant-fail-ok: determinism contract` and is counted as exempt.
+  Neither test carries the annotation yet.
+- The rest are the true positives the earlier sections and the classification record:
+  `mock-only-oracle` findings are interaction-as-output tests (patched `os._exit`, spied
+  `process.stdout.write`, Pester `Should -Invoke`, NSubstitute `Received`); `conditional-assertion`
+  is `test_install_state.py:456`, `Test-DiskHealth.Tests.ps1:98`, medley
+  `SectionChunkerTests.cs:55` and `adapters.test.ts:40`; `only-not-forbidden` is medley
+  `tests/e2e/playwright.config.ts:13`, run in CI without `--forbid-only`.
+
+The "This repo, Bash" count holds: `grep -c 'rule-zero-assertion.*\.test\.sh'` printed 1 on the
+base of this branch, for `plugins/review/tests/pr-explainer-chrome.test.sh`, which main added and
+which counts failures and ends `exit "$((FAIL > 0))"`, a false positive. After the idiom fix it
+prints **0** again.
+
+False-positive shapes, each a good corpus fixture that fired before its fix:
+
+| Shape | Rule | Findings cleared | Fix | Good fixture |
+|---|---|---|---|---|
+| `new AnalyzerTest { ... }.RunAsync()` from `Microsoft.CodeAnalysis.Testing` | `rule-zero-assertion` | medley 34 | `cs-xunit` assertion token `CSharp(Analyzer\|CodeFix\|CodeRefactoring\|SourceGenerator)Test<`, which `cs-nunit` and `cs-mstest` inherit, and `}.RunAsync(` in a file that imports the harness (engine prescan) | `cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs` |
+| Expression-bodied test calling a same-file helper that asserts | `rule-zero-assertion` | medley 5 | same-file helpers, one level deep, a method call resolved to the test's own class when it defines the name (engine) | `cs-xunit/good/SameFileAssertingHelperTests.cs`, and the `RunAsync(string)` case in `AnalyzerHarnessRunAsyncTests.cs` |
+| `self.refused(...)`, `self.roundtrip(...)` on a method that asserts | `rule-zero-assertion` | ccp 6 | the same | `py-unittest/good/test_unittest_self_helper_asserts.py` |
+| Module helper calling `check_returncode()` | `rule-zero-assertion` | ccp 1 | the same | `py-pytest/good/test_pytest_helper_check_returncode.py` |
+| Awaited helper that rejects on timeout | `rule-zero-assertion` | none here: medley's helper throws one level further down | the same, with throw, raise and reject counting in a helper's body | `js-vitest/good/vitest-poll-helper-rejects.test.ts` |
+| `node:test` helper calling `assert.*` | `rule-zero-assertion` | ci-runner 1 | the same | `js-node-test/good/node-test-helper-asserts.test.cjs` |
+| `exit "$((FAIL > 0))"` failure counter | `rule-zero-assertion` | ccp 1 | `bash-harness` idiom for the arithmetic exit | `bash-harness/good/failure-counter-arith-exit.test.sh` |
+| Loop over `await Promise.all(<literal array>.map(...))`, on one line or two | `rule-conditional-assertion` | medley 1 | a map over a nonempty array literal, or over a name the test bound to one, is a literal collection | `js-vitest/good/vitest-loop-over-literal-probes.test.ts` |
+| `f(x) == f(x)` determinism check | `rule-recomputed-expectation` | none: kept firing, annotated | `cant-fail-ok: determinism contract`; a trailing annotation on a Python `assert` line no longer drops the finding silently | `py-unittest/good/test_unittest_deterministic_call.py`, `py-pytest/good/test_pytest_deterministic_report.py`, each asserted exempt |
+
+The helper rule reads a function's text from its definition to the first code line indented no
+deeper than it, and follows only calls that are bare or on `self`, `this` or `cls`: a first cut
+that followed `os.write(` to a `write` method elsewhere in `test_hygiene.py`, and ran a helper's
+region on past its closing brace into a `beforeAll` that asserts, cleared findings for the wrong
+reason. The bad corpus kept every finding under gawk and mawk.
+
+### Blocking candidates
+
+Blocking stays off in this release (D4). A rule qualifies only in the adapters where it was
+measured, never where it is unmeasured. `bash-harness` and `bash-bats` are advisory and never gate,
+so they are left out below; `bash-harness` zero-assertion is excluded by the spec.
+
+| Rule | Evidence over the three repositories | Adapters measured with 0 false positives | Recommendation |
+|---|---|---|---|
+| `rule-inert-assertion` | 0 findings, 0 false positives: precision 0/0, never observed firing on a real test | js-vitest, js-node-test, pwsh-pester, py-pytest, py-unittest, cs-xunit, go-testing | qualifies on 0 false positives (A13); confirm with the next run before flipping |
+| `rule-conditional-assertion` | 4 true positives, 0 false positives after the literal-map fix | js-vitest, js-node-test, py-pytest, py-unittest, cs-xunit, pwsh-pester, go-testing | qualifies on 0 false positives since this fix; confirm with the next run |
+| `rule-mock-only-oracle` | 27 true positives, all benign interaction-as-output tests | js-vitest, pwsh-pester, py-unittest, cs-xunit | 0 false positives, but every hit is benign, so blocking would only force annotations; keep it `--strict` only |
+| `rule-weak-oracle` | 14 true positives | js-vitest, js-node-test, pwsh-pester, py-pytest, py-unittest, cs-xunit, go-testing | qualifies on 0 false positives; SUGGESTION tier, and presence checks are its benign case |
+| `rule-constant-restatement` | 8 true positives | js-vitest, py-pytest, py-unittest | qualifies on 0 false positives; SUGGESTION tier |
+| `rule-source-text-read` | 7 true positives, 6 of them in advisory `*.test.sh`; 1 outside Bash | js-jest, js-vitest, js-node-test, pwsh-pester, py-pytest, py-unittest, cs-xunit, go-testing | qualifies on 0 false positives, on thin non-Bash evidence (n=1); SUGGESTION tier |
+| `rule-recomputed-derived` | 1 true positive (n=1) | js-vitest, pwsh-pester, py-pytest, py-unittest, go-testing | qualifies on 0 false positives, n=1; confirm with the next run |
+| `rule-only-not-forbidden` | 1 true positive (n=1) | js-playwright (1 config) | qualifies on 0 false positives, n=1; confirm with the next run |
+
+Not candidates: `rule-zero-assertion` (3 false positives left), `rule-snapshot-only` and
+`rule-flaky-passes-suite` (unmeasured in every adapter). `rule-recomputed-expectation` already
+gates `--check`; its 2 findings are the determinism case the annotation records.
+
+Hook latency on an idle machine is still open: `uptime` load stayed between 9.7 and 13 through this
+run, above the idle bar of 8 that `probes.md` sets.

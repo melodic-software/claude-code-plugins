@@ -1,0 +1,18 @@
+// good-for: rule-zero-assertion
+// The test delegates to a private helper in the same file whose body asserts.
+using Shouldly;
+using Xunit;
+
+public sealed class AssemblyIsolationTests
+{
+    [Fact]
+    public void Identity_ShouldNotReferenceDuende() => ShouldHaveNoReferencesTo("Duende");
+
+    private static void ShouldHaveNoReferencesTo(string prefix)
+    {
+        var matches = typeof(UserId).Assembly.GetReferencedAssemblies()
+            .Where(a => a.Name!.StartsWith(prefix, StringComparison.Ordinal))
+            .ToList();
+        matches.ShouldBeEmpty();
+    }
+}
