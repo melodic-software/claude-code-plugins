@@ -748,6 +748,7 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
     return {
         "author": normalized_rest_author(pull),
         "baseRefName": str(base.get("ref") or ""),
+        "body": str(pull.get("body") or ""),
         "comments": [],
         "headRefName": str(head.get("ref") or ""),
         "headRefOid": head_sha,

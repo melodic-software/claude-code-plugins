@@ -214,5 +214,52 @@ else
   skip_case "cannot lower ulimit -n on this host"
 fi
 
+# --- batch_run_fleet: a child that fails is reported and the fleet goes on ---
+for r in good bad last; do
+  git init -q "$TEST_TMPDIR/fleet-$r"
+done
+cat >"$TEST_TMPDIR/stub-audit.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "audited $(basename "$PWD")"
+[[ "$(basename "$PWD")" == fleet-bad ]] && exit 3
+exit 0
+STUB
+batch_resolve_repos "$TEST_TMPDIR/fleet-good" "$TEST_TMPDIR/fleet-bad" "$TEST_TMPDIR/fleet-last"
+fleet_out="$(batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" 2>/dev/null)"
+assert_contains "fleet: an audited repo is a Repo block with the child's output" "$fleet_out" "Repo: $TEST_TMPDIR/fleet-good
+audited fleet-good
+---"
+assert_contains "fleet: a failing child is reported" "$fleet_out" "Repo: $TEST_TMPDIR/fleet-bad
+Outcome: failed
+Reason: audit exited 3"
+assert_contains "fleet: the repo after the failure is still audited" "$fleet_out" "audited fleet-last"
+assert_contains "fleet: summary counts the failure" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=0 blocked=0 failed=1"
+rc=0
+batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" >/dev/null 2>&1 || rc=$?
+assert_exit "fleet: exit status stays 0 despite a failing child" 0 "$rc"
+
+# --- batch_take_selection_arg ---
+BATCH_REPO_INPUTS=()
+BATCH_SKIP_INPUTS=()
+batch_take_selection_arg --repo a b --skip x
+assert_exit "--repo consumes the flag plus every non-flag word" 0 "$?"
+if [[ "$BATCH_ARG_SHIFT" -eq 3 && "${BATCH_REPO_INPUTS[*]}" == "a b" ]]; then
+  pass "--repo stops at the next flag"
+else
+  fail "--repo stops at the next flag" "3 / a b" "$BATCH_ARG_SHIFT / ${BATCH_REPO_INPUTS[*]}"
+fi
+batch_take_selection_arg --skip x
+if [[ "$BATCH_ARG_SHIFT" -eq 2 && "${BATCH_SKIP_INPUTS[*]}" == "x" ]]; then
+  pass "--skip consumes one value"
+else
+  fail "--skip consumes one value" "2 / x" "$BATCH_ARG_SHIFT / ${BATCH_SKIP_INPUTS[*]}"
+fi
+rc=0
+batch_take_selection_arg --repo --skip x || rc=$?
+assert_exit "--repo with no directory fails" 1 "$rc"
+rc=0
+batch_take_selection_arg --skip-from "$TEST_TMPDIR/no-such-file" || rc=$?
+assert_exit "--skip-from with a missing file fails" 1 "$rc"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "batch-common.test.sh: all passed"

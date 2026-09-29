@@ -153,30 +153,10 @@ additive (optional field), so it ships without breaking existing consumers.
 
 ## Schemas are contract-docs, not machine-enforced
 
-The JSON schemas here are **not machine-enforced**: no validator is wired into producer, sink, or
-CI. They are the human-readable, reviewable contract; conformance is checked by hand and by `jq`
-required-key assertions (producers and sinks each carry their own). Treat the schemas as the
-authority a reviewer reads, not a runtime gate.
-
-Option A: park schema validation until funded. Do not replace the transcribed field-list loops in
-this settle.
-
-- **Claim:** `envelope.schema.json` is a published interface with no adapter. Nothing in this
-  repository executes it. Wiring `check-jsonschema` (or any schema-driven helper) as the single
-  source of the field list, and replacing the transcribed `for field in schema_version …` loops,
-  is unpaid and parked. The loops stay. Stdout-parity assertions stay per-suite and pointed at
-  real captured output.
-- **Basis:** Issue [#3410](https://github.com/melodic-software/claude-code-plugins/issues/3410)
-  and the 2026-09-06 triage (schema named only in this directory; transcribed field list had
-  spread). Re-measured 2026-09-28: `envelope.schema.json` is still referenced only from its `$id`
-  and this README; eleven `*.test.sh` files still carry the literal field-list loop (ten plugin
-  suites plus `lib/hook-utils.test.sh`, which has two). Where a shared check may live is the same
-  unpaid ownership question [#3412](https://github.com/melodic-software/claude-code-plugins/issues/3412)
-  parks. This is not a `schema_version` bump: the envelope fields are unchanged.
-- **As of:** 2026-09-28.
-- **Recheck:** a maintainer funds a schema-driven check whose own suite fails a malformed
-  envelope, `envelope.schema.json` gains a consumer other than this README, or #3412 unparks a
-  home for shared test helpers these suites may all consume.
+The JSON schemas here are **not machine-enforced**: no validator is wired into producer or sink. They are
+the human-readable, reviewable contract; conformance is checked by hand and by `jq` required-key assertions
+(producers and sinks each carry their own). Treat the schemas as the authority a reviewer reads, not a
+runtime gate.
 
 ## Adoption (adopt-by-copy)
 

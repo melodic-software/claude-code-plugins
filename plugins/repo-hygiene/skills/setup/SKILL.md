@@ -1,5 +1,5 @@
 ---
-description: "Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. The prerequisites are `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, and the optional `ghq` the fleet batch actions enumerate repositories from. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
+description: "Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. The prerequisites are `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, `node`, which launches the destructive guard, and the optional `ghq` the fleet batch actions enumerate repositories from. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -26,8 +26,9 @@ and repeatable" in the marketplace repository): this plugin's configuration surf
 writable artifact, so `check` inspects, reports, and points at each remediation, and no `apply` is
 offered because there is nothing it could conformingly write. The warrant is the carve-out's
 external-prerequisites class: `git`, which every git-touching tier of `/repo-hygiene:clean` and
-the tracked-file safety guarantee depend on, and the optional `ghq` the fleet batch actions
-enumerate repositories from. Neither is visible to a native configuration prompt; each is
+the tracked-file safety guarantee depend on, `node`, which launches the destructive guard, and the
+optional `ghq` the fleet batch actions
+enumerate repositories from. None is visible to a native configuration prompt; each is
 verifiable only. The `clean_destructive_guard_enabled` option is a native `userConfig` toggle whose only
 stored home is the `pluginConfigs` this contract forbids setup to write.
 
@@ -59,15 +60,25 @@ Install nothing, and run no mutating tier.
    enumeration is unavailable. Report this rather than letting an empty repo list look like a bug.
 3. **A POSIX shell for the bundled scripts**. Every tier script and the destructive guard are
    `bash`. On Windows that means Git Bash must be present. The guard is exec form: `command` is
-   `node`, and `hooks/exec-bash.mjs` finds Git Bash (`CLAUDE_CODE_GIT_BASH_PATH`, or
-   `Git\bin\bash.exe`) and never `System32\bash.exe`. <!-- portability-ok: Windows path, not a shell regex -->
+   `node`, and `hooks/exec-bash.mjs` finds bash (on Windows `CLAUDE_CODE_GIT_BASH_PATH`, then
+   `Git\bin\bash.exe`, then `PATH`, never `System32\bash.exe`; <!-- portability-ok: Windows path, not a shell regex -->
+   elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`).
    Claim: exec form spawns `command` with `args` and no shell. `shell` is ignored when `args` is set.
    Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form".
    As of: 2026-09-28.
    Recheck: that page stops ignoring `shell` when `args` is set.
    Report the shell as INFO on Unix; FAIL on Windows when no Git Bash resolves, since the
    scripts and the guard alike cannot launch.
-4. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
+4. **`node` on `PATH`**. `command -v node`, and report the resolved path and version. Probe it
+   through Bash, so it works without the launcher. FAIL when absent: every hook row runs
+   `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
+   without it the guard does not launch and is not enforced.
+   Claim: Claude Code's native binary neither ships nor uses Node.
+   Basis: https://code.claude.com/docs/en/setup.
+   As of: 2026-09-29.
+   Recheck: that page says the native binary bundles Node, or stops saying the native install needs
+   no Node.
+5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
    - It registers from the `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`
      frontmatter, not from a plugin-level `hooks/hooks.json`. This plugin ships none. Claude Code
@@ -83,7 +94,7 @@ Install nothing, and run no mutating tier.
 
 ## Remediation guidance (printed by `check`; the operator applies it)
 
-Both prerequisites are system tools and the one option lives in Claude Code's native
+The prerequisites are system tools and the one option lives in Claude Code's native
 configuration surface (Check-only carve-out, external-prerequisites and native-`userConfig`
 classes), so `check` closes by pointing at each resolution rather than writing. Re-running it
 after everything passes changes nothing and reports "already configured":
@@ -92,6 +103,8 @@ after everything passes changes nothing and reports "already configured":
   plugin never downloads a tool.
 - **Missing `ghq` and fleet actions wanted:** install it (<https://github.com/x-motemen/ghq>), or
   keep using `--repo` / `--repos-from` and say so. This is a convenience, not a blocker.
+- **Missing `node`:** install Node.js (<https://nodejs.org/en/download>) and put it on `PATH`. Until
+  then the destructive guard is not enforced.
 - **Missing Git Bash on Windows:** install Git for Windows; nothing in this plugin runs without it.
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention

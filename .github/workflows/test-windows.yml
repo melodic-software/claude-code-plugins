@@ -124,6 +124,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
+              plugins/docs-hygiene/skills/generate-file-name-gate/**
+              .claude/docs-hygiene.json
             python:
               .github/**
               scripts/**
@@ -158,7 +160,7 @@ jobs:
   # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
   # PowerShell commands, so Linux tests it faithfully.
   #
-  # Four surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
+  # Five surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
   # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
   # the Windows filesystem, and `cygpath` short-name (8.3) resolution. #2774's
   # disk-hygiene read-only Bash allowlist is NT-specific (MSYS path mapping,
@@ -168,7 +170,10 @@ jobs:
   # runner those cases report NOT EXERCISED and the suite is green having
   # proved nothing about them. And the gaming plugin's DLSS 5 script is
   # Windows-only by its own header (backslash paths, Authenticode), so its
-  # selftest SKIPs on every other OS and ran in no CI before this lane.
+  # selftest SKIPs on every other OS and ran in no CI before this lane. And
+  # the exec-form bash launcher (#3686) resolves a real Git Bash, refuses the
+  # System32 WSL relay and spawns bash from node.exe with no shell, none of
+  # which a Linux runner does.
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
@@ -188,6 +193,21 @@ jobs:
   #   coverage-manifest — README/permissions sync. It passes on Linux and has
   #     no OSTYPE branch, so it stays on the Linux lane.
   # A host-gated case that cannot run must print a counted SKIP line.
+  #
+  # HOST-SKIP SUITES (#3683). Two suites probe the host at run time and print a
+  # SKIP line when they cannot pin their cases, so their Windows behaviour is
+  # read from this lane's log, not asserted from a Linux run:
+  #   markdown-format — four PATH-probed cases print a counted SKIP when cygpath
+  #     rewrites a POSIX mktemp path. The symlink-escape case prints an uncounted
+  #     SKIP line and an `ok ... SKIPPED` line that counts as PASS.
+  #   cloud-bootstrap-plugins — one SKIPPED=1 for the whole suite when an
+  #     extensionless node_modules/.bin/claude stub does not run.
+  #   audit_skill_visibility — NOT here yet. Two managed-scope unit tests fail on
+  #     windows-2025 (`bash exited 1 sourcing the lib` for lib/managed-scope.sh),
+  #     so the run stops before its cygpath probe (#5323).
+  # They stub markdownlint-cli2 and claude, so no step installs either. The
+  # PASS/FAIL/SKIPPED totals in each step's log say whether the probe fired or
+  # the cases ran.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
@@ -248,6 +268,13 @@ jobs:
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
       - name: Test hardcoded-path-check on Windows
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+      # Two of the host-skip suites of #3683, named explicitly: each prints a
+      # SKIP line where its host probe fires, so a green step is only evidence
+      # once the log shows which of the two happened.
+      - name: Test the markdown-format hook on Windows
+        run: bash plugins/markdown-format/hooks/markdown-format.test.sh
+      - name: Test cloud-bootstrap plugin accounting on Windows
+        run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
@@ -268,7 +295,12 @@ jobs:
         run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
       - name: Run kindle-dedrm Pester suites
         shell: pwsh
-        run: Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests -Output Detailed
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'plugins/kindle-dedrm/skills/manage/tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
       # The probe reads hook frontmatter with PyYAML and exits 2 when the
       # module is missing. requirements-ci.txt also pins a Linux-only zizmor
       # wheel, so this step installs only the PyYAML pin from that file.
@@ -281,3 +313,12 @@ jobs:
         env:
           EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN: "1"
         run: bash scripts/check-exec-form-windows-probe.sh
+      # The resolver test hands resolveBash a win32 platform and a fake
+      # `exists`, so a Linux run already covers its logic; here it runs under
+      # the real node.exe. The launcher test is the one that spawns a real Git
+      # Bash through node.exe, with stdin, an argument and exit 2 passed
+      # through, and reads every hooks.json row for the node exec form.
+      - name: Test the exec-form bash launcher resolver on Windows
+        run: node --test lib/exec-bash.resolver.test.mjs
+      - name: Test the guardrails exec-bash launcher on Windows
+        run: bash plugins/guardrails/hooks/exec-bash.test.sh

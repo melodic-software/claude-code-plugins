@@ -679,7 +679,7 @@ lane_emit() { # lane_emit <out> [extra args...] -> stdout of the written file
 }
 LOUT="$(lane_emit "$TEST_TMPDIR/lane1.md")"
 LROWS="$(printf '%s\n' "$LOUT" | grep '^| [0-9]')"
-assert_eq "the lane path alone writes a file with four emitted rows" "4" \
+assert_eq "the lane path alone writes a file with five emitted rows" "5" \
   "$(printf '%s\n' "$LROWS" | grep -c .)"
 assert_contains "I30 reaches the findings file from a lane" "$LROWS" \
   "claude-config/audit-instructions/rule-trigger-less-stamp"
@@ -692,16 +692,16 @@ assert_contains "I33 on a spoke opener reaches it" "$LROWS" \
 assert_contains "a frontmatter I32 is declined and counted" "$LOUT" \
   "Declined candidates: I32 count=1 reason=frontmatter (body-scope fence)"
 assert_not_contains "and never emitted" "$LROWS" "| $LANESKILL/SKILL.md:3 |"
-assert_contains "I31 and I33 outside a spoke are declined and counted" "$LOUT" \
+assert_contains "I33 on a SKILL.md is declined and counted" "$LOUT" \
   "count=1 reason=outside-rule-surfaces"
-assert_not_contains "I31 on SKILL.md is not emitted" "$LROWS" "| $LANESKILL/SKILL.md:14 |"
+assert_contains "I31 on SKILL.md is emitted" "$LROWS" "| $LANESKILL/SKILL.md:14 |"
 assert_not_contains "I33 on SKILL.md is not emitted" "$LROWS" \
   "| $LANESKILL/SKILL.md:8 | claude-config:audit-instructions | claude-config/audit-instructions/rule-spoke-self-description"
 assert_contains "a scanner-fed family on the lane path is declined with its path" "$LOUT" \
   "Declined candidates: I28-a count=1 reason=scanner-fed-rule"
 assert_contains "a non-crosswalk family on the lane path is declined" "$LOUT" \
   "Declined candidates: I6 count=1 reason=no-severity-crosswalk-row"
-assert_contains "the lane rows are counted as read" "$LOUT" "Lane rows read: 9. Emitted from lanes: 4."
+assert_contains "the lane rows are counted as read" "$LOUT" "Lane rows read: 9. Emitted from lanes: 5."
 assert_contains "the lane rules are named in the Ran line" "$LOUT" "model lanes: I30, I31, I32, I33"
 assert_eq "a lane finding omits Confidence" "" \
   "$(printf '%s\n' "$LROWS" | awk -F'|' '{print $4}' | tr -d ' ' | sort -u)"
@@ -734,7 +734,7 @@ assert_contains "I33 Action names the hub as the off-site remediation target" "$
 
 # Identity: every emitted row carries finding_id, stable across runs, and an
 # edit to the I33 opener changes that finding's id alone.
-assert_eq "every emitted lane row carries a finding_id" "4" \
+assert_eq "every emitted lane row carries a finding_id" "5" \
   "$(printf '%s\n' "$LROWS" | grep -c 'finding_id=[0-9a-f]\{16\} -- ')"
 LOUT2="$(lane_emit "$TEST_TMPDIR/lane2.md")"
 ids_of() { printf '%s\n' "$1" | grep '^| [0-9]' | grep -o 'finding_id=[0-9a-f]*' | sort; }
@@ -846,6 +846,69 @@ assert_contains "I33 on a references/ spoke opener is emitted" "$REFOUT" \
   "| skills/multi/references/spoke.md:3 |"
 assert_contains "an I32 line with two candidate targets names no target" \
   "$(printf '%s\n' "$REFOUT" | grep 'skills/multi/SKILL.md:8')" 'shape="route-to-absent-skill"'
+
+# --- Case 18: I31/I33 surfaces follow criteria.md; the I32 tier follows the arm -
+# I31 covers SKILL.md and every file a skill loads (actions/, root-level and
+# <slice>/README.md spokes); I33 covers the same minus SKILL.md, and names the
+# nearest SKILL.md above the spoke as its hub. A file outside any skill
+# directory is declined and counted. I32 is CRITICAL under plugins/ and
+# IMPORTANT on a user or project surface.
+SURFREPO="$TEST_TMPDIR/surf-repo"
+SURFSKILL="plugins/demo/skills/tool"
+mkdir -p "$SURFREPO/$SURFSKILL/actions" "$SURFREPO/$SURFSKILL/slice" "$SURFREPO/docs" "$SURFREPO/.claude/rules"
+git -C "$SURFREPO" init -q
+cat >"$SURFREPO/$SURFSKILL/SKILL.md" <<'EOF'
+---
+name: tool
+description: Surface fixture.
+---
+
+# Tool
+
+The retry no longer counts toward the budget.
+
+Use `/fleet:reachx` to probe a host that does not answer.
+EOF
+printf '%s\n' '# Act' '' 'The retry no longer counts toward the budget.' >"$SURFREPO/$SURFSKILL/actions/act.md"
+printf '%s\n' '# Formats' '' 'This file is loaded by the hub when the skill writes output.' >"$SURFREPO/$SURFSKILL/formats.md"
+printf '%s\n' '# Slice' '' 'This file is loaded by the hub for the slice.' >"$SURFREPO/$SURFSKILL/slice/README.md"
+printf '%s\n' '# Notes' '' 'The retry no longer counts toward the budget.' >"$SURFREPO/docs/notes.md"
+# shellcheck disable=SC2016 # the backticks are fixture text, not a command substitution
+printf '%s\n' '# Rule' '' 'Use `/fleet:reachx` to probe a host that does not answer.' >"$SURFREPO/.claude/rules/route.md"
+SURFLANE="$TEST_TMPDIR/surf-lane.txt"
+printf '%s\n' \
+  "$SURFSKILL/SKILL.md:8:I31" \
+  "$SURFSKILL/actions/act.md:3:I31" \
+  "$SURFSKILL/formats.md:3:I33" \
+  "$SURFSKILL/slice/README.md:3:I33" \
+  "docs/notes.md:3:I31" \
+  "$SURFSKILL/SKILL.md:10:I32" \
+  ".claude/rules/route.md:3:I32" >"$SURFLANE"
+SURFOUT="$( (cd "$SURFREPO" && bash "$EMIT" --from-lane "$SURFLANE" --out "$TEST_TMPDIR/surf.md" --branch x) >/dev/null 2>&1
+  cat "$TEST_TMPDIR/surf.md" 2>/dev/null)"
+SURFROWS="$(printf '%s\n' "$SURFOUT" | grep '^| [0-9]')"
+assert_contains "I31 in a SKILL.md is emitted" "$SURFROWS" "| $SURFSKILL/SKILL.md:8 |"
+assert_contains "I31 in an actions/ file is emitted" "$SURFROWS" "| $SURFSKILL/actions/act.md:3 |"
+assert_contains "I33 in a root-level spoke is emitted" "$SURFROWS" "| $SURFSKILL/formats.md:3 |"
+assert_contains "I33 in a <slice>/README.md spoke is emitted" "$SURFROWS" "| $SURFSKILL/slice/README.md:3 |"
+assert_contains "the I33 hub of a root-level spoke is the SKILL.md beside it" \
+  "$(printf '%s\n' "$SURFROWS" | grep 'formats.md:3')" "loading condition: $SURFSKILL/SKILL.md, where"
+assert_contains "the I33 hub of a slice README is the nearest SKILL.md above it" \
+  "$(printf '%s\n' "$SURFROWS" | grep 'slice/README.md:3')" "loading condition: $SURFSKILL/SKILL.md, where"
+SUBLANE="$TEST_TMPDIR/sub-lane.txt"
+printf '%s\n' "formats.md:3:I33" >"$SUBLANE"
+(cd "$SURFREPO/$SURFSKILL" && bash "$EMIT" --from-lane "$SUBLANE" --out "$TEST_TMPDIR/sub.md" --branch x) >/dev/null 2>&1
+assert_contains "the I33 hub is found when run from a subdirectory with a relative path" \
+  "$(grep 'formats.md:3' "$TEST_TMPDIR/sub.md" 2>/dev/null)" "loading condition: $SURFSKILL/SKILL.md, where"
+assert_contains "I31 in a file outside any skill dir is declined and counted" "$SURFOUT" \
+  "Declined candidates: I31 count=1 reason=outside-rule-surfaces"
+assert_not_contains "and never emitted" "$SURFROWS" "| docs/notes.md:3 |"
+assert_eq "an I32 under plugins/ is CRITICAL" "CRITICAL" \
+  "$(printf '%s\n' "$SURFROWS" | grep "SKILL.md:10 " | awk -F'|' '{print $3}' | tr -d ' ')"
+assert_eq "an I32 on a project surface is IMPORTANT" "IMPORTANT" \
+  "$(printf '%s\n' "$SURFROWS" | grep '.claude/rules/route.md:3 ' | awk -F'|' '{print $3}' | tr -d ' ')"
+assert_contains "the CRITICAL I32 ranks above the IMPORTANT one" \
+  "$(printf '%s\n' "$SURFROWS" | head -n 1)" "| CRITICAL |"
 
 # --- Summary -----------------------------------------------------------------
 printf '\n'

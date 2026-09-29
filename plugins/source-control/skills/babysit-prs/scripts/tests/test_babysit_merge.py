@@ -633,6 +633,47 @@ class TierAbsentIsInert(TierEvaluateHarness):
         self.assertTrue(result["ready"], result["blockers"])
 
 
+class PullRequestBodyHold(TierEvaluateHarness):
+    def test_body_saying_do_not_merge_blocks_with_and_without_the_tier(self) -> None:
+        for body in (
+            "Superseded. Do not merge this draft.",
+            "Please don't merge until the migration lands.",
+        ):
+            for tier in (TIER, None):
+                with self.subTest(body=body, tier=tier is not None):
+                    result = self._evaluate(_pr(body=body), tier=tier)
+                    self.assertFalse(result["ready"])
+                    self.assertTrue(
+                        any("body says do not merge" in b for b in result["blockers"]),
+                        result["blockers"],
+                    )
+
+    def test_do_not_merge_label_blocks_with_and_without_the_tier(self) -> None:
+        for name in ("do-not-merge", "Do-Not-Merge"):
+            for tier in (TIER, None):
+                with self.subTest(label=name, tier=tier is not None):
+                    result = self._evaluate(_pr(labels=[{"name": name}]), tier=tier)
+                    self.assertFalse(result["ready"])
+                    self.assertTrue(
+                        any("'do-not-merge' label" in b for b in result["blockers"]),
+                        result["blockers"],
+                    )
+
+    def test_other_labels_do_not_block_without_the_tier(self) -> None:
+        result = self._evaluate(_pr(labels=[{"name": "needs-review"}]), tier=None)
+        self.assertTrue(result["ready"], result["blockers"])
+
+    def test_body_naming_the_label_or_plain_prose_does_not_block(self) -> None:
+        for body in (
+            "",
+            "Adds the do-not-merge label check to the merge lane.",
+            "Merge order: this one goes first, then the follow-up.",
+        ):
+            with self.subTest(body=body):
+                result = self._evaluate(_pr(body=body), tier=None)
+                self.assertTrue(result["ready"], result["blockers"])
+
+
 class DistinctBotApprovalUnit(unittest.TestCase):
     def test_last_eligible_approval_on_head_wins(self) -> None:
         reviews = [

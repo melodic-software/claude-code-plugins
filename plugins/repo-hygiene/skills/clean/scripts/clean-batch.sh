@@ -23,17 +23,19 @@
 # fleet-level analogue of the child's per-repo manifest staleness guard.
 #
 # Usage:
-#   clean-batch.sh --tier <caches|build|git|all> [--dry-run|--apply]
+#   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
 #                  [--repo DIR...]... [--repos-from FILE|-]...
 #                  [--skip ENTRY]... [--skip-from FILE]...
 #                  [--batch-plan FILE] [--help]
-# Default: --dry-run.
+# Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
+# plan, and --apply / --batch-plan with it are usage errors.
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
 #       1 one or more repos failed mid-apply (a child rm failure, or a structurally
 #         corrupt plan record failed closed);
 #       2 usage/validation error (no tier, no repos, bad flag, apply without plan,
-#         or a plan whose records do not match the requested --tier).
+#         --apply or --batch-plan with --tier scan, or a plan whose records do
+#         not match the requested --tier).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,7 +47,7 @@ usage() {
 clean-batch.sh — run the selective clean tiers across many repos behind one gate.
 
 Usage:
-  clean-batch.sh --tier <caches|build|git|all> [--dry-run|--apply]
+  clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
                  [--repo DIR...]... [--repos-from FILE|-]...
                  [--skip ENTRY]... [--skip-from FILE]...
                  [--batch-plan FILE] [--help]
@@ -54,6 +56,10 @@ Default: --dry-run (inventory only; writes a batch plan, no mutations).
 
 Tiers (mirror the single-repo tiers; `tree` is NOT batched here — use
 git-tree-reset-batch.sh):
+  scan    read-only inventory per repo (scan.sh); writes no plan, and --apply /
+          --batch-plan are usage errors. Prints `Outcome: scanned` per repo and
+          `Summary: repos=N planned=0 bytes=K skipped=S blocked=B`, K the summed
+          `Total reclaimable`.
   caches  remove tool/linter caches per repo (clean-caches.sh)
   build   remove build output + caches per repo (clean-build.sh --include-caches)
   git     prune/gc each unique shared object store once (git-prune.sh)
@@ -96,18 +102,22 @@ fail_usage() {
 
 TIER=""
 DRY_RUN=1
+APPLY_GIVEN=0
 BATCH_PLAN_ARG=""
 REPO_INPUTS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --tier)
-    [[ $# -ge 2 ]] || fail_usage "--tier requires caches|build|git|all"
+    [[ $# -ge 2 ]] || fail_usage "--tier requires scan|caches|build|git|all"
     TIER="$2"
     shift
     ;;
   --dry-run) DRY_RUN=1 ;;
-  --apply) DRY_RUN=0 ;;
+  --apply)
+    DRY_RUN=0
+    APPLY_GIVEN=1
+    ;;
   --batch-plan)
     [[ $# -ge 2 ]] || fail_usage "--batch-plan requires a file"
     BATCH_PLAN_ARG="$2"
@@ -149,10 +159,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$TIER" in
-caches | build | git | all) ;;
-"") fail_usage "no tier (use --tier caches|build|git|all)" ;;
-*) fail_usage "unknown tier '$TIER' (use caches|build|git|all)" ;;
+scan | caches | build | git | all) ;;
+"") fail_usage "no tier (use --tier scan|caches|build|git|all)" ;;
+*) fail_usage "unknown tier '$TIER' (use scan|caches|build|git|all)" ;;
 esac
+
+if [[ "$TIER" == scan ]]; then
+  [[ "$APPLY_GIVEN" -eq 0 ]] || fail_usage "--tier scan is read-only: --apply is not accepted"
+  [[ -z "$BATCH_PLAN_ARG" ]] || fail_usage "--tier scan writes no plan: --batch-plan is not accepted"
+fi
 
 # Which selective child + flags a tier runs per repo. `all` and `build` both fold
 # the caches tier into the build manifest (single-repo `build` = includes caches).
@@ -216,6 +231,54 @@ plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 # field out of it, or nothing when the field is absent (callers default to 0).
 summary_line() { sed -n 's/^Summary: //p' <<<"$1" | head -1; }
 summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
+
+# ---------------------------------------------------------------------------
+# SCAN: read-only inventory per repo; no plan, nothing to gate.
+# ---------------------------------------------------------------------------
+if [[ "$TIER" == scan ]]; then
+  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
+  batch_resolve_repos "${REPO_INPUTS[@]}"
+  batch_reset_skip_hits
+
+  SKIPPED=0
+  BLOCKED=0
+  SCAN_BYTES=0
+  printf 'Fleet Clean (scan)\n'
+  printf 'Tier: scan\n'
+  printf 'Repos: %s\n' "${#BATCH_TOPS[@]}"
+  printf '%s\n' '---'
+  for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
+    top="${BATCH_TOPS[$i]}"
+    printf 'Progress: %s/%s %s\n' "$((i + 1))" "${#BATCH_TOPS[@]}" "$top" >&2
+    if batch_skip_match "${BATCH_KEYS[$i]}"; then
+      batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+    out="$(cd "$top" && bash "$SCRIPT_DIR/scan.sh" 2>&1)"
+    rc=$?
+    bytes="$(sed -n 's/^Total reclaimable: \([0-9]*\)$/\1/p' <<<"$out" | head -1)"
+    # scan.sh exits 0 even when it fails and then prints no total; a missing total
+    # is a blocked repo, never a silent 0.
+    if [[ "$rc" -ne 0 || -z "$bytes" ]]; then
+      batch_emit "$top" blocked "scan failed (child exit $rc, no total)"
+      printf '%s\n' "$out" >&2
+      BLOCKED=$((BLOCKED + 1))
+      continue
+    fi
+    paths="$(grep -c '^Path: ' <<<"$out" || true)"
+    SCAN_BYTES=$((SCAN_BYTES + bytes))
+    batch_emit "$top" scanned "$paths path(s), $(clean_human_size "$bytes") reclaimable"
+  done
+  for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
+    batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
+    BLOCKED=$((BLOCKED + 1))
+  done
+  batch_report_unmatched_skips
+  printf 'Summary: repos=%s planned=0 bytes=%s skipped=%s blocked=%s\n' \
+    "${#BATCH_TOPS[@]}" "$SCAN_BYTES" "$SKIPPED" "$BLOCKED"
+  exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # APPLY: consume the gated plan only (never re-enumerate).

@@ -4,6 +4,15 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.5.0] - 2026-09-29
+
+Additive guidance; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **Recorded the house position on inline-dependency runners.** Anti-pattern 1 gains a short
+  subsection: bundled scripts are not launched through PEP 723 inline-dependency runners (`uvx`,
+  `pipx run` and the like), because an allow rule written for a package runner is dropped in auto
+  mode and grants nothing.
+
 ## [1.4.0] - 2026-09-12
 
 Substantive correction to anti-pattern 2. The convention asserted that `${CLAUDE_PLUGIN_ROOT}` is not

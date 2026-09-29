@@ -11,7 +11,7 @@ and confirms at every stage.
 | Skill | What it does |
 |---|---|
 | `/wizard:generate` | Scope the manual procedure from the repo, author its stages onto the fixed hardened template, verify statically, and hand off to the human after explicit approval |
-| `/wizard:unattended` | Author a PowerShell script the human launches once when the work is scriptable and the human is only the privilege or policy boundary. The script writes `cutover.result/1` JSON |
+| `/wizard:unattended` | Author a PowerShell script the human launches once when the work is scriptable and the human is only the privilege or policy boundary. The script writes `cutover.result/1` JSON. Needs PowerShell 7 (`pwsh`); see Prerequisites |
 
 The skill is model-invoked: when the agent hits a step only a human can take,
 a key it can't mint, a dashboard it can't click, it can reach for this instead
@@ -49,6 +49,11 @@ it never fires for steps the agent can perform itself.
 
 - **bash**, to run the generated script. On Windows the supported path is Git
   Bash or WSL. (Generating a wizard needs nothing beyond the agent itself.)
+- **PowerShell 7 (`pwsh`)**, to run a script `/wizard:unattended` authors. Launch it
+  with `pwsh -File <script>`: Windows PowerShell 5.1 fails at the script's
+  `#requires -Version 7.0`. On Windows, install it side by side with 5.1 using
+  `winget install --id Microsoft.PowerShell --source winget`
+  ([install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows)).
 - **`gh` (GitHub CLI), optional**. Only for stages that write GitHub Actions
   secrets or variables. When `gh` is missing or unauthenticated those stages
   warn visibly and land in the closing to-do summary instead of failing the
