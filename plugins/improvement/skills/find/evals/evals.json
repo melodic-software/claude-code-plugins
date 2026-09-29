@@ -45,7 +45,7 @@
     {
       "id": 4,
       "name": "already-built-disconnected-scan-d7-d11",
-      "prompt": "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead. Treat evals/fixtures/disconnected-admin-export/ as the repository root.",
+      "prompt": "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead. Scope the scan to the files under evals/fixtures/disconnected-admin-export/ and ignore everything outside that directory.",
       "expected_output": "Before proposing net-new work, scans for already-built-but-disconnected surfaces and finds the three planted in the fixture: the dead import (`exportRowsToCsv` is imported in `src/admin/routes.js` but never called, so `src/reports/csv-exporter.js` is unused), the dark feature flag (`adminBulkExport` is `false` in `config/flags.json` and gates the `POST /admin/orders/export` route), and the unread table (`export_audit` is written by that route but no query reads it). Surfaces them as a ranked candidate ahead of any greenfield admin-export build, each with a file citation, and edits nothing.",
       "files": [
         "evals/fixtures/disconnected-admin-export/README.md",
