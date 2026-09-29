@@ -61,13 +61,13 @@ fi
 # rm's recursive (-r/-R/--recursive) and force (-f/--force) flags are matched
 # independently, so separated, reordered, capitalized, and long spellings are
 # caught — not only the adjacent -rf cluster. git's destructive subcommands
-# tolerate global options (-C <path>, -c <cfg>, --git-dir=…) between `git` and
-# the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
+# tolerate global options (-C <path>, -c <cfg>, --git-dir=…, flag-only ones such
+# as --no-pager) between `git` and the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
 # without force are git no-ops, so blocking them (including dry-run -nx) is a
 # false positive.
 is_destructive() {
   local cmd="$1"
-  local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+)*'
+  local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+|(-[pP]|--[a-zA-Z-]+)[[:space:]]+)*'
   local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([^[:alnum:]_-]|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
@@ -91,15 +91,16 @@ is_destructive() {
   fi
   # Branch deletion: a -d/-D short-flag cluster or --delete after `branch`, in the
   # same statement (a `;`, `&` or `|` ends it, so `xargs -d` after a pipe is not read).
-  if grep -qE "git[[:space:]]+${gopt}branch[[:space:]]([^;&|]*[[:space:]])?(--delete|-[a-zA-Z]*[dD])" <<<"$cmd"; then
+  if grep -qE "git[[:space:]]+${gopt}branch[[:space:]]([^;&|]*[[:space:]])?['\"]?(--delete|-[a-zA-Z]*[dD])" <<<"$cmd"; then
     return 0
   fi
-  # Remote deletion: `push --delete`, a -d cluster, or a `:ref` refspec. A dry-run
-  # (--dry-run/-n) in the same push statement is a preview and stays allowed.
+  # Remote deletion: `push --delete`, a -d cluster, or a `:ref` or `+:ref` refspec.
+  # A dry-run (--dry-run, or an -n cluster with no -o push option) in the same push
+  # statement is a preview and stays allowed.
   local push
   while IFS= read -r push; do
-    if grep -qE "[[:space:]](--delete|-[a-zA-Z]*d|['\"]?:[^[:space:]'\"])" <<<"$push" &&
-      ! grep -qE '[[:space:]](--dry-run|-[a-zA-Z]*n)' <<<"$push"; then
+    if grep -qE "[[:space:]](['\"]?(--delete|-[a-np-zA-Z]*d)|[+]?['\"]?:[^[:space:]'\"])" <<<"$push" &&
+      ! grep -qE '[[:space:]](--dry-run|-[a-np-zA-Z]*n[a-np-zA-Z]*)([[:space:]]|$)' <<<"$push"; then
       return 0
     fi
   done < <(grep -oE "git[[:space:]]+${gopt}push[[:space:]][^;&|]*" <<<"$cmd")

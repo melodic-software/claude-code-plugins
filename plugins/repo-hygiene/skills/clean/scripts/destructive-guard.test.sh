@@ -254,6 +254,10 @@ for cmd in \
   "git branch -fd x" \
   "git branch -vD x" \
   "git -C /d/repo branch -D x" \
+  "git --no-pager branch -D x" \
+  "git -p branch -D x" \
+  "git --no-pager clean -fd" \
+  "git branch \"-d\" x" \
   "git branch a b -D" \
   "git branch --merged | xargs git branch -d" \
   "git push origin --delete feature/x" \
@@ -264,6 +268,12 @@ for cmd in \
   "git push origin :refs/heads/x" \
   "git push origin ':feature/x'" \
   "git -C /d/repo push origin --delete x" \
+  "git --no-optional-locks push origin --delete x" \
+  "git push origin +:refs/heads/x" \
+  "git push origin +:feature/x" \
+  "git push origin \"--delete\" x" \
+  "git push origin '--delete' x" \
+  "git push origin --delete -oconfirmed x" \
   "git push --dry-run origin main; git push origin --delete x" \
   "git push -d origin x; ls -n"; do
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
@@ -290,7 +300,9 @@ for cmd in \
   "git branch -a; ls -d /tmp" \
   "git branch --merged | xargs -d x echo" \
   "git -C /d/repo branch -a" \
+  "git --no-pager branch -a" \
   "git push" \
+  "git push -oconfirmed origin main" \
   "git push origin main" \
   "git push origin HEAD:refs/heads/x" \
   "git push -u origin feature-d" \
