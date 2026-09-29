@@ -82,6 +82,37 @@ added, and neither is mechanical:
 *Moving* an existing deny rule from local to project stays mechanical, since it is bug #8961 placement,
 not a policy change. That is why the two rows are graded differently.
 
+### Settings edits go through update-config
+
+Apply each approved settings-file edit (`settings.json`, `settings.local.json`) by invoking
+`update-config`, the harness-configuration skill, with the one change the user approved, not by a
+raw Edit. The auto-mode classifier treats an agent's edit to its own permission or hook
+configuration as a self-modification unless the user's own message names that specific change, so
+the approved finding number and the change it stands for have to be in the conversation before the
+edit. `--fix` already stops for that reply (Phase 4); one reply approving "all" covers the
+changes the findings table listed, not a change the table did not list. Read the live rule with
+`claude auto-mode defaults` and the docs page "Approvals you state in conversation" on
+`code.claude.com/docs/en/permission-modes` instead of restating them here.
+
+### Auto-mode refusals
+
+Under `--fix` two steps can be refused even after the user approved the fixes: writing the
+team-layer suppression record `.claude/audit-pass.md`, and re-running `audit-engine.sh` after the
+fixes to build the before/after `summary`. A refusal is a decision by the classifier, not a tool
+error. Do not retry it, rephrase the command, or reach the same result through another tool or an
+interpreter one-liner. Instead:
+
+1. Stop that step and report it as not performed, naming the file or command.
+2. Give the operator the exact command or file content to apply themselves: the stanza the
+   `--table` output's `suppress:` line already prints (with a `reason` and `date` for them to
+   fill), or the literal `audit-engine.sh` invocation.
+3. State that the before/after summary is unavailable. Never fill it from the pre-fix run or
+   estimate it.
+4. Tell the operator the two ways past a refusal: state the specific write in a message so the
+   next attempt is user-requested, or leave auto mode and answer the permission prompt.
+
+Continue with the remaining approved fixes; a refusal on one step does not cancel the others.
+
 ## The findings artifact and the suppression record
 
 `audit-engine.sh --out <file>` writes every finding as a row in the identity shape the sibling

@@ -319,7 +319,9 @@ environment.
 
 For each user-approved fix:
 
-1. Make the edit. Done when the target file carries the change and nothing else in it moved.
+1. Make the edit. Done when the target file carries the change and nothing else in it moved. A
+   settings-file edit goes through `update-config` (the harness-configuration skill), not a raw
+   Edit, so the user's confirmation of that specific change is on record.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
@@ -328,7 +330,8 @@ For each user-approved fix:
 After all fixes:
 
 - Re-run the engine and present the before/after `summary` (findings by severity, rule counts,
-  server counts)
+  server counts). If auto mode refuses the re-run or a write, follow "Auto-mode refusals" in
+  [context/procedures.md](context/procedures.md) instead of retrying or working around it.
 - Verify all config files are still valid JSON
 
 ### Fixes the skill can apply
