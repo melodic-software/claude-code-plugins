@@ -125,7 +125,7 @@ limit. `/discovery:research-deep` splits only topics that share no claims, so ga
 source stay in one run by design. This step is where those gaps fan out.
 
 **When.** All three hold: the dispatch prompt says `Capability flags: nested spawning available`,
-the `Agent` tool is actually present, and the Phase 1 list (or the brief) carries 3 or more
+the `Agent` tool is actually present, and the Phase 1 list (or the brief) carries two or more
 numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
 
 1. **Group, then assign.** Gaps that point at the same primary go to one worker; every other gap

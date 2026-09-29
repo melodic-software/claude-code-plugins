@@ -402,7 +402,7 @@ You were dispatched to supply an independent context, and you did. Run the disci
 not dispatch a further subagent to run it for you, and do not dispatch one to check your own work.
 Independence comes from a context that has not seen what you produced, which is the sibling verifier
 the parent spawns, not a child of yours. Parallel workers are for throughput, never for verdicts:
-Phase 2's per-gap fan-out when the gap list has 3 or more numbered gaps (the research skill's
+Phase 2's per-gap fan-out when the gap list has two or more numbered gaps (the research skill's
 Phase 2 and its discipline file's "Per-gap fan-out (Phase 2)"), or several independent queries of
 equal standing. Use them only when your dispatch prompt says nesting is available and the `Agent`
 tool is actually there. Without it, go sequential: slower, same coverage.

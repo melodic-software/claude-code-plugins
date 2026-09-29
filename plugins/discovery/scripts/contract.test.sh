@@ -223,6 +223,18 @@ assert_present 'the researcher body points at the per-gap fan-out' \
   'agents/researcher.md' 'Per-gap fan-out \(Phase 2\)'
 assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
   'skills/research-deep/SKILL.md' 'Per-gap fan-out \(Phase 2\)'
+for site in agents/researcher.md skills/research/context/discipline.md skills/research/context/phases.md; do
+  assert_present "the per-gap fan-out threshold reads two or more numbered gaps in $site" \
+    "$site" 'two or more( numbered)?$|two or more numbered gaps'
+done
+assert_absent 'no fan-out threshold reads 3 or more gaps' \
+  '(3|three) or more( numbered( gaps)?)?$|(3|three) or more numbered gaps'
+
+# research-deep points at the Budget: vocabulary and the verifier instead of restating either.
+assert_present 'research-deep points Budget: at the parent-contract vocabulary' \
+  'skills/research-deep/SKILL.md' 'parent-contract\.md.*"`Budget:` vocabulary"'
+assert_present 'research-deep names the verifier, its write-back and the cost skip' \
+  'skills/research-deep/SKILL.md' 'discovery:research-verifier`.*`verification:` write-back.*`skipped \(cost\)`'
 
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
