@@ -1188,4 +1188,17 @@ assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
 
 assert_real_worktree_root_clean "$TEST_TMPDIR"
 
+# --- Case: --existing-branch checks out a branch that already exists ---
+repo=$(mkrepo)
+git -C "$repo" branch feature
+root="$TEST_TMPDIR/wtroot-existing"
+errfile="$TEST_TMPDIR/err-existing.txt"
+out=$(bash "$HELPER" --name feature --existing-branch --root "$root" --repo-dir "$repo" 2>"$errfile")
+assert_exit "existing branch worktree succeeds" 0 "$?"
+assert_eq "existing branch worktree is on feature" "feature" \
+  "$(git -C "$out" branch --show-current)"
+assert_file_exists "existing branch worktree has the commit" "$out/README.md"
+bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" >/dev/null 2>"$errfile"
+assert_exit "missing existing branch is a usage error" 2 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1
