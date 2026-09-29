@@ -38,7 +38,7 @@ Anything else lands in `<StateBase>/TODO.md` as a proposal for human review: new
 
 **Adding a check:**
 
-1. Create `<StateBase>/scripts/<os>/checks/Test-<Thing>.ps1`. Use an existing check as template. Emit via `Write-HealthResult.ps1`.
+1. Create `<StateBase>/scripts/<os>/checks/Test-<Thing>.ps1`. Use an existing check as template: set `$id`, `$category`, `$commands`, `$FailureSummary` and `$CheckBody`, then dot-source `Invoke-HealthCheckEnvelope.ps1`, which owns the catch, the `UNKNOWN` fallback and the result write (contract in the script header).
 2. Append a full entry to the overlay at `<StateBase>/catalog/checks.local.jsonc` with `added_on: <run_id_date>`, `crash_count: 0`, `identical_streak: 0`. See `catalog-overlay.md` § Custom checks.
 3. Note the addition in this run's report under "Newly discovered checks" with one-line rationale.
 
