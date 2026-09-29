@@ -336,6 +336,8 @@ in the table above**, and the table's two flips are the only entries that are no
 
 - plugin-philosophy: setup contract (class ii source), Instruction economy (listing-cost
   doctrine), Convention registry (this doc's row).
+- [invocation-context](../invocation-context/README.md): whether the body runs inline or as
+  `context: fork`; orthogonal to this rubric's invoke-or-not axis.
 - `skill-quality:check`: `listing-budget` (measurement) and check 24, the explicit-key criterion
   (enforcement: FAIL for a marketplace plugin skill, WARN elsewhere; class attribution is
   hand-verified against this doc, since only a `setup` skill's `true` is decidable by a static scan).
