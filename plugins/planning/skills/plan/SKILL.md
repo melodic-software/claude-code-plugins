@@ -63,6 +63,73 @@ Parse `$ARGUMENTS` to determine the action:
 
 ## Planning Process
 
+### Gates
+
+These hold after a compaction re-attach. Later steps say how to carry them out.
+
+- **Reviewer.** Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent. The producing thread does not self-attack the plan inline.
+- **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
+- **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory.
+
+### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
+
+Before presenting at Step 5, persist the composed plan as a **draft** to `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; under `contract_tier: local` it joins the memory slice. The final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it. Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting.
+
+Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and require exit 0. It decides the mechanical criteria off the file, one `criterion=<name> status=<pass|fail>` line each:
+
+- **Every phase has ≥1 `Sanity Check`**, counted per phase section; a phase with no verifiable check is unshippable.
+- **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]`, `[DOING]`, or `[DONE]`; no untagged phase.
+- **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is persisted in PLAN.md with at least one row.
+- **Blast radius assessed**. A Blast-radius line naming LOW, MEDIUM, HIGH, or CRITICAL exists (from Step 3b), not omitted.
+- **Paths are portable**. No drive-letter path and no `/Users/<name>` or `/home/<name>` path, since a committed PLAN.md is read on other machines; a deliberate example carries `<!-- path-example -->` on its line.
+
+The rest are judgment checked by reading, or have their own script:
+
+- **Every brief scope-item maps to a phase**. Walk the Brief's scope list against the phases; no scope-item silently dropped, no in-scope phase missing.
+- **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled, not left only in the plan body; below-bar decisions were interviewed, not decided. The script checks only that the table has rows.
+- **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
+
+This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
+
+**The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet).
+
+### Step 5: Present for Approval
+
+Present the final plan to the user. The plan is a proposal, not a commitment. The user approves, modifies, or rejects it before execution begins.
+
+Unattended approval is the Gates rule under Planning Process, above.
+
+**Include in the presentation:**
+
+1. The structured plan (from Step 2, updated by Steps 3-4 if applicable)
+2. Blast-radius assessment (from Step 3b)
+3. Stress-test summary (from Step 4, if run). Or "Skipped: blast radius LOW, no triggers matched"
+4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table. Skipped for single-phase plans
+5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
+6. **Decisions made (gate-passed)** (from Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here. They were interviewed before the plan locked. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is also valid output
+7. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion. Flag any you want changed."
+8. **Highest-leverage replies**: close with 2-4 pre-drafted one-line revision replies, one per flagged close call or gate-passed decision, each a copyable sentence that flips exactly that decision (e.g. "Switch phase 2 to the queue-based alternative"). The user's cheapest possible reaction is pasting one back; a presentation whose flagged decisions have no pre-drafted flip line makes the user compose the revision themselves
+
+**Presentation order. Tweak-likelihood first.** Order the presentation by what the user is most likely to change on review: data-model/schema choices, type interfaces and public contracts, and user-facing surfaces LEAD (flag close calls with their alternatives); mechanical refactoring and low-judgment work sits at the bottom. Presentation order only. Phase EXECUTION order stays integration-first per Step 2. Optionally offer a self-contained HTML plan view (decisions-first layout, flagged choices with toggleable alternatives), rendered to the topic-docs **ephemeral tier**, never the contract slice beside `PLAN.md`, which stays the tracked record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+
+If 2–4 named alternatives surfaced during the stress-test, present them side by side via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on. Numbered inline prose otherwise. For open-ended approval (single proposal, no alternatives) use prose.
+
+**After approval. Branch-name check:**
+
+Before handing off to implementation, verify the branch name matches the approved scope. Scope is now locked. The branch name should reflect the work.
+
+| Current branch | Action |
+|----------------|--------|
+| `main` or `master` | STOP. Cannot implement on the default branch. Suggest `git checkout -b <type>/<topic-slug>` derived from the plan topic + conventional prefix |
+| Auto-generated or placeholder name | Derive the name from the plan: `<type>/<topic-slug>` (type from the plan's nature. `feat/`, `fix/`, `refactor/`, `chore/`, etc.). Suggest the rename; let the user execute unless the environment is isolated (worktree or remote session), where renaming directly is safe |
+| Matches a conventional prefix (`feat/`, `fix/`, etc.) | OK. No action needed |
+
+Derive the conventional type from plan content: new capability → `feat/`, bug fix → `fix/`, restructuring → `refactor/`, tooling/maintenance → `chore/`, docs-only → `docs/`, tests-only → `test/`, build config → `build/`, performance → `perf/`.
+
+**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implementation:implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/planning:plan review` to re-plan rather than pushing through a broken approach.
+
+Step 5, the approval gate, is placed with the gates above so a compaction re-attach keeps it. The approval gate is the point.
+
 ### Step 1: Prerequisite Check
 
 Prefer the simplest plan that works and keep each step's changes surgical.
@@ -145,7 +212,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 ### Step 3: Plan Stress-Test
 
-**Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline. Fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
+Apply the reviewer rule under Planning Process before blast radius or presentation. The producing main thread MUST NOT self-attack the plan inline. Fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
 2. **Surface the cost.** Tell the user a fresh-context plan review runs now: one bounded sub-agent
@@ -209,85 +276,15 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 
 After the phase plan is locked but before Step 5 approval, compute the execution shape: which phases can run in parallel and which surface each phase runs on. **Default ON** for any plan with ≥2 phases; emits a one-line "fully sequential. Phase X gates phase Y" note when no parallelism opportunity exists. Skip entirely for single-phase plans or trivial fixes. Skipped = all-main-session execution, stated in one line.
 
-**Analysis steps:**
-
-1. **File-overlap matrix**. For each phase pair (i, j), check whether their ALLOWED file lists intersect. Zero overlap = parallel-safe candidate
-2. **Dependency graph**. Explicit (Phase A produces output Phase B consumes; Phase A's contract change is cited by Phase B's Sanity Check) + implicit (semantic-source-before-mechanical-execution; sweep-before-detector-activation)
-3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap AND no inter-phase dependencies
-4. **Identify Wave B+ (sequential)**. Phases blocked by Wave A outputs
-5. **Recommend shape**. RECOMMEND parallel when ≥2 phases are parallel-safe AND the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
-6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per [context/plan-template.md](context/plan-template.md) "Scope-fencing tables"
-7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
-8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface**. Give each phase a routing row (`Phase | Surface | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
-
-**Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
-
-**Composition risks:**
-
-- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
-- PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
-- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; teammates are NOT worktree-isolated, so disjoint file ownership is mandatory, not optional. Agent teams are an experimental, default-off runtime surface: the harness documentation states they are "experimental and disabled by default" and names the environment variable that turns them on, without which no team is set up at session start and Claude spawns no teammates. Verified 2026-09-06 against Claude Code 2.1.263 and <https://code.claude.com/docs/en/agent-teams> as fetched that day; recheck when that page drops the experimental label or the default-off statement, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
-- The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents
+The analysis steps, the file-overlap matrix, and the composition risks: [context/plan-template.md](context/plan-template.md) "Execution-shape analysis".
 
 ### Step 4.6: Tag unilateral decisions
 
-Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief: `[EXEC-SHAPE]` (your discretion within briefed scope) or `[FALLBACK]` (an invented contingency the brief didn't anticipate, for the user to confirm or override); briefed decisions get no tag. **Then apply the confidence gate**: DECIDE only when the basis is evidence captured this session (a codebase pattern read, a research finding, or a directly-on-point project convention) with no surviving reasonable alternative; everything below the bar, judgment calls, sizing guesses, either-would-work placements, routes to an interview round BEFORE the plan locks; hard-to-reverse decisions escalate EARLY regardless of confidence. Full gate, taxonomy, and presentation contract: [context/tag-decisions.md](context/tag-decisions.md). Surface every gate-passed decision at Step 5 in the "Decisions made (gate-passed)" TABLE (Decision | What it changes in the plan | Basis | Source) so the user can override before implementation. An adopted mitigation is classified per [context/tag-decisions.md](context/tag-decisions.md) "Adopted mitigation".
+Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief: `[EXEC-SHAPE]` (your discretion within briefed scope) or `[FALLBACK]` (an invented contingency the brief didn't anticipate, for the user to confirm or override); briefed decisions get no tag. **Then apply the confidence gate**: DECIDE only when the basis is evidence captured this session (a codebase pattern read, a research finding, or a directly-on-point project convention) with no surviving reasonable alternative; everything below the bar, judgment calls, sizing guesses, either-would-work placements, routes to an interview round BEFORE the plan locks; hard-to-reverse decisions escalate early, per the Gates rule under Planning Process. Full gate, taxonomy, and presentation contract: [context/tag-decisions.md](context/tag-decisions.md). Surface every gate-passed decision at Step 5 in the "Decisions made (gate-passed)" TABLE (Decision | What it changes in the plan | Basis | Source) so the user can override before implementation. An adopted mitigation is classified per [context/tag-decisions.md](context/tag-decisions.md) "Adopted mitigation".
 
-### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
+The outcome-gate criteria are under Planning Process, above. Apply them before presenting.
 
-Before presenting at Step 5, persist the composed plan as a **draft** to `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; under `contract_tier: local` it joins the memory slice. The final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it. Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting.
-
-Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and require exit 0. It decides the mechanical criteria off the file, one `criterion=<name> status=<pass|fail>` line each:
-
-- **Every phase has ≥1 `Sanity Check`**, counted per phase section; a phase with no verifiable check is unshippable.
-- **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]`, `[DOING]`, or `[DONE]`; no untagged phase.
-- **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is persisted in PLAN.md with at least one row.
-- **Blast radius assessed**. A Blast-radius line naming LOW, MEDIUM, HIGH, or CRITICAL exists (from Step 3b), not omitted.
-- **Paths are portable**. No drive-letter path and no `/Users/<name>` or `/home/<name>` path, since a committed PLAN.md is read on other machines; a deliberate example carries `<!-- path-example -->` on its line.
-
-The rest are judgment checked by reading, or have their own script:
-
-- **Every brief scope-item maps to a phase**. Walk the Brief's scope list against the phases; no scope-item silently dropped, no in-scope phase missing.
-- **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled, not left only in the plan body; below-bar decisions were interviewed, not decided. The script checks only that the table has rows.
-- **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
-
-This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
-
-### Step 5: Present for Approval
-
-Present the final plan to the user. The plan is a proposal, not a commitment. The user approves, modifies, or rejects it before execution begins.
-
-**The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet).
-
-**Include in the presentation:**
-
-1. The structured plan (from Step 2, updated by Steps 3-4 if applicable)
-2. Blast-radius assessment (from Step 3b)
-3. Stress-test summary (from Step 4, if run). Or "Skipped: blast radius LOW, no triggers matched"
-4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table. Skipped for single-phase plans
-5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
-6. **Decisions made (gate-passed)** (from Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here. They were interviewed before the plan locked. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is also valid output
-7. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion. Flag any you want changed."
-8. **Highest-leverage replies**: close with 2-4 pre-drafted one-line revision replies, one per flagged close call or gate-passed decision, each a copyable sentence that flips exactly that decision (e.g. "Switch phase 2 to the queue-based alternative"). The user's cheapest possible reaction is pasting one back; a presentation whose flagged decisions have no pre-drafted flip line makes the user compose the revision themselves
-
-**Presentation order. Tweak-likelihood first.** Order the presentation by what the user is most likely to change on review: data-model/schema choices, type interfaces and public contracts, and user-facing surfaces LEAD (flag close calls with their alternatives); mechanical refactoring and low-judgment work sits at the bottom. Presentation order only. Phase EXECUTION order stays integration-first per Step 2. Optionally offer a self-contained HTML plan view (decisions-first layout, flagged choices with toggleable alternatives), rendered to the topic-docs **ephemeral tier**, never the contract slice beside `PLAN.md`, which stays the tracked record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
-
-If 2–4 named alternatives surfaced during the stress-test, present them side by side via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on. Numbered inline prose otherwise. For open-ended approval (single proposal, no alternatives) use prose.
-
-**After approval. Branch-name check:**
-
-Before handing off to implementation, verify the branch name matches the approved scope. Scope is now locked. The branch name should reflect the work.
-
-| Current branch | Action |
-|----------------|--------|
-| `main` or `master` | STOP. Cannot implement on the default branch. Suggest `git checkout -b <type>/<topic-slug>` derived from the plan topic + conventional prefix |
-| Auto-generated or placeholder name | Derive the name from the plan: `<type>/<topic-slug>` (type from the plan's nature. `feat/`, `fix/`, `refactor/`, `chore/`, etc.). Suggest the rename; let the user execute unless the environment is isolated (worktree or remote session), where renaming directly is safe |
-| Matches a conventional prefix (`feat/`, `fix/`, etc.) | OK. No action needed |
-
-Derive the conventional type from plan content: new capability → `feat/`, bug fix → `fix/`, restructuring → `refactor/`, tooling/maintenance → `chore/`, docs-only → `docs/`, tests-only → `test/`, build config → `build/`, performance → `perf/`.
-
-**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implementation:implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/planning:plan review` to re-plan rather than pushing through a broken approach.
+The approval presentation (Step 5) is with the gates at the start of Planning Process, so a compaction re-attach keeps it.
 
 ## Plan Mode Integration
 
