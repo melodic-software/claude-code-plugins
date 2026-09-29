@@ -5,6 +5,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.52.2] - 2026-09-29
+
+### Changed
+
+- **`unhobble`: listing description trimmed to 500 characters or fewer.** Quoted triggers are
+  kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.52.1] - 2026-09-29
 
 ### Changed

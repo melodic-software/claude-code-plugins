@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.6] - 2026-09-29
+
+### Changed
+
+- **Six skill descriptions** (`map-landscape`, `improve`, `record-decision`, `map-context`,
+  `map-components`, `map-containers`) fit the 500-character listing target. Trigger phrases and
+  the nearest-sibling Skip-when routes are kept; the bodies are unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.12.5] - 2026-09-28
 
 ### Changed

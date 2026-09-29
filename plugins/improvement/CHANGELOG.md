@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.17]
+
+### Changed
+
+- **`find`: listing description trimmed to 500 characters or fewer.** Quoted triggers and Skip-when routes are kept; the body and options are unchanged ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.1.16]
 
 ### Changed
