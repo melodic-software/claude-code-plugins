@@ -1,0 +1,13 @@
+// good-for: rule-zero-assertion
+// A skipped fact does not run, so it is not judged.
+using Xunit;
+
+public class InvoicePendingTests
+{
+    [Fact(Skip = "credit notes are not implemented yet")]
+    public void CreditNote_ReversesTheTotal()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+        invoice.IssueCreditNote();
+    }
+}

@@ -1,0 +1,8 @@
+# good-for: rule-recomputed-expectation
+from decimal import Decimal
+
+from prices import parse_price
+
+
+def test_parse_price_strips_currency_symbol():
+    assert parse_price("$4.20") == Decimal("4.20")

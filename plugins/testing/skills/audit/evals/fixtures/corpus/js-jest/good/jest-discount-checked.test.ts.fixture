@@ -1,0 +1,10 @@
+// good-for: rule-zero-assertion
+// The repaired twin: the discounted total is compared with a stated value.
+import { applyDiscount } from '../src/pricing';
+
+describe('applyDiscount', () => {
+  it('applies a percentage coupon', () => {
+    const cart = { items: [{ sku: 'A1', price: 5000 }], coupon: 'SAVE10' };
+    expect(applyDiscount(cart).total).toBe(4500);
+  });
+});

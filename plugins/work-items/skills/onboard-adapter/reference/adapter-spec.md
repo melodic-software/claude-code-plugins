@@ -27,7 +27,7 @@ A self-hosted, forge-shaped provider with no lease support:
   },
   "verbs": {
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
-    "reclaim": false, "link-blocks": true, "add-sub-item": false,
+    "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "capabilities": true
   },
   "features": {
@@ -72,8 +72,12 @@ Every key of the adapter surface must be present and boolean. A missing key is r
 rather than defaulted, because an unlisted verb means the spec was written against a
 different contract revision, and guessing produces a manifest that lies.
 
-`create-item`, `get-item`, `claim`, `renew-lease`, `reclaim`, `link-blocks`,
+`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`,
 `add-sub-item`, `list-items`, `list-sub-items`, `capabilities`.
+
+`release` is optional even for a lease-capable adapter: `true` requires `features.leases`,
+but `features.leases` does not require it (`CONTRACT.md` "Release"). Declare it `false` when
+the provider cannot supersede one lease in place; callers then wait out the TTL.
 
 `capabilities` must be `true`: the core reads the manifest to decide whether any other
 verb is attempted at all.
@@ -120,6 +124,8 @@ The manifest is a promise the core routes on, so these are refusals, not warning
 - The three lease verbs (`claim`, `renew-lease`, `reclaim`) and `features.leases` stand or
   fall together. A claim that cannot be renewed or reclaimed strands the item at TTL
   expiry.
+- `release: true` requires `features.leases`. `features.leases: true` does not require
+  `release`.
 - `add-sub-item` / `list-sub-items` require `features.sub_items`.
 - `features.sub_items` and `limits.sub_items_per_parent` must agree: no ceiling on an
   unsupported capability, and no zero ceiling on a supported one.
