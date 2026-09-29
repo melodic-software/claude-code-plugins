@@ -1,5 +1,14 @@
 # Changelog: evals
 
+## [0.3.5] - 2026-09-29
+
+### Fixed
+
+- **Changelog accuracy** for `0.3.4`, corrected in place. The entry said the `validate` argument-hint
+  examples and defaults "now live in the skill body". The `argument-hint` was only shortened from
+  `[eval-dir (default: evals/ under the plugin root)]` to `[eval-dir]`; the default was already stated in
+  the skill body, so nothing was relocated.
+
 ## [0.3.4] - 2026-09-28
 
 ### Changed
