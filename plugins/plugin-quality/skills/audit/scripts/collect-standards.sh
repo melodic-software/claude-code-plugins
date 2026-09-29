@@ -264,7 +264,7 @@ else
   if [[ -n "$export_line" ]]; then
     emit_probe windows-path-emit finding "$home_out/windows-path-emit/README.md:$win_cite" "$COMPONENT:$export_line" "exported path-conversion suppressor"
   else
-    emit_probe windows-path-emit not-applicable "$home_out/windows-path-emit/README.md:$win_cite" - "no exported path-conversion suppressor"
+    emit_probe windows-path-emit not-graded "$home_out/windows-path-emit/README.md:$win_cite" - "only an exported path-conversion suppressor is graded; read the component for a POSIX path handed to a Windows-native process"
   fi
 fi
 

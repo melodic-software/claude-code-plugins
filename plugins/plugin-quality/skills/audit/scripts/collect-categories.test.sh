@@ -227,6 +227,29 @@ EOF
 run 1 "a false emitted finding without a basis is incomplete" --notes "$FALSE_BARE"
 has "emitted-false-without-basis" "the missing basis is named"
 
+CONFIRMED_BARE="$(
+  notes confirmed-bare.md <<'EOF'
+## Errors
+none
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+none
+
+## Emitted findings
+### sample
+plugin-said: count was 1
+verdict: confirmed
+EOF
+)"
+run 1 "a confirmed emitted finding without a basis is incomplete" --notes "$CONFIRMED_BARE"
+has "emitted-confirmed-without-basis" "the missing basis is named"
+
 EMPTY_FIELDS="$(
   notes empty-fields.md <<'EOF'
 ## Errors

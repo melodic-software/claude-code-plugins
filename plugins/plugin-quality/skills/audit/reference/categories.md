@@ -57,9 +57,10 @@ Emitted-finding samples:
 ### short title
 plugin-said: what the audited plugin reported
 verdict: confirmed
+basis: the fetched source the verdict rests on
 ```
 
-`verdict` is `confirmed`, `false`, or `unvalidated`. `false` requires
+`verdict` is `confirmed`, `false`, or `unvalidated`. `confirmed` and `false` require
 `basis:`. `false` is the finding class "the plugin reported X and X was false".
 `unvalidated` is not a grade that the plugin was correct.
 
@@ -78,3 +79,6 @@ is a lead, not a finding: it never changes the exit, and it becomes a
 Standards alignment finding only after the cited line is read against the
 convention's three elements and instructs an invocation. Hook-budget is `not-applicable` here
 because cost is measured, not grep-graded; the hook lens still asks for it.
+Windows-path-emit is `not-graded` unless a suppressor is exported: the
+collector cannot see a POSIX path handed to a Windows-native process, so the
+auditor reads the component for that against the convention.

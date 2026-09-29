@@ -228,15 +228,6 @@ citation states the retrieval channel it came over plus a byte count or line num
 citation omits **either** field is recorded as **unverified**, however confidently worded. "rung-1
 `curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.
 
-**Grade the ledger before presenting it.** Run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
-Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
-the collector's `problem:` lines, and do not present a ledger the collector rejects.
-`research: open-question` and `verdict: unvalidated` pass the collector; the effort table says
-when they are enough. When the component emits findings to a user, the Emitted findings section
-samples them; otherwise it is `not-applicable`. `verdict: false` is the class "the plugin reported
-X and X was false".
-
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet. One silently empty packet among several is exactly the loss
 this check exists to catch. The zone table's dumb/unknown row
@@ -283,6 +274,15 @@ than a persist; that is not a contradiction but the discriminator between the tw
 runs after context loss, when the `auditor`'s return is gone and re-dispatch is the only way to get
 findings at all. This check runs at receipt, while the return is still in hand, so persisting it is
 available, and skipping it is what manufactures the resume rule's problem one compaction later.
+
+**Grade the ledger before presenting it**, once a closed-set file exists. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
+Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
+the collector's `problem:` lines, and do not present a ledger the collector rejects.
+`research: open-question` and `verdict: unvalidated` pass the collector; the effort table says
+when they are enough. When the component emits findings to a user, the Emitted findings section
+samples them; otherwise it is `not-applicable`. `verdict: false` is the class "the plugin reported
+X and X was false".
 
 **Evidence bar.** A candidate finding is fileable only with a session artifact behind it (a report,
 an exit code, a transcript excerpt, saved in the packet and cited by file). A candidate without one
@@ -344,8 +344,10 @@ runs is used when installed, with a one-line fallback when absent:
 - `/discovery:research`, the research seam, when the effort row runs it: one call per remediation
   at or above the severity floor. A remediation it grounds becomes `research: tier-0` or `tier-1`
   with its primary and corroborator count; one it cannot ground stays `open-question`. Write the
-  updated ledger as a new packet file (packet files are write-once), re-seal, and grade it again
-  with `collect-categories.sh`. *Absent:* apply the primary-plus-two-corroborators discipline in
+  updated ledger as a new packet file, `audit-notes-2.md` (packet files are write-once), re-seal,
+  and grade it again with `collect-categories.sh`. The Resume rule's closed set does not include
+  that file, so after a compaction the pre-research ledger is what resumes: re-run this seam on it
+  before step 6, and until then treat every `open-question` as `needs-decision`. *Absent:* apply the primary-plus-two-corroborators discipline in
   `reference/categories.md` by hand, and leave `open-question` wherever it does not hold.
 - `skill-quality:check`, required when the audited component is a skill. *Absent:* walk the
   skill lens reference file as a manual checklist.

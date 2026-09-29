@@ -95,7 +95,8 @@ function close_finding() {
     if (plugin_said == "") problem("emitted-missing-plugin-said title=" title)
     if (verdict != "confirmed" && verdict != "false" && verdict != "unvalidated")
       problem("emitted-bad-verdict title=" title " value=" verdict)
-    if (verdict == "false" && basis == "") problem("emitted-false-without-basis title=" title)
+    if ((verdict == "false" || verdict == "confirmed") && basis == "")
+      problem("emitted-" verdict "-without-basis title=" title)
   }
   finding_open = 0
 }
