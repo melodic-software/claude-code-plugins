@@ -104,7 +104,7 @@ Worktree reuse (new branch from latest default branch in the same directory) is 
 The worktree's lock stays while it is reused for the next task. When the worktree is not reused (leaving it with `ExitWorktree`), release the lock after the merge succeeds, so later cleanup does not find a lock nobody holds:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" release <worktree-path> --session-id "${CLAUDE_SESSION_ID}"
+bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${CLAUDE_SESSION_ID}"
 ```
 
 `release` unlocks only a lock this session armed and exits non-zero on a foreign one; report that and leave the lock.

@@ -37,6 +37,24 @@ class TestBraceMap(unittest.TestCase):
         bm = inv.build_brace_map("x={a:`v${b}`}")
         self.assertEqual(len(bm.pairs), 1)
 
+    def test_regex_inside_a_template_substitution_does_not_desync(self) -> None:
+        # 2.1.284: `\`prints ${to(fn.replace(/^(["'])(.*)\1$/,"$2"))}\`` - a
+        # substitution holding a regex with quote characters. Skipping the
+        # substitution as quoted text swallowed 21 MB into one brace pair and
+        # left /clear, /help, and most commands unresolved.
+        src = (
+            'if(a){x=`p ${f(/^(["\'])(.*)\\1$/,"$2")}`}'
+            'var c={type:"local",name:"clear"};'
+        )
+        bm = inv.build_brace_map(src)
+        enc = bm.enclosing(src.index('name:"clear"'))
+        assert enc is not None
+        self.assertEqual(src[enc[0] : enc[1] + 1], '{type:"local",name:"clear"}')
+
+    def test_object_literal_inside_a_template_substitution_is_paired(self) -> None:
+        bm = inv.build_brace_map("x=`a ${f({k:`b ${c}`})} d`;y={e:1}")
+        self.assertEqual(len(bm.pairs), 2)
+
     def test_division_is_not_a_regex(self) -> None:
         # `a/b` followed by `{` must not swallow the object as a regex body.
         bm = inv.build_brace_map("y=a/b;x={c:1}")
@@ -103,6 +121,22 @@ class TestCommandExtraction(unittest.TestCase):
             'x={type:"local-jsx",userFacingName(){return"autofix-pr"},description:"d"};'
         )
         self.assertIn("autofix-pr", self._extract(src))
+
+    def test_hoisted_constant_name_resolves(self) -> None:
+        src = (
+            'var EMr="commit-push-pr";'
+            'var pGo={type:"prompt",name:EMr,description:"Commit, push, and open a PR"};'
+        )
+        self.assertEqual(
+            self._extract(src)["commit-push-pr"]["description"],
+            "Commit, push, and open a PR",
+        )
+
+    def test_factory_parameter_name_is_not_resolved(self) -> None:
+        # `name:e` in a factory is whatever the caller passes, never the
+        # nearest `e="..."` in scope.
+        src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
+        self.assertEqual(self._extract(src), {})
 
     def test_internal_names_are_marked(self) -> None:
         src = 'x={type:"prompt",name:"mcp__",description:"d"};'
@@ -410,6 +444,21 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertNotIn('name:"tiny"', src)
         self.assertEqual(meta["runs_below_floor"], 1)
 
+    def test_read_bundle_does_not_count_prose_in_the_string_table(self) -> None:
+        # The bytecode string table holds message text such as
+        # `or Workflow({name: "` - a space after the colon, so not code.
+        layout = (
+            self.MARKER
+            + self.BIG
+            + self.GAP
+            + b' or Workflow({name: "'
+            + self.GAP
+            + self.DOCTOR
+            + b"b" * 300
+        )
+        _, meta = inv.read_bundle(self._write(layout))
+        self.assertEqual(meta["runs_below_floor"], 0)
+
     def test_read_bundle_rejects_a_region_under_one_megabyte(self) -> None:
         src, meta = inv.read_bundle(self._write(self.MARKER + self.DOCTOR + b"b" * 300))
         self.assertIsNone(src)
@@ -485,7 +534,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var e="linux";'
             + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES + 10)
-            + 'eo({name:e,menuDescription:"D"});'
+            + ';eo({name:e,menuDescription:"D"});'
         )
         skills, notes = self._skills(src)
         self.assertEqual(skills, {})
@@ -498,7 +547,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var r="design";'
             + "z" * 4000
-            + 'eo({name:r,menuDescription:"Draft"});'
+            + ';eo({name:r,menuDescription:"Draft"});'
         )
         skills, _ = self._skills(src)
         self.assertIn("design", skills)
@@ -508,7 +557,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var kYe="simplify";'
             + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES * 2)
-            + 'eo({name:kYe,menuDescription:"Clean up"});'
+            + ';eo({name:kYe,menuDescription:"Clean up"});'
         )
         skills, _ = self._skills(src)
         self.assertIn("simplify", skills)
@@ -539,6 +588,51 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(list(skills), ["run"])
         self.assertEqual(notes["registrations_seen"], 1)
         self.assertEqual(notes["same_identifier_calls_skipped"], 1)
+
+    def test_a_descriptor_member_name_resolves(self) -> None:
+        # registerSlidesSkill in 2.1.284: the registration reads its fields
+        # from a descriptor object whose name is a hoisted constant.
+        src = (
+            self.HEAD + 'var o="slides";var c={name:o,intent:"slides",'
+            'description:"Make a new Slides deck artifact from a brief"};'
+            "function Wvn(){let t=c;eo({name:t.name,description:t.description,"
+            "isEnabled:()=>l(t),userInvocable:!0,disableModelInvocation:!0})}"
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(
+            skills["slides"]["description"],
+            "Make a new Slides deck artifact from a brief",
+        )
+        self.assertTrue(skills["slides"]["disable_model_invocation"])
+        self.assertNotIn("unresolved_dynamic_names", notes)
+
+    def test_a_loop_over_a_literal_table_is_enumerated(self) -> None:
+        src = (
+            self.HEAD
+            + 'var Qi=[{kind:"report",description:"R"},{kind:"explainer",description:"E"}];'
+            "function Zt(){for(let{kind:e,description:n}of Qi)"
+            "eo({name:`artifact-${e}`,description:n,userInvocable:!0})}"
+            'var za=[{kind:"doc",description:"D"}];'
+            "function Cn(){for(let{kind:e,description:s}of za)"
+            "eo({name:e,description:s,userInvocable:!0})}"
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(
+            sorted(skills), ["artifact-explainer", "artifact-report", "doc"]
+        )
+        self.assertEqual(skills["artifact-report"]["description"], "R")
+        self.assertEqual(skills["doc"]["description"], "D")
+        self.assertEqual(notes["rosters_resolved"], {"Qi": 2, "za": 1})
+        self.assertNotIn("dynamic_roster", notes)
+        self.assertEqual(notes["registrations_seen"], notes["resolved"])
+
+    def test_a_function_whose_name_ends_in_the_registrar_is_not_a_call(self) -> None:
+        # `productionRemoteToolsAnnounceDeps({...name:be.name...})` ends in
+        # the 2.1.284 registrar `ps`; it is not a registration.
+        src = self.HEAD + 'xeo({bridge:()=>({name:be.name})});eo({name:"run"});'
+        skills, notes = self._skills(src)
+        self.assertEqual(list(skills), ["run"])
+        self.assertEqual(notes["registrations_seen"], 1)
 
     def test_a_loop_registration_is_a_dynamic_roster(self) -> None:
         src = (
@@ -711,6 +805,399 @@ class TestSelfCheckDiagnostic(unittest.TestCase):
         self.assertTrue(
             any("could not read a CLI version" in a for a in got["advisories"])
         )
+
+
+def _cmd(src: str, name: str) -> dict:
+    return inv.extract_builtin_commands(src, inv.build_brace_map(src))[name]
+
+
+class TestStaticValues(unittest.TestCase):
+    """Descriptions and argument hints held in getters, constants, and calls."""
+
+    def test_ternary_getter_takes_the_fallthrough_branch(self) -> None:
+        rec = _cmd(
+            'x={type:"local-jsx",name:"exit",get description(){return kt()?"Detach":"Exit the CLI"}};',
+            "exit",
+        )
+        self.assertEqual(rec["description"], "Exit the CLI")
+        self.assertEqual(rec["description_source"], "getter")
+        self.assertEqual(rec["description_variants"], ["Detach", "Exit the CLI"])
+
+    def test_a_ternary_inside_the_condition_is_not_a_value(self) -> None:
+        rec = _cmd(
+            'x={type:"local-jsx",name:"diff",get description(){return OMt(rc()?"full":"inline")'
+            '==="full"?"Toggle the panel":"View changes"}};',
+            "diff",
+        )
+        self.assertEqual(
+            rec["description_variants"], ["Toggle the panel", "View changes"]
+        )
+
+    def test_a_getter_returning_a_call_follows_the_function(self) -> None:
+        rec = _cmd(
+            'function HKt(){return kt()?"Detach":"Exit the CLI"}'
+            'x={type:"local",name:"exit",get description(){return HKt()}};',
+            "exit",
+        )
+        self.assertEqual(rec["description"], "Exit the CLI")
+
+    def test_several_returns_end_on_the_last(self) -> None:
+        rec = _cmd(
+            'x={type:"local-jsx",name:"terminal-setup",get description(){if(a.t==="A")'
+            'return"Apple";if(a.t!==null)return`Check ${a.t}`;return"Install binding"}};',
+            "terminal-setup",
+        )
+        self.assertEqual(rec["description"], "Install binding")
+        self.assertEqual(
+            rec["description_variants"], ["Apple", "Check …", "Install binding"]
+        )
+
+    def test_a_constant_and_a_single_quoted_literal_resolve(self) -> None:
+        src = (
+            'Kix="Build a design together";'
+            'x={type:"local",name:"a",description:Kix};'
+            'y={type:"local",name:"b",description:\'Use when "rebind" is asked\'};'
+        )
+        self.assertEqual(_cmd(src, "a")["description"], "Build a design together")
+        self.assertEqual(_cmd(src, "a")["description_source"], "constant")
+        self.assertEqual(_cmd(src, "b")["description"], 'Use when "rebind" is asked')
+
+    def test_a_function_reference_is_read_as_a_getter(self) -> None:
+        src = 'function ta(){return"Review the diff"}x={type:"local",name:"r",description:ta};'
+        self.assertEqual(_cmd(src, "r")["description"], "Review the diff")
+        self.assertEqual(_cmd(src, "r")["description_source"], "call")
+
+    def test_concatenated_literals_join(self) -> None:
+        rec = _cmd('x={type:"local",name:"c",description:"one "+"two"};', "c")
+        self.assertEqual(rec["description"], "one two")
+
+    def test_argument_hint_literal_getter_and_absent(self) -> None:
+        src = (
+            'x={type:"local",name:"a",description:"d",argumentHint:"[on|off]"};'
+            'y={type:"local",name:"b",description:"d",get argumentHint(){return Vl()?void 0:"[name]"}};'
+            'z={type:"local",name:"c",description:"d"};'
+        )
+        self.assertEqual(_cmd(src, "a")["argument_hint"], "[on|off]")
+        self.assertEqual(_cmd(src, "b")["argument_hint"], "[name]")
+        self.assertEqual(_cmd(src, "b")["argument_hint_source"], "getter")
+        self.assertIsNone(_cmd(src, "c")["argument_hint"])
+        self.assertEqual(_cmd(src, "c")["argument_hint_source"], "absent")
+
+    def test_an_unresolvable_description_is_empty_and_labeled(self) -> None:
+        rec = _cmd('x={type:"local",name:"d",description:()=>n().description()};', "d")
+        self.assertEqual(rec["description"], "")
+        self.assertEqual(rec["description_source"], "unresolved")
+
+
+class TestInvocability(unittest.TestCase):
+    def test_prompt_command_from_builtin_is_model_invocable(self) -> None:
+        rec = _cmd(
+            'x={type:"prompt",name:"init",description:"d",source:"builtin"};', "init"
+        )
+        self.assertEqual((rec["model_invocable"], rec["user_invocable"]), (True, True))
+
+    def test_prompt_command_with_model_invocation_disabled(self) -> None:
+        rec = _cmd(
+            'x={type:"prompt",name:"insights",description:"d",source:"builtin",'
+            "disableModelInvocation:!0};",
+            "insights",
+        )
+        self.assertIs(rec["model_invocable"], False)
+
+    def test_local_command_is_never_model_invocable(self) -> None:
+        rec = _cmd('x={type:"local-jsx",name:"help",description:"d"};', "help")
+        self.assertIs(rec["model_invocable"], False)
+        self.assertIs(rec["user_invocable"], True)
+
+    def test_prompt_command_without_a_source_is_undetermined(self) -> None:
+        rec = _cmd('x={type:"prompt",name:"p",description:"d"};', "p")
+        self.assertIsNone(rec["model_invocable"])
+
+    def _skills(self, body: str) -> dict:
+        src = "pt(Q,{registerBundledSkill:()=>xu});" + body
+        return inv.extract_bundled_skills(src, inv.build_brace_map(src))[0]
+
+    def test_bundled_skill_defaults_are_user_and_model(self) -> None:
+        rec = self._skills('xu({name:"simplify",description:"d"});')["simplify"]
+        self.assertEqual((rec["user_invocable"], rec["model_invocable"]), (True, True))
+
+    def test_bundled_skill_disable_model_invocation(self) -> None:
+        skills = self._skills(
+            'xu({name:"doctor",description:"d",disableModelInvocation:!0,argumentHint:"[x]"});'
+            'xu({name:"verify",description:"d",disableModelInvocation:()=>!cft()});'
+            'xu({name:"keys",description:"d",userInvocable:!1});'
+        )
+        self.assertIs(skills["doctor"]["model_invocable"], False)
+        self.assertEqual(skills["doctor"]["argument_hint"], "[x]")
+        self.assertIsNone(skills["verify"]["model_invocable"])
+        self.assertIs(skills["keys"]["user_invocable"], False)
+        self.assertIs(skills["keys"]["model_invocable"], True)
+
+    def test_a_roster_description_comes_from_its_row(self) -> None:
+        skills = self._skills(
+            'Qi=[{kind:"report",description:"A report"}];let n="decoy";'
+            "for(let{kind:e,description:n}of Qi)xu({name:`artifact-${e}`,description:n});"
+        )
+        self.assertEqual(skills["artifact-report"]["description"], "A report")
+        self.assertEqual(skills["artifact-report"]["description_source"], "roster")
+
+
+WORKFLOW_SRC = (
+    'function dro(o,e,r){eo().bundledWorkflows.push({source:"built-in",...e,script:o,'
+    "disableModelInvocation:r?.disableModelInvocation})}"
+    'var i="deep-research",e=i,t="Deep research harness",'
+    's=[{title:"Scope",detail:"x"},{title:"Search",detail:"y"}];'
+    "function l(){return!0}"
+    "function a(){dro(`let e = \"shadow\";\nexport const meta = {name: '${e}'}`,"
+    "{name:e,description:t,phases:s},{disableModelInvocation:l})}"
+)
+
+
+class TestBundledWorkflows(unittest.TestCase):
+    def _extract(self, src: str) -> tuple[dict, dict]:
+        return inv.extract_bundled_workflows(src, inv.build_brace_map(src))
+
+    def test_registration_resolves_from_the_call_site_not_the_script(self) -> None:
+        flows, notes = self._extract(WORKFLOW_SRC)
+        rec = flows["deep-research"]
+        self.assertEqual(rec["description"], "Deep research harness")
+        self.assertEqual(rec["phases"], ["Scope", "Search"])
+        self.assertEqual(notes["registrar"], ["dro"])
+        self.assertEqual((notes["registrations_seen"], notes["resolved"]), (1, 1))
+
+    def test_function_valued_model_flag_is_undetermined(self) -> None:
+        rec = self._extract(WORKFLOW_SRC)[0]["deep-research"]
+        self.assertIsNone(rec["model_invocable"])
+        self.assertIs(rec["user_invocable"], True)
+        self.assertEqual(rec["flag_driven"], ["disable_model_invocation"])
+
+    def test_constant_model_flag_is_read(self) -> None:
+        rec = self._extract(
+            WORKFLOW_SRC.replace(
+                "{disableModelInvocation:l}", "{disableModelInvocation:!1}"
+            )
+        )[0]["deep-research"]
+        self.assertIs(rec["model_invocable"], True)
+
+    def test_no_push_site_is_an_error(self) -> None:
+        flows, notes = self._extract('var i="deep-research";')
+        self.assertEqual(flows, {})
+        self.assertIn("error", notes)
+
+    def test_lane_breaks_on_a_missing_canary_and_others_stand(self) -> None:
+        src = TestIntegrity()._src()
+        got = inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+            {"security-review": "security-review"},
+            0,
+            {},
+            {"registrations_seen": 0, "resolved": 0},
+        )
+        self.assertEqual(got["lanes"][inv.WORKFLOW_LANE]["status"], "broken")
+        self.assertEqual(got["lanes"]["builtin_commands"]["status"], "ok")
+        self.assertEqual(got["status"], "degraded")
+
+    def test_lane_ok_with_the_canary(self) -> None:
+        src = TestIntegrity()._src()
+        flows, notes = self._extract(WORKFLOW_SRC)
+        got = inv.check_integrity(
+            src,
+            inv.extract_builtin_commands(src, inv.build_brace_map(src)),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+            {"security-review": "security-review"},
+            0,
+            flows,
+            notes,
+        )
+        self.assertEqual(got["lanes"][inv.WORKFLOW_LANE]["status"], "ok")
+        self.assertEqual(got["status"], "ok")
+
+
+DOCS = """# Commands
+
+## All commands
+
+| Command | Purpose |
+| :- | :- |
+| `/add-dir <path>` | Add a working directory |
+| `/code-review [low\\|high] [--fix]` | **[Skill](/docs/en/skills#bundled-skills).** Review the current diff |
+| `/cost` | Alias for `/usage` |
+| `/deep-research <question>` | **[Workflow](/docs/en/workflows#bundled-workflows).** Fan out web searches |
+| `/exit` | Exit the CLI. Alias: `/quit` |
+| `/feedback [report]` | Send feedback. Alias: `/bug`. Before v2.1.212, `/bug` and `/share` were aliases of `/feedback` |
+| `/mobile` | Show a QR code. Aliases: `/ios`, `/android` |
+| `/reload-skills` | Re-scan skills. Reports how many were added or removed |
+| `/review [pr]` | Alias of [`/code-review`](/docs/en/code-review): reviews the diff |
+| `/schedule [description]` | Create routines |
+| `/ultraplan <prompt>` | Removed. Use plan mode instead |
+| `/ultrareview [PR]` | Run a cloud review. The preferred invocation is `/code-review ultra`, and `/ultrareview` is an alias |
+| `/usage` | Show usage. `/cost` and `/stats` are aliases |
+| `/vim` | Removed in v2.1.92. Use `/config` |
+
+## How the command menu matches
+
+| `/not-a-row` | outside the table section |
+"""
+
+
+def _report() -> dict:
+    cmd = lambda aliases=(): {"aliases": list(aliases)}  # noqa: E731
+    return {
+        "sources": {"binary": {"available": True}},
+        "builtin_commands": {
+            "add-dir": cmd(),
+            "exit": cmd(["quit"]),
+            "feedback": cmd(["bug"]),
+            "reload-skills": cmd(),
+            "ultraplan": cmd(),
+            "ultrareview": cmd(),
+            "usage": cmd(["cost", "stats"]),
+            "secret": cmd(),
+            "stub": {"aliases": [], "internal": True},
+        },
+        "bundled_skills": {"code-review": cmd(["review"]), "schedule": cmd()},
+        "bundled_workflows": {"deep-research": cmd()},
+        "plugin_backed": {},
+    }
+
+
+class TestDocsCrosscheck(unittest.TestCase):
+    def setUp(self) -> None:
+        import docs_crosscheck as dc
+
+        self.dc = dc
+        self.rows = dc.parse_commands_table(DOCS)
+        self.names = dc.classify(_report(), self.rows)
+
+    def test_rows_come_only_from_the_all_commands_table(self) -> None:
+        self.assertIn("vim", self.rows)
+        self.assertNotIn("not-a-row", self.rows)
+        self.assertEqual(self.rows["code-review"]["args"], "[low|high] [--fix]")
+
+    def test_a_truncated_response_degrades_instead_of_raising(self) -> None:
+        import http.client
+        import urllib.request
+        from unittest import mock
+
+        class Truncated:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self, _n):
+                raise http.client.IncompleteRead(b"partial")
+
+        with mock.patch.object(urllib.request, "urlopen", return_value=Truncated()):
+            body, error = self.dc.fetch_text("https://example.invalid/x")
+        self.assertIsNone(body)
+        self.assertIn("IncompleteRead", error or "")
+
+    def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
+        import time
+
+        hostile = "## All commands\n\n| `/a` | " + " " * 40_000 + "\n| `/b` | ok |\n"
+        began = time.monotonic()
+        rows = self.dc.parse_commands_table(hostile)
+        self.assertLess(time.monotonic() - began, 1.0)
+        self.assertEqual(set(rows), {"b"})
+
+    def test_removed_anchors_on_the_row_start(self) -> None:
+        self.assertFalse(self.rows["reload-skills"]["removed"])
+        self.assertTrue(self.rows["ultraplan"]["removed"])
+        self.assertEqual(self.rows["vim"]["removed_version"], "2.1.92")
+        self.assertEqual(self.names["reload-skills"]["status"], "documented")
+
+    def test_markers_and_alias_phrasings(self) -> None:
+        self.assertEqual(self.rows["code-review"]["kind"], "skill")
+        self.assertEqual(self.rows["deep-research"]["kind"], "workflow")
+        self.assertEqual(self.rows["cost"]["alias_of"], "usage")
+        self.assertEqual(self.rows["review"]["alias_of"], "code-review")
+        self.assertEqual(self.rows["exit"]["aliases"], ["quit"])
+        self.assertEqual(self.rows["mobile"]["aliases"], ["android", "ios"])
+        self.assertEqual(self.rows["usage"]["aliases"], ["cost", "stats"])
+        self.assertTrue(self.rows["ultrareview"]["is_alias"])
+
+    def test_a_past_tense_alias_mention_is_not_a_declaration(self) -> None:
+        self.assertEqual(self.rows["feedback"]["aliases"], ["bug"])
+
+    def test_statuses(self) -> None:
+        got = {n: e["status"] for n, e in self.names.items()}
+        self.assertEqual(got["add-dir"], "documented")
+        self.assertEqual(got["cost"], "alias")
+        self.assertEqual(got["review"], "alias")
+        self.assertEqual(got["quit"], "alias")
+        self.assertEqual(got["ultrareview"], "docs_alias_but_registered")
+        self.assertEqual(got["vim"], "removed_in_docs")
+        self.assertEqual(got["ultraplan"], "removed_in_docs_but_registered")
+        self.assertEqual(got["mobile"], "docs_only")
+        self.assertEqual(got["ios"], "docs_only")
+        self.assertEqual(got["secret"], "undocumented")
+        self.assertEqual(got["deep-research"], "documented")
+        self.assertNotIn("stub", got)
+
+    def test_kind_mismatch_and_alias_disagreement(self) -> None:
+        self.assertTrue(self.names["schedule"]["kind_mismatch"])
+        self.assertFalse(self.names["code-review"]["kind_mismatch"])
+        self.assertFalse(self.names["deep-research"]["kind_mismatch"])
+        self.assertNotIn("alias_disagreement", self.names["usage"])
+        report = _report()
+        report["builtin_commands"]["exit"]["aliases"] = ["quit", "q"]
+        names = self.dc.classify(report, self.rows)
+        self.assertEqual(
+            names["exit"]["alias_disagreement"], {"docs_only": [], "binary_only": ["q"]}
+        )
+
+    def test_changelog_first_mention_and_events(self) -> None:
+        text = (
+            "# Changelog\n\n## 2.1.5\n\n- Added `/foo` command\n- Fixed ~/.claude/foo path\n"
+            "\n## 2.1.3\n\n- Fixed /foo crash\n- Renamed `/bar` to `/baz`\n"
+        )
+        got = self.dc.parse_changelog(text, {"foo", "bar", "baz"})
+        self.assertEqual(got["foo"]["first_mentioned"], "2.1.3")
+        self.assertEqual(got["foo"]["mentions"], 2)
+        self.assertEqual([e["kinds"] for e in got["foo"]["events"]], [["added"]])
+        self.assertEqual(got["baz"]["events"][0]["kinds"], ["renamed"])
+
+    def _run(self, fetched: dict, **kw) -> dict:
+        original = self.dc.fetch_text
+        self.dc.fetch_text = lambda url, timeout=20.0: fetched.get(
+            url, (None, "URLError: offline")
+        )
+        try:
+            return self.dc.build_crosscheck(_report(), **kw)
+        finally:
+            self.dc.fetch_text = original
+
+    def test_network_failure_degrades_only_the_block(self) -> None:
+        block = self._run({})
+        self.assertEqual(block["status"], "unavailable")
+        self.assertIn("URLError", block["problems"][0])
+        self.assertNotIn("names", block)
+
+    def test_changelog_failure_is_degraded_not_fabricated(self) -> None:
+        block = self._run({self.dc.COMMANDS_URL: (DOCS, None)})
+        self.assertEqual(block["status"], "degraded")
+        self.assertIsNone(block["names"]["add-dir"]["changelog"])
+        self.assertEqual(block["counts"]["removed_in_docs"], 1)
+
+    def test_docs_file_without_the_table_is_broken(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "commands.md"
+            path.write_text("# Commands\n\nNo table here.\n", encoding="utf-8")
+            block = self.dc.build_crosscheck(
+                _report(), docs_file=str(path), changelog_file=str(path)
+            )
+        self.assertEqual(block["status"], "broken")
+
+    def test_without_the_binary_there_is_nothing_to_check(self) -> None:
+        block = self.dc.build_crosscheck({"sources": {}}, docs_file="unused")
+        self.assertEqual(block["status"], "unavailable")
 
 
 if __name__ == "__main__":

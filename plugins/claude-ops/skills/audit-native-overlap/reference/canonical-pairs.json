@@ -78,6 +78,41 @@
       "why": "explore-directions offers the design-canvas Artifact as one of its mockup surfaces; same live integration, sibling component."
     },
     {
+      "native": { "name": "recap", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "orient", "kind": "skill" },
+      "why": "Both answer 'where does this session stand'; recap summarizes the conversation, orient reads durable state the conversation never saw. The two share almost no vocabulary, so discovery scores the pair low."
+    },
+    {
+      "native": { "name": "fork", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "continue-in-background", "kind": "skill" },
+      "why": "Both hand the current work to a background agent that carries the conversation forward."
+    },
+    {
+      "native": { "name": "subtask", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "continue-in-background", "kind": "skill" },
+      "why": "Both send an agent off with the session's context; subtask returns its result here, continue-in-background detaches it."
+    },
+    {
+      "native": { "name": "batch", "class": "bundled-skill" },
+      "component": { "plugin": "implementation", "skill": "implement-dispatch", "kind": "skill" },
+      "why": "Both plan a large change and fan it out to worker agents; the name tokens never meet, so discovery misses the pair."
+    },
+    {
+      "native": { "name": "explain-usage", "class": "bundled-skill" },
+      "component": { "plugin": "claude-ops", "skill": "observability", "kind": "skill" },
+      "why": "Both explain where a session's tokens and cost went."
+    },
+    {
+      "native": { "name": "explain-usage", "class": "bundled-skill" },
+      "component": { "plugin": "context-budget", "skill": "audit", "kind": "skill" },
+      "why": "Both attribute context consumption to what caused it; the audit measures the startup payload, explain-usage the whole session."
+    },
+    {
+      "native": { "name": "fewer-permission-prompts", "class": "bundled-skill" },
+      "component": { "plugin": "claude-config", "skill": "audit-permission-state", "kind": "skill" },
+      "why": "Both work from the permission rules in effect; the native skill writes an allowlist from observed usage, the audit reports what is in effect and what auto mode drops."
+    },
+    {
       "native": { "name": "design-sync", "class": "bundled-skill" },
       "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
       "why": "The design-sync family (sync, consent, revoke, login) is registered in the binary near the canvas skill visualize gates; recorded to rule on, not to integrate."

@@ -14,6 +14,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
 - **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
+
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
 ## [0.62.26] - 2026-09-29
 
 ### Fixed
