@@ -8,8 +8,6 @@ metadata:
   summary: Write and place tests with TDD cadence across ecosystems
 ---
 
-**Arguments.** `[task]`. e.g., /testing:write, /testing:write the new handler, /testing:write organize
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -36,6 +34,8 @@ Authoring discipline for tests: what to test, how to name it, which test type fi
 ## Arguments
 
 `$ARGUMENTS`, optional task description. `organize` (or a placement-shaped question) routes to the placement guidance; anything else is authoring.
+
+Examples: /testing:write, /testing:write the new handler, /testing:write organize.
 
 ## Step 0: Route
 

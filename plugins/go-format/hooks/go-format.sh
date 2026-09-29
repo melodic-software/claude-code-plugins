@@ -7,8 +7,9 @@
 # additionalContext but never blocks the edit. A commit hook or CI is the
 # hard gate.
 #
-# UNCONDITIONAL — no consumer-config opt-in gate, unlike the sibling
-# ruff-format/typos-format/dotnet ecosystem entry. goimports' own docs state
+# NO CONSUMER-CONFIG OPT-IN GATE, unlike the sibling
+# ruff-format/typos-format/dotnet ecosystem entry. Gitignored files are
+# skipped unless go_format_lint_gitignored is set. goimports' own docs state
 # it "formats your code in the same style as gofmt so it can be used as a
 # replacement for your editor's gofmt-on-save hook" — an explicit official
 # statement of intent for exactly this per-file/on-save scenario, and it has

@@ -233,12 +233,10 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 - **Not a diagnosis of host-level `PostToolUse` dispatch failure.** When every matching
   `PostToolUse` ends `hook_cancelled` and no formatter runs, the three surfaces above never
-  emit. That case is recorded in [`docs/formatter-path-probes.md`](../../formatter-path-probes.md)
-  against
-  [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549): not a general
-  2.1.x product regression (Linux 2.1.258 completes), remaining probe is Windows-host
-  `claude --debug`. This convention does not grow a timeout or a substitute channel for a hook
-  that never ran.
+  emit. [`docs/formatter-path-probes.md`](../../formatter-path-probes.md) holds the status and
+  the recheck for that case, filed as
+  [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549). This convention
+  does not grow a timeout or a substitute channel for a hook that never ran.
 - **Not a new telemetry schema.** The envelope shape is `hook-telemetry`'s concern; this doc only
   states the adoption requirement.
 - **Not a blanket "add systemMessage everywhere" rule.** Scoped narrowly to the

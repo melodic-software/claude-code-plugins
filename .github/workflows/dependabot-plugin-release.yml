@@ -8,12 +8,16 @@ name: dependabot-plugin-release
 #
 # Commit messages include [dependabot skip] so Dependabot may force-push over
 # the bot commit when rebasing (GitHub docs: Managing pull requests for
-# dependency updates; verified 2026-09-27). GITHUB_TOKEN pushes create
-# approval-required follow-up runs (GitHub GITHUB_TOKEN docs; verified
-# 2026-09-27 against this repo's #4355 history).
+# dependency updates; verified 2026-09-27). The push below uses GITHUB_TOKEN.
+# Per the GitHub docs page "Triggering a workflow", events triggered by the
+# GITHUB_TOKEN do not create new workflow runs (workflow_dispatch and
+# repository_dispatch excepted), and a pull_request opened, synchronize or
+# reopened event from a pull request the token created or updated creates runs
+# in an approval-required state. CI on the release-bump commit therefore waits
+# for a maintainer to approve the run or for a re-trigger, until the token or
+# trigger question on #4144 is decided.
 #
-# Recheck trigger: those doc pages change, or bot pushes stop landing
-# action_required runs.
+# Recheck: #4144 picks a token or trigger that starts CI on the bump commit.
 on:
   pull_request:
     types: [opened, synchronize, reopened]

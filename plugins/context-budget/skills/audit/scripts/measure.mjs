@@ -484,6 +484,7 @@ function cliSnapshot({ bin, deny, label }) {
   }
   const parsed = parseContextMarkdown(r.stdout);
   const synthesizedZeroBuckets = [];
+  // Harness-only marker; contract in the cli-parse paragraph of reference/engine.md.
   for (const match of r.stdout.matchAll(/<!--\s*synthesized-zero:\s*([^>]+?)\s*-->/g)) {
     const name = match[1].trim();
     if (name && !synthesizedZeroBuckets.includes(name)) synthesizedZeroBuckets.push(name);

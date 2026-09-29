@@ -24,17 +24,31 @@ status=0
 echo "== permission_prompts_args"
 if ! "$PY" -X utf8 -c '
 import hop_chain
+import claude_cli
 assert hop_chain.parse_claude_version("2.1.282 (Claude Code)") == (2, 1, 282)
 assert hop_chain.parse_claude_version("nope") is None
-hop_chain._CLAUDE_VERSION_CACHE = (2, 1, 259)
+claude_cli._CLAUDE_VERSION_CACHE = (2, 1, 259)
 assert hop_chain.permission_prompts_args("claude") == ["--permission-prompts", "none"]
-hop_chain._CLAUDE_VERSION_CACHE = (2, 1, 258)
+claude_cli._CLAUDE_VERSION_CACHE = (2, 1, 258)
 assert hop_chain.permission_prompts_args("claude") == []
-hop_chain._CLAUDE_VERSION_CACHE = None
+claude_cli._CLAUDE_VERSION_CACHE = None
 assert hop_chain.permission_prompts_args("claude") == []
 print("ok")
 '; then
   echo "FAIL: permission_prompts_args"
+  status=1
+fi
+
+echo "== is_write_indicator save_point"
+if ! "$PY" -X utf8 -c '
+import hop_chain
+assert not hop_chain.is_write_indicator("python3 /p/scripts/save_point.py memory-root")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py new --topic x --no-previous")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py memory-root && python3 /p/mutate.py")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py validate x\npython3 /p/mutate.py")
+print("ok")
+'; then
+  echo "FAIL: is_write_indicator save_point"
   status=1
 fi
 

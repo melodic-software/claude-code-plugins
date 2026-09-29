@@ -308,7 +308,7 @@
     {
       "id": "connectors-disable",
       "title": "claude.ai connectors: disableClaudeAiConnectors and companions",
-      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from Claude Code 2.1.259 this is the key that keeps a managed connector or a literal managed-mcp.json / managedMcpServers entry off), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation). allowedMcpServers governs servers users add. It does not remove a managed connector.",
+      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
       "category": "removes-weight",
       "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
       "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
@@ -319,7 +319,7 @@
       "emittedConfig": "{\"disableClaudeAiConnectors\": true}",
       "caveats": [
         "disabledMcpServers/enabledMcpServers (connectors) are distinct keys from enabledMcpjsonServers/disabledMcpjsonServers/enableAllProjectMcpServers (.mcp.json approval); emitting the wrong family silently misses the target.",
-        "From Claude Code 2.1.259, allowedMcpServers no longer filters a literal managed-mcp.json server off; use deniedMcpServers to keep a managed connector or managed server out (#4027 / 259-035). The managed-mcp docs page may still state the old allowlist rule — changelog wins until that page updates."
+        "From Claude Code 2.1.259, allowedMcpServers no longer filters a literal managed-mcp.json server off; use deniedMcpServers to keep a managed connector or managed server out. The managed-mcp docs page may still state the old allowlist rule — changelog wins until that page updates."
       ],
       "citations": [
         "https://code.claude.com/docs/en/mcp",

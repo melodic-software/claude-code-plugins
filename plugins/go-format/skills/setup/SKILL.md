@@ -12,6 +12,7 @@ shell: bash
 tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 - `goimports`: !`{ command -v goimports 2>/dev/null || echo "absent"; }`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
@@ -21,9 +22,10 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. It runs
-unconditionally (no consumer-config opt-in gate, unlike sibling formatter plugins Ruff/typos),
-so the only tunable is the native `userConfig` toggle. Like `typos-format`, `goimports` has no
+reports, `apply` resolves. This plugin owns no consumer-project configuration. It has
+no consumer-config opt-in gate (unlike sibling formatter plugins Ruff/typos), so the only
+tunables are the two native `userConfig` options, `go_format_enabled` and
+`go_format_lint_gitignored`. Like `typos-format`, `goimports` has no
 per-repo dependency-manager install path in the way Ruff's `.venv` does. It is conventionally
 `go install`ed to the machine-global `$GOPATH/bin`, never as a project dependency. `apply` is
 therefore guidance-only: it never installs anything, matching the hook's own PATH-only
@@ -42,26 +44,36 @@ what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report those probes informationally and note that re-enabling
+restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude Code launches
+`node` before the launcher can read the toggle, so both hook rows fail to start.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of formatting.
-3. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
+3. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
+   `node hooks/exec-bash.mjs`, so without node the hooks do not start and nothing is enforced.
+   The row reflects Bash's PATH, while Claude Code resolves the hook's `node` from its own
+   environment (`docs/formatter-path-probes.md`), so a PASS here does not establish that hooks
+   launch. If hooks fail to start despite a PASS, report hook availability as unestablished.
+4. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
    `.venv`-style per-repo convention). Report the resolved path and `goimports -h`'s first line
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
    when absent. The hook then emits a visible once-per-session skip notice instead of running.
-4. **Hook toggle.** Report the effective `go_format_enabled` value:
+5. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
-5. **Hook registration.** INFO: confirm the plugin is enabled for this project
+6. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
+   `${user_config.go_format_lint_gitignored}` (unexpanded or empty means default `false`). At
+   `false` the hook skips files the repository gitignores; a tracked file matching an ignore
+   pattern stays in scope.
+7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
-There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook runs
-unconditionally by design; report that plainly as INFO, not as a gap.
+There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook has
+no consumer-config gate by design; report that plainly as INFO, not as a gap.
 
 ## `apply` (idempotent)
 
@@ -77,25 +89,28 @@ re-verifying. For everything else `apply` only points:
 
 - missing `goimports`: `go install golang.org/x/tools/cmd/goimports@latest` (requires a Go
   toolchain: https://go.dev/dl/).
-- missing `jq` / Bash: platform install instructions from the README Requirements section;
+- missing `node` / `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure go-format@<marketplace>` any time, or headless
-  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
-  for this plugin, and run from that project's directory for a `project`/`local` scope, or the
-  rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. A rejected value prints a warning yet exits 0,
-  so read the output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
-  still reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
+  the measured CLI behavior (including that a rerun against an already-installed plugin still
+  writes the value) and its verification record
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
+  Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
+  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
+  (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
+  - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
+    resets every option to its manifest default.
+  - Scope. Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option value
+    always lands in user settings. Do not copy a scope from `claude plugin list`: a rerun at
+    another scope adds an install record at that scope and enables the plugin there. When the
+    working directory is the home directory, project scope and user scope are the same settings
+    file, so the list can label that one file as both `user` and `project`.
+  - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
+    `check` in a **fresh session** and report the observed effective value, never an unobserved
+    change.
+  - Read the command's output, not its exit code: a rejected value prints a warning yet exits 0.
+
+  This skill never writes user settings or `pluginConfigs`.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

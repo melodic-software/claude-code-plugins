@@ -59,21 +59,81 @@ clean_worktree_branches() {
   git -C "$1" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r' || true
 }
 
+# clean_worktree_path <repo_root> <branch>: print the path of the worktree that
+# has <branch> checked out (empty when none does). Reads the same porcelain
+# listing as clean_worktree_branches, so the audit's WORKTREE verdict and the
+# path it reports cannot disagree.
+clean_worktree_path() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | tr -d '\r' |
+    awk -v ref="branch refs/heads/$2" '/^worktree /{p=substr($0,10)} $0==ref{print p; exit}'
+}
+
+# clean_worktree_branch_paths <repo_root>: print `<branch><TAB><path>` for each
+# branch checked out in a worktree, from one read of the same porcelain listing:
+# the branch set clean_worktree_branches prints, each with the path
+# clean_worktree_path prints (the first worktree listing it). The branch audit
+# reads this once instead of running clean_worktree_path per WORKTREE branch.
+clean_worktree_branch_paths() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | tr -d '\r' |
+    awk '/^worktree /{p=substr($0,10)} /^branch refs\/heads\//{b=substr($0,19); if (!(b in seen)) {seen[b]=1; print b "\t" p}}'
+}
+
 # clean_loss_count <repo_root> <branch>: print the number of commits on
 # refs/heads/<branch> reachable from no remote-tracking ref and no tag; exit
 # non-zero when git could not count. `--not --remotes --tags` is git's own idiom
 # for "unpushed anywhere": it negates every ref under refs/remotes/ and
 # refs/tags/, and nothing else, so another local branch, HEAD, and the
 # refs/repo-hygiene/deleted/ pins are not places the work is considered to
-# persist. One spelling for the branch audit's LOSSY verdict and the delete
-# path's live re-check, so the two can never disagree about what a deletion
-# loses.
+# persist. The delete path's live re-check runs this per branch; the branch
+# audit computes the same count for every branch at once with
+# clean_unreached_counts and runs this only where that pass fails, so the two
+# cannot disagree about what a deletion loses (the audit suite holds them equal
+# on every fixture branch).
 clean_loss_count() {
   local n
   n="$(git -C "$1" rev-list --count "refs/heads/$2" --not --remotes --tags 2>/dev/null)" || return 1
   n="${n%$'\r'}"
   [[ "$n" =~ ^[0-9]+$ ]] || return 1
   printf '%s' "$n"
+}
+
+# clean_unreached_counts <repo_root> <rev>...: read commit ids, one per line,
+# from stdin and print `<id> <n>` for each, where n is what
+# `git rev-list --count <id> --not <rev>...` prints for that id. One
+# `rev-list --parents --stdin --not <rev>...` lists every commit the ids reach
+# and <rev>... does not, with its parents; an id's n is the size of its ancestry
+# inside that list, which is the per-id count, not an estimate. Every id must be
+# a commit. Exit non-zero when git fails; the caller then counts per id.
+# ponytail: one ancestry walk per id, O(ids x listed commits); memoize shared
+# chains if a repository's unmerged history makes that slow.
+clean_unreached_counts() {
+  local repo_root="$1" ids graph
+  shift
+  IFS= read -r -d '' ids || true
+  ids="${ids%$'\n'}"
+  [[ -n "$ids" ]] || return 0
+  graph="$(printf '%s\n' "$ids" | git -C "$repo_root" rev-list --parents --stdin --not "$@" 2>/dev/null)" || return 1
+  printf '%s\n--\n%s\n' "$ids" "$graph" | awk '
+    !mark && $0 == "--" { mark = 1; next }
+    !mark { id[$1] = 1; next }
+    NF { parents[$1] = substr($0, length($1) + 2) }
+    END {
+      for (t in id) {
+        n = 0
+        if (t in parents) {
+          sp = 0; stack[sp++] = t; seen[t] = t
+          while (sp > 0) {
+            c = stack[--sp]; n++
+            k = split(parents[c], ps, " ")
+            for (i = 1; i <= k; i++) {
+              p = ps[i]
+              if ((p in parents) && seen[p] != t) { seen[p] = t; stack[sp++] = p }
+            }
+          }
+        }
+        print t, n
+      }
+    }'
 }
 
 # clean_pr_map <outfile> <json_fields> — fetch the repository's pull-request map

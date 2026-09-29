@@ -1038,6 +1038,35 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '
 else
   fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
 fi
+# The notice is shown on the first skip and renewed every eighth (prerequisite
+# class, session-keyed); the renewal keeps the install route.
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("renewed every eighth")) and
+  ((.hookSpecificOutput.additionalContext | contains("latches once per session")) | not)
+' >/dev/null 2>&1; then
+  ok "missing markdownlint notice states the renewal cadence"
+else
+  fail "missing markdownlint notice cadence wording wrong: $OUT_NO_MDLINT"
+fi
+PD_RENEW="$(mktemp -d "$WORK/pd.XXXXXX")"
+RENEW_PAYLOAD="{\"session_id\":\"renew-seq\",\"tool_input\":{\"file_path\":\"$FA\"}}"
+renew_ok=1
+renew_out=()
+for n in 1 2 3 4 5 6 7 8; do
+  renew_out[n]="$(cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_RENEW" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK" <<<"$RENEW_PAYLOAD")"
+done
+[[ "${renew_out[1]}" == *"was not found on this hook"* && "${renew_out[1]}" == *"PATH probed:"* ]] || renew_ok=0
+for n in 2 3 4 5 6 7; do
+  [[ -z "${renew_out[n]}" ]] || renew_ok=0
+done
+[[ "${renew_out[8]}" == *"[8 skips this session]"* && "${renew_out[8]}" == *"/markdown-format:check"* &&
+  "${renew_out[8]}" == *"This hook does not invoke npx"* ]] || renew_ok=0
+if ((renew_ok)); then
+  ok "missing markdownlint: fire 1 full, fires 2-7 silent, fire 8 renews with the install route"
+else
+  fail "missing markdownlint 8-fire sequence wrong: 1=[${renew_out[1]}] 2=[${renew_out[2]}] 7=[${renew_out[7]}] 8=[${renew_out[8]}]"
+fi
 # #3134: plugin-bin directories collapse to a count; plausible dirs stay.
 PLUGIN_BIN_HOME="$WORK/fake-plugin-home"
 mkdir -p "$PLUGIN_BIN_HOME/.local/bin"
@@ -1925,6 +1954,66 @@ if [[ $RC_K -eq 0 && -z "$OUT_K" ]]; then
   ok "kill switch disables hook"
 else
   fail "kill switch failed (rc=$RC_K out=$OUT_K)"
+fi
+
+# --- SessionStart probe: the kill switch closes the launcher gate ------------
+# markdown_format_enabled=false must silence the prerequisite probe as well as
+# the format hook. The gate sits in the launcher (exec-bash.mjs
+# --run-if-unset-or-true), so probe-prerequisite.sh stays the shared,
+# byte-identical manifest reader and a closed gate never resolves bash.
+# shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
+PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"]]'
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]?.args]' "$HOOKS_JSON")"
+  if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
+    ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
+  else
+    fail "hooks.json SessionStart args: got $PROBE_ARGS_GOT, want $PROBE_ARGS_WANT"
+  fi
+else
+  fail "hooks.json SessionStart assertions need jq and $HOOKS_JSON"
+fi
+
+# A PATH with node and the system tools but no markdownlint-cli2; env -i drops
+# any CLAUDE_PLUGIN_OPTION_* the calling session exported.
+if command -v node >/dev/null 2>&1; then
+  PROBE_BIN="$WORK/probe-bin"
+  mkdir -p "$PROBE_BIN"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PROBE_BIN/$base" ]] || continue
+      ln -s "$exe" "$PROBE_BIN/$base"
+    done
+  done
+  ln -sf "$(command -v node)" "$PROBE_BIN/node"
+  run_probe_launcher() {
+    local data
+    data="$(mktemp -d "$WORK/pd.XXXXXX")"
+    (cd "$UNRELATED" && env -i PATH="$PROBE_BIN" CLAUDE_PLUGIN_DATA="$data" "$@" \
+      node "$HOOK_DIR/exec-bash.mjs" --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED \
+      "$HOOK_DIR/probe-prerequisite.sh" <<<'{"session_id":"s1"}')
+  }
+  OUT_PROBE_OFF="$(run_probe_launcher CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
+  RC_PROBE_OFF=$?
+  if [[ $RC_PROBE_OFF -eq 0 && -z "$OUT_PROBE_OFF" ]]; then
+    ok "SessionStart probe: kill switch off -> exit 0, no notice"
+  else
+    fail "SessionStart probe with the kill switch off (rc=$RC_PROBE_OFF out=$OUT_PROBE_OFF)"
+  fi
+  OUT_PROBE_ON="$(run_probe_launcher)"
+  RC_PROBE_ON=$?
+  CTX_PROBE_ON="$(ctx_of "$OUT_PROBE_ON")"
+  if [[ $RC_PROBE_ON -eq 0 &&
+    "$CTX_PROBE_ON" == *markdownlint-cli2* &&
+    "$CTX_PROBE_ON" == */markdown-format:check* &&
+    "$CTX_PROBE_ON" == *"npm i -D markdownlint-cli2"* ]]; then
+    ok "SessionStart probe: kill switch unset -> notice names the tool, the check skill and the install"
+  else
+    fail "SessionStart probe with the kill switch unset (rc=$RC_PROBE_ON out=$OUT_PROBE_ON)"
+  fi
+else
+  skip "SessionStart probe kill-switch run" "node not on PATH"
 fi
 
 # ============================================================================

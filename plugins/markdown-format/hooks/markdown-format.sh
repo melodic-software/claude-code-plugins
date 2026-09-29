@@ -47,10 +47,10 @@ source "$HOOK_DIR/rewrite-guard.sh"
 MD_CHANGED=""
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
-# document. This hook never rewrites behind the rewrite guard —
-# markdownlint-cli2's own fix count is authoritative — so the verdict arrives
-# on --changed, and a skip arm that passes none omits the key rather than
-# guessing one.
+# document. rewrite-guard.sh is sourced only for hook::gitignored_out_of_scope;
+# this hook never calls rewrite_guard_begin, because markdownlint-cli2's own
+# fix count is authoritative. The verdict arrives on --changed, and a skip arm
+# that passes none omits the key rather than guessing one.
 emit_skipped() {
   hook::finish skipped findings array '[]'
 }
@@ -671,9 +671,11 @@ elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
 else
   # Never invoke a package runner here: hooks must not download or execute an
   # unpinned package as a side effect of editing a file. Degrade visibly on
-  # both channels, once per session.
+  # both channels: the notice is shown on the first skip in the session and
+  # renewed every HOOK_NOTICE_RENEW_EVERY skips (the prerequisite class keys
+  # on the session alone).
   #
-  # Wording is load-bearing (#2740): only the NOTICE latches (skip-notices/
+  # Wording is load-bearing (#2740): only the NOTICE is throttled (skip-notices/
   # marker via hook::notice_once). The binary probe re-runs on every Markdown
   # edit and recovers silently mid-session when the tool becomes resolvable —
   # there is no skip latch. Saying "skipped for this session" made operators
@@ -688,7 +690,7 @@ else
   # be followed.
   if hook::notice_once "markdown-format-markdownlint-cli2" "$INPUT" prerequisite; then
     hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation) Run /markdown-format:check. It does not install.
+      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; this notice is shown on the first skip and renewed every eighth skip, there is no skip latch). $(markdownlint_skip_remediation) Run /markdown-format:check. It does not install.
 PATH probed: $(format_probed_path)"
   fi
   emit_skipped
@@ -1092,7 +1094,7 @@ collect_risky_configs
 # happen on the strength of a markdown edit alone: the lint run is skipped
 # until the user, having reviewed the configuration, records an explicit
 # approval of this exact configuration state. The skip is reported on both
-# channels once per session; the notice key carries the state signature so a
+# channels once per session and agent, renewed every eighth skip; the notice key carries the state signature so a
 # configuration change re-notices within the same session.
 if ((${#RISK_CONFIGS[@]} > 0)); then
   resolve_trust_dir || TRUST_DIR=""

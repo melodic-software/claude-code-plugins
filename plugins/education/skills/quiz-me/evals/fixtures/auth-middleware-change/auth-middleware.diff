@@ -1,0 +1,56 @@
+diff --git a/src/middleware/auth.js b/src/middleware/auth.js
+index 3f1c2a0..9b7d4e1 100644
+--- a/src/middleware/auth.js
++++ b/src/middleware/auth.js
+@@ -1,11 +1,32 @@
+ const { verifyToken } = require('../lib/jwt');
++const { isRevoked } = require('../lib/revocation');
+ const { audit } = require('../lib/audit');
+-async function auth(req, res, next) {
+-  const header = req.headers.authorization || '';
+-  const token = header.replace(/^Bearer /, '');
+-  const claims = await verifyToken(token);
+-  req.user = claims;
+-  audit('auth.ok', claims.sub);
+-  next();
+-}
++const PUBLIC_PATHS = new Set(['/health', '/login']);
++
++async function auth(req, res, next) {
++  if (PUBLIC_PATHS.has(req.path)) return next();
++
++  const header = req.headers.authorization || '';
++  if (!header.startsWith('Bearer ')) {
++    return res.status(401).json({ error: 'missing_token' });
++  }
++  const token = header.slice('Bearer '.length);
++
++  let claims;
++  try {
++    claims = await verifyToken(token);
++  } catch (err) {
++    audit('auth.reject', null);
++    return res.status(401).json({ error: 'invalid_token' });
++  }
++
++  if (await isRevoked(claims.jti)) {
++    audit('auth.revoked', claims.sub);
++    return res.status(401).json({ error: 'revoked_token' });
++  }
++
++  req.user = claims;
++  audit('auth.ok', claims.sub);
++  next();
++}
+ module.exports = { auth };
+diff --git a/src/app.js b/src/app.js
+index 71ac0d3..c40e8f2 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -9,5 +9,5 @@ const app = express();
+ app.use(express.json());
+-app.use(auth);
+ app.use(rateLimit({ windowMs: 60_000, max: 100 }));
++app.use(auth);
+ app.use('/api', routes);
+ module.exports = { app };
