@@ -18,11 +18,11 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createLogger } from "@melodic/video-digestion/shared/logger";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
 import { createAdapter } from "./adapters/adapter-contract.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
-import { invokedAsCli } from "./lib/cli-main.js";
 import {
   findFirstVideoLesson,
   formatLessonLabel,
@@ -265,7 +265,7 @@ async function main() {
   log.info(`  Report: ${reportPath}\n`);
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     log.error("Fatal error:", e);
     process.exit(1);
