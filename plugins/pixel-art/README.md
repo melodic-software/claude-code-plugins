@@ -64,8 +64,7 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 Native `sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation
 tags list frame names and per-frame durations rather than `from`/`to` ranges. The Aseprite backend
 writes Aseprite's own json-hash file instead (frames keyed by spec name, `meta.image` set to
-`sheet.png`), and still writes the native GIFs and preview. The adapters have run only against
-stand-ins so far.
+`sheet.png`), and still writes the native GIFs and preview.
 
 ## Audio
 

@@ -83,7 +83,7 @@ brackets; "(judgment)" marks a rule no source states.
     "suspended" state, and you will need to call resume() after the user gesture.");
     [MDN Autoplay guide](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay)
     ("Doing so outside the context of handling a user input event is subject to autoplay rules.").
-  - As of: 2026-09-29, both pages fetched this session.
+  - As of: 2026-09-29, both pages read that day.
   - Recheck trigger: either page no longer says an `AudioContext` starts suspended before a user
     gesture (Chrome) or that starting playback outside a user input event is subject to autoplay
     rules (MDN), or a fleet audit finds a scene whose audio plays without a gesture.
