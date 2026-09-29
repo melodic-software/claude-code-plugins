@@ -314,7 +314,7 @@ Run only on files the be-concise step did not edit.
 ### lint
 
 - skill: toolchain:lint
-- args: --fix
+- args: all --fix
 - applies-when: always
 - prime: false
 - checked: true
