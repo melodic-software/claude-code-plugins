@@ -52,7 +52,7 @@ SHEBANG='#!/usr/bin/env bash'
 # The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
 # minus list-frontier (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
-  create-item get-item claim renew-lease reclaim link-blocks
+  create-item get-item claim renew-lease release reclaim link-blocks
   add-sub-item list-items list-sub-items capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
@@ -276,8 +276,10 @@ check_coherence() {
   lm() { jq -r --arg k "$1" '.limits[$k]' <<<"$SPEC_JSON"; }
 
   # Leases are the claim protocol; the three verbs stand or fall together, because a
-  # claim that cannot be renewed or reclaimed strands the item at TTL expiry.
-  for v in claim renew-lease reclaim; do
+  # claim that cannot be renewed or reclaimed strands the item at TTL expiry. `release`
+  # is optional (CONTRACT.md "Release": capability-gated, exit 6 when false): declaring
+  # it requires leases, but leases do not require it.
+  for v in claim renew-lease release reclaim; do
     if [[ "$(vb "$v")" == "true" && "$(ft leases)" != "true" ]]; then
       bad+=$'\n'"  verbs[\"$v\"]=true but features.leases=false"
     fi
@@ -491,8 +493,8 @@ usage_args_for() {
   case "$1" in
   create-item) printf -- '--title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]' ;;
   get-item) printf -- '<id>' ;;
-  claim) printf -- '<id> [--ttl-hours <n>] [--session-id <s>]' ;;
-  renew-lease) printf -- '<id> --lease-comment-id <n>' ;;
+  claim) printf -- '<id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]' ;;
+  renew-lease | release) printf -- '<id> --lease-comment-id <n>' ;;
   reclaim) printf -- '<id>' ;;
   link-blocks) printf -- '<id> --blocked-by <id>' ;;
   add-sub-item) printf -- '<id> --parent <id>' ;;
@@ -508,6 +510,7 @@ mapping_note_for() {
   get-item) printf 'Fetch one item and emit the normalized item object. This verb is AUTHORITATIVE for parent_id — list surfaces may omit parent linkage, this one may not.' ;;
   claim) printf 'Acquire the lease (CONTRACT.md "Lease protocol"): assignee PLUS a lease record. A lost race is exit 7, never a silent overwrite of another holder.' ;;
   renew-lease) printf 'Bump renewed_at on the lease identified by --lease-comment-id. A comment belonging to another item is exit 7.' ;;
+  release) printf 'Supersede the caller'"'"'s own live lease in place, before its TTL elapses. Another item'"'"'s lease, another login'"'"'s lease, or a stale handle under a newer claim is exit 7 with nothing written. An already-ended lease is a no-op: released=false, exit 0. Never touch assignees (CONTRACT.md "Release").' ;;
   reclaim) printf 'Release a lease whose TTL has expired. Emit reclaimed=false with a reason when the lease is still live — reclaiming a live lease is the one thing this verb must never do.' ;;
   link-blocks) printf 'Write a blocked-by edge. Hitting the provider ceiling is exit 7 with the ceiling named on stderr.' ;;
   add-sub-item) printf 'Link the item as a child of --parent. Depth and per-parent ceilings are exit 7 with the ceiling named.' ;;
@@ -553,15 +556,18 @@ ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
 TTL_HOURS=""
+TTL_MINUTES=""
 SESSION_ID=""
 EOF
-    opt_loop ttl-hours=TTL_HOURS session-id=SESSION_ID
+    opt_loop ttl-hours=TTL_HOURS ttl-minutes=TTL_MINUTES session-id=SESSION_ID
     cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -z "\$TTL_HOURS" || "\$TTL_HOURS" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer"
+[[ -z "\$TTL_MINUTES" || "\$TTL_MINUTES" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-minutes must be 0-59"
+[[ -z "\$TTL_MINUTES" || "\$TTL_MINUTES" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59"
 EOF
     ;;
-  renew-lease)
+  renew-lease | release)
     cat <<EOF
 ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
