@@ -1,0 +1,9 @@
+// adapter: cs-xunit
+// expect: rule-inert-assertion
+// Planted #12 (xUnit2021).
+public class PlantedUnawaitedAsyncTests {
+    [Fact]
+    public async Task UnawaitedAsync() {
+        Assert.ThrowsAsync<Exception>(() => Calc.Boom());
+    }
+}

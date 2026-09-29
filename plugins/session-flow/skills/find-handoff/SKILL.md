@@ -50,10 +50,15 @@ resolution input, `Handoff origin:`, described after them:
    existence check (step 3). The shape-2 directive
    continues past `then continue them.` with an invoke-the-skill sentence; older directives end
    there. Neither the sentence's presence nor its absence is a signal.
-2. **The dashed rails + instruction line**, the two `─` (U+2500) rails and the literal
-   `` `/clear`, then copy everything between the dashed lines `` line. For a **prompt-only** handoff
-   there is no file and no directive; the resume content is inline between the rails, and the
-   transcript is the only record, so this is the primary key for that branch.
+2. **The copy instruction + its rail pair**, the literal
+   `` `/clear`, then copy everything between the dashed lines `` line and the two `─` (U+2500)
+   rails under it. For a **prompt-only** handoff there is no file and no directive; the resume
+   content is inline between the rails, and the transcript is the only record, so this is the
+   primary key for that branch. A prompt can hold four rails, not two: when a goal applies, a
+   second pair headed by its own `Type /goal` instruction line sits above or below the resume
+   region. That goal region is not a signal, since the resume region is always present and keys
+   the recovery; it is part of the unit recovered (below), and a scan that assumes exactly two
+   rails in a prompt misses or truncates it.
 3. **`Prior session: <UUID>`** and the `type: handoff` frontmatter (structure doc), corroborating
    signal that pins the session chain. Corroboration only: the file-mode shape emits the
    `Prior session:` line, but the producer's prompt-only checklist does not require it, so its
@@ -72,19 +77,21 @@ has two forms on disk and both are read: the shape-2 two-slot form
 legacy form `Handoff origin: <identity>, relative path <path>.`.
 
 **A shape-2 file stores its own resume prompt.** Files carrying `handoff_shape: 2` end with a
-`## Resume prompt` section holding the rails block exactly as it was emitted, so rung 1 can hand
-back the prompt from the file alone, without a transcript
+`## Resume prompt` section holding the rails prompt exactly as it was emitted (both regions when a
+goal applied), so rung 1 can hand back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
 that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
 is named as such and never presented as the lost handoff.
 
-**The resume prompt this skill recovers is the rails block PLUS every below-rail `/loop` re-arm
-message** (save-point.md "Detection contract"). Everything else the producer arms lives between the
-rails and is recovered with the block. `/goal` included. The `/loop` re-arm cannot: a command is
-recognized only at a message's start, so the producer emits it as a separate follow-up message and
-places its instruction below the bottom rail. Recovering only the copy region would therefore hand
-back a continuation that runs once and silently drops the loop, the same failure the producer's
-re-arm rule exists to prevent. The note is a fourth, **conditional** signal: present only when the
+**The resume prompt this skill recovers is the resume region PLUS the goal region (when one
+applies) PLUS every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
+goal region is a second rail pair headed by the `Type /goal` instruction line, above or below the
+resume region; recover both regions in the order emitted, each with its own instruction line. The
+`/loop` re-arm sits outside every region: a command is recognized only at a message's start, so
+the producer emits it as a separate follow-up message and places its instruction below the bottom
+rail. Recovering only the resume region would therefore hand back a continuation whose goal is
+gone or that runs once and silently drops the loop, the same failures the producer's goal and
+re-arm rules exist to prevent. The note is a fourth, **conditional** signal: present only when the
 lost session was running under `/loop`, so its absence disqualifies nothing, and a **repeatable**
 one, since the producer emits a separate re-arm message per surviving loop, so "found one" is never
 "found them all".
@@ -172,7 +179,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   `/session-flow:keep-going`), which acts normally, the read-only guarantee covers the recovery,
   not the resumed work.
 - **Redaction-aware.** Transcripts and handoff files can contain secrets. Quote **only** the resume
-  prompt, the rails block plus every below-rail `/loop` re-arm note, and the handoff metadata;
+  prompt, its rails regions plus every below-rail `/loop` re-arm note, and the handoff metadata;
   **never** dump raw transcript content. The re-arm notes are no exception: each quotes the
   operator's original loop prompt verbatim, which can carry a token, so they go through the same pass as
   everything else rather than riding along unscanned. Apply the same
@@ -211,8 +218,8 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 - **Writes nothing during recovery**, no files, no memory, no `/clear`, no resume execution
   before the confirm gate. Post-confirmation work belongs to the selected resume path, not to this
   skill's recovery ladder.
-- **Does not dump raw transcript content**. Surfaces only the resume prompt (rails block plus the
-  below-rail `/loop` re-arm notes) + metadata, redacted.
+- **Does not dump raw transcript content**. Surfaces only the resume prompt (its rails regions plus
+  the below-rail `/loop` re-arm notes) + metadata, redacted.
 - **Does not auto-resume**. The confirm-before-resume gate is mandatory; wrong-handoff resumption
   is worse than none.
 - **Does not scan unbounded**. The transcript scan is mtime-sorted and capped; it never grep-walks
@@ -263,12 +270,17 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   file lived.
 - **Prompt-only handoffs have no file at all.** Do not error on a missing file, the resume content
   is inline between the rails in the transcript, and that is the recovery.
-- **The `/loop` re-arm sits OUTSIDE the rails, and recovering only the block loses it.** Every
-  other armed thing, `/goal` included, is inside the copy region, so it comes back for free; the
-  loop re-arm cannot be, because a command is only recognized at a message's start and the re-arm
-  has to be its own message. Recover the note anchored to the bottom rail and surface it at the
-  confirm gate, or the recovered continuation runs exactly once and the recurring behavior dies
-  silently, which is the failure the producer's re-arm rule was written to stop.
+- **The goal region is a second rail pair, and recovering only the first pair loses it.** A prompt
+  with a goal holds four rails: the `Type /goal` region and the `/clear` region, in either order.
+  Take each region by its own instruction line and rail pair, so the goal condition comes back with
+  the resume prompt instead of a continuation that has forgotten its goal. A file stores both, so
+  rung 1 returns them; a transcript scan has to keep reading past the first bottom rail.
+- **The `/loop` re-arm sits OUTSIDE every region, and recovering only the regions loses it.** The
+  goal comes back with the goal region; the loop re-arm cannot be inside any region, because a
+  command is only recognized at a message's start and the re-arm has to be its own message.
+  Recover the note anchored to the bottom rail and surface it at the confirm gate, or the
+  recovered continuation runs exactly once and the recurring behavior dies silently, which is the
+  failure the producer's re-arm rule was written to stop.
 - **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same
   save-point engine, so its file looks identical, but its rails prompt was delivered, to the
   launched agent, and resuming it manually duplicates work already running in the background.

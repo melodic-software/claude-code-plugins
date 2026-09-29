@@ -1,0 +1,14 @@
+// expect: rule-inert-assertion
+// .Should() with no matcher chained builds an assertion object and asserts nothing.
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceShouldAloneTests
+{
+    [Fact]
+    public void Total_AddsLines()
+    {
+        var invoice = new Invoice(new[] { 10m, 5m });
+        invoice.Total.Should();
+    }
+}

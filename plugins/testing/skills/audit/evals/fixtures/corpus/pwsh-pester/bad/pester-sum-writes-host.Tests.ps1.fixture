@@ -1,0 +1,14 @@
+# expect: rule-zero-assertion
+# The test calls Get-Sum and prints the result; nothing checks it, so the test
+# passes whatever Get-Sum returns.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds two numbers' {
+        $result = Get-Sum -A 2 -B 3
+        Write-Host "Get-Sum returned $result"
+    }
+}
