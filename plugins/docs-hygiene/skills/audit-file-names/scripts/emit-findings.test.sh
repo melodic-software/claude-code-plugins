@@ -137,6 +137,7 @@ assert_eq "scanned 0 over a plan with findings: 0 still writes (exit 0)" "0" "$?
 bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" \
   --out "$work/fresh.md" >/dev/null
 assert_contains "scanned 0 with no existing plan writes findings: 0" "$(cat "$work/fresh.md")" "findings: 0"
+assert_contains "and records files_scanned: 0" "$(cat "$work/fresh.md")" "files_scanned: 0"
 
 # --- a collision refuses the whole plan ---------------------------------------
 
