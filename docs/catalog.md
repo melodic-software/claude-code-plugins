@@ -134,7 +134,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 ## Audio
 
 - [`songwriting`](../plugins/songwriting): Songwriting craft companion: nine concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, metaphor, meter-prosody, song-form, co-write, diagnose, practice) applying Pat Pattison's methods, with an object-writing agent that performs the sensory exercise itself and per-skill emission boundaries that route generation to the skill that owns it, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).
-- [`retro-audio`](../plugins/retro-audio): Renders retro sound effects and short chiptune loops to WAV with the Python standard library only: an sfxr-style parameter model and an MML subset with Game Boy, NES, and PICO-8 pulse duties. Another plugin can play the WAV; this one does not read that plugin's files.
+- [`retro-audio`](../plugins/retro-audio): Renders retro sound effects and short chiptune loops to WAV with the Python standard library only: an sfxr-style parameter model and an MML subset with Game Boy and NES pulse duties and channel limits for Game Boy, NES, and PICO-8 (four channels, one noise part). Another plugin can play the WAV; this one does not read that plugin's files.
 
 ## Personal
 
