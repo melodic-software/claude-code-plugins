@@ -107,7 +107,10 @@ the tools reference).
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash.
+  Claude Code can run it under Git Bash. If `/typos-format:setup` fails to load on
+  native Windows, Git Bash is missing: install Git for Windows and rerun
+  ([skills docs](https://code.claude.com/docs/en/skills#how-injected-commands-run), checked
+  2026-09-29: a `shell: bash` skill fails before any command runs when Git Bash is not found).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no

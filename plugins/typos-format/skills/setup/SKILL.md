@@ -17,6 +17,12 @@ tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+Verification record. Claim: with `disableSkillShellExecution` set, each injected command is
+replaced by the literal `[shell command execution disabled by policy]` and not run. Basis:
+[Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context), which
+documents the setting and the string. As of 2026-09-29. Recheck when a re-read of that section no
+longer names the setting or the string.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -33,6 +39,17 @@ philosophy's never-download-silently rule.
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 prints remediation guidance for each FAIL. Both are non-interactive. Never prompt when the
 action is given.
+
+Step 1 of `check` only reports a Bash version because the skill cannot load where bash is missing:
+with `shell: bash` on Windows without Git Bash the invocation fails before any command runs, so
+this skill never gets to diagnose the missing Git Bash. The README Requirements section carries
+that answer. Verification record. Claim: `shell: bash` without bash available fails the
+invocation before any command runs, showing ``Skill <name> requires bash (`shell: bash` in
+frontmatter) but Git Bash was not found``, and a failed injected command aborts the skill before
+Claude sees its content. Basis: [How injected commands
+run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and [When an injected
+command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails). As of
+2026-09-29. Recheck when a re-read of either section no longer describes that failure.
 
 ## `check` (read-only)
 
@@ -51,11 +68,11 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of running.
+   notice, once per session and agent and renewed every eighth skip, instead of running.
 3. **typos binary.** The pre-computed `typos` row (the hook resolves PATH only, with no
    `.venv`-style per-repo convention). Report the resolved path and `typos --version` output when
-   found. FAIL when absent; the hook then emits a visible once-per-session skip notice instead of
-   running.
+   found. FAIL when absent; the hook then skips with a visible notice, once per session and shared by all
+   agents, renewed every eighth skip with the install route kept, instead of running.
 4. **Consumer typos config (informational only).** The hook runs unconditionally and never
    gates on a config existing; typos resolves its own governing config (if any) directly from
    the file path it is given. The hook also injects its bundled `config/default-typos.toml`
