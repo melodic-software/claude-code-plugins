@@ -33,12 +33,17 @@ your `PATH`.
   never a silent no-op. A missing `actionlint` notice fires once per session, and every
   agent in the session shares it. A missing `jq` notice fires once per session and agent.
   Both renew every eighth skip; the `actionlint` renewal keeps the install route.
+  A missing `node` is the exception: the hook does not launch, so it cannot say anything
+  itself. The transcript shows a hook error notice, and lint does not run.
 
 ## Requirements
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash and runs the script. Absent: the hook does not launch and lint does not run.
+  `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
@@ -57,7 +62,9 @@ script's own workflow filter), so its cost on a clean workflow is the figure tha
 Measured on Linux x86_64 under bash 5.2 in a container with `HOOK_TELEMETRY_SINK` and
 `CLAUDE_PROJECT_DIR` unset, twelve interleaved trials against an interleaved `bash -c :` floor
 S of about 4 ms, with a kernel census from `strace -f -e trace=clone,clone3,fork,vfork,execve`
-(2026-09-07, 0.8.43):
+(2026-09-07, 0.8.43). It predates two later spawns on this path: the gitignore check
+(`hook::file_is_gitignored`, one `git check-ignore`, 0.9.0) and the `node` launcher (0.9.1). The
+figures below exclude both:
 
 | Event | Fires | Wall | Spawn-equivalents | Kernel census |
 | --- | --- | --- | --- | --- |
