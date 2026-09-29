@@ -8,11 +8,9 @@ metadata:
   summary: Backlog CRUD through the bound tracker. Add, list, close, stats
 ---
 
-**Arguments.** `<action> [args]`. default: stats Actions: stats, list, add, start, done, due, recheck, search, audit
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `<action> [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, and audit.
 
 ## Shared tracker context
 
@@ -65,6 +63,11 @@ derive `<slug>` per its slug spec and, on the session's first memory-tier write,
 memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
 Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`) don't
 need a checklist.
+
+## Next
+
+- A picked item: `/work-items:work`.
+- Raw intake: `/work-items:triage`.
 
 ## Action Router
 
