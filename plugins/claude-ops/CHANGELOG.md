@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.3] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+- **The three `doctor` registry rows drop the budget caveat and the evidence that assumed a baked
+  phrase**, so the registry no longer describes a routing phrase that does not exist.
+
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added

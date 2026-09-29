@@ -1,0 +1,13 @@
+// expect: rule-zero-assertion
+// RunAsync on an object initializer outside Microsoft.CodeAnalysis.Testing
+// only runs the worker; nothing checks what it did.
+using Xunit;
+
+public sealed class WorkerTests
+{
+    [Fact]
+    public async Task Run_Retries()
+    {
+        await new Worker { Retries = 2 }.RunAsync();
+    }
+}

@@ -39,7 +39,7 @@ states the fired condition in the run's own values.
 | Rule id | Detects | Tier | Confidence | Gates `--check` | Gates `--check --strict` |
 |---|---|---|---|---|---|
 | `testing/audit/rule-zero-assertion` | a runnable test body with no assertion token | IMPORTANT | `high` | yes | yes |
-| `testing/audit/rule-recomputed-expectation` | an equality whose actual and expected sides are the identical expression | IMPORTANT | `high` | yes | yes |
+| `testing/audit/rule-recomputed-expectation` | an equality whose actual and expected sides are the identical expression; a deliberate determinism check `f(x) == f(x)` still fires and is marked `cant-fail-ok: determinism contract` | IMPORTANT | `high` | yes | yes |
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-flaky-passes-suite` | a Playwright config with retries and `failOnFlakyTests` absent or literal `false`, so a test passing on a retry leaves the run green | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-only-not-forbidden` | a Playwright config with `forbidOnly` absent or literal `false`, so a committed `test.only` shrinks the suite to one test | IMPORTANT | omitted | no | yes |
@@ -47,15 +47,15 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-constant-restatement` | a constant, or a literal the test bound, compared to a literal with no call before it | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-source-text-read` | a tracked non-test source file read by a static path and searched as text | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
-| `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); property-test files and Playwright are exempt | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); property-test files and Playwright are exempt | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-snapshot-only` | every assertion is a snapshot call ("snapshot is the only oracle: review it as code"); an image comparison never counts | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-weak-oracle` | every assertion is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`) | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 
 - **`Tier` is looked up from each rule's row in the detector-findings severity crosswalk** (the
   contract cited under Persisting findings): IMPORTANT for the rules whose test cannot fail on the
-  path they flag, SUGGESTION for the four whose test can fail (change detectors, snapshots, weak
-  oracles). The argument for each mapping lives in the crosswalk row, not here; a per-finding tier
-  choice is exactly what the rule-keyed lookup forbids.
+  path they flag, SUGGESTION for the five whose test can fail (change detectors, derived
+  expectations, snapshots, weak oracles). The argument for each mapping lives in the crosswalk
+  row, not here; a per-finding tier choice is exactly what the rule-keyed lookup forbids.
 - **The seven report-only rules print, count and persist, and never gate `--check`, `--strict`
   included**, until a precision run shows them free of false positives. The coverage block and the
   `--check` note count them apart.
@@ -67,7 +67,10 @@ states the fired condition in the run's own values.
   is counted; a config whose object literal the engine cannot anchor is enumerated and not examined.
 - **Detection bias: every heuristic errs toward not firing.** Assertion tokens match generously (a
   helper named `assertValidSum` or `checkInvariant` counts), strings/comments are masked first,
-  skipped tests are not judged. A missed defect costs one finding; a false positive costs the
+  skipped tests are not judged. A test that calls a function defined in the same file, bare or on
+  `self`/`this`/`cls`, whose own body asserts, throws or rejects is not a zero-assertion finding
+  (a method call resolves to the test's own class when it defines the name);
+  the helper's own calls are not followed (one level deep). A missed defect costs one finding; a false positive costs the
   detector its audience.
 
 ## Running the detector

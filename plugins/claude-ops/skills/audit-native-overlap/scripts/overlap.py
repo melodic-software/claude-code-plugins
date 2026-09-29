@@ -590,6 +590,14 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
                 "takes `integration` `suggest` (a route phrase on a surface the "
                 "model never lists is dead text)"
             )
+        baked = row.get("baked")
+        if isinstance(baked, dict) and baked.get("description_phrase") is True:
+            problems.append(
+                f"{label}: a `suggest` row for a bundled skill marked "
+                "`model-invocation-disabled` never bakes a description phrase "
+                "(the model never lists the surface, so a route phrase is dead "
+                "text)"
+            )
     elif klass in ROUTE_OR_WRAP_CLASSES:
         if integration not in ("route", "wrap"):
             problems.append(

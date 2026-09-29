@@ -443,12 +443,13 @@ session before it (this table, each row naming the file and transcript to open f
 
 The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
 screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
-below-rail lines. The on-screen rails block IS this section, printed by
+below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
+pair, above or below the resume region). The on-screen rails block IS this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
 between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, `Then:`, the
-`/goal` first line) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume
-prompt", full-path block. `new` writes every line of it except the `Next:` headlines and the
-optional `/goal` and re-arm slots.
+goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
+full-path block. `new` writes every line of it except the `Next:` headlines and the optional
+goal-region and below-rail slots.
 
 ## How this document is referenced elsewhere
 
@@ -553,7 +554,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
 #    next slot and the cumulative slots need. Leave an optional slot out
-#    (goal-rearm, below-rail, <section>-new) and fill deletes its line. For a
+#    (goal-first, goal-after, below-rail, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem

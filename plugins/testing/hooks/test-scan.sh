@@ -117,10 +117,11 @@ ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
   # The change-detector rules flag tests that fail on harmless changes, and a
-  # snapshot or weak oracle can fail too; only the rest cannot fail.
+  # derived expectation, a snapshot or a weak oracle can fail too; only the
+  # rest cannot fail.
   lead="has tests that cannot fail:"
-  if ! grep -qv -e rule-constant-restatement -e rule-source-text-read -e rule-snapshot-only -e rule-weak-oracle <<<"$findings"; then
-    lead="has tests that check little (weak or snapshot-only oracles):"
+  if ! grep -qv -e rule-constant-restatement -e rule-source-text-read -e rule-recomputed-derived -e rule-snapshot-only -e rule-weak-oracle <<<"$findings"; then
+    lead="has tests that check little (derived, weak or snapshot-only oracles):"
     grep -qv -e rule-constant-restatement -e rule-source-text-read <<<"$findings" ||
       lead="has tests that fail on harmless changes (change detectors):"
   fi

@@ -115,7 +115,7 @@ class BackendRoutingTest(unittest.TestCase):
                 direct, routed = pathlib.Path(tmp) / "direct", pathlib.Path(tmp) / "routed"
                 expected = render.render(module.build(), direct, scale)
                 with contextlib.redirect_stdout(io.StringIO()):
-                    written = backends.run(module.build(), routed, "native", scale, None, {}, False)
+                    written = backends.run(module.build(), routed, "native", scale, None, {})
                 self.assertEqual(sorted(written), sorted(expected))
                 self.assertEqual((routed / "sheet.png").read_bytes(), (direct / "sheet.png").read_bytes())
 
@@ -125,7 +125,7 @@ class BackendRoutingTest(unittest.TestCase):
             out = pathlib.Path(tmp) / "out"
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
-                backends.run(module.build(), out, "aseprite", 1, None, {"PATH": tmp}, False)
+                backends.run(module.build(), out, "aseprite", 1, None, {"PATH": tmp})
             self.assertEqual(buf.getvalue().strip(), backends.NOTICES["aseprite-missing"])
             self.assertTrue((out / "sheet.png").is_file())
             self.assertFalse((out / "source.aseprite").exists())

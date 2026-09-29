@@ -2,8 +2,8 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, and diagnose failures to root cause. Six skills, one concern: proving
-behavior with tests.
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail. Seven
+skills, one concern: proving behavior with tests.
 
 | Skill | What it does |
 |---|---|
@@ -11,8 +11,9 @@ behavior with tests.
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
-| `/testing:audit` | Can't-fail test detection, a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, C#, Bash, PowerShell and Go; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
+| `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved `.claude/testing.yaml`, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes `.claude/testing.yaml`. |
+| `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 ## Works in any repo
 
@@ -41,7 +42,15 @@ behavior with tests.
 ## Configuration
 
 Test structure and conventions come from your own project's `CLAUDE.md` and rules.
-This plugin declares no userConfig options.
+
+Two `userConfig` options, prompted by Claude Code at enable time:
+
+- `test_guards_enabled` (default `false`) turns on two hooks. `test-scan` (PostToolUse) runs the
+  can't-fail scanner on each test file Claude writes or edits and returns the findings as
+  context. `test-weaken` (PreToolUse) asks Claude for a reason when an edit removes or skips tests
+  or assertions.
+- `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
+  fails open.
 
 `/testing:run-e2e` reads one optional consumer-project config surface,
 `.claude/testing/e2e.md`: `recording` (`video | gif | off`, default `off`) and

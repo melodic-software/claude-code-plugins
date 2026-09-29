@@ -31,6 +31,9 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
+# shellcheck source=hook-test-sink.sh
+source "$SCRIPT_DIR/hook-test-sink.sh"
+
 H="$WORK/home"
 D="$WORK/data"
 MARK="$H/.claude/context-guard/context"
@@ -129,29 +132,10 @@ fi
 # (Windows ACL volumes under Git Bash) too. A directory-mode block cannot
 # express this case at all — the hook re-asserts `chmod 700` on its own
 # contract directory every run, so it heals the block before writing.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'cat >%q\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-wait_for_sink() {
-  local f="$1" tries=150
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
-
 BLOCKED="$MARK/sfail.compacted"
 mkdir -p "$BLOCKED"
 TEL="$WORK/tel-fail.json"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >\"$TEL\"")"
 printf '{"session_id":"sfail","hook_event_name":"PostCompact","trigger":"auto"}' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" >/dev/null 2>&1
 RC=$?
