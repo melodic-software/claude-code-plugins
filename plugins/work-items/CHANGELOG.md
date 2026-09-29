@@ -8,6 +8,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 ### Changed
 
 - **`work-loop` and `attend-queue` drop a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet. `work-loop` records the latched account beside `rate_limit_latch` and `paused_until`, reads the account on each paused wake and Monitor tick, and clears the latch when the new account is below the pause threshold (`reference/paused-wait.md`, `reference/telemetry-upsert.md`); one eval covers the resume and keep-latch cases. `attend-queue` keeps no durable state and holds the latched account in the session.
+- **`work-loop`'s instance-collision block moved, unchanged, from `SKILL.md` to `reference/telemetry-upsert.md`.** The floor sync pushed `SKILL.md` past the 500-line cap; `SKILL.md` keeps a pointer.
 
 ## [0.41.9] - 2026-09-29
 

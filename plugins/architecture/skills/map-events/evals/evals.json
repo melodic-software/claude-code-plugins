@@ -10,7 +10,7 @@
         "Does not match messages by short name",
         "Writes events.md as a mermaid flowchart and no events.dsl, without reading landscape_dialect",
         "Passes no --dialect to render-events.sh",
-        "Writes a Handoff line map-flow can read"
+        "Writes Handoff lines keyed by file and line, and does not claim map-flow reads events.md"
       ]
     },
     {
@@ -32,6 +32,27 @@
         "Resolves the short name through the using directive",
         "Does not report the AddConsumer-registered consumer as an orphan or a message",
         "Does not list a class that is never published, sent, or consumed as a message"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "dotted-names-resolve-against-declared-types",
+      "prompt": "/architecture:map-events\n\nContracts.cs declares `namespace Shop.Contracts;` and `public record OrderPlaced`. Publisher.cs in `namespace Shop;` calls `bus.Publish<Contracts.OrderPlaced>(..)` and `bus.Publish<Vendor.Sdk.Ping>(..)`, where Vendor.Sdk.Ping is declared nowhere in the repository. A consumer has `using Shop.Contracts;` and implements IConsumer<OrderPlaced>.",
+      "expected_output": "Contracts.OrderPlaced resolves under the enclosing namespace Shop to Shop.Contracts.OrderPlaced, so the publish and the consumer share one resolved edge and there is no orphan. Vendor.Sdk.Ping is an unresolved edge and an unresolved finding, not an orphan publisher.",
+      "expectations": [
+        "Resolves a dotted name through the enclosing namespace instead of trusting it verbatim",
+        "Reports the undeclared dotted publish as unresolved and not as an orphan publisher"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "queue-holds-for-its-endpoint-only",
+      "prompt": "/architecture:map-events\n\nSetup.cs calls cfg.ReceiveEndpoint(\"orders\", e => { e.ConfigureConsumer<OrderHandler>(ctx); e.ConfigureConsumer<BillingHandler>(ctx); }) and then cfg.ReceiveEndpoint(\"audit\", e => e.ConfigureConsumer<AuditHandler>(ctx)), then x.AddConsumer<LateHandler>(). All four handlers implement IConsumer<OrderPlaced> and are declared below the setup.",
+      "expected_output": "OrderHandler and BillingHandler are on queue orders, AuditHandler is on queue audit, LateHandler has no queue. Only orders has a competing-consumer finding, for two consumers of OrderPlaced.",
+      "expectations": [
+        "Does not carry a ReceiveEndpoint queue past the end of that call",
+        "Raises a competing-consumer finding only for the same message and queue",
+        "Gives no queue to a publish edge"
       ]
     }
   ]

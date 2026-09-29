@@ -20,7 +20,9 @@ set -o pipefail; jq -er '.oauthAccount.emailAddress | strings | select(length>0)
 ```
 
 A non-zero exit (file absent, unparseable, key missing or not a string) means **cannot attribute**;
-discard the output. The address never reaches the output, a variable, or a command line. Fingerprint
+discard the output. A failed `jq` still leaves `sha256sum` printing the hash of empty input,
+`e3b0c44298fc1c14`; that value is never a fingerprint, so it also means cannot attribute. The
+address never reaches the output, a variable, or a command line. Fingerprint
 a tee snapshot's `account.email` the same way (`jq -er '.account.email | strings | select(length>0)'
 <tee> | sha256sum | cut -c1-16`) to test whether the snapshot describes the new account.
 
@@ -30,7 +32,8 @@ hourly (the `ScheduleWakeup` ceiling).
 
 ## On each wake and each Monitor tick
 
-1. Read the fingerprint. Cannot attribute: keep the latch and stay paused; nothing else changes.
+1. Read the fingerprint. Cannot attribute: no switch is detectable, so keep the latch and continue
+   the ordinary re-evaluation (the latched pause end still applies).
 2. `latched_account` absent and the read succeeds: the pause began unattributable, so there is no
    switch to detect. Record the fingerprint as `latched_account` and continue the ordinary
    re-evaluation.

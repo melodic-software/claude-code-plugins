@@ -9,6 +9,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the paused wait reads `.oauthAccount.emailAddress` on each wake and Monitor tick, clears the latch when the new account is below the pause threshold, and records the event in cycle telemetry (`reference/paused-wait.md`). One eval covers the resume and keep-latch cases.
 
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
 ## [0.62.24] - 2026-09-29
 
 ### Fixed
