@@ -2,6 +2,8 @@
 
 Sound effects and MML render to WAV with the standard library only.
 """
+import contextlib
+import io
 import pathlib
 import sys
 import tempfile
@@ -65,6 +67,32 @@ class AudioTest(unittest.TestCase):
         score = "c | d | e | f | g"
         with self.assertRaises(ValueError):
             mml.render_mml(score, "gameboy")
+
+    def test_stray_closing_bracket_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unmatched"):
+            mml.render_mml("c d ] e f", "gameboy")
+
+    def test_zero_tempo_or_length_exits_one_with_a_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "x.wav"
+            for score in ("t0 c", "l0 c", "c0"):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    self.assertEqual(mml.main(["--out", str(out), score]), 1)
+                self.assertIn("mml.py: ", stderr.getvalue())
+                self.assertIn("greater than zero", stderr.getvalue())
+                self.assertFalse(out.exists())
+
+    def test_zero_repeat_count_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "at least 1"):
+            mml.render_mml("[c]0", "gameboy")
+
+    def test_repeat_count_defaults_to_two_and_honours_an_explicit_count(self):
+        for score in ("[c]", "[c]2"):
+            samples = mml.render_mml(f"t120 l4 {score}", "gameboy", rate=22050)
+            self.assertAlmostEqual(len(samples) / 22050, 1.0, delta=0.01)
+        samples = mml.render_mml("t120 l4 [c]3", "gameboy", rate=22050)
+        self.assertAlmostEqual(len(samples) / 22050, 1.5, delta=0.01)
 
     def test_campfire_score_renders(self):
         score = (ROOT / "examples" / "campfire.mml").read_text()
