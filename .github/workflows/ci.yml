@@ -200,6 +200,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
+              plugins/docs-hygiene/skills/generate-file-name-gate/**
+              .claude/docs-hygiene.json
             node:
               .github/**
               scripts/**
@@ -1834,6 +1836,10 @@ jobs:
                 echo "::warning::$summary Falling back to the full contract corpus."
                 printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
                 scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
+                # Same fixed pair the push path runs once on leg 3 (#3703).
+                if [ "$LEG" = 3 ]; then
+                  scripts/run-outside-node-suites.sh
+                fi
               else
                 exit 1
               fi
@@ -1913,6 +1919,13 @@ jobs:
         run: |
           [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/read-list.test.sh
+      # This suite ties each plugins/*/hooks/probe-prerequisite.sh to that
+      # plugin's prerequisites.json; run-plugin-tests.sh does not discover scripts/.
+      - name: Run prerequisite-probe manifest tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 2 ] || exit 0
+          bash scripts/check-prerequisite-probes.test.sh
       # scripts/lib/test-harness.sh is the ok/fail/report contract the
       # scripts/*.test.sh suites share. A recorded failure that still exits 0
       # is the false-green this library exists to refuse (#3160).

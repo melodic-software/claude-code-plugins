@@ -124,6 +124,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
+              plugins/docs-hygiene/skills/generate-file-name-gate/**
+              .claude/docs-hygiene.json
             python:
               .github/**
               scripts/**
