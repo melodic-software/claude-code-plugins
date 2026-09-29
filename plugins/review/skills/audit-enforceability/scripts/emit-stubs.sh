@@ -63,7 +63,12 @@
 # names under a private directory on the deepest existing ancestor and
 # comparing them by inode, then removing that directory before returning. The
 # caller's own paths are not created to decide a refusal. When that ancestor
-# cannot be written, only an apfs or hfs filesystem type takes the NFC step.
+# cannot be written, only an apfs or hfs filesystem type takes the NFC step. An
+# interrupted run removes the probe directory too (EXIT, INT and TERM).
+# EMIT_STUBS_ASSUME_NORMALIZING=1 skips the probe and treats the volume as
+# normalization-insensitive. It exists only so the test suite can drive the NFC
+# fold and the refusal on a byte-exact runner; it can only add refusals, and it
+# says nothing about what a real APFS or HFS Plus volume does.
 # The inode walk never takes a refusal away once the fold has spoken for a
 # tail, and it never lets the fold speak for inodes the filesystem can already
 # distinguish.
@@ -267,9 +272,10 @@ path_parent() {
 # directory reports "not within" and writes the stubs into the very directory
 # the fence exists to protect.
 #
-# This reads the filesystem but still creates nothing: it walks UP to an
-# existing ancestor rather than materializing the target, so a refused run
-# leaves the tree exactly as it found it. When nothing resolves, the lexical
+# This walks UP to an existing ancestor rather than materializing the target,
+# so it never creates the caller's paths. The normalization probe that a later
+# fold may run makes and removes a private emit-stubs-norm.XXXXXX directory
+# inside the deepest existing ancestor. When nothing resolves, the lexical
 # value stands.
 canonicalize_dir() {
   local p="$NORM" tail="" phys
@@ -327,7 +333,7 @@ is_within() {
   [[ $rc -eq 0 ]] && return 0
 
   # The filesystem's own answer, for the existing part of the chain. Walks UP
-  # from the candidate, so nothing is created to decide it.
+  # from the candidate and never creates the caller's paths.
   [[ -e "$ancestor" ]] || return 1
   probe="$candidate"
   while :; do
@@ -481,10 +487,29 @@ apply_canonical_fold() {
 VOLUME_NORMALIZES=0
 VOLUME_NORMALIZES_DEV=""
 VOLUME_PROBE_DIR=""
+PROBE_LIVE=""
+# remove_probe: remove the private probe directory and its children. rmdir
+# only, so it can remove nothing but empty directories.
+remove_probe() {
+  local child
+  [[ -n "$PROBE_LIVE" ]] || return 0
+  for child in "$PROBE_LIVE"/*; do
+    rmdir -- "$child" 2>/dev/null || true
+  done
+  rmdir -- "$PROBE_LIVE" 2>/dev/null || true
+  PROBE_LIVE=""
+}
+trap remove_probe EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 volume_normalizes() {
   local dir="$1" dev="" probe="" nfc nfd fstype="" prefix=""
   if [[ ! -d "$dir" ]]; then
     VOLUME_NORMALIZES=0
+    return 0
+  fi
+  if [[ "${EMIT_STUBS_ASSUME_NORMALIZING:-}" == "1" ]]; then
+    VOLUME_NORMALIZES=1
     return 0
   fi
   dev="$(stat -c '%d' "$dir" 2>/dev/null || stat -f '%d' "$dir" 2>/dev/null)" # portability-ok: BSD stat -f is the same-line fallback for the GNU device id
@@ -499,6 +524,7 @@ volume_normalizes() {
   probe="$(mktemp -d "${dir%/}/emit-stubs-norm.XXXXXX" 2>/dev/null || true)"
   if [[ -n "$probe" && -d "$probe" ]]; then
     prefix="${dir%/}/emit-stubs-norm."
+    PROBE_LIVE="$probe"
     case "$probe" in
     "$prefix"*)
       if mkdir -- "$probe/$nfc" 2>/dev/null; then
@@ -510,9 +536,7 @@ volume_normalizes() {
           VOLUME_NORMALIZES=1
         fi
       fi
-      rmdir -- "$probe/$nfd" 2>/dev/null || true
-      rmdir -- "$probe/$nfc" 2>/dev/null || true
-      rmdir -- "$probe" 2>/dev/null || true
+      remove_probe
       return 0
       ;;
     *)
@@ -614,7 +638,7 @@ normalization_fold_self_check() {
 
 # split_existing <path>: SPLIT_BASE gets the deepest ancestor of <path> that
 # exists (the path itself when it does), SPLIT_TAIL the segments below it.
-# Walks UP only, so nothing is created to decide it.
+# Walks UP only and creates nothing.
 SPLIT_BASE=""
 SPLIT_TAIL=""
 split_existing() {
