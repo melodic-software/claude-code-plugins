@@ -19,6 +19,8 @@ All notable changes to the `context7` plugin are documented here. Format follows
   ([#4120](https://github.com/melodic-software/claude-code-plugins/issues/4120)).** The 0.5.9 removal
   contradicted #4120's acceptance criterion, which left the clause unedited pending a human decision.
   The decision (keep the removal or keep the clause) is open on #4120.
+- **`lookup` states its default action as a sentence.** The `**Arguments.**` line now ends with
+  "Default action is lookup, e.g. /context7:lookup react "useEffect cleanup"." No behavior change.
 
 ## [0.5.11] - 2026-09-28
 
@@ -32,7 +34,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- Declares the `ctx7` CLI in `prerequisites.json` so `/claude-ops:prerequisites` can report it when missing.
 
 ## [0.5.9] - 2026-09-27
 

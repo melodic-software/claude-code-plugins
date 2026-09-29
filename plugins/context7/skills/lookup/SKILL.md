@@ -13,7 +13,7 @@ metadata:
 shell: bash
 ---
 
-**Arguments.** `[lookup <library> <query> | update]`. default: lookup, e.g., /context7:lookup react "useEffect cleanup"
+**Arguments.** `[lookup <library> <query> | update]`. Default action is lookup, e.g. /context7:lookup react "useEffect cleanup".
 
 ## Pre-computed context
 
