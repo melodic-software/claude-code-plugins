@@ -518,7 +518,8 @@ done
 # findings through add_node, add_edge, add_finding and add_unread_manifest.
 # <name> is the ecosystem name that lands in each node's "ecosystem" field, and
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
-# lists the shipped readers, in the order they run.
+# lists the shipped readers, in the order they run. A reader parses in its own
+# file, lib/<name>-references.sh, sourced above.
 READERS=(dotnet)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"

@@ -452,7 +452,7 @@ cat >"$TEST_TMPDIR/mixed.json" <<'JSON'
   "cycles_truncated": false,
   "nodes": [
     {"id":"svc/Api.csproj","name":"Api","path":"svc/Api.csproj","ecosystem":"dotnet","kind":"project"},
-    {"id":"svc/Core.csproj","name":"Core","path":"svc/Core.csproj","ecosystem":"dotnet","kind":"project"}
+    {"id":"svc/Core.csproj","name":"Core","path":"svc/Core.csproj","ecosystem":"node","kind":"project"}
   ],
   "edges": [
     {"from":"svc/Api.csproj","to":"svc/Core.csproj","kind":"project","status":"resolved","evidence":"svc/Api.csproj: <ProjectReference Include=\"Core.csproj\" />"}
@@ -466,7 +466,8 @@ JSON
 render mixed --graph "$TEST_TMPDIR/mixed.json"
 assert_equals "mixed: exits 0" "$?" "0"
 assert_contains "mixed: charts the components" "$(cat "$TEST_TMPDIR/mixed.out")" 'components=2'
-assert_contains "mixed: a component names its node ecosystem" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'Component('
+assert_contains "mixed: a dotnet node is labeled dotnet" "$(cat "$TEST_TMPDIR/mixed/components.md")" '"Api", "dotnet", "svc/Api.csproj")'
+assert_contains "mixed: a node-ecosystem component is labeled node" "$(cat "$TEST_TMPDIR/mixed/components.md")" '"Core", "node", "svc/Core.csproj")'
 # shellcheck disable=SC2016
 assert_not_contains "mixed: is not the unknown result" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'ecosystem `unknown`'
 
