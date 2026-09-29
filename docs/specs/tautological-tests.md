@@ -263,7 +263,7 @@ failure.
 | `test-weaken` | PreToolUse `Edit\|MultiEdit\|Write` | `old_string` and `new_string`, or the old file versus the new content | removed assertion, added skip, removed test block, or changed expected value. Release 1: allow and inject context that asks the agent for its reason. After the precision run, deleted or skipped tests may deny with a reason, and the agent retries with a `test-change: <reason>` marker (D5). |
 
 Once-per-session state lives under `${CLAUDE_PLUGIN_DATA}`, keyed by `session_id`, `agent_id` and
-the normalized file path. The marker is an atomic `mkdir`, and markers older than 7 days are pruned.
+the normalized file path. The marker is a file created with bash `noclobber` (`O_EXCL`), not `mkdir`, which is not atomic under uutils coreutils; markers older than 7 days are pruned.
 `test-weaken` returns `additionalContext` with no `permissionDecision` field while advisory.
 
 Lint-rule presence (eslint-plugin-jest/vitest/playwright, xUnit2021, NUnit2009, ruff PLR0124) is
@@ -410,8 +410,8 @@ test file and feeds findings back.
   - for Edit, locates each `new_string` occurrence (`replace_all` may give several) and reports only
     findings in blocks that overlap them;
   - for Write, reports all blocks on create and only changed blocks on update (`tool_response.type`);
-  - injects the rules-skill note once per `session_id` + `agent_id` + path, using an atomic `mkdir`
-    marker under `${CLAUDE_PLUGIN_DATA}`, and prunes markers older than 7 days;
+  - injects the rules-skill note once per `session_id` + `agent_id` + path, using a `noclobber`
+    (`O_EXCL`) marker file under `${CLAUDE_PLUGIN_DATA}`, and prunes markers older than 7 days;
   - on a doubtful hit (`rule-recomputed-expectation`, and `rule-constant-restatement` from Phase 4),
     asks the agent to state where the expected value comes from, in the same turn (Q7 tier 2);
   - runs the scanner under its own timeout, set below the hooks.json `timeout`. A timeout or error
