@@ -2141,6 +2141,74 @@ class TestHeldRowProperty(SessionCase):
                 self.check_seed(seed)
 
 
+LEGACY = HERE / "tests" / "fixtures" / "ledger-legacy"
+LEGACY_SHAPES = 36
+
+
+def legacy_state(doc):
+    """What an import left in questions.json, from its raw fields and none of its timestamps: per
+    question the commitments with their confirmation, the terminal decision (an accept's or an
+    alternative's text is its note), the recommendation and alternatives (a plan proposal's
+    `was` is the alternative keyed was), the archived reason, the hold, the set-aside keys and
+    the seeded row with its proposal pair."""
+    seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+    state = {}
+    for q in doc["questions"]:
+        ticked = {c["index"] for c in q.get("commitsConfirmed") or []}
+        term, arch = q.get("terminal"), q.get("archived")
+        state[q["id"]] = {
+            "title": q["title"],
+            "round": q["round"],
+            "commits": [
+                {"text": c, "confirmed": i in ticked}
+                for i, c in enumerate(q.get("commits") or [])
+            ],
+            "terminal": {
+                "decision": term.get("decision"),
+                "alt": term.get("alt"),
+                "text": term.get("text"),
+                "seeded": bool(term.get("seeded")),
+            }
+            if term
+            else None,
+            "recommendation": q.get("recommendation"),
+            "alternatives": q.get("alternatives"),
+            "archived": {"why": arch["why"], "seeded": bool(arch.get("seeded"))}
+            if arch
+            else None,
+            "hold": {"waitsOn": q["waitsOn"], "by": q.get("waitingBy") or "claude"}
+            if q.get("waiting")
+            else None,
+            "setAside": sorted(k for k in q if k.startswith("setAside")),
+            "seed": seeds.get(q["id"]),
+        }
+    return state
+
+
+class TestLegacyLedgerFixtures(SessionCase):
+    """Every ledger grammar that shipped still imports. Each directory under
+    tests/fixtures/ledger-legacy/ holds one row shape as a ledger (ledger.md) and the state its
+    import leaves in questions.json (expected.json, from legacy_state); a newer grammar keeps
+    every fixture importing to the same state unless a test names the change."""
+
+    def test_every_legacy_ledger_imports_to_its_expected_state(self):
+        shapes = sorted(p for p in LEGACY.iterdir() if p.is_dir())
+        self.assertEqual(len(shapes), LEGACY_SHAPES)
+        for shape in shapes:
+            with self.subTest(shape=shape.name):
+                d = self.tmp / shape.name
+                d.mkdir()
+                rc, out = self.rp(
+                    "import-ledger", "--ledger", str(shape / "ledger.md"), d=d
+                )
+                self.assertEqual(rc, 0, out)
+                rc, out = self.rp("validate", d=d)
+                self.assertEqual(rc, 0, out)
+                got = json.loads((d / "questions.json").read_text(encoding="utf-8"))
+                want = json.loads((shape / "expected.json").read_text(encoding="utf-8"))
+                self.assertEqual(legacy_state(got), want)
+
+
 class TestNoEmojiNoSkillNames(SessionCase):
     def test_outputs_carry_no_emoji(self):
         self.decided()

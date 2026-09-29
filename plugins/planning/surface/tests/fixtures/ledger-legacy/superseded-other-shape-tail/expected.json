@@ -1,0 +1,68 @@
+{
+  "Q1": {
+    "title": "Which?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      },
+      {
+        "text": "C",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "moot after the plan changed"
+    }
+  },
+  "Q2": {
+    "title": "Which?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "moot; confirmed:: kept"
+    }
+  },
+  "Q3": {
+    "title": "Which?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "a; was: b",
+        "confirmed": true
+      },
+      {
+        "text": "WAS: c",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: x"
+    }
+  }
+}

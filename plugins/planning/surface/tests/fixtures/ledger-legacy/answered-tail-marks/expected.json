@@ -1,0 +1,70 @@
+{
+  "Q1": {
+    "title": "Question Q1?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine; confirmed:: y",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine; confirmed:: y"
+    }
+  },
+  "Q2": {
+    "title": "Question Q2?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine; confirmed::",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine; confirmed::"
+    }
+  },
+  "Q3": {
+    "title": "Question Q3?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine; confirmed::",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine; confirmed::"
+    }
+  }
+}

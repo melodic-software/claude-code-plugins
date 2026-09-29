@@ -1,0 +1,53 @@
+{
+  "Q1": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": "admin only",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "any enrolled user"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: admin only; was: any enrolled user"
+    }
+  },
+  "Q2": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": "admin only",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "any enrolled user"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: admin only; was: any enrolled user",
+      "proposal": [
+        "admin only",
+        "any enrolled user"
+      ]
+    }
+  }
+}

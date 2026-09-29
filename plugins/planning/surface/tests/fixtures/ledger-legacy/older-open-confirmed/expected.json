@@ -1,0 +1,48 @@
+{
+  "Q1": {
+    "title": "Where?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "One",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "open",
+      "round": 1,
+      "resolution": "; confirmed: One"
+    }
+  },
+  "Q2": {
+    "title": "Who?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A",
+        "confirmed": true
+      },
+      {
+        "text": "C",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "open",
+      "round": 1,
+      "resolution": "confirmed: A; C"
+    }
+  }
+}
