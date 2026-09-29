@@ -9,13 +9,13 @@ each adapter carries its own README beside it.
 ## `github`: RECOMMENDED
 
 Coordination over GitHub Issues via the ambient `gh` CLI. Full verb parity: reads, writes, the
-claim/renew/reclaim lease protocol, native sub-items, and dependency edges. Needs no provider
+claim/renew/release/reclaim lease protocol, native sub-items, and dependency edges. Needs no provider
 config beyond the lease TTL.
 
 **Verifying it at bind time.** Confirm `gh` is installed. The seam hard-errors at call time when
 the binary is absent, and again on any path that uses the native sub-item/dependency surface when it
 is older than 2.94 (CONTRACT.md "Prerequisites"; `get-item`, a `create-item` with no
-`--parent`/`--blocked-by`, and the claim/renew/reclaim lease trio are exempt).
+`--parent`/`--blocked-by`, and the claim/renew/release/reclaim lease verbs are exempt).
 Then confirm the checkout itself resolves:
 
 ```sh
@@ -59,7 +59,7 @@ Reads and creates issues and writes blocked-by dependency edges, including acros
 
 **No leases and no sub-items.** Gitea's issue has no parent field at all, and whether it arbitrates
 concurrent assignment could not be settled without a live instance, so
-`claim`/`renew-lease`/`reclaim`/`add-sub-item`/`list-sub-items` exit `6`. Practically: `/work-items:work`
+`claim`/`renew-lease`/`release`/`reclaim`/`add-sub-item`/`list-sub-items` exit `6`. Practically: `/work-items:work`
 cannot claim on it, and it is not a multi-agent coordination surface.
 
 Requires `config.gitea` (`host`, non-empty `scopes[]` of `owner/repo`, `auth_env`) and `curl`;
@@ -69,7 +69,7 @@ deferrals, **including that no live-instance conformance pass has been run**.
 
 ## `linear`
 
-Linear, over its GraphQL API. **Full verb parity with `github`**: reads, writes, the
+Linear, over its GraphQL API. **Verb parity with `github`, except `release`** (declared `false`; callers wait out the TTL): reads, writes, the
 claim/renew/reclaim lease protocol, native sub-items, and dependency edges. Unlike
 `gitea`, then, it *is* a coordination surface: `/work-items:work` can claim on it.
 
