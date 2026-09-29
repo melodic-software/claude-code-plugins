@@ -3436,7 +3436,7 @@ rrp_case cyg "a trailing slash on the root still strips" 'C:/repo/src/run.sh' 'C
 rrp_case cyg "drive-letter case does not matter" 'C:/Repo/src/run.sh' 'c:/repo' src/run.sh 0
 rrp_case cyg "cygpath disagreement falls back to the caller's spelling" /tmp/repo/src/run.sh /tmp/repo src/run.sh 0
 rrp_case nocyg "a trailing slash on a POSIX root still strips" /repo/src/run.sh /repo/ src/run.sh 0
-rrp_case nocyg "a POSIX backslash is a filename character, not a separator" '/repo\outside/secret.txt' /repo secret.txt 1
+rrp_case cygposix "a POSIX backslash is a filename character, not a separator" '/repo\outside/secret.txt' /repo secret.txt 1
 
 # physical_path_to on Windows with realpath and readlink absent must stay
 # UNRESOLVED even when cygpath answers: cygpath does not follow symlinks, and
