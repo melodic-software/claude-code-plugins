@@ -7,6 +7,39 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Consumer gotchas reader wiring, 2026-09-28
+
+- **`bugs` concatenates consumer `## Gotchas` at skill load (#3547).** `/bugs:scan` and
+  `/bugs:write` pre-compute `scripts/concat-gotchas.sh` over the three cascade layers, applying
+  the 1.3 special-root classification: a home-rooted or non-repository root reads user-global
+  only, and a layer path that names the user-global file is not read twice. The
+  participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
+  `contract_version` bump: plugin reader, not a contract rule change.
+
+## [1.3] - 2026-09-28
+
+Additive classification (minor bump): a new resolution step that does not change precedence
+among layers that apply, and does not change what a layer means. It classifies the resolved
+root before any team or overlay read so a home-rooted session cannot treat the operator's
+personal `~/.claude/<surface>` as the team layer.
+
+- **Special-root classification (#4672).** When the resolved root is `$HOME` or an ancestor of
+  `$HOME`, or is not inside a git working tree, team and overlay are not applicable: report both
+  with that reason and resolve user-global only. Layer paths that physically name one file are
+  reported as equal rather than read twice. A shared root resolver, and a ruling that would skip filesystem/drive/temp/cloud-sync
+  roots, stay follow-up. `source-control`'s `parse-branch-issue.sh` and setup `check`/`apply`
+  implement the home-root rule; other surfaces adopt it or record why not. The degrade-soft
+  step is now numbered 5.
+
+## Implementers table, 2026-09-28 (architecture map family)
+
+- **Architecture map skills read the existing surfaces.** Every `/architecture:map-*`
+  skill reads `architecture_dir`. `landscape_dialect` stays read by `map-landscape`
+  alone. `map-data` reads `diagram_dialect.data`; `map-components`, `map-context`,
+  `map-containers`, and `map-deployment` read `diagram_dialect.system`.
+  No `contract_version` bump: no layering rule changed. The per-skill decision
+  stays in the architecture plugin's `reference/config.md`.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
@@ -38,7 +71,7 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   root was already ADR 0015. No contract rule change, so no version bump.
 - **`code-metrics` `.claude/code-metrics.yaml` (#3847).** The table gains the surface the plugin already ships: all three layers, per-key override, keys owned by `plugins/code-metrics/reference/config.md`. No contract rule change, so no version bump.
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
-  gains the surface's divergence from rule 4 (degrade soft on a malformed layer): a layer whose
+  gains the surface's divergence from the degrade-soft rule (resolution step 5 after #4672): a layer whose
   `## branch_issue_pattern` section exists but yields no usable pattern stops resolution with no
   issue number, because the value feeds a `Closes #N` line and a lower source's number could close
   the wrong issue. The row's conformance cell names the exception. The near-miss-heading stop that

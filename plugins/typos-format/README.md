@@ -92,10 +92,11 @@ The matcher is `Write|Edit|NotebookEdit`, so only those tools reach it. A file
 written through the `Bash` tool (a heredoc, a redirect, `sed -i`), through
 `PowerShell`, or through an MCP filesystem server's write tool is never
 spell-checked. `guardrails`' `block-hook-bypass`, when installed, blocks the
-common Bash redirect and heredoc forms and the PowerShell write cmdlets;
-`sed -i` and other inline-interpreter writes are outside what it detects, and
-it does not see MCP tools. CI is the only gate that sees every path. The
-matcher does not list `MultiEdit`: the
+common Bash redirect and heredoc forms, `python3 -c` writes that use a
+file-write call it recognizes, and the PowerShell write cmdlets; `sed -i`,
+`perl -i`, `tee`, a standalone `cp`, and other interpreters' one-liners such as
+`node -e` are outside what it detects, and it does not see MCP tools. CI is
+the only gate that sees every path. The matcher does not list `MultiEdit`: the
 [tools reference](https://code.claude.com/docs/en/tools-reference) does not
 list it among the built-in tools, and
 [permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
@@ -108,12 +109,12 @@ the tools reference).
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session and agent.
+  present, the hook skips with a visible notice, once per session and agent, renewed every eighth skip.
   [Install typos](https://github.com/crate-ci/typos#install).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
@@ -353,7 +354,7 @@ per-edit critical path, but it gives up more than it saves:
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the once-per-session notice that `typos` is not on `PATH`. An async hook's
+  mode) and for the notice (once per session and agent, renewed every eighth skip) that `typos` is not on `PATH`. An async hook's
   `systemMessage` is not shown to you, so that notice would reach only Claude, once, and the skip
   would be invisible to the person who can install the binary.
 

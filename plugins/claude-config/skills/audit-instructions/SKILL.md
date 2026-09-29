@@ -102,7 +102,7 @@ two are routinely conflated:
   this skill's scope by design; that surface stays with the bundled subcommand.
 
 **Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
-your session, prefer its `prompt-audit` for a model migration or any pass over application-code
+this session, prefer its `prompt-audit` for a model migration or any pass over application-code
 prompts, and run it as the vendor procedure whenever the target model changes. Prefer this skill for
 the standing catalog audit of Claude Code surfaces, for cross-surface conflicts, and for harness
 claims that misstate Claude Code's own behavior. Where a sweep wants both, run both: recurring gap
@@ -176,10 +176,9 @@ Two flags govern the `OPINION` tier, whose enablement policy the catalog defines
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
 
-`--persist-findings` also writes the run's I28 and I29 findings as a `type: review-findings` file
-for `review:fanout`'s `fix` action (off by default; only I28 and I29 are eligible, body-scoped; a
-proposal for a human-gated relay, not an applied edit; see
-[context/persist-findings.md](context/persist-findings.md)).
+`--persist-findings` also writes the run's I28 and I29 scan findings and I30 to I33 lane findings as
+a `type: review-findings` file for `review:fanout`'s `fix` action (off by default; only those families,
+body-scoped; a proposal for a human-gated relay, not an applied edit; see [context/persist-findings.md](context/persist-findings.md)).
 
 `--unattended` declares that nobody is available to answer: the ~20-dispatch confirmation in
 Phase B becomes a disclosure on the Phase D cost line instead of a question. Only the caller
@@ -216,8 +215,8 @@ ever deterministic pattern-marking:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh" <file>...
 ```
 
-It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
-marker), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
+It emits `file:line:check-id` candidate rows for I6 (a prohibition sentence with no paired positive
+or rationale marker, per the catalog's Detect), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason, `I8-f`
 think-carefully steer (I8-c's
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
@@ -234,7 +233,7 @@ description-restatement; `I29-b` sibling-section-restatement); `--count` prints 
 Advisory: a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
-run's resolved target model.
+run's resolved target model. I33 is lane-only; each lane brief restates its Must NOT flag fences.
 
 ### Lane sizing
 
@@ -357,8 +356,8 @@ fallback, never a route to a command that may not resolve
 (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per lane that produced proposals (not one per finding or per surface), counted
 under the same ~20-dispatch gate as the Phase B plan; the B2 conflict pass keeps its own separate
-verifier. A proposal the verifier defends is demoted to `info` or dropped, never surfaced as a
-confident removal.
+verifier, and one class-batched verifier judges every I33 finding across all lanes. A proposal the
+verifier defends is demoted to `info` or dropped, never surfaced as a confident removal.
 
 **An out-of-catalog defect takes its own refutation** (the catalog's "Out-of-catalog defects"
 section admits it): reproduce the cited evidence, then ask whether the claim is false today. One
@@ -394,8 +393,8 @@ the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
-the estimated per-surface token delta versus the previous catalog version **for this project**, and
-the dispatch count, planned and actual (lanes, Phase C verifiers, the B2 pass, and its verifier),
+the estimated per-surface token delta versus the previous catalog version **for this project**, the
+I6 seed as `I6 raw=<n> surviving=<n>` from `instruction-scan.sh --i6-counts`, and the dispatch count, planned and actual (lanes, Phase C verifiers, the B2 pass, and its verifier),
 stating whether the ~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
 its place. It names the lane budget (tokens and the derived line figure), every plugin the
 partition split by skill and into how many lanes, any over-budget skill, and on a `--resume` how
@@ -404,15 +403,16 @@ unchanged; the target-model fail-loud stop is an invocation-time validation abor
 interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table.
 Each row's identity is `(check, claim, sites)` per
 [context/execution-and-report.md](context/execution-and-report.md); presentation fields stay
-outside the hash. An I15 conflict is one finding with two sites.
+outside the hash. An I15 conflict is one finding with two sites and one Finding ID. **Finding ID** is
+the row's re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivation and claim templates](reference/finding-identity.md)); a refused row reads `unidentified: <reason>` there.
 
-| # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
-|---|-------|--------------|----------|------|-----------|---------|-----------------|
+| # | Finding ID | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
+|---|------------|-------|--------------|----------|------|-----------|---------|-----------------|
 
 Phase B2's findings carry two anchors, so they get their own **Cross-surface conflicts** subsection.
 Beside it, an **Out-of-catalog** subsection holds the defects the catalog's "Out-of-catalog defects"
 section admits, each with Check `out-of-catalog`, its evidence, and where it routes; those rows never
-reach `emit-findings.sh`.
+reach `emit-findings.sh`. I33 rows move to an **I33 by plugin** section ([layout](context/execution-and-report.md)).
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
@@ -444,24 +444,23 @@ condition suppressed and on what ground; and a one-line `OPINION` discovery note
 
 End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
-subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
-re-add on the next mistake as the compounding safety net; for example blocks, A/B against the
-no-example default. The full delete-and-watch loop is operationalized by `/claude-config:unhobble`
-(same plugin); route there when the operator wants the experiment run rather than described.
+subsection. An editorial cut (removal would not change behavior, or the content is derivable)
+may be applied from this report. A consequential deletion, a rule that governs a situation and
+is outside the exception register, is applicable only when the commit cites a closed
+`/claude-config:unhobble watch` (qualifying sessions met, zero attributed rows).
 
 Open the Sources line with the two official pages the paths and doctrine derive from
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
 catalog).
 
-**With `--persist-findings`**, also emit the run's I28 and I29 findings for the apply relay per
+**With `--persist-findings`**, also emit the run's I28, I29, and I30 to I33 findings for the apply relay per
 [context/persist-findings.md](context/persist-findings.md), which owns every mechanic and the
 carve-out drop preceding the write. Report the path and the emitted/declined counts, and say
 plainly that nothing has been applied.
 
 ## Next
 
-- A proposed diff is accepted and the delete-and-watch loop is the next question:
-  `/claude-config:unhobble`.
+- An editorial cut is applied from the report; a consequential cut cites a closed watch: `/claude-config:unhobble watch`.
 - A finding lands on the memory layer: `/claude-memory:audit`.
 - Posture guidance is absent rather than wrong: `/claude-config:audit-prompting-postures`.
 

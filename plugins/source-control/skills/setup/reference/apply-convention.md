@@ -13,7 +13,7 @@ above it is the linear `apply` interview, walked as bolded numbered steps (0 thr
 than headings. Find a step directly with:
 
 ```shell
-grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
+grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md" # portability-ok: plain grep -n, no GNU-only flag; a prose apostrophe elsewhere in this file joins this line with an unrelated `pwd -P` mention
 ```
 
 - Layer selection (`layer=`), the non-interactive `subject_pattern=` write, and the
@@ -41,6 +41,15 @@ Infer the layer rather than asking when the request names one: "my personal conv
 machine" is `local`, "for all my repos" is `user`, "our convention" is `team`. State which layer
 you picked before writing, since writing to the wrong one either fails to reach teammates or
 commits a personal preference to shared history.
+
+When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, **refuse
+`layer=team` and `layer=local`**. At home those two paths collapse onto
+`~/.claude/source-control.md` (and a home-rooted overlay), so a team write would edit the
+operator's personal config under a team label; outside a repository the tracked/ignored probes
+have no repository to answer against. Name the reason, the same note `parse-branch-issue.sh`
+prints (`project root is the home directory (or an ancestor of it)` or `project root is not
+inside a git repository`), and offer `layer=user`. Compare paths physically (slash-fold, case-fold, `pwd -P` when the
+directory exists) so a native Windows home spelling and its MSYS alias still match.
 
 When the invocation carries a `subject_pattern=` argument, write non-interactively: use it as
 `subject_pattern` (the literal `Conventional Commits` keyword, which resolves to the bundled 11-type

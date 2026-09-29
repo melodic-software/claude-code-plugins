@@ -131,7 +131,7 @@ unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance
 keys on session **and** agent: each subagent gets its own full first notice, because it does not
 share the parent's context and would otherwise never see why the hook skipped. After that the
 latch renews with a one-line notice every `HOOK_NOTICE_RENEW_EVERY` skips (default 8). A plugin
-README states this as "once per session and agent", never "once per session".
+README states this as "once per session and agent, renewed every eighth skip", never "once per session".
 
 **Important exit-code caveat, grounded in the fresh fetch:** on exit 0, **stderr is never shown to
 the user or the agent**, and only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
@@ -298,7 +298,7 @@ Fleet audits check, per wired producer hook:
 
 - Every `command`-type handler in its `hooks.json` declares a `statusMessage`.
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require_jq` or
-  `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent on a broad
+  `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator

@@ -43,7 +43,7 @@ not inert data. A settings file may declare a
 pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
 modules' exported functions during analysis. The hook therefore never runs the
 analyzer under such a settings file without an explicit approval: it skips the
-format/lint run and reports a visible trust-gate notice (once per session and agent, on
+format/lint run and reports a visible trust-gate notice (once per session and agent, renewed every eighth skip, on
 both the agent and user channels) naming the settings file and the approval
 marker to create. To approve, review the settings file and every rule module it
 references. Treat them with the same trust you give your build and CI
@@ -73,7 +73,7 @@ directory outside the project.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`. The hook probes `pwsh` only; legacy
   Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook
   stays quiet by design: a machine without PowerShell is treated as

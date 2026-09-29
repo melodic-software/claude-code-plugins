@@ -20,7 +20,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'battery'
 $category = 'power'
 $commands = @(
@@ -56,7 +55,9 @@ function Get-CapacityFromBatteryReport {
     return [pscustomobject]@{ design_mwh = $design; full_mwh = $full }
 }
 
-try {
+$FailureSummary = 'Battery check failed.'
+$PassThru = $false
+$CheckBody = {
     $batteries = @()
     try {
         $batteries = @(Get-CimInstance -ClassName Win32_Battery -ErrorAction Stop)
@@ -135,9 +136,5 @@ try {
             -NeedsAdmin $false -RanSuccessfully $true `
             -Notes $reportNote
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Battery check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

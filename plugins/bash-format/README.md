@@ -57,12 +57,12 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
-  a visible notice, once per session and agent.
+  a visible notice, once per session and agent, renewed every eighth skip.
 - **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
   to opt in). Absent while the repo opts in: the format pass skips with a
-  visible notice, once per session and agent. Without the `.editorconfig` opt-in the
+  visible notice, once per session and agent, renewed every eighth skip. Without the `.editorconfig` opt-in the
   format pass stays quiet. The repo chose not to format.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)

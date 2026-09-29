@@ -16,7 +16,7 @@ The currently shipped audit reports:
 - linked worktrees that do not conform to the configured worktree root (or placement when unset); and
 - GitHub repositories whose configured remote resolves to a different owner or name.
 
-The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:audit` never fetches,
+The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:sync` is the exception that fast-forwards canonical checkouts, and only after `--apply` and one confirmation. `/repo-fleet-hygiene:audit` never fetches,
 prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
 confidence, disposition, and exact target. Fleet-wide mutation is a separate explicit act:
 `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes]` consumes the audit's action-plan
@@ -34,7 +34,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Capability | Owner | Availability in this release |
 |---|---|---|
 | Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
-| Machine-wide discovery with no argument (ghq / configured roots / agent state / bounded sweep ladder) | `repo-fleet-hygiene` | Not shipped. Remaining contract work, not an open issue; a no-scope run fails with remedies rather than guessing a root |
+| No-argument scope (explicit, fleet config, named paths, ghq, cwd, else exit 3) | `repo-fleet-hygiene` | Shipped for `audit` and `sync`. The project directory is not a rung |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |

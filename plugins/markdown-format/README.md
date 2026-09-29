@@ -66,7 +66,9 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves, and only once per session and agent. To tell the cases apart, wire a
+  themselves: in full on the first skip for each session and subagent, then
+  as a shorter renewal on the eighth skip and every eighth after that
+  (`HOOK_NOTICE_RENEW_EVERY`), silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -98,9 +100,11 @@ those two tools reach it. A Markdown file written through the `Bash` tool (a
 heredoc, a redirect, `sed -i`), through `PowerShell`, or through an MCP
 filesystem server's write tool is never formatted or linted. `guardrails`'
 `block-hook-bypass`, when installed, blocks the common Bash redirect and
-heredoc forms and the PowerShell write cmdlets; `sed -i` and other
-inline-interpreter writes are outside what it detects, and it does not see MCP
-tools. CI is the only gate that sees every path. The matcher does not list
+heredoc forms, `python3 -c` writes that use a file-write call it recognizes,
+and the PowerShell write cmdlets; `sed -i`, `perl -i`, `tee`, a standalone
+`cp`, and other interpreters' one-liners such as `node -e` are outside what it
+detects, and it does not see MCP tools. CI is the only gate that sees every
+path. The matcher does not list
 `MultiEdit`: the [tools reference](https://code.claude.com/docs/en/tools-reference)
 does not list it among the built-in tools, and
 [permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
@@ -135,8 +139,9 @@ The hook requires the following tools:
 
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
-the hook exits `0` and reports a notice, once per session and agent, to both Claude
-(`additionalContext`) and you (`systemMessage`). Only the notice latches.
+the hook exits `0` and reports a notice to both Claude (`additionalContext`)
+and you (`systemMessage`): in full on the first skip for each session and
+subagent, then renewed on every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). Only the notice latches.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
 `PATH probed:` line naming the plausible directories the hook process actually
@@ -164,7 +169,8 @@ load custom rules, Markdown-it plugins, and output formatters. Running it
 under such configuration executes code the repository supplies. The hook
 therefore never runs the linter under a code-loading configuration without an
 explicit approval: it skips the lint run and reports a visible trust-gate
-notice (once per session and agent, on both the agent and user channels) naming the
+notice (on both the agent and user channels, renewed like the
+missing-prerequisite notice) naming the
 risky files and the approval marker to create. To approve, review those files
 and their installed dependencies, then create the marker directory using the
 exact `mkdir -p` command the notice carries. The marker lives under
