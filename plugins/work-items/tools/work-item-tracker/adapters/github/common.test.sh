@@ -120,4 +120,12 @@ EOF
   rm -rf "$EMIT_STUB"
 fi
 
+# The README's REST search filter: doc and test read the same text.
+README="$(dirname "${BASH_SOURCE[0]}")/README.md"
+FILTER="$(sed -n "/rest-search-filter:start/,/rest-search-filter:end/{s/^FILTER='\(.*\)'\$/\1/p}" "$README")"
+assert_eq "README carries the REST search filter" "1" "$([[ -n "$FILTER" ]] && echo 1 || echo 0)"
+ISSUES='[{"number":1,"title":"Fix Login Bug","state":"open"},{"number":2,"title":"Fix login bug","state":"closed","pull_request":{}},{"number":3,"title":"Other","state":"open"}]'
+assert_eq "REST search filter drops PRs, matches case-insensitively" $'1\tFix Login Bug\topen' \
+  "$(jq -r --arg q "LOGIN fix" "$FILTER" <<<"$ISSUES")"
+
 [[ $FAILED -eq 0 ]] || exit 1

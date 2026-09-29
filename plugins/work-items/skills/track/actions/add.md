@@ -34,7 +34,7 @@ Create a new work item with labels from the taxonomy.
 
 1. Parse the item text and flags from arguments.
 
-1. **Duplicate check** (skip if `--force`): the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
+1. **Duplicate check** (skip if `--force`): the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). When the GraphQL search returns HTTP 403, use the REST form of "Search items" instead. If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
 1. **Rejected-concept check.** When the consuming repo keeps a rejected-concept ledger (`docs/out-of-scope/`, one file per concept), scan its concept files for a match with the incoming request. Match by **concept similarity, not keyword** ("night theme" matches `dark-mode.md`). On a match, answer from the ledger instead of re-litigating: present the recorded rationale ("Rejected before in `docs/out-of-scope/<concept>.md`: <reason>. Still stand?"). If the user confirms the rejection stands, append the request to that file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite the file) and stop without filing. If the user reconsiders, or the directory is absent, continue normally: no ledger, no check.
 
