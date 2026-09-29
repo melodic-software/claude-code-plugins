@@ -6,6 +6,15 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.2.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections recorded against Claude Code 2.1.284**, across
+  source-control, claude-config, verification, implementation, debugging, discovery, claude-ops,
+  context-budget, session-flow, planning, and prototype. A stray blank line that split the table in
+  two is removed.
+
 ## [3.2.0] - 2026-09-29
 
 Minor: additive guidance.
