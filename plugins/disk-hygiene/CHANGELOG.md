@@ -81,7 +81,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - **No disk-full emergency lane; every pass stays a cautious tidiness pass**
-  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). The recorded decision:
   none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
   patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
   signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
@@ -118,7 +118,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
   reversal trigger has not fired. The safety model quotes it and records the four-part
   2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
-  change. Version is 0.28.2 so it serializes after 0.28.1 on main.
+  change.
 
 ## [0.28.1] - 2026-09-28
 
@@ -131,7 +131,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `not-regular-file-or-directory`. On any other target, files stay `not-a-directory`. A per-platform OS-owned file
   name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
   `root_children_skipped` by reason with counts; `empty_file_count` sits beside
-  `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
+  `empty_directory_count` on every scan. Each `root_children` listing row carries `kind`,
+  `logical_size`, `mtime` and `attributes`. When `Users`/`home` is withheld, the note names the
   current user's home as a separate target.
 
 ## [0.28.0] - 2026-09-28
@@ -166,7 +167,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
   depth-1 home audit, re-run against the home path with `--root-children` and explicit
   `--root-child` names to fully inventory approved top-level directories into one snapshot without
-  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+  walking the whole home. On a non-volume target only directories are admitted; hidden and volume-OS-named
+  directories stay selectable there.
 
 ## [0.26.4] - 2026-09-28
 
@@ -181,9 +183,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Ranking signals stay a model instruction, not an engine primitive**
   ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
   provenance mandate (tier, location sensitivity, provenance strength over byte totals)
-  stays in the skill body. No coded ranker on the destructive surface. Operator park
-  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
-  #4669 (0.26.1) and #3857 (0.26.2).
+  stays in the skill body. No coded ranker on the destructive surface.
 
 ## [0.26.0] - 2026-09-28
 
