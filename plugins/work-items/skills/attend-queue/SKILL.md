@@ -1,6 +1,5 @@
 ---
 description: "Attend the loop-lane human queue: escalated items and untriaged intake in one view, driven to resolution. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
-argument-hint: "(no arguments. Polls escalations and untriaged intake for the bound repository)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. None: the skill takes no arguments and polls escalations and untriaged intake for the bound repository.
 
 ## Shared tracker context
 
@@ -265,6 +264,10 @@ flip-while-claimed and assignee clear when disposition is complete), then stop p
 and report the pause
 to the operator, who may explicitly choose to continue (the operator's presence is the "explicit
 user request" the hard-stop rule anticipates).
+
+## Next
+
+`/work-items:work-loop` is the autonomous drain that picks up what this flipped.
 
 ## Gotchas
 
