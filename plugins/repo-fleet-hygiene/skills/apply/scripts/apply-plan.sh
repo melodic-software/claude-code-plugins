@@ -7,6 +7,10 @@
 # This verb owns batched merged-local-branch deletion. It does not widen audit-fleet.sh.
 # Mutable OIDs are re-derived immediately before every delete; tip drift skips fail-closed.
 #
+# delete-remote-branches actions run only under --remote-branches, one prompt per branch that
+# --yes never answers, after the live tip is re-read with ls-remote. Each tip is appended to a
+# ledger next to the plan file before the lease-guarded push deletes the head.
+#
 # Exit: 0 success (including dry-run / confirmation-stop); 2 usage/plan error; 3 apply aborted
 # by confirmation gate; 4 one or more mutations failed after the gate.
 # shellcheck disable=SC2310 # git_probe, git_mutate and status predicates return status in if/||/!; every false path is handled
@@ -25,7 +29,7 @@ print_field() {
 
 usage() {
   cat <<EOF
-Usage: $PROG --plan-file PATH [--apply] [--yes]
+Usage: $PROG --plan-file PATH [--apply] [--yes] [--remote-branches]
        $PROG --help
 
 Consume a machine-readable fleet action plan from a prior /repo-fleet-hygiene:audit.
@@ -34,14 +38,20 @@ Default is dry-run: re-derive branch/worktree tips, print the ordered batch, mut
 --apply requires interactive confirmation, or --yes / -y for non-interactive consent.
 One confirmation gate covers the entire plan (not per repository).
 
-Order: delete-merged-local-branches before cleanup-worktrees.
+Order: delete-merged-local-branches, cleanup-worktrees, then delete-remote-branches.
 Every delete re-derives the tip OID and skips on drift / protected / attached / stranded.
+
+delete-remote-branches actions are skipped unless --remote-branches is given. With it, each
+branch gets its own prompt (repo, remote, branch, class, tip) and only an explicit yes deletes
+it; --yes does not answer that prompt, and a non-interactive session deletes nothing. The tip
+is appended to PLAN_FILE.tip-ledger before the lease-guarded push.
 EOF
 }
 
 PLAN_FILE=""
 DO_APPLY=0
 YES=0
+REMOTE_BRANCHES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +67,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --yes | -y)
     YES=1
+    shift
+    ;;
+  --remote-branches)
+    REMOTE_BRANCHES=1
     shift
     ;;
   -h | --help)
@@ -89,12 +103,14 @@ fi
 # Parse plan → ordered units on stdout. Fields are ASCII Unit Separator (U+001F)
 # delimited so empty ref_name / expected_oid stay intact under Bash 3.2 `read`
 # (tab is IFS whitespace and collapses consecutive delimiters).
-# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target
-# ref_name is the local branch (or empty for prune-only worktree ops).
+# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target, remote, class
+# ref_name is the local branch (or empty for prune-only worktree ops). remote and class are set
+# only for delete-remote-branches, whose branch, tip and class come from the action's
+# remote_branches[] row once it is bound to its audit finding.
 # expected_oid may be empty when the plan evidence lacked a headRefOid (fail-closed later).
 PLAN_TSV="$(
   PLAN_FILE_PATH="$PLAN_FILE" python3 - <<'PY'
-import json, os, re, sys
+import json, os, re, subprocess, sys
 
 path = os.environ["PLAN_FILE_PATH"]
 try:
@@ -128,8 +144,15 @@ WORKTREE_KINDS = {
     "missing-worktree",
     "reclaimable-worktree",
 }
+REMOTE_KINDS = {"unmerged-remote-branch"}
+# merged-remote-branch is indexed so a forged delete-remote-branches action naming one is
+# rejected on kind; no operation allows it.
+INDEXED_KINDS = BRANCH_KINDS | WORKTREE_KINDS | REMOTE_KINDS | {"merged-remote-branch"}
+CLASSES = {"never-pr", "closed-unmerged"}
+full_oid_re = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
+remote_name_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 oid_re = re.compile(r"headRefOid[ \t]+([0-9a-fA-F]{7,40})")
-# Map (canonical, target) -> first actionable finding kind + oid from evidence.
+# Map (canonical, target) -> first actionable finding kind, oid and evidence.
 finding_index = {}
 audited_canonicals = set()
 for repo in plan.get("repositories") or []:
@@ -146,22 +169,24 @@ for repo in plan.get("repositories") or []:
             if not isinstance(finding, dict):
                 continue
             kind = str(finding.get("kind") or "")
-            if kind not in BRANCH_KINDS and kind not in WORKTREE_KINDS:
+            if kind not in INDEXED_KINDS:
                 continue
             evidence = str(finding.get("evidence") or "")
             m = oid_re.search(evidence)
             oid = m.group(1).lower() if m else ""
             key = (canonical, target)
             if key not in finding_index:
-                finding_index[key] = (kind, oid)
+                finding_index[key] = (kind, oid, evidence)
             elif not finding_index[key][1] and oid:
-                finding_index[key] = (kind, oid)
+                finding_index[key] = (kind, oid, evidence)
 
 def phase(op: str) -> int:
     if op == "delete-merged-local-branches":
         return 1
     if op == "cleanup-worktrees":
         return 2
+    if op == "delete-remote-branches":
+        return 3
     return 9
 
 def split_target(target: str) -> str:
@@ -205,6 +230,8 @@ for _idx, action in ordered:
         allowed_kinds = BRANCH_KINDS
     elif op == "cleanup-worktrees":
         allowed_kinds = WORKTREE_KINDS
+    elif op == "delete-remote-branches":
+        allowed_kinds = REMOTE_KINDS
     else:
         print(f"Error: unsupported action operation: {op or '(empty)'}", file=sys.stderr)
         sys.exit(2)
@@ -212,6 +239,10 @@ for _idx, action in ordered:
     if not isinstance(targets, list) or not targets:
         print("Error: action missing targets list", file=sys.stderr)
         sys.exit(2)
+    remote_rows = {}
+    for rb in action.get("remote_branches") or []:
+        if isinstance(rb, dict):
+            remote_rows.setdefault(str(rb.get("target") or ""), []).append(rb)
     for target in targets:
         target_s = str(target)
         key = (canonical, target_s)
@@ -222,14 +253,57 @@ for _idx, action in ordered:
                 file=sys.stderr,
             )
             sys.exit(2)
-        kind, oid = finding_index[key]
+        kind, oid, evidence = finding_index[key]
         if kind not in allowed_kinds:
             print(
                 f"Error: finding kind {kind} is not valid for operation {op}",
                 file=sys.stderr,
             )
             sys.exit(2)
-        ref_name = split_target(target_s)
+        remote, rclass = "", ""
+        if op == "delete-remote-branches":
+            rows = remote_rows.get(target_s, [])
+            if len(rows) != 1:
+                print(
+                    "Error: remote branch target needs exactly one remote_branches row: "
+                    f"{target_s}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            rb = rows[0]
+            ref_name = str(rb.get("branch") or "")
+            remote = str(rb.get("remote") or "")
+            rclass = str(rb.get("class") or "")
+            oid = str(rb.get("expected_oid") or "")
+            problem = ""
+            if str(rb.get("canonical") or "") != canonical:
+                problem = "canonical does not match its action"
+            elif not remote_name_re.fullmatch(remote):
+                problem = "remote is not a plain remote name"
+            elif not ref_name or target_s != f"{canonical} :: {remote}/{ref_name}":
+                problem = "target is not canonical :: remote/branch"
+            elif (
+                subprocess.run(
+                    ["git", "check-ref-format", f"refs/heads/{ref_name}"],
+                    capture_output=True,
+                ).returncode
+                != 0
+            ):
+                problem = "branch is not a valid ref name"
+            elif rclass not in CLASSES:
+                problem = "class is not never-pr or closed-unmerged"
+            elif not full_oid_re.fullmatch(oid):
+                problem = "expected_oid is not a full lowercase object id"
+            elif f"refs/heads/{ref_name} at {oid}" not in evidence:
+                problem = "expected_oid does not match the audit finding evidence"
+            if problem:
+                print(
+                    f"Error: remote branch row for {target_s} rejected: {problem}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+        else:
+            ref_name = split_target(target_s)
         print(
             FS.join(
                 [
@@ -240,6 +314,8 @@ for _idx, action in ordered:
                     clean(oid),
                     clean(kind),
                     clean(target_s),
+                    clean(remote),
+                    clean(rclass),
                 ]
             )
         )
@@ -267,7 +343,9 @@ git_mutate() {
   # The mutating counterpart to git_probe. It shares the prompt and optional-lock
   # suppression but deliberately not the probe's GIT_NO_LAZY_FETCH or
   # protocol.file.allow: those exist to keep a read-only probe from reaching the
-  # network or a file remote, and a delete/prune has no business doing either.
+  # network or a file remote, and a local delete/prune has no business doing either. The
+  # remote-branch push and its tip fetch do reach the remote; they run only under
+  # --remote-branches and add nothing to what the operator's own git config allows.
   GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git "$@"
 }
 
@@ -403,11 +481,15 @@ D_KIND=()
 D_TARGET=()
 D_EXPECTED=()
 D_ACTUAL=()
-D_ACTION=() # delete-branch | remove-worktree-then-branch | prune-worktrees | skip
+D_ACTION=() # delete-branch | remove-worktree-then-branch | prune-worktrees | delete-remote-branch | skip
 D_REASON=()
 D_WT_PATH=()
+D_REMOTE=()
+D_CLASS=()
 
 append_decision() {
+  D_REMOTE+=("${12:-}")
+  D_CLASS+=("${13:-}")
   D_PHASE+=("$1")
   D_OP+=("$2")
   D_CANONICAL+=("$3")
@@ -568,12 +650,81 @@ refresh_worktree_cleanup() {
     remove-worktree-then-branch "merged worktree HEAD still matches plan OID; tree clean" "$wt_path"
 }
 
+# Remote-branch deletion. The gated path runs exactly the argv the plan listing prints.
+remote_delete_argv() {
+  local canonical=$1 remote=$2 ref=$3 tip=$4
+  RD_ARGV=(-C "$canonical" push "$remote" --delete "refs/heads/${ref}"
+    "--force-with-lease=refs/heads/${ref}:${tip}")
+}
+
+remote_delete_cmdline() {
+  remote_delete_argv "$@"
+  printf 'git'
+  printf ' %q' "${RD_ARGV[@]}"
+  printf '\n'
+}
+
+refresh_remote_delete() {
+  local phase=$1 op=$2 canonical=$3 ref=$4 expected=$5 kind=$6 target=$7 remote=$8 class=$9
+  local action=skip reason live="" out sym default="" l_oid l_ref
+
+  if [[ "$REMOTE_BRANCHES" -eq 0 ]]; then
+    reason="remote deletion requires --remote-branches"
+  elif [[ ! -d "$canonical" ]]; then
+    reason="canonical path missing"
+  elif ! git_probe -C "$canonical" rev-parse --git-dir >/dev/null 2>&1; then
+    reason="not a git repository"
+  elif ! git_probe -C "$canonical" remote get-url "$remote" >/dev/null 2>&1; then
+    reason="remote not configured"
+  elif ! out="$(git_probe -C "$canonical" ls-remote --heads "$remote" "refs/heads/${ref}" 2>/dev/null)"; then
+    reason="ls-remote failed (fail-closed)"
+  else
+    while IFS=$'\t' read -r l_oid l_ref; do
+      if [[ "$l_ref" == "refs/heads/${ref}" ]]; then live=$l_oid; fi
+    done <<<"$out"
+    sym="$(git_probe -C "$canonical" ls-remote --symref "$remote" HEAD 2>/dev/null || true)"
+    while IFS=$'\t' read -r l_oid l_ref; do
+      if [[ "$l_oid" == "ref: refs/heads/"* && "$l_ref" == "HEAD" ]]; then
+        default=${l_oid#ref: refs/heads/}
+      fi
+    done <<<"$sym"
+    if [[ -z "$live" ]]; then
+      reason="remote head already gone"
+    elif [[ -z "$default" ]]; then
+      reason="remote default branch unknown (fail-closed)"
+    elif [[ "$ref" == "$default" ]]; then
+      reason="protected default branch"
+    elif [[ "$live" != "$expected" ]]; then
+      reason="OID drift (plan tip != live remote tip)"
+    else
+      action=delete-remote-branch
+      reason="remote head still at plan OID"
+    fi
+  fi
+  append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$live" \
+    "$action" "$reason" "" "$remote" "$class"
+}
+
+# Appends one ledger line before a push and leaves it in LEDGER_LINE. A failed write aborts the
+# branch: no restore record, no delete.
+record_tip() {
+  local canonical=$1 remote=$2 ref=$3 class=$4 tip=$5 restore
+  restore="$(printf 'git -C %q push %q %q' "$canonical" "$remote" "${tip}:refs/heads/${ref}")"
+  LEDGER_LINE="$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$canonical" "$remote" "$ref" "$class" "$tip" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$restore")"
+  printf '%s\n' "$LEDGER_LINE" >>"$LEDGER"
+}
+
 # --- Evidence refresh -------------------------------------------------------
 # Unit Separator (not tab): empty ref/expected fields must survive read.
 for line in "${UNITS[@]:-}"; do
   [[ -n "$line" ]] || continue
-  IFS=$'\037' read -r phase op canonical ref expected kind target _ <<<"$line"
+  IFS=$'\037' read -r phase op canonical ref expected kind target remote rclass _ <<<"$line"
   case "$op" in
+  delete-remote-branches)
+    refresh_remote_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target" \
+      "$remote" "$rclass"
+    ;;
   delete-merged-local-branches)
     refresh_branch_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"
     ;;
@@ -588,13 +739,16 @@ for line in "${UNITS[@]:-}"; do
 done
 
 mutable=0
+remote_mutable=0
 skipped=0
 for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
   case "${D_ACTION[$i]}" in
   delete-branch | remove-worktree-then-branch | prune-worktrees) mutable=$((mutable + 1)) ;;
+  delete-remote-branch) remote_mutable=$((remote_mutable + 1)) ;;
   *) skipped=$((skipped + 1)) ;;
   esac
 done
+LEDGER="${PLAN_FILE}.tip-ledger"
 
 printf 'Repo Fleet Hygiene — apply-plan\n'
 if [[ "$DO_APPLY" -eq 1 ]]; then
@@ -602,11 +756,17 @@ if [[ "$DO_APPLY" -eq 1 ]]; then
 else
   printf 'Mode: dry-run (no mutations)\n'
 fi
-printf 'Confirmation model: ONE gate for this entire plan (not per repository)\n'
-printf 'Order rule: delete-merged-local-branches before cleanup-worktrees; re-derive OIDs at execution\n'
+printf 'Confirmation model: ONE gate for the local plan (not per repository)\n'
+if [[ "$REMOTE_BRANCHES" -eq 1 ]]; then
+  printf 'Remote branches: one prompt per branch; --yes never answers it; tips recorded in %s\n' "$LEDGER"
+else
+  printf 'Remote branches: delete-remote-branches actions are skipped without --remote-branches\n'
+fi
+printf 'Order rule: delete-merged-local-branches, cleanup-worktrees, delete-remote-branches; re-derive OIDs at execution\n'
 print_field Plan "$PLAN_FILE"
 print_field Units "${#D_ACTION[@]}"
 print_field Mutable "$mutable"
+print_field 'Remote deletions (per-branch gate)' "$remote_mutable"
 print_field Skipped "$skipped"
 printf '\n'
 
@@ -624,6 +784,11 @@ else
     [[ -n "${D_EXPECTED[$i]}" ]] && printf '   plan_oid: %s\n' "${D_EXPECTED[$i]}"
     [[ -n "${D_ACTUAL[$i]}" ]] && printf '   live_oid: %s\n' "${D_ACTUAL[$i]}"
     [[ -n "${D_WT_PATH[$i]}" ]] && printf '   worktree: %s\n' "${D_WT_PATH[$i]}"
+    [[ -n "${D_REMOTE[$i]}" ]] && printf '   remote: %s\n' "${D_REMOTE[$i]}"
+    [[ -n "${D_CLASS[$i]}" ]] && printf '   class: %s\n' "${D_CLASS[$i]}"
+    if [[ "${D_ACTION[$i]}" == "delete-remote-branch" ]]; then
+      printf '   command: %s\n' "$(remote_delete_cmdline "${D_CANONICAL[$i]}" "${D_REMOTE[$i]}" "${D_REF[$i]}" "${D_ACTUAL[$i]}")"
+    fi
     printf '   reason: %s\n' "${D_REASON[$i]}"
   done
 fi
@@ -633,13 +798,23 @@ if [[ "$DO_APPLY" -eq 0 ]]; then
   exit 0
 fi
 
-if [[ "$mutable" -eq 0 ]]; then
+if [[ "$mutable" -eq 0 && "$remote_mutable" -eq 0 ]]; then
   printf '\nNothing mutable after evidence refresh; no confirmation required.\n'
   exit 0
 fi
 
-# --- One batch-wide confirmation gate ---------------------------------------
-if [[ "$YES" -eq 0 ]]; then
+# The per-branch prompt cannot be answered without a terminal, and --yes never answers it, so a
+# non-interactive run with remote rows deletes nothing at all (local rows included).
+if [[ "$remote_mutable" -gt 0 ]] && ! is_tty_stdin; then
+  printf '\nRemote branch deletion needs an interactive per-branch confirmation; --yes does not answer it.\n' >&2
+  printf 'Non-interactive session: mutate nothing. Rows above are the branches that would be prompted.\n' >&2
+  exit 3
+fi
+
+# --- One batch-wide confirmation gate (local actions) ------------------------
+if [[ "$mutable" -eq 0 ]]; then
+  :
+elif [[ "$YES" -eq 0 ]]; then
   if ! is_tty_stdin; then
     printf '\nConfirmation required: non-interactive session without --yes; mutate nothing.\n' >&2
     printf 'Re-run with --apply --yes after reviewing the dry-run plan.\n' >&2
@@ -756,6 +931,47 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       fi
     else
       applied=$((applied + 1))
+    fi
+    ;;
+  delete-remote-branch)
+    remote="${D_REMOTE[$i]}"
+    class="${D_CLASS[$i]}"
+    tip="${D_ACTUAL[$i]}"
+    remote_delete_argv "$canonical" "$remote" "$ref" "$tip"
+    # Per-branch gate: --yes is not consulted; anything but an explicit yes skips the branch.
+    printf '\nDelete remote branch?\n  repo:   %s\n  remote: %s\n  branch: %s\n  class:  %s\n  tip:    %s\n  command: %s\n[y/N] ' \
+      "$canonical" "$remote" "$ref" "$class" "$tip" "$(remote_delete_cmdline "$canonical" "$remote" "$ref" "$tip")" >&2
+    confirm=""
+    IFS= read -r confirm || true
+    case "$confirm" in
+    y | Y | yes | YES) ;;
+    *)
+      printf 'SKIP: %s/%s in %s (remote deletion not confirmed)\n' "$remote" "$ref" "$canonical"
+      continue
+      ;;
+    esac
+    # The restore command pushes the tip by SHA, so the object must exist locally.
+    if ! git_probe -C "$canonical" cat-file -e "${tip}^{commit}" 2>/dev/null; then
+      git_mutate -C "$canonical" fetch --quiet --no-tags "$remote" "refs/heads/${ref}" 2>/dev/null || true
+    fi
+    if ! git_probe -C "$canonical" cat-file -e "${tip}^{commit}" 2>/dev/null; then
+      printf 'SKIP: %s/%s in %s (tip %s not available locally; the restore command would not work)\n' \
+        "$remote" "$ref" "$canonical" "$tip"
+      continue
+    fi
+    if ! record_tip "$canonical" "$remote" "$ref" "$class" "$tip"; then
+      printf 'FAIL: cannot append to tip ledger %s; %s/%s not deleted\n' "$LEDGER" "$remote" "$ref" >&2
+      failures=$((failures + 1))
+      continue
+    fi
+    printf 'LEDGER: %s\n' "$LEDGER_LINE"
+    if git_mutate "${RD_ARGV[@]}"; then
+      printf 'APPLIED: deleted remote branch %s/%s in %s (was %s)\n' "$remote" "$ref" "$canonical" "$tip"
+      applied=$((applied + 1))
+    else
+      printf 'FAIL: remote delete %s/%s in %s (lease or push rejected; ledger line kept)\n' \
+        "$remote" "$ref" "$canonical" >&2
+      failures=$((failures + 1))
     fi
     ;;
   *)
