@@ -246,6 +246,95 @@ sections="$(printf '%s\n' "$out" | grep -c '^SECTION' || true)"
 assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 
 # ==========================================================================
+# identity subcommand
+#
+# The two golden vectors below equal the output of claude-config's
+# audit-pass finding-identity.sh `finding-id` for one site (surface=anchor), so
+# a change here that drifts from that formula fails this suite.
+# ==========================================================================
+idr="$(mktemp -d)"
+mkdir -p "$idr/docs"
+cat >"$idr/CLAUDE.md" <<'EOF'
+## C# naming
+
+Interfaces must be prefixed with I.
+EOF
+cat >"$idr/docs/deployment.md" <<'EOF'
+## Deployment
+
+### Release checklist
+
+Tag the release.
+EOF
+cat >"$idr/skipped.md" <<'EOF'
+# Top
+
+### Deep
+
+text
+
+## Mid
+
+### Under Mid
+
+#### Four
+EOF
+ident() { bash "$SCRIPT" identity --root "$idr" "$@" 2>&1; }
+
+out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
+assert_eq "identity: demote golden vector" \
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t4b322d9c\t6e9976d9d2e2c5a4\tC# naming')" "$out"
+
+out="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
+assert_eq "identity: nested promote golden vector" \
+  "$(printf 'IDENTITY\tdocs/deployment.md\t3\tinstruction-placement/audit/promote\tunloaded-convention:nested-agents-md\tf2146d4b\t3f63ad6cc4466c0a\tDeployment > Release checklist')" "$out"
+
+a="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
+b="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
+assert_eq "identity: output is byte-identical across runs" "$a" "$b"
+
+cat >"$idr/CLAUDE.md" <<'EOF'
+## C# naming
+
+Interfaces must be prefixed with I, and a paragraph
+was rewritten and lengthened inside the section.
+
+Another paragraph appeared.
+EOF
+out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
+assert_eq "identity: editing a paragraph inside the section leaves the anchor and id unchanged" \
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t4b322d9c\t6e9976d9d2e2c5a4\tC# naming')" "$out"
+
+ident --file CLAUDE.md --start 1 --lane bogus --destination path-scoped-rule >/dev/null
+assert_eq "identity: a bad lane is a usage error" "2" "$?"
+ident --file CLAUDE.md --start 1 --lane demote --destination bogus >/dev/null
+assert_eq "identity: a bad rung is a usage error" "2" "$?"
+ident --file CLAUDE.md --start 2 --lane demote --destination skill >/dev/null
+assert_eq "identity: a --start matching no section is a usage error" "2" "$?"
+ident --file CLAUDE.md --start x --lane demote --destination skill >/dev/null
+assert_eq "identity: a non-integer --start is a usage error" "2" "$?"
+ident --file CLAUDE.md --lane demote --destination skill >/dev/null
+assert_eq "identity: a missing --start is a usage error" "2" "$?"
+ident --file CLAUDE.md --start 1 --lane demote >/dev/null
+assert_eq "identity: a missing --destination is a usage error" "2" "$?"
+out="$(ident --file CLAUDE.md --start 1 --lane bogus --destination skill)"
+assert_has "identity: a usage error prints usage text" "$out" "  detect.sh identity [--root <dir>] --file <path> --start <n>"
+
+# Skipped levels: an H3 sits directly under the H1, and a later H4 skips the earlier
+# H3 sibling (Deep) and takes the H2 above its own H3 parent.
+out="$(ident --file skipped.md --start 3 --lane demote --destination skill)"
+assert_eq "identity: an H3 directly under an H1 takes the H1 as its parent" \
+  "Top > Deep" "$(printf '%s' "$out" | cut -f8)"
+out="$(ident --file skipped.md --start 11 --lane demote --destination skill)"
+assert_eq "identity: the nearest preceding record at each lower level is taken" \
+  "Top > Mid > Under Mid > Four" "$(printf '%s' "$out" | cut -f8)"
+expect="$(printf '%s\037%s' 'Top' 'Deep' | sha256sum | cut -c1-8)"
+assert_eq "identity: the anchor hashes the path elements joined by 0x1F" \
+  "$expect" "$(ident --file skipped.md --start 3 --lane demote --destination skill | cut -f6)"
+
+rm -rf "$idr"
+
+# ==========================================================================
 rm -rf "$repo" "$sig" "$fence" "$hint" "$rules" "$corp"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
