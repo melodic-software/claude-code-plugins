@@ -700,7 +700,7 @@ not rename a sibling to match.
 
 **Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
 rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
-gap; name every reason from this list that applies. One or more may hold; one is enough.
+gap; name every reason that applies; at least one always does.
 
 1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
 2. The only install command is unpinned (`@latest`), so it is not idempotent.
@@ -1048,8 +1048,9 @@ verified 2026-08-10).
   reason the Step 3 site names no generic fallback: the plugin ships the agent, so there is
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
-  bound it further. Model: it pins `model: opus`, which is the [Model tiers](#model-tiers) rule
-  that a consequential verdict runs at the session-model tier or above.
+  bound it further. Model: it pins `model: opus`; under the fleet's pinned default session, `opus`
+  is the session tier, so it meets the [Model tiers](#model-tiers) rule that a consequential verdict
+  runs at the session-model tier or above.
 - **Basis:** the frontmatter of `plugins/planning/agents/plan-reviewer.md` (`model: opus`,
   `effort: medium`, `maxTurns: 25`) and `plugins/planning/skills/plan/SKILL.md` Step 3;
   [#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256), which measured a
