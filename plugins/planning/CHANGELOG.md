@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.2] - 2026-09-29
+
+### Fixed
+
+- **The interview surface docs say to read the watcher's JSON from the task output file.** The wake notification carries only the output-file path and exit status, so the session reads that file and takes its last line. A verification record backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
 ## [0.47.1] - 2026-09-29
 
 ### Fixed
