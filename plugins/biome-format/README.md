@@ -8,7 +8,7 @@ formatting, and import sorting, then surfaces any residual findings back to
 Claude as advisory context.
 
 It uses **your repository's own `biome.json`**. It ships no rules of its own and
-runs only when your repo has opted into Biome.
+formats on edit only when your repo has opted into Biome.
 
 ## Behavior
 
@@ -67,7 +67,8 @@ Skip notices repeat by class:
 A `SessionStart` probe reports a missing Biome binary before the first edit. It reads the tool's
 name, check and install strings from `prerequisites.json`, resolves `biome` on `PATH` or as
 `node_modules/.bin/biome` walking up at most eight directories from the session cwd, does not run
-when `biome_format_enabled` is `false`, and installs nothing.
+when `biome_format_enabled` is `false`, and installs nothing. It does not look for a `biome.json`, so it
+reports a missing Biome in every repository where the plugin is enabled, including one that never opted in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
