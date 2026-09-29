@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.0] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the paused wait reads `.oauthAccount.emailAddress` on each wake and Monitor tick, clears the latch when the new account is below the pause threshold, and records the event in cycle telemetry (`reference/paused-wait.md`). One eval covers the resume and keep-latch cases.
+
 ## [0.62.24] - 2026-09-29
 
 ### Fixed

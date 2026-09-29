@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-09-29
+
+### Changed
+
+- **The reader contract requires a paused consumer to drop a latched pause on an account switch.** The Operable floor block gains an `Account switch` bullet: a consumer MUST read `.oauthAccount.emailAddress` from `.claude.json` directly at pause entry and on every re-evaluation, and when it differs from the latched account it re-evaluates against the new account's windows. An unreadable or absent state file keeps the latch. The Invariants and boundaries paragraph and the recheck trigger name the dependency on that internal key, and the multi-account README bullet describes the lane behavior.
+
 ## [0.8.38] - 2026-09-29
 
 ### Fixed
