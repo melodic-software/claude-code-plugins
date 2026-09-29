@@ -9,6 +9,7 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 
 - `firecrawl` states the `firecrawl init --all --browser` prohibition in plain sentence case instead of bold capitals (#4120).
 - `update` flow names the `skill-creator` rewrite helper as the `skill-creator` plugin from `claude-plugins-official`, matching the `update` skill body (#4119).
+- `firecrawl` argument hint makes the command slot required again (`<scrape|search|...|credit-usage> [args]`) instead of an all-optional bracket list.
 
 ## [0.5.18] - 2026-09-28
 

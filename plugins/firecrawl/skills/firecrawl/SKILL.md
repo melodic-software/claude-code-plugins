@@ -1,6 +1,6 @@
 ---
 description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when synthesis is wanted rather than primary source."
-argument-hint: "[scrape|search|crawl|map|parse|interact|agent|monitor|search-feedback|credit-usage]"
+argument-hint: "<scrape|search|crawl|map|parse|interact|agent|monitor|search-feedback|credit-usage> [args]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(command -v firecrawl*) Bash(firecrawl --status*)
@@ -10,7 +10,7 @@ metadata:
   summary: Scrape, search, crawl, or parse web pages when WebFetch is blocked
 ---
 
-**Arguments.** `[scrape|search|crawl|map|parse|interact|agent|monitor|search-feedback|credit-usage]`. Full form: <command> [args]. Commands: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage
+**Arguments.** `<scrape|search|crawl|map|parse|interact|agent|monitor|search-feedback|credit-usage> [args]`. The command is required.
 
 ## Pre-computed context
 
