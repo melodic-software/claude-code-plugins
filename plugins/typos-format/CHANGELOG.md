@@ -8,6 +8,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 ### Changed
 
 - **The missing-`typos` notice uses the `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** It latches once per session, shared by every agent, instead of once per session and agent, and the renewal on every eighth skip keeps the install route. The notice text says so. The missing-`jq` notice keeps its per-session-and-agent latch.
+- **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The `typos_format_lint_gitignored` default and its meaning are unchanged.
 - CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship.
 
 ## [0.7.5] - 2026-09-28

@@ -1472,6 +1472,55 @@ classify_case() {
 classify_case depth "the per-key attribution partition (the sort-over-\`index\` form, 31s at 10,000)"
 classify_case breadth "the residual membership lookup (the \`index\`-over-array form, 15.7s at 10,000)"
 
+# --- Gitignore gate runs after typos resolution (#4671) ----------------------
+# Position matters: above the real-binary gate, so CI runs it. `git` is a logging
+# wrapper; the rest are plain exec wrappers so PATH holds no typos binary.
+GI_BIN="$(mktemp -d "$WORK/gi-bin.XXXXXX")"
+GI_LOG="$GI_BIN/git.log"
+for t in bash jq dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$GI_BIN/$t"
+  chmod +x "$GI_BIN/$t"
+done
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s"\nexec "%s" "$@"\n' "$GI_LOG" "$(command -v git)" >"$GI_BIN/git"
+chmod +x "$GI_BIN/git"
+REPO_GI="$WORK/gitignore-order"
+new_typos_repo "$REPO_GI" NO_CONFIG
+printf '.work/\n' >"$REPO_GI/.gitignore"
+git -C "$REPO_GI" config core.excludesFile /dev/null
+mkdir -p "$REPO_GI/.work"
+printf 'this has teh typo\n' >"$REPO_GI/.work/scratch.txt" # spellchecker:disable-line
+run_gi() {
+  local path="$1" session="$2"
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$session" "$REPO_GI/.work/scratch.txt" |
+      env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT PATH="$path" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
+  )
+}
+: >"$GI_LOG"
+OUT_GI=$(run_gi "$GI_BIN" gi-notypos)
+RC_GI=$?
+if [[ $RC_GI -eq 0 ]]; then ok "gitignored + typos absent: exit 0"; else fail "gitignored + typos absent: exit $RC_GI"; fi
+if jq -e '.systemMessage | contains("no '"'typos'"' binary")' <<<"$OUT_GI" >/dev/null 2>&1; then
+  ok "gitignored + typos absent: emits the missing-typos notice (the gate no longer skips first)"
+else
+  fail "gitignored + typos absent: no missing-typos notice: $OUT_GI"
+fi
+if ! grep -q 'check-ignore' "$GI_LOG"; then
+  ok "gitignored + typos absent: no git check-ignore spawned before the binary check"
+else
+  fail "gitignored + typos absent: git check-ignore ran without a typos binary: $(cat "$GI_LOG")"
+fi
+: >"$GI_LOG"
+OUT_GI=$(run_gi "$GI_BIN:$STUB_BIN" gi-stub)
+if grep -q 'check-ignore' "$GI_LOG" && [[ -z "$OUT_GI" ]]; then
+  ok "gitignored + typos present: check-ignore runs and the file is skipped (counter control)"
+else
+  fail "gitignored + typos present: expected check-ignore and a silent skip, got out=[$OUT_GI] log=[$(cat "$GI_LOG")]"
+fi
+
 # ============================================================================
 # Real-binary suite — wiring, config discovery, exclusion, kill switch
 # ============================================================================

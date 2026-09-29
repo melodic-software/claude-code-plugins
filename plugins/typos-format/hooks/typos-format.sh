@@ -121,14 +121,6 @@ emit_skipped() {
   hook::finish skipped findings array '[]' applied array '[]'
 }
 
-# A file the repository gitignores is neither reported nor rewritten unless
-# typos_format_lint_gitignored is set. The extra git spawn is the cost of
-# hook-precision rule 6; write mode has no `git checkout` undo for a scratch
-# file.
-if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
-  emit_skipped
-fi
-
 # Existence check only, no canonicalization: git already answers an absolute
 # path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.
 root=""
@@ -269,6 +261,18 @@ fi
 # own report into the context flood it exists to prevent, so each list is capped
 # and the remainder is summarized as a count.
 MAX_REPORT=10
+
+# A file the repository gitignores is neither reported nor rewritten unless
+# typos_format_lint_gitignored is set. The check runs after every skip that
+# needs no git (kill switch, missing typos binary), so the git spawn
+# (hook-precision rule 6) is paid only when typos is about to run. Write mode
+# has no `git checkout` undo for a scratch file. Consequence: on a host without
+# typos, an edit to a gitignored file emits the once-per-session missing-typos
+# notice instead of skipping silently first; the notice is about the host, not
+# the file.
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
+  emit_skipped
+fi
 
 # --- Pass 1: read-only scan ---------------------------------------------------
 # --write-changes emits NOTHING for a correction it applies: verified against
