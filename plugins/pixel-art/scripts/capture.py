@@ -303,7 +303,7 @@ def _decode_data_url(value):
 
 
 def _mux_audio(webm, wav, seconds, work):
-    """Return webm with wav looped under it, or None when ffmpeg is absent."""
+    """Return webm with wav looped under it, or None when ffmpeg is absent or cannot mux it."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         print("capture.py: scene.webm is video-only because ffmpeg is absent", file=sys.stderr)
@@ -320,7 +320,11 @@ def _mux_audio(webm, wav, seconds, work):
         capture_output=True, text=True,
     )
     if done.returncode:
-        raise RuntimeError(f"ffmpeg could not mux the scene audio: {done.stderr.strip()[-300:]}")
+        print(
+            f"capture.py: scene.webm is video-only because ffmpeg could not mux the audio: {done.stderr.strip()[-300:]}",
+            file=sys.stderr,
+        )
+        return None
     return (work / "scene-out.webm").read_bytes()
 
 

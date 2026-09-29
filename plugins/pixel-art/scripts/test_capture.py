@@ -153,14 +153,15 @@ class CaptureTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 capture.parse_at(bad)
 
-    def test_mux_without_ffmpeg_stays_video_only_and_ffmpeg_failure_raises(self):
+    def test_mux_without_ffmpeg_stays_video_only_and_ffmpeg_failure_stays_video_only(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value=None):
             self.assertIsNone(capture._mux_audio(b"v", b"a", 1, pathlib.Path(tmp)))
         if not shutil.which("ffmpeg"):
             self.skipTest("video-only path checked; ffmpeg absent, so the mux failure is unchecked")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value="ffmpeg"):
-            with self.assertRaisesRegex(RuntimeError, "ffmpeg could not mux"):
-                capture._mux_audio(b"not a webm", b"not a wav", 1, pathlib.Path(tmp))
+            with redirect_stderr(io.StringIO()) as err:
+                self.assertIsNone(capture._mux_audio(b"not a webm", b"not a wav", 1, pathlib.Path(tmp)))
+            self.assertIn("could not mux", err.getvalue())
 
     def test_run_without_ffmpeg_prints_video_only_note_and_records_no_audio(self):
         payload = {

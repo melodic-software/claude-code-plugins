@@ -9,8 +9,8 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 
 - `capture.py --record` muxes the scene's `audio` WAV under the WebM with ffmpeg, looped from scene time 0
   and trimmed to the recording length, so the campfire recording has an audio track matching the video
-  length. Without ffmpeg the recording
-  stays video-only and the manifest says so (#5282).
+  length. Without ffmpeg, or when ffmpeg cannot mux (for example a build without libopus), the recording
+  stays video-only, `capture.py` prints a note, and the manifest says so (#5282).
 
 ### Changed
 
