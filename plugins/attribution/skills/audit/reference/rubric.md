@@ -98,7 +98,7 @@ like any other upstream restatement (pointer, quote, or stamped record), or clos
 breadcrumb or nomination already names the sibling repo as the source.
 
 **Claim:** sibling-org repos are external at audit time unless the passage cites that sibling as its
-source. **Basis:** measured closure gaps in org `.github` audits (#4577). **As of:** 2026-09-28.
+source. **Basis:** `melodic-software/.github#153`, whose provenance step ran with no findings on that repository. **As of:** 2026-09-28.
 **Recheck trigger:** a consumer policy file declares same-org siblings owned, or a golden case is
 added that turns on this boundary.
 
