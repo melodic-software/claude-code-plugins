@@ -12,17 +12,20 @@
 // real bash and spawns it with the script path as argv, stdin inherited,
 // and the child's exit code forwarded. `shell` is not used.
 //
-// On Windows the candidates are CLAUDE_CODE_GIT_BASH_PATH (accepted only
-// when the file is named bash.exe, sh.exe, bash, or sh) and
-// Git\bin\bash.exe / Git\usr\bin\bash.exe under Program Files. System32
-// and WindowsApps are never accepted. On other platforms the candidates
-// are /bin/bash and /usr/bin/bash.
+// On Windows the candidates, in order, are CLAUDE_CODE_GIT_BASH_PATH
+// (accepted only when the file is named bash.exe, sh.exe, bash, or sh),
+// Git\bin\bash.exe / Git\usr\bin\bash.exe under Program Files, then
+// bash.exe in each absolute PATH entry. System32, Sysnative and WindowsApps
+// are never accepted, PATH hits included. On other platforms the candidates
+// are bash in each absolute PATH entry, then /bin/bash and /usr/bin/bash.
+// Empty and relative PATH entries are skipped, so the working directory
+// never supplies a bash.
 //
 // Exit 1 when bash cannot be resolved or the usage is wrong. That is a
 // hook error, not a guard block. A guard's own exit 2 passes through.
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -97,6 +100,24 @@ export function optionGateOpen(gates, env) {
   return true;
 }
 
+function pathCandidates(env, platform) {
+  const api = pathApi(platform);
+  const exe = platform === "win32" ? "bash.exe" : "bash";
+  return (env.PATH ?? env.Path ?? "")
+    .split(api.delimiter)
+    .map((entry) => (platform === "win32" ? entry.replace(/^"(.*)"$/, "$1") : entry))
+    .filter((entry) => api.isAbsolute(entry))
+    .map((entry) => api.join(entry, exe));
+}
+
+function isFile(p) {
+  try {
+    return statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function resolveBash(env, platform, exists) {
   if (platform === "win32") {
     const fromEnv = env.CLAUDE_CODE_GIT_BASH_PATH;
@@ -111,9 +132,9 @@ export function resolveBash(env, platform, exists) {
       candidates.push(path.win32.join(root, "Git", "bin", "bash.exe"));
       candidates.push(path.win32.join(root, "Git", "usr", "bin", "bash.exe"));
     }
-    return firstExisting(candidates, platform, exists);
+    return firstExisting([...candidates, ...pathCandidates(env, platform)], platform, exists);
   }
-  return firstExisting(["/bin/bash", "/usr/bin/bash"], platform, exists);
+  return firstExisting([...pathCandidates(env, platform), "/bin/bash", "/usr/bin/bash"], platform, exists);
 }
 
 function fail(message) {
@@ -125,7 +146,7 @@ function main() {
   const parsed = parseLaunchArgs(process.argv.slice(2));
   if (parsed.error) fail(parsed.error);
   if (!optionGateOpen(parsed.gates, process.env)) process.exit(0);
-  const bash = resolveBash(process.env, process.platform, existsSync);
+  const bash = resolveBash(process.env, process.platform, isFile);
   if (!bash) {
     fail(
       "no bash resolved. On Windows set CLAUDE_CODE_GIT_BASH_PATH to Git's bash.exe. System32\\bash.exe is the WSL relay and is not used.",
