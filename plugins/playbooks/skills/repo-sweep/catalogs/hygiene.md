@@ -278,6 +278,10 @@ Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), 
 - applies-when: repo has several modules or cross-linked docs
 - checked: false
 
+#### Override
+
+Stay on the current branch. Do not create a branch or a pull request, and do not commit per reduction; leave all changes uncommitted, repo-sweep makes the step commit. Record route-lane findings in the ledger; file tracker items only when the user approves.
+
 ## Phase 5: prose
 
 ### be-concise
