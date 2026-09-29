@@ -23,8 +23,9 @@ identity = (check, claim, sites)
   lane met the two surfaces in does not change its id.
 - **`surface`** is the repo-relative POSIX path of the physical file, or `user:<path under the home
   directory>` for a user-scope surface. Under the home directory only an instruction file is a
-  surface: a markdown file, or a `settings.json`, `settings.local.json` or `hooks.json` inside a
-  `.claude` tree or the resolved `${CLAUDE_CONFIG_DIR:-~/.claude}`.
+  surface: a markdown file, or, inside a `.claude` tree or the resolved
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, a `settings.json`, `settings.local.json` or `hooks.json`, or
+  any file beneath a `skills/` directory.
 - **`anchor`** is always an excerpt anchor (`e:`), over the flagged line's text, discriminated by the
   enclosing heading path. Every check in this catalog is about a sentence, so none takes the
   whole-surface form (`s:`): an `s:` finding survives every edit to its file, including the edit

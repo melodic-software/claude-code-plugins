@@ -186,10 +186,13 @@ assert_contains "a user-scope surface takes the user: prefix" "$USER_ROW" $'\tus
 
 # --- Case 6b: under $HOME only instruction-file shapes are surfaces ----------
 H="$TEST_TMPDIR/home"
-mkdir -p "$H/.claude/plugins/cache/p/1.0/hooks" "$H/.claude/projects/x" "$H/projects" \
-  "$H/notes" "$H/shared" "$H/.ssh" "$H/cc-alt" "$H/plant"
+mkdir -p "$H/.claude/plugins/cache/p/1.0/hooks" "$H/.claude/plugins/cache/p/1.0/skills/y" \
+  "$H/.claude/skills/x/reference" "$H/.claude/projects/x" "$H/projects" \
+  "$H/notes/skills" "$H/shared" "$H/.ssh" "$H/cc-alt" "$H/plant"
 for f in CLAUDE.md projects/AGENTS.md notes/style.md shared/rules.md .claude/settings.json \
-  .claude/plugins/cache/p/1.0/hooks/hooks.json .ssh/config .claude/.credentials.json \
+  .claude/plugins/cache/p/1.0/hooks/hooks.json .claude/skills/x/reference/table.yaml \
+  .claude/plugins/cache/p/1.0/skills/y/data.yaml notes/skills/pw.txt \
+  .ssh/config .claude/.credentials.json \
   .claude/projects/x/t.jsonl .bashrc notes/settings.json cc-alt/settings.json; do
   printf 'Never do this.\n' >"$H/$f"
 done
@@ -197,12 +200,13 @@ home_ids() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$H" bash "$IDS"); }
 surface_row() { printf '%s\n' "$H/$1:1:I6" | home_ids; }
 
 for shape in CLAUDE.md projects/AGENTS.md notes/style.md .claude/settings.json \
-  .claude/plugins/cache/p/1.0/hooks/hooks.json; do
+  .claude/plugins/cache/p/1.0/hooks/hooks.json .claude/skills/x/reference/table.yaml \
+  .claude/plugins/cache/p/1.0/skills/y/data.yaml; do
   assert_contains "an instruction file under home yields user:$shape" "$(surface_row "$shape")" \
     $'\tuser:'"$shape=e:"
 done
 for other in .ssh/config .claude/.credentials.json .claude/projects/x/t.jsonl .bashrc \
-  notes/settings.json cc-alt/settings.json; do
+  notes/settings.json notes/skills/pw.txt cc-alt/settings.json; do
   assert_contains "a non-instruction file under home is refused: $other" "$(surface_row "$other")" \
     $'#REFUSED\t'"$H/$other:1:I6"$'\tsurface-not-an-instruction-file'
 done

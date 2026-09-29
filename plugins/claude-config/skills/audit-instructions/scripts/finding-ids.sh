@@ -66,9 +66,9 @@ A row that cannot be identified prints `#REFUSED<TAB><row><TAB><reason>`.
 
 --root names the repository root surfaces are relative to; it defaults to the
 git toplevel of the current directory. Under the home directory only an
-instruction file is a surface: a *.md file, or a settings.json,
-settings.local.json or hooks.json inside a .claude tree or the resolved
-${CLAUDE_CONFIG_DIR:-~/.claude}.
+instruction file is a surface: a *.md file, or, inside a .claude tree or the
+resolved ${CLAUDE_CONFIG_DIR:-~/.claude}, a settings.json, settings.local.json
+or hooks.json, or any file beneath a skills/ directory.
 EOF
 }
 
@@ -171,12 +171,14 @@ if [[ -n "${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}" ]]; then
 fi
 
 # Whether a physical path under $HOME is an instruction file: a markdown file
-# (CLAUDE.md, CLAUDE.local.md, AGENTS.md, rules, skills, agents, output styles,
-# and the files they import or a symlink points at), or the JSON that carries
-# hook instruction text (settings.json, settings.local.json, a plugin's
-# hooks.json) inside a .claude tree or the resolved config directory. Anything
-# else under $HOME, such as .ssh/config, .claude/.credentials.json or a shell rc
-# file, is not a surface, so its lines are never hashed into an anchor.
+# (CLAUDE.md, CLAUDE.local.md, AGENTS.md, rules, agents, output styles, and the
+# files they import or a symlink points at), or, inside a .claude tree or the
+# resolved config directory, the JSON that carries hook instruction text
+# (settings.json, settings.local.json, a plugin's hooks.json) and any file
+# beneath a skills/ directory (I31, I33 and I34 cover every file a skill loads,
+# not only its markdown). Anything else under $HOME, such as .ssh/config,
+# .claude/.credentials.json or a shell rc file, is not a surface, so its lines
+# are never hashed into an anchor.
 #
 # Home-directory scope. The user surface is $HOME-wide, not
 # ${CLAUDE_CONFIG_DIR:-~/.claude} alone, because Claude Code reads instruction
@@ -190,13 +192,13 @@ fi
 #   Basis:   https://code.claude.com/docs/en/memory ("How CLAUDE.md files load",
 #            "When Claude Code reads AGENTS.md", "Import additional files").
 #   As of:   2026-09-29.
-#   Recheck: the ancestor-loading or import-path sentences change, or a release
-#            note adds an instruction file type that is neither *.md nor the
-#            settings and hooks JSON above.
+#   Recheck trigger: the ancestor-loading or import-path sentences change, or a
+#            release note adds an instruction file type outside *.md, a skill's
+#            own files and the settings and hooks JSON above.
 instruction_shape() {
   case "$1" in
   *.md) return 0 ;;
-  */settings.json | */settings.local.json | */hooks.json) ;;
+  */settings.json | */settings.local.json | */hooks.json | */skills/*) ;;
   *) return 1 ;;
   esac
   [[ "$1" == */.claude/* || (-n "$CONFIG_P" && "$1" == "$CONFIG_P"/*) ]]
