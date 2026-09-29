@@ -25,13 +25,15 @@
 # settings.json permissions.deny plus their git hooks, which apply independent
 # of clean-session state. Coverage is whatever is_destructive() lists.
 #
-# Branch deletion. Claim: as of 2026-09-29 this net does not match
-# `git branch -D`/`-d` or `git push --delete`. Whether it should is an open
-# owner decision on #3852. Local deletion through git-branch-delete.sh runs
-# `git update-ref -d`, so a pattern for bare `git branch -D` would not fire on
-# that confirmed path. Basis: is_destructive() below and the allow cases in
-# destructive-guard.test.sh. Recheck: the owner answers #3852, or
-# is_destructive() changes.
+# Branch deletion. Claim: as of 2026-09-29 this net matches bare
+# `git branch -D`/`-d`/`--delete`, and `git push --delete`, `push -d` and
+# `git push origin :ref`. A push with --dry-run/-n is a preview and is allowed.
+# The CLEAN_GUARD_ACK path lifts these blocks like every other, so the
+# ack-prefixed spelling is the only way a bare `git branch -D` runs during a
+# clean session. Local deletion through git-branch-delete.sh runs
+# `git update-ref -d`, so the confirmed path does not go through these
+# patterns. Basis: is_destructive() below and the branch and push block cases in
+# destructive-guard.test.sh. Recheck: is_destructive() changes.
 #
 # Apply scripts and forced worktree removal. Claim: as of 2026-09-29 the guard
 # matches the seven mutating scripts of the clean skill (clean-caches,

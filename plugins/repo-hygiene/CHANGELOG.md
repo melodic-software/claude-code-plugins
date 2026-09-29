@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-29
+
+### Changed
+
+- **The clean skill's destructive guard also matches bare branch and remote-branch deletion (#3852).**
+  `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push -d` and `git push origin :ref`
+  are blocked while the skill is active; a push with `--dry-run`/`-n` is allowed. The
+  `CLEAN_GUARD_ACK` prefix lifts the block, and it is the only way a bare `git branch -D` runs
+  during a clean session. `git-branch-delete.sh` deletes with `git update-ref -d`, so the
+  confirmed path is unaffected. The guard header, `SKILL.md`, and README state the new coverage.
+
 ## [0.11.1] - 2026-09-29
 
 ### Fixed
