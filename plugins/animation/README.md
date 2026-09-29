@@ -30,7 +30,7 @@ named by `?scene=`), `render.py` (the one render entry point: serves a scene, ca
 or every frame at a given fps through `capture.mjs`, writes `render.json`, and encodes), `decode.py`
 (reads a video, a frame folder or a work dir back into frames), `prereq.py` (the prerequisite
 probe), and `inkstats.py` (style statistics of any film, a video, a frame folder or a rotoscope work
-dir, with `--pack` to check it against a style pack; `--cuts` takes a comma list or a produce `shots.json`), and `produce.py` (the production directory: boards, the approval digest, `shots.json`, and the review command).
+dir, with `--pack` to check it against a style pack; `--cuts` takes a comma list or a produce `shots.json`), `produce.py` (the production directory: boards, the approval digest, `shots.json`, and the review command), and `woodcut_marks.py` (a test helper for the woodcut-ink authoring residuals: synthetic caption and frame drawings inside the frozen bands, not a render or measuring entry point).
 
 ## Requirements
 
