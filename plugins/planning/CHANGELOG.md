@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
 
 ## [0.46.0] - 2026-09-29
 

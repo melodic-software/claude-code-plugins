@@ -100,6 +100,7 @@ AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
+ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
 PASS=0
 FAIL=0
 fail() {
@@ -172,7 +173,7 @@ pin_exact() {
   if grep -Fxq -- "$line" "$file"; then
     ok "$label"
   else
-    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line"
+    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${ATTENDED_ONLY}"
   fi
 }
 
@@ -239,7 +240,7 @@ pin_section() {
   n_open="$(grep -Fxc -- "$open" "$file" || true)"
   n_close="$(grep -Fxc -- "$close" "$file" || true)"
   if [[ "$n_open" != "1" || "$n_close" != "1" ]]; then
-    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest."
+    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${ATTENDED_ONLY}"
     return
   fi
   got="$(section_digest "$file" "$open" "$close")"
@@ -248,7 +249,7 @@ pin_section() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest."
+    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -268,7 +269,7 @@ pin_frontmatter() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest."
+    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -286,7 +287,7 @@ pin_case_digest() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest."
+    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
@@ -303,7 +304,7 @@ pin_file() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest."
+    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
