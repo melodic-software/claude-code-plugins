@@ -121,6 +121,9 @@ HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re
 # form is the label's name and is not matched, so a body that merely names the
 # label does not block.
 BODY_MERGE_HOLD_RE = re.compile(r"\bdo(?:n['’]?t| not)\s+merge\b", re.I)
+# The label form of the same hold: blocks in every tier, whether or not the
+# autopilot merge tier is engaged. `--block-labels` only adds to it.
+MERGE_HOLD_LABEL = "do-not-merge"
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -1039,6 +1042,11 @@ def evaluate(
         blockers.append(
             "PR body says do not merge -- a human hold, report it and leave it"
         )
+    if any(str(name).casefold() == MERGE_HOLD_LABEL for name in labels):
+        blockers.append(
+            f"PR carries the {MERGE_HOLD_LABEL!r} label -- a human hold, "
+            "report it and leave it"
+        )
     if pr.get("mergeable") != "MERGEABLE":
         blockers.append(
             f"mergeable={pr.get('mergeable')} (conflict or still computing)"
@@ -1237,7 +1245,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; no hardcoded hold-label list
+        "labels": labels,  # surfaced for agent reasoning; only do-not-merge is hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,

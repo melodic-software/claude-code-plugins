@@ -648,6 +648,21 @@ class PullRequestBodyHold(TierEvaluateHarness):
                         result["blockers"],
                     )
 
+    def test_do_not_merge_label_blocks_with_and_without_the_tier(self) -> None:
+        for name in ("do-not-merge", "Do-Not-Merge"):
+            for tier in (TIER, None):
+                with self.subTest(label=name, tier=tier is not None):
+                    result = self._evaluate(_pr(labels=[{"name": name}]), tier=tier)
+                    self.assertFalse(result["ready"])
+                    self.assertTrue(
+                        any("'do-not-merge' label" in b for b in result["blockers"]),
+                        result["blockers"],
+                    )
+
+    def test_other_labels_do_not_block_without_the_tier(self) -> None:
+        result = self._evaluate(_pr(labels=[{"name": "needs-review"}]), tier=None)
+        self.assertTrue(result["ready"], result["blockers"])
+
     def test_body_naming_the_label_or_plain_prose_does_not_block(self) -> None:
         for body in (
             "",
