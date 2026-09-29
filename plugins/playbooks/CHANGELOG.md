@@ -13,6 +13,15 @@ only after that version increases.
   another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
   `history.sh` adds no rerun path for it.
 
+## [0.14.3] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `compress` step runs `audit` first** ([#5193](https://github.com/melodic-software/claude-code-plugins/issues/5193)).
+  The step now runs `/docs-hygiene:compress audit`, excludes always-loaded instruction files from
+  its targets, and is ticked `not-applicable` when no targets remain, instead of compressing every
+  markdown file.
+
 ## [0.14.2] - 2026-09-29
 
 ### Fixed

@@ -1,15 +1,17 @@
-# The `code-metrics/v1` report
+# The `code-metrics/v2` report
 
 Every audit skill in this plugin prints exactly one JSON document on stdout (its `audit-size.sh --json`)
 and renders markdown from it; diagnostics go to stderr. The document is the seam other tools
-read, so its shape is stable within the `v1` schema string.
+read, so its shape is stable within the `v2` schema string.
 
 ## Top level
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema` | string | `code-metrics/v1` |
+| `schema` | string | `code-metrics/v2` |
 | `skill` | string | The producing skill, for example `audit-size` |
+| `root` | object | `kind` (`repository` or `directory`) and `path`: the directory every measured path is relative to, see "Path relativity" |
+| `scan_root` | string | Where the run started, relative to `root.path` (`.` when equal); never affects paths |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
 | `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row; a lane that skipped every file is `partial` even with no measure row, because its run row states the skip), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
 | `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count; with the catch-all `other` lane enabled this is a disabled lane's files, and otherwise 0), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
@@ -20,15 +22,43 @@ read, so its shape is stable within the `v1` schema string.
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
 
-A reader ignores keys it does not know: fields are added within `v1` (the rollups and the run
-row's `hint` were), never renamed or removed.
+A reader ignores keys it does not know: fields are added within the current version (the rollups
+and the run row's `hint` were), never renamed or removed. A change to what an existing field means
+mints a new schema identifier. `v2` is that case: in `v1` a measured path was relative to the
+working directory the audit ran from, and in `v2` it is relative to `root.path`. A `v1` document
+and a `v2` document are not comparable path-for-path.
+
+The identifier changed with no dual-emission window because the plugin has no consumer of persisted
+reports.
+
+- Claim: no consumer of persisted `code-metrics` reports exists, so a new identifier needs no
+  compatibility window.
+- Basis: the repository owner's decision on melodic-software/claude-code-plugins#3842.
+  [ADR 0013](../../../docs/adr/0013-keep-storage-format-identifiers-stable-across-renames.md)
+  covers only that a storage-format identifier changes through a migration with a compatibility
+  window; it does not settle this case.
+- As of: 2026-09-29.
+- Recheck: a tool, skill, or workflow outside this plugin starts reading a saved report.
+
+## Path relativity
+
+These fields are relative to `root.path`: `measures[].file`, `measures[].instances[].file`,
+`excluded[].instances[].file`, `measures[].replicas.files`, the `summary.by_directory` keys, and
+`missing`.
+
+- `root.kind` is `repository` when the run is in a git work tree (`root.path` is the work tree's top
+  level) and `directory` otherwise (`root.path` is the working directory).
+- A scope that names a subdirectory does not change the root.
+- `scan_root` is the working directory the run started in, relative to `root.path`. It says where
+  the run began and never changes a path.
+- A consumer resolves a field by joining it onto `root.path`.
 
 ## Duplication rollups
 
 `summary.by_lane` maps each lane to `{"groups", "duplicated_lines"}` over the surviving clone
 groups, and `summary.by_directory` maps `.` and every ancestor directory of each group's first
-instance (instances are sorted by path, so that is the lowest path; paths are made relative to the
-repository root) to the same shape. A group counts once under every ancestor, so a parent includes
+instance (instances are sorted by path, so that is the lowest path; paths are relative to
+`root.path`) to the same shape. A group counts once under every ancestor, so a parent includes
 its children and directory rows cannot be summed; two identities hold instead:
 `by_directory["."].duplicated_lines == summary.duplicated_lines` and the `by_lane` values sum to
 it. A duplication run that found or kept no group carries both as empty maps, beside its
@@ -93,7 +123,7 @@ such a run is `partial` rather than `empty`, and it withholds `complete`, so a d
 read as complete while one of its own rows says `N of M`.
 
 A coverage row whose reason carries that `N of M scope files` count also carries `missing`, an
-additive key holding every scope file of the lane that no artifact mentions, root-relative and
+additive key holding every scope file of the lane that no artifact mentions, relative to `root.path` and
 sorted; the reason names the first five and counts the rest (`; missing: a, b, c, d, e, +N more in
 the JSON`). The key is absent on an `ok` row, on a row that found no artifact at all (its reason
 lists the paths searched instead), and on the lane's `crap` row, which repeats the coverage reason
