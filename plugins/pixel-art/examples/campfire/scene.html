@@ -13,6 +13,7 @@
 <script>
 "use strict";
 const SPRITE = /*EMBED:hero_mz.json*/null;
+const AUDIO = /*WAV:campfire.wav*/null;
 const W = 240, H = 160;                         // logical resolution (GBA)
 const PAL = {                                   // locked scene palette
   sky0: "#1a1030", sky1: "#2c1c4a", sky2: "#4a2a5c", sky3: "#7a3c62", sky4: "#c0605a",
@@ -53,6 +54,7 @@ const stars = Array.from({ length: 40 }, () => [rnd() * W | 0, rnd() * 70 | 0, r
 const ridge = (base, amp, f1, f2) => Array.from({ length: W }, (_, x) =>
   base - Math.round(amp * (Math.sin(x * f1) * 0.6 + Math.sin(x * f2 + 1.3) * 0.4)));
 const far = ridge(92, 14, 0.031, 0.083), near = ridge(108, 10, 0.047, 0.121);
+const SIM_SEED = seed;
 
 function sky() {
   const bands = [PAL.sky0, PAL.sky1, PAL.sky2, PAL.sky3, PAL.sky4];
@@ -164,6 +166,36 @@ function tick(now) {
   out.drawImage(buf, 0, 0, screen.width, screen.height);
   requestAnimationFrame(tick);
 }
+
+function rewind() {
+  seed = SIM_SEED;
+  for (const e of embers) e.life = 0;
+  t = 0;
+  acc = 0;
+  last = performance.now();
+}
+
+function startAudio() {
+  if (typeof AUDIO !== "string") return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new Ctx();
+  fetch(AUDIO).then((response) => response.arrayBuffer()).then((bytes) => ctx.decodeAudioData(bytes)).then((buffer) => {
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.connect(ctx.destination);
+    if (typeof ctx.createMediaStreamDestination === "function") {
+      const dest = ctx.createMediaStreamDestination();
+      src.connect(dest);
+      const hook = window.__pixelScene || {};
+      hook.audioStream = dest.stream;
+      window.__pixelScene = hook;
+    }
+    src.start();
+    rewind();
+  });
+}
+addEventListener("pointerdown", startAudio, { once: true });
 requestAnimationFrame(tick);
 </script>
 </body>
