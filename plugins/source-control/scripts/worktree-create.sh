@@ -56,6 +56,9 @@
 
 set -uo pipefail
 
+# shellcheck source=lib/worktree-facts.sh
+source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
@@ -258,6 +261,7 @@ fallback_root_file_given=0
 data_root_file=""
 data_root_file_given=0
 base_ref=""
+existing_branch=0
 repo_dir="."
 session_id=""
 
@@ -312,6 +316,10 @@ while [[ $# -gt 0 ]]; do
     need_value "$@"
     base_ref="$2"
     shift 2
+    ;;
+  --existing-branch)
+    existing_branch=1
+    shift
     ;;
   --repo-dir)
     need_value "$@"
@@ -808,6 +816,18 @@ fi
 # defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
 # settings.json (not git config), so the helper does not probe it — the skill
 # reads the effective setting and passes it through this flag.
+# --existing-branch checks out a branch that already exists instead of creating
+# one. It does not consult --base-ref.
+if [[ "$existing_branch" -eq 1 ]]; then
+  if [[ -n "$base_ref" ]]; then
+    printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
+    exit 2
+  fi
+  if ! git -C "$toplevel" show-ref --verify --quiet "refs/heads/$name"; then
+    printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
+    exit 2
+  fi
+else
 [[ -z "$base_ref" ]] && base_ref="fresh"
 
 # resolve_default_remote <repo-toplevel> — echo the repository's effective
@@ -969,8 +989,14 @@ fresh)
   exit 2
   ;;
 esac
+fi
 
-if ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
+if [[ "$existing_branch" -eq 1 ]]; then
+  if ! git -C "$toplevel" worktree add "$worktree_path" "$name" >&2; then
+    printf '%s: git worktree add failed for existing branch %q\n' "$PROG" "$name" >&2
+    exit 4
+  fi
+elif ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
   printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
   exit 4
 fi
@@ -992,17 +1018,10 @@ fi
 # time only: no session token, so it matches no session and check-enter
 # reports a foreign claim. Do not put the host name where the session id
 # goes; that would make every helper lock look owned by every session.
-lock_host="${HOSTNAME:-}"
-if [[ -z "$lock_host" ]]; then
-  lock_host="$(hostname 2>/dev/null || printf 'unknown-host')"
-fi
-lock_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ -n "$session_id" ]]; then
-  lock_reason="$(printf 'worktree-create.sh: lane active on %s session %s since %s; unlock when the owning lane is done' \
-    "$lock_host" "$session_id" "$lock_stamp")"
+  lock_reason="$(worktree_lock_reason worktree-create.sh "$session_id")"
 else
-  lock_reason="$(printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
-    "$lock_host" "$lock_stamp")"
+  lock_reason="$(worktree_lock_reason worktree-create.sh)"
 fi
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
@@ -1063,7 +1082,11 @@ if [[ -f "$settings_src" ]]; then
   fi
 fi
 
-printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
+if [[ "$existing_branch" -eq 1 ]]; then
+  printf '%s: created worktree on existing branch %q\n' "$PROG" "$name" >&2
+else
+  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
+fi
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then
   exit 5

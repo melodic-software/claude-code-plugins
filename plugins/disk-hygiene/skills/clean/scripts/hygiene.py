@@ -32,6 +32,10 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
+# The temp-zone size walk runs on every scan whose target overlaps the temp
+# directory, including the gated large-target probe, so it stays well below
+# the inventory cap.
+TEMP_ZONE_ENTRY_CAP = 100_000
 # The tier vocabulary is declared with the command grammar so `--confirm-tier`
 # and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
@@ -220,6 +224,7 @@ def scan_complete_payload(
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
+        "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
         "policy_sources": policy["policy_sources"],
@@ -328,6 +333,69 @@ def glob_matches(subject: str, pattern: str) -> bool:
     aligns globs with `has_protected_name`, which has always casefolded.
     """
     return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
+
+
+_ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
+
+
+def protection_glob_pattern(entry: Any) -> str | None:
+    """The glob string from a protection entry, or None when the shape is unusable."""
+    if isinstance(entry, str) and entry:
+        return entry
+    if isinstance(entry, dict):
+        pattern = entry.get("glob")
+        if isinstance(pattern, str) and pattern:
+            return pattern
+    return None
+
+
+def protection_glob_is_absolute(pattern: str) -> bool:
+    """True when the glob is an absolute POSIX path or a drive-letter path."""
+    return bool(_ABSOLUTE_GLOB.match(pattern))
+
+
+def consumer_path_protected(path: Path, target: Path, globs: Iterable[Any]) -> bool:
+    """True when a consumer protection glob covers *path*.
+
+    A relative glob matches the path relative to the scan target. A glob that
+    starts with ``/`` or a drive letter matches ``path.as_posix()``, so a
+    standing overlay can protect a tree regardless of which parent is scanned.
+    An absolute glob also matches with ``\\`` read as ``/``, so a native
+    Windows spelling covers the forward-slash subject. Object entries
+    contribute their ``glob`` field.
+    """
+    try:
+        relative = path.relative_to(target).as_posix()
+    except ValueError:
+        relative = path.as_posix()
+    absolute = path.as_posix()
+    for entry in globs:
+        pattern = protection_glob_pattern(entry)
+        if not pattern:
+            continue
+        if protection_glob_is_absolute(pattern):
+            if glob_matches(absolute, pattern) or glob_matches(
+                absolute, pattern.replace("\\", "/")
+            ):
+                return True
+        elif glob_matches(relative, pattern):
+            return True
+    return False
+
+
+def _validate_protection_glob_entry(entry: Any) -> None:
+    if protection_glob_pattern(entry) is None:
+        raise HygieneError(
+            "protection globs must be non-empty strings or {glob, reason} objects"
+        )
+    if isinstance(entry, dict) and not set(entry) <= {"glob", "reason"}:
+        raise HygieneError("protection glob objects may only carry glob and reason")
+    if (
+        isinstance(entry, dict)
+        and "reason" in entry
+        and not (isinstance(entry["reason"], str) and entry["reason"])
+    ):
+        raise HygieneError("protection glob reason must be a non-empty string")
 
 
 def is_within(path: Path, parent: Path) -> bool:
@@ -664,10 +732,16 @@ def baseline_policy() -> dict[str, Any]:
     baseline = load_json(BASELINE_POLICY)
     if baseline.get("version") != SCHEMA_VERSION:
         raise HygieneError("unsupported baseline policy version")
+    threshold = baseline.get("os_temp_recommendation_threshold_bytes")
+    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
+        raise HygieneError(
+            "baseline os_temp_recommendation_threshold_bytes must be a positive integer"
+        )
     return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "policy_sources": ["baseline"],
@@ -688,12 +762,15 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     A cloud-sync root's name embeds the tenant — Microsoft documents the
     OneDrive for Business sync root as ``OneDrive - <organization name>`` — so
     no exact name can cover it, and a consumer cannot cover it either:
-    ``additional_protected_path_globs`` is matched against a path RELATIVE to
-    the scan target, so a standing overlay protects such a root only when the
-    target happens to be its parent. Protection that must hold for every target
-    has to ship in the baseline, which is why this reads the bundled file
-    directly rather than taking policy as a parameter — exactly as
-    ``baseline_protected_names`` does on the validation lanes.
+    ``additional_protected_path_globs`` relative globs match a path relative to
+    the scan target, so they protect such a root only when the target happens
+    to be its parent. An absolute glob (``/`` or a drive letter) matches the
+    absolute path and does not need that parent, but it still cannot name a
+    tenant-specific OneDrive folder the overlay does not know. Protection that
+    must hold for every target without a known absolute path ships in the
+    baseline, which is why this reads the bundled file directly rather than
+    taking policy as a parameter — exactly as ``baseline_protected_names``
+    does on the validation lanes.
 
     Matched casefolded through ``fnmatchcase`` rather than ``fnmatch``, whose
     case folding follows the host platform; a protection whose verdict depends
@@ -742,8 +819,10 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     protections = overlay.get("additional_protected_path_globs", [])
     if not isinstance(disabled, list) or not isinstance(protections, list):
         raise HygieneError("disabled_hint_ids and protection globs must be arrays")
-    if not all(isinstance(value, str) and value for value in disabled + protections):
-        raise HygieneError("policy IDs and protection globs must be non-empty strings")
+    if not all(isinstance(value, str) and value for value in disabled):
+        raise HygieneError("policy IDs must be non-empty strings")
+    for item in protections:
+        _validate_protection_glob_entry(item)
     if not isinstance(additions, list):
         raise HygieneError("additional_hints must be an array")
     known_ids = {hint.get("id") for hint in result["hints"]}
@@ -1226,7 +1305,111 @@ def windows_storage_sense_state() -> dict[str, Any]:
     return state
 
 
-def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
+def measure_temp_zone(temp_root: Path) -> dict[str, Any]:
+    """Sum regular-file logical sizes under the OS temp directory, read-only.
+
+    Links and reparse points are counted as entries but never followed. The
+    walk stops after TEMP_ZONE_ENTRY_CAP entries, so ``logical_bytes`` is exact
+    only when ``complete`` is true and is a floor otherwise.
+    """
+    total = 0
+    entries = 0
+    complete = True
+    pending = [temp_root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as iterator:
+                for entry in iterator:
+                    if entries >= TEMP_ZONE_ENTRY_CAP:
+                        complete = False
+                        pending.clear()
+                        break
+                    entries += 1
+                    try:
+                        info = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        complete = False
+                        continue
+                    # A placeholder's size is remote, not local occupancy.
+                    if is_linkish_stat(info) or is_cloud_placeholder_stat(info):
+                        continue
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(Path(entry.path))
+                    elif stat.S_ISREG(info.st_mode):
+                        total += info.st_size
+        except OSError:
+            complete = False
+    return {
+        "path": str(temp_root),
+        "logical_bytes": total,
+        "entry_count": entries,
+        "complete": complete,
+    }
+
+
+def format_gib(value: int) -> str:
+    return f"{value / 1024**3:.1f} GiB"
+
+
+def storage_sense_state_text(state: dict[str, Any]) -> str:
+    enabled = {True: "on", False: "off"}.get(state["enabled"], "not detected")
+    cadence = state["cadence_days"]
+    if cadence is None:
+        schedule = "schedule not detected"
+    elif cadence <= 0:
+        schedule = "runs only during low free disk space"
+    elif cadence == 1:
+        schedule = "runs every day"
+    else:
+        schedule = f"runs every {cadence} days"
+    scope = {True: "on", False: "off"}.get(
+        state["temporary_files_cleanup"], "not detected"
+    )
+    return (
+        f"Storage Sense detected: {enabled}, {schedule}, "
+        f"temporary-files cleanup {scope}."
+    )
+
+
+def storage_sense_size_recommendation(
+    state: dict[str, Any], zone: dict[str, Any], threshold: int
+) -> str:
+    size = format_gib(zone["logical_bytes"])
+    if not zone["complete"]:
+        size = f"at least {size}"
+    lead = (
+        f"The user temp directory ({zone['path']}) holds {size}, above the "
+        f"{format_gib(threshold)} baseline-policy threshold. "
+        f"{storage_sense_state_text(state)} "
+    )
+    run_now = "Settings > System > Storage > Storage Sense > Run Storage Sense now"
+    if state["enabled"] is True and state["temporary_files_cleanup"] is True:
+        if (state["cadence_days"] or 0) > 0:
+            return lead + (
+                "The schedule is not keeping up with this zone. Recommend "
+                f"running Storage Sense now ({run_now}) instead of "
+                "hand-cleaning it here."
+            )
+        return lead + (
+            f"Recommend running Storage Sense now ({run_now}) and setting a "
+            "scheduled cadence instead of hand-cleaning it here."
+        )
+    if state["enabled"] is True:
+        return lead + (
+            "Recommend turning on temporary-files cleanup in Storage Sense and "
+            f"running it now ({run_now}) instead of hand-cleaning it here."
+        )
+    return lead + (
+        "Recommend enabling Storage Sense with temporary-files cleanup on a "
+        "scheduled cadence (Settings > System > Storage > Storage Sense). A "
+        f"manual run is available either way ({run_now})."
+    )
+
+
+def os_autoclean_advisory(
+    target: Path, policy: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Report-only: name the OS auto-clean mechanism that should own this zone.
 
     Mirrors the managed-state rule for products: when the OS already ships a
@@ -1242,24 +1425,35 @@ def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
     if not covers_target:
         return None
     if sys.platform == "win32":
+        threshold = (policy or baseline_policy())[
+            "os_temp_recommendation_threshold_bytes"
+        ]
         state = windows_storage_sense_state()
+        zone = measure_temp_zone(temp_root)
         effective = (
             state["enabled"] is True
             and state["temporary_files_cleanup"] is True
             # Cadence 0 = "during low free disk space", which may never fire.
             and (state["cadence_days"] or 0) > 0
         )
-        return {
-            "mechanism": "windows-storage-sense",
-            "state": state,
-            "recommendation": None
-            if effective
-            else (
+        if zone["logical_bytes"] >= threshold:
+            recommendation = storage_sense_size_recommendation(state, zone, threshold)
+        elif zone["complete"] or effective:
+            recommendation = None
+        else:
+            # An incomplete measurement below the threshold proves nothing
+            # about the size, so only the configuration speaks.
+            recommendation = (
                 "This zone includes the user temp directory, which Windows "
                 "Storage Sense can clean automatically. Recommend enabling "
                 "temporary-file cleanup on a scheduled cadence (Settings > "
                 "System > Storage) instead of hand-cleaning it here."
-            ),
+            )
+        return {
+            "mechanism": "windows-storage-sense",
+            "state": state,
+            "temp_zone": {**zone, "threshold_bytes": threshold},
+            "recommendation": recommendation,
         }
     if sys.platform.startswith("linux"):
         configured = any(
@@ -1744,9 +1938,8 @@ def scan_tree(
             protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
-            if any(
-                glob_matches(relative, pattern)
-                for pattern in policy["additional_protected_path_globs"]
+            if consumer_path_protected(
+                path, target, policy["additional_protected_path_globs"]
             ):
                 protections.append("consumer-protected-path")
             try:
@@ -1835,8 +2028,10 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
+    stdlib_shadowing: list[dict[str, Any]] = []
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
@@ -1883,6 +2078,7 @@ def scan_tree(
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
+        "stdlib_shadowing": stdlib_shadowing,
         "children_rollup": children_rollup(
             entries,
             unknown_paths=unknown_paths,
@@ -1899,6 +2095,109 @@ def scan_tree(
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
     return payload
+
+
+def bytecode_module_names(directory: Path) -> list[str] | None:
+    """Module names a ``__pycache__`` holds bytecode for, from one scandir.
+
+    ``None`` means the directory could not be listed, which is not the same as
+    holding no bytecode.
+    """
+    try:
+        with os.scandir(directory) as iterator:
+            names = [entry.name for entry in iterator]
+    except OSError:
+        return None
+    return sorted({name.split(".", 1)[0] for name in names if name.endswith(".pyc")})
+
+
+def annotate_stdlib_shadowing(
+    entries: list[dict[str, Any]], target: Path
+) -> list[dict[str, Any]]:
+    """Flag user-home-root ``*.py`` files whose stem is a stdlib module name.
+
+    Advisory only: the annotation never adds a hint, a confidence, or any
+    eligibility. Such a file shadows the stdlib module for a Python process
+    whose ``sys.path[0]`` is the home directory (``-c``, ``-m``, the REPL),
+    and the sibling ``__pycache__`` is rebuilt on the next import, so the
+    report should point at the source rather than the cache. The home root
+    sibling ``__pycache__`` entry gains ``bytecode_sources`` naming the
+    modules its ``.pyc`` files were compiled from.
+    """
+    home = user_home()
+    if home is None:
+        return []
+    try:
+        home_relative = home.resolve().relative_to(target.resolve()).as_posix()
+    except (OSError, ValueError):
+        return []
+    prefix = "" if home_relative == "." else f"{home_relative}/"
+    # The home prefix comes from Path.home() while entry paths come from
+    # scandir names, and on Windows the two may differ only in case.
+    fold = str.casefold if sys.platform == "win32" else str
+    folded_prefix = fold(prefix)
+    children: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        path = entry["path"]
+        if fold(path).startswith(folded_prefix) and "/" not in path[len(prefix) :]:
+            children[path[len(prefix) :]] = entry
+    # Built-in modules resolve before sys.path is searched, so sys.py or
+    # time.py in the home directory never shadows them.
+    stdlib = sys.stdlib_module_names - set(sys.builtin_module_names)
+    shadows: dict[str, dict[str, Any]] = {}
+    for name, entry in children.items():
+        stem, dot, suffix = name.rpartition(".")
+        # A case-insensitive filesystem imports Random.py for `import random`.
+        stem = fold(stem)
+        if (
+            # Python follows a symlinked module source.
+            entry.get("kind") in ("file", "link")
+            and dot
+            and fold(suffix) == "py"
+            and stem in stdlib
+        ):
+            shadows[stem] = entry
+    cache = children.get("__pycache__")
+    compiled: list[str] | None = None
+    # Compare folded names: shadows is keyed by the folded stem.
+    folded_children = {fold(name): entry for name, entry in children.items()}
+    if cache is not None and cache.get("kind") == "directory":
+        compiled = bytecode_module_names(target / cache["path"])
+        if compiled is not None:
+            cache["bytecode_sources"] = [
+                {
+                    "module": module,
+                    "source": folded_children.get(fold(f"{module}.py"), {}).get(
+                        "path"
+                    ),
+                    "shadows_stdlib": fold(module) in shadows,
+                }
+                for module in compiled
+            ]
+    folded_compiled = {fold(module) for module in compiled or []}
+    findings = []
+    for module, entry in sorted(shadows.items()):
+        has_bytecode = module in folded_compiled
+        entry["advisories"] = [
+            {
+                "id": "stdlib-module-shadow",
+                "module": module,
+                "reason": (
+                    f"Shadows the standard-library module '{module}' for Python "
+                    "started from the home directory with -c, -m, or the REPL. "
+                    "Rename or move the file; deleting its bytecode cache does "
+                    "not help, because the next import rebuilds it."
+                ),
+            }
+        ]
+        findings.append(
+            {
+                "path": entry["path"],
+                "module": module,
+                "bytecode_cache": cache["path"] if has_bytecode and cache else None,
+            }
+        )
+    return findings
 
 
 def annotate_tracked(
@@ -2030,20 +2329,19 @@ def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
 
 
 def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[str]:
-    """Consumer protection globs a snapshot's policy recorded, strings only.
+    """Consumer protection glob patterns a snapshot's policy recorded.
 
     Read from the snapshot rather than from live policy on purpose: an approved
     snapshot must stay previewable under the protections it was scanned with.
-    Non-string members are dropped here so the three validation lanes cannot
-    differ on how they tolerate a hand-edited policy block.
+    Object members contribute their ``glob`` string; other shapes are dropped
+    so the three validation lanes cannot differ on a hand-edited policy block.
     """
-    return [
-        pattern
-        for pattern in snapshot.get("policy", {}).get(
-            "additional_protected_path_globs", []
-        )
-        if isinstance(pattern, str)
-    ]
+    patterns: list[str] = []
+    for entry in snapshot.get("policy", {}).get("additional_protected_path_globs", []):
+        pattern = protection_glob_pattern(entry)
+        if pattern:
+            patterns.append(pattern)
+    return patterns
 
 
 def validate_plan(
@@ -3065,8 +3363,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
-            relative_current = current.relative_to(target).as_posix()
-            if any(glob_matches(relative_current, pattern) for pattern in globs):
+            if consumer_path_protected(current, target, globs):
                 blockers.append("consumer-protected-path")
         if "truncated-not-inventoried" in blockers:
             # Same rationale as the current_descendants short-circuit above: a
@@ -3251,7 +3548,7 @@ def verify_emptied_container(
     if not same_object_identity(info, entries[relative]):
         drifted.add("changed-since-scan")
     contested.update(hard_protection(path, target, exact_names, known_mounts))
-    if any(glob_matches(relative, pattern) for pattern in globs):
+    if consumer_path_protected(path, target, globs):
         contested.add("consumer-protected-path")
     expected_paths = subtree_names(relative, entries)
     current_paths: set[str] | None = None
@@ -3512,8 +3809,7 @@ def handoff_verify(
                         exact_names,
                     )
                 contested.update(current_protections)
-                relative_current = current.relative_to(target).as_posix()
-                if any(glob_matches(relative_current, pattern) for pattern in globs):
+                if consumer_path_protected(current, target, globs):
                     contested.add("consumer-protected-path")
             if not truncated or evidence_inventory_eligible:
                 # A hung git (TimeoutExpired) must degrade to this one path's
@@ -3796,7 +4092,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 baseline_protected_names(),
                 fresh_mounts,
             )
-            if any(glob_matches(relative, pattern) for pattern in globs):
+            if consumer_path_protected(path, target, globs):
                 fresh_protections.append("consumer-protected-path")
             fresh_vcs = tracked_blocker(path, target)
             if fresh_vcs:
@@ -3965,7 +4261,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
-            advisory = os_autoclean_advisory(target)
+            advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
             if root_children_mode:
                 admitted, skipped = enumerate_root_children(

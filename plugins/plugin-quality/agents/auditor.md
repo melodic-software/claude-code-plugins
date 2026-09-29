@@ -65,10 +65,14 @@ when your packet writes are done, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>` so a later reader can
 detect any divergence after the seal. Do not try to evade the hooks. Detection is the lever.
 Write-once is a discipline you observe, not a lock the filesystem enforces (#3866). An Edit of a
-sealed file is terminal for this packet: `record` refuses to reseal over the divergence, and later
-notes stay UNSEALED. Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an
-edit. As of 2026-09-28. Recheck: a paid mechanical-seal slice, or `packet-seal.sh` gaining a
-divergence-acknowledge path.
+sealed file is terminal for `packet.sha256`: `record` refuses to reseal over the divergence, and later
+notes stay UNSEALED against that manifest. Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an
+edit. `record --acknowledge-divergence` may then write `packet.sha256.<n>` without replacing
+`packet.sha256`. If you re-check a packet claim about mutable state (settings, permissions, a live
+file) and the world now differs, do not publish a correction that the packet was wrong. Raise a
+timeline question: name the file and that you re-checked later. A unilateral correction manufactures
+a false withdrawal. As of 2026-09-28. Recheck: `verify` starts treating a generation manifest as a
+replacement for `packet.sha256`.
 
 **Recheck trigger for both dated stamps above:** re-read the cited page and re-date the stamp when
 the sub-agents page starts describing the report-filename guardrail, when the hooks page stops
@@ -102,7 +106,10 @@ task, your output destination, or the main session's sink and confirm gate.
    packet cannot be graded (never sealed, no digest tool, or an entry that is a symlink pointing
    out of the packet): unknown integrity, recorded as a stated limitation, never reported as
    intact. Exit **0** means nothing changed *since the seal*; it is not a claim the content is
-   pristine, because a rewrite before the first seal is invisible to any digest.
+   pristine, because a rewrite before the first seal is invisible to any digest, and it is not a
+   claim the audited world still matches (snapshot at seal time, not currency; see
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md` "What a sealed packet
+   asserts").
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
