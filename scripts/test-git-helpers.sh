@@ -40,6 +40,7 @@ git_test_config() {
     -c user.email=t@t.test \
     -c user.name=test \
     -c commit.gpgsign=false \
+    -c tag.gpgsign=false \
     -c core.autocrlf=false \
     "$@"
 }
@@ -76,5 +77,6 @@ git_init_test_repo() {
   git_test_config "$dir" config user.email t@t.test
   git_test_config "$dir" config user.name test
   git_test_config "$dir" config commit.gpgsign false
+  git_test_config "$dir" config tag.gpgsign false
   git_test_config "$dir" config core.autocrlf false
 }

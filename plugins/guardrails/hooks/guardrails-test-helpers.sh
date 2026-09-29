@@ -17,6 +17,12 @@
 # subcommand reads and writes, independently of -C and of GIT_DIR.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
+# Strip what a Claude Code session exports, so a suite run from one matches CI.
+# CLAUDE_PLUGIN_DATA (another plugin's, leaked) latches hook::notice_once across
+# cases; HOOK_TELEMETRY_SINK (this repo's settings) adds telemetry documents.
+# A suite that needs either sets its own after sourcing this file.
+unset CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK
+
 : "${PASS:=0}"
 : "${FAIL:=0}"
 

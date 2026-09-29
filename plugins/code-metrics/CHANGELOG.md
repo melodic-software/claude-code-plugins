@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.23] - 2026-09-28
+
+### Fixed
+
+- **Three suites pass on a host with more tools than CI.** `audit-size`'s all-unavailable case runs on the tool-free PATH, so an installed `scc` cannot measure. `audit-duplication`'s live hook-utils case counts only clone groups that span two copies, since clones inside one copy are the library's own. `dispatch.test.sh` creates its fixture tag with `--no-sign`, so a global `tag.gpgsign=true` cannot abort it. Test-only.
+
 ## [0.3.22] - 2026-09-28
 
 ### Added

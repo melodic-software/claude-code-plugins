@@ -239,9 +239,9 @@ rm -rf "$f" "$winnode"
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 hidden="$(mktemp -d)"
-# Keep jq and python, drop node.
+# Keep jq and python (and uv, the PyYAML fallback), drop node.
 mkdir -p "$hidden/bin"
-for tool in bash jq python3 python; do
+for tool in bash jq python3 python uv; do
   src="$(command -v "$tool" 2>/dev/null || true)"
   [[ -n "$src" ]] && ln -s "$src" "$hidden/bin/$tool"
 done
@@ -308,7 +308,7 @@ new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 hidden="$(mktemp -d)/bin"
 mkdir -p "$hidden"
-for tool in bash jq python3 python node; do
+for tool in bash jq python3 python uv node; do
   src="$(command -v "$tool" 2>/dev/null || true)"
   [[ -n "$src" ]] && ln -s "$src" "$hidden/$tool"
 done

@@ -143,6 +143,14 @@ class Ranking(unittest.TestCase):
         cls.repo = cls.tmp / "repo"
         cls.repo.mkdir()
         build(cls.repo)
+        # The expectations are pygments counts: an installed scc would supply the
+        # comment lines and count every shebang as one. A failing scc stub first on
+        # PATH makes the census fall back to pygments, as on CI.
+        stub = cls.tmp / "no-scc"
+        stub.mkdir()
+        (stub / "scc").write_text("#!/bin/sh\nexit 1\n")
+        (stub / "scc").chmod(0o755)
+        cls.env = {**os.environ, "PATH": f"{stub}{os.pathsep}{os.environ['PATH']}"}
 
     @classmethod
     def tearDownClass(cls):
@@ -157,6 +165,7 @@ class Ranking(unittest.TestCase):
             text=True,
             check=False,
             cwd=str(cwd or self.repo),
+            env=self.env,
         )
 
     def test_gates_and_collapse(self):
