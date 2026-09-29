@@ -26,7 +26,7 @@ from contextlib import (
     redirect_stderr,
     redirect_stdout,
 )
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 from unittest import mock
 
@@ -323,7 +323,7 @@ class HygieneTests(unittest.TestCase):
                 entries["a.tmp"]["protected_reasons"],
             )
             self.assertEqual(
-                [abs_glob],
+                [{"glob": abs_glob, "reason": "counsel hold"}],
                 hygiene.snapshot_protection_globs(snapshot),
             )
             self.assertEqual(
@@ -380,10 +380,14 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "protection globs"):
                 hygiene.load_policy(policy_path)
 
-    def test_protection_glob_is_absolute_accepts_posix_and_drive_letter(self) -> None:
+    def test_protection_glob_is_absolute_accepts_posix_drive_letter_and_unc(
+        self,
+    ) -> None:
         self.assertTrue(hygiene.protection_glob_is_absolute("/srv/shared/keep/**"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:/eSupport"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("\\\\srv\\share\\keep"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("//srv/share/keep"))
         self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))
         self.assertFalse(hygiene.protection_glob_is_absolute("client-deliverables/**"))
 
@@ -391,16 +395,231 @@ class HygieneTests(unittest.TestCase):
         path = PurePosixPath("C:/Legal/contract.docx")
         target = PurePosixPath("C:/Legal")
         self.assertTrue(
-            hygiene.consumer_path_protected(path, target, ["C:\\Legal\\**"])
+            hygiene.consumer_protection_matches(path, target, ["C:\\Legal\\**"])
         )
         self.assertTrue(
-            hygiene.consumer_path_protected(
+            hygiene.consumer_protection_matches(
                 path, target, [{"glob": "c:\\legal\\*", "reason": "hold"}]
             )
         )
         self.assertFalse(
-            hygiene.consumer_path_protected(path, target, ["C:\\Other\\**"])
+            hygiene.consumer_protection_matches(path, target, ["C:\\Other\\**"])
         )
+
+    def test_unc_glob_covers_unc_path_and_not_a_sibling_share(self) -> None:
+        target = PureWindowsPath("\\\\srv\\legal")
+        path = PureWindowsPath("\\\\srv\\legal\\hold\\contract.docx")
+        for glob in ("\\\\srv\\legal\\**", "//srv/legal/**", "\\\\SRV\\Legal\\**"):
+            self.assertTrue(
+                hygiene.consumer_protection_matches(path, target, [glob]), glob
+            )
+        for sibling in ("\\\\srv\\legal2\\a.docx", "\\\\srv\\other\\a.docx"):
+            self.assertFalse(
+                hygiene.consumer_protection_matches(
+                    PureWindowsPath(sibling), target, ["\\\\srv\\legal\\**"]
+                ),
+                sibling,
+            )
+        self.assertFalse(
+            hygiene.consumer_protection_matches(
+                PureWindowsPath("\\\\other\\legal\\a.docx"),
+                target,
+                ["\\\\srv\\legal\\**"],
+            )
+        )
+
+    def test_unc_glob_covers_a_backslash_spelled_subject(self) -> None:
+        # A subject that reaches the matcher with backslashes intact is read
+        # with them as separators too, on the same footing as the glob.
+        path = PurePosixPath("\\\\srv\\legal\\hold\\contract.docx")
+        target = PurePosixPath("\\\\srv\\legal")
+        self.assertTrue(
+            hygiene.consumer_protection_matches(path, target, ["//srv/legal/**"])
+        )
+        self.assertTrue(
+            hygiene.consumer_protection_matches(path, target, ["\\\\srv\\legal\\**"])
+        )
+
+    def test_relative_glob_still_matches_relative_to_a_unc_target(self) -> None:
+        target = PureWindowsPath("\\\\srv\\legal")
+        path = PureWindowsPath("\\\\srv\\legal\\hold\\contract.docx")
+        self.assertTrue(hygiene.consumer_protection_matches(path, target, ["hold/**"]))
+        self.assertFalse(
+            hygiene.consumer_protection_matches(path, target, ["other/**"])
+        )
+
+    def test_protection_matches_carry_the_glob_and_its_reason(self) -> None:
+        path = PurePosixPath("/srv/keep/a.txt")
+        target = PurePosixPath("/srv")
+        globs: list[object] = [
+            "keep/**",
+            {"glob": "/srv/keep/**", "reason": "counsel hold"},
+            {"glob": "**/a.txt"},
+            {"glob": "/srv/keep/**", "reason": "counsel hold"},
+            {"glob": "keep/**", "reason": 7},
+            "other/**",
+        ]
+        self.assertEqual(
+            [
+                {"glob": "**/a.txt"},
+                {"glob": "/srv/keep/**", "reason": "counsel hold"},
+                {"glob": "keep/**"},
+            ],
+            hygiene.consumer_protection_matches(path, target, globs),
+        )
+        self.assertEqual(
+            [], hygiene.consumer_protection_matches(path, target, ["other/**"])
+        )
+
+    def scan_with_protection_globs(
+        self, root: Path, globs: list[object]
+    ) -> dict[str, Any]:
+        policy = hygiene.load_policy(None)
+        policy["additional_protected_path_globs"] = globs
+        return hygiene.scan_tree(root.resolve(), policy)
+
+    def test_scan_entries_report_the_matched_glob_and_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            for name in ("plain", "reasoned", "bare", "free"):
+                (root / name).mkdir(parents=True)
+                (root / name / "a.txt").write_text("x", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(
+                root,
+                [
+                    "plain/**",
+                    {"glob": "reasoned/**", "reason": "counsel hold"},
+                    {"glob": "bare/**"},
+                ],
+            )
+            entries = hygiene.entry_map(snapshot)
+            self.assertEqual(
+                [{"glob": "plain/**"}], entries["plain/a.txt"]["protection_matches"]
+            )
+            self.assertEqual(
+                [{"glob": "reasoned/**", "reason": "counsel hold"}],
+                entries["reasoned/a.txt"]["protection_matches"],
+            )
+            self.assertEqual(
+                [{"glob": "bare/**"}], entries["bare/a.txt"]["protection_matches"]
+            )
+            for name in ("plain", "reasoned", "bare"):
+                self.assertIn(
+                    "consumer-protected-path",
+                    entries[f"{name}/a.txt"]["protected_reasons"],
+                )
+            self.assertNotIn("protection_matches", entries["free/a.txt"])
+            self.assertNotIn("protection_matches", entries["free"])
+
+    def preview_protected_file(self, root: Path) -> dict[str, Any]:
+        (root / "hold").mkdir(parents=True)
+        (root / "hold" / "orphan.tmp").write_text("stale", encoding="utf-8")
+        snapshot = self.scan_with_protection_globs(
+            root,
+            [
+                {"glob": "hold/**", "reason": "counsel hold"},
+                {"glob": "hold/*.tmp"},
+                "hold/**",
+            ],
+        )
+        plan = {
+            "version": 1,
+            "tier": "high",
+            "candidates": [candidate("hold/orphan.tmp")],
+        }
+        with (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+        ):
+            return hygiene.preview(snapshot, plan)
+
+    def test_preview_reports_the_matched_glob_beside_the_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.preview_protected_file(Path(temporary) / "target")
+            self.assertEqual("blocked", result["status"])
+            item = result["candidates"][0]
+            self.assertIn("consumer-protected-path", item["blockers"])
+            self.assertEqual(
+                [
+                    {"glob": "hold/**"},
+                    {"glob": "hold/**", "reason": "counsel hold"},
+                    {"glob": "hold/*.tmp"},
+                ],
+                item["protection_matches"],
+            )
+
+    def test_preview_omits_protection_matches_when_nothing_matched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(root, ["hold/**"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertNotIn("protection_matches", result["candidates"][0])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux",
+        "apply removes through the anchored POSIX lane",
+    )
+    def test_apply_skips_a_protected_path_and_reports_the_matched_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "hold").mkdir(parents=True)
+            kept = root / "hold" / "orphan.tmp"
+            kept.write_text("stale", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(
+                root, [{"glob": "hold/**", "reason": "counsel hold"}]
+            )
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("hold/orphan.tmp")],
+            }
+            expected = [{"glob": "hold/**", "reason": "counsel hold"}]
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                blocked = hygiene.apply_plan(snapshot, plan)
+                # The apply lane re-checks on its own, so it also holds when the
+                # preview it consulted reported nothing.
+                with mock.patch.object(
+                    hygiene,
+                    "preview",
+                    return_value={"status": "ready-for-explicit-approval"},
+                ):
+                    rechecked = hygiene.apply_plan(snapshot, plan)
+            for report in (blocked, rechecked):
+                self.assertEqual([], report["removed"])
+                self.assertEqual(
+                    [
+                        {
+                            "path": "hold/orphan.tmp",
+                            "outcome": "protected",
+                            "detail": "consumer-protected-path",
+                            "protection_matches": expected,
+                        }
+                    ],
+                    report["skipped"],
+                )
+            self.assertTrue(kept.exists())
 
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
@@ -6561,6 +6780,68 @@ class HandoffVerifyTests(unittest.TestCase):
             container_verdict = result["emptied_containers"][0]
             self.assertEqual("contested", container_verdict["verdict"])
             self.assertIn("consumer-protected-path", container_verdict["reasons"])
+
+    def test_container_verdict_reports_the_matched_glob_and_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["policy"]["additional_protected_path_globs"] = [
+                {"glob": "outer", "reason": "keep the folder"}
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("clear", result["verdicts"][0]["verdict"])
+            self.assertNotIn("protection_matches", result["verdicts"][0])
+            self.assertEqual(
+                [
+                    {
+                        "path": "outer",
+                        "verdict": "contested",
+                        "reasons": ["consumer-protected-path"],
+                        "protection_matches": [
+                            {"glob": "outer", "reason": "keep the folder"}
+                        ],
+                    }
+                ],
+                result["emptied_containers"],
+            )
+
+    def test_verify_reports_the_matched_glob_beside_the_contested_reason(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "held.tmp").write_text("stale", encoding="utf-8")
+            (container / "free.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["policy"]["additional_protected_path_globs"] = [
+                {"glob": "outer/held.tmp", "reason": "counsel hold"},
+                "outer/held*",
+                {"glob": "outer/held.tmp", "reason": "counsel hold"},
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/held.tmp", "outer/free.tmp"]
+                )
+            held, free = result["verdicts"]
+            self.assertEqual("contested", held["verdict"])
+            self.assertEqual(["consumer-protected-path"], held["reasons"])
+            self.assertEqual(
+                [
+                    {"glob": "outer/held*"},
+                    {"glob": "outer/held.tmp", "reason": "counsel hold"},
+                ],
+                held["protection_matches"],
+            )
+            self.assertEqual("clear", free["verdict"])
+            self.assertNotIn("protection_matches", free)
 
     def test_container_survives_the_verify_one_delete_one_sequence(self) -> None:
         # The manual lane deletes one approved path at a time, so a later

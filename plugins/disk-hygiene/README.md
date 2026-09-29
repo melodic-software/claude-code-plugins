@@ -257,7 +257,7 @@ Without `--policy`, standing policy files layer over the baseline when present:
 `.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and
 replaces both standing layers. The scan output records which sources applied.
 
-Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/` or a drive letter matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted; `reason` is commentary stored with the glob. Hard safety
+Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/`, a drive letter, or `\\` (a UNC path such as `\\server\share\keep\**`) matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted. For every entry that matches a path, the scan entry, the preview candidate, the handoff-verify verdict, and a skipped apply path list it under `protection_matches`, sorted and deduplicated, as `{glob}` or `{glob, reason}`. That field sits beside the `consumer-protected-path` reason and is absent when no entry matched. Hard safety
 predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
 file can only add protections, add hints, or disable discovery hints (which can only cause junk to
 be missed, never removed).
