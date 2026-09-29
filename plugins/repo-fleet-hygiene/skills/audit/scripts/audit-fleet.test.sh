@@ -398,6 +398,14 @@ for-each-ref)
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\norigin/feature/remote-only\tremote-only-tip\0\norigin/feature/stale-cached\tstale-cached-tip\0\norigin/feature/ls-fail\tls-fail-tip\0\n'
+      # Family inventory (#5220): committer dates are unix seconds; 259260 s is 3 days and a minute.
+      now_ts="$(date +%s)"
+      printf 'origin/pre-wipe/x\tprewipe-tip\t%s\0\norigin/agent-1a2b3c\tagent-tip\t%s\0\norigin/scratch/other\tother-tip\t%s\0\n' \
+        "$((now_ts - 259260))" "$((now_ts - 259260))" "$((now_ts - 259260))"
+      # Merged-head ancestor cases: the remote tip differs from headRefOid. anc-ok's head is in the
+      # clone (merge-base answers 0); anc-missing's head is not (merge-base answers 128).
+      printf 'origin/feature/anc-ok\t%s\0\norigin/feature/anc-missing\t%s\0\n' \
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa dddddddddddddddddddddddddddddddddddddddd
       ;;
     # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
     # push-state wording; GraphQL merge evidence uses the resolved identity independently.
@@ -468,7 +476,15 @@ ls-remote)
   *) exit 96 ;;
   esac
   ;;
-merge-base) exit 1 ;;
+merge-base)
+  # merge-base --is-ancestor <tip> <ref-or-oid>: 0 ancestor, 1 not, 128 unknown object.
+  case "${2:-}|${3:-}" in
+  prewipe-tip\|refs/remotes/origin/main) exit 0 ;;
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb) exit 0 ;;
+  dddddddddddddddddddddddddddddddddddddddd\|cccccccccccccccccccccccccccccccccccccccc) exit 128 ;;
+  esac
+  exit 1
+  ;;
 log)
   [[ "${1:-}" == "-1" && "${2:-}" == "--format=%ct" && "${3:-}" == "HEAD" ]] || exit 96
   case "$base" in
@@ -588,6 +604,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
+        feature/anc-ok) printf '60|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/60' ;;
+        feature/anc-missing) printf '61|cccccccccccccccccccccccccccccccccccccccc|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/61' ;;
         # F2: exact-OID merged evidence on a main-worktree-attached branch.
         feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
@@ -922,6 +940,36 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+# #5220: remote branch families are reported from the last-fetched inventory; no deletion preview.
+assert_kind_targets "remote-only pre-wipe branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/pre-wipe/x" "scratch/other"
+assert_kind_targets "agent-hex remote branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "scratch/other"
+assert_not_contains "a remote branch outside every family gets no row" \
+  "origin/scratch/other"
+assert_contains "family row reports family, age and on-default" \
+  "family pre-wipe; tip prewipe-tip; age 3 days (committer date); on origin/main: yes"
+assert_contains "agent family row reports off-default" \
+  "family agent; tip agent-tip; age 3 days (committer date); on origin/main: no"
+if grep -A8 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "Confidence: LOW" &&
+  ! grep -A12 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "push --delete"; then
+  printf 'PASS: family row is LOW and names no deletion\n'
+else
+  printf 'FAIL: family row is LOW and names no deletion\n' >&2
+  failures=$((failures + 1))
+fi
+assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
+# #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/anc-ok" "$output" |
+  grep -Fq "Confidence: MEDIUM"; then
+  printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
+else
+  printf 'FAIL: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "ancestor finding states its reason" "tip is an ancestor of the merged head"
+assert_not_contains "missing head object gives no ancestor finding" "origin/feature/anc-missing"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
 # #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
