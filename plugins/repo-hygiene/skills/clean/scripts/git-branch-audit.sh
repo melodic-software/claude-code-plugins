@@ -35,6 +35,19 @@
 # of REVIEW only, so this tier can widen what an operator must confirm and can
 # never narrow it.
 #
+# BULK READS. Git is asked about the branches together, not one at a time: one
+# for-each-ref carries every branch's tip, upstream and ahead/behind summary, and
+# one ancestry pass each gives the commits absent from origin/<default> and the
+# LOSSY count above, the numbers `git rev-list --count` prints per branch. The
+# git calls outside the LossCommit listings therefore do not grow with the branch
+# count. What stays per branch: the LossCommit listing (one `git log` per LOSSY
+# branch, since a shared walk can order commits differently when dates tie or
+# skew), and any branch whose bulk record cannot be trusted (a short name
+# ambiguous with a tag or a remote, a `[gone]` upstream whose ref exists, an
+# unrecognized ahead/behind summary), which takes the per-branch commands. A pass
+# that fails is answered the same way, so a verdict never depends on which path
+# answered.
+#
 # The LOSSY set is printed again as its own block after the per-branch records,
 # one LossBranch line per branch with the commits that would be lost, so the
 # operator confronts it as a separate decision before any deletion is
@@ -242,9 +255,79 @@ if [[ -f "$PR_MAP_FILE" ]]; then
   done <"$PR_MAP_FILE"
 fi
 
-WORKTREE_BRANCHES="$(clean_worktree_branches "$REPO_ROOT")"
+# Membership sets, each read once. WORKTREE_PATH maps a branch to the worktree
+# that has it checked out.
+declare -A WORKTREE_PATH=() GONE_SET=() MERGED_SET=()
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  WORKTREE_PATH["${line%%$'\t'*}"]="${line#*$'\t'}"
+done < <(clean_worktree_branch_paths "$REPO_ROOT")
 GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"
 MERGED_BRANCHES="$(git -C "$REPO_ROOT" branch --merged "origin/${DEFAULT_BRANCH}" 2>/dev/null | sed 's/^[ *]*//' | grep -v "^${DEFAULT_BRANCH}$" | tr -d '\r' || true)"
+while IFS= read -r line; do
+  [[ -n "$line" ]] && GONE_SET["$line"]=1
+done <<<"$GONE_BRANCHES"
+while IFS= read -r line; do
+  [[ -n "$line" ]] && MERGED_SET["$line"]=1
+done <<<"$MERGED_BRANCHES"
+
+# Bulk reads. One for-each-ref record per local branch carries the tip, the
+# upstream and its ahead/behind summary, so nothing below asks git about a branch
+# one at a time. The two counts a verdict needs that for-each-ref cannot give,
+# commits absent from origin/<default> and the LOSSY loss count, come from one
+# ancestry pass each (clean_unreached_counts). A branch whose record cannot be
+# trusted (see bulk_facts), or a pass that fails, falls back to the per-branch
+# commands, so a verdict never depends on which path answered.
+ORIGIN_DEFAULT=0
+if git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
+  ORIGIN_DEFAULT=1
+fi
+REC_SEP=$'\x1f'
+mapfile -t REF_RECORDS < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ \
+  --format='%(refname)%1f%(refname:short)%1f%(objectname)%1f%(objecttype)%1f%(committerdate:unix)%1f%(upstream)%1f%(upstream:short)%1f%(upstream:track)' 2>/dev/null | tr -d '\r')
+
+# The tips a branch's record can vouch for: its ref is refs/heads/<short name>
+# (a branch named like a tag has a short name that is not) and it is a commit.
+bulk_record_ok() { # <refname> <short name> <object type>
+  [[ "$1" == "refs/heads/$2" && "$3" == commit ]]
+}
+
+declare -A COUNT=()
+# load_counts <key> <rev>...: COUNT[<key>:<tip>] for every bulk tip; nothing
+# when the pass fails.
+load_counts() {
+  local key="$1" out oid n
+  shift
+  out="$(printf '%s' "$BULK_TIPS" | clean_unreached_counts "$REPO_ROOT" "$@")" || return 0
+  while read -r oid n; do
+    [[ -n "$oid" ]] && COUNT["$key:$oid"]="$n"
+  done <<<"$out"
+}
+BULK_TIPS="" GONE_UPSTREAMS=""
+for line in ${REF_RECORDS[@]+"${REF_RECORDS[@]}"}; do
+  IFS=$REC_SEP read -r refname branch tip otype _ upfull _ track <<<"$line"
+  bulk_record_ok "$refname" "$branch" "$otype" || continue
+  BULK_TIPS+="$tip"$'\n'
+  [[ -n "$upfull" && "$track" == "[gone]" ]] && GONE_UPSTREAMS+="$upfull"$'\n'
+done
+if [[ $ORIGIN_DEFAULT -eq 1 ]]; then
+  load_counts ahead "origin/${DEFAULT_BRANCH}"
+  load_counts loss --remotes --tags
+fi
+
+# `[gone]` means the upstream ref is missing, which is what makes rev-parse read
+# the branch as having no upstream. An upstream ref that exists but does not
+# point at a commit prints `[gone]` too, and rev-parse reads that as an upstream,
+# so those branches take the per-branch commands. One cat-file answers for every
+# gone branch; if it fails, every one of them takes the per-branch commands.
+declare -A UPSTREAM_EXISTS=()
+if [[ -n "$GONE_UPSTREAMS" ]]; then
+  mapfile -t GONE_NAMES <<<"${GONE_UPSTREAMS%$'\n'}"
+  mapfile -t GONE_ANSWERS < <(printf '%s' "$GONE_UPSTREAMS" | git -C "$REPO_ROOT" cat-file --batch-check 2>/dev/null | tr -d '\r')
+  for i in "${!GONE_NAMES[@]}"; do
+    [[ "${GONE_ANSWERS[$i]:-}" == *" missing" ]] || UPSTREAM_EXISTS["${GONE_NAMES[$i]}"]=1
+  done
+fi
 
 prot=0 wt=0 safe=0 likely=0 lossy=0 review=0
 NOW=$(date +%s)
@@ -258,18 +341,60 @@ LOSSY_TIPS=()
 LOSS_COMMITS_SHOWN="${CLEAN_LOSS_COMMITS_SHOWN:-10}"
 [[ "$LOSS_COMMITS_SHOWN" =~ ^[0-9]+$ ]] || LOSS_COMMITS_SHOWN=10
 
+# bulk_facts: read local_tip, upstream, ahead_up and behind_up from the branch's
+# for-each-ref record (the caller's refname, tip, otype, upfull, upshort and
+# track). Returns 1 when the record is not one the per-branch commands would
+# read the same way, and the caller then runs them: a ref whose short name is
+# ambiguous (see bulk_record_ok), a `[gone]` upstream whose ref exists (see
+# UPSTREAM_EXISTS), or an ahead/behind summary in a form other than the ones git
+# documents. An upstream whose tracking ref is missing prints `[gone]`, which is
+# `rev-parse --abbrev-ref <branch>@{upstream}` failing: no upstream. An upstream
+# that is level with the branch prints nothing, which is 0 ahead and 0 behind.
+bulk_facts() {
+  bulk_record_ok "$refname" "$branch" "$otype" || return 1
+  local up="" a="" b=""
+  if [[ -n "$upfull" && "$track" == "[gone]" ]]; then
+    [[ -z "${UPSTREAM_EXISTS[$upfull]+x}" ]] || return 1
+  elif [[ -n "$upfull" ]]; then
+    up="$upshort" a=0 b=0
+    if [[ -z "$track" ]]; then
+      :
+    elif [[ "$track" =~ ^\[ahead\ ([0-9]+)\]$ ]]; then
+      a="${BASH_REMATCH[1]}"
+    elif [[ "$track" =~ ^\[behind\ ([0-9]+)\]$ ]]; then
+      b="${BASH_REMATCH[1]}"
+    elif [[ "$track" =~ ^\[ahead\ ([0-9]+),\ behind\ ([0-9]+)\]$ ]]; then
+      a="${BASH_REMATCH[1]}" b="${BASH_REMATCH[2]}"
+    else
+      return 1
+    fi
+  fi
+  local_tip="$tip" upstream="$up" ahead_up="$a" behind_up="$b"
+}
+
+# branch_loss_count: set lost to the caller's branch loss count (commits on no
+# remote ref and no tag): from the bulk pass when it answered for this branch's
+# tip, else from clean_loss_count. Status 1 when neither could count.
+branch_loss_count() {
+  if [[ $bulk -eq 1 && -n "${COUNT["loss:$local_tip"]+x}" ]]; then
+    lost="${COUNT["loss:$local_tip"]}"
+  else
+    lost="$(clean_loss_count "$REPO_ROOT" "$branch")"
+  fi
+}
+
 classify_branch() {
-  local branch="$1" age_days="$2" tier reason pr_line="none" local_tip
-  local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up behind_up=""
-  local loss_line lost=""
+  local branch="$1" age_days="$2" refname="$3" tip="$4" otype="$5" upfull="$6" upshort="$7" track="$8"
+  local tier reason pr_line="none" local_tip bulk=0
+  local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up="" behind_up=""
+  local loss_line lost="" row
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
   # verdict can be wrong in either direction, and the tip is what recovers from
   # that. An unresolvable tip is reported as such and gets no capture row, which
   # makes the branch undeletable through git-branch-delete.sh.
-  local_tip="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
-
+  #
   # No-upstream branches are invisible to `@{upstream}`-based ahead/behind
   # reporting (it yields nothing), so never-pushed local work goes unseen. Detect
   # the missing upstream and, when origin/<default> exists, count the branch's
@@ -278,10 +403,15 @@ classify_branch() {
   # configured, or a configured upstream whose tracking ref is unfetched), so gate
   # on its exit status rather than on empty output — otherwise that echo reads as a
   # real upstream.
-  if upstream="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null)"; then
-    upstream="${upstream%$'\r'}"
+  if bulk_facts; then
+    bulk=1
   else
-    upstream=""
+    local_tip="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
+    if upstream="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null)"; then
+      upstream="${upstream%$'\r'}"
+    else
+      upstream=""
+    fi
   fi
   [[ -z "$upstream" ]] && no_upstream=1
   # Commits on this branch absent from origin/<default> — the work lost if the
@@ -289,8 +419,12 @@ classify_branch() {
   # so both the upstream-gone and no-upstream classes can guard deletion on it: a
   # `gone` upstream normally means merged-and-deleted, but a gone branch still
   # carrying such commits is unmerged local work, not a safe-delete candidate.
-  if git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
-    ahead_default="$(git -C "$REPO_ROOT" rev-list --count "origin/${DEFAULT_BRANCH}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
+  if [[ $ORIGIN_DEFAULT -eq 1 ]]; then
+    if [[ $bulk -eq 1 && -n "${COUNT["ahead:$local_tip"]+x}" ]]; then
+      ahead_default="${COUNT["ahead:$local_tip"]}"
+    else
+      ahead_default="$(git -C "$REPO_ROOT" rev-list --count "origin/${DEFAULT_BRANCH}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
+    fi
   fi
 
   if [[ "$branch" == "$CURRENT_BRANCH" ]]; then
@@ -302,7 +436,7 @@ classify_branch() {
   elif clean_branch_matches_protected_pattern "$branch"; then
     tier="PROTECTED"
     reason="protected pattern"
-  elif grep -qxF "$branch" <<<"$WORKTREE_BRANCHES"; then
+  elif [[ -n "${WORKTREE_PATH[$branch]+x}" ]]; then
     tier="WORKTREE"
     reason="checked out in worktree — clean up the worktree first"
   elif [[ "${PR_STATE[$branch]:-}" == "MERGED" ]]; then
@@ -315,14 +449,14 @@ classify_branch() {
       reason="PR merged"
       pr_line="#${PR_NUM[$branch]} MERGED"
     fi
-  elif grep -qxF "$branch" <<<"$MERGED_BRANCHES"; then
+  elif [[ -n "${MERGED_SET[$branch]+x}" ]]; then
     tier="SAFE"
     reason="merged (git ancestry)"
   elif [[ "${PR_STATE[$branch]:-}" == "CLOSED" ]]; then
     tier="REVIEW"
     reason="PR closed without merge"
     pr_line="#${PR_NUM[$branch]} CLOSED"
-  elif grep -qxF "$branch" <<<"$GONE_BRANCHES"; then
+  elif [[ -n "${GONE_SET[$branch]+x}" ]]; then
     if [[ -z "$ahead_default" ]]; then
       # Upstream gone AND no origin/<default> to compare against (feature-only
       # clone, unfetched/missing remote HEAD): the script cannot prove the branch
@@ -364,7 +498,7 @@ classify_branch() {
       loss_line="undetermined (tip unresolved)"
     elif [[ -z "$ahead_default" ]]; then
       loss_line="undetermined (no origin/${DEFAULT_BRANCH} to compare against)"
-    elif ! lost="$(clean_loss_count "$REPO_ROOT" "$branch")"; then
+    elif ! branch_loss_count; then
       lost=""
       loss_line="undetermined (could not count commits absent from every remote ref and tag)"
     elif [[ "$lost" -eq 0 ]]; then
@@ -413,8 +547,10 @@ classify_branch() {
       unpushed_line="no upstream (no origin/${DEFAULT_BRANCH} to compare)"
     fi
   else
-    ahead_up="$(git -C "$REPO_ROOT" rev-list --count "${branch}@{upstream}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
-    behind_up="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/${branch}..${branch}@{upstream}" 2>/dev/null | tr -d '\r')"
+    if [[ $bulk -eq 0 ]]; then
+      ahead_up="$(git -C "$REPO_ROOT" rev-list --count "${branch}@{upstream}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
+      behind_up="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/${branch}..${branch}@{upstream}" 2>/dev/null | tr -d '\r')"
+    fi
     unpushed_line="${ahead_up:-0} ahead of ${upstream}"
   fi
 
@@ -426,23 +562,23 @@ classify_branch() {
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
-  [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "$(clean_worktree_path "$REPO_ROOT" "$branch")"
+  [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "${WORKTREE_PATH[$branch]}"
 
   if [[ -n "$local_tip" ]]; then
-    capture_line "$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    printf -v row '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
       "$branch" "$local_tip" "$tier" "$pr_line" "${upstream:-none}" \
-      "${ahead_up:--}" "${behind_up:--}" "${ahead_default:--}" "$CAPTURED_AT")"
+      "${ahead_up:--}" "${behind_up:--}" "${ahead_default:--}" "$CAPTURED_AT"
+    capture_line "$row"
     CAPTURE_ROWS=$((CAPTURE_ROWS + 1))
   fi
 }
 
-while IFS= read -r line; do
+for line in ${REF_RECORDS[@]+"${REF_RECORDS[@]}"}; do
   [[ -z "$line" ]] && continue
-  branch="${line%% *}"
-  ts="${line##* }"
+  IFS=$REC_SEP read -r refname branch tip otype ts upfull upshort track <<<"$line"
   age_days=$(((NOW - ts) / 86400))
-  classify_branch "$branch" "$age_days"
-done < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ --format='%(refname:short) %(committerdate:unix)' 2>/dev/null | tr -d '\r')
+  classify_branch "$branch" "$age_days" "$refname" "$tip" "$otype" "$upfull" "$upshort" "$track"
+done
 
 # The loss block: the LOSSY set again, as its own surface. It is printed even
 # when empty so a reader can tell "no branch loses work" from "the block was
