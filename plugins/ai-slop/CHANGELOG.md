@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.11.5] - 2026-09-29
+## [0.12.1] - 2026-09-29
 
 ### Fixed
 
@@ -8,6 +8,33 @@
   working tree no longer reads `.claude/ai-slop.json` and `.claude/ai-slop.local.json` as team and
   overlay layers, and a team or overlay path that is the user-global file is read once. The
   classifier is `lib/config-root.sh`, a synced copy of the source-control resolver.
+
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **audit:** `scripts/emit-fix-record.sh` writes the `type: fix-pass-record` that names each
+  findings file a `fix` run consumed (name and 12-hex sha256), named by digest so an existing
+  record is never overwritten.
+
+### Changed
+
+- **audit:** the rubric working directory (batch lists, `cues.txt`, `rubric-batch-NN.md`
+  results, the merged rubric report) is resolved from the target alone before step 3: a
+  gitignored `.work/ai-slop-rubric/<TS>/` for a repository target, else the scratchpad or
+  system temp directory. The rubric fan-out no longer waits on the findings home.
+- **audit:** `persist-findings.md` states the common-case findings location inline and defers
+  to the producer contract on any other rung.
+
+### Fixed
+
+- **audit:** `fix` writes a `fix-pass-record` for the findings file it consumed before the
+  re-emit, so `review:fanout fix` no longer reapplies the pre-fix file. The claim that no stale
+  findings file survives remediation now matches that behavior.
+- **audit:** `emit-fix-record.sh` quotes a YAML-sensitive branch name (`true`, `123`, `#topic`)
+  the way `emit-findings.sh` does, so `review:fanout fix` matches the record's branch exactly.
+- **audit:** the rubric run directory is created with a plain `mkdir` and a numeric suffix on
+  collision, so two audits in one second get separate workspaces.
 
 ## [0.11.4] - 2026-09-29
 
