@@ -17,7 +17,8 @@ notes() {
   printf '%s' "$WORK/$name"
 }
 
-COMPLETE="$(notes complete.md <<'EOF'
+COMPLETE="$(
+  notes complete.md <<'EOF'
 ## Errors
 none
 
@@ -38,7 +39,8 @@ EOF
 run 0 "a ledger with every section closed is complete" --notes "$COMPLETE"
 has "status: complete" "complete ledger says so"
 
-MISSING="$(notes missing.md <<'EOF'
+MISSING="$(
+  notes missing.md <<'EOF'
 ## Errors
 none
 
@@ -55,7 +57,8 @@ EOF
 run 1 "a missing quality-of-life section is incomplete" --notes "$MISSING"
 has "missing-section name=Quality of life" "the skipped category is named"
 
-EMPTY="$(notes empty.md <<'EOF'
+EMPTY="$(
+  notes empty.md <<'EOF'
 ## Errors
 
 ## Improvements
@@ -74,7 +77,8 @@ EOF
 run 1 "a heading with no body is an empty section" --notes "$EMPTY"
 has "section-empty section=Errors" "an empty errors section is named"
 
-NO_EVIDENCE="$(notes no-evidence.md <<'EOF'
+NO_EVIDENCE="$(
+  notes no-evidence.md <<'EOF'
 ## Errors
 ### bare
 remediation: do the thing
@@ -96,7 +100,8 @@ EOF
 run 1 "a finding without evidence is incomplete" --notes "$NO_EVIDENCE"
 has "finding-missing-evidence" "missing evidence is named"
 
-NO_RESEARCH="$(notes no-research.md <<'EOF'
+NO_RESEARCH="$(
+  notes no-research.md <<'EOF'
 ## Errors
 ### bare
 evidence: packet
@@ -118,7 +123,8 @@ EOF
 run 1 "a remediation without research is not a recommendation" --notes "$NO_RESEARCH"
 has "remediation-without-research" "the missing research line is named"
 
-OPENQ="$(notes openq.md <<'EOF'
+OPENQ="$(
+  notes openq.md <<'EOF'
 ## Errors
 ### bare
 evidence: packet
@@ -143,7 +149,8 @@ EOF
 run 0 "an open question and an unresolved home are complete" --notes "$OPENQ"
 has "status: complete" "open-question ledger completes"
 
-TIER="$(notes tier.md <<'EOF'
+TIER="$(
+  notes tier.md <<'EOF'
 ## Errors
 none
 
@@ -171,7 +178,8 @@ EOF
 run 0 "tier-1 with two corroborators and a false sample with a basis completes" --notes "$TIER"
 has "status: complete" "tier ledger completes"
 
-THIN="$(notes thin.md <<'EOF'
+THIN="$(
+  notes thin.md <<'EOF'
 ## Errors
 none
 
@@ -196,7 +204,8 @@ EOF
 run 1 "one corroborator does not meet the bar" --notes "$THIN"
 has "research-corroborators" "the short corroborator count is named"
 
-FALSE_BARE="$(notes false-bare.md <<'EOF'
+FALSE_BARE="$(
+  notes false-bare.md <<'EOF'
 ## Errors
 none
 
