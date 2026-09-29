@@ -219,7 +219,7 @@ Create one task per group using `TaskCreate`. Each task should include:
 
 **Before spawning any agents**, ground the run: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the batch scope and `/discovery:research` via the Skill tool covering idioms relevant to the dominant ecosystems in the wave; otherwise read representative files per group and do a focused inline research pass on the ecosystems' current idioms.
 
-Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies. Groups the Native step runs over are always serialized. Groups the Native step runs over are always serialized.
+Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies. Groups the Native step runs over are always serialized.
 
 For each group:
 
