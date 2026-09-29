@@ -19,17 +19,21 @@
 # that page adds a diagram type for a build-declaration graph.
 #
 # Usage:
-#   dependency-graph.sh <repo-path>
+#   dependency-graph.sh [--out <file>] [--generated-on <date>] <repo-path>
 #   dependency-graph.sh --help
 #
-# Output: one JSON document on stdout, in the one-object-per-line layout.
-# Readers match objects by line, the same way landscape.json does. A reader
+# Output: one JSON document on stdout, or in --out <file> with nothing on
+# stdout; a failed write exits 1 with a message. generated_on defaults to the
+# date of the repository's HEAD commit (git log -1 --format=%cs), so a second
+# run on the same commit is byte-identical, and to "unknown" when there is no
+# commit. --generated-on overrides it. The document is in the
+# one-object-per-line layout. Readers match objects by line, the same way landscape.json does. A reader
 # given any other layout must fail rather than report an empty graph.
 # render-dependencies.sh is that reader.
 #
 #   {
 #     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD",
+#     "generated_on": "YYYY-MM-DD" | "unknown",
 #     "result": "ok" | "unknown",
 #     "message": "...",
 #     "ecosystem": "dotnet" | "unknown",
@@ -41,18 +45,33 @@
 #     "findings": [ <one finding object per line> ]
 #   }
 #
-#   node     {"id","name","path","ecosystem","kind"}
+#   node     {"id","name","path","ecosystem","kind"} plus, on a project, the
+#            optional "namespace" and "test" fields.
 #            kind is "project" or "package". id of a project is its
 #            repo-relative path. id of a package is "pkg:" plus the Include.
+#            namespace is the project file's RootNamespace, else its
+#            AssemblyName, and is omitted when neither is a literal value.
+#            test is "yes" on a test project (IsTestProject true, or a
+#            reference to Microsoft.NET.Test.Sdk, xunit*, NUnit*, MSTest*, or
+#            Microsoft.Testing.Platform*) and is omitted otherwise. A record
+#            without either field is still schema_version 1.
 #   edge     {"from","to","kind","status","evidence"}
 #            kind is "project" or "package". status is "resolved" or
 #            "unresolved". evidence is the repo-relative file, a colon, and
 #            the matched declaration text.
 #   cycle    {"id"}  project ids joined by " -> ", rotated to start at the
-#            smallest id, first id repeated at the end.
+#            smallest id, first id repeated at the end. One witness cycle per
+#            strongly connected group of projects, and one per self-reference.
+#            The search is linear in projects plus edges, so it always
+#            finishes; cycles_truncated stays in the record for readers of
+#            schema_version 1 and is always false.
 #   finding  {"kind","path","evidence"}
 #            kind "unresolved-membership" is a solution project whose declared
 #            path is missing or outside the repository root.
+#            kind "unread-reference-tags" is a project or MSBuild file with
+#            reference tags this run did not turn into an edge. evidence is the
+#            file, a colon, and the count. A graph with this finding is not a
+#            complete list of that file's references.
 #
 # result "unknown" means this run did not read a shipped adapter. The arrays
 # are empty and message says why. That is not an empty graph: an empty graph
@@ -65,6 +84,18 @@
 # matched to a similarly named project elsewhere. Solution files
 # (*.sln, *.slnx) contribute membership, not dependency edges.
 #
+# A Directory.Build.props or Directory.Build.targets reference is an edge from
+# every project whose nearest such file, walking up from the project, is that
+# one; a relative Include resolves from the project's folder and the edge cites
+# the props file. A project never gets an edge to itself from those files. Any
+# other *.props or *.targets file, and Directory.Packages.props, is imported by
+# a path this collector does not evaluate: its references are counted in an
+# unread-reference-tags finding, not drawn. Basis:
+# https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
+# and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
+# Verified 2026-09-29. Recheck when either page changes the lookup rule or the
+# base of a relative Include in an imported file.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -73,17 +104,15 @@
 # other than .github, .gitlab, .circleci, and .devcontainer are not walked.
 # node_modules and vendor are not walked.
 #
-# Nothing here fetches and nothing is written. The document goes to stdout.
+# Nothing here fetches. The only write is --out.
 #
 # Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
 #
 # Exit: 0 = a document was emitted (result ok or unknown); 1 = the path is
-# not a readable directory; 2 = usage.
+# not a readable directory or --out cannot be written; 2 = usage.
 set -uo pipefail
 
 NODE_THRESHOLD=40
-CYCLE_STEP_CAP=200000
-CYCLE_LIST_CAP=50
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
@@ -103,7 +132,43 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-if [[ $# -ne 1 ]]; then
+raw_path=""
+out_file=""
+generated_on=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --out)
+    [[ $# -ge 2 ]] || die "--out needs a path" 2
+    out_file="$2"
+    shift 2
+    ;;
+  --out=*)
+    out_file="${1#--out=}"
+    shift
+    ;;
+  --generated-on)
+    [[ $# -ge 2 ]] || die "--generated-on needs a date" 2
+    generated_on="$2"
+    shift 2
+    ;;
+  --generated-on=*)
+    generated_on="${1#--generated-on=}"
+    shift
+    ;;
+  -*)
+    die "unknown argument: $1" 2
+    ;;
+  *)
+    if [[ -n "$raw_path" ]]; then
+      usage >&2
+      exit 2
+    fi
+    raw_path="$1"
+    shift
+    ;;
+  esac
+done
+if [[ -z "$raw_path" ]]; then
   usage >&2
   exit 2
 fi
@@ -263,8 +328,8 @@ add_finding() {
 }
 
 json_node() {
-  local id="$1" name="$2" path="$3" kind="$4"
-  local e_id e_name e_path e_kind
+  local id="$1" name="$2" path="$3" kind="$4" namespace="${5:-}" test="${6:-}"
+  local e_id e_name e_path e_kind extra=""
   json_escape "$id"
   e_id="$JSON_ESC"
   json_escape "$name"
@@ -273,8 +338,22 @@ json_node() {
   e_path="$JSON_ESC"
   json_escape "$kind"
   e_kind="$JSON_ESC"
-  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"}' \
-    "$e_id" "$e_name" "$e_path" "$e_kind"
+  if [[ -n "$namespace" ]]; then
+    json_escape "$namespace"
+    extra+=",\"namespace\":\"$JSON_ESC\""
+  fi
+  [[ -n "$test" ]] && extra+=',"test":"yes"'
+  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"%s}' \
+    "$e_id" "$e_name" "$e_path" "$e_kind" "$extra"
+}
+
+# Optional node fields, read from the project file itself: namespace is
+# RootNamespace, else AssemblyName, else absent; test is "yes" for a test project.
+node_namespace() {
+  local ns
+  ns="$(dotnet_project_property "$root/$1" RootNamespace)"
+  [[ -n "$ns" ]] || ns="$(dotnet_project_property "$root/$1" AssemblyName)"
+  printf '%s\n' "$ns"
 }
 
 json_edge() {
@@ -346,7 +425,6 @@ sort_lines() {
   printf '%s\n' "${sorted[@]}"
 }
 
-raw_path="$1"
 root="$(cd "$raw_path" 2>/dev/null && pwd)" || die "not a readable directory: $raw_path" 1
 [[ -d "$root" ]] || die "not a readable directory: $raw_path" 1
 
@@ -362,6 +440,7 @@ done < <(
     -o -name node_modules -o -name vendor -o -name bin -o -name obj \) -prune -o \
     -type f \( \
     -name '*.csproj' -o -name '*.fsproj' -o -name '*.sln' -o -name '*.slnx' \
+    -o -name '*.props' -o -name '*.targets' \
     -o -name 'global.json' \
     -o -name 'package.json' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
@@ -375,6 +454,8 @@ done < <(
 
 proj_files=()
 sln_files=()
+msbuild_files=()
+declare -A BUILD_FILE=()
 has_global_json=0
 declare -A OTHER=()
 
@@ -383,6 +464,11 @@ for rel in "${files[@]+"${files[@]}"}"; do
   case "$base" in
   *.csproj | *.fsproj) proj_files+=("$rel") ;;
   *.sln | *.slnx) sln_files+=("$rel") ;;
+  Directory.Build.props | Directory.Build.targets)
+    msbuild_files+=("$rel")
+    BUILD_FILE[$rel]=1
+    ;;
+  *.props | *.targets) msbuild_files+=("$rel") ;;
   global.json) has_global_json=1 ;;
   package.json) OTHER[node]="$rel" ;;
   pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
@@ -422,8 +508,38 @@ else
     message="Not read: $other_msg. The first adapter is .NET; an unread ecosystem is left unread rather than drawn as an empty graph."
   fi
 
-  for proj_rel in "${proj_files[@]}"; do
-    add_node "$proj_rel" "$(proj_name "$proj_rel")" "$proj_rel" "project"
+  declare -A FILE_RECORDS=()
+  declare -A FILE_CONSUMED=()
+  # Cache one file's reference records in FILE_RECORDS (not in a subshell, so
+  # the cache survives).
+  load_records() {
+    [[ -n "${FILE_RECORDS[$1]+x}" ]] || FILE_RECORDS[$1]="$(dotnet_reference_records "$root/$1")"
+  }
+
+  # Nearest ancestor file called $2, from directory $1 up to the root.
+  nearest_build_file() {
+    local dir="$1" name="$2" cand
+    while :; do
+      cand="${dir:+$dir/}$name"
+      if [[ -n "${BUILD_FILE[$cand]+x}" ]]; then
+        printf '%s\n' "$cand"
+        return 0
+      fi
+      [[ -n "$dir" ]] || return 1
+      case "$dir" in
+      */*) dir="${dir%/*}" ;;
+      *) dir="" ;;
+      esac
+    done
+  }
+
+  # Edges that the references in source file $3 give project $1. $2 is that
+  # file's records. A relative Include resolves from the project's folder even
+  # when the tag sits in an imported file. $4 is "props" when the file is not
+  # the project itself: such a file cannot make a project reference itself.
+  add_reference_edges() {
+    local proj_rel="$1" records="$2" source_rel="$3" via="$4"
+    local proj_dir rec rec_kind rec_rest rec_inc rec_decl normalized
     proj_dir="$(proj_dir_of "$proj_rel")"
     while IFS= read -r rec; do
       [[ -n "$rec" ]] || continue
@@ -435,21 +551,48 @@ else
       case "$rec_kind" in
       package)
         add_node "pkg:$rec_inc" "$rec_inc" "" "package"
-        add_edge "$proj_rel" "pkg:$rec_inc" "package" "resolved" "$proj_rel: $rec_decl"
+        add_edge "$proj_rel" "pkg:$rec_inc" "package" "resolved" "$source_rel: $rec_decl"
         ;;
       project)
         normalized=""
         if normalized="$(normalize_within_root "$proj_dir" "$rec_inc")" &&
           [[ -n "$normalized" && -f "$root/$normalized" ]]; then
+          [[ "$via" == "props" && "$normalized" == "$proj_rel" ]] && continue
           add_node "$normalized" "$(proj_name "$normalized")" "$normalized" "project"
-          add_edge "$proj_rel" "$normalized" "project" "resolved" "$proj_rel: $rec_decl"
+          add_edge "$proj_rel" "$normalized" "project" "resolved" "$source_rel: $rec_decl"
         else
-          add_edge "$proj_rel" "$rec_inc" "project" "unresolved" "$proj_rel: $rec_decl"
+          add_edge "$proj_rel" "$rec_inc" "project" "unresolved" "$source_rel: $rec_decl"
         fi
         ;;
       *) ;;
       esac
-    done < <(dotnet_reference_records "$root/$proj_rel")
+    done <<<"$records"
+  }
+
+  for proj_rel in "${proj_files[@]}"; do
+    add_node "$proj_rel" "$(proj_name "$proj_rel")" "$proj_rel" "project"
+    load_records "$proj_rel"
+    add_reference_edges "$proj_rel" "${FILE_RECORDS[$proj_rel]}" "$proj_rel" "self"
+    proj_dir="$(proj_dir_of "$proj_rel")"
+    for build_name in Directory.Build.props Directory.Build.targets; do
+      if build_rel="$(nearest_build_file "$proj_dir" "$build_name")"; then
+        load_records "$build_rel"
+        FILE_CONSUMED[$build_rel]=1
+        add_reference_edges "$proj_rel" "${FILE_RECORDS[$build_rel]}" "$build_rel" "props"
+      fi
+    done
+  done
+
+  # Reference tags that are not an edge in this record are counted, so an
+  # empty or short edge list never reads as "declares no references".
+  for unread_rel in "${proj_files[@]}" "${msbuild_files[@]+"${msbuild_files[@]}"}"; do
+    unread_n="$(dotnet_reference_unmatched_count "$root/$unread_rel")"
+    if ! is_proj_suffix "$unread_rel" && [[ -z "${FILE_CONSUMED[$unread_rel]+x}" ]]; then
+      load_records "$unread_rel"
+      [[ -n "${FILE_RECORDS[$unread_rel]}" ]] &&
+        unread_n=$((unread_n + $(printf '%s\n' "${FILE_RECORDS[$unread_rel]}" | grep -c .)))
+    fi
+    [[ "$unread_n" -gt 0 ]] && add_finding "unread-reference-tags" "$unread_rel" "$unread_rel: $unread_n reference tag(s) not read"
   done
 
   for sln_rel in "${sln_files[@]+"${sln_files[@]}"}"; do
@@ -471,7 +614,7 @@ else
 fi
 
 cycle_lines=()
-cycles_truncated_json="false"
+cycles_truncated_json="false" # kept for schema_version 1 readers; the search cannot truncate
 if [[ ${#edge_from[@]} -gt 0 ]]; then
   cycle_feed=""
   for i in "${!edge_from[@]}"; do
@@ -480,65 +623,75 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
     fi
   done
   if [[ -n "$cycle_feed" ]]; then
-    cycle_raw="$(printf '%s' "$cycle_feed" | awk -v step_cap="$CYCLE_STEP_CAP" -v list_cap="$CYCLE_LIST_CAP" '
-      function dfs(u,    rest, v, nl, k, from, min, minpos, rotated) {
-        if (truncated) return
-        if (steps > step_cap) { truncated = 1; return }
-        steps++
-        on[u] = 1
-        stack[++sp] = u
-        rest = adj[u]
-        while (rest != "") {
-          nl = index(rest, "\n")
-          if (nl == 0) { v = rest; rest = "" }
-          else { v = substr(rest, 1, nl - 1); rest = substr(rest, nl + 1) }
-          if (v == "") continue
-          if (on[v]) {
-            from = 0
-            for (k = 1; k <= sp; k++) if (stack[k] == v) from = k
-            if (from == 0) continue
-            min = ""
-            minpos = from
-            for (k = from; k <= sp; k++) if (min == "" || stack[k] < min) { min = stack[k]; minpos = k }
-            rotated = ""
-            for (k = minpos; k <= sp; k++) rotated = rotated (rotated == "" ? "" : " -> ") stack[k]
-            for (k = from; k < minpos; k++) rotated = rotated " -> " stack[k]
-            rotated = rotated " -> " min
-            if (!(rotated in seen_cycle)) {
-              if (cycn >= list_cap) { truncated = 1; break }
-              seen_cycle[rotated] = 1
-              cycn++
-              found[cycn] = rotated
+    # Tarjan's strongly connected components, then one shortest witness cycle
+    # through the smallest id of each component with more than one project or a
+    # self-reference. O(projects + edges). The recursion depth is the longest
+    # dependency chain.
+    cycle_raw="$(printf '%s' "$cycle_feed" | LC_ALL=C awk '
+      function strong(v,    k, w, c) {
+        idx[v] = ++counter
+        low[v] = idx[v]
+        stk[++sp] = v
+        onstk[v] = 1
+        for (k = 1; k <= adjn[v]; k++) {
+          w = adjv[v, k]
+          if (!(w in idx)) {
+            strong(w)
+            if (low[w] < low[v]) low[v] = low[w]
+          } else if (onstk[w] && idx[w] < low[v]) low[v] = idx[w]
+        }
+        if (low[v] == idx[v]) {
+          c = ++ncomp
+          do {
+            w = stk[sp--]
+            onstk[w] = 0
+            comp[w] = c
+            size[c]++
+            if (!(c in cmin) || w < cmin[c]) cmin[c] = w
+          } while (w != v)
+        }
+      }
+      function witness(c,    s, head, tail, u, k, w, path, x) {
+        s = cmin[c]
+        split("", seen)
+        split("", par)
+        queue[1] = s
+        seen[s] = 1
+        head = 1
+        tail = 1
+        while (head <= tail) {
+          u = queue[head++]
+          for (k = 1; k <= adjn[u]; k++) {
+            w = adjv[u, k]
+            if (comp[w] != c) continue
+            if (w == s) {
+              path = u
+              for (x = u; x != s; ) { x = par[x]; path = x " -> " path }
+              return path " -> " s
             }
-          } else {
-            dfs(v)
-            if (truncated) break
+            if (!(w in seen)) { seen[w] = 1; par[w] = u; queue[++tail] = w }
           }
         }
-        on[u] = 0
-        sp--
+        return ""
       }
-      BEGIN { FS = "\t"; steps = 0; truncated = 0; cycn = 0; sp = 0; nn = 0 }
+      BEGIN { FS = "\t" }
       {
         if ($1 == "" || $2 == "") next
         key = $1 "\t" $2
         if (key in seen_edge) next
         seen_edge[key] = 1
-        if (!($1 in started)) { started[$1] = 1; nodes[++nn] = $1 }
-        if (!($2 in started)) { started[$2] = 1; nodes[++nn] = $2 }
-        adj[$1] = adj[$1] $2 "\n"
+        if (!($1 in known)) { known[$1] = 1; nodes[++nn] = $1 }
+        if (!($2 in known)) { known[$2] = 1; nodes[++nn] = $2 }
+        adjv[$1, ++adjn[$1]] = $2
+        if ($1 == $2) selfloop[$1] = 1
       }
       END {
-        for (i = 1; i <= nn; i++) if (!truncated) dfs(nodes[i])
-        if (truncated) print "TRUNCATED"
-        for (i = 1; i <= cycn; i++) print found[i]
+        for (i = 1; i <= nn; i++) if (!(nodes[i] in idx)) strong(nodes[i])
+        for (c = 1; c <= ncomp; c++) {
+          if (size[c] > 1 || (cmin[c] in selfloop)) print witness(c)
+        }
       }
     ')"
-    if [[ "$cycle_raw" == TRUNCATED* ]]; then
-      cycles_truncated_json="true"
-      cycle_raw="${cycle_raw#TRUNCATED}"
-      cycle_raw="${cycle_raw#$'\n'}"
-    fi
     if [[ -n "$cycle_raw" ]]; then
       while IFS= read -r line; do
         [[ -n "$line" ]] || continue
@@ -550,7 +703,12 @@ fi
 
 node_json=()
 for i in "${!node_ids[@]}"; do
-  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}")")
+  node_ns="" node_test=""
+  if [[ "${node_kinds[$i]}" == "project" ]] && is_proj_suffix "${node_paths[$i]}"; then
+    node_ns="$(node_namespace "${node_paths[$i]}")"
+    dotnet_is_test_project "$root/${node_paths[$i]}" && node_test=yes
+  fi
+  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "$node_ns" "$node_test")")
 done
 edge_json=()
 for i in "${!edge_from[@]}"; do
@@ -586,24 +744,35 @@ while IFS= read -r line; do
   sorted_findings+=("$line")
 done < <(sort_lines "${finding_json[@]+"${finding_json[@]}"}")
 
-generated_on="$(date -u +%Y-%m-%d)"
+[[ -n "$generated_on" ]] || generated_on="$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)"
+[[ -n "$generated_on" ]] || generated_on="unknown"
+json_escape "$generated_on"
+e_generated_on="$JSON_ESC"
 json_escape "$message"
 e_message="$JSON_ESC"
 json_escape "$ecosystem"
 e_ecosystem="$JSON_ESC"
 
-printf '{\n'
-printf '  "schema_version": 1,\n'
-printf '  "generated_on": "%s",\n' "$generated_on"
-printf '  "result": "%s",\n' "$result"
-printf '  "message": "%s",\n' "$e_message"
-printf '  "ecosystem": "%s",\n' "$e_ecosystem"
-printf '  "node_threshold": %s,\n' "$NODE_THRESHOLD"
-printf '  "cycles_truncated": %s,\n' "$cycles_truncated_json"
-emit_array "nodes" comma "${sorted_nodes[@]+"${sorted_nodes[@]}"}"
-emit_array "edges" comma "${sorted_edges[@]+"${sorted_edges[@]}"}"
-emit_array "cycles" comma "${sorted_cycles[@]+"${sorted_cycles[@]}"}"
-emit_array "findings" none "${sorted_findings[@]+"${sorted_findings[@]}"}"
-printf '}\n'
+emit_document() {
+  printf '{\n'
+  printf '  "schema_version": 1,\n'
+  printf '  "generated_on": "%s",\n' "$e_generated_on"
+  printf '  "result": "%s",\n' "$result"
+  printf '  "message": "%s",\n' "$e_message"
+  printf '  "ecosystem": "%s",\n' "$e_ecosystem"
+  printf '  "node_threshold": %s,\n' "$NODE_THRESHOLD"
+  printf '  "cycles_truncated": %s,\n' "$cycles_truncated_json"
+  emit_array "nodes" comma "${sorted_nodes[@]+"${sorted_nodes[@]}"}"
+  emit_array "edges" comma "${sorted_edges[@]+"${sorted_edges[@]}"}"
+  emit_array "cycles" comma "${sorted_cycles[@]+"${sorted_cycles[@]}"}"
+  emit_array "findings" none "${sorted_findings[@]+"${sorted_findings[@]}"}"
+  printf '}\n'
+}
+
+if [[ -n "$out_file" ]]; then
+  emit_document >"$out_file" || die "cannot write --out file: $out_file" 1
+else
+  emit_document
+fi
 
 exit 0

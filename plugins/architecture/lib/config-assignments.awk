@@ -3,7 +3,7 @@
 # Prepend plugins/architecture/lib/redact-connection.awk. Set ASSIGN_MODE to
 # json, yaml, env, xml, hcl, or ini. The input file is read as text and
 # matched. It is never executed. Each output line is
-# kind, host, port, config-key. The raw value is not printed.
+# kind, host, port, config-key, database, scheme. The raw value is not printed.
 #
 # Modes:
 #   json  objects and arrays, including // and /* */ comments
