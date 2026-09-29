@@ -5,6 +5,8 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
+
 ## [0.6.44] - 2026-09-28
 
 ### Changed
@@ -26,19 +28,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.6.42] - 2026-09-28
 
-### Added
-
-- **Lever rows for command-output caps** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `bashOutputMaxChars` is disclose-only: it changes how much of a later command stays inline, and a startup snapshot of it measures zero. `taskOutputMaxChars` is recorded as removed in Claude Code 2.1.277, so the catalogue does not emit it.
-
 ### Changed
 
-- **Connector allowlists and `/context` counting**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The connectors lever no longer says `allowedMcpServers` removes managed connectors. From
-  Claude Code 2.1.259 only `deniedMcpServers` does; `allowedMcpServers` governs servers users
-  add. The measurement contract no longer says `/context` makes no API call. It uses the
-  token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
-  after the first turn. Pages read 2026-09-28.
+- No plugin behavior change. The version was bumped when the #4027 changelog campaign closed (#5162); the lever rows and connector wording shipped in 0.6.39 and 0.6.41.
 
 ## [0.6.41] - 2026-09-28
 
@@ -86,6 +78,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`settings_write_ask_enabled` description.** The userConfig description now says the ask covers Write, Edit, MultiEdit and NotebookEdit, and that shell writes and files rendered into place are outside the matcher.
 - **Bare-name deny cites the `EndConversation` exception.** The permissions page now says
   bare-name removal applies to every tool except `EndConversation` (a deny cannot remove it
   while any other tool remains, and an ask rule never prompts for it). `engine.md`, the
