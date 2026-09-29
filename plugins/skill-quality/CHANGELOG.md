@@ -30,6 +30,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 - **`check` gains a `## Next` section** and drops a paragraph that repeated the Arguments text.
 - **The manifest description names the `measure-invocation` probe harness.**
+- **`setup` eval prompt drops the em dash** that the JSON re-serialization had escaped as `—`.
 - **Corrected released entries.** The 0.24.7 entry no longer carries the `### Recorded` interop
   bullets (compaction, `.agents/skills/`, frontmatter stripping) or the fleet-scan sentence: they
   were not ratified decisions, and #3612 is reopened to ask them. The 0.24.10 entry no longer
