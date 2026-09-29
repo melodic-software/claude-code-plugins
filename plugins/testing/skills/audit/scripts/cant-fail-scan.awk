@@ -979,7 +979,7 @@ function arg_path(args,    first, p) {
   if (first ~ /^([A-Za-z_]+\.)?(resolve|join|Join|Combine)[[:space:]]*\(/) {
     p = index(first, "(")
     if (!extract_parens(first, p)) return ""
-    return join_lits(EXTRACT)
+    return join_literals(EXTRACT)
   }
   return ""
 }
@@ -988,7 +988,7 @@ function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); ret
 
 # Literal parts joined with "/", after an optional leading base that names the
 # test's directory (__dirname, import.meta.dirname).
-function join_lits(args,    out, part, more) {
+function join_literals(args,    out, part, more) {
   out = ""
   for (;;) {
     more = split_top_comma(args)
@@ -1383,7 +1383,7 @@ function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
   # neither rebuilds the value the way the code does, so neither is an input.
   e = y
   gsub(/[{,][[:space:]]*(\.\.\.|\*\*)[[:space:]]*[A-Za-z_$][A-Za-z0-9_$.]*/, "{", e)
-  if (e !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0
+  if (e !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0  # spellchecker:disable-line
   short = LEXER == "pwsh" ? tolower(name) : name
   sub(/^.*\./, "", short)
   if (index(LEXER == "pwsh" ? tolower(y) : y, short (LEXER == "pwsh" ? "" : "("))) return 0

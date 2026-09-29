@@ -856,9 +856,11 @@ action_of() {
     printf "Make the assertion evaluate: write assert cond, msg without the tuple's parentheses, and call the mock's assert_* method (m.assert_called_once_with(...)) instead of the plain attribute."
     ;;
   inert-assertion:bash)
+    # shellcheck disable=SC2016  # literal remedy text names bats variables
     printf 'Make the assertion evaluate: check what run captured ($status, $output, or assert_success / assert_output), or use run -N / run ! cmd; a ! cmd fails the test only as its last line; in a harness end a [ ] test with || fail.'
     ;;
   inert-assertion:pwsh)
+    # shellcheck disable=SC2016  # literal remedy text names a PowerShell variable
     printf 'Make the assertion evaluate: pipe the value to a Should assertion ($x | Should -Be 5); Pester discards the bool a bare comparison returns.'
     ;;
   inert-assertion:go)

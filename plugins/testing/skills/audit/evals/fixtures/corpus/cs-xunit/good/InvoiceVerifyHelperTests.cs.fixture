@@ -7,7 +7,7 @@ using Xunit;
 public class InvoiceVerifyHelperTests
 {
     [Fact]
-    public void Invoice_IsTotalled()
+    public void Invoice_IsTotaled()
     {
         var invoice = Billing.Total(new Invoice(2));
         Verify(invoice);

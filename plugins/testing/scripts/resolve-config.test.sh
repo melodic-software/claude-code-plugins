@@ -78,10 +78,10 @@ assert_contains "outside a repository with no --root, CLAUDE_PROJECT_DIR is the 
 
 # --- validation exits ---------------------------------------------------------
 reset
-printf 'paths:\n  exclude: [a]\n  exlude: [b]\n' >"$REPO/.claude/testing.yaml"
+printf 'paths:\n  exclude: [a]\n  excludes: [b]\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "an unknown key exits 2" 2 "$rc"
-assert_contains "and names the file and line" "$out" "$REPO/.claude/testing.yaml:3: unknown key: paths.exlude"
+assert_contains "and names the file and line" "$out" "$REPO/.claude/testing.yaml:3: unknown key: paths.excludes"
 printf 'rules:\n  rule-made-up: off\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "an unknown rule id exits 2" "2" "$rc"
