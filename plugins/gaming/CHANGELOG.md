@@ -27,8 +27,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 ### Changed
 
 - **DLSS5-Feeder research park (#4592):** `assess` guidance in `SKILL.md` and
-  `candidate-selection.md` now points to `reference/feeder-route.md`. The route stays unverified
-  and anti-cheat gated pending the #4592 decision, and `apply` does not install it.
+  `candidate-selection.md` points every 64-bit no-upscaler result to `reference/feeder-route.md`,
+  with no anti-cheat gate; 0.8.3 adds the gate. `apply` does not install the route.
 
 ## [0.8.1] - 2026-09-27
 

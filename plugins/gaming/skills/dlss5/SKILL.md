@@ -120,8 +120,8 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
      [`reference/feeder-route.md`](reference/feeder-route.md) as unverified, say `apply` does not
      install it (#4592), repeat the `note`, and tell the user to play modded only solo or offline.
      When the status is `signals` or `unknown`, do not point to it: say the Feeder route does not
-     lower anti-cheat risk (ReShade's add-on build is unsigned, and ReShade disables depth in
-     multiplayer), and never suggest bypassing or disabling an anti-cheat.
+     lower anti-cheat risk (its verification record in `feeder-route.md` holds the basis), and never
+     suggest bypassing or disabling an anti-cheat.
    - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so in-process OptiScaler NR cannot
      load in the game process. Tell the user plainly; an upscaler mod does not change this. That
      dead end covers the in-process route only: `feeder-route.md` lists a separate unverified
