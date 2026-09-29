@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # worktree-root-scan.sh — classify the directories under the worktree root that
-# no given repository registers as a worktree (#5231). Report only: it never
-# deletes, moves or repairs anything.
+# no given repository registers as a worktree. Report only: it never deletes,
+# moves or repairs anything.
 #
 # Usage:
 #   worktree-root-scan.sh [--root DIR] [--repo-dir REPO]...
@@ -14,10 +14,16 @@
 #   <path><TAB><class><TAB><proposed>
 #   symlink   a symlink                                          proposed no
 #   live      inside a live work tree (another repo's worktree)  proposed no
-#   husk      .git FILE whose gitdir: target does not exist      proposed yes
+#   husk      .git FILE naming <common>/worktrees/<name>, that admin dir gone
+#             while <common> is still a repository: git dropped the
+#             registration. .git as the sole entry                proposed yes
+#             other content too (possibly uncommitted work)       proposed no
 #   empty     no entries at all                                  proposed yes
 #   foreign   content and no .git                                proposed no
-#   unknown   .git present, gitdir exists, rev-parse still fails proposed no
+#   unknown   any other .git entry: its gitdir exists but rev-parse fails, its
+#             <common> is gone (main clone moved, deleted or unmounted, which
+#             `git worktree repair` can recover), or it is no worktree pointer
+#                                                                proposed no
 # A directory some other repo owns is `live`, so pass every repo whose worktrees
 # share the root to keep those out of the proposals.
 #
@@ -117,18 +123,23 @@ inside_work_tree() {
 }
 
 classify() {
-  local d="$1" gitfile target
+  local d="$1" gitfile target common
   if [[ -L "$d" ]]; then
     printf 'symlink\tno'
   elif [[ -e "$d/.git" || -L "$d/.git" ]]; then
     # shellcheck disable=SC2310  # pure predicate; both branches are handled
     if inside_work_tree "$d"; then
       printf 'live\tno'
-    elif [[ -f "$d/.git" ]] && IFS= read -r gitfile <"$d/.git" && [[ "$gitfile" == "gitdir: "* ]]; then
+    elif [[ -f "$d/.git" && ! -L "$d/.git" ]] && IFS= read -r gitfile <"$d/.git" && [[ "$gitfile" == "gitdir: "* ]]; then
       target="${gitfile#gitdir: }"
       target="${target%$'\r'}"
       [[ "$target" == /* || "$target" =~ ^[A-Za-z]:[/\\] ]] || target="$d/$target"
-      if [[ -e "$target" ]]; then printf 'unknown\tno'; else printf 'husk\tyes'; fi
+      common="${target%/worktrees/*}"
+      if [[ ! -e "$target" && "$target" == */worktrees/* && -f "$common/HEAD" && -d "$common/objects" ]]; then
+        if [[ "$(ls -A "$d")" == .git ]]; then printf 'husk\tyes'; else printf 'husk\tno'; fi
+      else
+        printf 'unknown\tno'
+      fi
     else
       printf 'unknown\tno'
     fi

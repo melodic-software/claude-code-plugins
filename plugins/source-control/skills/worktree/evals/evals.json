@@ -166,13 +166,27 @@
       "id": 14,
       "name": "audit-root-scan-stray-directories",
       "prompt": "/worktree audit — find stray directories under the worktree root that no repo registers.",
-      "expected_output": "The audit runs scripts/worktree-root-scan.sh with one --repo-dir per canonical repository (Step 2c), reports rows by class, proposes only empty and husk rows for removal through cleanup's gated flow, and reports foreign, live, symlink and unknown rows without proposing removal.",
+      "expected_output": "The audit runs worktree-root-scan.sh with one --repo-dir per canonical repository (Step 2c), reports rows by class, proposes only rows the scan marks proposed=yes (empty directories, and husks holding only their .git file) for removal through cleanup's gated flow, and reports foreign, live, symlink, unknown and content-holding husk rows without proposing removal. A worktree whose main clone was moved or deleted is unknown, never a husk.",
       "files": [],
       "expectations": [
         "Runs worktree-root-scan.sh with --repo-dir for each canonical repository",
-        "Proposes only empty and husk directories for removal, through the cleanup flow with user confirmation",
-        "Reports foreign, live, symlink and unknown rows without proposing removal",
+        "Proposes only rows marked proposed=yes for removal, through the cleanup flow with user confirmation",
+        "Reports foreign, live, symlink and unknown rows, and a husk that holds content, without proposing removal",
+        "Does not treat a directory whose .git file points at a missing gitdir as a husk when the main clone itself is gone",
         "Does not remove anything itself"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "cleanup-reap-age-gates-locked-worktrees",
+      "prompt": "/worktree cleanup — two worktrees have had no commits for three days. One is merged with nothing unpushed and was created by the worktree helper, so it is locked. The other has two unpushed commits that are not on the base.",
+      "expected_output": "Cleanup proposes the merged, locked worktree by the reap-age reason (last commit older than worktree_reap_after_hours, Work axis safe) but lists it apart from the main candidate table with its lock reason, and does not unlock or remove it until the user confirms that worktree by name; a yes to the main table never covers it. The worktree with unpushed unlanded commits is never proposed by the reap-age reason however old it is, and the skill does not treat age as evidence of safety. No --force --force.",
+      "files": [],
+      "expectations": [
+        "The merged, old, safe worktree is proposed by the reap-age reason",
+        "Because the worktree is locked, it is listed apart with its lock reason and is not unlocked or removed without confirmation naming that worktree",
+        "The worktree with unpushed commits not on the base is not proposed by the reap-age reason",
+        "It does not bypass the lock with --force --force"
       ]
     }
   ]

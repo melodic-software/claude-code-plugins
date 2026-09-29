@@ -174,8 +174,9 @@ its configuration-health step.
 
 Directories under the root that no repository registers are classified by
 `scripts/worktree-root-scan.sh` (`empty`, `husk`, `foreign`, `live`, `symlink`, `unknown`).
-`/source-control:worktree audit` runs it (Step 2c); only `empty` and `husk` are proposed for
-removal, through `cleanup`.
+`/source-control:worktree audit` runs it (Step 2c); only `empty` and a `husk` holding just its
+`.git` file are proposed for removal, through `cleanup`. A worktree whose main clone was moved,
+deleted or unmounted is `unknown`, never a husk.
 
 ## For consuming repositories' prose surfaces
 

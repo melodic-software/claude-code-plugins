@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-root-scan.sh (#5231). Black-box: throwaway git
+# Regression tests for worktree-root-scan.sh. Black-box: throwaway git
 # fixtures (commit signing off, git environment cleared by test-helpers.sh) and
 # assertions on the TSV rows and exit codes. The scan is report-only, so every
 # case also proves the fixture survives it. No network.
@@ -56,8 +56,26 @@ git -C "$REPO_A" worktree add -q -b registered "$ROOT/registered" >/dev/null 2>&
 git -C "$REPO_B" worktree add -q -b other "$ROOT/other-live" >/dev/null 2>&1
 
 mkdir "$ROOT/empty-dir"
-mkdir "$ROOT/husk"
-printf 'gitdir: %s\n' "$TEST_TMPDIR/gone/.git/worktrees/husk" >"$ROOT/husk/.git"
+
+# A husk is a worktree whose registration git dropped while its main clone is intact.
+git -C "$REPO_A" worktree add -q -b husk "$ROOT/husk" >/dev/null 2>&1
+rm -rf "$REPO_A/.git/worktrees/husk"
+rm -f "$ROOT/husk/README"
+git -C "$REPO_A" worktree add -q -b husk-content "$ROOT/husk-content" >/dev/null 2>&1
+rm -rf "$REPO_A/.git/worktrees/husk-content"
+printf 'x\n' >"$ROOT/husk-content/precious.txt"
+
+# A live worktree whose main clone was moved or deleted still holds its work.
+REPO_MOVED="$(mkrepo)"
+git -C "$REPO_MOVED" worktree add -q -b moved "$ROOT/moved-main" >/dev/null 2>&1
+printf 'x\n' >"$ROOT/moved-main/precious.txt"
+mv "$REPO_MOVED" "$REPO_MOVED.away"
+REPO_GONE="$(mkrepo)"
+git -C "$REPO_GONE" worktree add -q -b gone "$ROOT/deleted-main" >/dev/null 2>&1
+rm -rf "$REPO_GONE"
+mkdir "$ROOT/module-pointer"
+printf 'gitdir: %s\n' "$TEST_TMPDIR/nowhere/.git/modules/sub" >"$ROOT/module-pointer/.git"
+
 mkdir "$ROOT/foreign"
 printf 'x\n' >"$ROOT/foreign/notes.txt"
 mkdir "$ROOT/hidden-only"
@@ -74,7 +92,16 @@ assert_exit "scan exits 0" 0 "$RC"
 assert_eq "registered dir is skipped" "" "$(row_for registered)"
 assert_eq "empty dir is proposed" $'empty-dir\tempty\tyes' \
   "$(row_for empty-dir | sed 's#^.*/##')"
-assert_eq "husk is proposed" $'husk\thusk\tyes' "$(row_for husk | sed 's#^.*/##')"
+assert_eq "husk holding only its .git file is proposed" $'husk\thusk\tyes' \
+  "$(row_for husk | sed 's#^.*/##')"
+assert_eq "husk with other content is reported, not proposed" $'husk-content\thusk\tno' \
+  "$(row_for husk-content | sed 's#^.*/##')"
+assert_eq "worktree whose main clone was moved is unknown, not proposed" $'moved-main\tunknown\tno' \
+  "$(row_for moved-main | sed 's#^.*/##')"
+assert_eq "worktree whose main clone was deleted is unknown, not proposed" $'deleted-main\tunknown\tno' \
+  "$(row_for deleted-main | sed 's#^.*/##')"
+assert_eq "a missing gitdir that is no worktree admin dir is unknown" $'module-pointer\tunknown\tno' \
+  "$(row_for module-pointer | sed 's#^.*/##')"
 assert_eq "foreign content is reported, not proposed" $'foreign\tforeign\tno' \
   "$(row_for foreign | sed 's#^.*/##')"
 assert_eq "a dir holding only a hidden file is foreign" $'hidden-only\tforeign\tno' \
@@ -95,6 +122,8 @@ run_scan --root "$ROOT" --repo-dir "$REPO_A" --repo-dir "$REPO_B"
 assert_eq "second repo registers its worktree" "" "$(row_for other-live)"
 
 assert_file_exists "husk survives the scan" "$ROOT/husk/.git"
+assert_file_exists "husk content survives the scan" "$ROOT/husk-content/precious.txt"
+assert_file_exists "moved-main worktree content survives the scan" "$ROOT/moved-main/precious.txt"
 assert_file_exists "foreign content survives the scan" "$ROOT/foreign/notes.txt"
 assert_eq "empty dir survives the scan" yes "$([[ -d "$ROOT/empty-dir" ]] && echo yes || echo no)"
 

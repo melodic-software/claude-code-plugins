@@ -22,14 +22,14 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | A row of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-root-scan.sh" --repo-dir <each canonical repo>` classed `empty` or `husk`: a directory under a worktree root that no repository registers. `empty` must pass all four qualifying tests in Step 4b (not a symlink, not a work tree, no `.git` entry, empty). `husk` is a `.git` **file** whose `gitdir:` target does not exist, that is not a symlink and not a work tree, and is proposed only after the file-lock release in Step 4a. `foreign`, `live`, `symlink` and `unknown` rows are never candidates. Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses. Common layouts: (1) the **configured external root** (`worktreeroot.path`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/`, siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists, whether from a terminal kill without clean exit OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
+| **Orphaned directory** | A row of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-root-scan.sh" --repo-dir <each canonical repo>` classed `empty` or `husk`: a directory under a worktree root that no repository registers. Only a row the scan proposes (`proposed` = `yes`) is a candidate: `empty`, or a `husk` whose only entry is its `.git` file. Each must also pass its class's qualifying tests in Step 4b, run again at removal, and a `husk` is removed only after the file-lock release in Step 4a. A `husk` row with other content, and `foreign`, `live`, `symlink` and `unknown` rows, are never candidates: report them. Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. It is `unknown`, never a `husk`. Scan every root your project uses. Common layouts: (1) the **configured external root** (`worktreeroot.path`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/`, siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists, whether from a terminal kill without clean exit OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
 | **Prunable** | The `prunable` column of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` is `yes` |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
-| **Reap age** | Proposed by default only when ALL hold: Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and the worktree's lock carries no live claim. A lock reason that `worktree-claim.sh report` lists as `CLAIMED` (or `check-enter` answers with exit 4) belongs to a live session: skip the row and report the reason. `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. Every Step 4 guard still runs on an accepted row |
+| **Reap age** | Proposed by default only when ALL hold: Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and the lock, if any, does not name this session (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" check-enter <path> --session-id "${CLAUDE_SESSION_ID}"` exits 0: skip the row and report it). `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. A lock does not suppress the proposal: every helper-created worktree is locked when it is created, and `worktree-claim.sh` has no probe for whether the lane that took a lock still runs. A locked row goes in Step 3's separate list, gated as in **Locked** below. Every Step 4 guard still runs on an accepted row |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN`. **Not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
 | **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none`. **Not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` completely empty, and plain `git worktree remove` then deletes it silently, since git's own refusal covers dirty trees and nothing else. Report the operation; the owner finishes or aborts it first |
-| **Locked** | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Locked** | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate under any reason above except Reap age, which lists it apart.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`, which names the owning session and when the lock was taken. Present the reason; only on explicit per-worktree confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
 
 Take the branch name from the `branch` column of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>`, not from the directory name, since they may differ if the branch was renamed.
 
@@ -47,12 +47,20 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 | 3 | (orphaned metadata) | none | Directory no longer exists |
 
 **Action:** Remove these 3 items? (yes/no/select)
+
+### Locked (reap age only)
+
+| # | Worktree | Branch | Lock reason | Reason |
+|---|----------|--------|-------------|--------|
+| 4 | <worktree-root>/old-lane | feat/old-lane | worktree-create.sh: lane active on <host> session <id> since <utc>; unlock when the owning lane is done | nothing unpushed, last commit 3d ago |
+
+**Action:** Unlock and remove which of these? Name each number. A "yes" to the table above never covers this one.
 ```
 
 ## Step 4: Execute or report
 
-- **`--dry-run`**: Report candidates only, take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c.
+- **`--dry-run`**: Report candidates, and the locked list, and take no action. Exit.
+- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c. A worktree in the locked list waits for its own confirmation that the owner is done; then `git worktree unlock <path>`, re-classify it (its `risk` row is read again in guard 1), and run it through 4a → 4b → 4c like any other candidate.
 
 ### Step 4a: Release file locks first (Windows-critical)
 
@@ -66,10 +74,9 @@ Skipping 4a is the usual reason a previous `/source-control:worktree cleanup` le
 ### Step 4b: Remove the worktree
 
 ```bash
-# Orphaned directory: remove the husk — ONLY after it has passed all four
-# qualifying tests below (not a symlink, not a work tree, no `.git` entry,
-# empty). Absence from `git worktree list` is NOT on its own a license to run
-# this line.
+# Orphaned directory (scan class `empty`, or `husk` proposed `yes`): remove it —
+# ONLY after it has passed every qualifying test for its class below. Absence
+# from `git worktree list` is NOT on its own a license to run this line.
 rm -rf <path>
 
 # Git-tracked worktree — plain removal first. It FAILS on a dirty worktree
@@ -163,7 +170,7 @@ only gate standing between a live directory and an unrecoverable reap plus `rm -
 right now, do not scan it and do not classify anything under it. The volume is detached, and every
 path under it would qualify on identical evidence.
 
-**Normalize `<path>` FIRST, stripping every trailing separator, and run all four tests against the
+**Normalize `<path>` FIRST, stripping every trailing separator, and run every test against the
 normalized form.** This is not tidiness. POSIX pathname resolution forces a trailing-slash path to
 resolve *through* a symlink to a directory, so `test -L "link/"` reports **false** for something that
 is a symlink, and the disqualifier below silently passes. Measured on this plugin's own host
@@ -189,9 +196,9 @@ is decisive in the other direction: off Windows a trailing `\` is part of the di
 stripping it there would re-point every test below, and the reap plus `rm -rf`, at a different
 sibling path while leaving the actual candidate behind.
 
-**Four tests, ALL of which must hold**, against that normalized `<path>`. The first three are
-negatives and prove nothing on their own; the last is the only positive evidence available, and it is
-what the presentation row's "(empty, no git ref)" has always claimed:
+**Four tests, ALL of which must hold** for an `empty` row, against that normalized `<path>`. The first
+three are negatives and prove nothing on their own; the last is the only positive evidence available,
+and it is what the presentation row's "(scan class `empty`, no git ref)" claims:
 
 ```bash
 test -L "<path>"                                             # must be FALSE — not a symlink
@@ -214,15 +221,32 @@ find "<path>" -mindepth 1 | head -1                          # must return NOTHI
 2. **No `.git` entry. This is the test that actually matters, and test 1 does not imply it.** A live
    worktree whose main clone has been moved, deleted, or unmounted still carries its `.git` **file**
    while `rev-parse` fails, so test 1 alone calls another lane's live worktree a husk and destroys
-   it. A `.git` entry present, resolvable or not, disqualifies the candidate outright.
+   it. A `.git` entry present, resolvable or not, disqualifies an `empty` row outright.
 3. **Empty.** A husk is empty; a worktree is not. Nothing else in this action tests this, and without
    it "orphaned directory" is an inference from two failures rather than an observation. Read the
    **output**, never the exit status: `find … | head -1` exits 0 whether or not it printed anything,
    so a status check would call every directory empty.
 
-A candidate failing any of the four is **not** an orphaned directory. Report it as another lane's
-worktree, or as a directory whose contents nobody has accounted for, and leave it entirely alone:
-do not reap, do not remove. Deriving deadness from the negatives alone is exactly the inference
+**A `husk` row takes tests 0 and 1 unchanged and replaces tests 2 and 3.** It is a `.git` entry by
+definition, so test 2 cannot apply; what stands in for it is positive evidence that git itself dropped
+the registration while its main clone is intact. A worktree whose main clone was moved, deleted, or
+unmounted has no `<common>` to show, so it is `unknown` and stays out (`git worktree repair` from the
+recovered clone re-points it without losing anything). Test 3 becomes "nothing but the `.git` file":
+with the registration gone no `git status` can vouch for any other entry, and it may be uncommitted
+work, for instance a worktree moved by hand and then pruned. A husk holding anything else is reported
+and left alone. Read the **output** of the last line, never its status:
+
+```bash
+test -f "<path>/.git" && ! test -L "<path>/.git"             # a regular file
+sed -n 's/^gitdir: //p' "<path>/.git"                        # names <common>/worktrees/<name>
+test -e "<gitdir>"                                           # must NOT exist: the admin dir is gone
+test -f "<common>/HEAD" && test -d "<common>/objects"        # must hold: <common> is still a repository
+ls -A "<path>"                                               # must print exactly `.git`
+```
+
+A candidate failing any test for its class is **not** an orphaned directory. Report it as another
+lane's worktree, or as a directory whose contents nobody has accounted for, and leave it entirely
+alone: do not reap, do not remove. Deriving deadness from the negatives alone is exactly the inference
 [audit.md](audit.md) refuses to make on the same evidence, and the acting path may not be the more
 permissive of the two.
 
