@@ -47,7 +47,7 @@ MIN_PYTHON = (3, 11)
 # the skill's evals. Drift from it is not an error - the extraction is designed
 # to survive ordinary releases - but it downgrades every count from "verified"
 # to "believed", which the report has to say out loud.
-VALIDATED_AGAINST = "2.1.263"
+VALIDATED_AGAINST = "2.1.284"
 
 # Commands that have shipped in every build observed. Their absence means the
 # extraction broke, not that Anthropic deleted /help. This is the cheapest
@@ -71,6 +71,7 @@ KNOWN_REGISTRAR_EXPORTS = frozenset(
         "registerScheduleRemoteAgentsSkill",
         "registerAgentProxyEnvFn",
         "registerDesignCanvasSkill",
+        "registerSlidesSkill",
         "registerWorkflowAuthoringSkill",
     }
 )
@@ -96,10 +97,12 @@ BUNDLE_MARKERS = (b"// @bun @bytecode @bun-cjs", b"// @bun @bun-cjs", b"// @bun"
 # below it the regex costs minutes and above it registrations go missing.
 MIN_RUN_BYTES = 256
 RUN_RE = re.compile(rb"[\t\n\r\x20-\x7e]{%d,}" % MIN_RUN_BYTES)
-# Every registration literal, of any registrar, opens with this token. Counting
+# Every registration literal, of any registrar, opens with `({name:`. Counting
 # it in the raw region against the joined source is how a registration that
-# sits in a run below the floor is counted rather than silently lost.
-REGISTRATION_TOKEN = b"({name:"
+# sits in a run below the floor is counted rather than silently lost. Minified
+# source puts the value flush against the colon; `({name: "` with a space is
+# prose in a message string (the bytecode string table holds several), not code.
+REGISTRATION_TOKEN_RE = re.compile(rb"\(\{name:(?=[\"`A-Za-z_$])")
 
 # A single-character identifier is a function-local minifier name reused
 # everywhere, so its nearest preceding string binding is only trusted when it
@@ -279,9 +282,9 @@ def _select_region(
     )
     meta["runs"] = len(runs)
     meta["joined_bytes"] = len(joined)
-    meta["runs_below_floor"] = max(
-        0, data.count(REGISTRATION_TOKEN, first) - joined.count(REGISTRATION_TOKEN)
-    )
+    in_region = sum(1 for _ in REGISTRATION_TOKEN_RE.finditer(data, first))
+    in_joined = sum(1 for _ in REGISTRATION_TOKEN_RE.finditer(joined))
+    meta["runs_below_floor"] = max(0, in_region - in_joined)
     meta["elapsed_seconds"] = round(time.perf_counter() - started, 3)
     if len(joined) < 1_000_000:
         meta["error"] = (
@@ -413,6 +416,11 @@ def build_brace_map(s: str) -> BraceMap:
     """
     stack: list[int] = []
     pairs: dict[int, int] = {}
+    # Brace depth at which each open template `${` substitution began. The
+    # substitution is ordinary code (it can hold regex literals, nested
+    # templates, and object literals), so the main loop tokenizes it; the `}`
+    # that returns to that depth resumes the template's literal text.
+    templates: list[int] = []
     i, n = 0, len(s)
     prev_sig = "\n"
     prev_word = ""
@@ -444,8 +452,21 @@ def build_brace_map(s: str) -> BraceMap:
             prev_sig, prev_word = q, ""
             continue
         if c == "`":
-            i = _skip_template(s, i, n)
-            prev_sig, prev_word = "`", ""
+            i, opened = _scan_template_text(s, i + 1, n)
+            if opened:
+                templates.append(len(stack))
+                prev_sig, prev_word = "{", ""
+            else:
+                prev_sig, prev_word = "`", ""
+            continue
+        if c == "}" and templates and templates[-1] == len(stack):
+            templates.pop()
+            i, opened = _scan_template_text(s, i + 1, n)
+            if opened:
+                templates.append(len(stack))
+                prev_sig, prev_word = "{", ""
+            else:
+                prev_sig, prev_word = "`", ""
             continue
         if c == "/":
             if prev_word in _REGEX_KEYWORDS or prev_sig in _REGEX_PRECEDERS:
@@ -473,38 +494,22 @@ def build_brace_map(s: str) -> BraceMap:
     return BraceMap(pairs=pairs, opens=sorted(pairs))
 
 
-def _skip_template(s: str, i: int, n: int) -> int:
-    i += 1
+def _scan_template_text(s: str, i: int, n: int) -> tuple[int, bool]:
+    """Skip a template literal's text from `i`; True when it stopped at a `${`.
+
+    Returns the index just past the closing backtick, or just past the `${`
+    that opens a substitution the caller must tokenize as code.
+    """
     while i < n:
         if s[i] == "\\":
             i += 2
             continue
         if s[i] == "`":
-            return i + 1
+            return i + 1, False
         if s[i] == "$" and i + 1 < n and s[i + 1] == "{":
-            depth = 1
-            i += 2
-            while i < n and depth:
-                if s[i] in "\"'`":
-                    q = s[i]
-                    i += 1
-                    while i < n:
-                        if s[i] == "\\":
-                            i += 2
-                            continue
-                        if s[i] == q:
-                            i += 1
-                            break
-                        i += 1
-                    continue
-                if s[i] == "{":
-                    depth += 1
-                elif s[i] == "}":
-                    depth -= 1
-                i += 1
-            continue
+            return i + 2, True
         i += 1
-    return i
+    return i, False
 
 
 def _skip_regex(s: str, i: int, n: int) -> int:
@@ -545,6 +550,7 @@ def _unescape(raw: str) -> str:
 
 _TYPE_RE = re.compile(r'type:"(local|local-jsx|prompt)"')
 _NAME_RE = re.compile(r"(?:^|[,{])name:" + _STR)
+_NAME_IDENT_RE = re.compile(r"(?:^\{|,)name:([A-Za-z_$][A-Za-z0-9_$]*)(?=[,}])")
 _UFN_RE = re.compile(r"userFacingName\(\)\{return" + _STR)
 _DESC_RE = re.compile(r"(?:^|[,{])description:" + _STR)
 _MENUDESC_RE = re.compile(r"(?:menuDescription|description):" + _STR)
@@ -568,7 +574,7 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
     enclosing object is resolved by brace depth, then its own fields are read,
     so an adjacent command's description cannot bleed in.
     """
-    out: dict[str, dict[str, Any]] = {}
+    literals: list[tuple[re.Match[str], int, str]] = []
     for m in _TYPE_RE.finditer(src):
         enc = braces.enclosing(m.start())
         if not enc:
@@ -577,12 +583,33 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
         if close_i - open_i > 4000:
             # Too large to be a command literal - this is some enclosing scope.
             continue
-        body = src[open_i : close_i + 1]
+        literals.append((m, open_i, src[open_i : close_i + 1]))
+
+    # A name held in a hoisted constant (`name:EMr` where `EMr="commit-push-pr"`)
+    # resolves by the same nearest-preceding rule as a bundled skill. A
+    # single-character identifier here is a factory's parameter
+    # (`function t1t(e,...){return{type:...,name:e}}`), not one command, so it
+    # is never resolved.
+    idents = {
+        c.group(1)
+        for _, _, body in literals
+        if not _NAME_RE.search(body)
+        for c in [_NAME_IDENT_RE.search(body)]
+        if c and len(c.group(1)) > 1
+    }
+    index = build_const_index(src, idents)
+
+    out: dict[str, dict[str, Any]] = {}
+    for m, open_i, body in literals:
         nm = _NAME_RE.search(body) or _UFN_RE.search(body)
-        if not nm:
-            continue
-        name = _unescape(nm.group(1))
-        if not _NAME_OK.fullmatch(name or ""):
+        if nm:
+            name = _unescape(nm.group(1))
+        else:
+            c = _NAME_IDENT_RE.search(body)
+            if not c or c.group(1) not in idents:
+                continue
+            name = resolve_name_ident(c.group(1), open_i, index)
+        if not name or not _NAME_OK.fullmatch(name):
             continue
         desc = _DESC_RE.search(body)
         aliases = _read_aliases(body)
@@ -715,6 +742,117 @@ def resolve_name_ident(
     return value
 
 
+def _nearest_binding(src: str, ident: str, at: int) -> int | None:
+    """Offset of the value in the nearest `ident=<value>` binding before `at`.
+
+    The same locality rule as `resolve_name_ident`: nearest preceding wins, and
+    a single-character identifier is only looked for within
+    `SHORT_IDENT_LOCALITY_BYTES`.
+    """
+    lo = max(0, at - SHORT_IDENT_LOCALITY_BYTES) if len(ident) == 1 else 0
+    pattern = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"\s*=(?![=>])\s*")
+    last = None
+    for m in pattern.finditer(src, lo, at):
+        last = m
+    return last.end() if last else None
+
+
+def _resolve_object(
+    src: str, braces: BraceMap, ident: str, at: int, hops: int = 4
+) -> tuple[int, str] | None:
+    """The object literal an identifier is bound to, following `a=b` aliases.
+
+    Returns the literal's open-brace offset and its text, or None when the
+    nearest binding is anything else.
+    """
+    for _ in range(hops):
+        v = _nearest_binding(src, ident, at)
+        if v is None:
+            return None
+        if src.startswith("{", v):
+            close = braces.pairs.get(v)
+            return None if close is None else (v, src[v : close + 1])
+        alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64])
+        if not alias:
+            return None
+        ident, at = alias.group(0), v
+    return None
+
+
+def _resolve_descriptor_name(
+    src: str, braces: BraceMap, ident: str, at: int
+) -> tuple[str, str] | None:
+    """Resolve `name:x.name`: the registration reads its fields from a descriptor.
+
+    `let t=c;registrar({name:t.name,description:t.description,...})` where
+    `c={name:o,...}` and `o="slides"`. Returns the name and the descriptor's
+    text, whose fields stand in for the registration's member reads.
+    """
+    obj = _resolve_object(src, braces, ident, at)
+    if obj is None:
+        return None
+    open_i, body = obj
+    m = re.search(r"(?:^\{|,)name:(?:" + _STR + r"|(" + _IDENT + r")\b)", body)
+    if not m:
+        return None
+    if m.group(1) is not None:
+        return _unescape(m.group(1)), body
+    v = _nearest_binding(src, m.group(2), open_i)
+    lit = re.match(_STR, src[v : v + 256]) if v is not None else None
+    return (_unescape(lit.group(1)), body) if lit else None
+
+
+_ROSTER_HEAD_RE = re.compile(
+    r"for\(\s*(?:let|const|var)\s*\{(?P<pattern>[^{}]*)\}\s*of\s*(?P<table>"
+    + _IDENT
+    + r")\s*\)\s*\{?\s*$"
+)
+
+
+def _resolve_roster(
+    src: str, braces: BraceMap, call_start: int
+) -> tuple[str, dict[str, str], list[str]] | None:
+    """A registration looping over a literal table: the table and its rows.
+
+    `for(let{kind:e,description:n}of Qi)registrar({name:\\`artifact-${e}\\`,...})`
+    where `Qi=[{kind:"table",description:"..."},...]` is enumerable without
+    running the binary. Returns the table identifier, the destructuring map
+    (local variable to row key), and each row's text. None when the loop, the
+    table binding, or any row is not a plain literal.
+    """
+    pre = src[max(0, call_start - 300) : call_start]
+    head = _ROSTER_HEAD_RE.search(pre)
+    if not head:
+        return None
+    var_to_key: dict[str, str] = {}
+    for part in head.group("pattern").split(","):
+        key, _, var = part.strip().partition(":")
+        if not re.fullmatch(_IDENT, key) or (var and not re.fullmatch(_IDENT, var)):
+            return None
+        var_to_key[var or key] = key
+    table = head.group("table")
+    v = _nearest_binding(src, table, call_start - len(pre) + head.start())
+    if v is None or not src.startswith("[", v):
+        return None
+    rows: list[str] = []
+    i = v + 1
+    while True:
+        while i < len(src) and src[i] in " \t\r\n,":
+            i += 1
+        if src.startswith("]", i):
+            return table, var_to_key, rows
+        close = braces.pairs.get(i) if src.startswith("{", i) else None
+        if close is None:
+            return None
+        rows.append(src[i : close + 1])
+        i = close + 1
+
+
+def _row_field(row: str, key: str) -> str | None:
+    m = re.search(r"(?:^\{|,)" + re.escape(key) + ":" + _STR, row)
+    return _unescape(m.group(1)) if m else None
+
+
 _FOR_HEAD_RE = re.compile(r"for\((?P<head>[^()]*)\)\s*\{?\s*$")
 _INVOCATION_FIELDS: tuple[tuple[str, str], ...] = (
     ("user_invocable", "userInvocable"),
@@ -797,8 +935,12 @@ def extract_bundled_skills(
     calls: list[tuple[int, str, re.Match[str]]] = []
     unbounded = 0
     same_ident_calls = 0
-    name_re = re.compile(r"\bname:(?:" + _STR + r"|(" + _IDENT + r")|(`[^`]*`))")
-    for m in re.finditer(re.escape(fn) + r"\(\{", src):
+    name_re = re.compile(
+        r"\bname:(?:" + _STR + r"|(" + _IDENT + r")(\.name\b)?|(`[^`]*`))"
+    )
+    # A call is the registrar identifier standing alone: `xps({` is another
+    # function whose name merely ends in the registrar's.
+    for m in re.finditer(r"(?<![\w$.])" + re.escape(fn) + r"\(\{", src):
         open_i = m.end() - 1  # the '{' captured by the pattern
         close_i = braces.pairs.get(open_i)
         if close_i is None:
@@ -813,53 +955,26 @@ def extract_bundled_skills(
             continue
         calls.append((m.start(), body, nm))
 
-    idents = {nm.group(2) for _, _, nm in calls if nm.group(2)}
+    idents = {nm.group(2) for _, _, nm in calls if nm.group(2) and not nm.group(3)}
     index = build_const_index(src, idents)
     out: dict[str, Any] = {}
     unresolved: list[str] = []
     dynamic_rosters = 0
     dynamic_patterns: list[str] = []
+    rosters: dict[str, int] = {}
     seen = 0
+    resolved_calls = 0
     collisions: list[str] = []
 
-    for call_start, body, nm in calls:
-        seen += 1
-        if nm.group(1) is not None:
-            name = _unescape(nm.group(1))
-        elif nm.group(3) is not None:
-            # A template literal builds the name at runtime: one call
-            # registering a family, enumerable only by running it.
-            dynamic_rosters += 1
-            dynamic_patterns.append(nm.group(3))
-            continue
-        else:
-            ident = nm.group(2)
-            if _is_loop_registration(src, call_start, ident):
-                dynamic_rosters += 1
-                dynamic_patterns.append(f"for(... of ...) over {ident}")
-                continue
-            resolved = resolve_name_ident(ident, call_start, index)
-            if resolved is None:
-                unresolved.append(ident)
-                continue
-            name = resolved
-        desc = _MENUDESC_RE.search(body)
-        rec: dict[str, Any] = {
-            "name": name,
-            "source": "bundled-skill",
-            "description": _unescape(desc.group(1)) if desc else "",
-            "aliases": _read_aliases(body),
-            "gated": "isEnabled" in body,
-            "hidden": "isHidden" in body,
-        }
-        rec.update(read_invocation_fields(body))
+    def add(rec: dict[str, Any]) -> None:
+        name = rec["name"]
         prev = out.get(name)
         if prev is None:
             out[name] = rec
-            continue
+            return
         existing = registrations_of(prev)
         if any(_same_registration(e, rec) for e in existing):
-            continue
+            return
         # A genuine collision: keep every registration, keyed by name.
         for e in existing:
             e["collision"] = True
@@ -868,8 +983,51 @@ def extract_bundled_skills(
         if name not in collisions:
             collisions.append(name)
 
+    for call_start, body, nm in calls:
+        seen += 1
+        descriptor = ""
+        if nm.group(1) is not None:
+            name = _unescape(nm.group(1))
+        elif nm.group(4) is not None or _is_loop_registration(
+            src, call_start, nm.group(2)
+        ):
+            # A template literal or a loop variable: one call registering a
+            # family, enumerable statically only when the loop walks a
+            # literal table.
+            roster = _resolve_roster(src, braces, call_start)
+            rows = _roster_records(body, nm, roster) if roster else None
+            if roster is None or rows is None:
+                dynamic_rosters += 1
+                dynamic_patterns.append(
+                    nm.group(4) or f"for(... of ...) over {nm.group(2)}"
+                )
+                continue
+            resolved_calls += 1
+            rosters[roster[0]] = len(rows)
+            for rec in rows:
+                add(rec)
+            continue
+        elif nm.group(3) is not None:
+            found = _resolve_descriptor_name(src, braces, nm.group(2), call_start)
+            if found is None:
+                unresolved.append(f"{nm.group(2)}.name")
+                continue
+            name, descriptor = found
+        else:
+            resolved = resolve_name_ident(nm.group(2), call_start, index)
+            if resolved is None:
+                unresolved.append(nm.group(2))
+                continue
+            name = resolved
+        resolved_calls += 1
+        add(_skill_record(name, body, descriptor))
+
+    # Counted per call, not per row: a roster call is one registration however
+    # many rows it expands to, so it can never mask an unresolved one.
     notes["registrations_seen"] = seen
-    notes["resolved"] = sum(len(registrations_of(e)) for e in out.values())
+    notes["resolved"] = resolved_calls
+    if rosters:
+        notes["rosters_resolved"] = rosters
     if unresolved:
         notes["unresolved_dynamic_names"] = sorted(set(unresolved))
     if dynamic_rosters:
@@ -882,6 +1040,55 @@ def extract_bundled_skills(
     if collisions:
         notes["collisions"] = sorted(collisions)
     return out, notes
+
+
+def _skill_record(name: str, body: str, descriptor: str = "") -> dict[str, Any]:
+    """One bundled-skill row from its registration literal.
+
+    `descriptor` is the object a `name:x.name` registration reads its fields
+    from; a description the literal does not carry as a string is read there.
+    """
+    desc = _MENUDESC_RE.search(body) or _MENUDESC_RE.search(descriptor)
+    rec: dict[str, Any] = {
+        "name": name,
+        "source": "bundled-skill",
+        "description": _unescape(desc.group(1)) if desc else "",
+        "aliases": _read_aliases(body),
+        "gated": "isEnabled" in body,
+        "hidden": "isHidden" in body,
+    }
+    rec.update(read_invocation_fields(body))
+    return rec
+
+
+def _roster_records(
+    body: str,
+    nm: re.Match[str],
+    roster: tuple[str, dict[str, str], list[str]],
+) -> list[dict[str, Any]] | None:
+    """Expand a looped registration over its table's rows; None if any row fails."""
+    _, var_to_key, rows = roster
+    template = nm.group(4)
+    field = re.search(r"(?:menuDescription|description):(" + _IDENT + ")", body)
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        values = {var: _row_field(row, key) for var, key in var_to_key.items()}
+        if template:
+            parts = re.split(r"\$\{(" + _IDENT + r")\}", template[1:-1])
+            if any(values.get(v) is None for v in parts[1::2]):
+                return None
+            name = "".join(
+                p if k % 2 == 0 else str(values[p]) for k, p in enumerate(parts)
+            )
+        else:
+            name = values.get(nm.group(2)) or ""
+        if not _NAME_OK.fullmatch(name):
+            return None
+        rec = _skill_record(name, body)
+        if not rec["description"] and field:
+            rec["description"] = values.get(field.group(1)) or ""
+        out.append(rec)
+    return out
 
 
 def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:

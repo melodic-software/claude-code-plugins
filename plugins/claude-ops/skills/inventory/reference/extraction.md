@@ -32,6 +32,7 @@ appended. Two layouts have been observed:
 |---|---|---|
 | Single run | 2.1.228 (PE32+, Windows) | one ~25 MB printable run under a `// @bun @bytecode @bun-cjs` header |
 | Fragmented bytecode | 2.1.263 (ELF, Linux) | ~3,200 printable runs from 256 bytes to several MB, scattered through ~214 MB after the first `// @bun` marker |
+| Fragmented bytecode | 2.1.284 (ELF, Linux) | ~4,200 runs joining to ~45 MB, ~243 MB file; registrar `ps` by ESM export |
 
 In the fragmented layout the registrations sit in small runs (the `doctor` registration in about
 1.3 KB), the hoisted name constants sit megabytes ahead of the calls that use them, and the export
@@ -51,8 +52,10 @@ command lane looked healthy.
 The rule now, stated exactly: from the first `BUNDLE_MARKERS` occurrence to end of file, every
 printable run of at least `MIN_RUN_BYTES` (256) bytes, found with one `RUN_RE` pass, joined with
 newlines. `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`, and
-`elapsed_seconds`. `runs_below_floor` counts registration tokens (`({name:`) that sit in runs
-shorter than the floor: a registration below the floor is counted, never silently lost. The floor
+`elapsed_seconds`. `runs_below_floor` counts registration tokens (`({name:` followed directly by a
+quote, backtick, or identifier) that sit in runs shorter than the floor: a registration below the
+floor is counted, never silently lost. `({name: "` with a space is message prose from the bytecode
+string table (2.1.284 carries two) and is not counted. The floor
 is what keeps the pass cheap; measured on 2.1.263, 256 bytes recovers every named surface in about
 4 seconds, while a 64 KiB floor recovers 13 of 33 names and a 1-byte floor takes a minute.
 
@@ -91,6 +94,25 @@ everywhere, so it is trusted only when that nearest binding lies within
 `eo({name:r,...})`) resolves, while a loop variable whose only binding is megabytes away does not.
 No preceding binding is unresolved, never guessed.
 
+Two further shapes, both first seen in 2.1.284:
+
+- **Descriptor member.** `let t=c;ps({name:t.name,description:t.description,...})` with
+  `c={name:o,...}` and `o="slides"` (`registerSlidesSkill`). The identifier is followed through
+  `a=b` aliases to its object literal by the same nearest-preceding rule; that object's `name` and
+  description stand in for the registration's member reads.
+- **Loop over a literal table.** ``for(let{kind:e,description:n}of Qi)ps({name:`artifact-${e}`,...})``
+  with `Qi=[{kind:"report",...},...]`. When the table binding is an array of object literals, each
+  row is expanded into its own skill and `bundled_skill_notes.rosters_resolved` records the table
+  and row count. A loop over anything else stays a `dynamic_roster`.
+
+`resolved` counts registration calls, not rows, so an expanded roster never masks an unresolved
+call. A registrar call must stand alone: `productionRemoteToolsAnnounceDeps({` ends in `ps` and is
+not a call to `ps`.
+
+Built-in commands use the same constant rule for `name:EMr` (`commit-push-pr`, `limit-reset`,
+`low-priority`, `claim-credit` in 2.1.284). A single-character `name:e` in a command literal is a
+factory parameter and is never resolved.
+
 Bundle markers are not module boundaries in the fragmented layout: the real bindings sit about 170
 marker occurrences ahead of their registrations, so a marker-scoped rule finds nothing. Locality is
 measured in bytes.
@@ -109,6 +131,13 @@ comment states so a `{` inside a string is not counted, and records every matche
 command's and each registration's fields are then read from its own literal. A regex-only pass over
 this bundle goes wrong in one of two ways: it misses `/artifacts` entirely, or it invents `/alias`
 and `/todos` as commands.
+
+A template substitution `${...}` is code, not text: it can hold regex literals, nested templates,
+and object literals, so the main tokenizer walks it and the `}` that returns to the substitution's
+depth resumes the template text. In 2.1.284 `` `prints ${to(fn.replace(/^(["'])(.*)\1$/,"$2"))}` ``
+put quote characters inside a regex inside a substitution; skipping the substitution as quoted
+text desynced the reader, swallowed 21 MB into one brace pair, and left 15 of 152 command literals
+resolved with every canary missing.
 
 A call to the registrar identifier whose object carries no `name:` is another module's function
 sharing the minified name, not a registration; it is counted in `same_identifier_calls_skipped` and
@@ -179,7 +208,8 @@ check failed, and each maps to one edit:
 | broken: joined region under 1 MB | Packer layout changed | Add the new marker to `BUNDLE_MARKERS`, or lower the floor after measuring it |
 | `bundled_skills` degraded: unrecognized registrar export | A new registration path may exist | Inspect it; add to `KNOWN_REGISTRAR_EXPORTS` if it funnels into the known registrar, otherwise extract it |
 | `bundled_skills` degraded: computed names unresolved | A binding shape the locality rule does not see | Report as a floor; extend `_KEBAB_BINDING_RE` only if the count grows |
-| `bundled_skills` degraded: dynamic roster | A family registered in a loop or template | Acceptable; the names are enumerable only by running the binary |
+| `bundled_skills` degraded: dynamic roster | A family registered in a loop or template over something other than a literal table | Acceptable; the names are enumerable only by running the binary |
+| `builtin_commands` broken: yield collapses and one brace pair spans megabytes | The tokenizer desynced on a new syntax shape | Find the largest pairs in `build_brace_map`, read the text at the open brace, fix the tokenizer state that misread it |
 
 After revalidating, bump `VALIDATED_AGAINST`. Leaving it stale is not a bug: every report then says
 its counts are believed rather than verified, which is the honest state until someone checks.

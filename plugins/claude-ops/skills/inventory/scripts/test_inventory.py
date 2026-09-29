@@ -37,6 +37,24 @@ class TestBraceMap(unittest.TestCase):
         bm = inv.build_brace_map("x={a:`v${b}`}")
         self.assertEqual(len(bm.pairs), 1)
 
+    def test_regex_inside_a_template_substitution_does_not_desync(self) -> None:
+        # 2.1.284: `\`prints ${to(fn.replace(/^(["'])(.*)\1$/,"$2"))}\`` - a
+        # substitution holding a regex with quote characters. Skipping the
+        # substitution as quoted text swallowed 21 MB into one brace pair and
+        # left /clear, /help, and most commands unresolved.
+        src = (
+            'if(a){x=`p ${f(/^(["\'])(.*)\\1$/,"$2")}`}'
+            'var c={type:"local",name:"clear"};'
+        )
+        bm = inv.build_brace_map(src)
+        enc = bm.enclosing(src.index('name:"clear"'))
+        assert enc is not None
+        self.assertEqual(src[enc[0] : enc[1] + 1], '{type:"local",name:"clear"}')
+
+    def test_object_literal_inside_a_template_substitution_is_paired(self) -> None:
+        bm = inv.build_brace_map("x=`a ${f({k:`b ${c}`})} d`;y={e:1}")
+        self.assertEqual(len(bm.pairs), 2)
+
     def test_division_is_not_a_regex(self) -> None:
         # `a/b` followed by `{` must not swallow the object as a regex body.
         bm = inv.build_brace_map("y=a/b;x={c:1}")
@@ -103,6 +121,22 @@ class TestCommandExtraction(unittest.TestCase):
             'x={type:"local-jsx",userFacingName(){return"autofix-pr"},description:"d"};'
         )
         self.assertIn("autofix-pr", self._extract(src))
+
+    def test_hoisted_constant_name_resolves(self) -> None:
+        src = (
+            'var EMr="commit-push-pr";'
+            'var pGo={type:"prompt",name:EMr,description:"Commit, push, and open a PR"};'
+        )
+        self.assertEqual(
+            self._extract(src)["commit-push-pr"]["description"],
+            "Commit, push, and open a PR",
+        )
+
+    def test_factory_parameter_name_is_not_resolved(self) -> None:
+        # `name:e` in a factory is whatever the caller passes, never the
+        # nearest `e="..."` in scope.
+        src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
+        self.assertEqual(self._extract(src), {})
 
     def test_internal_names_are_marked(self) -> None:
         src = 'x={type:"prompt",name:"mcp__",description:"d"};'
@@ -410,6 +444,21 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertNotIn('name:"tiny"', src)
         self.assertEqual(meta["runs_below_floor"], 1)
 
+    def test_read_bundle_does_not_count_prose_in_the_string_table(self) -> None:
+        # The bytecode string table holds message text such as
+        # `or Workflow({name: "` - a space after the colon, so not code.
+        layout = (
+            self.MARKER
+            + self.BIG
+            + self.GAP
+            + b' or Workflow({name: "'
+            + self.GAP
+            + self.DOCTOR
+            + b"b" * 300
+        )
+        _, meta = inv.read_bundle(self._write(layout))
+        self.assertEqual(meta["runs_below_floor"], 0)
+
     def test_read_bundle_rejects_a_region_under_one_megabyte(self) -> None:
         src, meta = inv.read_bundle(self._write(self.MARKER + self.DOCTOR + b"b" * 300))
         self.assertIsNone(src)
@@ -485,7 +534,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var e="linux";'
             + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES + 10)
-            + 'eo({name:e,menuDescription:"D"});'
+            + ';eo({name:e,menuDescription:"D"});'
         )
         skills, notes = self._skills(src)
         self.assertEqual(skills, {})
@@ -498,7 +547,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var r="design";'
             + "z" * 4000
-            + 'eo({name:r,menuDescription:"Draft"});'
+            + ';eo({name:r,menuDescription:"Draft"});'
         )
         skills, _ = self._skills(src)
         self.assertIn("design", skills)
@@ -508,7 +557,7 @@ class TestNameLocality(unittest.TestCase):
             self.HEAD
             + 'var kYe="simplify";'
             + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES * 2)
-            + 'eo({name:kYe,menuDescription:"Clean up"});'
+            + ';eo({name:kYe,menuDescription:"Clean up"});'
         )
         skills, _ = self._skills(src)
         self.assertIn("simplify", skills)
@@ -539,6 +588,51 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(list(skills), ["run"])
         self.assertEqual(notes["registrations_seen"], 1)
         self.assertEqual(notes["same_identifier_calls_skipped"], 1)
+
+    def test_a_descriptor_member_name_resolves(self) -> None:
+        # registerSlidesSkill in 2.1.284: the registration reads its fields
+        # from a descriptor object whose name is a hoisted constant.
+        src = (
+            self.HEAD + 'var o="slides";var c={name:o,intent:"slides",'
+            'description:"Make a new Slides deck artifact from a brief"};'
+            "function Wvn(){let t=c;eo({name:t.name,description:t.description,"
+            "isEnabled:()=>l(t),userInvocable:!0,disableModelInvocation:!0})}"
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(
+            skills["slides"]["description"],
+            "Make a new Slides deck artifact from a brief",
+        )
+        self.assertTrue(skills["slides"]["disable_model_invocation"])
+        self.assertNotIn("unresolved_dynamic_names", notes)
+
+    def test_a_loop_over_a_literal_table_is_enumerated(self) -> None:
+        src = (
+            self.HEAD
+            + 'var Qi=[{kind:"report",description:"R"},{kind:"explainer",description:"E"}];'
+            "function Zt(){for(let{kind:e,description:n}of Qi)"
+            "eo({name:`artifact-${e}`,description:n,userInvocable:!0})}"
+            'var za=[{kind:"doc",description:"D"}];'
+            "function Cn(){for(let{kind:e,description:s}of za)"
+            "eo({name:e,description:s,userInvocable:!0})}"
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(
+            sorted(skills), ["artifact-explainer", "artifact-report", "doc"]
+        )
+        self.assertEqual(skills["artifact-report"]["description"], "R")
+        self.assertEqual(skills["doc"]["description"], "D")
+        self.assertEqual(notes["rosters_resolved"], {"Qi": 2, "za": 1})
+        self.assertNotIn("dynamic_roster", notes)
+        self.assertEqual(notes["registrations_seen"], notes["resolved"])
+
+    def test_a_function_whose_name_ends_in_the_registrar_is_not_a_call(self) -> None:
+        # `productionRemoteToolsAnnounceDeps({...name:be.name...})` ends in
+        # the 2.1.284 registrar `ps`; it is not a registration.
+        src = self.HEAD + 'xeo({bridge:()=>({name:be.name})});eo({name:"run"});'
+        skills, notes = self._skills(src)
+        self.assertEqual(list(skills), ["run"])
+        self.assertEqual(notes["registrations_seen"], 1)
 
     def test_a_loop_registration_is_a_dynamic_roster(self) -> None:
         src = (
