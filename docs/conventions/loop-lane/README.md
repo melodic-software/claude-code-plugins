@@ -239,10 +239,10 @@ Three rules make the signal deterministic:
 **Background-job launch mode.** The tracker marker comment is the escalation of record whether or
 not the record file was written. A loop lane must not call `EnterWorktree` (the terminal would end
 the long-lived orchestrator session). Which launch conditions let the record file be written is a
-harness behavior this convention does not state: the work-loop skill's "Background-job launch mode"
-paragraph in
+harness behavior this convention neither states nor verifies. The work-loop skill's "Background-job
+launch mode" paragraph in
 [`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/skills/work-loop/SKILL.md)
-holds the observed conditions and their verification record.
+owns that text.
 
 The `summary` restates the marker comment's one-line question, text the lane already published on
 the tracker, so the record itself adds no new secret surface. The hook payload the seam sends is

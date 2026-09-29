@@ -12,8 +12,7 @@ Patch, docs only. No topology, escalation-contract, tier-vocabulary, or loop-lay
 - **Background-job launch mode no longer states a harness behavior.** The [9.3.0] bullet restated a
   harness claim that was never verified. The convention now states no launch-mode condition: it
   keeps the tracker marker as the escalation of record and the no-`EnterWorktree` rule, and points
-  at the work-loop skill paragraph that holds the observed conditions and their verification
-  record.
+  at the work-loop skill paragraph that owns the launch-mode text.
 
 ## [9.3.0] - 2026-09-28
 
