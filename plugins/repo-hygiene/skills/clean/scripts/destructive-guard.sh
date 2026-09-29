@@ -87,6 +87,20 @@ is_destructive() {
     grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi
+  # Branch deletion: a -d/-D short-flag cluster or --delete after `branch`, in the
+  # same statement (a `;`, `&` or `|` ends it, so `xargs -d` after a pipe is not read).
+  if grep -qE "git[[:space:]]+${gopt}branch[[:space:]]([^;&|]*[[:space:]])?(--delete|-[a-zA-Z]*[dD])" <<<"$cmd"; then
+    return 0
+  fi
+  # Remote deletion: `push --delete`, a -d cluster, or a `:ref` refspec. A dry-run
+  # (--dry-run/-n) in the same push statement is a preview and stays allowed.
+  local push
+  while IFS= read -r push; do
+    if grep -qE "[[:space:]](--delete|-[a-zA-Z]*d|['\"]?:[^[:space:]'\"])" <<<"$push" &&
+      ! grep -qE '[[:space:]](--dry-run|-[a-zA-Z]*n)' <<<"$push"; then
+      return 0
+    fi
+  done < <(grep -oE "git[[:space:]]+${gopt}push[[:space:]][^;&|]*" <<<"$cmd")
   grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
 }
 
