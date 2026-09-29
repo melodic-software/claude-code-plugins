@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- **`repo-sweep` records a filed outcome** ([#5174](https://github.com/melodic-software/claude-code-plugins/issues/5174)).
+  `tick.sh <id> filed <issue-url> <skill@version>...` ticks a step whose only findings were fixed in
+  another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
+  `history.sh` adds no rerun path for it.
+
 ## [0.14.1] - 2026-09-29
 
 ### Fixed
