@@ -39,7 +39,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
 source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 REDACT_AWK="$SCRIPT_DIR/../../../lib/redact-connection.awk"
-ASSIGN_AWK="$SCRIPT_DIR/config-assignments.awk"
+ASSIGN_AWK="$SCRIPT_DIR/../../../lib/config-assignments.awk"
+# shellcheck source=../../../lib/family-records.sh
+source "$SCRIPT_DIR/../../../lib/family-records.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -577,8 +579,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
   base="$(basename "$rel")"
+  is_family_record "$base" && continue
   case "$base" in
-  containers.json | containers.md | containers.dsl | context.json | context.md | context.dsl | landscape.json | landscape.md | landscape.dsl | portfolio.md | dependency-graph.json | dependencies.md | package.json | package-lock.json | npm-shrinkwrap.json)
+  package.json | package-lock.json | npm-shrinkwrap.json)
     continue
     ;;
   *) ;;

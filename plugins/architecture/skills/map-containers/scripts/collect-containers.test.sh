@@ -419,5 +419,18 @@ commit_repo "$LINK"
 bash "$COLLECT" --repo "$LINK" --out "$TEST_TMPDIR/link.json" --generated-on 2026-09-28 >/dev/null 2>&1
 assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$(cat "$TEST_TMPDIR/link.json")" "leak.db.example"
 
+REC="$TEST_TMPDIR/records-repo"
+mkdir -p "$REC/src/Api" "$REC/docs/architecture"
+printf '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n' >"$REC/src/Api/Api.csproj"
+printf '{ "ConnectionStrings": { "Orders": "Server=real.db.example;Database=o" } }\n' >"$REC/src/Api/appsettings.json"
+for rec in deployment containers events; do
+  printf '{ "ConnectionStrings": { "Orders": "Server=%s.record.example;Database=o" } }\n' "$rec" >"$REC/docs/architecture/$rec.json"
+done
+commit_repo "$REC"
+bash "$COLLECT" --repo "$REC" --out "$TEST_TMPDIR/records.json" --generated-on 2026-09-28 >/dev/null 2>&1
+rec_text="$(cat "$TEST_TMPDIR/records.json")"
+assert_contains "family records: a real config file still yields a row" "$rec_text" "real.db.example"
+assert_not_contains "family records: tracked deployment, containers and events records are not sources" "$rec_text" "record.example"
+
 printf 'cases=%s failed=%s\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

@@ -251,5 +251,18 @@ bash "$COLLECT" --repo "$date_repo" --out "$TEST_TMPDIR/no-such-dir/out.json" >/
 assert_equals "--out: an unwritable path exits 1" "$?" "1"
 assert_contains "--out: an unwritable path says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
 
+rec_repo="$(init_repo "$TEST_TMPDIR/records-checkout")"
+mkdir -p "$rec_repo/src" "$rec_repo/docs/architecture"
+printf '{ "Partner": { "BaseUrl": "https://real.partner.example/api" } }\n' >"$rec_repo/src/appsettings.json"
+for rec in deployment containers events; do
+  printf '{ "Partner": { "BaseUrl": "https://%s.record.example/api", "Host": "%s.record.example" } }\n' "$rec" "$rec" >"$rec_repo/docs/architecture/$rec.json"
+done
+git -C "$rec_repo" add -A
+git -C "$rec_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$rec_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/records.json" >/dev/null 2>&1
+rec_text="$(cat "$TEST_TMPDIR/records.json")"
+assert_contains "family records: a real config file still yields a row" "$rec_text" "real.partner.example"
+assert_not_contains "family records: tracked deployment, containers and events records are not sources" "$rec_text" "record.example"
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
