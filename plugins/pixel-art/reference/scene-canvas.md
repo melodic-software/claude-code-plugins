@@ -74,8 +74,19 @@ brackets; "(judgment)" marks a rule no source states.
   from `ctx.currentTime`; JS timers drift by tens of ms
   ([A Tale of Two Clocks](https://web.dev/articles/audio-scheduling)).
 - A cue on frame k at F fps starts at `k / F` seconds (arithmetic).
-- Browsers block audio until a user gesture; start the `AudioContext` from a click or key press
-  (judgment).
+- Start the `AudioContext` from a click or key press: an `AudioContext` created before a user
+  gesture starts suspended, and audio started outside a user input event is subject to autoplay
+  blocking. This plugin's scenes start audio on the first click.
+  - Claim: a browser holds Web Audio playback until a user gesture.
+  - Basis: [Chrome autoplay policy, Web Audio](https://developer.chrome.com/blog/autoplay) ("If an
+    AudioContext is created before the document receives a user gesture, it will be created in the
+    "suspended" state, and you will need to call resume() after the user gesture.");
+    [MDN Autoplay guide](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay)
+    ("Doing so outside the context of handling a user input event is subject to autoplay rules.").
+  - As of: 2026-09-29, both pages read that day.
+  - Recheck trigger: either page no longer says an `AudioContext` starts suspended before a user
+    gesture (Chrome) or that starting playback outside a user input event is subject to autoplay
+    rules (MDN), or a fleet audit finds a scene whose audio plays without a gesture.
 - GIF, APNG and animated WebP carry no audio
   ([GIF89a](https://www.w3.org/Graphics/GIF/spec-gif89a.txt), [PNG 3](https://www.w3.org/TR/png-3/),
   [WebP container](https://developers.google.com/speed/webp/docs/riff_container)); a scene with
@@ -94,6 +105,9 @@ brackets; "(judgment)" marks a rule no source states.
   `window.__pixelScene.audioStream` are mixed in when the scene provides them
   ([MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static),
   [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)).
+  The WebM is video only unless the scene exposes a gesture-free `audioStream` aligned to the seek
+  clock. The campfire example does not: its audio starts only on a click that `capture.py` never
+  sends, so its WebM is silent.
 - Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
   (judgment). Do not describe the picture as reviewed.
 

@@ -2,13 +2,13 @@
 description: "Agentic AI-driven multi-persona EventStorming simulation on Miro. Use when: 'simulate a workshop', 'run an EventStorming simulation', 'agentic EventStorming', 'multi-persona domain modeling on Miro'. Actions: --simulate [domain] (full multi-persona agentic workshop), --process-model / --design-level [board] (deep-dive against an existing board), --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs (BC heuristics vs Miro board). Needs a Miro MCP server; degrades to structured-markdown output when Miro is absent. For methodology / facilitation reference use /event-storming:methodology."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--simulate|--process-model|--design-level|--evaluate|--retrospective] [domain]"
+argument-hint: "[--<mode>] [domain|board]"
 metadata:
   workflow-stage: plan
   summary: Multi-persona agentic EventStorming workshop on Miro
 ---
 
-**Arguments.** `[--simulate|--process-model|--design-level|--evaluate|--retrospective] [domain]`. Full form: [--simulate|--process-model|--design-level|--evaluate|--retrospective|--induction|--value|--crc|--ux|--discover-bcs] [domain]
+**Arguments.** `[--<mode>] [domain|board]`. Modes: --simulate|--process-model|--design-level|--evaluate|--retrospective|--induction|--value|--crc|--ux|--discover-bcs. Domain applies to --simulate, --retrospective, --induction, --ux; a board URL or bounded-context name applies to --process-model, --design-level; a board URL applies to --value, --crc, --discover-bcs; --evaluate takes none.
 
 ## Variables
 
@@ -24,7 +24,7 @@ Parse `$ARGUMENTS` for a simulation mode:
 - `--evaluate`: Run the iteration workflow against existing boards. Loads `iteration-workflow.md` and `simulation-evaluation.md`. Executes: SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY. Requires existing boards (reads the run-state store, `${CLAUDE_PLUGIN_DATA}/history.jsonl`, for board URLs).
 - `--retrospective [domain]`: Run Big Picture as an organization retrospective, exploring an existing business process to find improvement opportunities. Frames exploration as "what ACTUALLY happens?" vs the official version. Same phases as `--simulate` but with a focus on problems/opportunities in existing flows rather than new product discovery. (Book Ch. 1 story 4, Ch. 10)
 - `--induction [domain]`: Run Big Picture as a new hire onboarding exercise. The New Hire persona leads (models based on guessing/assumptions), senior personas correct and explain. Implements Brandolini's "give newcomers the leading role" (Ch. 10). Produces a learning-oriented model, not a definitive one.
-- `--value [domain]`: Run standalone Value Exploration against an existing Big Picture board. Executes all 5 sub-rounds: Financial value → Non-financial currencies → Contrasting perspectives → Diverging perspectives (customer segments) → Explore Purpose. (Book Ch. 5)
+- `--value [board-url]`: Run standalone Value Exploration against an existing Big Picture board. Executes all 5 sub-rounds: Financial value → Non-financial currencies → Contrasting perspectives → Diverging perspectives (customer segments) → Explore Purpose. (Book Ch. 5)
 - `--crc [board-url]`: Run Event-Driven CRC Cards validation against an existing Design-Level board. Assigns each aggregate to a separate agent, passes command/event cards between them with "tell don't ask" constraint. Validates interaction patterns work. (Book Ch. 22)
 - `--ux [domain]`: Run UX-Driven EventStorming, Process Modeling with a user journey focus. Follows the customer/user through the process, evaluating emotional experience, friction points, and "flawless execution" at each step. Uses standard PM color grammar plus emotional annotations. (Book preface + Brandolini's "Transactions Redefined" talk)
 - `--discover-bcs [board-url]`: Run Bounded Context discovery against an existing Big Picture board. Reads ALL board items via MCP, applies Brandolini's 6 heuristics (Ch. 6) mechanically against the data, and produces a structured BC analysis with heuristic evidence. Can be run at any time against any completed BP board. Results are reproducible. See "Bounded Context Discovery Protocol" below.
@@ -63,7 +63,7 @@ Naming basis: `reference/miro-integration.md` "Tool namespace".
      mechanism). Do not assume a marketplace name. Stop until its tools are available. Full setup:
      `reference/miro-integration.md`.
 
-Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--crc`,
+Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--value`, `--crc`,
 `--discover-bcs` with a board URL) require Miro. If it's absent, say so and offer path 2, since
 there is no board to read. One check precedes that gate: for a BC-name input, `--design-level`
 resolves its prerequisite first. The run-state store lookup (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)

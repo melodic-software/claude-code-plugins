@@ -122,6 +122,46 @@ run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OW
 run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" ""
 
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool>. Both the hooks.json matcher and the
+# gate's own tool-name list must admit that shape, or a plugin-bundled server
+# opens PRs past the gate.
+SCOPED_CREATE=mcp__plugin_github_github__create_pull_request
+SCOPED_UPDATE=mcp__plugin_my-plugin_github__update_pull_request
+run 2 "scoped create with a failing body blocks" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "scoped create with a passing body passes" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$GOOD")"
+run 2 "scoped create with no body field blocks (empty body)" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO)"
+run 2 "scoped update with a failing body blocks" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO "$NO_RELATED")"
+run 0 "scoped update with a passing body passes" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO "$GOOD")"
+run 0 "scoped update with no body field passes" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO)"
+run 0 "scoped different target repo is out of scope" "$(payload "$GATED" $SCOPED_CREATE other-org other-repo "$NO_RELATED")"
+run 0 "unrelated scoped tool is ignored" "$(payload "$GATED" mcp__plugin_x_github__get_file_contents $OWNER $REPO "$NO_RELATED")"
+
+# The hooks.json row that wires this gate must route both name shapes here and
+# nothing else.
+MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[] | (.command + " " + ((.args // []) | map(tostring) | join(" "))) | contains("pr-linkage-mcp-gate.sh")) | .matcher' "$HOOK_DIR/hooks.json")
+for name in $CREATE $UPDATE $SCOPED_CREATE $SCOPED_UPDATE; do
+  rc=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || rc=$?
+  if [[ "$rc" == "0" ]]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: hooks.json matcher admits $name (got exit $rc)" >&2
+  fi
+done
+for name in mcp__github__merge_pull_request mcp__github__create_pull_request_review \
+  mcp__plugin_x_github__get_file_contents mcp__plugin_x_gitlab__create_pull_request mcp__gitlab__create_pull_request; do
+  rc=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || rc=$?
+  if [[ "$rc" == "1" ]]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: hooks.json matcher rejects $name (got exit $rc)" >&2
+  fi
+done
+
 # Field shapes of the batched reader. A non-string body is rendered as text and
 # judged (it can hold no section, so it blocks). Trailing newlines on the
 # exact-match fields are chomped. A CR inside owner is stripped and the call

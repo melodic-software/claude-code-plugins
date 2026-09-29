@@ -3,6 +3,31 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.10] - 2026-09-29
+
+### Changed
+
+- **`implement-dispatch` states each rule once.** One-writer-per-worktree, fence composition and the
+  wave-cap explanation keep one full statement and the later restatements point to it, so the
+  duplicate-rule check from [#4279](https://github.com/melodic-software/claude-code-plugins/issues/4279)
+  returns 1 per rule again. The build/test gate timing names its commit-authority exception, and the
+  index-lock claim no longer asserts git internals.
+- **The compaction re-attach slice keeps the phase-verifier rule** ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)),
+  including the interactive mechanical carve-out, and `reattach-slice.test.sh` pins it with the other
+  four gates.
+- **`implement` Step 5 requires a stated skip.** A run that ends without outcome verification against the
+  Brief's outcome criteria says so, with the reason, in the handoff summary or `DEVIATIONS.md`
+  ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).
+- **The phase-verifier and run-end park records describe current behavior only.** They no longer claim
+  an owner decision, and the mandate text is unchanged
+  ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956),
+  [#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)).
+- **One quoted, dated record for the `PowerShell` tool-cage claim** in `implementer`; `phase-verifier`
+  no longer restates it ([#4272](https://github.com/melodic-software/claude-code-plugins/issues/4272)).
+- **README and `implement_dispatch_wave_cap` wording.** The skill count and the verifier-Bash pointer are
+  corrected, and the option states that the cap bounds all worker rows in flight in a phase, with rows
+  that share a worktree under `worker` authority further serialized.
+
 ## [0.19.9] - 2026-09-28
 
 ### Changed

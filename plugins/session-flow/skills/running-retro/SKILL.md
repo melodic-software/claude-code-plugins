@@ -199,7 +199,8 @@ TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_
 MEMORY_DIR=$(bash "$PLUGIN_ROOT/skills/retro/scripts/parse-concern-value.sh" \
   .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
 MEMORY_DIR="${MEMORY_DIR:-.work}"
-WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
+PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"
+WORK_DIR="${PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
 PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
   && "$c" -c 'import sys;sys.exit(0 if sys.version_info>=(3,10) else 1)' 2>/dev/null && { PY="$c"; break; }; done

@@ -17,6 +17,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createLogger } from "@melodic/video-digestion/shared/logger";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
 import {
   checkMetadata,
@@ -28,7 +29,6 @@ import {
   PASS,
   WARN,
 } from "./lib/validators.js";
-import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
 let args;
@@ -121,6 +121,6 @@ function main() {
   }
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main();
 }

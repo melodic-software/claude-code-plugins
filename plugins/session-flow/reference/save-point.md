@@ -206,10 +206,13 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 Walk it while writing the file; never write the section list from memory.
 
 **The file is shape 2, and a script owns its deterministic tier.**
-`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has four subcommands, run through the interpreter
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
-- `save_point.py new --topic <slug> --memory-dir <root> (--previous <file> | --no-previous)`
+- `save_point.py memory-root` is read-only and prints the memory root `new` uses when
+  `--memory-dir` is omitted: `.work` under the git top level; outside a git work tree,
+  `<plugin data>/topic-docs`. When neither exists, `new` refuses and asks for `--memory-dir`.
+- `save_point.py new --topic <slug> [--memory-dir <root>] (--previous <file> | --no-previous)`
   writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
   from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and `chain:`, the
   17 headings in order, the goal and amendments and the five cumulative sections copied off the

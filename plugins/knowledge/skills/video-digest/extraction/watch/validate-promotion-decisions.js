@@ -5,9 +5,9 @@
  * Usage: node watch/validate-promotion-decisions.js <slice-dir>
  */
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import {
   reportSliceValidation,
   validatePromotionDecisionsForSlice,

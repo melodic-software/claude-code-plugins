@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `check | apply [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
+**Arguments.** Full form: check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
 
 ## Purpose
 
@@ -263,6 +263,14 @@ the step UNKNOWN with remediation, never green.
      remedy is to run the merge half of the lane from a session that is served GraphQL.
 
    The remediation is always the operator's to apply, never write settings from this skill.
+
+### Hook launcher
+
+Report whether `node` resolves on PATH (`command -v node` through the Bash tool, so the probe works
+without the hook launcher): PASS when it does, FAIL when it does not. Every hook row runs through
+`node hooks/exec-bash.mjs`, so without it the hooks do not launch and the PR-linkage and worktree
+gates are not enforced. Remediation: install Node.js on PATH
+(<https://nodejs.org/en/download>).
 
 ## `apply` (idempotent)
 

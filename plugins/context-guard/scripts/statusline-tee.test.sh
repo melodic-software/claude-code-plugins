@@ -531,6 +531,24 @@ diff_case jq "an exponent" '{"session_id":"sess-x2","context_window":{"used_perc
 diff_case jq "a trailing fraction zero" '{"session_id":"sess-x3","context_window":{"used_percentage":2.50}}'
 diff_case jq "a 16-digit integer" '{"session_id":"sess-x4","context_window":{"total_input_tokens":1234567890123456}}'
 
+# A host with no usable printf %()T (bash below 4.2, or a failed clock read)
+# has no `now`, so a payload the builtin would take goes to jq. BASH_ENV
+# shadows printf for the epoch format only; the snapshot must still match jq's.
+NONOW_ENV="$WORK/nonow.env"
+cat >"$NONOW_ENV" <<'ENVEOF'
+printf() { case "$*" in *'%(%s)T'*) return 1 ;; esac; builtin printf "$@"; }
+ENVEOF
+NN_IN='{"session_id":"sess-nn","version":"2.1.283","context_window":{"used_percentage":9}}'
+rm -rf "$WORK/nnb" "$WORK/nnj"
+mkdir -p "$WORK/nnb" "$WORK/nnj"
+logged_run "$WORK/nnb" "$NN_IN" BASH_ENV="$NONOW_ENV"
+[[ "$(started)" == *jq* ]] && NN_JQ=yes || NN_JQ=no
+logged_run "$WORK/nnj" "$NN_IN" CG_TEE_FORCE_JQ=1
+NN_B=$(sed 's/^{"captured_at":"[^"]*",//' "$WORK/nnb/$CTX_REL/sess-nn.json" 2>/dev/null)
+NN_J=$(sed 's/^{"captured_at":"[^"]*",//' "$WORK/nnj/$CTX_REL/sess-nn.json" 2>/dev/null)
+if [[ "$NN_JQ" == yes ]]; then ok "no now: the builtin reader is skipped for jq"; else fail "no now: jq did not run"; fi
+if [[ -n "$NN_J" && "$NN_B" == "$NN_J" ]]; then ok "no now: the snapshot equals jq's"; else fail "no now: [$NN_B] vs jq [$NN_J]"; fi
+
 # --- Case 23: shapes the builtin declines never produce a snapshot jq would not
 for bad in '{"session_id":"sess-t","context_window":{"used_percentage":1}' \
   '{"session_id":"sess-t","context_window":{"used_percentage":1}}}' \

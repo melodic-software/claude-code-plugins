@@ -43,6 +43,12 @@ because proving the session id and comparing the snapshot are builtins in this
 file; sourcing `hook-utils.sh` (about 5.4 ms, the previous 10 S) is not part of
 that floor.
 
+**Launcher exclusion:** the wall figures, S and the realistic band are direct `bash` of the
+script, and they exclude the exec-form launcher. `node hooks/exec-bash.mjs` on an empty script
+measured p50 28.68 ms, p95 32.21 ms against `bash` of the same script at p50 1.19 ms, p95 1.38 ms
+(n=22 after 2 warmup, one run, this host), so a registered fire costs about 27 ms more than the
+table shows. The census counter includes node; the wall table does not.
+
 **Basis:** `scripts/hook-census.sh` ceiling row
 `context-guard-posttoolbatch-same-zone-rewrite-spawns`, the wall samples above,
 and `plugins/context-guard/hooks/zone-crossing-inject.test.sh` (PASS=112),

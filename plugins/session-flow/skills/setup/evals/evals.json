@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "check-has-no-write-path-routes-to-native-configure",
-      "prompt": "/session-flow:setup \u2014 after the check, how do I apply these findings?",
+      "prompt": "/session-flow:setup — after the check, how do I apply these findings?",
       "expected_output": "Runs the check, then for each finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow@<marketplace>). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache.",
       "files": [],
       "expectations": [
@@ -29,7 +29,7 @@
     {
       "id": 3,
       "name": "other-skills-stay-zero-config",
-      "prompt": "/session-flow:setup \u2014 also configure handoff and retro while you are here.",
+      "prompt": "/session-flow:setup — also configure handoff and retro while you are here.",
       "expected_output": "Scopes setup to the observer's prerequisites. It does not invent a write path for handoff or retro, treats those skills as zero-config, and still writes no settings files.",
       "files": [],
       "narration": true,

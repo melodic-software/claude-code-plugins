@@ -1,11 +1,11 @@
 # Composing the statusline edit
 
-Reference detail for step 7 of `check` in
-[`../SKILL.md`](../SKILL.md). Step 7 prints the applicable statusline edit for the settings file
-that owns the effective command (resolved in step 3), marked clearly as the operator's to apply.
+Reference detail for step 8 of `check` in
+[`../SKILL.md`](../SKILL.md). Step 8 prints the applicable statusline edit for the settings file
+that owns the effective command (resolved in step 4), marked clearly as the operator's to apply.
 The wiring target is always the shim's fixed path, never `${CLAUDE_PLUGIN_ROOT}`, which is
 version-pinned and belongs in no operator file. Printing an edit at all is forbidden in the
-branches step 3 already suppressed, because printing it here would recommend the exact
+branches step 4 already suppressed, because printing it here would recommend the exact
 ineffective remediation those branches exist to withhold.
 
 ## Contents
@@ -19,7 +19,7 @@ ineffective remediation those branches exist to withhold.
 
 [`unwrap-before-compose.md`](unwrap-before-compose.md) owns the transform, shared byte-identical
 with rate-limit-guard, and `scripts/compose-statusline-wiring.sh` performs it. Run the script over
-the effective value resolved in step 3 and substitute what it prints:
+the effective value resolved in step 4 and substitute what it prints:
 
 ```bash
 jq '.statusLine' <the settings file that owns the effective command> |

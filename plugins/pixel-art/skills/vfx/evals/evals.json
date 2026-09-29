@@ -5,11 +5,13 @@
       "id": 1,
       "name": "triggers-on-mz-hit-spark",
       "prompt": "a hit spark for RPG Maker MZ, five frames, bright then gone",
-      "expected_output": "Fires /pixel-art:vfx. Reads the img/animations row in engine-layouts.md, writes a short timing table, authors one draw(frame) that fades by palette steps, renders the sheet and GIF with render.py, and reviews motion from preview.png.",
+      "expected_output": "Fires /pixel-art:vfx. Reads the img/animations row in engine-layouts.md, writes a short timing table, authors one draw(frame) that fades by palette steps, renders the sheet and GIF with backends.py (native unless the request or the backend setting names another), and reviews motion from preview.png.",
       "files": [],
       "expectations": [
         "Invokes the vfx skill, not animate",
         "Takes the animation cell grid from engine-layouts.md",
+        "Follows brief.md for the shared fields and adds only the effect, the cells, and the sheet",
+        "Chooses the backend per backends.md and renders with backends.py, not render.py directly",
         "Fades by palette steps rather than partial alpha",
         "Reviews motion from preview.png because a GIF shows only its first frame"
       ]

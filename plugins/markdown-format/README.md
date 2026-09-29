@@ -66,9 +66,11 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves: in full on the first skip for each session and subagent, then
-  as a shorter renewal on the eighth skip and every eighth after that
-  (`HOOK_NOTICE_RENEW_EVERY`), silent in between. To tell the cases apart, wire a
+  themselves, by class. A missing `markdownlint-cli2` is a prerequisite notice:
+  once per session (a subagent does not repeat it), renewed with the install
+  route every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). The missing-`jq` notice and
+  the trust-gate notice are once per session and agent, renewed every eighth
+  skip. Silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -126,6 +128,9 @@ this is the likely cause.
 
 The hook requires the following tools:
 
+- [Node.js](https://nodejs.org/) on `PATH`. Every hook row starts through
+  `hooks/exec-bash.mjs`, so without `node` the hooks do not launch and nothing is
+  enforced. `/markdown-format:check` reports it.
 - Bash 3.2 or later. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run this Bash hook; WSL is also supported.
@@ -140,8 +145,13 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a notice to both Claude (`additionalContext`)
-and you (`systemMessage`): in full on the first skip for each session and
-subagent, then renewed on every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). Only the notice latches.
+and you (`systemMessage`). A missing-`markdownlint-cli2` notice is shown once
+per session, not per subagent, and renewed with the install route every eighth
+skip (`HOOK_NOTICE_RENEW_EVERY`). The `SessionStart` probe below uses the same
+notice key, so its notice counts as skip number one, the first per-edit skip is
+number two and stays silent, and the next per-edit notice appears at the eighth
+skip. The missing-`jq` notice and the trust-gate notice are once per session and
+agent, renewed every eighth skip.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
 `PATH probed:` line naming the plausible directories the hook process actually
@@ -150,6 +160,18 @@ the edited file is outside a repository the notice names a durable user-scope
 directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or
 performs a network request during a hook run.
+
+`hooks/hooks.json` also registers a `SessionStart` probe. It reads
+`prerequisites.json` and reports a missing `markdownlint-cli2` at session start,
+and it honors `markdown_format_enabled`. `/markdown-format:check` is the
+read-only check that notice names. The probe does not look for a markdownlint
+config, so it can report in a repository that has none.
+
+`jq` is deliberately absent from `prerequisites.json`. That manifest drives the
+session-start probe, which does not consult the per-repo config opt-in, while the
+missing-`jq` notice comes only from the per-edit hook after its opt-in pre-check
+(`markdown-format.sh`, `hook::require_jq` after the config walk). Listing `jq`
+would announce it in repositories that never opted in.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
@@ -192,7 +214,11 @@ Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budge
 this hook is always-on for every `Write` and `Edit` of a `.md` or `.mdc` file (the two `if`
 rows in `hooks/hooks.json` keep every other extension from spawning it), so its cost on a clean
 Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, twelve interleaved
-trials against an interleaved `bash -c :` floor (2026-09-02):
+trials against an interleaved `bash -c :` floor (2026-09-02). These figures predate the `node`
+launcher (`hooks/exec-bash.mjs`) and the `SessionStart` probe: each fire now adds one `node`
+process before `bash`, and the figures have not been re-measured. The `SessionStart` probe is
+exec form, so its k is 1 (the launcher); it then runs `bash` and `probe-prerequisite.sh` once
+per session start. It is not measured here:
 
 | Event | Fires | Spawn-equivalents | What changed |
 | --- | --- | --- | --- |
@@ -327,7 +353,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 This plugin's PostToolUse hook is filtered to `*.md` and `*.mdc` by an `if`
 condition on its two `Write|Edit` rows, so it costs nothing on any other file.
 On a Markdown edit it owes the marketplace's
-[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
+[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure. The figures below
+predate the `node` launcher and the `SessionStart` probe (see
+[Hook budget accounting](#hook-budget-accounting)).
 
 **Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
 interleaved trials, each preceded by a `bash -c :` spawn-floor run so the

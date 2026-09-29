@@ -105,7 +105,10 @@ confirmed the plan. The dry-run surfaces this before any mutation.
   `--apply` aborts, same as the single-repo `tree`. The user re-invokes interactively.
 - The wrapper runs each child reset as a subprocess, so the session destructive
   guard sees only `bash git-tree-reset-batch.sh`, not an inline `reset --hard`.
-  Invoke via the wrapper, never inline git.
+  Invoke via the wrapper, never inline git. The guard blocks
+  `git-tree-reset-batch.sh --apply` until the command starts with
+  `CLEAN_GUARD_ACK=1` (PowerShell: `$env:CLEAN_GUARD_ACK=1;`), added only after the
+  gate passes; a dry-run is not blocked.
 
 ## Examples
 

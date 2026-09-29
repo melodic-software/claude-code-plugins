@@ -113,6 +113,19 @@ command, watch, or sentinel file to resume it. Basis, in Claude Code:
 As of 2026-09-25 (both pages fetched). Recheck when either page changes its subagent
 background-command lifetime or notification text, or the Monitor deadline figures.
 
+#### Record: a hung background shell keeps a returned worker listed as active
+
+- **Claim.** A hung background shell has been observed to keep a worker that already reported
+  listed as active.
+- **Basis.** One local observation on 2026-09-19: an `awk` scan over a file of about 9 MB hung, the
+  dispatching worker returned, and the agent panel still showed it active for hours. The
+  Sub-agents page quoted above documents that a background subagent can leave a command running
+  past its turn; the same pages, searched 2026-09-29, say nothing about how such a command
+  affects the agent panel's active state or how a hung one is retired.
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or docs change describes background shell
+  lifecycle or the agent panel's active state.
+
 ### SendMessage worker continuation
 
 The mechanism the priming addendum names for reusing and steering workers, in Claude Code

@@ -1,5 +1,5 @@
 ---
-description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in this session, prefer it for a one-off security pass over your current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
+description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in this session, prefer it for a one-off security pass over the current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
@@ -120,7 +120,13 @@ it was written for. A match is a finding when nothing else in the tree still enf
 a hook, a permission deny rule, or a validator. Name the class, the action the rule prevented, and
 the request that now reaches that action with no check. That is this lane's exploit path. A rule
 that a mechanism still enforces is not a finding, and neither is one the diff compresses without
-changing what it forbids.
+changing what it forbids. The register URL is not readable with this skill's granted tools (no
+WebFetch) and the file may be absent from the checkout, so read
+`docs/conventions/instruction-exception-register/README.md` when it is present, and when it is not,
+fall back to recognition by consequence and say in the review that the protected-class list was not
+consulted. This lens lives in this skill only: the `security-reviewer` agent behind
+`/review:quality-gate` security mode and `/review:fanout` carries no such lens, so those surfaces
+can judge the same diff differently.
 
 ## High-signal bar
 

@@ -5,9 +5,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 const KEY_FRAME_IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|webp)$/i;
