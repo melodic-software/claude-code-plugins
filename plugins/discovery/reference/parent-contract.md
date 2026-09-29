@@ -6,6 +6,7 @@
 - [The pre-dispatch baseline](#the-pre-dispatch-baseline)
 - [Scope and topic do not arrive by argument substitution](#scope-and-topic-do-not-arrive-by-argument-substitution)
 - [Credentials stay unread, stated once](#credentials-stay-unread-stated-once)
+- [Read each file once, stated once](#read-each-file-once-stated-once)
 - [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on)
 - [Running the acceptance gate](#running-the-acceptance-gate)
 - [The sibling verifier, stated once](#the-sibling-verifier-stated-once)
@@ -19,6 +20,7 @@ nowhere else, because copies of them drift apart:
 - the pre-dispatch baseline command
 - the claim about `$ARGUMENTS`
 - the agents' credential read boundary
+- the agents' read-each-file-once rule
 - how the acceptance gate is invoked, and that a gate which could not run halts
 - what to do with a partial slice
 - the sibling verifier's route, prompt, write-back line and `verification:` values
@@ -321,6 +323,21 @@ plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys
 - *As of.* Both pages fetched 2026-09-28 (Claude Code 2.1.283).
 - *Recheck trigger.* Either span leaves its page, or a release note changes sandbox filesystem or
   credential isolation.
+
+## Read each file once, stated once
+
+A re-read spends a turn of the agent's limit on content already in its context, and issue #4258
+measured 8 redundant full reads in one explorer run. The rule for all three agents and for
+`discovery:research-verifier`:
+
+> **Read each file once.** A file you have already read in this run is still in your context; read
+> it again only to see a change you made to it. A scan followed by a full read of the same file on a
+> later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you
+> need the whole file, read it whole then. Read file contents with `Read` and search with `Grep`
+> rather than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for
+> you and for anyone auditing the run. The same holds for a page you have already fetched: its text
+> is in your context, so fetch it again only when you need content the first fetch did not return.
+> Every turn spent re-reading is a turn taken from gathering before your stop turn.
 
 ## Harness facts the dispatch design rests on
 

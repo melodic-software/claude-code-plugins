@@ -41,8 +41,10 @@ the quoted text is there. Then grade each row you were given against that claim.
 its link settles only that the quote exists; it does not show the claim follows from it, which is
 the question row 12 asks.
 
-Read each file once, and fetch each page once: a file or page already read this run is in your
-context. Your limit is `maxTurns: 30`, from this definition's frontmatter. Stop gathering by turn 24 and spend the turns after that writing your return block. A
+Fetch each page once, and read each file once; the rule is stated once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Read each file once, stated once"). Your limit is `maxTurns: 30`, from this definition's
+frontmatter. Stop gathering by turn 24 and spend the turns after that writing your return block. A
 row you could not finish grading is `fail: not graded (<reason>)`, never `pass`.
 
 ## Tool honesty

@@ -614,8 +614,6 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'Turn budget:'
   assert_present "$file keeps a denied path unread by every other tool" \
     "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
-  assert_present "$file reads each file once and re-reads only to see its own change" \
-    "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
 assert_present "research-verifier states its limit as its own frontmatter maxTurns ($verifier_turns)" \
   'agents/research-verifier.md' "Your limit is \`maxTurns: ${verifier_turns}\`"
@@ -793,6 +791,58 @@ for agent in explorer researcher intent-tracer; do
     "agents/$agent.md" '"Credentials stay unread, stated once"'
   assert_absent_in "agents/$agent.md does not restate the credential command list" \
     "agents/$agent.md" 'gh auth token'
+done
+
+# ---------------------------------------------------------------------------
+# The read-each-file-once rule is stated once and pointed at (#4258)
+#
+# An explorer run spent a quarter of its turns re-reading files already in its
+# context. The rule was pasted into three agents verbatim; it lives in the
+# parent contract now, and the agents point at it. The rule's body text must
+# not come back into any agent, so a copy cannot drift.
+# ---------------------------------------------------------------------------
+# flat <file>: the file's prose on one line, blockquote markers dropped, so a
+# phrase matches wherever the source wraps it.
+flat() { sed 's/^> //' "$PLUGIN_ROOT/$1" | tr '\n' ' ' | tr -s ' '; }
+readonce_heading='^## Read each file once, stated once$'
+readonce_phrases=(
+  'A file you have already read in this run is still in your context'
+  'spends two turns on one read'
+  'so your reads stay easy to recognize as reads'
+)
+readonce_owners="$(grep -cE -- "$readonce_heading" "$PLUGIN_ROOT/reference/parent-contract.md")"
+if [[ "$readonce_owners" -eq 1 ]]; then
+  pass 'the parent contract carries the read-once heading exactly once'
+else
+  fail "the parent contract carries the read-once heading exactly once — found $readonce_owners"
+fi
+readonce_stray="$(surface | grep -v '/reference/parent-contract\.md$' | xargs grep -lE -- "$readonce_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$readonce_stray" -eq 0 ]]; then
+  pass 'no other file carries the read-once heading'
+else
+  fail "no other file carries the read-once heading — $readonce_stray other file(s) do"
+fi
+contract_flat="$(flat reference/parent-contract.md)"
+for phrase in "${readonce_phrases[@]}"; do
+  if [[ "$contract_flat" == *"$phrase"* ]]; then
+    pass "the parent contract states the read-once rule: $phrase"
+  else
+    fail "the parent contract states the read-once rule — no match for: $phrase"
+  fi
+done
+for agent in explorer researcher intent-tracer research-verifier; do
+  assert_present "agents/$agent.md points at the read-once rule" \
+    "agents/$agent.md" '"Read each file once, stated once"'
+  agent_flat="$(flat "agents/$agent.md")"
+  copied=0
+  for phrase in "${readonce_phrases[@]}"; do
+    [[ "$agent_flat" == *"$phrase"* ]] && copied=1
+  done
+  if [[ "$copied" -eq 0 ]]; then
+    pass "agents/$agent.md does not restate the read-once rule"
+  else
+    fail "agents/$agent.md does not restate the read-once rule"
+  fi
 done
 
 # 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
