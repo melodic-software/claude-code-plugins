@@ -2436,6 +2436,12 @@ ps::resolve_literal_call_targets_to() {
         __rl_tail="${__rl_tail:${#BASH_REMATCH[0]}}"
       fi
     done
+    # Any reference to the variable left after the binding other than a
+    # rewritten call site (`$v,$w=...`, `($v)=...`, `"$v"`) could rebind or
+    # leak it, so the binding does not count.
+    __rl_probe="${__rl_s:__rl_end}$__rl_tail"
+    __rl_re='\$'"$__rl_name"'([^a-z0-9_]|$)'
+    [[ "$__rl_probe" =~ $__rl_re ]] && continue
     __rl_out="$__rl_s$__rl_tail"
   done
   ps::_chomp_to "$1" "$__rl_out"
