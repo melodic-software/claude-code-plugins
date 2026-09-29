@@ -3,11 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.2] - 2026-09-29
+## [0.47.1] - 2026-09-29
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest `restate`.** The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.0] - 2026-09-29
+
+### Added
+
+- **Interview surface visuals are replaced or archived by id.** `replace-visual` swaps in a full object for the visual with the same `id`, and `archive-visual` retires visuals with a reason; an archived visual stays in `questions.json` and the page and report no longer show it. `add-round` refuses an `id` that already exists. Visuals take `label`, `group`, `order` and `primary` (at most one live primary per group within a scope), and tabs show the label, falling back to the title, then the `id`.
+- **Gallery for surface images:** arrow keys flip between images and a compare mode shows two side by side.
+- **Open in new tab:** every visual opens in a new tab from its panel or full screen, through a single-use link that expires after 10 seconds. The tab is a sandboxed opaque origin that cannot reach the page token ([#5331](https://github.com/melodic-software/claude-code-plugins/issues/5331)).
 
 ## [0.46.1] - 2026-09-29
 
