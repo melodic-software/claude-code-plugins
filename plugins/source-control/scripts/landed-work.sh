@@ -606,7 +606,7 @@ collect_targets() {
   # documents `-z` as the newline-safe form for exactly this.
   local porcelain="$WORKDIR/worktree-list"
   if ! git -C "$REPO_DIR" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
-    die "git worktree list failed in $REPO_DIR — refusing to report a partial inventory" 4
+    die "git worktree list failed in $REPO_DIR ($(worktree_list_z_floor_note)) — refusing to report a partial inventory" 4
   fi
 
   worktree_facts_parse_z "$porcelain"

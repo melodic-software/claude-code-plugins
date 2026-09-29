@@ -30,7 +30,7 @@
     {
       "id": 3,
       "name": "missing-conventional-root-is-a-failed-check",
-      "prompt": "/skill-quality:setup \u2014 skills should be at .claude/skills, but that directory is not in this checkout.",
+      "prompt": "/skill-quality:setup, skills should be at .claude/skills, but that directory is not in this checkout.",
       "expected_output": "Reports the failed verification instead of claiming success or creating .claude/skills. Writes no settings for the conventional default.",
       "files": [],
       "narration": true,

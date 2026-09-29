@@ -8,7 +8,7 @@ metadata:
   summary: Deduplicate repeated prose into one named source of truth
 ---
 
-**Arguments.** `[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]`. Full form: [identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves] [--commit-mode=<per-wave|single|none>]
+**Arguments.** `[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]`. Full form: [identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--inline] [--parallel-waves] [--commit-mode=<per-wave|single|none>]
 
 # Extract SSOT
 
@@ -198,7 +198,7 @@ identify-cluster → architect-plan → execute-migration → sweep-references �
 
 For multi-session work, persist the candidate roster, plan, and per-phase status to working notes in the consuming repository (wherever its conventions put task notes) so a fresh session can resume from durable state instead of re-deriving it. End each phase with a short status entry: what's done, what's next. When the caller forbids commits (a sweep step recording "no findings", for one), keep those notes out of the tracked tree.
 
-An **active candidate roster** is a persisted roster with at least one candidate still open: not yet executed, refused, or deferred with a tracking note. Only an active roster triggers resume. A roster whose every candidate is refused or done is closed: its first line reads `status: closed`, and a bare invocation treats it as absent. The resume gates in the action router above and in `actions/identify.md` (step 1 and the pre-dispatch sanity check) use this definition.
+An **active candidate roster** is a persisted roster with at least one candidate still open: not yet executed, refused, or deferred with a tracking note. Only an active roster triggers resume. When every candidate is refused or done, the notes hold a **closed record** instead: its first line reads `status: closed`, and a bare invocation treats it as absent. The resume gates in the action router above and in `actions/identify.md` (step 1 and the pre-dispatch sanity check) use this definition.
 
 Per-phase checklist: `context/execution-checklist.md`.
 

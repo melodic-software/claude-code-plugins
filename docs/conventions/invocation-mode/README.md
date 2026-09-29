@@ -88,13 +88,6 @@ listing-eligible skills). As of: 2026-09-28. Recheck: the skills page changing i
 its plugin-skill lever, or a fleet audit's re-run moving the flipped-set arithmetic past a
 documented budget.
 
-**#4661 / #4657 500-character listing exceptions** are recorded in
-[`docs/out-of-scope/skill-listing-500-char-exceptions.md`](../../out-of-scope/skill-listing-500-char-exceptions.md),
-not as a fourth `disable-model-invocation` class. The trim fleet is the #4661 plugin table;
-remaining over-500 descriptions are skipped (map / pixel / Fable), outside that table, or
-in-flight on Refs PRs. Claim, basis, as-of date, and recheck trigger live on that ledger
-entry.
-
 ## Exception classes (the only reasons to write `true`)
 
 1. **(i) Side-effect / manual-timing workflows.** The skill mutates state whose timing must be a

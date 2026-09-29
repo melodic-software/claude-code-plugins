@@ -549,7 +549,7 @@ Identical in every consuming plugin. Earlier wins:
 **No project root** (no git toplevel or project marker): interactive →
 ask (create under the current directory, or an explicit path);
 non-interactive → `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` with the
-absolute path announced prominently and nothing persisted. Writes outside
+absolute path announced prominently and no config persisted. Writes outside
 a project root only ever target the plugin-data surface.
 
 **Non-interactive / forked mode** (any context that cannot ask the user
