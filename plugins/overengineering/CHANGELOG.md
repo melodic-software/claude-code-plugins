@@ -30,7 +30,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   to 1,731 characters. `audit` and `realign` leave `scripts/skill-description-cap-baseline.txt`.
   No skill is renamed or merged.
 
-## [0.4.15] - 2026-09-28
+## [0.4.15] - 2026-09-27
 
 ### Changed
 
