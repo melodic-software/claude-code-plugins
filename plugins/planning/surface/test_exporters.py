@@ -2694,8 +2694,9 @@ class TestResumedState(SessionCase):
         self.assertEqual(len(after), len(combos))
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
         # Clearing every hold on both sides leaves the same state. A held row carries no seeded
-        # row but its proposal, so a text seed, its status and a seeded deferral's arbiter end
-        # at the hold; those combinations are compared only while held.
+        # row but its proposal, so a text seed with its status, and a seeded deferral with no
+        # newer decision (its arbiter, blocked against deferred), do not outlive the hold; those
+        # combinations are compared only while held.
         for d in (self.dir, fresh):
             path = d / "questions.json"
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -2705,7 +2706,11 @@ class TestResumedState(SessionCase):
             path.write_text(json.dumps(doc), encoding="utf-8")
         before, after = resumed_state(self.dir), resumed_state(fresh)
         for i, combo in enumerate(combos, 1):
-            if combo[1] and combo[0] not in (None, "proposal"):
+            seed, hold, decision, _ = combo
+            if hold and (
+                seed in ("open-text", "superseded-text")
+                or (seed in ("deferred", "blocked") and not decision)
+            ):
                 continue
             with self.subTest(qid=f"Q{i}", combo=combo, cleared=True):
                 self.assertEqual(after[f"Q{i}"], before[f"Q{i}"])
