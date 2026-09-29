@@ -8,11 +8,9 @@ metadata:
   summary: Route a spec container's macro journey. Status, execution shape, next step
 ---
 
-**Arguments.** `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `[#<container-id> | <topic-slug>]`. Empty = discover the container from the current topic, then from the tracker.
 
 ## Shared tracker context
 

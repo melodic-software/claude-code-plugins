@@ -1,6 +1,6 @@
 ---
 description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number: the attention view. Escalations: /work-items:attend-queue."
-argument-hint: "[<number>]. Issue OR pull request number to triage; empty = attention view"
+argument-hint: "[<number>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `[<number>]` is the issue or pull request number to triage. Empty = the attention view.
 
 ## Shared tracker context
 

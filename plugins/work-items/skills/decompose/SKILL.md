@@ -1,6 +1,6 @@
 ---
 description: "Break a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
-argument-hint: "[source]. Empty = topic PLAN.md; prd = topic PRD.md; #<number> = item body; or conversation context"
+argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `[source]`. Empty = topic PLAN.md; `prd` = topic PRD.md; `#<number>` = item body; otherwise the conversation context.
 
 ## Shared tracker context
 

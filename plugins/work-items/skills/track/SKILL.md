@@ -8,11 +8,9 @@ metadata:
   summary: Backlog CRUD through the bound tracker. Add, list, close, stats
 ---
 
-**Arguments.** `<action> [args]`. default: stats Actions: stats, list, add, start, done, due, recheck, search, audit
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `<action> [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, and audit.
 
 ## Shared tracker context
 

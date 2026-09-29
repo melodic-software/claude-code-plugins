@@ -9,11 +9,9 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]`. Full form: [<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
 
 ## Shared tracker context
 
