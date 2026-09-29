@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.4] - 2026-09-29
+## [0.14.5] - 2026-09-29
 
 ### Changed
 
@@ -13,6 +13,15 @@ only after that version increases.
   longer forbids the interview. The returned decisions go into the step commit's
   `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
   of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
+## [0.14.4] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `ai-slop` step is audit-only** ([#5194](https://github.com/melodic-software/claude-code-plugins/issues/5194)).
+  The catalog entry passed `audit fix .`, which chains the audit and the fix in one invocation and
+  rewrote prose before the findings review. The entry now passes `audit .`, and a note directs
+  running `fix` on the findings the user approves.
 
 ## [0.14.3] - 2026-09-29
 
