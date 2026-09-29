@@ -128,7 +128,8 @@ These four are therefore computed by the producer, and each has a failure mode t
    confidence". A deterministic detector that fired is `high`. A detector has no evidence scale
    below that: `medium` and `low` grade a reviewer's partial verification, which a scan does not
    perform, so anything less certain omits the field and ranks as `unscored`, last in that order,
-   which is the honest place for a claim nobody graded.
+   which is the honest place for a claim nobody graded. An omitted-`Confidence` detector row
+   therefore ranks below a reviewer's `low` row in a merged report, and that ranking is intended.
    **`Confidence` is confidence-of-realness, not confidence in the fix.** A detector can be certain a
    defect is real while its remediation needs human judgment; say that in `Tier` and in the `Action`
    wording, never by downgrading `Confidence`. That would rank a real finding below findings less
