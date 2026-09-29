@@ -6387,6 +6387,58 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertEqual("ready-for-explicit-approval", result["status"])
             self.assertEqual([], result["candidates"][0]["blockers"])
 
+    def test_changed_regular_file_drifts_through_the_shared_comparator(self) -> None:
+        def resize(item: Path) -> None:
+            item.write_text("longer than before", encoding="utf-8")
+
+        def touch(item: Path) -> None:
+            info = item.stat()
+            os.utime(item, ns=(info.st_atime_ns, info.st_mtime_ns + 2_000_000_000))
+
+        for change_name, change in (("size", resize), ("mtime-only", touch)):
+            for surface in ("preview", "handoff-verify"):
+                with self.subTest(change=change_name, surface=surface):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary) / "target"
+                        root.mkdir()
+                        item = root / "junk.tmp"
+                        item.write_text("stale", encoding="utf-8")
+                        snapshot = hygiene.scan_tree(
+                            root.resolve(), hygiene.load_policy(None)
+                        )
+                        change(item)
+                        plan = {
+                            "version": 1,
+                            "tier": "high",
+                            "candidates": [candidate("junk.tmp")],
+                        }
+                        with (
+                            mock.patch.object(
+                                hygiene,
+                                "same_stat_identity",
+                                wraps=hygiene.same_stat_identity,
+                            ) as comparator,
+                            mock.patch.object(
+                                hygiene, "handle_state", return_value=("clear", None)
+                            ),
+                            mock.patch.object(
+                                hygiene, "tracked_blocker", return_value=None
+                            ),
+                            mock.patch.object(
+                                hygiene, "execution_blockers", return_value=[]
+                            ),
+                        ):
+                            if surface == "preview":
+                                result = hygiene.preview(snapshot, plan)
+                                reported = result["candidates"][0]["blockers"]
+                            else:
+                                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+                                verdict = result["verdicts"][0]
+                                reported = verdict["reasons"]
+                                self.assertEqual("drifted", verdict["verdict"])
+                        self.assertIn("changed-since-scan", reported)
+                        comparator.assert_called()
+
     @staticmethod
     def nested_residue(root: Path) -> Path:
         """outer/middle/inner/leaf.tmp plus one unrelated top-level file."""

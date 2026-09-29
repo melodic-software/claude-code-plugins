@@ -2652,8 +2652,6 @@ def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
         info = path.lstat()
     except OSError:
         return False
-    if entry.get("kind") == "directory":
-        return same_object_identity(info, entry)
     return same_stat_identity(info, entry)
 
 
