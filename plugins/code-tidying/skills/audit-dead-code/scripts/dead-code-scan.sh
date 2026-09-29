@@ -563,11 +563,21 @@ lane_vulture() {
   # An input-parse-error line is an INPUT note, not a degraded run: every other
   # file was still analyzed, and treating it as degradation would let one stray
   # non-Python file suppress the whole lane.
+  local -A unparsed_path=()
+  local -a parsed_files=()
   while IFS= read -r v_line; do
     [[ -n "$v_line" ]] || continue
     unparsed=$((unparsed + 1))
+    unparsed_path["${v_line%%:*}"]=1
     note "vulture could not parse one input and skipped it (an input note, not a degraded run): $v_line"
   done < <(dc_vulture_unparsed_inputs "$WORK/vulture.err")
+  for v_line in "${PY_FILES[@]}"; do
+    if [[ -n "${unparsed_path[$v_line]:-}" ]]; then
+      dc_mark_uncovered 'tool could not parse it' "$v_line"
+    else
+      parsed_files+=("$v_line")
+    fi
+  done
   while IFS= read -r v_line || [[ -n "$v_line" ]]; do
     v_line="${v_line//$'\r'/}"
     [[ -n "$v_line" ]] || continue
@@ -580,7 +590,7 @@ lane_vulture() {
       add_candidate '-' 0 detector-drift "vulture line not in the finding grammar: $v_line"
     fi
   done <"$WORK/vulture.out"
-  dc_account_lane_files ran ${PY_FILES[@]+"${PY_FILES[@]}"}
+  dc_account_lane_files ran ${parsed_files[@]+"${parsed_files[@]}"}
   lane_line vulture '.' ran "${#PY_FILES[@]}" \
     "$parsed candidate(s), $drift unrecognized stdout line(s), $unparsed input file(s) skipped as unparsable"
 }

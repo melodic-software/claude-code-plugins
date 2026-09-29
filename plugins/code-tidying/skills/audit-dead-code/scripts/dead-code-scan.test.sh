@@ -354,6 +354,14 @@ assert_contains "the unparsable input is counted in the lane detail" "$parse_out
 assert_contains "real findings survive the input note" "$parse_out" "Finding excerpt: unused function 'format_legacy_row' (60% confidence)"
 assert_contains "all four captured findings emitted" "$parse_out" "Summary total: files-with-findings=2 T1=0 T2=4 T3=0"
 
+# A tracked .py that vulture could not parse was never analyzed: it is uncovered.
+PYBAD_ERR="$TEST_TMPDIR/vulture-pybad.stderr.txt"
+printf '%s\n' 'py-entry.py:3: invalid syntax' >"$PYBAD_ERR"
+pybad_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE_VULTURE_ERR="$PYBAD_ERR" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
+assert_contains "an unparsable tracked .py is uncovered" "$pybad_out" \
+  "Note: uncovered py-entry.py — tool could not parse it"
+assert_contains "the parsed .py stays covered" "$pybad_out" "Summary coverage: covered=1 uncovered=1"
+
 # The discriminating counterpart: stderr NOT in the input-note shape (a usage
 # error or traceback) IS a degraded run and withholds everything.
 TRACEBACK_ERR="$TEST_TMPDIR/vulture-traceback.stderr.txt"
