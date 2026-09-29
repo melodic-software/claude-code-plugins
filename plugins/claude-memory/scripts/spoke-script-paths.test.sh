@@ -48,7 +48,7 @@ inject() {
   local copy="$TEST_TMPDIR/$1"
   mkdir -p "$copy"
   cp -R "$SKILLS/." "$copy/"
-  sed -i "$4" "$copy/$3"
+  sed "$4" "$copy/$3" >"$copy/$3.new" && mv "$copy/$3.new" "$copy/$3"
   rc=0
   OUT=$(check_skills "$copy") || rc=$?
   assert_exit "$1: rejected" 1 "$rc"
