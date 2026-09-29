@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.16]
+
+### Changed
+
+- **`find`: listing description trimmed to 998 codepoints.** The entry was 1,212, over the 1,024 Agent Skills spec maximum. The evidence-source parenthetical and the reason phrases after each Skip-when route were shortened; every quoted trigger and Skip-when route is kept. The body, options, and evals are unchanged.
+
 ## [0.1.15] - 2026-09-28
 
 ### Added
