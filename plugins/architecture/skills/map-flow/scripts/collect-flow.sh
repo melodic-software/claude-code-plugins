@@ -2,14 +2,23 @@
 # Collect a call-sequence trace from one C# entry point.
 #
 # WHY. A sequence drawn from memory has no citation. This script records a hop
-# only when a tracked C# file contains the call. A receiver whose declared type
-# is an interface, a service-locator call, reflection, or an ambiguous method
-# stays unresolved. It is not bound to a similarly named class.
+# only when a tracked C# file contains the call, and follows it only when the
+# receiver's declared type (a field, property, parameter, local or
+# primary-constructor parameter) is a class in the tree that declares the
+# method. Every other call is an unresolved hop with a mechanism and is not
+# walked. It is never bound to a similarly named class.
 #
 # Usage:
-#   collect-flow.sh --repo <path> --entry <route-or-method> [--depth N]
+#   collect-flow.sh --repo <path> --entry <entry> [--depth N]
 #       [--out <file>] [--generated-on <date>]
 #   collect-flow.sh --help
+#
+# <entry> is a route (/orders/{id}), an HTTP verb and a route
+# (GET /orders/{id}), Type.Method (OrdersService.Handle), or a method name
+# (Handle). A route is matched against Http* and Route attributes and Map*
+# calls; a Map* call is traced through the method it names as its handler
+# (a lambda is refused). A class-level [Route] is not composed with a method
+# route.
 #
 # Tracked *.cs files only (`git ls-files`). The first adapter is C#. A tree
 # with no C# source is refused. Configuration and project files are not
@@ -17,11 +26,19 @@
 #
 # Output: flow.json, schema_version 1, one hop object per line.
 #   entry.name is the invocation string.
-#   hops[].resolution is statically-resolved, inferred, or unresolved.
-#   hops[].sync is synchronous or asynchronous.
+#   hops[].resolution is statically-resolved (the receiver's type was read from
+#   a declaration in the enclosing class or method), inferred (through a base
+#   class or a declaration in another file), or unresolved.
+#   hops[].mechanism names why an unresolved hop is unresolved: interface,
+#   dependency-injection, reflection, broker, dynamic-publish, external-call,
+#   receiver-type-unknown, callee-not-in-tree, or ambiguous-method.
+#   hops[].sync is synchronous or asynchronous (from await, except a hand-off,
+#   which is always asynchronous).
 #   hops[].handoff is yes when the call is Publish or Send (a hand-off to
-#   map-events). truncated is yes when --depth stopped the walk before a
-#   callee that itself contains a call.
+#   map-events; the hop is unresolved, mechanism broker).
+#   Hops are in call order, a followed callee's hops right after its call.
+#   truncated is yes when --depth stopped the walk before a callee that itself
+#   contains a call.
 #
 # Portability: bash plus POSIX awk. No jq, no python.
 #
@@ -31,6 +48,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACE_AWK="$SCRIPT_DIR/trace-flow.awk"
+# shellcheck source=../../../lib/github-remote.sh
+source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -39,35 +58,6 @@ usage() {
 die() {
   printf 'collect-flow.sh: %s\n' "$1" >&2
   exit "$2"
-}
-
-github_repo_name() {
-  local url="$1" scheme=0 host rest host_l repo
-  [[ -n "$url" && "$url" != "unknown" ]] || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    if [[ "$rest" == :* ]]; then
-      return 1
-    fi
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  [[ -n "$rest" ]] || return 1
-  host_l="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
-  [[ "$host_l" == "github.com" || "$host_l" == "www.github.com" ]] || return 1
-  repo="${rest#*/}"
-  repo="${repo%%/*}"
-  [[ -n "$repo" && "$repo" != "$rest" ]] || return 1
-  printf '%s' "$repo"
 }
 
 repo=""
@@ -92,7 +82,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --entry)
-    [[ $# -ge 2 ]] || die "--entry needs a route or method" 2
+    [[ $# -ge 2 ]] || die "--entry needs an entry: a route, a verb and a route, Type.Method, or a method name" 2
     entry="$2"
     shift 2
     ;;

@@ -13,6 +13,15 @@ only after that version increases.
   another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
   `history.sh` adds no rerun path for it.
 
+## [0.14.4] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `ai-slop` step is audit-only** ([#5194](https://github.com/melodic-software/claude-code-plugins/issues/5194)).
+  The catalog entry passed `audit fix .`, which chains the audit and the fix in one invocation and
+  rewrote prose before the findings review. The entry now passes `audit .`, and a note directs
+  running `fix` on the findings the user approves.
+
 ## [0.14.3] - 2026-09-29
 
 ### Fixed
