@@ -10,7 +10,7 @@ Quality is partly subjective, but some aspects ARE measurable:
 
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
-| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is installed (treat a report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise count conditionals, measure max nesting |
+| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is installed (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
 | Size | Lines of code, file count, method length | `/code-metrics:audit-size --json` when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
 | Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
@@ -24,7 +24,7 @@ Produce every count with a command or script whose output goes into the report (
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy:** "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (a report whose `status` is `empty` on either side makes the comparison INCONCLUSIVE); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (the comparison is INCONCLUSIVE under the rule in the table above); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 

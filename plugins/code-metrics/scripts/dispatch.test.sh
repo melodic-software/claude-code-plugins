@@ -71,7 +71,7 @@ out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all 
 rc=$?
 assert_eq "exit 0 with the bundled counter" 0 "$rc"
 assert_doc "schema, skill, and status complete" "$out" \
-  'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-size" and d["status"]=="complete"'
+  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-size" and d["status"]=="complete"'
 assert_doc "every lane row is ok on line-counter" "$out" \
   'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==6'
 assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
@@ -218,16 +218,42 @@ assert_doc "change scope is the committed diff plus untracked files, base record
 out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 rc=$?
 assert_eq "change scope from a subdirectory exits 0" 0 "$rc"
-assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the cwd" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["../changed.py","../untracked.sh","inner.py"]'
+assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the repository root" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["changed.py","sub/inner.py","untracked.sh"]'
 # `--all` means the whole repository, from a subdirectory too: an unanchored
 # listing stops at the cwd, so the run would measure that subtree while its
 # scope block still called itself `all`.
 out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
 rc=$?
 assert_eq "--all from a subdirectory exits 0" 0 "$rc"
-assert_doc "--all from a subdirectory measures the whole repository, paths relative to the cwd" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["../base.py","../changed.py","../untracked.sh","inner.py"]'
+assert_doc "--all from a subdirectory measures the whole repository, paths relative to the repository root" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["base.py","changed.py","sub/inner.py","untracked.sh"]'
+# 9b'. The same repository audited from its root and from a subdirectory names
+#      every file the same way and records the same root; only `scan_root`,
+#      where the run started, differs.
+repo_top="$(cd "$repo" && git rev-parse --show-toplevel)"
+from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
+assert_doc "a run from the repository root records the repository root and its own scan root" "$from_root" \
+  'd["root"]=={"kind": "repository", "path": "'"$repo_top"'"} and d["scan_root"]=="." and d["schema"]=="code-metrics/v2"'
+assert_doc "a run from a subdirectory records the same root and names the subdirectory as scan root" "$out" \
+  'd["root"]=={"kind": "repository", "path": "'"$repo_top"'"} and d["scan_root"]=="sub"'
+same_files="$(printf '%s\n\x1e%s' "$from_root" "$out" | "$PY" -c '
+import json, sys
+a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
+files = lambda d: sorted(r["file"] for r in d["measures"])
+raise SystemExit(0 if files(a) == files(b) and a["root"] == b["root"] and a["scan_root"] != b["scan_root"] else 1)
+' && echo same)"
+assert_eq "the same repository from the root and from a subdirectory gives identical files and root" "same" "$same_files"
+# Outside a git work tree the root is the working directory itself.
+plain="$(mktemp -d)"
+printf 'x = 1\n' >"$plain/a.py"
+out="$(cd "$plain" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
+plain_top="$(cd "$plain" && pwd -P)"
+assert_doc "outside a work tree the root is the working directory and paths are relative to it" "$out" \
+  'd["root"]=={"kind": "directory", "path": "'"$plain_top"'"} and d["scan_root"]=="." and [r["file"] for r in d["measures"]]==["a.py"]'
+out="$(cd "$plain" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --no-anchor)"
+assert_doc "--no-anchor leaves the document without a root" "$out" '"root" not in d and "scan_root" not in d'
+rm -rf "$plain"
 # 9c. A change with nothing in it: the run row's reason is where the reader
 #     learns how to widen the scope, since the skill body is not in front of
 #     them when the report is.
