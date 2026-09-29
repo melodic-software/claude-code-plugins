@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.22] - 2026-09-29
+## [0.62.23] - 2026-09-29
 
 ### Fixed
 
 - **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and then `git push origin --delete <branch>` unless `deleteBranchOnMerge` is on, because gh's local checkout of the default branch fails while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
+## [0.62.22] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
 
 ## [0.62.21] - 2026-09-29
 
