@@ -188,6 +188,34 @@
     },
     {
       "id": 16,
+      "name": "classifies-every-plugin-enabled-at-any-scope",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — user settings enable formatter@tools (hooks/hooks.json with a deny-gate that checks a secret pattern and a PostToolUse auto-formatter) and notes@tools (skills only, a commit-message convenience). Project settings enable neither. Classify them.",
+      "expected_output": "Emits a classification row for both plugins even though only user scope enables them. formatter@tools is hook-wiring: each wired entry is classified with the plugin-philosophy Classifying a hook rubric, not a new rubric, the secret-pattern deny-gate is policy and the auto-formatter is behavioral, so the plugin is hybrid and kept whole as unstripped-mixed-plugin. notes@tools is skill-only and behavioral under the skill-only rubric (convenience the model can do without), so it is an overlay candidate. Managed settings are not edited.",
+      "files": [],
+      "expectations": [
+        "Classifies every plugin enabled at user scope, not only project-enabled plugins",
+        "Applies the existing Classifying a hook rubric to the hook-wiring plugin and does not invent a second hook rubric",
+        "Keeps the policy hook-wiring plugin whole as unstripped-mixed-plugin",
+        "Classifies the skill-only convenience plugin as behavioral"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "behavioral-plugin-overlay-is-sorted-false-and-verified",
+      "narration": true,
+      "prompt": "/claude-config:unhobble bare — notes@tools was classified behavioral. Disable it. It is currently true in user settings. After you edit, assume claude plugin list --json still lists it.",
+      "expected_output": "Writes notes@tools: false into the committed project .claude/settings.json enabledPlugins map, with keys kept in byte order (LC_ALL=C), records the prior enabled set in the manifest, and restores later by removing the key, because the project had no prior value for it (it was enabled only at user scope). Cites the settings-reference claim that project settings take precedence over user settings, with the as-of date and the recheck trigger. Does not call the plugin stripped, because claude plugin list --json still lists it; records that as a confound.",
+      "files": [],
+      "expectations": [
+        "Writes a project-scope enabledPlugins false entry and keeps keys in byte order",
+        "Records the prior enabled set and restores by removing the entry, since the project had no prior value",
+        "States the project-over-user precedence claim with its basis, as-of date, and recheck trigger",
+        "Refuses to treat the plugin as stripped while claude plugin list --json still lists it"
+      ]
+    },
+    {
+      "id": 18,
       "name": "consequential-deletion-needs-a-closed-watch",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — delete the rule that says never commit straight to main. It governs commits. No watch is recorded yet. The exception register does not match it.",
@@ -202,7 +230,7 @@
       ]
     },
     {
-      "id": 17,
+      "id": 19,
       "name": "closed-watch-with-zero-rows-clears-the-deletion",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — the watch on the branch-before-commit rule has met its qualifying-session count and the ledger has zero attributed rows. Remove it.",
@@ -215,7 +243,7 @@
       ]
     },
     {
-      "id": 18,
+      "id": 20,
       "name": "protected-class-never-enters-a-watch",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — open a deletion watch on the never-force-push-a-shared-branch rule so we can remove it if nobody trips it.",
@@ -228,7 +256,7 @@
       ]
     },
     {
-      "id": 19,
+      "id": 21,
       "name": "co-absence-reverts-the-group",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — two rules were removed together, both govern committing to main, and one stumble happened in that situation. Attribute it to the shorter rule and leave the other deleted.",
