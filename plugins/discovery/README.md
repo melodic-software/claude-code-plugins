@@ -15,6 +15,8 @@ subagent by default**, so the reading stays out of the main conversation;
 | `/discovery:trace-intent` | Historical | Reconstructs why a thing was built the way it was, from evidence outside the code: review discussion, tickets, long-form documents. Grades every claim on an intent-evidence tier (Direct / Supported / Inferred / Speculative / Unknown), cites each one with a source-reliability note, and reports what it could not find in a coverage map. Dispatches `discovery:intent-tracer` by default. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
 
+`discovery:report` is the return-contract skill: not user-invocable, and the canonical copy that `implementation` and `plugin-quality` mirror byte-identically. No discovery agent preloads it: each agent's own `Return exactly this` section is its whole return shape.
+
 | Agent | Dispatched by | What it does |
 |---|---|---|
 | `discovery:explorer` | `/discovery:explore` | Runs the six dimensions in a fresh context, loads path-scoped project rules explicitly, writes the artifact set, returns a bounded summary and a file pointer. |
