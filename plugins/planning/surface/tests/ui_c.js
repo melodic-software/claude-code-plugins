@@ -264,6 +264,33 @@ async page => {
     const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
     ok("inline image renders its content as the img src", img === vpSrc, String(img).slice(0, 60));
 
+    // gallery: two or more images offer a thumbnail strip, arrow flip and side-by-side compare
+    const gcur = () => page.evaluate(() => (document.querySelector("#fbody [data-gthumb][aria-current=true]") || {}).dataset?.gthumb || null);
+    const gimgs = sel => page.evaluate(s => document.querySelectorAll(s + " img").length, sel);
+    await page.click('[data-vtab="gallery:*"]'); await page.waitForFunction(() => document.querySelectorAll("#fbody .gstrip img").length === 2, null, {timeout: 5000}).catch(() => {});
+    const gs = await page.evaluate(() => ({thumbs: [...document.querySelectorAll("#fbody [data-gthumb]")].map(b => b.dataset.gthumb), shown: document.querySelectorAll("#fbody .gpair img").length}));
+    ok("gallery: one thumbnail per image, in order, and one image shown", gs.thumbs.join() === "vi,vp" && gs.shown === 1, JSON.stringify(gs));
+    await page.click('[data-gthumb="vi"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150);
+    ok("gallery: a right arrow key advances the selection and keeps focus on it", await gcur() === "vp" && await page.evaluate(() => document.activeElement.dataset.gthumb) === "vp");
+    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(100);
+    ok("gallery: the selection wraps", await gcur() === "vi");
+    await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(100);
+    ok("gallery: a left arrow key steps back", await gcur() === "vp");
+    await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(100);
+    ok("gallery: arrows do nothing while focus is outside the visuals panel", await gcur() === "vp");
+    await page.click('[data-gthumb="vi"]'); await page.click("[data-gcompare]"); await page.waitForTimeout(200);
+    ok("gallery: compare shows two images side by side", await gimgs("#fbody .gpair") === 2 && await page.evaluate(() => document.querySelectorAll("#fbody .gpair .gfig").length) === 2);
+    await page.click("[data-full]"); await page.waitForTimeout(200);
+    const gf = await page.evaluate(() => ({imgs: document.querySelectorAll("#fsStage .gpair img").length, cmp: !document.getElementById("fsCmp").hidden, first: (document.querySelector("#fsStage figcaption") || {}).textContent}));
+    ok("gallery: full screen compares two images and offers the compare toggle", gf.imgs === 2 && gf.cmp && gf.first === "Image", JSON.stringify(gf));
+    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150);
+    ok("gallery: an arrow key flips inside full screen", await page.evaluate(() => (document.querySelector("#fsStage figcaption") || {}).textContent) === "Inline image");
+    await page.click("#fsCmp"); await page.waitForTimeout(150);
+    ok("gallery: the full-screen toggle returns to one image", await gimgs("#fsStage .gpair") === 1);
+    await page.click("#fsClose");
+    await page.click("[data-gcompare]"); await page.click('[data-vtab="v:vk"]'); await page.waitForTimeout(150);
+    ok("a plain visual hides the full-screen compare toggle", await page.evaluate(() => { document.querySelector("[data-full]").click(); const h = document.getElementById("fsCmp").hidden; document.getElementById("fsClose").click(); return h; }));
+
     // grouped visual tabs: group headers, order, primary default, archived hidden, distinct labels
     await pick("Q3"); await page.waitForTimeout(150);
     const gt = await page.evaluate(() => ({
