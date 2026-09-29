@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-09-29
+
+### Added
+
+- **Interview surface visuals are replaced or archived by id.** A repeat `id` replaces the visual and moves the previous one to an archive. Visuals take `group`, `order` and `primary`, and tabs show distinguishing labels.
+- **Gallery for surface images:** arrow keys flip between images and a compare mode shows two side by side.
+- **Open in new tab:** an html visual opens in a sandboxed new tab without exposing the page token ([#5331](https://github.com/melodic-software/claude-code-plugins/issues/5331)).
+
 ## [0.46.1] - 2026-09-29
 
 ### Changed
