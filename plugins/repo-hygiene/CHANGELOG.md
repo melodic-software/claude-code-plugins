@@ -3,6 +3,22 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL so duplicate clones are reported once.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. `--read-only` writes no tip capture.
+
+### Changed
+
+- **`clean-batch.sh` plans default under `.work/` or a state directory, not `/tmp` (#5234),** so Windows guardrail hooks no longer block the write.
+- **The git-tier dry-run reports real planned counts and per-tier bytes (#5234).**
+
+### Fixed
+
+- **The `clean` repository-context block prints "not a repository" from a non-repo cwd (#5234).**
+
 ## [0.11.2] - 2026-09-29
 
 ### Fixed
