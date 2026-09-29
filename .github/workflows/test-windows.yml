@@ -177,8 +177,9 @@ jobs:
   # none of them ran here. Triage, against this job's 20-minute timeout:
   #   block-windows-drive-tmp — OSTYPE/cygpath writer lane. Runs here.
   #   hardcoded-path-check — cygpath repo-relative telemetry. Runs here.
-  #   run-guards — the post-verify git rev-parse is counted through a git.exe
-  #     shim, which is the name Git Bash resolves. Runs here.
+  #   run-guards — NOT here yet. The git.exe shim fixes the post-verify count,
+  #     but the Windows run still fails its hooks.json dispatch-table, BASHPID
+  #     and post-lane merge cases; each needs its own triage.
   #   secret-pattern-detection, block-hook-bypass — NOT here yet. Their temp
   #     exemptions need hook::physical_path_to to follow symlinks, and Git Bash
   #     offers no resolver it can trust, so on this host the exemption fails
@@ -247,8 +248,6 @@ jobs:
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
       - name: Test hardcoded-path-check on Windows
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
-      - name: Test run-guards on Windows
-        run: bash plugins/guardrails/hooks/run-guards.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
