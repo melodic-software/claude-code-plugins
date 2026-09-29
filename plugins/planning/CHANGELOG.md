@@ -3,6 +3,52 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.9] - 2026-09-28
+
+### Added
+
+- **Eval cases:** `brainstorm` gains a case for its observed-fact evidence bar, and `plan` a case for the collapse self-check before folding mechanical sections ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
+## [0.45.8] - 2026-09-28
+
+### Changed
+
+- **`/planning:plan` keeps its gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** Reviewer dispatch, early escalation of hard-to-reverse decisions, agent-team routing, the Step 4.7 outcome gate (with its `check-plan-outcome.sh` run), unattended approval, and Step 5 (present for approval) sit in the first 20,000 bytes of `SKILL.md`. That is the stand-in for the skills page's first 5,000 tokens, re-fetched 2026-09-28 (two identical fetches, 120,554 B, MD5 `344a849d89a6fac60cbd30f8dba6b389`). Step 4.5's analysis steps moved to `context/plan-template.md`.
+
+## [0.45.7] - 2026-09-28
+
+### Added
+
+- **`plan`'s Step 4.7 outcome gate is a script.** `scripts/check-plan-outcome.sh <PLAN.md>`
+  decides the mechanical criteria off the file: at least one phase, a `[TODO]`/`[DOING]`/`[DONE]`
+  tag (a note only after ` - `) on every `### Phase N:` heading, a `Sanity Check` in every phase section (per phase, not a
+  file total), a `| Decision | What it changes ...` table row when the plan tags a decision, and a
+  Blast-radius line naming its level. The model was self-running these from prose. Scope-item
+  mapping and one-row-per-tag stay judgment, named as such. A co-located `.test.sh` covers each
+  criterion (#4271).
+- **PLAN.md paths are checked for portability.** The same script fails on a drive-letter path or a
+  `/Users/<name>` or `/home/<name>` path (any case) unless the line carries `<!-- path-example -->`, since a
+  committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
+  carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
+## [0.45.5] - 2026-09-28
+
+### Added
+
+- **`planning:interview scope` action** ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)):
+  ad hoc scope rounds with ledger + register gate, no `PLAN.md` Brief; returns `Scope decisions:`
+  for callers such as repo-sweep. `interview-defenses.test.sh` re-pins the frontmatter, Action
+  Router, Step 1, Step 1.5, and Step 4 digests; `scope` skips auto-detect and the prior-Brief
+  prompt, and leaves the
+  auto-guard and unattended path unchanged.
+
 ## [0.45.4] - 2026-09-28
 
 ### Changed

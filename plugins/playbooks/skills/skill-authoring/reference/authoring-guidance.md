@@ -7,6 +7,7 @@
 - [Degrees of freedom](#degrees-of-freedom)
 - [Progressive disclosure](#progressive-disclosure)
 - [Runtime model](#runtime-model)
+- [Argument surface](#argument-surface)
 - [MCP tool names](#mcp-tool-names)
 - [Output templates and examples](#output-templates-and-examples)
 - [Time-sensitive content](#time-sensitive-content)
@@ -90,7 +91,7 @@ ladder runs from advisory to deterministic:
 | Level | Use when | Body form | Claude Code mechanism |
 |---|---|---|---|
 | High | Several approaches are valid; context decides | Advisory prose: goals, heuristics, the reason beside each | Instructions only; the model adapts |
-| Medium | A preferred pattern exists; some variation is acceptable | The pattern with named parameters | `$ARGUMENTS` or named `arguments`; a script with flags |
+| Medium | A preferred pattern exists; some variation is acceptable | The pattern with named parameters | `$ARGUMENTS`, parsed in prose per [Argument surface](#argument-surface); a script with flags |
 | Low | The operation is fragile, or a sequence is mandatory | The exact command plus "do not modify the command or add flags" | `${CLAUDE_SKILL_DIR}/scripts/...` with a matching `allowed-tools` Bash rule; or a hook, under the hook-budget rule |
 
 Copyable checklists (a fenced `- [ ]` block the model copies into its response and ticks off)
@@ -178,6 +179,22 @@ Network, local-not-global installs, and the per-surface table:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#package-dependencies>.
 Verified 2026-09-10 (overview table re-read 2026-09-11). Recheck: the lifecycle section changes
 the inject-once claim, or the overview's runtime table changes any row.
+
+## Argument surface
+
+Claude Code has no flag parser: a `--flag` is a token in `$ARGUMENTS` that the model reads, and
+`argument-hint` only drives autocomplete. Shape the surface as
+`/plugin:skill [action] [--modifier ...] [<subject>]` with at most one subject, give a token a `--flag` only when it
+passes the earned-flag test, read `$ARGUMENTS` whole rather than binding `$0`, `$1`, or a named
+`arguments:` entry, and write `argument-hint` in the same order and notation. The
+[skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
+owns the rule, the earned-flag test, the worked fits, and the decisions to decline `arguments:`
+and to defer a `skill-quality` lint for the shape.
+
+**Record.** The convention's Record table carries the four-part record for each harness claim
+restated here, against <https://code.claude.com/docs/en/skills#available-string-substitutions>
+and <https://code.claude.com/docs/en/skills#frontmatter-reference>. Verified 2026-09-28. Recheck:
+either section changes, or Claude Code ships argument validation for skills.
 
 ## MCP tool names
 

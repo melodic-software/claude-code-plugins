@@ -221,3 +221,10 @@ delta instruction-placement,overengineering
 # One contract text, shipped as byte-identical copies because each plugin's
 # agents preload their own plugin's copy through a `skills:` entry.
 report discovery,implementation,plugin-quality
+
+# Kept on merit. dometrain:sync is a maintainer-only drift check of the
+# grounding skill's vendored upstream content; repo-fleet-hygiene:sync
+# fast-forwards a fleet's canonical checkouts onto the remote default branch.
+# Both bring a local copy level with its upstream. Unrelated targets, and the
+# namespace supplies the object in both; each description's first clause names it.
+sync dometrain,repo-fleet-hygiene

@@ -3,11 +3,22 @@
 # skill. Marks CANDIDATE lines for catalog checks (reference/criteria.md) in the
 # instruction files handed to it:
 #
-#   I6  bare prohibition ("never", "do not", "don't", "must not", "should not")
-#       on a line that carries no rationale marker (because/since/so that/…). A
-#       grep cannot judge whether a rationale is genuinely present or whether the
-#       prohibition is a genuine hard "never", so these are candidates the model
-#       lane refines — not confirmed findings.
+#   I6  imperative bare prohibition: a SENTENCE that opens with "never", "do
+#       not", "don't", "must not", or "should not" (after list, blockquote,
+#       checkbox, and emphasis markers), carries no paired positive ("instead",
+#       "rather than", "prefer", "in place of", "in favor of"), and carries no
+#       rationale marker (because/since/so that/…). Soft-wrapped paragraph lines
+#       are accumulated into one text before sentences are split, and a row is
+#       attributed to the first physical line of its sentence. Frontmatter,
+#       fenced code, table rows, headings, and HTML comment lines are never
+#       read. These are the gates docs-hygiene's audit-noise
+#       rule-negation-without-positive measures, less its hard-guardrail
+#       carve-out (secrets, credentials, production, …): a guardrail "never"
+#       still owes I6's fallback rationale (I7), so it stays a candidate.
+#       The gates are structural, not the catalog's fences, which the model
+#       lane still applies to every row.
+#       --i6-counts reports the raw count (the per-line rule: a prohibition
+#       token on a line with no rationale marker) beside the surviving count.
 #   I10 reasoning-echo directive (show/explain/reproduce your thinking or
 #       reasoning, "think out loud", reasoning_extraction). These tell the model
 #       to emit its internal reasoning as response text.
@@ -51,8 +62,9 @@
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep, tr, and awk; exits 2 when one is absent.
 #
-# Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
-# a prohibition surfaces as an I6 row; a line may surface once per matching check
+# Rows are `file:line:check-id` (grep -n convention). An I6 row is a sentence
+# that opens on a prohibition and survives the paired-positive and rationale
+# gates; a line may surface once per matching check
 # id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path
 # arguments are skipped, not errors.
 #
@@ -70,6 +82,7 @@
 #   instruction-scan.sh FILE...            # one candidate row per line; exit 0
 #   instruction-scan.sh --count FILE...    # integer candidate count only; exit 0
 #   instruction-scan.sh --body-only FILE...  # skip YAML frontmatter; exit 0
+#   instruction-scan.sh --i6-counts FILE...  # `I6 raw=<n> surviving=<n>`; exit 0
 #   instruction-scan.sh --help
 
 set -uo pipefail
@@ -78,13 +91,20 @@ usage() {
   cat <<'EOF'
 instruction-scan.sh — mark I6/I8/I10/I23/I25/I27/I28 instruction candidates in given files.
 
-Usage: instruction-scan.sh [--count] [--body-only] [--help] FILE...
+Usage: instruction-scan.sh [--count | --i6-counts] [--body-only] [--help] FILE...
 
   FILE...       print one candidate row (file:line:check-id) per match; exit 0
   --count       print the integer candidate count only; exit 0
+  --i6-counts   print `I6 raw=<n> surviving=<n>` only: raw is the per-line
+                rule (prohibition token, no rationale marker on the line),
+                surviving is what the I6 sentence gates emit; exit 0
   --body-only   skip YAML frontmatter, so no row can point at a description,
                 when_to_use, or a trigger phrase quoted in one; exit 0
   --help        this message
+
+I6 selects per sentence: the prohibition opens the sentence, no paired
+positive or rationale marker sits in it, soft-wrapped lines are joined first,
+and frontmatter, fenced code, table rows, and headings are never read.
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
@@ -131,6 +151,10 @@ while [[ $# -gt 0 ]]; do
     body_only=1
     shift
     ;;
+  --i6-counts)
+    mode="i6-counts"
+    shift
+    ;;
   *) break ;;
   esac
 done
@@ -143,13 +167,18 @@ done
 # against multibyte neighbors: their first byte is non-alnum.
 WB_L="(^|[^[:alnum:]_])"
 WB_R='([^[:alnum:]_]|$)'
-# I6 prohibition tokens. `do NOT` folds into `do not` under -i. The ('|’)?
-# alternation in the contraction forms covers straight, curly (U+2019), and
-# absent apostrophes as literal byte sequences — a `.`/bracket class breaks on
-# multibyte apostrophes under a C locale.
-I6_ERE="${WB_L}never${WB_R}|${WB_L}do not${WB_R}|${WB_L}don('|’)?t${WB_R}|${WB_L}must ?not${WB_R}|${WB_L}mustn('|’)?t${WB_R}|${WB_L}should ?not${WB_R}|${WB_L}shouldn('|’)?t${WB_R}"
-# Rationale markers — a prohibition line carrying one of these is not an I6 candidate.
+# Rationale markers: a prohibition sentence carrying one of these is not an I6
+# candidate.
 RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${WB_R}|${WB_L}so the${WB_R}|${WB_L}to avoid${WB_R}|${WB_L}otherwise${WB_R}|${WB_L}in order to${WB_R}|${WB_L}rationale${WB_R}|${WB_L}reason${WB_R}"
+# I6's sentence-level gates. Lowercase spellings throughout: the awk program
+# folds each sentence to lowercase before testing it, so `do NOT` reads as
+# `do not`. The ('|’)? alternation covers straight, curly (U+2019), and absent
+# apostrophes as literal byte sequences; a `.` or bracket class breaks on the
+# multibyte apostrophe under a C locale.
+I6_CUE_ALT="never|do not|don('|’)?t|must ?not|mustn('|’)?t|should ?not|shouldn('|’)?t"
+I6_PAIRED_ERE="${WB_L}(instead|rather than|prefer(s|red|ring)?|in place of|in favou?r of)${WB_R}"
+I6_CLAUSE_STOPWORDS=" the a an and or but nor so yet if unless until when while where which who whose that this these those it its they their them we our us you your he she his her i is are was were be been being as at by for from in into of on onto to with without not no never nor don't do does did doing ever even because since though although however therefore thus hence per via plus minus other others such same both all any each every more most less least than there here what how why "
+I6_CLAUSE_TRANSPARENT=" just simply always then also still only first next now again finally "
 # I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
@@ -196,10 +225,11 @@ I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 #
 # grep --null ends each file name with a NUL so a path containing a colon (C:/...)
 # splits unambiguously; tr maps the NUL to \003 because not every awk reads NUL
-# bytes. The awk applies the two same-line filters to the line TEXT alone:
-# I6 drops a hit carrying a rationale marker, I27 keeps a hit only when a
-# brevity token shares its line. Both filter patterns are lowercase, so matching
-# them against tolower(text) is the case fold grep -i gives.
+# bytes. The awk applies I27's same-line filter to the line TEXT alone:
+# a hit is kept only when a brevity token shares its line. The filter pattern
+# is lowercase, so matching it against tolower(text) is the case fold grep -i
+# gives. I6 is not one of these greps. Its sentence gates run as one awk per
+# file, and the two streams merge back into argument order, then family order.
 
 # frontmatter_end (awk function in SCAN_AWK)
 #
@@ -254,7 +284,6 @@ substr($0, 1, 1) == "\001" { fam = substr($0, 2) + 0; next }
   else next
   c = index(hit, ":")
   if (c) { lineno = substr(hit, 1, c - 1); text = substr(hit, c + 1) } else { lineno = hit; text = hit }
-  if (id[fam] == "I6" && tolower(text) ~ rationale) next
   if (id[fam] == "I27" && tolower(text) !~ brevity) next
   key = path SUBSEP fam
   if ((key SUBSEP lineno) in seen) next
@@ -264,6 +293,7 @@ substr($0, 1, 1) == "\001" { fam = substr($0, 2) + 0; next }
 END {
   for (i = 1; i <= nfiles; i++) {
     p = order[i]
+    if (mode == "merge") { print "@FILE"; print p }
     for (f = 1; f <= nfam; f++) {
       key = p SUBSEP f
       if (!(key in hits)) continue
@@ -277,7 +307,7 @@ END {
     }
   }
   if (mode == "count") print total
-  else if (total == 0) print "No instruction candidates found."
+  else if (mode != "merge" && total == 0) print "No instruction candidates found."
 }'
 
 # Existing files in argument order, duplicates kept: each occurrence re-emits
@@ -323,24 +353,253 @@ run_family() {
   done
 }
 
+
+# I6 sentence scan, one awk per file. A file with no lines still gets a group
+# marker so the merge stays aligned with the batched families.
+run_i6() {
+  local file
+  : >"$i6_tmp"
+  for file in "${files[@]}"; do
+    printf '@FILE\n%s\n' "$file" >>"$i6_tmp"
+    LC_ALL=C awk \
+    -v cue="^(${I6_CUE_ALT})_*([^[:alnum:]_]|\$)" \
+    -v anycue="${WB_L}(${I6_CUE_ALT})${WB_R}" \
+    -v paracue="(^|[^[:alnum:]_])_*(${I6_CUE_ALT})_*([^[:alnum:]_]|\$)" \
+    -v paired="$I6_PAIRED_ERE" \
+    -v rationale="$RATIONALE_ERE" \
+    -v stopwords="$I6_CLAUSE_STOPWORDS" \
+    -v transparent="$I6_CLAUSE_TRANSPARENT" '
+    function flush(   low, len, i, start, ch, nx, s) {
+      if (n == 0) return
+      low = tolower(para)
+      # Underscore counts as a boundary here so `_Never_` and `__Do not__`
+      # emphasis reach the sentence gate; anycue keeps the raw count on the
+      # boundaries of the per-line rule.
+      if (low ~ paracue) {
+        len = length(para); start = 1
+        for (i = 1; i <= len; i++) {
+          ch = substr(para, i, 1)
+          if (ch == "." || ch == "!" || ch == "?") {
+            nx = substr(para, i + 1, 1)
+            if (nx == " " || nx == "\t") {
+              judge(start, i)
+              start = i + 1
+            }
+          }
+        }
+        if (start <= len) judge(start, len)
+      }
+      n = 0; para = ""
+    }
+    # A later clause (after "; ", ": ", ", ", an em or en dash, or " -- ")
+    # that opens on a content word names what to do alongside the prohibition.
+    # Stopwords open a continuation or consequence instead, transparent
+    # adverbs are looked through, and a second prohibition is not an
+    # alternative. Same closed lists as audit-noise noise-shapes.sh.
+    function names_alternative(g,   body, nseg, segs, i, seg, first, rest) {
+      body = g
+      gsub(/\*\*|__/, "", body)
+      gsub(/; |: |, |—|–| -- /, "\n", body)
+      nseg = split(body, segs, "\n")
+      for (i = 2; i <= nseg; i++) {
+        seg = segs[i]
+        while (seg ~ /^[ \t*_[]/) seg = substr(seg, 2)
+        while (1) {
+          match(seg, /^[a-z'"'"']*/)
+          first = substr(seg, 1, RLENGTH)
+          if (first == "") break
+          rest = substr(seg, RLENGTH + 1)
+          if (index(transparent, " " first " ") && rest ~ /^[ \t]/) {
+            seg = rest
+            sub(/^[ \t]+/, "", seg)
+            continue
+          }
+          break
+        }
+        if (first == "") continue
+        if (index(transparent, " " first " ")) continue
+        if (index(stopwords, " " first " ")) continue
+        if (seg ~ cue || seg ~ /^avoid([^[:alnum:]_]|$)/) continue
+        return 1
+      }
+      return 0
+    }
+    function judge(from, to,   s, off, g, k, line) {
+      s = substr(para, from, to - from + 1)
+      off = from
+      while (substr(s, 1, 1) == " " || substr(s, 1, 1) == "\t") { s = substr(s, 2); off++ }
+      if (s == "") return
+      g = tolower(s)
+      gsub(/`/, "", g)
+      while (match(g, /^([-*+]|[0-9]+[.)]|>|\[[ xX]\])[ \t]*/)) g = substr(g, RLENGTH + 1)
+      while (match(g, /^(\*\*\*|\*\*|\*|___|__|_)/)) g = substr(g, RLENGTH + 1)
+      if (g !~ cue) return
+      if (g ~ paired) return
+      if (names_alternative(g)) return
+      if (index(g, "→") || index(g, "->")) return
+      if (g ~ rationale) return
+      line = lines[1]
+      for (k = 1; k <= n; k++) if (starts[k] <= off) line = lines[k]
+      # One row per line, however many prohibition sentences open on it.
+      if (line in emitted) return
+      emitted[line] = 1
+      print "@HIT"
+      print line
+    }
+    {
+      text = $0
+      sub(/\r$/, "", text)
+      lowtext = tolower(text)
+      if (lowtext ~ anycue && lowtext !~ rationale) raw++
+    }
+    NR == 1 && text ~ /^---[ \t]*$/ { infm = 1; next }
+    infm { if (text ~ /^---[ \t]*$/) infm = 0; next }
+    {
+      # A fence may sit inside a blockquote. Per CommonMark it closes only on
+      # the opener character, at least the opener length, with nothing but
+      # whitespace after it; a fence line with an info string inside an open
+      # fence is code.
+      ft = text
+      while (ft ~ /^ ? ? ?>/) sub(/^ ? ? ?> ?/, "", ft)
+      if (match(ft, /^ ? ? ?(````*|~~~~*)/)) {
+        d = substr(ft, RSTART, RLENGTH)
+        rest = substr(ft, RSTART + RLENGTH)
+        gsub(/ /, "", d)
+        flush()
+        if (!infence) { infence = 1; fc = substr(d, 1, 1); fl = length(d) }
+        else if (substr(d, 1, 1) == fc && length(d) >= fl && rest ~ /^[ \t]*$/) infence = 0
+        next
+      }
+      if (infence) next
+      # A setext underline turns the pending paragraph into a heading, which
+      # is never read. After a list item or blockquote, or with nothing
+      # pending, the line is a thematic break or stray text: it only ends
+      # the paragraph.
+      if (text ~ /^ ? ? ?(==*|--*)[ \t]*$/) {
+        if (n > 0 && first !~ /^[ \t]*([-*+]|[0-9]+[.)]|>)/) { n = 0; para = "" }
+        else flush()
+        next
+      }
+      if (text ~ /^[ \t]*$/ || text ~ /^[ \t]*\|/ || text ~ /\|[ \t]*$/ || text ~ /^[ \t]*#/ || text ~ /^[ \t]*<!--/) { flush(); next }
+      if (text ~ /^[ \t]*([-*+]|[0-9]+[.)])[ \t]/) flush()
+      if (n == 0) { para = text; first = text; n = 1; starts[1] = 1; lines[1] = NR }
+      else { para = para " "; n++; starts[n] = length(para) + 1; lines[n] = NR; para = para text }
+    }
+    END { flush(); print "@RAW"; print (raw + 0) }
+  ' "$file" >>"$i6_tmp"
+  done
+}
+
+i6_summary() {
+  awk '
+    $0 == "@HIT" { surv++; next }
+    $0 == "@RAW" { getline; raw += $0; next }
+    END { printf "I6 raw=%d surviving=%d\n", raw + 0, surv + 0 }
+  ' "$i6_tmp"
+}
+
+merge_report() {
+  awk '
+    $0 == "@SIDE" { getline; side = $0; next }
+    side == "i6" && $0 == "@FILE" {
+      getline
+      i6_path[++i6n] = $0
+      i6_count[i6n] = 0
+      next
+    }
+    side == "i6" && $0 == "@HIT" {
+      getline
+      i6_hit[i6n, ++i6_count[i6n]] = $0
+      next
+    }
+    side == "i6" && $0 == "@RAW" { getline; raw += $0; next }
+    side == "other" && $0 == "@FILE" {
+      getline
+      o_path[++on] = $0
+      o_count[on] = 0
+      next
+    }
+    side == "other" {
+      o_row[on, ++o_count[on]] = $0
+      next
+    }
+    END {
+      if (i6n != on) {
+        print "instruction-scan: I6 and family groups diverged" > "/dev/stderr"
+        exit 2
+      }
+      total = 0
+      for (g = 1; g <= i6n; g++) {
+        for (j = 1; j <= i6_count[g]; j++) {
+          print i6_path[g] ":" i6_hit[g, j] ":I6"
+          total++
+        }
+        for (j = 1; j <= o_count[g]; j++) {
+          print o_row[g, j]
+          total++
+        }
+      }
+      if (total == 0) print "No instruction candidates found."
+    }
+  '
+}
+
+i6_tmp=$(mktemp)
+other_tmp=$(mktemp)
+trap 'rm -f "$i6_tmp" "$other_tmp"' EXIT
+
+if [[ ${#files[@]} -eq 0 ]]; then
+  case "$mode" in
+    count) printf '0\n' ;;
+    i6-counts) printf 'I6 raw=0 surviving=0\n' ;;
+    *) printf 'No instruction candidates found.\n' ;;
+  esac
+  exit 0
+fi
+
+run_i6
+
+if [[ "$mode" == "i6-counts" ]]; then
+  i6_summary
+  exit 0
+fi
+
+if [[ "$mode" == "count" ]]; then
+  inner_mode=count
+else
+  inner_mode=merge
+fi
 {
   if [[ ${#files[@]} -gt 0 ]]; then
     printf '\002%s\n' "${files[@]}"
   fi
   if [[ ${#chunk_start[@]} -gt 0 ]]; then
-    run_family 1 -nHiE "$I6_ERE"
-    run_family 2 -nHiE "$I10_ERE"
-    run_family 3 -nHiE "$I23_ERE"
-    run_family 4 -nHiE "$I8_A_ERE"
-    run_family 5 -nHiE "$I8_B_ERE"
-    run_family 6 -nHiE "$I8_C_ERE"
-    run_family 7 -nHiE "$I8_F_ERE"
-    run_family 8 -nHiE "$I27_EFFORT_ERE"
-    run_family 9 -nHE "$I28_A_ERE"
-    run_family 10 -nHiE "$I28_B_ERE"
-    run_family 11 -nHiE "$I25_ERE"
+    run_family 1 -nHiE "$I10_ERE"
+    run_family 2 -nHiE "$I23_ERE"
+    run_family 3 -nHiE "$I8_A_ERE"
+    run_family 4 -nHiE "$I8_B_ERE"
+    run_family 5 -nHiE "$I8_C_ERE"
+    run_family 6 -nHiE "$I8_F_ERE"
+    run_family 7 -nHiE "$I27_EFFORT_ERE"
+    run_family 8 -nHE "$I28_A_ERE"
+    run_family 9 -nHiE "$I28_B_ERE"
+    run_family 10 -nHiE "$I25_ERE"
   fi
-} | tr '\000' '\003' | awk -v mode="$mode" -v body_only="$body_only" \
-  -v ids="I6 I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25" \
-  -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK"
+} | tr '\000' '\003' | awk -v mode="$inner_mode" -v body_only="$body_only" \
+  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25" \
+  -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
+
+if [[ "$mode" == "count" ]]; then
+  other=$(cat "$other_tmp")
+  surv=$(awk '$0 == "@HIT" { n++ } END { print n + 0 }' "$i6_tmp")
+  printf '%s\n' "$(( ${other:-0} + surv ))"
+  exit 0
+fi
+
+{
+  printf '@SIDE\ni6\n'
+  cat "$i6_tmp"
+  printf '@SIDE\nother\n'
+  cat "$other_tmp"
+} | merge_report
 exit 0

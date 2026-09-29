@@ -101,7 +101,9 @@ Claude Code owns this value: current releases ignore plugin `userConfig` values 
 project or local settings, and changes route through Claude Code's own configuration prompt.
 
 **Team, the tracked `.claude/bugs.md`**, which `/bugs:scan` reads for its lanes
-(`lanes`) and its filing policy (`filing_posture`). It is layered per the marketplace's
+(`lanes`) and its filing policy (`filing_posture`). A `## Gotchas` section in that file
+(and the user-global and local overlay layers) concatenates after the bundled gotchas when
+`/bugs:scan` or `/bugs:write` loads. It is layered per the marketplace's
 config-cascade convention, a user-global file, this tracked team file, and a gitignored local
 overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
 default lanes. Keys, defaults, layer order, and per-key merge semantics live in

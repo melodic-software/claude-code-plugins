@@ -12,28 +12,14 @@ from pathlib import Path
 from typing import Any, cast
 
 import babysit_delta as delta
-import babysit_lease as leases
-from babysit_gh import parse_repo_number
 from babysit_state import (
-    load_state,
-    require_pr_state,
-    resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
     state_path_for,
     write_state,
 )
+from guarded_mutation import begin_guarded_mutation
 from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
-
-
-def require_worker_lease(
-    args: argparse.Namespace, state_dir: Path, repo: str, number: int
-) -> None:
-    if not args.apply:
-        return
-    path = leases.lease_path(state_dir, "worker", f"{repo}#{number}")
-    with state_lock(path):
-        leases.require_owned_lease(path, getattr(args, "lease_token", None))
 
 
 def dispose(
@@ -168,13 +154,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 def run_locked(
     args: argparse.Namespace, state_dir: Path, state_path: Path
 ) -> dict[str, Any]:
-    repo, number = parse_repo_number(args.pr)
-    key = f"{repo}#{number}"
-    require_worker_lease(args, state_dir, repo, number)
-    state = load_state(state_path)
-    pr_state = require_pr_state(state, key)
-    head_sha = resolve_expected_head_sha(
-        str(pr_state.get("head_sha") or ""), args.expected_head_sha
+    opened = begin_guarded_mutation(args, state_dir, state_path)
+    key, state, pr_state, head_sha = (
+        opened.key,
+        opened.state,
+        opened.pr_state,
+        opened.head_sha,
     )
     ledger_entry = cast(
         dict[str, Any], state.setdefault("mutation_ledger", {}).setdefault(key, {})

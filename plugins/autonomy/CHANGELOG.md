@@ -3,11 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.12] - 2026-09-28
+## [0.24.13] - 2026-09-28
 
 ### Changed
 
 - **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.24.12] - 2026-09-28
+
+### Changed
+
+- **The README points at the agent-run artifact attestation decision (#4703).** A one-line
+  out-of-scope note links `docs/out-of-scope/agent-run-artifact-attestation.md`, where the
+  decision recorded in 0.24.5 lives.
 
 ## [0.24.11] - 2026-09-28
 

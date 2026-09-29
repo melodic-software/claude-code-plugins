@@ -1,0 +1,66 @@
+{
+  "skill_name": "sync",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dry-run-default-no-mutation",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos\n\nFour checkouts sit on feature branches and two are already on main.",
+      "expected_output": "The skill runs sync-fleet.sh without --apply and prints the dry-run plan: which checkouts switch to the remote default branch and fast-forward, which are skipped, and which would be parked. Nothing is switched, pulled, stashed, or parked. It names --apply as the way to act on the plan.",
+      "files": [],
+      "expectations": [
+        "Invokes sync-fleet.sh without --apply",
+        "Presents the plan as a dry run that changes nothing",
+        "Names --apply (with one confirmation, or --yes) as the way to apply it"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "non-fast-forward-is-skipped-not-reset",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos --apply --yes\n\nOne checkout's local main has a commit the remote main does not, so its history diverged.",
+      "expected_output": "That checkout is reported as skipped (non-fast-forward). The skill does not reset, rebase, or force the branch; the other checkouts still fast-forward.",
+      "files": [],
+      "expectations": [
+        "Reports the diverged checkout as skipped with a non-fast-forward reason",
+        "Does not reset or force-update the branch",
+        "Still applies the plan to the other checkouts"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-without-terminal-needs-yes",
+      "prompt": "Headless session: /repo-fleet-hygiene:sync --root ~/repos --apply",
+      "expected_output": "With --apply and no terminal for the confirmation prompt, the script exits 3 and nothing changes. The skill reports that and names --apply --yes as the non-interactive consent.",
+      "files": [],
+      "expectations": [
+        "Treats --apply without a terminal and without --yes as a stop",
+        "Changes nothing on that stop",
+        "Names --yes as the non-interactive consent flag"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "dirty-branch-is-parked-in-worktree",
+      "prompt": "/repo-fleet-hygiene:sync --repo ~/repos/widget --apply --yes --worktree-root ~/worktrees --worktree-create <source-control worktree-create.sh>\n\nwidget is on branch feat/x with uncommitted edits.",
+      "expected_output": "The dirty work on feat/x is parked: stashed, the checkout switches to the default branch, a linked worktree is created for feat/x through worktree-create.sh --existing-branch, and the stash is applied there. The canonical checkout is then fast-forwarded. The branch is not deleted.",
+      "files": [],
+      "expectations": [
+        "Parks the dirty non-default branch in a linked worktree rather than discarding it",
+        "Uses worktree-create.sh with --existing-branch for the park",
+        "Fast-forwards the canonical checkout on the default branch afterwards",
+        "Does not delete the feature branch"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-scope-exits-naming-the-rungs",
+      "prompt": "/repo-fleet-hygiene:sync\n\nNo fleet config exists, ghq is not installed, and the working directory is not a Git checkout.",
+      "expected_output": "No scope rung resolves, so the script exits 3 with a message naming every rung (explicit paths, fleet config, --named, ghq root, the working directory). The skill relays that guidance and does not fall back to the project directory or pick a root itself.",
+      "files": [],
+      "expectations": [
+        "Reports the exit-3 no-scope stop and the rungs it names",
+        "Does not treat the project directory as an implicit repository",
+        "Does not invent a root to sync"
+      ]
+    }
+  ]
+}

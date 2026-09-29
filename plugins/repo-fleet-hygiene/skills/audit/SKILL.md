@@ -2,7 +2,7 @@
 description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories across a fleet', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches still on origin', 'moved or renamed GitHub repos'."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
+argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)
 metadata:
@@ -45,11 +45,15 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--skip <name>`: discovery directory-name skip (repeatable). Explicit `--skip` / `fleet.skip`
   entries **replace** the default skip list rather than appending. Otherwise shrinking is
-  impossible. Default (neither CLI nor config): `node_modules`, `vendor`, `.venv`. To extend, pass
-  those three defaults plus your names; to shrink (e.g. reach a repo under `vendor/`), omit names
-  you want walked. CLI and config compose additively with each other like other scope inputs.
-  Values must be bare directory names (no empty value, no path separator). `.`, `..`, and `.git`
-  stay skipped unconditionally even when an explicit list omits them.
+  impossible. Default (neither CLI nor config): `vendor` plus the package-manager cache trees
+  `node_modules`, `.venv`, `.pnpm-store`, `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`,
+  `.nuget`, `__pycache__`, and `.tox`. To shrink (e.g. reach a repo under `vendor/`), list only the
+  names you still want skipped. CLI and config compose additively with each other like other scope
+  inputs. Values must be bare directory names (no empty value, no path separator). `.`, `..`, and
+  `.git` stay skipped unconditionally even when an explicit list omits them.
+- `--extend-skip <name>`: discovery directory-name skip that **adds** to whichever list is in
+  effect (the defaults, or an explicit `--skip` / `fleet.skip` list) instead of replacing it
+  (repeatable). Config equivalent: repeatable `fleet.skipAppend`. Same bare-name validation.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
   It is **not** a scope fallback. A run with no scope fails rather than auditing it.
@@ -65,11 +69,10 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 **not** present in the Bash tool's environment, so the script cannot read it for itself. Passing
 it in is what makes the project rung below reachable at all.
 
-If no scope resolves, no bare path, no `--root`, no `--repo`, and no config-supplied
-`fleet.root`/`fleet.repo`, the run **stops** and names the ways to supply scope plus
-`/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
-yourself. The project directory is **not** a fallback scope: auditing the session's incidental
-working directory would silently audit whatever tree the shell happens to sit in. Config
+If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
+shared ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current working
+directory when it is a Git checkout, else exit 3 naming every rung. The project directory is not a
+rung. Pass that guidance through rather than re-deriving a root yourself. Config
 resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
@@ -268,8 +271,8 @@ Related fleet contracts that remain separate:
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
-  the discovery-skips header line. Windows directory junctions test as symlinks under Git Bash, so
-  they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
+  the discovery-skips header line. Windows directory
+  junctions test as symlinks under Git Bash, so they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
   (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is

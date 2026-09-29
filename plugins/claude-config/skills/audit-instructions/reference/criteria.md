@@ -1,5 +1,5 @@
 ---
-version: 1.23.0
+version: 1.24.0
 last-updated: 2026-09-28
 ---
 
@@ -235,13 +235,31 @@ surfaces its row names.
 
 ---
 
+### Deletion tiers
+
+Two deletion tiers, editorial and consequential, and one hold outside them, protected. One
+grammar. The grammar is `unhobble`'s re-add gate: a ledger row, same-cause
+aggregation, and a commit that cites the rows. This catalog does not define a second grammar.
+The operational form is `/claude-config:unhobble watch`.
+
+- **Editorial.** I1 (removal would not change behavior), I4 (derivable or redundant), and stale
+  scaffolding that restates the obvious. Propose the cut. No watch.
+- **Protected.** A candidate matching the instruction exception register. Hold. Never a watch
+  and never a deletion. Compression in place or hook conversion stays available.
+- **Consequential.** A rule that governs a situation and is outside the register. Do not present
+  the deletion as applicable. Propose opening a watch for that rule. The cut becomes applicable
+  only when a closed watch is cited: its qualifying-session count met and zero attributed rows.
+  The recommended commit cites that watch. That citation is what clears this tier.
+
 ### I1: Line-necessity bar
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: I1–I5 partition.
 
 - **Detect:** a line whose removal would not change behavior: it restates a default, a truism, or
   something the model already does correctly.
-- **Remediate:** cut it, or (if it enforces something) convert per I5.
+- **Remediate:** cut it. This check's cut is editorial (Deletion tiers) and does not require a
+  watch. If the line enforces a governed situation, it is consequential: convert per I5 or open a
+  watch, and do not cut it on this check alone.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md),
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
@@ -325,7 +343,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 - **Detect:** content the model can derive from the code, standard language conventions it already
   knows, inlined API docs that should be a link, or self-evident practices.
-- **Remediate:** delete; link to the source of truth instead of inlining it.
+- **Remediate:** delete; link to the source of truth instead of inlining it. This cut is
+  editorial (Deletion tiers) unless the line governs a situation, in which case it is
+  consequential and needs a closed watch before the deletion is applicable.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
   (the Gate 0 consequence classes, adopted there by reference for the deletion operation). Report
@@ -341,8 +361,10 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 
 - **Detect:** a rule the model already follows without it, or one that must fire every time with
   zero exceptions.
-- **Remediate:** delete the already-followed rule; convert the must-always rule to a hook, which is
-  deterministic where an instruction is only advisory.
+- **Remediate:** an already-followed rule that does not govern a situation is an editorial
+  deletion. A rule that governs a situation is consequential: open a watch, and propose the
+  deletion only when a closed watch is cited (Deletion tiers). Convert a must-always rule to a
+  hook either way; conversion is not a deletion.
 - **Hold instead of delete** when the candidate matches a protected class in the
   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md).
   "The model already does this" is the weakest possible evidence against a rail whose absence is
@@ -355,8 +377,12 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-- **Detect:** a bare "never / do not / don't" instruction. The deterministic pre-scan marks
-  candidate lines; a line already carrying a rationale marker is a weaker candidate.
+- **Detect:** a bare "never / do not / don't" instruction. The deterministic pre-scan seeds a
+  sentence that opens with the prohibition and carries neither a paired positive ("instead",
+  "rather than", "prefer", "in place of") nor a rationale marker, joining soft-wrapped paragraph
+  lines into one sentence and never reading frontmatter, fenced code, table rows, or headings.
+  Those exclusions are structural, not this row's fences: a prohibition the seed skips is still
+  in scope when the lane reads it, and the report states the raw and surviving seed counts.
 - **Remediate:** reframe positively, stating what to do instead, as the primary fix. Where a
   genuine hard "never" survives, keep it but add its rationale (see I7) as the fallback.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
@@ -2003,6 +2029,10 @@ invocation or reads on demand other than its `SKILL.md`, such as `reference/`, `
 - **Must NOT flag:** a one-line scope note that bounds the file's subject ("Windows only"); the
   hub's own index table, which is where loading conditions belong; frontmatter.
 - **Remediate:** delete the self-description; keep the loading condition in the hub's index row.
+- **Reporting:** one finding per spoke, anchored by an excerpt (`e:`) over the opener sentence, with
+  its heading path as the duplicate discriminator. A whole-surface (`s:`) anchor survives this row's
+  own remediation, so it never keys an I33 finding. I33 is lane-only (no pre-scan seed), and each
+  lane brief restates the Must NOT flag fences above.
 
 ---
 

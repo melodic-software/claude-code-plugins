@@ -13,7 +13,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WorstSeverity.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'defender'
 $category = 'security'
 $commands = @(
@@ -21,7 +20,9 @@ $commands = @(
     'Get-MpThreatDetection'
 )
 
-try {
+$FailureSummary = 'Defender check failed.'
+$PassThru = $false
+$CheckBody = {
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' -Summary 'Defender cmdlets unavailable.' -Commands $commands `
@@ -144,9 +145,5 @@ try {
             -NeedsAdmin $false -RanSuccessfully $true `
             -Notes $noteAppend
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Defender check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
