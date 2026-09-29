@@ -11,6 +11,15 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
   and the report prints to the user.
 
+## [0.23.13] - 2026-09-28
+
+### Added
+
+- **`tidy` accepts an ad hoc glob scope.** When no lane covers the target files,
+  `tidy [dry-run] <glob>...` runs on those globs with a borrowed template's watch-for list,
+  lane-specific exclusions, and commit type, plus the repository's own test command, and writes no
+  lane file.
+
 ## [0.23.12] - 2026-09-28
 
 ### Changed

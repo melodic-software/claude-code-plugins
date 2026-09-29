@@ -52,6 +52,11 @@
 
 set -uo pipefail
 
+LANDED_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$LANDED_DIR" == "${BASH_SOURCE[0]}" ]] && LANDED_DIR=.
+# shellcheck source=lib/worktree-facts.sh
+source "$LANDED_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+
 PROG=${0##*/}
 
 usage() {
@@ -577,7 +582,7 @@ T_BRANCH=()
 T_HEAD=()
 
 collect_targets() {
-  local line path head branch detached
+  local path
   if [[ ${#EXPLICIT_TARGETS[@]} -gt 0 ]]; then
     for path in "${EXPLICIT_TARGETS[@]}"; do
       T_PATH+=("$path")
@@ -604,39 +609,15 @@ collect_targets() {
     die "git worktree list failed in $REPO_DIR — refusing to report a partial inventory" 4
   fi
 
-  # Emit the record accumulated so far, if any. Called when the next `worktree `
-  # line opens a record and once at end of input, never on a blank separator:
-  # under -z the records are NUL-delimited fields, and the final record has no
-  # trailing separator of its own. One definition so the two flush sites cannot
-  # drift.
-  flush_record() {
-    [[ -n "$path" ]] || return 0
-    T_PATH+=("$path")
-    [[ "$detached" -eq 1 ]] && branch="(detached)"
-    T_BRANCH+=("$branch")
-    T_HEAD+=("$head")
-  }
-
-  path=""
-  head=""
-  branch=""
-  detached=0
-  while IFS= read -r -d '' line; do
-    case "$line" in
-    "worktree "*)
-      flush_record
-      path="${line#worktree }"
-      head=""
-      branch=""
-      detached=0
-      ;;
-    "HEAD "*) head="${line#HEAD }" ;;
-    "branch "*) branch="${line#branch refs/heads/}" ;;
-    "detached") detached=1 ;;
-    *) ;;
-    esac
-  done <"$porcelain"
-  flush_record
+  worktree_facts_parse_z "$porcelain"
+  local i
+  if [[ ${#WT_FACT_PATH[@]} -gt 0 ]]; then
+    for i in "${!WT_FACT_PATH[@]}"; do
+      T_PATH+=("${WT_FACT_PATH[$i]}")
+      T_BRANCH+=("${WT_FACT_BRANCH[$i]}")
+      T_HEAD+=("${WT_FACT_HEAD[$i]}")
+    done
+  fi
 }
 
 # assert_row_count <expected> <actual>: a pass that covered fewer worktrees than
@@ -864,11 +845,11 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   # carry no HEAD by design (the `-z "${T_HEAD[$idx]}"` checks above), so those
   # are exactly the rows this contract was written for.
   head_col="${T_HEAD[$idx]:0:12}"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${head_col:--}" "${R_UNPUSHED[$idx]:--}" \
-    "${R_LANDED[$idx]:--}" "${R_METHOD[$idx]:--}" "${R_BASE[$idx]:--}" "${R_INPROGRESS[$idx]:--}" \
-    "${R_STAGED[$idx]:--}" "${R_UNSTAGED[$idx]:--}" "${R_CONFLICTED[$idx]:--}" "${R_UNTRACKED[$idx]:--}" \
-    "${PEERS[$idx]:--}" "${risk:--}" "${reason:--}"
+  worktree_fact_row \
+    "${T_PATH[$idx]}" "${T_BRANCH[$idx]}" "$head_col" "${R_UNPUSHED[$idx]}" \
+    "${R_LANDED[$idx]}" "${R_METHOD[$idx]}" "${R_BASE[$idx]}" "${R_INPROGRESS[$idx]}" \
+    "${R_STAGED[$idx]}" "${R_UNSTAGED[$idx]}" "${R_CONFLICTED[$idx]}" "${R_UNTRACKED[$idx]}" \
+    "${PEERS[$idx]}" "$risk" "$reason"
   emitted=$((emitted + 1))
 done
 
