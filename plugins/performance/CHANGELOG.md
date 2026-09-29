@@ -20,7 +20,7 @@ All notable changes to the `performance` plugin are documented here. Format foll
   ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)).
 - **`goal` requires a stated bound on how cost grows with state size**
   ([#4438](https://github.com/melodic-software/claude-code-plugins/issues/4438)): flat, or a named
-  growth bound, in place of an unproven scaling claim. `techniques.md` gains a constant-counter
+  growth bound, in place of an unproven scaling claim. `goal`'s Gotchas gain a constant-counter
   worked example with its verification record. New `target` evals cover the growing-state candidate.
 - **`verify` reports a `Deployed:` disposition and an `Open follow-up:` line**
   ([#4441](https://github.com/melodic-software/claude-code-plugins/issues/4441)), with the
