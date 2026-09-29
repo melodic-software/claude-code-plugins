@@ -4,7 +4,8 @@
 #
 # WHY IT EXISTS — cloud/remote sessions have no `gh` CLI and create PRs through
 # the GitHub MCP server (`mcp__github__create_pull_request` /
-# `mcp__github__update_pull_request`), a surface the sibling
+# `mcp__github__update_pull_request`, or the `mcp__plugin_<plugin>_github__`
+# form of a plugin-bundled server), a surface the sibling
 # pr-body-linkage-gate.sh Bash hook never sees. This hook is that sibling's
 # MCP-surface counterpart: same validator semantics, same scope guards, on the
 # payload shape the MCP tools deliver. Where the Bash sibling must tokenize a
@@ -173,8 +174,14 @@ chomp() {
 }
 for v in TOOL HOOK_CWD T_OWNER T_REPO BODY; do chomp "$v"; done
 
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>; the
+# hooks.json matcher admits both shapes, so this list must too, or the hook
+# would fire only to skip the call.
+IS_UPDATE=0
 case "$TOOL" in
-mcp__github__create_pull_request | mcp__github__update_pull_request) ;;
+mcp__github__create_pull_request | mcp__plugin_*_github__create_pull_request) ;;
+mcp__github__update_pull_request | mcp__plugin_*_github__update_pull_request) IS_UPDATE=1 ;;
 *) exit 0 ;;
 esac
 
@@ -231,7 +238,7 @@ norm="${norm//:/\/}"
 
 # An update that carries no body leaves the body CI already validated
 # untouched.
-if [[ "$TOOL" == "mcp__github__update_pull_request" ]]; then
+if ((IS_UPDATE)); then
   [[ "$HAS_BODY" == "true" ]] || exit 0
 fi
 

@@ -12,7 +12,7 @@
 # nested inside their repository and ~245 more at other non-conforming
 # locations. This hook is the seam for the raw-Bash path. The invariant itself
 # is owned, measured and dated in exactly one place, not restated here:
-# skills/worktree/SKILL.md § "The nesting invariant, verified".
+# skills/worktree/SKILL.md § "The nesting invariant, dated measurement".
 #
 # WHAT IT BLOCKS — precisely the nesting class, nothing else. The resolved
 # target's nearest existing ancestor is asked (via `git rev-parse`) whether it
@@ -205,7 +205,7 @@ block() {
     echo "No external worktree root is configured. Set one every tool can read:" >&2
     echo "  git config --global worktreeroot.path <dir-outside-every-repo>" >&2
   fi
-  echo "A worktree nested inside a checkout can pick up that checkout's path-scoped rules as well as its own, and a git-directory placement mixes the checkout into git metadata — measurement, disputed arms and expiry: skills/worktree/SKILL.md \"The nesting invariant, verified\"." >&2
+  echo "A worktree nested inside a checkout can pick up that checkout's path-scoped rules as well as its own, and a git-directory placement mixes the checkout into git metadata — measurement, disputed arms and expiry: skills/worktree/SKILL.md \"The nesting invariant, dated measurement\"." >&2
   echo "Or use /source-control:worktree create, which places (and locks) the worktree for you. Convention: the source-control plugin's reference/worktree-root-convention.md. Kill switch: the worktree_add_containment_gate_enabled plugin option." >&2
   exit 2
 }

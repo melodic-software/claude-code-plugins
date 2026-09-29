@@ -1218,7 +1218,7 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
     fi
     if [[ -n "${COVERED_BY[$pat]:-}" ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
-        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it" "/permissions/$target"
+        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it$lane_note" "/permissions/$target"
       else
         row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON$lane_note" "/permissions/$target"
       fi
