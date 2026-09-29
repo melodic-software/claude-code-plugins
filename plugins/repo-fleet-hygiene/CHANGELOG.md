@@ -3,6 +3,50 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-29
+
+### Added
+
+- **`/repo-fleet-hygiene:setup apply` writes the fleet config through `setup-config.sh`**
+  ([#4220](https://github.com/melodic-software/claude-code-plugins/issues/4220)). The script
+  validates bare skip names and `--max-depth`, refuses a symlink target, and writes with
+  `git config --add` after an exact-match check, so a repeated run is idempotent and unrelated
+  entries survive. The `discovery-skip` and `discovery-symlink-skip` findings now name
+  `/repo-fleet-hygiene:setup apply --extend-skip <name>` when the target is a printable bare
+  directory name.
+
+### Fixed
+
+- **`sync` stashes and restores by marker SHA, never by stack position**
+  ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)). Another session's
+  stash entry on the same repository can no longer be applied or dropped by mistake. The run
+  resolves its own entry from a per-run marker and skips, dropping nothing, unless exactly one entry
+  matches.
+- **`sync` exits 1 when any repository was skipped or failed.** Skip lines keep their leading
+  columns and gain `git-exit` and `remedy` columns. A dry run that plans a skip still exits 0.
+- **`sync` reads the worktree helper's exit status.** Exit 4 or 5 with a path means the worktree
+  exists, so the park continues; exit 2 or 3, or 4 without a path, unparks the repository.
+- **`sync` no longer probes a sibling plugin's install directory.** `--worktree-create <path>` is the
+  only way to name the helper, and it must be an existing file named `worktree-create.sh`, else exit 2.
+  With no helper, a dirty repository is skipped as `worktree-create-missing` and nothing is stashed.
+  `--worktree-root` is now an optional override; unset, the helper resolves the root from the target
+  repository.
+- **`sync` no-scope exit 3 lists what each rung probed and the remedy per rung.** The walk prunes
+  `.git` as `audit` does, a test fails when the two skip lists differ, and the skill joins the
+  allowed-tools pairing gate. The consent eval now runs a dry run, an explicit go-ahead, then
+  `--apply --yes`.
+
+### Changed
+
+- **Docs.** The README documents `sync`. `audit` owns the no-scope ladder and the README and `setup`
+  point to it. `security-review.md` names the `Bidi_Control` marks and the `LC_ALL=C` control check,
+  `confidence-model.md` and `official-sources.md` are corrected, and each git claim the skill bodies
+  restate carries its basis, as-of date and recheck trigger.
+- **Released entries 0.23.38 and 0.23.39 corrected in place.** 0.23.38 now says it re-records the
+  `ls-remote` transport change released in 0.23.37 and changed no behavior. 0.23.39 no longer
+  overstates how a repository with no worktree root key of its own resolves its root; 0.23.41 changed
+  that.
+
 ## [0.23.44] - 2026-09-28
 
 ### Changed
