@@ -39,7 +39,7 @@ states the fired condition in the run's own values.
 | Rule id | Detects | Tier | Confidence | Gates `--check` | Gates `--check --strict` |
 |---|---|---|---|---|---|
 | `testing/audit/rule-zero-assertion` | a runnable test body with no assertion token | IMPORTANT | `high` | yes | yes |
-| `testing/audit/rule-recomputed-expectation` | an equality whose actual and expected sides are the identical expression | IMPORTANT | `high` | yes | yes |
+| `testing/audit/rule-recomputed-expectation` | an equality whose actual and expected sides are the identical expression; a deliberate determinism check `f(x) == f(x)` still fires and is marked `cant-fail-ok: determinism contract` | IMPORTANT | `high` | yes | yes |
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-flaky-passes-suite` | a Playwright config with retries and `failOnFlakyTests` absent or literal `false`, so a test passing on a retry leaves the run green | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-only-not-forbidden` | a Playwright config with `forbidOnly` absent or literal `false`, so a committed `test.only` shrinks the suite to one test | IMPORTANT | omitted | no | yes |
@@ -67,7 +67,9 @@ states the fired condition in the run's own values.
   is counted; a config whose object literal the engine cannot anchor is enumerated and not examined.
 - **Detection bias: every heuristic errs toward not firing.** Assertion tokens match generously (a
   helper named `assertValidSum` or `checkInvariant` counts), strings/comments are masked first,
-  skipped tests are not judged. A missed defect costs one finding; a false positive costs the
+  skipped tests are not judged. A test that calls a function defined in the same file, bare or on
+  `self`/`this`/`cls`, whose own body asserts, throws or rejects is not a zero-assertion finding;
+  the helper's own calls are not followed (one level deep). A missed defect costs one finding; a false positive costs the
   detector its audience.
 
 ## Running the detector

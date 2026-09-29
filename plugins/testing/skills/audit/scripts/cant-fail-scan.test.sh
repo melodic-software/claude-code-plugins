@@ -1022,6 +1022,7 @@ corpus_files=(
   bash-harness/bad/retry-limit-restated.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture
   bash-harness/good/fail-and-exit.test.sh.fixture
+  bash-harness/good/failure-counter-arith-exit.test.sh.fixture
   bash-harness/good/failure-counter.test.sh.fixture
   bash-harness/good/node-driver-heredoc.test.sh.fixture
   bash-harness/good/pwsh-selftest.test.sh.fixture
@@ -1069,6 +1070,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
@@ -1078,6 +1080,7 @@ corpus_files=(
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
+  cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
@@ -1127,6 +1130,7 @@ corpus_files=(
   js-node-test/good/node-test-context-skip.test.mjs.fixture
   js-node-test/good/node-test-csv-literal.test.mjs.fixture
   js-node-test/good/node-test-destructured.test.js.fixture
+  js-node-test/good/node-test-helper-asserts.test.cjs.fixture
   js-node-test/good/node-test-price-checked.test.mjs.fixture
   js-node-test/good/node-test-repaired-4b.test.mjs.fixture
   js-node-test/good/node-test-repaired-oracles.test.mjs.fixture
@@ -1166,7 +1170,9 @@ corpus_files=(
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
   js-vitest/good/vitest-length-invariant.test.ts.fixture
+  js-vitest/good/vitest-loop-over-literal-probes.test.ts.fixture
   js-vitest/good/vitest-parsed-config-fields.test.ts.fixture
+  js-vitest/good/vitest-poll-helper-rejects.test.ts.fixture
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
@@ -1214,7 +1220,9 @@ corpus_files=(
   py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_deterministic_report.py.fixture
   py-pytest/good/test_pytest_exec_tool_script.py.fixture
+  py-pytest/good/test_pytest_helper_check_returncode.py.fixture
   py-pytest/good/test_pytest_length_invariant.py.fixture
   py-pytest/good/test_pytest_loaded_config_fields.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
@@ -1241,9 +1249,11 @@ corpus_files=(
   py-unittest/bad/test_unittest_total_recomputed.py.fixture
   py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
+  py-unittest/good/test_unittest_deterministic_call.py.fixture
   py-unittest/good/test_unittest_raises.py.fixture
   py-unittest/good/test_unittest_repaired_4b.py.fixture
   py-unittest/good/test_unittest_repaired_oracles.py.fixture
+  py-unittest/good/test_unittest_self_helper_asserts.py.fixture
   py-unittest/good/test_unittest_skipped_class.py.fixture
   py-unittest/good/test_unittest_skiptest.py.fixture
   py-unittest/good/test_unittest_skipunless.py.fixture
@@ -1287,6 +1297,11 @@ for rel in "${corpus_files[@]}"; do
     pass "corpus $rel: reports exactly [${want}]"
   else
     fail "corpus $rel: exact rule set" "want [$want], got [$got]"
+  fi
+  # An `exempt: <rule>` file fires that rule under cant-fail-ok:, which the
+  # scan counts rather than drops.
+  if grep -q 'exempt: rule-' "$copy"; then
+    assert_contains "corpus $rel: the annotated finding is counted as exempt" "$out" "exempted findings (cant-fail-ok): 1"
   fi
 done
 

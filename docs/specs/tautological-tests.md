@@ -239,6 +239,13 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   `assertion.count` matches a length or count check, which clears `rule-conditional-assertion` for
   a loop; `assertion.fail` matches a call that fails the test outright, which is the assertion of
   the `if` or `catch` around it.
+- Same-file helpers: a test with no assertion token of its own is not a zero-assertion finding when
+  it calls, bare or on `self`, `this` or `cls`, a function defined in the same file outside any
+  test whose text holds an assertion token, a mock verification, an `assertion.fail` call, or a
+  throw, raise or reject. A helper's text runs from its definition to the first code line indented
+  no deeper than it; a line starting with `)`, `]` or `{` does not close it, and a deeper
+  definition nests. One level deep: the helper's own calls are not followed. Bash and PowerShell
+  are not tracked.
 - `property_markers` match any raw line of a file whose tests derive expected values on purpose
   (Hypothesis `@given`, fast-check, FsCheck, `testing/quick`); such a file never reports
   `rule-recomputed-derived`. `rules_off` lists rule slugs an adapter never reports:
@@ -812,7 +819,12 @@ Starts after PR B merges ([Execution shape](#execution-shape)).
 - `bash scripts/check-changed-skills.sh origin/main`, `bash scripts/check-skill-count-claims.sh --check`, `bash scripts/check-changelog-parity.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 - `git diff origin/main -- plugins/testing/.claude-plugin/plugin.json | grep -c '^+.*"version"'` returns 1.
 
-### Phase 8: Precision run and release [TODO]
+### Phase 8: Precision run and release [IMPLEMENTED, not on main]
+
+The run is recorded in [`tautological-tests/precision-run.md`](tautological-tests/precision-run.md). Known
+false positives left: two medley zero-assertion findings whose helper asserts two calls deep, and
+one `os.write` probe used as an oracle. No blocking switch flipped (D4). Idle latency was not
+re-measured: load stayed above 8 for the whole run.
 
 - User-approval gate: this phase reads other repos and a fleet host.
 - Pre-check which wave-1 languages each candidate repo holds. Run the scanner over the whole tree of

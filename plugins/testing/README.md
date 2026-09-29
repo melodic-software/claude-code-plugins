@@ -11,7 +11,7 @@ behavior with tests.
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
-| `/testing:audit` | Can't-fail test detection, a deterministic script finds assertion-free bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, C#, Bash, PowerShell and Go; reports with a coverage denominator, gates fail-closed via `--check`, and opt-in persists findings for a review fix pass. |
+| `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved `.claude/testing.yaml`, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes `.claude/testing.yaml`. |
 
 ## Works in any repo
@@ -41,7 +41,12 @@ behavior with tests.
 ## Configuration
 
 Test structure and conventions come from your own project's `CLAUDE.md` and rules.
-This plugin declares no userConfig options.
+
+`test_guards_enabled` (default `false`) turns on two hooks. `test-scan` scans each test file
+Claude writes or edits for tests that cannot fail and reports the findings back to Claude;
+`test-weaken` asks Claude for a reason when an edit removes or skips tests or assertions or
+changes an expected value. `stdin_read_timeout` (default 2 seconds) bounds how long a hook waits
+on its input before letting the edit through.
 
 `/testing:run-e2e` reads one optional consumer-project config surface,
 `.claude/testing/e2e.md`: `recording` (`video | gif | off`, default `off`) and

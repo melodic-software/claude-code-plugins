@@ -29,6 +29,10 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+    # Microsoft.CodeAnalysis.Testing: RunAsync on an analyzer or code-fix test
+    # object asserts its diagnostics and fixed code.
+    - '\}[[:space:]]*\.[[:space:]]*RunAsync[[:space:]]*\('
+    - 'CSharp(Analyzer|CodeFix|CodeRefactoring|SourceGenerator)Test[[:space:]]*<'
   # xUnit's *Async assertions return a Task (xUnit2021).
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
