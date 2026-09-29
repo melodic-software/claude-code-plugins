@@ -131,8 +131,7 @@ prints one warning naming it and the `attribution` file name to rename it to.
 - **Web search**, optional. It is the enrichment branch used only when no breadcrumb names a
   candidate source. Without it the audit degrades to breadcrumb-only resolution: passages whose
   source is already cited nearby still reach `fingerprint-confirmed`, and the rest land on
-  `not-found` with the searched surfaces named. That listing is the run's own claim:
-  `emit-findings.sh` checks it is present, never that it is complete.
+  `not-found` with the searched surfaces named.
 
 ## Boundary
 

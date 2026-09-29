@@ -170,3 +170,8 @@ indistinguishable from a complete one. The relay boundary withholds `not-found` 
 findings file entirely, so the array reaches the schema check and goes no further; the only
 consumer of the listing remains the human report, where it is prose. Treat a report's listing as
 the run's own claim, never as validation evidence that no source exists.
+
+A completeness floor would need a record the model does not write: the fetch step would log each
+surface it actually visited, machine-written, and `emit-findings.sh`, as the sidecar gate, would
+compare the sidecar's `searched` array against that log. No such log exists, and nothing enforces
+a floor today.

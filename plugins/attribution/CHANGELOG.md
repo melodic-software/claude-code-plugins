@@ -21,7 +21,8 @@
 
   **The rubric stays at version 4.** Its header rule names carve-outs and criteria, and a tier row
   is neither: judges grade carve-outs and criteria before any tier is mapped, no grade changes, and
-  no golden case declares this tier, so no recorded measurement is invalidated (Refs #3465).
+  no golden case declares this tier, so no recorded measurement is invalidated. The row joins
+  version 4 before any measurement is pinned to that version (Refs #3465).
 
 - **`scripts/sweep-ledger.sh` keeps the sweep ledger.** `init`, `close <file>`, `spend <n>`,
   `cache-add`, `cache-check`, and `status` manage `.work/<topic-slug>/sweep-ledger.md` in the
@@ -49,11 +50,6 @@
   human, and each names the generator's input as the fix site. The exclusion is the marker, never a
   list of files, and no script enforces the check. `SKILL.md` "Sweep" states the same in one
   sentence (Refs #3465).
-- **The searched-surfaces listing is stated as checked for presence only.** No live doc claims it
-  validates anything: `docs/specs/provenance-design-threads.md` no longer says the first
-  no-breadcrumb case "validates" it, and the README says `emit-findings.sh` checks the listing is
-  present and never that it is complete. The 0.5.1 entry for the sidecar check and the 0.4.0 entry
-  recording the listing as unenforced already say this and are left as recorded (Refs #3465).
 - **`SKILL.md`'s description no longer enumerates the tier names**, so a tier added later does not
   leave it stale.
 - **Golden-set re-score against rubric version 4: the deterministic layer was re-run, the judgment
@@ -84,7 +80,8 @@
   #5354.
 
   **No verdict moved, and none could be measured as moving.** Version 4 differs from version 3 in
-  carve-out 5 and in the tier table's `vendored-snapshot` row. All ten cases are ordinary local
+  carve-out 5 and in the tier table's `vendored-snapshot` row, which joined version 4 before its
+  first measurement, so no version-4 figure predates it. All ten cases are ordinary local
   notes, none is a distilling surface with a Sources section, so the carve-out 5 qualifier has
   nothing to act on, and no case declares the new tier. That reading predicts every expected
   verdict holds; it is a prediction from the fixtures, not a panel result, and no `expected.json`
@@ -93,6 +90,17 @@
   **Every class stays below `min_n_per_class` 10:** near-verbatim n = 5, verbatim n = 2, paraphrase
   n = 1, hard negatives n = 2 (10 cases). The class-size gate therefore holds whatever the panel
   returns, and no class is fix-eligible (Refs #3465).
+
+## [0.6.3] - 2026-09-29
+
+### Fixed
+
+- The provenance design-threads spec no longer says the first no-breadcrumb case validates the
+  searched-surfaces listing: the listing is a prose requirement the reader verifies, and
+  `emit-findings.sh` checks presence only. `reference/source-fetch.md` now names where a
+  completeness floor would have to live (a machine-written log of visited surfaces, compared
+  against the sidecar's `searched` array by `emit-findings.sh`) and says no such log exists
+  (Refs #3465).
 
 ## [0.6.2] - 2026-09-29
 
