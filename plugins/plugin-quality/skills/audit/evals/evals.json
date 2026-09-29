@@ -202,6 +202,76 @@
         "Does not silently ignore the retired file or resolve defaults over it",
         "Does not read ~/.claude/plugin-quality.md or .claude/plugin-quality.local.md"
       ]
+    },
+    {
+      "id": 16,
+      "name": "session-discovers-and-confirms-targets-before-pipeline",
+      "prompt": "The session is over and I used a few plugin skills and hooks. Run /plugin-quality:audit session.",
+      "expected_output": "The audit locates the session-flow retro parser (reused, no second parser), parses this session, and reads plugin_usage. It builds a list of used skills ordered by count, shows it, and waits for the operator to confirm, edit or accept before any evidence capture or dispatch. Only the confirmed list becomes the target list.",
+      "files": [],
+      "expectations": [
+        "Reuses the session-flow retro parse_transcript.py rather than writing or embedding a second transcript parser",
+        "Reads the plugin_usage block (skills keyed <plugin>:<skill>, hooks keyed by plugin) from the parser output",
+        "Presents the discovered list and waits for confirmation before running step 1",
+        "Feeds only the confirmed list into the existing target resolution and steps 1 to 6",
+        "Stops with a statement that the parser is absent, and does not build a substitute, when the parser cannot be found"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "arm-starts-observer-and-records-armed-state",
+      "prompt": "Start of a new session. Run /plugin-quality:audit arm.",
+      "expected_output": "The audit invokes /session-flow:running-retro arm, and when the launcher reports the observer armed writes an armed-state file in the plugin data dir beside evidence/ with armed_at, session_id and the launcher's result. It audits nothing. If the file already exists it reports that and stops; if session-flow is absent it says the observer cannot be armed and stops.",
+      "files": [],
+      "expectations": [
+        "Invokes /session-flow:running-retro arm rather than building its own observer",
+        "Records the armed state (armed_at, session_id, launcher result) in the plugin data dir, outside the evidence packet tree",
+        "Does not audit any component or start the pipeline",
+        "Does not launch a second observer when an armed-state file already exists for the session",
+        "Writes nothing when the launcher reports it did not arm, and relays the launcher's message"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "candidate-without-session-artifact-is-listed-unfiled",
+      "prompt": "During an audit of source-control:commit I suspect the skill mishandles a detached HEAD, but I never ran it that way this session and there is no report, exit code or transcript excerpt for it. Should this go into the work item?",
+      "expected_output": "The candidate has no session artifact behind it (a doc citation or a reading of the source does not count), so it is unfiled: it is listed in contract.md under Unfiled with the reason no artifact backs it and the artifact that would qualify it, is shown to the operator in the step 3 presentation, and is never emitted in any sink at any confidence. It may re-enter only after a reproduction is run and saved to the packet.",
+      "files": [],
+      "expectations": [
+        "Classifies the candidate as unfiled because no session artifact backs it",
+        "Records it under Unfiled in contract.md with the reason and the artifact that would qualify it",
+        "Tells the operator about it in the step 3 presentation",
+        "Does not emit the candidate into the work item, at any confidence",
+        "Says a saved reproduction run (output and exit code) would let it re-enter step 3"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "unresearched-suggestion-is-needs-decision-never-agent-ready",
+      "prompt": "The audit has one defect with a saved report and one suggested remediation, but the discovery plugin is not installed so no research pass ran on the remediation. Which readiness label does the suggested change get?",
+      "expected_output": "The suggested change gets needs-decision. Only a change whose item carries a filled Research section (sources with tiers from a /discovery:research pass) is agent-ready; research that is absent, declined or empty means needs-decision, and the audit never assigns agent-ready on its own judgment.",
+      "files": [],
+      "expectations": [
+        "Labels the suggested change needs-decision",
+        "Does not label it agent-ready",
+        "States that absent research means needs-decision",
+        "Does not assign agent-ready from the auditor's own judgment",
+        "Files the reported defect normally, since the gate applies to the suggested change and not to the defect"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "review-step-names-seams-by-role",
+      "prompt": "At high effort, which review seams does step 5 run, and how do you pick the skills for them?",
+      "expected_output": "Step 5 names four seams by role, presence-gated and resolved at run time against the skills this session lists: adversarial re-examination, upstream conformance, the running model's adaptation chapter, and scope challenge through the overengineering audit. Each has an absent-fallback, and the write-up reports the resolved skill or the fallback. Below high effort they are skipped and the write-up says so.",
+      "files": [],
+      "expectations": [
+        "Names the four seams by role: adversarial re-examination, upstream conformance, adaptation chapter for the running model, scope challenge",
+        "Resolves each role at run time from the skills this session lists, not from a hardcoded list of skill names",
+        "Applies the stated absent-fallback for any role with no installed skill",
+        "Reports the resolved skill or fallback in the step 5 seam-resolution line",
+        "Skips these seams below high effort and says so in the write-up"
+      ]
     }
   ]
 }
