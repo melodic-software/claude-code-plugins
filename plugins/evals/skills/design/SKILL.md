@@ -84,9 +84,15 @@ neither is a migration of the other. Say which one the consumer is asking for be
 
 An `evals/evals.json` case grades the skill's output only and has no no-skill arm. That answers
 "does the output meet these expectations". A baseline arm is required when the claim is
-comparative: the skill improves on what the model does without it, it fires when it should, or the
-claim covers a whole plugin (its skills, agents and hooks together). Route those to
-`claude plugin eval` through `/evals:plugin-eval`; its with/without delta is the answer.
+comparative: the skill improves on what the model does without it, or the claim covers a whole
+plugin (its skills, agents and hooks together). Route those to `claude plugin eval` through
+`/evals:plugin-eval`; its with/without delta is the answer. Whether the skill fires is not a
+delta question: the no-plugin arm has no skill to invoke, so read it from the with-arm
+`tool_used: Skill` indicator, which is unscored.
+
+Verified 2026-09-11 against <https://code.claude.com/docs/en/plugin-evals.md> and
+`claude plugin eval --help` (recorded in `docs/native-surfaces.md`, the `plugin eval` entry).
+Recheck when a Claude Code release changes `--ablation`'s default or which graders it excludes from scoring.
 
 ## Phase 3: grading hygiene gate
 
