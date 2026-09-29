@@ -251,6 +251,7 @@ init)
 close)
   want 1 "one argument, the repo-relative file that closed"
   file="${ARGS[0]#./}"
+  [[ -n "$file" ]] || die 2 "close takes a repo-relative path, not an empty one"
   [[ "$file" != /* ]] || die 2 "close takes a repo-relative path, not $file"
   plain file "$file"
   missing=""

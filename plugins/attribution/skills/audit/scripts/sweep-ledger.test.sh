@@ -152,6 +152,12 @@ assert_exit "an empty field value exits 2" "$?" "2"
 OUT="$(run --topic t1 close /abs/a.md "${CLOSE_FIELDS[@]}")"
 assert_exit "an absolute path is refused" "$?" "2"
 
+OUT="$(run --topic t1 close "" "${CLOSE_FIELDS[@]}")"
+assert_exit "an empty path exits 2" "$?" "2"
+OUT="$(run --topic t1 close ./ "${CLOSE_FIELDS[@]}")"
+assert_exit "a bare ./ path exits 2" "$?" "2"
+assert_contains "an empty-path close records nothing" "$(run --topic t1 status)" "closed files: 0"
+
 OUT="$(run --topic t1 close docs/a.md --dispositions "one | two" --pointer-liveness live --semantic-diff ok --in-span ok --carve-out ok)"
 assert_exit "a value holding a pipe is refused" "$?" "2"
 
