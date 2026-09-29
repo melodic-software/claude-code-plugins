@@ -1,5 +1,5 @@
 ---
-description: "When the built-in skill-doctor command resolves in your session, prefer it for cost; when the bundled doctor skill resolves in your session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
+description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; when the bundled doctor skill resolves in this session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
 argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
@@ -163,13 +163,34 @@ an `enabledPlugins` scope sets it `true`; `defaultEnabled` does not decide an
 absent key at runtime. Basis: a fixture probe of `claude plugin list --json` on
 Claude Code 2.1.280 reported disabled every installed plugin no scope named,
 including one whose marketplace entry and one whose `plugin.json` set
-`defaultEnabled: true`. The settings reference
-(<https://code.claude.com/docs/en/settings#enabledplugins>) and the plugins
-reference (<https://code.claude.com/docs/en/plugins-reference#default-enablement>)
-state the opposite, so the engine follows the product and each such row's
-`provenance` says so. As of 2026-09-23. Recheck trigger: a Claude Code release
-that changes `claude plugin list`'s `enabled` answer for an absent key, or
-either doc section changing.
+`defaultEnabled: true`. The settings reference agrees: an unlisted marketplace
+plugin starts `false` (<https://code.claude.com/docs/en/settings-reference#enabledplugins>).
+The manifest reference (<https://code.claude.com/docs/en/plugins-reference#defaultenabled>)
+states the opposite, so the engine follows the product and each such row's
+`provenance` says so. As of 2026-09-23, re-measured and both docs re-read
+2026-09-28. Recheck trigger: a Claude Code release that changes
+`claude plugin list`'s `enabled` answer for an absent key, or either doc
+section changing.
+
+Every `enabledPlugins` value must be a Boolean. A settings file holding one
+that is not contributes none of its `enabledPlugins` keys, `true` siblings
+included, and the other scopes still decide each key it named. A key only
+such a file names makes every skill of that plugin `hidden` (cause
+`settings-file-rejected`), with evidence naming the file and the offending key.
+
+Verification record for that rule. Claim: Claude Code rejects a settings file
+whose `enabledPlugins` holds any non-Boolean value and reads its keys as if the
+file set none. Basis: a fixture probe on Claude Code 2.1.280, with
+`CLAUDE_CONFIG_DIR` and `HOME` under a scratch directory: `claude plugin list
+--json` read a `true` disabled beside a `"yes"` (or `1`) in the same user file,
+a project file holding one lost its `false` to the user file's `true`, and
+`claude doctor` listed the value under "Invalid settings". The settings
+reference types the key as an object of Booleans, and
+<https://code.claude.com/docs/en/settings#fix-a-broken-settings-file> says a
+value the schema rejects skips the file, without naming this key. As of
+2026-09-28. Recheck trigger: a Claude Code release that changes
+`claude plugin list`'s answer for a `true` beside a non-Boolean value, or that
+doc section naming per-entry handling for `enabledPlugins`.
 
 A scope file that exists but cannot be read or parsed could
 have set any key at its own precedence, so plugins whose answer would come
@@ -345,7 +366,7 @@ the settings file that did), and says so when there is nothing to fix.
 | Question | Owner |
 |---|---|
 | Why is my fleet unused, starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill**, the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
-| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in your session; the bundled `/doctor` skill's checkup, when that one resolves; the Stats tab carries the `/skill-doctor` report in an interactive session |
+| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in this session; the bundled `/doctor` skill's checkup, when that one resolves; the Stats tab carries the `/skill-doctor` report in an interactive session |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/claude-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/claude-ops:observability` |
@@ -369,7 +390,7 @@ conflated whenever a fleet looks unused:
   computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
   withholding every verdict the span cannot support. Read-only.
 
-**Routing.** When either native surface resolves in your session, prefer it for "which skills are
+**Routing.** When either native surface resolves in this session, prefer it for "which skills are
 unused versus their cost, right now". Prefer this skill when the answer has to survive a young
 usage store, when starved and unwanted must be told apart, or when the question is whether skill
 B fires where skill A ran.

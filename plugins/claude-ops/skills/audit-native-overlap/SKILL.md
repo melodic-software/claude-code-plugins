@@ -235,7 +235,7 @@ observation class is extraction-evidence (session-provided rows are never baked)
 `integration` is not `route` when a Native step or suggest sentence is to be written; the row
 does not carry `model-invocation-disabled` when a Native step is to be written; and the user
 asked for this plugin by name. It emits one clause, front-loaded, carrying the presence gate
-("when the bundled &lt;name&gt; skill resolves in your session, prefer it for …; this skill for
+("when the bundled &lt;name&gt; skill resolves in this session, prefer it for …; this skill for
 …"), the provenance class, and the routing split, and, when `integration` is `wrap` or
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,

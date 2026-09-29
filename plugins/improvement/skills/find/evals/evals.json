@@ -41,6 +41,18 @@
         "Honors the invocation prompt's cap of 2 over the adaptive filing default",
         "Performs no code edits, no queue prioritization, and no self-disposal — report persistence and filing are the only mutations"
       ]
+    },
+    {
+      "id": 4,
+      "name": "already-built-disconnected-scan-d7-d11",
+      "prompt": "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead.",
+      "expected_output": "Before proposing net-new work, scans for already-built-but-disconnected surfaces — dead imports, dark feature flags, unread tables or endpoints — and surfaces any disconnected capability as a candidate ahead of greenfield build proposals.",
+      "files": [],
+      "expectations": [
+        "Output explicitly looks for dead imports, dark or off-by-default feature flags, and unread tables or routes before recommending new work",
+        "A disconnected existing capability, if found, appears as a ranked candidate with evidence citations rather than being skipped",
+        "Output does not jump straight to a greenfield build proposal without reporting what the disconnected scan found (including an explicit 'none found' line)"
+      ]
     }
   ]
 }

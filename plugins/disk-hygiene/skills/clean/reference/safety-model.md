@@ -3,6 +3,7 @@
 ## Contents
 
 - [Trust boundaries](#trust-boundaries)
+- [Tidiness, not emergency](#tidiness-not-emergency)
 - [Non-overridable checks](#non-overridable-checks)
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
@@ -28,6 +29,25 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 - deterministic checks exclude protected/changed/tracked/linked/mounted/open/unverifiable entries;
 - explicit human approval authorizes one tier and exact list;
 - the engine binds that preview to a snapshot nonce and plan digest.
+
+## Tidiness, not emergency
+
+The cleaner has no disk-full mode. Every pass is a cautious tidiness pass: bytes stay secondary,
+mutation still needs a fresh preview and one-tier approval, and a filename pattern stays a hint.
+An operator facing a full disk acts with OS tools, Recycle Bin / Trash, or the owning product's
+GC; this engine does not become more aggressive under pressure.
+
+Regenerable-but-costly state (a build cache versus an irreplaceable artifact) is not an engine
+signal. High/Medium/Low already encode provenance, not regeneration cost; ranking stays a model
+instruction per the #3858 park.
+
+**Claim:** the cleaner does not distinguish a tidiness pass from a disk-full emergency; none of
+the three rules yields, and regenerable-at-a-cost is not an engine signal. **Basis:** #3855 is
+the decision carrier and lists changing nothing as a complete answer; relaxing any of those
+rules under pressure is when a wrong deletion is most likely. Option A keeps the current
+defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28. **Recheck:** an
+operator unpark of #3855, or a funded design that names which rule yields and under what
+bounded conditions.
 
 ## Non-overridable checks
 
