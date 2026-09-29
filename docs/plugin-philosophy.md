@@ -1288,10 +1288,10 @@ name is not the same underlying value across models):
 - **Claim:** Thirteen named agents pin `effort: high` so a session tuned down for cost does not
   silently cheapen consequential workers, and two more pin `effort: medium`. There is no
   per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
-  agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable lowers every pin at once for
-  the whole session (the environment variable still wins, per above), and a `maxEffortLevel` or
-  organization effort cap limits them the same way. Neither cited page documents a per-lane or
-  per-plugin lever; lowering one agent's pin alone means editing its definition.
+  agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides every pin at once
+  for the whole session (the environment variable still wins, per above), and a `maxEffortLevel`
+  or organization effort cap limits any pin above the cap. Both act on the whole session; neither
+  cited page documents a per-lane or per-plugin lever.
 - **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
   `implementer` and `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`;
   `review` `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
@@ -1299,8 +1299,8 @@ name is not the same underlying value across models):
   `object-writer`. `effort: medium`: `discovery` `research-verifier` and `planning`
   `plan-reviewer`. Issue [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253)
   is the source of the filed list of eleven, which omits `auditor` and `object-writer`. The
-  Agent-tool gap in this section ("a generic Agent-tool dispatch carries no effort control").
-  Upstream, fetched 2026-09-29 from the raw `.md` channel:
+  Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
+  control"). Upstream, fetched 2026-09-29 from the raw `.md` channel:
   [model config](https://code.claude.com/docs/en/model-config#set-the-effort-level) (109,282
   bytes), "Frontmatter effort applies when that skill or subagent is active, overriding the
   session level but not the environment variable. A `maxEffortLevel` or organization effort cap
