@@ -10,6 +10,9 @@
 - **`handoff`, `retro` and `clean-stop` parse the leading `unattended` argument** their argument hints declare, with evals for `handoff` and `retro`.
 - **One record for the plugin data dir and plain-token substitution** ([#4295](https://github.com/melodic-software/claude-code-plugins/issues/4295)).
 - **`save_point.py memory-root` is documented** on the stale surfaces (`reference/save-point.md`, `structure.md`, `topic-docs.md`, `observer.md`) and allowed in the hop harness.
+- **Node.js on PATH is declared.** The README gains a Requirements section, and `setup`'s `check` probes `node`, since every hook row launches through `node hooks/exec-bash.mjs`.
+- **The 0.38.22 entry no longer says the hook rows are unchanged**, which contradicted 0.38.21 from the same commit.
+- **`setup`'s eval prompts carry the literal em dash** instead of `—` escapes.
 - **`orchestrate` records the hung-background-shell claim** in `context/sources.md`, `handoff`'s restatement of `implement-dispatch` matches it, and the pending-CI record is linked from `handoff`.
 
 ## [0.38.27] - 2026-09-28
@@ -68,7 +71,7 @@
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.38.21] - 2026-09-28
 
