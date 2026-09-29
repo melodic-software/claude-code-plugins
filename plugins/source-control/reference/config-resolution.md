@@ -445,8 +445,9 @@ The overlay convention needs one line in the consuming repo:
 .claude/**/*.local.*
 ```
 
-No skill in this plugin writes the consumer's root `.gitignore`. `/source-control:setup` recommends
-the line and leaves the edit to the consumer.
+`/source-control:setup apply layer=team` appends the line when it is missing and announces the
+edit; it is the only write this plugin makes to the consumer's root `.gitignore`. `layer=local`
+never edits it and fails with a recommendation when the overlay is exposed.
 
 ## Failure modes
 
