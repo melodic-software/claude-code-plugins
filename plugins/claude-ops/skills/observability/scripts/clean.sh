@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # /observability clean — prune local observability data by age.
 # Four layers, each with its own retention:
-#   1. JSONL metadata — the hook log root's hook-events.jsonl (the reference
-#      sink's shared file, default root .observability/claude, --hook-root moves
-#      it) and, while a consumer still carries it, the retired
+#   1. JSONL metadata — the hook log root's hook-events.jsonl and the
+#      hook-events.jsonl.1 the sink rotates it to at its size cap (the reference
+#      sink's shared files, default root .observability/claude, --hook-root moves
+#      them) and, while a consumer still carries it, the retired
 #      .claude/observability/hook-events.jsonl — path-only, pruned in place to
 #      the --keep-days window (default 30). The root's per-session files
 #      (sessions/<id>.jsonl) are removed whole once older than the same window,

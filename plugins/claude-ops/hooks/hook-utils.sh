@@ -2971,27 +2971,6 @@ hook::append_jsonl() {
   fi
 }
 
-# hook::append_jsonl, plus a size cap: under the same lock, a <file> over
-# <max_bytes> is moved to <file>.1 (replacing any older .1) before the append,
-# so the pair holds at most about twice the cap. Without flock the rotation runs
-# unlocked; a concurrent writer can at worst append to the rotated file.
-#   hook::append_jsonl_capped <file> <line> <max_bytes>
-hook::append_jsonl_capped() {
-  local file="$1" line="$2" max="$3" size
-  if command -v flock >/dev/null 2>&1; then
-    (
-      flock -w 2 9 || exit 0
-      size=$(wc -c <"$file" 2>/dev/null) || size=0
-      ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
-      printf '%s\n' "$line" >>"$file"
-    ) 9>"${file}.lock" 2>/dev/null
-  else
-    size=$(wc -c <"$file" 2>/dev/null) || size=0
-    ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
-    printf '%s\n' "$line" >>"$file" 2>/dev/null
-  fi
-}
-
 # Per-hook stdout context accumulator. ctx_reset at entry, ctx_append per line,
 # then either ctx_take_to (handing the agent channel to hook::finish, which
 # owns the emit) or ctx_flush once at exit with the hook event name.

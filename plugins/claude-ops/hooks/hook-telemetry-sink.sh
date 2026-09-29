@@ -144,6 +144,27 @@ slog_event_record_to LINE envelope "$TS" "" "$EVENT" "$STATUS_OUT" \
   "${DURATION_MS:-0}" "${RUN_KEYS[@]}"
 max_bytes="${CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES:-}"
 [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=10485760
-hook::append_jsonl_capped "${root}/hook-events.jsonl" "$LINE" "$max_bytes"
+
+# hook::append_jsonl plus a size cap: a <file> over <max_bytes> moves to
+# <file>.1 (replacing any older .1) before the append. Without flock the
+# rotation runs unlocked; a concurrent writer can at worst append to the
+# rotated file.
+#   append_capped <file> <line> <max_bytes>
+append_capped() {
+  local file="$1" line="$2" max="$3" size
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -w 2 9 || exit 0
+      size=$(wc -c <"$file" 2>/dev/null) || size=0
+      ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
+      printf '%s\n' "$line" >>"$file"
+    ) 9>"${file}.lock" 2>/dev/null
+  else
+    size=$(wc -c <"$file" 2>/dev/null) || size=0
+    ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
+    printf '%s\n' "$line" >>"$file" 2>/dev/null
+  fi
+}
+append_capped "${root}/hook-events.jsonl" "$LINE" "$max_bytes"
 
 exit 0

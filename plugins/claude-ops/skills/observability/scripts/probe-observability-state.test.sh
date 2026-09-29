@@ -293,6 +293,16 @@ if [[ "$P_OUT" != *"event log:"* ]]; then
 else
   fail "pipeline --observed: no option tier is printed" "no event log: text" "$P_OUT"
 fi
+# The sink rotates the shared file to hook-events.jsonl.1 at its size cap; both
+# files are the hook log, so a rotation must not drop rows from any count.
+printf '{"event":"Stop","hook":"f"}\n{"event":"Stop","hook":"g"}\n{"event":"Stop","hook":"h"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl.1"
+P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
+assert_contains "pipeline: the rotated .1 joins the shared count" \
+  "shared: 5 event(s) in hook-events.jsonl" "$P_OUT"
+assert_contains "pipeline: the rotated .1 joins the envelope count" \
+  "envelope: 8 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
+assert_eq "--hook-events: the rotated .1 joins the total" "9 events" \
+  "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
 unset STUB_GIT_TOPLEVEL
 
 # --- The skill's own pre-compute lines -----------------------------------------

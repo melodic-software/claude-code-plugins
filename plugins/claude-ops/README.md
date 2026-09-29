@@ -224,8 +224,9 @@ the hook log root, `<project-root>/.observability/claude` by default (the
 `data.session_id` lands in `sessions/<session_id>.jsonl`, beside the
 per-session event log; one without lands in the shared `hook-events.jsonl`
 in the legacy shape; that file rotates to `hook-events.jsonl.1` at
-`hook_events_max_bytes` whatever the session-log switch is set to. Both are what the `observability` skill reads. The root
-carries a self-ignoring `.gitignore`, created on the first write (or by
+`hook_events_max_bytes` whatever the session-log switch is set to. Both are
+what the `observability` skill reads. The root carries a self-ignoring
+`.gitignore`, created on the first write (or by
 `/claude-ops:setup apply`); rows left at the old
 `.claude/observability/hook-events.jsonl` location are detected by setup as
 retirement `claude-ops-r001` and migrated on request.
@@ -311,8 +312,8 @@ your own repository's context:
   the hook log root (`<project-root>/.observability/claude` by default, the
   `session_event_log_dir` option moves it): `sessions/<session_id>.jsonl`
   when the per-session event log is on or the sink is wired, and the shared
-  `hook-events.jsonl` (rotated to `.1` at the size cap) for envelopes without a session id; every source
-  degrades gracefully when absent.
+  `hook-events.jsonl` (rotated to `.1` at the size cap) for envelopes without
+  a session id; every source degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
   (`registry.json`), `check-all` output, `--write` observability reports, and
@@ -436,9 +437,9 @@ reads it from.
 | `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Append one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every documented event the generated registry marks observable. Off by default: a consumer who has not turned it on pays the kill-switch read and nothing else. The same switch gates the SessionEnd retention hook. |
 | `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Contained project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. Inside a checkout the directory carries a self-ignoring .gitignore, created on the first write. Leave unset to use .observability/claude. |
 | `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable. |
-| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. |
 | `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days). |
 | `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions). |
+| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. |
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly. |
 
 ### How to set these
