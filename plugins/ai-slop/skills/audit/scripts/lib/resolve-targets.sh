@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # One resolver for detect.sh's target list. Sourceable; not invoked directly.
 # Every entry form (no paths, explicit paths, a directory, --paths-file,
-# offset/limit) comes through resolve_targets, and the git listing is one
-# function: core.quotePath=false, with the listing's own stderr left intact.
+# offset/limit) comes through resolve_targets. The git ladder (git on PATH, work
+# tree confirmed, ls-files succeeded) lives in list_tracked_or_fallback alone,
+# and list_tracked_markdown is the one place that sets core.quotePath=false.
 
 # list_tracked_markdown <dir>: tracked *.md paths relative to dir, one per line.
 # The exit status is git's. quotePath is forced off so a non-ASCII name is the
@@ -22,38 +23,65 @@ normalize_dir_target() {
   printf '%s\n' "$dir"
 }
 
-# expand_dir_target <dir>: markdown under dir, one absolute-to-the-spelling path
-# per line. Tracked files when git confirms a work tree; a filesystem walk
-# otherwise, with the stderr line that names why the walk ran.
-expand_dir_target() {
-  local dir inside listing status
-  dir="$(normalize_dir_target "$1")"
+# list_tracked_or_fallback <dir> <walk|none>: tracked markdown under dir, or the
+# fallback, with the stderr line that names why the fallback ran.
+#   walk: a directory target. Prints paths spelled as the caller spelled <dir>.
+#         Where git cannot confirm a work tree, a filesystem walk replaces the
+#         listing; a failed ls-files yields nothing.
+#   none: a bare invocation. Prints paths relative to <dir>; every failure
+#         yields nothing.
+#
+# The caller's own spelling of <dir> is the only anchor. Git Bash answers
+# `C:/Users/...` for the checkout a shell reaches as `/tmp/...`, so a prefix
+# built from `git rev-parse --show-toplevel` or a filter built from `pwd` can
+# disagree with it; `git -C <dir> ls-files` answers relative to <dir> itself.
+# The branch is chosen from `--is-inside-work-tree`, never from an empty
+# pipeline. A silent walk is valid only when git itself says the directory is
+# outside a checkout: a safe.directory refusal or an unreadable .git must
+# surface, not walk.
+list_tracked_or_fallback() {
+  local dir="$1" mode="$2" inside listing status rel
 
   if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; directory $dir expanded via filesystem walk (tracked-files-only is not achievable)" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
+    if [[ "$mode" == walk ]]; then
+      echo "detect.sh: git is not on PATH; directory $dir expanded via filesystem walk (tracked-files-only is not achievable)" >&2
+      find "$dir" -name '*.md' -type f 2>/dev/null
+    else
+      echo "detect.sh: git is not on PATH; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
+    fi
     return 0
   fi
 
   inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
   status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git could not confirm a work tree under $dir (exit $status); expanding via filesystem walk" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-  if [[ "$inside" != "true" ]]; then
-    find "$dir" -name '*.md' -type f 2>/dev/null
+  if [[ "$mode" == walk ]]; then
+    if [[ "$status" -ne 0 ]]; then
+      echo "detect.sh: git could not confirm a work tree under $dir (exit $status); expanding via filesystem walk" >&2
+    fi
+    if [[ "$status" -ne 0 || "$inside" != "true" ]]; then
+      find "$dir" -name '*.md' -type f 2>/dev/null
+      return 0
+    fi
+  elif [[ "$status" -ne 0 || "$inside" != "true" ]]; then
+    echo "detect.sh: git could not confirm a work tree at $dir; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
     return 0
   fi
 
   listing="$(list_tracked_markdown "$dir")"
   status=$?
   if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2
+    if [[ "$mode" == walk ]]; then
+      echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2
+    else
+      echo "detect.sh: git ls-files failed in $dir (exit $status); nothing was scanned" >&2
+    fi
     return 0
   fi
 
+  if [[ "$mode" != walk ]]; then
+    [[ -n "$listing" ]] && printf '%s\n' "$listing"
+    return 0
+  fi
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
     if [[ "$dir" == */ || "$dir" == *\\ ]]; then
@@ -64,33 +92,16 @@ expand_dir_target() {
   done <<<"$listing"
 }
 
+# expand_dir_target <dir>: markdown under dir, one path per line, spelled as the
+# caller spelled <dir>.
+expand_dir_target() {
+  list_tracked_or_fallback "$(normalize_dir_target "$1")" walk
+}
+
 # list_repo_markdown <repo-root>: tracked markdown for a bare invocation.
-# Prints repo-relative paths. A missing git, a non-work-tree, or a failed
-# listing prints its stderr line and prints no paths.
+# Prints repo-relative paths; any failure prints its stderr line and no paths.
 list_repo_markdown() {
-  local repo_root="$1" inside listing status
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  inside="$(git -C "$repo_root" rev-parse --is-inside-work-tree 2>/dev/null)"
-  status=$?
-  if [[ "$status" -ne 0 || "$inside" != "true" ]]; then
-    echo "detect.sh: git could not confirm a work tree at $repo_root; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  listing="$(list_tracked_markdown "$repo_root")"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed in $repo_root (exit $status); nothing was scanned" >&2
-    return 0
-  fi
-
-  [[ -n "$listing" ]] || return 0
-  printf '%s\n' "$listing"
+  list_tracked_or_fallback "$1" none
 }
 
 # resolve_targets <dest> <repo-root> <paths-file> <offset> <limit> <skip-window> [path...]
