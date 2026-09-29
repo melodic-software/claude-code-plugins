@@ -316,10 +316,15 @@ def recommended_integration(klass: str, invocable_by: str) -> str | None:
 
     A user-only surface can only be suggested (ours tells the model to suggest
     the user type it); a model-invocable one can be routed to or wrapped,
-    except a built-in command, which the store never lets take `wrap`.
+    except a class the store never lets take `wrap`.
     """
     if invocable_by == "user-only":
         return "suggest"
     if invocable_by in ("model+user", "model-only"):
-        return "route" if klass == "builtin-command" else "route-or-wrap"
+        return "route" if klass in ROUTE_ONLY_CLASSES else "route-or-wrap"
     return None
+
+
+# Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
+# step invokes through the Skill tool, and neither is a skill.
+ROUTE_ONLY_CLASSES = frozenset({"builtin-command", "bundled-workflow"})

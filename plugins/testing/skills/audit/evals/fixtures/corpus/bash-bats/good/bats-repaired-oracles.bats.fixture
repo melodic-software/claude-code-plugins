@@ -1,0 +1,34 @@
+#!/usr/bin/env bats
+# good-for: rule-inert-assertion
+# good-for: rule-constant-restatement
+# good-for: rule-source-text-read
+# The repaired twins: every run is checked, ! sits on the last line or runs
+# through run !, the retry limit is observed through retry, and the page is
+# rendered rather than grepped.
+
+setup() {
+  load 'test_helper/bats-assert/load'
+  load '../lib/retry'
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet records the greeting" {
+  run greet world
+  assert_success
+  [ -f "$BATS_TEST_TMPDIR/greeted" ]
+}
+
+@test "greet rejects an empty name" {
+  run ! greet ''
+  ! greet ''
+}
+
+@test "retry gives up after the limit" {
+  run retry false
+  assert_output --partial "attempt $MAX_RETRIES"
+}
+
+@test "the page renders a content plan" {
+  run render_page
+  assert_line --index 0 --partial 'Content plan'
+}

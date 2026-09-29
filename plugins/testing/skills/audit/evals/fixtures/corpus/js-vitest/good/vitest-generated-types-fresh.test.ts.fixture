@@ -1,0 +1,12 @@
+// good-for: rule-source-text-read
+// reads: src/generated/types.ts
+// Codegen freshness: the committed file must equal what the generator writes
+// today. The text is compared whole, never searched.
+import { readFileSync } from 'node:fs';
+import { expect, it } from 'vitest';
+import { generate } from '../codegen/generate';
+
+it('the committed types match the generator', () => {
+  const committed = readFileSync('src/generated/types.ts', 'utf8');
+  expect(committed).toBe(generate());
+});

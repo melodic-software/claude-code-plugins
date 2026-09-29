@@ -126,8 +126,8 @@ Every candidate carries `native.invocable_by` (`model+user`, `user-only`, `model
 `disable_model_invocation` in an older extraction; a field the extraction lacks makes it `unknown`.
 `model_invocable: false` also sets the `model-invocation-disabled` marker the store's suggest-only
 rule reads. From it comes `recommended_integration`: `suggest` for a user-only surface, `route` or
-`route-or-wrap` for a model-invocable one (`route` for a built-in command, which never takes
-`wrap`), and nothing when unknown. It is a label for the human writing the row, never a store value.
+`route-or-wrap` for a model-invocable one (`route` for a built-in command or a bundled workflow,
+which never take `wrap`), and nothing when unknown. It is a label for the human writing the row, never a store value.
 
 Three rules:
 

@@ -156,9 +156,9 @@ default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, a
 project's directory for a `project`/`local` scope, or the rerun adds a second install record at the
 scope passed and enables the plugin there; the value itself always lands in user settings. A
 rejected value prints a warning yet exits 0, so read the output. This skill never writes Claude Code
-user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered `${user_config.*}` and each hook's `CLAUDE_PLUGIN_OPTION_*` are
-fixed at session start, so a same-session `check` still reports the OLD value; report the observed
-effective value, never an unobserved change.
+user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered `${user_config.*}`
+and each hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check`
+still reports the OLD value; report the observed effective value, never an unobserved change.
 
 ### Verify after remediation
 

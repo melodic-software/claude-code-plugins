@@ -1,0 +1,16 @@
+// expect: rule-source-text-read
+// reads: src/Cart.cs
+// Greps the class's source for a method name instead of calling it.
+using System.IO;
+using NUnit.Framework;
+
+[TestFixture]
+public class CartSourceTextTests
+{
+    [Test]
+    public void Cart_HasClearMethod()
+    {
+        var src = File.ReadAllText(Path.Combine("..", "src", "Cart.cs"));
+        Assert.That(src, Does.Contain("public void Clear()"));
+    }
+}

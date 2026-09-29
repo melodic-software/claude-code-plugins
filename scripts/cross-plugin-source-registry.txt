@@ -73,6 +73,15 @@ context/recommendation-basis.md
 # identical; copy any one of them over the others to fix a drift failure.
 hooks/probe-prerequisite.sh
 
+# No dedicated check: the telemetry-sink test helper each carrying plugin
+# ships, because only the plugin directory installs. Canonical copy:
+# lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
+hooks/hook-test-sink.sh
+
+# No dedicated check: cluster line for the duplication audit. Canonical copy:
+# lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
+lib/hook-test-sink.sh -> plugins/*/hooks/hook-test-sink.sh
+
 # Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
 lib/spawn_noise.py
 
@@ -142,6 +151,15 @@ lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 # Claude-specific content below its import is a legitimate divergence: remove
 # this line rather than re-align the copies.
 skills/audit/CLAUDE.md
+
+# Dedicated check: scripts/sync-config-root.sh --check. Canonical:
+# plugins/source-control/lib/config-root.sh. No CI step runs the dedicated check
+# yet; this script's own --check is the live gate until one is wired.
+lib/config-root.sh
+
+# Dedicated check: scripts/sync-config-root.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/config-root.sh -> plugins/*/lib/config-root.sh
 
 # Dedicated check: scripts/sync-exec-bash.sh --check. Canonical: lib/exec-bash.mjs.
 # Exec-form hook rows name node and pass this launcher, then the shell script.

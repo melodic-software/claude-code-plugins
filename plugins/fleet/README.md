@@ -1,49 +1,51 @@
 # fleet
 
-A Claude Code plugin for reaching the other machines you own. One skill, one job: get an agent turn
-to happen on a machine that is not this one.
+A Claude Code plugin for agent-to-agent reach across the machines you own. One skill, one job: from
+any Claude Code lane, get work to happen in any other lane, with no human copying prompts between
+terminals.
 
 | Skill | What it does |
 |---|---|
-| `/fleet:reach` | Resolve a target host from the fleet manifest, then run a Claude Code agent turn there over SSH: one-shot, multi-turn, or a Windows-side relay that reaches the target's own sessions |
+| `/fleet:reach` | Resolve a target lane from the fleet manifest, then run a script, prompt, query and wait, message a session, or start a named session there: the other lane on this machine (WSL or native Windows) or either lane on another machine |
 
-## Why SSH and not the peer tools
+## Why not the peer tools
 
-The obvious route is to ask the built-in peer tools to find the other machine's session. It does
-not work when each machine signs into its own Claude account, and that split is usually deliberate:
-it keeps one machine's usage limits off another's.
+A **lane** is one Claude Code install with its own sign-in: a WSL distro or native Windows, on each
+machine. When each lane signs into its own Claude account, which keeps one lane's usage limits off
+another's, the built-in peer tools see only their own lane:
 
-`ListAgents` and `SendMessage` reach the sessions your own account can see. Past this machine that
-means Remote Control on both ends under one claude.ai sign-in, so with split accounts another
-machine's sessions are never listed. No setting changes that, and sharing an account gives back
-exactly what the split was protecting.
+- WSL and native Windows on one machine register sessions under different homes and sockets, so
+  neither lists the other.
+- Remote Control lists only the signed-in account's sessions, so another account's sessions never
+  appear, even with Remote Control connected.
 
-What does work is SSH plus a headless `claude -p` on the target. The turn runs under the target's
-own account, config, plugins and limits, which is what you want anyway: the work happens where its
-files and credentials already are.
+What works is starting a headless `claude -p` turn inside the target lane: over WSL interop for
+native Windows on this machine, `wsl.exe` for WSL on this machine, and SSH for another machine. That
+turn runs under the target lane's own account, config and limits, and its peer tools are local
+there, so it can list and message the target's sessions.
 
 ```shell
-/fleet:reach          # resolve a target, then compose the right recipe for it
-/fleet:reach relay    # the Windows-side relay, for reaching a target's own live sessions
+/fleet:reach          # resolve a target, then compose the route for it
+/fleet:reach relay    # the per-route detail: hops, named receiver, replies, verification
 ```
 
 ## What it expects
 
-A rendered fleet manifest at `~/.config/fleet/FLEET.md` naming each host's reach paths: transport,
+A rendered fleet manifest at `~/.config/fleet/FLEET.md` naming each host's reach paths: ssh alias,
 port, account and shell. The skill reads it before composing anything, and treats a host that is
 absent from it as not a fleet host. Machines are addressed by hostname over the tailnet, never by
 session name.
 
 ## Posture
 
-Starting an agent on another machine is a state change on a host nobody is watching, so it is
-outside the auto-mode classifier and prompts by design. This plugin ships no scripts, requests no
-tool grants, and never proposes an ssh allow rule to quiet the prompt.
+Starting an agent in another lane is a state change nobody is watching, so it is outside the
+auto-mode classifier and prompts by design. This plugin ships no scripts, requests no tool grants,
+and never proposes an ssh allow rule to quiet the prompt.
 
 ## Boundaries
 
 `repo-fleet-hygiene` also says "fleet" and means fleets of REPOSITORIES. Different subject, no
-overlap. Delegation inside one session belongs to subagents and `session-flow:orchestrate`; a
-detached session on this same machine belongs to `session-flow:continue-in-background`. Interactive
-human use of a target's session, from a phone or the web, is the built-in Remote Control feature,
-under that machine's own account.
+overlap. Messaging a session in the same lane belongs to the built-in peer tools. Delegation inside
+one session belongs to subagents and `session-flow:orchestrate`; a detached session in this lane
+belongs to `session-flow:continue-in-background`. Interactive human use of a lane's session, from a
+phone or the web, is the built-in Remote Control feature, under that lane's own account.

@@ -207,7 +207,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Surface | What it carries |
 |---|---|
-| `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
+| `/claude-ops:audit-install-state` | `## Boundary` section for the bundled `doctor` skill (verdict `complementary`); no description phrase |
 | `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
 | `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; no description phrase. A second `## Boundary` section for the bundled `doctor` skill's `prompt-audit` (integration `suggest`) |
 | `/evals:methodology` | `## Boundary` section for the bundled `claude-api` skill's `hillclimb` and `build-eval` subcommands (verdict `complementary`); detail in the skill's eval-design reference |
@@ -215,7 +215,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/review:code-review`, `/review:security-review` | Description phrase + `## Boundary` section for the bundled `code-review` skill and the plugin-backed built-in `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file |
 | `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
 | `/testing:run-e2e` | description phrase, `## Boundary` section and `## Native step` for the bundled `run` skill (verdict `complementary`, integration `wrap`; a look versus evidenced verification); detail in the skill's context file |
-| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
+| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase for `/skill-doctor`; detail in each skill's `reference/` file |
 | `/visualization:visualize` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus a chosen form and medium); detail in the catalog spoke |
 | `/prototype:explore-directions` | Description phrase + `## Boundary` section for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway mockup), and a second `## Boundary` section for the marketplace `playground` plugin; detail in the skill's `reference/` files |
 | `/source-control:commit`, `/source-control:pull-request`, `/source-control:babysit-prs` | `## Boundary` sections for the bundled `commit` and `pr` skills and `/commit-push-pr` (integration `route`, in both `commit` and `pull-request`), and `/autofix-pr` (`suggest`, in both `pull-request` and `babysit-prs`); verdict `complementary`, detail in each skill's `reference/` file; no description phrase |
@@ -248,6 +248,10 @@ at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
 | `marketplace-plugin` | `route` or `wrap`. The wrap grammar for this class is seam-phrasing's, not the Native step below |
 | `session-skill` | `route` only |
 | verdict `defer` | `route`, and this wins over the class, including a model-disabled bundled skill. Nothing is baked from a defer row |
+
+A `suggest` row on a `bundled-skill` carrying `model-invocation-disabled` carries no description phrase
+(`baked.description_phrase` false): the body's suggest sentence is the only baked line, and the
+`claude-ops:audit-native-overlap` self-check fails the combination.
 
 A `wrap` or `suggest` row carries an evidence line naming the observed invocation mode. Skill-tool
 reach is per surface; the class rules are a floor.

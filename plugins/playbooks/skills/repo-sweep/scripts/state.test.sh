@@ -58,9 +58,9 @@ body() { # <eol> <checklist lines...>
   printf "%s$eol\n" "$@"
   printf '<!-- repo-sweep:end -->%s\n\nNot run:%s\n- tidy: not selected%s\n' "$eol" "$eol" "$eol"
 }
-pr() { # <state> <body> [<number>] [<branch>]
-  jq -n --arg s "$1" --arg b "$2" --argjson n "${3:-7}" --arg h "${4:-$sweep}" \
-    '{number: $n, state: $s, headRefName: $h, baseRefName: "main", body: $b}'
+pr() { # <state> <body> [<number>] [<branch>] [<mergeable>]
+  jq -n --arg s "$1" --arg b "$2" --argjson n "${3:-7}" --arg h "${4:-$sweep}" --arg m "${5:-}" \
+    '{number: $n, state: $s, headRefName: $h, baseRefName: "main", body: $b} + (if $m == "" then {} else {mergeable: $m} end)'
 }
 serve() { jq -s . >"$TMP/gh/$1.json"; }
 run() { # sets out, rc
@@ -114,9 +114,13 @@ pr OPEN "$(body '' '- [x] one: p:a@1.0, committed abc1234' '- [X] two: p:b@2.0, 
 run
 assert_eq "all steps done: exit 13, no next line" "13 " "$rc $(grep '^next' <<<"$out")"
 
+pr OPEN "$(body '' '- [x] one: p:a@1.0, filed https://github.com/o/r/issues/1' '- [x] two: p:b@2.0, filed https://github.com/o/r/issues/2, partial coverage: docs only' '- [ ] five: p:f')" | serve head
+run
+assert_eq "filed done forms: skipped by next and untick detection, next is the pending step" "0 next five pending" "$rc $(grep -E '^(next|untick|done-unverified)' <<<"$out")"
+
 pr OPEN "$(body '' '- [x] one: p:a@1.0, committed abc1234, partial coverage: 2 files' \
   '- [x] two: p:b@2.0, no fix-eligible findings (3 report-only), partial coverage: docs only' \
-  '- [x] three: p:c@1, no findings, partial coverage: docs only' '- [x] four: p:d@1, not applicable: no tests' \
+  '- [x] three: p:c@1, no findings, partial coverage: docs only' '- [x] four: not applicable: no tests' '- [x] seven: p:d@1, not applicable: no tests' \
   '- [x] five: p:f@1, findings declined (2)' '- [x] six: p:h@1, findings declined (1), partial coverage: docs only')" | serve head
 run
 assert_eq "suffixed done forms: skipped by next and untick detection, exit 13" "13 " "$rc $(grep -E '^(next|untick|done-unverified)' <<<"$out")"
@@ -131,6 +135,23 @@ assert_eq "open PR beats a newer closed one" "0 pr 7" "$rc $(head -1 <<<"$out")"
 pr MERGED "$(body '' '- [ ] a: p:a')" | serve head
 run
 assert_eq "merged PR: exit 11" "11 pr-state MERGED" "$rc $(grep '^pr-state' <<<"$out")"
+
+pr OPEN "$(body '' '- [ ] a: p:a')" 7 "$sweep" CONFLICTING | serve head
+run
+assert_eq "CONFLICTING open PR: warning line, normal exit" "0 mergeable CONFLICTING" "$rc $(grep '^mergeable' <<<"$out")"
+assert_eq "CONFLICTING: line sits between pr-state and playbook" "pr-state OPEN
+mergeable CONFLICTING
+playbook fixture" "$(sed -n 3,5p <<<"$out")"
+
+for m in MERGEABLE UNKNOWN; do
+  pr OPEN "$(body '' '- [ ] a: p:a')" 7 "$sweep" "$m" | serve head
+  run
+  assert_eq "$m open PR: no mergeable line" "0 " "$rc $(grep '^mergeable' <<<"$out")"
+done
+
+pr MERGED "$(body '' '- [ ] a: p:a')" 7 "$sweep" CONFLICTING | serve head
+run
+assert_eq "CONFLICTING but merged PR: exit 11, no mergeable line" "11 " "$rc $(grep '^mergeable' <<<"$out")"
 
 serve head </dev/null
 run

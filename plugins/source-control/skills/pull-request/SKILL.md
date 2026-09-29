@@ -266,8 +266,11 @@ session ends. An unattended run records the offer in its output instead of askin
 
 **Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes
 fixes to the PR branch from a cloud session. This skill never chains into any of them on its own
-behalf. When `/autofix-pr` runs alongside this loop, both push to one branch: fetch before each fix
-commit and skip a finding the cloud session already fixed.
+behalf. When `/autofix-pr` runs alongside this loop, both push to one branch. Before each fix
+commit, fetch the PR head and merge it into the checked-out branch (`git merge --ff-only` when there
+are no local commits, else `git merge`), then re-check the pending edit against the merged tree and
+drop it when the cloud session already fixed that finding. A fetch alone leaves the local branch on
+the old tip, and the push that follows is rejected as non-fast-forward.
 
 **Availability is never assumed.** `pr` and `/autofix-pr` register gated, and `/autofix-pr` also
 needs `gh` and cloud-session access; this section states what to do when a surface resolves, never

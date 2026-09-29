@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.26] - 2026-09-29
+## [0.62.29] - 2026-09-29
 
 ### Added
 
@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
   also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
 
-## [0.62.22] - 2026-09-29
+## [0.62.28] - 2026-09-29
 
 ### Added
 
@@ -23,7 +23,46 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
   `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
   lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
-  alternative or addition rather than invoking it.
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
+
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
+## [0.62.26] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and, once the PR reads `MERGED`, deletes the head branch with `git push <push-remote> --delete <branch>` through `resolve-remote.sh --push`, because older gh fails its local checkout of the default branch while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
+## [0.62.23] - 2026-09-29
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, and `setup` `**Arguments.**` lines lead with the argument hint,** so each hint and line agree.
+
+## [0.62.22] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
 
 ## [0.62.21] - 2026-09-29
 

@@ -1,0 +1,44 @@
+specification {
+  element softwareSystem
+  element container
+  element boundary
+  element component
+}
+model {
+  c4system = softwareSystem "Host" {
+    c4container = container "Host" {
+      description "deployable"
+      grp_0 = boundary "host" {
+        cmp_src_host_Host_Host_csproj = component "Host" {
+          technology "dotnet"
+          description "src/host/Host/Host.csproj"
+        }
+      }
+      grp_1 = boundary "application" {
+        cmp_src_application_Application_Application_csproj = component "Application" {
+          technology "dotnet"
+          description "src/application/Application/Application.csproj"
+        }
+      }
+      grp_2 = boundary "domain" {
+        cmp_src_domain_Domain_Domain_csproj = component "Domain" {
+          technology "dotnet"
+          description "src/domain/Domain/Domain.csproj"
+        }
+      }
+    }
+  }
+  c4system.c4container.grp_0.cmp_src_host_Host_Host_csproj -> c4system.c4container.grp_1.cmp_src_application_Application_Application_csproj "ProjectReference"
+  c4system.c4container.grp_1.cmp_src_application_Application_Application_csproj -> c4system.c4container.grp_2.cmp_src_domain_Domain_Domain_csproj "ProjectReference"
+  c4system.c4container.grp_2.cmp_src_domain_Domain_Domain_csproj -> c4system.c4container.grp_1.cmp_src_application_Application_Application_csproj "ProjectReference, layer violation" {
+    style {
+      color red
+    }
+  }
+}
+views {
+  view components of c4system.c4container {
+    title "Components of Host"
+    include *
+  }
+}

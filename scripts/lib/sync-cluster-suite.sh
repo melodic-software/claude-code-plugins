@@ -18,6 +18,7 @@
 #     --script <absolute path to the gate under test> \
 #     --canonical <repo-relative canonical path> \
 #     --copy <repo-relative vendored copy path> \
+#     [--extra-copy <repo-relative path of a further vendored copy>]... \
 #     --v1 <canonical content, printf %b escapes> \
 #     --v2 <canonical content after it changes, printf %b escapes> \
 #     --drift <content written over the copy to drift it> \
@@ -28,8 +29,10 @@
 # Case names and failure wordings are the CI log surface and live here once, so
 # a grep that matches one suite matches all four.
 #
-# The carrying plugin names are read off the two paths: both live under
+# The carrying plugin names are read off the paths: each lives under
 # plugins/<name>/, which is the same shape the gates' own manifest walk assumes.
+# A cluster with more than one carrier names the rest with --extra-copy; every
+# extra copy is built, drifted and bumped alongside the first.
 #
 # WHY THE GIT CLEAR IS REPEATED HERE. scripts/check-fixture-git-isolation.sh
 # credits a suite that sources an isolating harness, resolving harnesses ONE
@@ -52,6 +55,13 @@ unset _sync_cluster_suite_lib_dir
 # fixture_tree::build assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-var here is what tells it (SC2154) the name is written.
 _scs_fixture=""
+_scs_extra_copies=()
+
+# _extra_plugin <copy path>: the plugin name, on stdout.
+sync_cluster_suite::_extra_plugin() {
+  local rest="${1#plugins/}"
+  printf '%s' "${rest%%/*}"
+}
 
 # _write <path> <printf %b content>
 sync_cluster_suite::_write() {
@@ -72,19 +82,33 @@ sync_cluster_suite::_new_fixture() {
     "$_scs_fixture/plugins/$_scs_src_plugin/.claude-plugin" \
     "$_scs_fixture/${_scs_copy%/*}" \
     "$_scs_fixture/plugins/$_scs_copy_plugin/.claude-plugin"
+  local extra
+  for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+    mkdir -p "$_scs_fixture/${extra%/*}" \
+      "$_scs_fixture/plugins/$(sync_cluster_suite::_extra_plugin "$extra")/.claude-plugin"
+  done
 }
 
-# _base_fixture -> canonical + a matching copy, both plugins at 0.1.0.
+# _base_fixture -> canonical + matching copies, every plugin at 0.1.0.
 sync_cluster_suite::_base_fixture() {
+  local extra
   sync_cluster_suite::_new_fixture || return 1
   sync_cluster_suite::_write "$_scs_fixture/$_scs_canonical" "$_scs_v1"
   sync_cluster_suite::_write "$_scs_fixture/$_scs_copy" "$_scs_v1"
   sync_cluster_suite::_manifest "$_scs_src_plugin" 0.1.0
   sync_cluster_suite::_manifest "$_scs_copy_plugin" 0.1.0
+  for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+    sync_cluster_suite::_write "$_scs_fixture/$extra" "$_scs_v1"
+    sync_cluster_suite::_manifest "$(sync_cluster_suite::_extra_plugin "$extra")" 0.1.0
+  done
 }
 
 sync_cluster_suite::_drift_copy() {
+  local extra
   sync_cluster_suite::_write "$_scs_fixture/$_scs_copy" "$_scs_drift"
+  for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+    sync_cluster_suite::_write "$_scs_fixture/$extra" "$_scs_drift"
+  done
 }
 
 sync_cluster_suite::_run_mode() (
@@ -103,11 +127,15 @@ sync_cluster_suite::_git_fixture() {
 
 # --- sync copies the canonical into the carrying plugin ---------------------
 sync_cluster_suite::_case_sync() {
-  local out
+  local out extra all_match=1
   sync_cluster_suite::_base_fixture
   sync_cluster_suite::_drift_copy
-  if out="$(sync_cluster_suite::_run_mode 2>&1)" &&
-    cmp -s "$_scs_fixture/$_scs_canonical" "$_scs_fixture/$_scs_copy"; then
+  out="$(sync_cluster_suite::_run_mode 2>&1)" || all_match=0
+  cmp -s "$_scs_fixture/$_scs_canonical" "$_scs_fixture/$_scs_copy" || all_match=0
+  for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+    cmp -s "$_scs_fixture/$_scs_canonical" "$_scs_fixture/$extra" || all_match=0
+  done
+  if ((all_match == 1)); then
     ok "sync makes the carrying copy byte-identical to the canonical"
   else
     fail "sync should copy the canonical into $_scs_copy_plugin, got: $out"
@@ -164,10 +192,13 @@ sync_cluster_suite::_case_drift_message() {
 
 # --- --print-manifest publishes src and copies ------------------------------
 sync_cluster_suite::_case_print_manifest() {
-  local out
+  local out extra listed=1
   sync_cluster_suite::_base_fixture
   out="$(sync_cluster_suite::_run_mode --print-manifest 2>&1)"
-  if [[ "$out" == *"src"*"$_scs_canonical"* && "$out" == *"copy"*"$_scs_copy"* ]]; then
+  for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+    [[ "$out" == *"copy"*"$extra"* ]] || listed=0
+  done
+  if [[ "$out" == *"src"*"$_scs_canonical"* && "$out" == *"copy"*"$_scs_copy"* ]] && ((listed == 1)); then
     ok "--print-manifest publishes src and copy, so affected-tests can derive the fan-out"
   else
     fail "--print-manifest should publish src and copy, got: $out"
@@ -191,7 +222,7 @@ sync_cluster_suite::_case_unknown_flag() {
 
 # --- --check-bump requires a carrier version bump when canonical changed -----
 sync_cluster_suite::_case_check_bump() {
-  local base out
+  local base out extra
   sync_cluster_suite::_base_fixture
   if base="$(sync_cluster_suite::_git_fixture)"; then
     if ((_scs_unchanged_bump_arm == 1)); then
@@ -203,6 +234,9 @@ sync_cluster_suite::_case_check_bump() {
     fi
     sync_cluster_suite::_write "$_scs_fixture/$_scs_canonical" "$_scs_v2"
     sync_cluster_suite::_write "$_scs_fixture/$_scs_copy" "$_scs_v2"
+    for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+      sync_cluster_suite::_write "$_scs_fixture/$extra" "$_scs_v2"
+    done
     if sync_cluster_suite::_run_mode --check-bump "$base" >/dev/null 2>&1; then
       fail "--check-bump should fail when the canonical changed but no carrier version moved"
     else
@@ -210,6 +244,9 @@ sync_cluster_suite::_case_check_bump() {
     fi
     sync_cluster_suite::_manifest "$_scs_copy_plugin" 0.2.0
     sync_cluster_suite::_manifest "$_scs_src_plugin" 0.2.0
+    for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
+      sync_cluster_suite::_manifest "$(sync_cluster_suite::_extra_plugin "$extra")" 0.2.0
+    done
     if sync_cluster_suite::_run_mode --check-bump "$base" >/dev/null 2>&1; then
       ok "--check-bump passes once the carrying plugins bumped"
     else
@@ -229,11 +266,12 @@ sync_cluster_suite::run() {
   _scs_v2=""
   _scs_drift=""
   _scs_check_agree_note=""
+  _scs_extra_copies=()
   _scs_unknown_flag_arm=0
   _scs_unchanged_bump_arm=0
   while (($# > 0)); do
     case "$1" in
-    --script | --canonical | --copy | --v1 | --v2 | --drift | --check-agree-note)
+    --script | --canonical | --copy | --extra-copy | --v1 | --v2 | --drift | --check-agree-note)
       if (($# < 2)); then
         printf 'sync-cluster-suite: %s needs a value\n' "$1" >&2
         return 2
@@ -242,6 +280,7 @@ sync_cluster_suite::run() {
       --script) _scs_script="$2" ;;
       --canonical) _scs_canonical="$2" ;;
       --copy) _scs_copy="$2" ;;
+      --extra-copy) _scs_extra_copies+=("$2") ;;
       --v1) _scs_v1="$2" ;;
       --v2) _scs_v2="$2" ;;
       --drift) _scs_drift="$2" ;;

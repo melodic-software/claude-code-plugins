@@ -1,5 +1,7 @@
 # Worktree `cleanup`: full 5-step procedure
 
+`<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
+
 Full detail for the `/source-control:worktree cleanup [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the user-emitted branch deletion.
 
 Remove stale worktrees, orphaned metadata, and branches from merged PRs.
@@ -12,7 +14,7 @@ git worktree prune
 
 Cleans up worktree administrative records for directories that no longer exist on disk (e.g., manually deleted via `rm -rf`).
 
-A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
+A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
 
 In `--dry-run` mode this step runs `git worktree prune --dry-run` instead. It reports what would be pruned without touching worktree metadata, keeping the whole dry-run pass mutation-free.
 
@@ -23,14 +25,14 @@ Run `status` logic internally and identify candidates:
 | Reason | Detection method |
 |--------|-----------------|
 | **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output, **and** it passes all four qualifying tests in Step 4b (not a symlink, not a work tree, no `.git` entry, empty). Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses. Common layouts: (1) the **configured external root** (`worktreeroot.path`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/`, siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists, whether from a terminal kill without clean exit OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
-| **Prunable** | The `prunable` column of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` is `yes` |
+| **Prunable** | The `prunable` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` is `yes` |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN`. **Not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
 | **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none`. **Not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` completely empty, and plain `git worktree remove` then deletes it silently, since git's own refusal covers dirty trees and nothing else. Report the operation; the owner finishes or aborts it first |
-| **Locked** | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
 
-Take the branch name from the `branch` column of `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>`, not from the directory name, since they may differ if the branch was renamed.
+Take the branch name from the `branch` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>`, not from the directory name, since they may differ if the branch was renamed.
 
 Collect the stranded-work record in the same pass, per `status.md`'s data-collection step 5: one run per repository, joined on `path`. Every guard below reads its `risk` column, so a candidate list built without it cannot be executed safely.
 
@@ -111,7 +113,7 @@ records are both identifiable and provably dead, so removal is where they are re
 
 ```bash
 # Run FROM INSIDE the candidate, after both guards above have cleared.
-cd <path> && bash "${CLAUDE_PLUGIN_ROOT}/scripts/reap-project-plugin-records.sh" --worktree-path <path>
+cd <path> && bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
 ```
 
 The `cd` is not incidental. `claude plugin uninstall <id> -s project` has **no path flag**: it

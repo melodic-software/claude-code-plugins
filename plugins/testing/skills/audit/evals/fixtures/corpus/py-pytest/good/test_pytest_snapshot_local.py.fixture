@@ -1,0 +1,10 @@
+# good-for: rule-snapshot-only
+# snapshot is a local value, not syrupy's fixture: the test is no parameter
+# named snapshot, so the comparison is an ordinary equality.
+from app.store import Store
+
+
+def test_latest_is_saved():
+    store = Store()
+    snapshot = store.save({"a": 1})
+    assert store.latest() == snapshot

@@ -8,7 +8,7 @@ metadata:
   summary: Multi-session learning coach for general topics or repo-grounded concepts
 ---
 
-**Arguments.** `<action> [args]`. e.g., /education:teach topic rust-ownership, /education:teach codebase auth-flow, /education:teach primer color-grading
+**Arguments.** `<topic|codebase|mission|glossary|resources|explain|primer|exercise|assess|resume|status> [args]`. e.g., /education:teach topic rust-ownership, /education:teach codebase auth-flow, /education:teach primer color-grading
 
 ## Purpose
 

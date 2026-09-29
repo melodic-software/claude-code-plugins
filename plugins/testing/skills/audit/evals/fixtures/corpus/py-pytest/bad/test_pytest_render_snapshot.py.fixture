@@ -1,0 +1,7 @@
+# expect: rule-snapshot-only
+# syrupy's snapshot is the only oracle: the first render approved is the spec.
+from app.render import render_order
+
+
+def test_render_order(snapshot):
+    assert render_order({"id": 7, "total": 15}) == snapshot
