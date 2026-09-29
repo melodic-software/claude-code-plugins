@@ -28,8 +28,8 @@ Copy into your project's working-notes location. Tick as each phase completes.
 
 - Fix-first in every mode: deferrals are resolved in the same run by the Phase 6.5 resolution
   wave, whose edits land like the primary wave's (uncommitted working-tree changes in the
-  diff-scoped modes, commits on the run's single branch in repo mode). No work items are filed
-  by default
+  diff-scoped modes, commits on the run's single branch in repo mode, staged under `in-place`).
+  No work items are filed by default
 - Only Needs-human items, Too-large items, and deferrals the resolution wave could not finish
   remain after resolution; they go to the Phase 8 report (and, in repo mode, the run-state
   inventory) with their grounds, where the user decides
