@@ -54,7 +54,7 @@ The skip set does not filter `--repo` or `--repos-from` paths. To leave out one 
 a root, pass `--extend-skip <its directory name>`; `--skip` also drops the default names.
 
 Discovery under a root is the walker `/repo-fleet-hygiene:audit` runs
-(`scripts/fleet-discovery.sh`): it stops at the first checkout on each path, does not follow
+(`fleet-discovery.sh`, shared by both verbs): it stops at the first checkout on each path, does not follow
 symlinked directories, and goes 5 levels deep unless the config's `fleet.maxDepth` (1 through 12)
 says otherwise.
 
