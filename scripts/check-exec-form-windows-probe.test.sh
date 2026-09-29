@@ -8,6 +8,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-exec-form-windows-probe.sh"
 READER="$SELF_DIR/check-hook-exec-form-frontmatter.py"
 REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
+LAUNCHER="$SELF_DIR/../lib/exec-bash.mjs"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
@@ -18,8 +19,9 @@ f=""
 
 new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --sut "$READER" --plugins || return 1
-  mkdir -p "${!1}/.github"
+  mkdir -p "${!1}/.github" "${!1}/lib"
   cp "$REQUIREMENTS" "${!1}/.github/requirements-ci.txt"
+  cp "$LAUNCHER" "${!1}/lib/exec-bash.mjs"
 }
 
 plugin_file() {
@@ -193,6 +195,11 @@ if command -v node >/dev/null 2>&1; then
     else
       fail "forced spawn should report delivery, got: $out"
     fi
+    if grep -q 'launcher probe delivered argv, stdin, exit 2 and a backslash CLAUDE_PLUGIN_ROOT' <<<"$out"; then
+      ok "the forced launcher half round-trips argv, stdin, exit 2 and a backslash root"
+    else
+      fail "forced launcher half should report delivery, got: $out"
+    fi
   else
     fail "forced spawn should pass, got: $out"
   fi
@@ -208,32 +215,75 @@ if command -v node >/dev/null 2>&1; then
     fail "simulated args-drop should exit 1 with ARGS-DROP (rc=$rc): $out"
   fi
   rm -rf "$f"
-else
-  echo "SKIP: node is not on PATH; spawn-delivery cases not exercised" >&2
-fi
 
-# --- a Windows backslash execPath still counts as node.exe ------------------
-new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-winnode="$(mktemp -d)"
-cat >"$winnode/node" <<'EOF'
+  new_fixture f
+  plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+  rc=0
+  out="$(cd "$f" && EXEC_FORM_WINDOWS_PROBE_FORCE=1 EXEC_FORM_WINDOWS_PROBE_SIMULATE_LAUNCHER_DROP=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)" || rc=$?
+  if [[ "$rc" -eq 1 ]] && grep -q 'LAUNCHER-PROBE: the script.s own exit 2 came back as exit 0' <<<"$out"; then
+    ok "a simulated launcher drop fails the launcher half"
+  else
+    fail "simulated launcher drop should exit 1 with LAUNCHER-PROBE (rc=$rc): $out"
+  fi
+  rm -rf "$f"
+
+  # A launcher that drops stdin and swallows the script's exit code.
+  new_fixture f
+  plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+  cat >"$f/lib/exec-bash.mjs" <<'EOF'
+import { spawnSync } from "node:child_process";
+const [script, ...args] = process.argv.slice(2);
+spawnSync("bash", [script, ...args], { stdio: ["ignore", "inherit", "inherit"] });
+EOF
+  rc=0
+  out="$(cd "$f" && EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)" || rc=$?
+  if [[ "$rc" -eq 1 ]] && grep -q 'LAUNCHER-PROBE: the script read 0 stdin bytes' <<<"$out" &&
+    grep -q 'LAUNCHER-PROBE: the script.s own exit 2 came back as exit 0' <<<"$out"; then
+    ok "a launcher that drops stdin and the exit code fails the launcher half"
+  else
+    fail "a stdin-dropping, exit-swallowing launcher should fail (rc=$rc): $out"
+  fi
+  rm -rf "$f"
+
+  new_fixture f
+  plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+  rm "$f/lib/exec-bash.mjs"
+  rc=0
+  out="$(cd "$f" && EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)" || rc=$?
+  if [[ "$rc" -eq 1 ]] && grep -q 'LAUNCHER-PROBE: lib/exec-bash.mjs not found' <<<"$out"; then
+    ok "a forced run with no lib/exec-bash.mjs fails"
+  else
+    fail "a missing launcher should fail the forced run (rc=$rc): $out"
+  fi
+  rm -rf "$f"
+
+  # A Windows backslash execPath still counts as node.exe. The fake answers the
+  # spawn half; the launcher half needs a real node, so it gets the real one.
+  new_fixture f
+  plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+  winnode="$(mktemp -d)"
+  cat >"$winnode/node" <<'EOF'
 #!/usr/bin/env bash
+case "$*" in *launcher-probe.cjs*) exec "$REAL_NODE" "$@" ;; esac
 payload=$(cat)
 jq -n --arg payload "$payload" --args \
   '{execPath:"C:\\Program Files\\nodejs\\node.exe", argv:$ARGS.positional, stdinBytes:($payload|length)}' \
   "$@"
 EOF
-chmod +x "$winnode/node"
-if out="$(cd "$f" && PATH="$winnode:$PATH" EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)"; then
-  if grep -q 'spawn probe delivered the args array to node.exe' <<<"$out"; then
-    ok "a backslash process.execPath counts as node.exe"
+  chmod +x "$winnode/node"
+  if out="$(cd "$f" && REAL_NODE="$(command -v node)" PATH="$winnode:$PATH" EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)"; then
+    if grep -q 'spawn probe delivered the args array to node.exe' <<<"$out"; then
+      ok "a backslash process.execPath counts as node.exe"
+    else
+      fail "backslash execPath should count as node.exe, got: $out"
+    fi
   else
-    fail "backslash execPath should count as node.exe, got: $out"
+    fail "backslash execPath should pass, got: $out"
   fi
+  rm -rf "$f" "$winnode"
 else
-  fail "backslash execPath should pass, got: $out"
+  echo "SKIP: node is not on PATH; spawn-delivery cases not exercised" >&2
 fi
-rm -rf "$f" "$winnode"
 
 # --- a required spawn with node hidden fails closed -------------------------
 new_fixture f
