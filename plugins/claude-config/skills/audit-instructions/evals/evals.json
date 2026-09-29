@@ -349,7 +349,7 @@
       "id": 28,
       "name": "i33-per-spoke-finding-rolls-up-per-plugin",
       "prompt": "/claude-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory.",
-      "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
+      "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it, outside every per-lane verifier batch and counted as one dispatch. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
       "files": [
         "evals/fixtures/i33-hub.md",
         "evals/fixtures/i33-scope-note-spoke.md",
@@ -361,7 +361,9 @@
         "Anchors that finding on the opener sentence (an excerpt anchor), not on the whole surface",
         "Places the I33 finding in a collapsed per-plugin section for release-notes rather than the main findings table",
         "Keeps Surface:Line and a fenced diff on the I33 row inside the collapsed section",
-        "Judges the I33 class with one class-batched verifier in Phase C"
+        "Judges the I33 class with one class-batched verifier in Phase C",
+        "Excludes the I33 row from every per-lane verifier batch and counts the I33 class verifier as one dispatch in the plan and the ~20-dispatch gate cost line",
+        "Gives a lane whose only proposal is the I33 finding no per-lane verifier"
       ]
     }
   ]
