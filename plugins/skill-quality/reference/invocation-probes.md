@@ -84,6 +84,28 @@ skill` scores as `skill-quality:check` because that listing contains `skill`. Th
 the floor is not a model-graded auto-invocation rate, and why a rewrite's exit criterion
 is a validation-split gain on a live plugin-eval or `claude -p` run.
 
+The positive rate is close to true by construction for `skill-quality:check`:
+`pos-train-02` and `pos-train-05` of `probes/skill-quality.check.json` are near-verbatim
+quoted triggers of the `check` description, so a 1.0 positive rate is not a saturation
+finding.
+
+## emit-plugin-eval results
+
+No script ingests `plugin-eval` or `claude -p` results. Turning them into a report JSON
+that matches `score` output, so `compare` can diff it against the baseline, is a manual step
+today.
+
+## Outside the marketplace checkout
+
+The shipped seed probes name skills of this marketplace checkout (`plugins/mcp-tools/...`,
+`plugins/skill-quality/...`) through repo-relative `skill_dir` values. In a plugin-cache install
+none of those paths exist, and `score` stops with exit 2 and says so. Pass your own probes
+directory (same JSON shape, `skill_dir` relative to your repo root or absolute), or set
+`MEASURE_INVOCATION_REPO_ROOT` to the repo root the probes name. When only some probe files
+resolve, `score` keeps its per-skill error and exits 1. `validate` keeps a WARN per unresolved
+`skill_dir` and ends with one INFO line giving the count, so it stays green in the marketplace
+repo.
+
 ## Report fields
 
 Per skill, per split: `n`, `n_positive`, `n_negative`, `trigger_rate`
