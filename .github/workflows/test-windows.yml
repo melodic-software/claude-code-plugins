@@ -269,9 +269,9 @@ jobs:
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
       - name: Test hardcoded-path-check on Windows
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
-      # Two of the host-skip suites of #3683, named explicitly: each prints a
-      # SKIP line where its host probe fires, so a green step is only evidence
-      # once the log shows which of the two happened.
+      # The host-skip suites of #3683, named explicitly: each probes the host at
+      # run time, so a green step is only evidence once its log shows whether
+      # the probe fired or the cases ran.
       - name: Test the markdown-format hook on Windows
         run: bash plugins/markdown-format/hooks/markdown-format.test.sh
       - name: Test cloud-bootstrap plugin accounting on Windows
