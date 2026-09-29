@@ -69,6 +69,7 @@ fi
 SKILL_MD="$SCRIPT_DIR/SKILL.md"
 README_MD="$SCRIPT_DIR/../../README.md"
 SKILL_FLAT="$(tr '\n' ' ' <"$SKILL_MD" | tr -s ' ')"
+# shellcheck disable=SC2016 # backticks quote literal SKILL.md text
 if [[ "$SKILL_FLAT" == *'Assert-NotInside -Name <wsl-distro>'* && "$SKILL_FLAT" != *'<distro-or-service>'* \
   && "$SKILL_FLAT" == *'compares `Name` with `WSL_DISTRO_NAME` only'* && "$SKILL_FLAT" == *'a service, container or process is not detected'* ]]; then
   pass "SKILL.md scopes Assert-NotInside to a WSL distro"
@@ -83,6 +84,7 @@ else
   fail "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md" "seam not named"
 fi
 
+# shellcheck disable=SC2016 # backticks quote literal SKILL.md text
 if head -n 1 "$TEMPLATE" | grep -Fxq '#requires -Version 7.0' \
   && [[ "$SKILL_FLAT" == *'requires PowerShell 7 (`pwsh`)'* && "$SKILL_FLAT" == *'`pwsh -File <script>` (Windows PowerShell 5.1 fails at `#requires`)'* ]] \
   && grep -Fq 'winget install --id Microsoft.PowerShell' "$README_MD" \
@@ -246,6 +248,7 @@ else
 fi
 
 # Prove must be a real proof: name|prove block|expected outcome.
+# shellcheck disable=SC2016 # PowerShell expressions are literal data, not shell expansions
 for case in 'provefalse|$false|held' 'provenone||held' 'provetrue|$true|released' 'provecmp|1 -eq 1|released'; do
   IFS='|' read -r name prove outcome <<<"$case"
   code="$(run_pwsh "$name" "
@@ -501,6 +504,7 @@ else
 fi
 
 # Assert-ParsedState: name|value expression|expected (throws, or the item count).
+# shellcheck disable=SC2016 # PowerShell expressions are literal data, not shell expansions
 for case in 'parsednull|$null|throws' 'parsedarray|@()|throws' "parsedblank|'   '|throws" "parsedblanks|@('', ' ')|throws" \
   "parsedone|'Ubuntu-26.04'|1" "parsedtwo|@('a', 'b')|2" 'parsedlines|("a" + [Environment]::NewLine + "b")|2'; do
   IFS='|' read -r name value expected <<<"$case"
@@ -614,7 +618,7 @@ for mode in whatif test; do
   summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
   # portability-ok: false positive, plain sort with no -V option
   outside="$(cd "$dir" && find . -type f -not -path './results/*' | sort | tr '\n' ' ')"
-  leftovers="$(ls "$dir"/marker* 2>/dev/null | tr '\n' ' ')"
+  leftovers="$(find "$dir" -maxdepth 1 -name 'marker*' | tr '\n' ' ')"
   prompted=0
   # portability-ok: false positive, fixed-string grep with no -P option
   grep -Fq 'NonInteractive' "$dir/err" && prompted=1
