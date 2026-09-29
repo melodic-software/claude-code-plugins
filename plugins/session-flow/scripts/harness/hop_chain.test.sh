@@ -24,13 +24,14 @@ status=0
 echo "== permission_prompts_args"
 if ! "$PY" -X utf8 -c '
 import hop_chain
+import claude_cli
 assert hop_chain.parse_claude_version("2.1.282 (Claude Code)") == (2, 1, 282)
 assert hop_chain.parse_claude_version("nope") is None
-hop_chain._CLAUDE_VERSION_CACHE = (2, 1, 259)
+claude_cli._CLAUDE_VERSION_CACHE = (2, 1, 259)
 assert hop_chain.permission_prompts_args("claude") == ["--permission-prompts", "none"]
-hop_chain._CLAUDE_VERSION_CACHE = (2, 1, 258)
+claude_cli._CLAUDE_VERSION_CACHE = (2, 1, 258)
 assert hop_chain.permission_prompts_args("claude") == []
-hop_chain._CLAUDE_VERSION_CACHE = None
+claude_cli._CLAUDE_VERSION_CACHE = None
 assert hop_chain.permission_prompts_args("claude") == []
 print("ok")
 '; then
