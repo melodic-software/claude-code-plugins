@@ -9,7 +9,7 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 
 - The README Configuration section states the promotion path for consumer `## Gotchas`: repo-specific
   lines stay in the layer, and a line that is not repo-specific is filed as an issue on this
-  marketplace so the shipped skill carries it for every consumer (#3547).
+  marketplace for curation into the shipped skill (#3547).
 
 ## [0.11.3] - 2026-09-28
 
