@@ -149,6 +149,23 @@ OUT_OKSHAPE=$(run_tree "$SHAPE")
 assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 
+# String keys under `permissions` (defaultMode, disable*) are ordinary settings.
+# The verdict must not depend on key order: `jq -e` reads only the LAST output, so
+# a file whose last `permissions` key was a string used to be rejected as
+# invalid-json and never scanned, which hid every conf record in it.
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":{"allow":["Bash(ls)"],"defaultMode":"acceptEdits"}}\n' >"$SHAPE/home/.claude/settings.json"
+OUT_SCALAR=$(run_tree "$SHAPE")
+assert_contains "a permissions object holding only a string key is present" "$OUT_SCALAR" "project settings present"
+assert_contains "a string key after the rule lists is present" "$OUT_SCALAR" "user settings present"
+assert_contains "the string-only file's defaultMode is read" "$OUT_SCALAR" 'conf project settings defaultMode "bypassPermissions"'
+assert_contains "rules before a trailing string key still count" "$OUT_SCALAR" "rule user settings allow Bash(ls)"
+
+# A trailing string key must not rescue a rule list of the wrong type.
+printf '{"permissions":{"deny":"Bash(x)","defaultMode":"plan"}}\n' >"$SHAPE/home/.claude/settings.json"
+OUT_SCALAR_BAD=$(run_tree "$SHAPE")
+assert_contains "a string rule list is invalid-json whatever follows it" "$OUT_SCALAR_BAD" "user settings invalid-json"
+
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.
 # Reporting it twice would claim two live rule sources where there is one.

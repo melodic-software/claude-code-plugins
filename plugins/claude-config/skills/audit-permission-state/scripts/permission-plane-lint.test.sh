@@ -46,7 +46,8 @@ OUT=$(lint "$C2")
 assert_eq "the autoMode gate fires exactly once" 1 "$(count_matching "$OUT" '\[C2-autoMode\]')"
 assert_eq "the defaultMode gate fires exactly once" 1 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
 assert_eq "the plan-mode gate fires exactly once" 1 "$(count_matching "$OUT" '\[C2-planMode\]')"
-assert_contains "the defaultMode finding cites its version gate" "$OUT" "v2.1.142"
+assert_contains "the auto finding says the built-in default replaces a user-scope defaultMode" "$OUT" "uses the built-in default instead of a defaultMode from ~/.claude/settings.json"
+assert_contains "the auto finding says to remove the value from the file" "$OUT" "remove it here"
 assert_contains "the plan-mode finding names the scope restriction" "$OUT" "not read from shared project settings"
 
 # autoMode in LOCAL settings says it was live before v2.1.207 rather than
@@ -72,14 +73,16 @@ EOF
 OUT=$(lint "$C2_LIVE")
 assert_eq "no C2 finding on a scope the classifier reads" 0 "$(count_matching "$OUT" '\[C2-')"
 
-# acceptEdits, plan, and dontAsk still apply in project scope. auto and
-# bypassPermissions do not (v2.1.142 and v2.1.257).
-C2_OTHER=$(
-  printf '%s\n' "$SURFACES"
-  printf 'conf project settings defaultMode "acceptEdits"\n'
-)
-OUT=$(lint "$C2_OTHER")
-assert_eq "acceptEdits in project scope still applies" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+# acceptEdits, plan, dontAsk, default, and manual apply from any settings file.
+# auto and bypassPermissions do not take effect from project or local settings.
+for mode in acceptEdits plan dontAsk default manual; do
+  C2_OTHER=$(
+    printf '%s\n' "$SURFACES"
+    printf 'conf project settings defaultMode "%s"\n' "$mode"
+  )
+  OUT=$(lint "$C2_OTHER")
+  assert_eq "$mode in project scope still applies" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+done
 
 C2_BYPASS=$(
   printf '%s\n' "$SURFACES"
@@ -89,13 +92,27 @@ OUT=$(lint "$C2_BYPASS")
 assert_eq "project bypassPermissions fires the defaultMode gate" 1 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
 assert_contains "the finding names the 2.1.257 gate" "$OUT" "v2.1.257"
 assert_contains "the finding says the session starts in Manual" "$OUT" "starts in Manual"
+assert_contains "the finding says to remove the value from the file" "$OUT" "remove it here"
 
+# The restriction names project and local settings, so the local file and the
+# pre-v2.1.211 start-directory copy of it are dead too.
+for scope in local startdir-local; do
+  C2_BYPASS_LOCAL=$(
+    printf '%s\n' "$SURFACES"
+    printf 'conf %s settings defaultMode "bypassPermissions"\n' "$scope"
+  )
+  OUT=$(lint "$C2_BYPASS_LOCAL")
+  assert_contains "$scope bypassPermissions fires the defaultMode gate" "$OUT" "[C2-defaultMode] $scope"
+done
+
+# User and managed settings are read: managed policy may pin bypassPermissions.
 C2_BYPASS_USER=$(
   printf '%s\n' "$SURFACES"
   printf 'conf user settings defaultMode "bypassPermissions"\n'
+  printf 'conf managed file defaultMode "bypassPermissions"\n'
 )
 OUT=$(lint "$C2_BYPASS_USER")
-assert_eq "user-scope bypassPermissions is not dead" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+assert_eq "user and managed bypassPermissions are not dead" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
 
 # The page restricts useAutoModeDuringPlan to SHARED PROJECT settings by name.
 # Claiming a local occurrence is dead would assert a restriction no page states.
@@ -439,14 +456,18 @@ if command -v jq >/dev/null 2>&1; then
   jq -n '{permissions: {disableAutoMode: true, allow: ["Bash(npm test)"]}}' >"$FX/home/.claude/settings.json"
   jq -n '{}' >"$FX/policy/managed-settings.json"
 
-  E2E=$(env -u CLAUDE_CONFIG_DIR \
-    HOME="$FX/home" \
-    PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
-    PERMISSION_STATE_STARTDIR="$FX/startdir" \
-    PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
-    PERMISSION_STATE_REGISTRY_KEYS="" \
-    PERMISSION_STATE_PLIST_DOMAIN="" \
-    bash "$STATE_SCRIPT" | bash "$SCRIPT")
+  # e2e_lint <root>: the real reader over <root>/{proj,home,policy,startdir}, into the lint.
+  e2e_lint() {
+    env -u CLAUDE_CONFIG_DIR \
+      HOME="$1/home" \
+      PERMISSION_STATE_FIXTURE_DIR="$1/proj" \
+      PERMISSION_STATE_STARTDIR="$1/startdir" \
+      PERMISSION_STATE_MANAGED_PATH="$1/policy/managed-settings.json" \
+      PERMISSION_STATE_REGISTRY_KEYS="" \
+      PERMISSION_STATE_PLIST_DOMAIN="" \
+      bash "$STATE_SCRIPT" | bash "$SCRIPT"
+  }
+  E2E=$(e2e_lint "$FX")
 
   assert_contains "end to end: the dead autoMode section is found" "$E2E" "[C2-autoMode] project"
   assert_contains "end to end: the dead defaultMode is found" "$E2E" "[C2-defaultMode] project"
@@ -454,6 +475,26 @@ if command -v jq >/dev/null 2>&1; then
   assert_contains "end to end: the mistyped lock-out switch is found" "$E2E" "[C5-disableType] user"
   assert_contains "end to end: the never-consulted path rule is found" "$E2E" "[C6-uncoveredPath] project"
   assert_not_contains "end to end: the narrow allow rule is not flagged" "$E2E" "Bash(npm test)"
+
+  # A mode pin is often the only key under `permissions`. The reader must scan
+  # that file, so the finding comes from the real files and not only from
+  # hand-written records.
+  FX2="$TEST_TMPDIR/fx2"
+  mkdir -p "$FX2/proj/.claude" "$FX2/home/.claude" "$FX2/policy" "$FX2/startdir/.claude"
+  for f in proj/.claude/settings.json proj/.claude/settings.local.json home/.claude/settings.json policy/managed-settings.json; do
+    jq -n '{permissions: {defaultMode: "bypassPermissions"}}' >"$FX2/$f"
+  done
+  E2E_BYPASS=$(e2e_lint "$FX2")
+  assert_contains "end to end: a project bypassPermissions pin is found" "$E2E_BYPASS" "[C2-defaultMode] project"
+  assert_contains "end to end: a local bypassPermissions pin is found" "$E2E_BYPASS" "[C2-defaultMode] local"
+  assert_eq "end to end: user and managed pins are not flagged" 0 "$(count_matching "$E2E_BYPASS" '\[C2-defaultMode\] (user|managed)')"
+  assert_contains "end to end: every scope was read" "$E2E_BYPASS" "status=read"
+
+  jq -n '{permissions: {defaultMode: "acceptEdits"}}' >"$FX2/proj/.claude/settings.json"
+  jq -n '{permissions: {allow: ["Bash(ls)"], defaultMode: "plan"}}' >"$FX2/proj/.claude/settings.local.json"
+  E2E_OTHER=$(e2e_lint "$FX2")
+  assert_eq "end to end: acceptEdits and plan pins in project and local are not flagged" 0 "$(count_matching "$E2E_OTHER" '\[C2-defaultMode\] (project|local)')"
+  assert_contains "end to end: that silence is a read plane, not an unread one" "$E2E_OTHER" "status=read"
 else
   pass "end-to-end reader lint (skipped — jq not installed)"
 fi

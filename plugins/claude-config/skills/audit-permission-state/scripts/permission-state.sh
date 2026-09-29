@@ -272,12 +272,18 @@ classify_json_file() {
   # SYNTACTICALLY broken, which the `jq empty` above rejects on its own, so the
   # assertion passed with the stage gone. A structurally-valid malformed
   # fixture now covers it.
+  #
+  # Only the three rule lists are checked: `defaultMode` and the `disable*` keys
+  # are strings and belong in `permissions`. `jq -e` reads the exit status from
+  # the LAST output, so a check that emitted one verdict per key made the answer
+  # depend on key order, and a file whose last `permissions` key was a string was
+  # rejected as invalid-json and never scanned.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true
       elif $pt == "object" then
-        (.permissions | to_entries[] | .value | type) as $kt
-        | ($kt == "null" or $kt == "array")
+        [.permissions.allow, .permissions.ask, .permissions.deny]
+        | all(. == null or type == "array")
       else false end
   ' >/dev/null 2>&1 || {
     printf 'invalid-json\n'

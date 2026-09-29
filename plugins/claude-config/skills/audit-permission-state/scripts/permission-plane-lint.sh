@@ -188,19 +188,23 @@ END {
     }
   }
 
-  # Project and local settings ignore defaultMode "auto" (v2.1.142+) and
-  # "bypassPermissions" (v2.1.257+). acceptEdits, plan, and dontAsk still apply.
-  # permission-modes, "Start in a different permission mode", re-read 2026-09-28:
-  # "Sessions you start in a terminal honor every value except auto and
-  # bypassPermissions."
+  # Project and local settings ignore defaultMode "auto" and "bypassPermissions";
+  # acceptEdits, plan, dontAsk, default, and manual apply from any settings file.
+  # settings-reference#permissions-defaultmode, Scope: auto and bypassPermissions
+  # do not take effect from project or local settings; before v2.1.257,
+  # bypassPermissions took effect from any file (verbatim in criteria.md).
+  # permission-modes#which-mode-a-session-starts-in: an ignored "auto" makes Claude
+  # Code use "the built-in default rather than a `defaultMode` from
+  # `~/.claude/settings.json`"; an ignored "bypassPermissions" means "the session
+  # starts in Manual mode". Re-read 2026-09-29; criteria.md holds the full record.
   for (i in dead_automode) {
     s = dead_automode[i]
     k = s SUBSEP "defaultMode"
     if (!(k in conf)) continue
     if (conf[k] == "\"auto\"")
-      finding("error", "C2-defaultMode", s, "defaultMode:\"auto\" is ignored in project and local settings so a repository cannot grant itself auto mode (v2.1.142 and later; before that, project settings could set it) — set it in user or managed settings instead")
+      finding("error", "C2-defaultMode", s, "defaultMode:\"auto\" is ignored in project and local settings, and while it stays here Claude Code uses the built-in default instead of a defaultMode from ~/.claude/settings.json — remove it here and set it in user or managed settings, or pass --permission-mode")
     else if (conf[k] == "\"bypassPermissions\"")
-      finding("error", "C2-defaultMode", s, "defaultMode:\"bypassPermissions\" is ignored in project and local settings (v2.1.257 and later; the session starts in Manual) — set it in user or managed settings, or pass --permission-mode. acceptEdits, plan, and dontAsk still apply here")
+      finding("error", "C2-defaultMode", s, "defaultMode:\"bypassPermissions\" is ignored in project and local settings (v2.1.257 and later; before that it took effect from any file), so the session starts in Manual — remove it here and set it in user or managed settings, or pass --permission-mode")
   }
 
   # "Not read from shared project settings." That names .claude/settings.json
