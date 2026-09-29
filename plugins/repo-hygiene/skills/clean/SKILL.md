@@ -57,14 +57,20 @@ metadata:
 Collect these with **individual** Bash calls, one command per call, never combined into a single
 invocation:
 
+- Repository check, `git rev-parse --show-toplevel || echo "not a repository"`
 - Uncommitted changes (empty = none), `git status --porcelain | head -5`
 - Current branch, `git branch --show-current`
+
+Run the last two only when the first printed a path. When it printed `not a repository` (for
+example a fleet run from `~`), report that line as the repository context and carry on with the
+batch and `--fleet` forms, which take their repos from arguments or discovery. A single-repo tier
+has nothing to act on there.
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
 bounds nothing: the Bash tool returns the command's complete output into context before there is
 anything to decide about.
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+Treat any other failure (git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
 contains git. The dated record for that composition claim is the `source-control` plugin's
