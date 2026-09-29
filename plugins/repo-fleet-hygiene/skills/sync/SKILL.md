@@ -48,7 +48,8 @@ explicitly said to go ahead. This holds in non-terminal runs too: no terminal is
 Non-fast-forward, dubious ownership, and a partial stash apply are skipped and reported.
 The script does not reset a branch.
 
-Pass `--worktree-root` and `--worktree-create` when a park is planned. The create helper is
+Pass `--worktree-root` and `--worktree-create` when a park is planned; without a worktree root the
+plan shows that repo as `skip ... worktree-create-missing` and nothing is stashed. The create helper is
 `worktree-create.sh` in the source-control plugin. `--existing-branch` checks out the branch
 that already holds the work.
 
