@@ -268,7 +268,12 @@ jobs:
         run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
       - name: Run kindle-dedrm Pester suites
         shell: pwsh
-        run: Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests -Output Detailed
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'plugins/kindle-dedrm/skills/manage/tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
       # The probe reads hook frontmatter with PyYAML and exits 2 when the
       # module is missing. requirements-ci.txt also pins a Linux-only zizmor
       # wheel, so this step installs only the PyYAML pin from that file.
