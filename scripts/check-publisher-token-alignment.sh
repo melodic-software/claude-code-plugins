@@ -5,12 +5,12 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
-ORG_FILE="scripts/org-agnosticism-tokens.txt"
-PORT_FILE="scripts/skill-portability-tokens.txt"
+ORG_FILE="${PUBLISHER_TOKEN_ORG_FILE:-scripts/org-agnosticism-tokens.txt}"
+PORT_FILE="${PUBLISHER_TOKEN_PORT_FILE:-scripts/skill-portability-tokens.txt}"
 
 [[ -f "$ORG_FILE" && -f "$PORT_FILE" ]] || {
-  printf 'FAIL: missing token file (%s or %s)\n' "$ORG_FILE" "$PORT_FILE" >&2
-  exit 1
+  printf 'ERROR: missing token file (%s or %s)\n' "$ORG_FILE" "$PORT_FILE" >&2
+  exit 2
 }
 
 org_patterns=()
@@ -21,9 +21,11 @@ done <"$ORG_FILE"
 
 port_active=()
 in_active=0
+saw_active=0
 while IFS= read -r line; do
   if [[ "$line" =~ ^#[[:space:]]*---[[:space:]]*ACTIVE ]]; then
     in_active=1
+    saw_active=1
     continue
   fi
   if [[ "$line" =~ ^#[[:space:]]*---[[:space:]]*STAGED ]]; then
@@ -34,6 +36,20 @@ while IFS= read -r line; do
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
   port_active+=("$line")
 done <"$PORT_FILE"
+
+# An input the gate cannot use must not read as a clean pass: nothing was compared.
+((saw_active == 1)) || {
+  printf 'ERROR: no "# --- ACTIVE" marker in %s\n' "$PORT_FILE" >&2
+  exit 2
+}
+((${#port_active[@]} > 0)) || {
+  printf 'ERROR: no active tokens under "# --- ACTIVE" in %s\n' "$PORT_FILE" >&2
+  exit 2
+}
+((${#org_patterns[@]} > 0)) || {
+  printf 'ERROR: no org patterns in %s\n' "$ORG_FILE" >&2
+  exit 2
+}
 
 org_member() {
   local needle="$1" o
