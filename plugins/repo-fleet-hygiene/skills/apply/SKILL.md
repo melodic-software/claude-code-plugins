@@ -68,8 +68,13 @@ One gate covers every repository and every local operation in the plan.
 
 Remote deletion is separate from that gate and stricter:
 
-- Before any prompt the script re-reads each live tip with `git ls-remote` and skips on drift, a
-  head already gone, or the remote's default branch.
+- Before any prompt the script re-checks each row against live state and skips on drift, a head
+  already gone, or the remote's default branch. It re-reads the tip with `git ls-remote`. It requires
+  every URL Git would fetch from or push to for the remote (effective config, so `pushurl` and
+  `url.*.insteadOf` count) to name the repository the audit recorded in `remote_key`. It re-reads
+  the branch's pull requests with `gh pr list --state all` for `github_repo`: `never-pr` needs
+  none, `closed-unmerged` needs only `CLOSED` ones with one at the plan tip. An `OPEN` or `MERGED`
+  pull request, a changed class, a full 100-row page, or a failed `gh` call skips the row.
 - Each branch gets its own `[y/N]` prompt naming repository, remote, branch, class, and tip. `--yes`
   does not answer it. A non-interactive session with any remote row that would be prompted deletes
   nothing at all, local rows included (exit 3).
@@ -85,12 +90,9 @@ Remote deletion is separate from that gate and stricter:
 - **Claim:** `gc.pruneExpire` defaults to two weeks. **Basis:** `git help config`, entry
   `gc.pruneExpire` (git 2.53.0). **As of:** 2026-09-29. **Recheck:** when a Git release changes the
   `gc.pruneExpire` default or the restore window in that entry.
-- This skill runs the script through the Bash tool, whose stdin is not a terminal. From the skill,
-  `--remote-branches` therefore only previews and exits 3. To delete, run
-  `apply-plan.sh --plan-file <path> --apply --remote-branches` in your own terminal.
-- **Claim:** the Bash tool runs commands with a non-terminal stdin. **Basis:** `[ -t 0 ]` probed in
-  a Bash tool call. **As of:** 2026-09-29. **Recheck:** when a Claude Code release documents an
-  interactive stdin for the Bash tool.
+- The script prompts only when its stdin is a terminal. When it has none, `--remote-branches` only
+  previews and exits 3. To delete, run `apply-plan.sh --plan-file <path> --apply --remote-branches`
+  in your own terminal.
 
 Scope is fixed by the audit: only never-PR and closed-unmerged branches are planned. Branches with a
 merged PR (`merged-remote-branch`) are out of scope and are rejected if they appear in a

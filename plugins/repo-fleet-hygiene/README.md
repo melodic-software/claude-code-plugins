@@ -146,10 +146,12 @@ apply-plan.sh --plan-file <path-from-audit> --apply --remote-branches
 
 - Each branch has its own `[y/N]` prompt naming repository, remote, branch, class, and tip. `--yes`
   never answers it, and a session without a terminal deletes nothing at all, local rows included.
-  `/repo-fleet-hygiene:apply --remote-branches` runs without a terminal, so from the skill it only
+  `/repo-fleet-hygiene:apply --remote-branches` gives the script no terminal, so from the skill it only
   previews; run the script in your own terminal to delete.
-- The live tip is re-read with `git ls-remote` first. Drift, an already-gone head, or the remote's
-  default branch skips the row.
+- Live state is re-read first. Drift in the `git ls-remote` tip, an already-gone head, the remote's
+  default branch, a remote whose fetch or push URL no longer names the audited repository, or a
+  pull request that is now open, merged, or missing its audited class (checked with `gh pr list`)
+  skips the row. So does a failed `gh` call.
 - The tip is appended to `<plan-file>.tip-ledger` before the push, with a restore command
   (`git -C <repo> push <remote> <tip>:refs/heads/<branch>`). The push carries a lease on that exact
   tip. The restore command works while the tip object is still in the local repository; after a

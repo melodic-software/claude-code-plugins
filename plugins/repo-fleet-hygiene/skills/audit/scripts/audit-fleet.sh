@@ -701,6 +701,8 @@ RB_CLASS=()
 RB_OID=()
 RB_PR_NUMBER=()
 RB_PR_URL=()
+RB_REMOTE_KEY=()
+RB_GITHUB_REPO=()
 R_DISCOVERED=()
 R_CANONICAL=()
 R_REMOTE=()
@@ -2506,7 +2508,8 @@ push_worktree_record() {
 # read as never-pr. Each candidate records the full live tip from ls-remote as expected_oid.
 classify_unmerged_remote_branches() {
   [[ "$repo_pr_available" == "true" && "$remote_inventory_failed" == "false" &&
-    -n "$canonical_remote" && -n "$default_branch" ]] || return 0
+    -n "$canonical_remote" && -n "$canonical_key" && -n "$github_repo" &&
+    -n "$default_branch" ]] || return 0
   local -a any_branches=() any_closed=()
   local name i has_merged any_rows="" any_gap=false any_key any_state any_oid any_num any_url
   local any_total any_nodes any_blocked any_class target live_out live_status live_oid l_oid l_ref
@@ -2625,6 +2628,8 @@ classify_unmerged_remote_branches() {
     RB_OID+=("$live_oid")
     RB_PR_NUMBER+=("$rb_num")
     RB_PR_URL+=("$rb_url")
+    RB_REMOTE_KEY+=("$canonical_key")
+    RB_GITHUB_REPO+=("$github_repo")
   done
   if [[ "$any_gap" == "true" ]]; then
     emit_finding github-pr-evidence-unavailable "$github_repo" \
@@ -3646,9 +3651,10 @@ fi
         [[ "$first_t" == "true" ]] && first_t=false || printf ','
         rb_pr_url=null
         [[ -z "${RB_PR_URL[$rbi]}" ]] || rb_pr_url="\"$(json_escape "${RB_PR_URL[$rbi]}")\""
-        printf '\n        {"target": "%s", "canonical": "%s", "remote": "%s", "branch": "%s", "class": "%s", "expected_oid": "%s", "pr_number": %s, "pr_url": %s}' \
+        printf '\n        {"target": "%s", "canonical": "%s", "remote": "%s", "branch": "%s", "remote_key": "%s", "github_repo": "%s", "class": "%s", "expected_oid": "%s", "pr_number": %s, "pr_url": %s}' \
           "$(json_escape "${RB_TARGET[$rbi]}")" "$(json_escape "${ACTION_CANONICAL[$i]}")" \
           "$(json_escape "${RB_REMOTE[$rbi]}")" "$(json_escape "${RB_BRANCH[$rbi]}")" \
+          "$(json_escape "${RB_REMOTE_KEY[$rbi]}")" "$(json_escape "${RB_GITHUB_REPO[$rbi]}")" \
           "${RB_CLASS[$rbi]}" "${RB_OID[$rbi]}" "${RB_PR_NUMBER[$rbi]:-null}" "$rb_pr_url"
       done
       printf '\n      ],\n'

@@ -65,7 +65,7 @@
       "id": 6,
       "name": "remote-branches-opt-in-per-branch-gate",
       "prompt": "/repo-fleet-hygiene:apply --plan-file /tmp/fleet-plan.json --apply --yes --remote-branches\n\nThe plan has two merged-local-branch deletes and one delete-remote-branches row for origin/spike/old-idea (class never-pr).",
-      "expected_output": "With --remote-branches the script re-reads the live tip, then needs its own per-branch prompt that --yes does not answer. The skill's Bash tool has no terminal, so nothing is deleted (local rows included) and the script exits 3. Tell the operator to run apply-plan.sh --plan-file <path> --apply --remote-branches in their own terminal.",
+      "expected_output": "With --remote-branches the script re-reads the live tip, then needs its own per-branch prompt that --yes does not answer. The script finds no terminal on stdin when run from the skill, so nothing is deleted (local rows included) and it exits 3. Tell the operator to run apply-plan.sh --plan-file <path> --apply --remote-branches in their own terminal.",
       "files": [],
       "expectations": [
         "States that --yes does not answer the per-branch remote prompt",

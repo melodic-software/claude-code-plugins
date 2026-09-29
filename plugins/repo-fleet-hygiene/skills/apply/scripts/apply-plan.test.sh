@@ -611,9 +611,13 @@ write_remote_plan() {
   local out=$1 canonical=$2 kind=$3
   shift 3
   python3 - "$out" "$canonical" "$kind" "$@" <<'PY'
-import json, os, sys
+import json, os, subprocess, sys
 
 out, canonical, kind, *rows = sys.argv[1:]
+remote_key = os.environ.get("REMOTE_KEY") or subprocess.run(
+    ["git", "-C", canonical, "remote", "get-url", "origin"],
+    check=True, capture_output=True, text=True).stdout.strip()
+github_repo = os.environ.get("GITHUB_REPO", "acme/r")
 targets, findings, remote_rows = [], [], []
 for row in rows:
     parts = row.split("|")
@@ -634,6 +638,7 @@ for row in rows:
     })
     remote_rows.append({
         "target": target, "canonical": canonical, "remote": "origin", "branch": branch,
+        "remote_key": remote_key, "github_repo": github_repo,
         "class": cls, "expected_oid": oid, "pr_number": None, "pr_url": None,
     })
 actions = []
@@ -673,6 +678,41 @@ with open(out, "w", encoding="utf-8") as f:
 PY
 }
 
+# gh stand-in for the apply-time PR recheck. It logs "<repo> <head>" per call and answers with the
+# rows in $GH_STUB_DIR/<branch with / as _> (tab-separated state and headRefOid), or exits 1 when
+# $GH_STUB_DIR/fail exists.
+export GH_STUB_DIR="$TMP/gh-stub" GH_STUB_LOG="$TMP/gh-stub.log"
+mkdir -p "$GH_STUB_DIR" "$TMP/bin"
+: >"$GH_STUB_LOG"
+cat >"$TMP/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+repo="" head=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --head) head=$2; shift ;;
+  --repo) repo=$2; shift ;;
+  esac
+  shift
+done
+printf '%s %s\n' "$repo" "$head" >>"$GH_STUB_LOG"
+[[ ! -e "$GH_STUB_DIR/fail" ]] || exit 1
+[[ ! -f "$GH_STUB_DIR/${head//\//_}" ]] || cat "$GH_STUB_DIR/${head//\//_}"
+STUB
+chmod +x "$TMP/bin/gh"
+export PATH="$TMP/bin:$PATH"
+
+# set_pr_rows BRANCH [STATE OID]...: what the stubbed GitHub reports for the branch's PRs.
+set_pr_rows() {
+  local branch=$1 f
+  shift
+  f="$GH_STUB_DIR/${branch//\//_}"
+  : >"$f"
+  while [[ $# -ge 2 ]]; do
+    printf '%s\t%s\n' "$1" "$2" >>"$f"
+    shift 2
+  done
+}
+
 NP=unmerged-remote-branch
 
 # (a) No --remote-branches: local deletion proceeds, the remote head stays, no push runs.
@@ -698,6 +738,7 @@ RB_NP="$(add_remote_branch "$REMOTE_REPO" feat/np)"
 RB_CL="$(add_remote_branch "$REMOTE_REPO" feat/closed)"
 RB_BARE="$REMOTE_BARE"
 RB_REPO="$REMOTE_REPO"
+set_pr_rows feat/closed CLOSED "$RB_CL"
 RB_PLAN="$TMP/rb-plan.json"
 write_remote_plan "$RB_PLAN" "$RB_REPO" "$NP" "feat/np|never-pr|$RB_NP" "feat/closed|closed-unmerged|$RB_CL"
 if [[ "$HAVE_PTY" -eq 1 ]]; then
@@ -803,6 +844,7 @@ make_remote_repo rf
 RF_A="$(add_remote_branch "$REMOTE_REPO" feat/a)"
 RF_B="$(add_remote_branch "$REMOTE_REPO" feat/b)"
 RF_REPO="$REMOTE_REPO"
+set_pr_rows feat/b CLOSED "$RF_B"
 RF_PLAN="$TMP/rf-plan.json"
 write_remote_plan "$RF_PLAN" "$RF_REPO" "$NP" "feat/a|never-pr|$RF_A" "feat/b|closed-unmerged|$RF_B"
 rf_dry="$TMP/rf-dry.txt"
@@ -899,6 +941,84 @@ rg_rc=0
 bash "$SCRIPT" --plan-file "$RG_BAD" --remote-branches >"$TMP/rg-bad.txt" 2>&1 || rg_rc=$?
 [[ "$rg_rc" -eq 2 ]] && grep -Fq "branch is not a valid ref name" "$TMP/rg-bad.txt" &&
   pass "invalid branch ref name is rejected" || fail "invalid branch ref name is rejected (rc=$rg_rc)"
+
+# (h) A remote retargeted after the audit no longer names the audited repository: skipped, no push.
+make_remote_repo rj
+RJ_OID="$(add_remote_branch "$REMOTE_REPO" feat/np)"
+RJ_REPO="$REMOTE_REPO"
+RJ_BARE="$REMOTE_BARE"
+RJ_OTHER="$TMP/rj-other.git"
+git clone -q --bare "$RJ_BARE" "$RJ_OTHER"
+RJ_PLAN="$TMP/rj-plan.json"
+write_remote_plan "$RJ_PLAN" "$RJ_REPO" "$NP" "feat/np|never-pr|$RJ_OID"
+rj_run() {
+  local label=$1 out="$TMP/rj-$1.txt" rc=0
+  bash "$SCRIPT" --plan-file "$RJ_PLAN" --apply --yes --remote-branches </dev/null >"$out" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] && pass "$label: run exits 0 with nothing to prompt" || fail "$label: run exits 0 with nothing to prompt (rc=$rc)"
+  assert_contains "$label: skipped as no longer the audited repository" \
+    "remote no longer names the audited repository" "$out"
+  assert_remote_head "$label: audited remote head survives" "$RJ_BARE" feat/np "$RJ_OID"
+  assert_remote_head "$label: retargeted remote head survives" "$RJ_OTHER" feat/np "$RJ_OID"
+}
+git -C "$RJ_REPO" remote set-url origin "$RJ_OTHER"
+rj_run "set-url retarget"
+git -C "$RJ_REPO" remote set-url origin "$RJ_BARE"
+git -C "$RJ_REPO" config remote.origin.pushurl "$RJ_OTHER"
+rj_run "pushurl retarget"
+git -C "$RJ_REPO" config --unset remote.origin.pushurl
+git -C "$RJ_REPO" config "url.$RJ_OTHER.insteadOf" "$RJ_BARE"
+rj_run "insteadOf retarget"
+git -C "$RJ_REPO" config --unset "url.$RJ_OTHER.insteadOf"
+rj_ok="$TMP/rj-ok.txt"
+bash "$SCRIPT" --plan-file "$RJ_PLAN" --remote-branches >"$rj_ok" 2>&1
+assert_contains "restored remote passes the identity check" "[delete-remote-branch]" "$rj_ok"
+GITHUB_URL_KEY=github.com/acme/r
+git -C "$RJ_REPO" remote set-url origin "git@github.com:Acme/R.git"
+REMOTE_KEY="$GITHUB_URL_KEY" write_remote_plan "$RJ_PLAN" "$RJ_REPO" "$NP" "feat/np|never-pr|$RJ_OID"
+[[ "$(bash "$SCRIPT" --plan-file "$RJ_PLAN" --remote-branches 2>&1 | grep -c 'remote no longer names')" -eq 0 ]] &&
+  pass "a GitHub URL in another spelling keeps the same identity" ||
+  fail "a GitHub URL in another spelling keeps the same identity"
+git -C "$RJ_REPO" remote set-url origin "https://github.com/acme/other.git"
+rj_run_gh="$TMP/rj-gh.txt"
+bash "$SCRIPT" --plan-file "$RJ_PLAN" --remote-branches >"$rj_run_gh" 2>&1
+assert_contains "a different GitHub repository is refused" "remote no longer names the audited repository" "$rj_run_gh"
+
+# (i) PR state is re-read before a row becomes deletable; anything but the audited class skips it.
+make_remote_repo rk
+RK_REPO="$REMOTE_REPO"
+RK_OPEN="$(add_remote_branch "$RK_REPO" feat/open)"
+RK_MERGED="$(add_remote_branch "$RK_REPO" feat/merged)"
+RK_REOPENED="$(add_remote_branch "$RK_REPO" feat/reopened)"
+RK_STALE="$(add_remote_branch "$RK_REPO" feat/stale)"
+RK_OK="$(add_remote_branch "$RK_REPO" feat/ok)"
+set_pr_rows feat/open OPEN "$RK_OPEN"
+set_pr_rows feat/merged MERGED "$RK_MERGED"
+set_pr_rows feat/reopened CLOSED "$RK_REOPENED"
+set_pr_rows feat/stale CLOSED "$(printf 'f%.0s' {1..40})"
+set_pr_rows feat/ok CLOSED "$RK_OK"
+RK_PLAN="$TMP/rk-plan.json"
+write_remote_plan "$RK_PLAN" "$RK_REPO" "$NP" "feat/open|never-pr|$RK_OPEN" \
+  "feat/merged|closed-unmerged|$RK_MERGED" "feat/reopened|never-pr|$RK_REOPENED" \
+  "feat/stale|closed-unmerged|$RK_STALE" "feat/ok|closed-unmerged|$RK_OK"
+: >"$GH_STUB_LOG"
+rk_out="$TMP/rk.txt"
+bash "$SCRIPT" --plan-file "$RK_PLAN" --remote-branches >"$rk_out" 2>&1
+assert_contains "an OPEN PR blocks deletion" "a PR with this head is now OPEN" "$rk_out"
+assert_contains "a MERGED PR blocks deletion" "a PR with this head is now MERGED" "$rk_out"
+assert_contains "a PR on a never-pr row blocks deletion" "class changed: a PR now exists for this head" "$rk_out"
+assert_contains "a CLOSED PR at another tip blocks a closed-unmerged row" "class changed: no CLOSED PR at the plan tip" "$rk_out"
+assert_contains "a matching CLOSED PR keeps a closed-unmerged row deletable" \
+  "GitHub PR state matches class closed-unmerged" "$rk_out"
+[[ "$(grep -cF '[delete-remote-branch]' "$rk_out")" -eq 1 ]] &&
+  pass "only the row whose PR state matches stays deletable" ||
+  fail "only the row whose PR state matches stays deletable"
+assert_contains "the audited GitHub repository was queried for the branch" "github.com/acme/r feat/open" "$GH_STUB_LOG"
+touch "$GH_STUB_DIR/fail"
+rk_fail="$TMP/rk-fail.txt"
+bash "$SCRIPT" --plan-file "$RK_PLAN" --remote-branches >"$rk_fail" 2>&1
+assert_contains "an unreadable PR state fails closed" "GitHub PR state could not be verified (fail-closed)" "$rk_fail"
+assert_not_contains "no row is deletable while PR state is unreadable" "[delete-remote-branch]" "$rk_fail"
+rm -f "$GH_STUB_DIR/fail"
 
 # A ledger that cannot be written aborts that branch before the push.
 if [[ "$HAVE_PTY" -eq 1 ]]; then

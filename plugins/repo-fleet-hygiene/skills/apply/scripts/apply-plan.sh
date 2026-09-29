@@ -8,7 +8,8 @@
 # Mutable OIDs are re-derived immediately before every delete; tip drift skips fail-closed.
 #
 # delete-remote-branches actions run only under --remote-branches, one prompt per branch that
-# --yes never answers, after the live tip is re-read with ls-remote. Each tip is appended to a
+# --yes never answers, after the live tip, the remote's identity and the branch's PR state are
+# re-read (ls-remote, git remote get-url, gh pr list). Each tip is appended to a
 # ledger next to the plan file before the lease-guarded push deletes the head.
 #
 # Exit: 0 success (including dry-run / confirmation-stop); 2 usage/plan error; 3 apply aborted
@@ -103,10 +104,11 @@ fi
 # Parse plan → ordered units on stdout. Fields are ASCII Unit Separator (U+001F)
 # delimited so empty ref_name / expected_oid stay intact under Bash 3.2 `read`
 # (tab is IFS whitespace and collapses consecutive delimiters).
-# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target, remote, class
-# ref_name is the local branch (or empty for prune-only worktree ops). remote and class are set
-# only for delete-remote-branches, whose branch, tip and class come from the action's
-# remote_branches[] row once it is bound to its audit finding.
+# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target, remote, class,
+# remote_key, github_repo
+# ref_name is the local branch (or empty for prune-only worktree ops). remote, class, remote_key and
+# github_repo are set only for delete-remote-branches, whose branch, tip, class and audited
+# identity come from the action's remote_branches[] row once it is bound to its audit finding.
 # expected_oid may be empty when the plan evidence lacked a headRefOid (fail-closed later).
 PLAN_TSV="$(
   PLAN_FILE_PATH="$PLAN_FILE" python3 - <<'PY'
@@ -151,6 +153,7 @@ INDEXED_KINDS = BRANCH_KINDS | WORKTREE_KINDS | REMOTE_KINDS | {"merged-remote-b
 CLASSES = {"never-pr", "closed-unmerged"}
 full_oid_re = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
 remote_name_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+github_repo_re = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 def valid_branch(b: str) -> bool:
     # git-check-ref-format rules, plus no leading "-", without a git subprocess.
     return (
@@ -274,7 +277,7 @@ for _idx, action in ordered:
                 file=sys.stderr,
             )
             sys.exit(2)
-        remote, rclass = "", ""
+        remote, rclass, rkey, rrepo = "", "", "", ""
         if op == "delete-remote-branches":
             rows = remote_rows.get(target_s, [])
             if len(rows) != 1:
@@ -288,6 +291,8 @@ for _idx, action in ordered:
             ref_name = str(rb.get("branch") or "")
             remote = str(rb.get("remote") or "")
             rclass = str(rb.get("class") or "")
+            rkey = str(rb.get("remote_key") or "")
+            rrepo = str(rb.get("github_repo") or "")
             oid = str(rb.get("expected_oid") or "")
             problem = ""
             if str(rb.get("canonical") or "") != canonical:
@@ -300,6 +305,10 @@ for _idx, action in ordered:
                 problem = "branch is not a valid ref name"
             elif rclass not in CLASSES:
                 problem = "class is not never-pr or closed-unmerged"
+            elif not rkey or re.search(r"[\x00-\x20\x7f]", rkey):
+                problem = "remote_key is missing"
+            elif not github_repo_re.fullmatch(rrepo):
+                problem = "github_repo is not owner/repository"
             elif not full_oid_re.fullmatch(oid):
                 problem = "expected_oid is not a full lowercase object id"
             elif f"refs/heads/{ref_name} at {oid}" not in evidence:
@@ -326,6 +335,8 @@ for _idx, action in ordered:
                     clean(target_s),
                     clean(remote),
                     clean(rclass),
+                    clean(rkey),
+                    clean(rrepo),
                 ]
             )
         )
@@ -674,8 +685,86 @@ remote_delete_cmdline() {
   printf '\n'
 }
 
+# Identity of a remote URL: the lowercase github.com/owner/repo key for a GitHub URL (userinfo, port
+# and a .git suffix dropped), the URL itself otherwise. The audit records the same key.
+remote_identity() {
+  local url=$1 rest authority path host
+  if [[ "$url" == *://* ]]; then
+    rest="${url#*://}"
+    authority="${rest%%/*}"
+    path="${rest#*/}"
+    host="${authority##*@}"
+    host="${host%%:*}"
+  elif [[ "$url" =~ ^[^@]+@([^:]+):(.+)$ ]]; then
+    host="${BASH_REMATCH[1]}"
+    path="${BASH_REMATCH[2]}"
+  else
+    printf '%s' "$url"
+    return 0
+  fi
+  path="${path#/}"
+  path="${path%/}"
+  path="${path%.git}"
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$host" == "github.com" && "$path" =~ ^[^/]+/[^/]+$ ]]; then
+    printf 'github.com/%s' "$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
+  else
+    printf '%s' "$url"
+  fi
+}
+
+# True when every URL git would fetch from and push to for the remote names the audited repository.
+# Uses the effective config, so a url.*.insteadOf or a changed pushurl that retargets the remote
+# fails here instead of deleting a branch in a repository the audit never saw.
+remote_names_audited_repo() {
+  local canonical=$1 remote=$2 key=$3 url seen=0 flag
+  for flag in "" "--push"; do
+    while IFS= read -r url; do
+      [[ -n "$url" ]] || continue
+      seen=1
+      [[ "$(remote_identity "$url")" == "$key" ]] || return 1
+    done < <(git_probe -C "$canonical" remote get-url ${flag:+"$flag"} --all "$remote" 2>/dev/null)
+  done
+  [[ "$seen" -eq 1 ]]
+}
+
+# Fails, naming why on stdout, unless GitHub still shows the audited class for the branch: no PR at
+# all for never-pr; only CLOSED PRs, one at the planned tip, for closed-unmerged. Any doubt fails.
+remote_pr_state_ok() {
+  local repo=$1 ref=$2 class=$3 tip=$4 rows state oid count=0 closed_at_tip=0
+  if ! rows="$(env -u GH_REPO GH_PROMPT_DISABLED=1 gh pr list --repo "github.com/${repo}" --head "$ref" \
+    --state all --limit 100 --json state,headRefOid \
+    --jq '.[] | [.state, .headRefOid] | @tsv' 2>/dev/null)"; then
+    printf 'GitHub PR state could not be verified (fail-closed)'
+    return 1
+  fi
+  while IFS=$'\t' read -r state oid; do
+    [[ -n "$state" ]] || continue
+    count=$((count + 1))
+    if [[ "$state" != "CLOSED" ]]; then
+      printf 'a PR with this head is now %s' "$state"
+      return 1
+    fi
+    [[ "$oid" != "$tip" ]] || closed_at_tip=1
+  done <<<"$rows"
+  if [[ "$count" -ge 100 ]]; then
+    printf 'GitHub PR list may be truncated (fail-closed)'
+    return 1
+  fi
+  if [[ "$class" == "never-pr" && "$count" -gt 0 ]]; then
+    printf 'class changed: a PR now exists for this head'
+    return 1
+  fi
+  if [[ "$class" == "closed-unmerged" && "$closed_at_tip" -eq 0 ]]; then
+    printf 'class changed: no CLOSED PR at the plan tip'
+    return 1
+  fi
+  return 0
+}
+
 refresh_remote_delete() {
   local phase=$1 op=$2 canonical=$3 ref=$4 expected=$5 kind=$6 target=$7 remote=$8 class=$9
+  local key=${10} repo=${11}
   local action=skip reason live="" out sym default="" l_oid l_ref
 
   if [[ "$REMOTE_BRANCHES" -eq 0 ]]; then
@@ -686,6 +775,8 @@ refresh_remote_delete() {
     reason="not a git repository"
   elif ! git_probe -C "$canonical" remote get-url "$remote" >/dev/null 2>&1; then
     reason="remote not configured"
+  elif ! remote_names_audited_repo "$canonical" "$remote" "$key"; then
+    reason="remote no longer names the audited repository (fail-closed)"
   elif ! out="$(git_probe -C "$canonical" ls-remote --heads "$remote" "refs/heads/${ref}" 2>/dev/null)"; then
     reason="ls-remote failed (fail-closed)"
   else
@@ -706,9 +797,11 @@ refresh_remote_delete() {
       reason="protected default branch"
     elif [[ "$live" != "$expected" ]]; then
       reason="OID drift (plan tip != live remote tip)"
+    elif ! reason="$(remote_pr_state_ok "$repo" "$ref" "$class" "$expected")"; then
+      :
     else
       action=delete-remote-branch
-      reason="remote head still at plan OID"
+      reason="remote head still at plan OID; GitHub PR state matches class $class"
     fi
   fi
   append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$live" \
@@ -729,11 +822,11 @@ record_tip() {
 # Unit Separator (not tab): empty ref/expected fields must survive read.
 for line in "${UNITS[@]:-}"; do
   [[ -n "$line" ]] || continue
-  IFS=$'\037' read -r phase op canonical ref expected kind target remote rclass _ <<<"$line"
+  IFS=$'\037' read -r phase op canonical ref expected kind target remote rclass rkey rrepo _ <<<"$line"
   case "$op" in
   delete-remote-branches)
     refresh_remote_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target" \
-      "$remote" "$rclass"
+      "$remote" "$rclass" "$rkey" "$rrepo"
     ;;
   delete-merged-local-branches)
     refresh_branch_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"

@@ -1079,6 +1079,8 @@ assert got == {
     ("feature/closed", "closed-unmerged", "b" * 40, 60, "https://github.com/acme/repo-a/pull/60", "origin", canonical),
 }, got
 assert remote[0]["targets"] == [b["target"] for b in remote[0]["remote_branches"]]
+ident = {(b["remote_key"], b["github_repo"]) for b in remote[0]["remote_branches"]}
+assert ident == {("github.com/acme/repo-a", "acme/repo-a")}, ident
 PY
   printf 'PASS: plan emits delete-remote-branches with class, expected_oid, and PR for exactly the candidates\n'
 else
