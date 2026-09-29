@@ -3,14 +3,16 @@
   "evals": [
     {
       "id": 1,
-      "name": "routes-secret-configuration-through-claude",
+      "name": "no-server-names-both-supported-setups",
       "prompt": "/dometrain:setup",
-      "expected_output": "Checks enablement and scoped Dometrain tool availability without inspecting the token, settings, or environment variables, routes missing configuration through Claude Code's native plugin prompt, and requires a reload before rechecking.",
+      "expected_output": "Checks Dometrain tool availability under both prefixes without inspecting the token, settings, or environment variables. When neither resolves, names the two supported setups (install dometrain-mcp, or add a user-scope dometrain server per the README) and requires a reload before rechecking.",
       "files": [],
       "expectations": [
         "Never reads settings, environment variables, credential storage, logs, or the API key",
-        "Routes enablement and key entry through Claude Code's native plugin interface",
-        "Distinguishes a disabled plugin from an enabled server whose tools do not resolve",
+        "Checks both mcp__plugin_dometrain-mcp_dometrain__* and mcp__dometrain__* tool names",
+        "Names both supported setups: install dometrain-mcp, or add a user-scope dometrain server per the README",
+        "Warns that installing dometrain-mcp next to a user-scope server at the same URL produces a duplicate-server warning",
+        "Distinguishes no server present from a configured server whose tools do not resolve",
         "Never claims to read '/mcp' connection status directly \u2014 reports tool-inventory / ToolSearch signals only",
         "Requires reload-plugins or a new session after configuration"
       ]
@@ -18,10 +20,11 @@
     {
       "id": 2,
       "name": "already-enabled-server-is-reported-reachable",
-      "prompt": "/dometrain:setup \u2014 the plugin is enabled and search_dometrain already appears in my tool list.",
-      "expected_output": "Treats the scoped Dometrain tools as present, reports the check as already configured, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
+      "prompt": "/dometrain:setup \u2014 mcp__dometrain__search_dometrain already appears in my tool list (my own user-scope server).",
+      "expected_output": "Treats the user-scope tools as present, reports connected naming the mcp__dometrain__ prefix, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
       "files": [],
       "expectations": [
+        "Reports connected under the mcp__dometrain__ prefix and does not ask for dometrain-mcp",
         "Reports the server as reachable from tool inventory, not from reading the key",
         "Does not prompt to re-enter or rotate the API key",
         "Never reads settings, environment variables, or credential storage"
@@ -31,12 +34,12 @@
       "id": 3,
       "name": "auth-error-routes-to-native-prompt-not-key-inspection",
       "prompt": "/dometrain:setup \u2014 search_dometrain just failed with an authentication error. Fix the key.",
-      "expected_output": "Does not open settings, logs, or the environment to look at the key. Routes reconfiguration through Claude Code's native plugin prompt and requires reload-plugins or a new session before rechecking.",
+      "expected_output": "Does not open settings, logs, or the environment to look at the key. For a dometrain-mcp key, routes reconfiguration through Claude Code's native plugin prompt for dometrain-mcp; for a user-scope server, points to claude mcp list and the README. Requires reload-plugins or a new session before rechecking.",
       "files": [],
       "narration": true,
       "expectations": [
         "Never reads or prints the API key",
-        "Routes the fix through Claude Code's native plugin configuration prompt",
+        "Routes a dometrain-mcp key through /plugin configure dometrain-mcp and a user-scope server through claude mcp list and the README",
         "Requires a reload or new session before claiming the error is gone"
       ]
     }
