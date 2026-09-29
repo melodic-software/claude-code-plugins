@@ -56,9 +56,10 @@ never combined with `&&` or other commands in one call. The record for these sha
 3. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
    `plan.md` uses (`git ls-files`, globs, `ls`). Skip it when resuming: `state.sh` reported
    `in-progress` with a dirty tree, so an earlier session already ran the skill. When it no longer
-   holds, record each `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then
-   `S/tick.sh <id> not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the
-   step without priming or running section 3. Evidence must be one line with no commas.
+   holds, run `S/tick.sh <id> not-applicable "<one-line evidence>"`, report, and stop the
+   step without priming or running section 3. The step invokes no skill, so the line records no
+   skill version and no `Playbook-Step` trailer is written. Evidence must be one line with no
+   commas.
 4. When the `prime` column (column 8, the last field of `S/catalog.sh C`) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
@@ -86,13 +87,18 @@ never combined with `&&` or other commands in one call. The record for these sha
    anything is fixed. Read the skill's own coverage statement (for example audit skills' `Lane:`
    lines or `Summary coverage:`) and show any uncovered scope alongside the findings. Do not tick
    the step, including a `no findings` tick, until this review finishes.
-4. Ask the scope questions the findings raise as one short numbered list in chat (which
-   findings to fix, how far to go). A file synced from another repository is overwritten by the
+4. Settle the scope questions the findings raise (which findings to fix, how far to go) by
+   running `/planning:interview scope` through the Skill tool; it writes no `PLAN.md` and returns
+   a `Scope decisions:` section. A file synced from another repository is overwritten by the
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
-   edit them here, and ask whether to draft an issue in the source repository, filed only when
-   the user asks. Do not run `/planning:interview` for this. Record each question and answer for
-   the commit.
+   edit them here, and put the question of whether to draft an issue in the source repository
+   to the interview, filed only when the user asks. Copy the returned lines (answer lines,
+   `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
+   section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
+   that question before step 5, then record the user's answer beside that line in the section.
+   When the planning plugin is not installed, ask the questions as one short numbered list
+   in chat and record each question and answer for the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
 ## 4. Guard, commit, tick
