@@ -189,9 +189,27 @@ End every run with this block, in this order, filled from the record and the scr
 
 - **Scope is one software system.** A system context diagram draws that system in the center,
   with people and the other software systems directly connected to it. Primary element: the
-  software system in scope. Supporting elements: people and those other software systems. Verified
-  2026-09-28 against <https://c4model.com/diagrams/system-context>. Recheck when that page changes
+  software system in scope. Supporting elements: people and those other software systems. Basis:
+  <https://c4model.com/diagrams/system-context>. As of: 2026-09-29. Recheck when that page changes
   the scope, the primary element, or the supporting elements.
+- **C4-PlantUML context syntax: read against the README, never run.** Claim: the `plantuml`
+  block uses `!include <C4/C4_Context>`, `Person(alias, label, ?descr, ...)`,
+  `System(alias, label, ?descr, ...)`, `System_Ext(alias, label, ?descr, ...)`, and
+  `Rel(from, to, label, ...)`. Basis:
+  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
+  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
+  `C4_Context` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes those
+  signatures or the include path, or when a host with Java can run PlantUML over a rendered
+  block. No PlantUML run has parsed this output.
+- **LikeC4 context syntax: parsed by the CLI.** Claim: the `likec4` block declares `person` (with
+  `style { shape person }`), `softwareSystem`, and `externalSystem` (with `style { color muted }`)
+  kinds, three elements assigned as `name = kind "title" "description"`, relationships
+  `a -> b "label"`, and a `views` block with `view context` holding `title` and `include *`.
+  Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
+  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
+  validate` exiting 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`context.c4`), which `render-context.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages changes that syntax or a newer
+  `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Actors are not derived.** The system-context page lists people as supporting elements and does
   not describe reading them from configuration. This skill records an actor only from an
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.

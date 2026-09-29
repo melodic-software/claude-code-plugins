@@ -206,10 +206,29 @@ End every run with this block, in this order, filled from the record and the scr
 ## Gotchas
 
 - **A container diagram is one software system.** The primary elements are the containers inside
-  that system. Deployment concerns such as clustering and failover are not this diagram. Verified
-  2026-09-28 against <https://c4model.com/diagrams/container> and <https://c4model.com/>. Recheck
+  that system. Deployment concerns such as clustering and failover are not this diagram. Basis:
+  <https://c4model.com/diagrams/container> and <https://c4model.com/>. As of: 2026-09-29. Recheck
   when the container-diagram page changes its scope, its primary elements, or moves deployment
   concerns onto this diagram.
+- **C4-PlantUML container syntax: read against the README, never run.** Claim: the `plantuml`
+  block uses `!include <C4/C4_Container>`, `System_Boundary(alias, label, ?tags, ?link, ?descr)`,
+  `Container`, `ContainerDb`, and `ContainerQueue` as `(alias, label, ?techn, ?descr, ...)`, and
+  `Rel(from, to, label, ?techn, ...)`. Basis:
+  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows that stdlib
+  include verbatim. As of: 2026-09-29. Recheck when that README changes those signatures or the
+  include path, or when a host with Java can run PlantUML over a rendered block. No PlantUML run
+  has parsed this output.
+- **LikeC4 container syntax: parsed by the CLI.** Claim: the `likec4` block declares
+  `softwareSystem`, `container`, and `store` and `queue` kinds (`style { shape storage }` and
+  `shape queue`), nests the containers in the system, relates them by dotted name, and draws
+  `view containers of <system>` with `include *`. Basis: <https://likec4.dev/dsl/specification/>,
+  <https://likec4.dev/dsl/model/>, <https://likec4.dev/dsl/views/>, and
+  <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
+  validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`), which
+  `collect-containers.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages
+  changes that syntax or a newer `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the
+  test to re-run the CLI.
 - **Directory names are not deployables.** `Microsoft.NET.Sdk.Web` in a directory named Worker is a
   web host. A class library in a directory named Api is a module. Host-builder usage is read only
   for a project that is already an entry point (web SDK, worker SDK, functions, or `OutputType` Exe).

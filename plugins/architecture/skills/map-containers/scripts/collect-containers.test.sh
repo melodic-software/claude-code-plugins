@@ -7,6 +7,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECT="$SCRIPT_DIR/collect-containers.sh"
 RENDER="$SCRIPT_DIR/render-containers.sh"
+source "$SCRIPT_DIR/../../../lib/likec4-golden.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -217,6 +218,7 @@ assert_contains "c4-plantuml includes the container library" "$mono_text" "!incl
 bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect likec4 >"$MOUT/struct.out"
 assert_equals "mono: likec4 render exits 0" "$?" "0"
 assert_contains "likec4 is a container view" "$(cat "$MOUT/containers.md")" "view containers of e_sys"
+assert_likec4_golden "containers.c4" "$MOUT/containers.md"
 assert_contains "module evidence cites the whole reference tag" "$mono_text" 'Include=\"..\\Billing\\Billing.csproj\" />'
 
 # The no-graph path reads references with the shared reader: a tag that spans
@@ -556,6 +558,9 @@ commit_repo "$DBS"
 collect_render "$DBS" "$TEST_TMPDIR/dbs-out"
 SREC="$TEST_TMPDIR/dbs-out/containers.json"
 stext="$(cat "$SREC")"
+mkdir -p "$TEST_TMPDIR/dbs-likec4"
+bash "$RENDER" --record "$SREC" --out "$TEST_TMPDIR/dbs-likec4" --dialect likec4 >/dev/null
+assert_likec4_golden "containers-stores.c4" "$TEST_TMPDIR/dbs-likec4/containers.md"
 assert_equals "database: two databases on one server and one server with none are three stores" "$(grep -c '"kind":"store"' "$SREC" || true)" "3"
 assert_contains "database: the store id carries the database" "$stext" '"id":"store:sql:sql.example.com:1433:orders"'
 assert_contains "database: the store name carries the database" "$(field "$(node_line "$SREC" 'store:sql:sql.example.com:1433:billing')" name)" "sql.example.com/billing"
@@ -610,6 +615,9 @@ commit_repo "$THREE"
 collect_render "$THREE" "$TEST_TMPDIR/three-out"
 HREC="$TEST_TMPDIR/three-out/containers.json"
 htext="$(cat "$HREC")"
+mkdir -p "$TEST_TMPDIR/three-likec4"
+bash "$RENDER" --record "$HREC" --out "$TEST_TMPDIR/three-likec4" --dialect likec4 >/dev/null
+assert_likec4_golden "containers-broker.c4" "$TEST_TMPDIR/three-likec4/containers.md"
 assert_equals "three owners: one shared edge per owner pair" "$(grep -c '"kind":"shared-infrastructure"' "$HREC" || true)" "3"
 assert_contains "three owners: api and batch" "$htext" '{"from":"src/Api/Api.csproj","to":"src/Batch/Batch.csproj","kind":"shared-infrastructure"'
 assert_contains "three owners: api and worker" "$htext" '{"from":"src/Api/Api.csproj","to":"src/Worker/Worker.csproj","kind":"shared-infrastructure"'

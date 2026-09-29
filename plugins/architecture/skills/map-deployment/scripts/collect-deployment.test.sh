@@ -9,6 +9,7 @@ export LEAK="SuperSecretFromEnv"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECT="$SCRIPT_DIR/collect-deployment.sh"
 RENDER="$SCRIPT_DIR/render-deployment.sh"
+source "$SCRIPT_DIR/../../../lib/likec4-golden.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -141,6 +142,7 @@ assert_contains "likec4 environment" "$lmd" "= environment 'prod' {"
 assert_contains "likec4 instance" "$lmd" "instanceOf c"
 assert_contains "likec4 deployment view" "$lmd" "deployment view view"
 assert_equals "likec4 writes one fenced block" "$(grep -c '^```' "$TEST_TMPDIR/dep-l/deployment.md")" "2"
+assert_likec4_golden "deployment-compose.c4" "$TEST_TMPDIR/dep-l/deployment.md"
 
 nsum="$(bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-n" --diff staging prod)"
 assert_equals "dialect none exits 0" "$?" "0"
@@ -348,6 +350,7 @@ bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-l" --dia
 kl="$(cat "$TEST_TMPDIR/k8s-l/deployment.md")"
 assert_contains "likec4 ingress node" "$kl" "= node 'api' 'ingress api.example.com'"
 assert_contains "likec4 view includes the environment" "$kl" ".**"
+assert_likec4_golden "deployment-kubernetes.c4" "$TEST_TMPDIR/k8s-l/deployment.md"
 
 # flat record
 printf '%s\n' '{"schema_version":1}' >"$TEST_TMPDIR/flat.json"

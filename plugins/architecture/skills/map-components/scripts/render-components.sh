@@ -831,7 +831,7 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   collect_groups()
   drawn = 0
   printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
   lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
@@ -866,8 +866,7 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
     label = edge_label(ekind[i], eevidence[i])
     vio = is_violation(efrom[i], edge_to[i])
     if (vio) label = label ", layer violation"
-    printf "puml\tRel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[edge_to[i]], label
-    if (vio) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", alias[efrom[i]], alias[edge_to[i]]
+    printf "puml\tRel(%s, %s, \"%s\"%s)\n", alias[efrom[i]], alias[edge_to[i]], label, (vio ? ", $tags=\"layer-violation\"" : "")
     lc4_rel(fqn[efrom[i]], fqn[edge_to[i]], label, vio)
     drawn++
   }
@@ -878,7 +877,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
   collect_groups()
   drawn = 0
   printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
   lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
@@ -928,8 +927,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
     label = pair_label[key]
     if (pair_count[key] > 1) label = label " (" pair_count[key] ")"
     if (pair_vio[key]) label = label ", layer violation"
-    printf "puml\tRel(%s, %s, \"%s\")\n", galias[pair_from[key]], galias[pair_to[key]], label
-    if (pair_vio[key]) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", galias[pair_from[key]], galias[pair_to[key]]
+    printf "puml\tRel(%s, %s, \"%s\"%s)\n", galias[pair_from[key]], galias[pair_to[key]], label, (pair_vio[key] ? ", $tags=\"layer-violation\"" : "")
     lc4_rel("c4system.c4container." galias[pair_from[key]], "c4system.c4container." galias[pair_to[key]], label, pair_vio[key])
     drawn++
   }
@@ -1055,6 +1053,9 @@ layers_declared="$(meta_get layers_declared)"
     printf 'No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the graph.\n\n'
   elif [[ "$dialect" == "c4-plantuml" ]]; then
     printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
+    if [[ "$nviol" -gt 0 ]]; then
+      printf 'AddRelTag("layer-violation", $textColor="#b00020", $lineColor="#b00020")\n'
+    fi
     cat "$puml"
     printf '@enduml\n```\n\n'
   else

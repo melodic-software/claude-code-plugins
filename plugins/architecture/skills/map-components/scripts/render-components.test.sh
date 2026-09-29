@@ -7,6 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/render-components.sh"
 COLLECT="$SCRIPT_DIR/../../map-dependencies/scripts/dependency-graph.sh"
+source "$SCRIPT_DIR/../../../lib/likec4-golden.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -84,6 +85,10 @@ assert_contains "layer: three directed project arrows" "$md" 'Rel('
 rels="$(grep -c 'Rel(' "$TEST_TMPDIR/layered/components.md")"
 assert_equals "layer: exactly three Rel lines" "$rels" "3"
 assert_contains "layer: the upward edge is visibly a violation" "$md" 'ProjectReference, layer violation'
+# shellcheck disable=SC2016
+assert_contains "layer: the violation tag is defined once" "$md" 'AddRelTag("layer-violation", $textColor="#b00020", $lineColor="#b00020")'
+assert_equals "layer: only the violating Rel carries the tag" "$(grep -c 'layer-violation")' "$TEST_TMPDIR/layered/components.md")" "1"
+assert_not_contains "layer: no per-relationship UpdateRelStyle" "$md" 'UpdateRelStyle'
 assert_contains "layer: the violation table names Domain to Application" "$md" '| Domain | Application |'
 assert_contains "layer: informational, and the run does not fail" "$md" 'does not fail'
 assert_contains "layer: the package is not a component" "$md" 'External packages collapsed: 1'
@@ -113,6 +118,7 @@ assert_contains "likec4: the violation is styled" "$lc4" 'color red'
 assert_contains "likec4: the violation is labeled" "$lc4" 'ProjectReference, layer violation'
 assert_not_contains "likec4: no plantuml block" "$lc4" '@startuml'
 assert_contains "likec4: summary names the dialect" "$(cat "$TEST_TMPDIR/lc4.out")" 'dialect=likec4'
+assert_likec4_golden "components.c4" "$TEST_TMPDIR/lc4/components.md"
 if [[ -f "$TEST_TMPDIR/lc4/components.dsl" ]]; then
   fail "likec4: no dsl file" "components.dsl exists"
 else
@@ -183,6 +189,8 @@ rows="$(grep -c 'Include=' "$TEST_TMPDIR/wide/components.md")"
 assert_equals "aggregate: all four declarations stay in the artifact" "$rows" "4"
 comps="$(grep -c 'Component(' "$TEST_TMPDIR/wide/components.md")"
 assert_equals "aggregate: draws three group nodes, not five" "$comps" "3"
+render wide-lc4 --graph "$TEST_TMPDIR/wide.json" --node-threshold 4 --dialect likec4
+assert_likec4_golden "components-aggregated.c4" "$TEST_TMPDIR/wide-lc4/components.md"
 
 # Single module.
 cat >"$TEST_TMPDIR/one.json" <<'JSON'

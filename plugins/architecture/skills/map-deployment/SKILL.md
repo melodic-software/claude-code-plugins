@@ -184,21 +184,28 @@ End every run with this block, in this order:
 
 - **C4 scopes a deployment diagram to one environment.** Scope is one or more software systems within a
   single deployment environment. Deployment nodes are where instances run, and they nest.
-  Infrastructure nodes such as networks and ingress are supporting elements. Verified 2026-09-28
-  against <https://c4model.com/diagrams/deployment>. Recheck when that page changes the scope or
-  the primary elements. This skill writes one fenced block with every environment inside it as its
-  own deployment environment; `--env` narrows the block to one. The diff is a table, not a picture.
-- **C4-PlantUML shape.** The block uses `!include <C4/C4_Deployment>`,
-  `Deployment_Node(alias, label, ?type, ?descr)` with a `{ }` body for nesting,
-  `Container(alias, label, ?techn, ?descr)`, and `Rel(from, to, label)`. Verified 2026-09-28
-  against <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>. Recheck when
-  that README changes those signatures or the include path. `Rel` is drawn only from a container
-  to a network node its placement names; the record has no other edges.
-- **LikeC4 shape.** Deployment node kinds are declared as `deploymentNode <kind>` in
-  `specification`, nodes nest in `deployment { environment ... }`, a model element is placed with
-  `instanceOf`, and a `deployment view <name> { include <env>.** }` draws one environment. Verified
-  2026-09-28 against <https://likec4.dev/dsl/deployment/model/> and
-  <https://likec4.dev/dsl/deployment/views/>. Recheck when either page changes that syntax.
+  Infrastructure nodes such as networks and ingress are supporting elements. Basis:
+  <https://c4model.com/diagrams/deployment>. As of: 2026-09-29. Recheck when that page changes the
+  scope or the primary elements. This skill writes one fenced block with every environment inside
+  it as its own deployment environment; `--env` narrows the block to one. The diff is a table, not a picture.
+- **C4-PlantUML deployment syntax: read against the README, never run.** Claim: the block uses
+  `!include <C4/C4_Deployment>`, `Deployment_Node(alias, label, ?type, ?descr, ...)` with a `{ }`
+  body for nesting, `Container(alias, label, ?techn, ?descr, ...)`, and `Rel(from, to, label,
+  ...)`. Basis: <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows
+  the stdlib include only for `C4_Container` and says the released `C4_...` files ship in the
+  stdlib, so the `C4_Deployment` stdlib name is inferred. As of: 2026-09-29. Recheck when that
+  README changes those signatures or the include path, or when a host with Java can run PlantUML
+  over a rendered block. No PlantUML run has parsed this output. `Rel` is drawn only from a
+  container to a network node its placement names; the record has no other edges.
+- **LikeC4 deployment syntax: parsed by the CLI.** Claim: deployment node kinds are declared as
+  `deploymentNode <kind>` in `specification`, nodes nest in `deployment { ... }`, a model element
+  is placed with `instanceOf`, and `deployment view <name> { include <env>.** }` draws one
+  environment. Basis: <https://likec4.dev/dsl/deployment/model/>,
+  <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
+  golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
+  `deployment-kubernetes.c4`), which `collect-deployment.test.sh` diffs against. As of:
+  2026-09-29. Recheck when either page changes that syntax or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
   from labels, `@` prints as `(at)`, and every identifier is prefixed and numbered, so a hostile
   name cannot close the fence, end the diagram, or collide with a keyword.

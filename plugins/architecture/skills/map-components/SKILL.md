@@ -222,10 +222,33 @@ End every run with this block, in this order:
 - **A component diagram is one container.** Claim: the C4 component diagram
   scopes to a single container, and its primary elements are the components
   inside that container. The model is notation-independent. Basis:
-  <https://c4model.com/diagrams/component> and <https://c4model.com/>, fetched
-  2026-09-28. As of: 2026-09-28. Recheck when that component-diagram page states
+  <https://c4model.com/diagrams/component> and <https://c4model.com/>. As of:
+  2026-09-29. Recheck when that component-diagram page states
   a scope other than a single container, or primary elements other than the
   components inside it.
+- **C4-PlantUML component syntax: read against the README, never run.** Claim: the `plantuml`
+  block uses `!include <C4/C4_Component>`, `Container_Boundary(alias, label, ?tags, ?link, ?descr)`
+  for the container, `Boundary(alias, label, ?type, ...)` per group, `Component(alias, label,
+  ?techn, ?descr, ...)`, and `Rel(from, to, label, ?techn, ?descr, ?sprite, ?tags, ?link)`. A layer
+  violation is `AddRelTag("layer-violation", $textColor, $lineColor)` plus `$tags` on that `Rel`,
+  because `UpdateRelStyle(textColor, lineColor)` restyles every relationship. Basis:
+  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
+  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
+  `C4_Component` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes
+  those signatures or the include path, or when a host with Java can run PlantUML over a rendered
+  block. No PlantUML run has parsed this output.
+- **LikeC4 component syntax: parsed by the CLI.** Claim: the `likec4` block is a `specification`
+  with `softwareSystem`, `container`, `boundary`, and `component` element kinds, a `model` nesting
+  boundaries and components in the container, relationships by dotted full name with a
+  `style { color red }` body, and a `views` block holding `view components of <container>` with
+  `title` and `include *`; an aggregated view puts one component per group directly in the
+  container. Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
+  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
+  validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`components.c4`, `components-aggregated.c4`), which `render-components.test.sh` diffs
+  against. As of: 2026-09-29. Recheck
+  when any of those pages changes that syntax or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **The record is one object per line.** A node line starts with `{"id":`. An
   edge line starts with `{"from":`. Any other layout exits 1 and writes
   nothing. Regenerate the graph; do not pretty-print it.
