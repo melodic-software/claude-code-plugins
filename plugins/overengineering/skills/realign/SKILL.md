@@ -1,6 +1,6 @@
 ---
 description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Never scans or re-judges. Each accepted finding runs the rollback ladder: config-disable first, observe, delete last. Use when: 'realign our enforcement surface', 'the audit says retire it, do it', to retire judged automation, or 'disable this gate and observe it'. The only skill in this plugin that changes the surface. No blanket-approve."
-argument-hint: "[finding-id ...] [layer ...]. Default: every finding awaiting a decision, in the artifact's order"
+argument-hint: "[finding-id ...] [layer ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: implement
   summary: Execute accepted audit findings down the rollback ladder behind a per-item human gate
 ---
+
+**Arguments.** `[finding-id ...] [layer ...]`. Default: every finding awaiting a decision, in the artifact's order
 
 ## Repository context. Gather first
 

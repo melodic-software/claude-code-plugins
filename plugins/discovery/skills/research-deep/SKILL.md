@@ -1,12 +1,14 @@
 ---
 description: "Dispatch deep external research to the heaviest isolated execution tier available. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'. For a single small lookup use the research skill directly, which already dispatches its own subagent."
-argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
+argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: research
   summary: Dispatch deep multi-topic research to the heaviest isolated tier
 ---
+
+**Arguments.** `[topic]`. e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide
 
 ## Repository context. Gather first
 

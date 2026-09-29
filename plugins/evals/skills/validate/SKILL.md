@@ -1,12 +1,14 @@
 ---
 description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money. A standard-library Python script reports FAIL for what the binary rejects at load (unknown frontmatter key, unknown grader option, no grader, duplicate grader name, non-positive weight, out-of-range runs / max_turns / timeout_seconds, an env key outside EVAL_[A-Z0-9_]*, an unsupported schema_version major) and WARN for the documented authoring mistakes (target: files, inline (?i), judge-only graders, a gated tool in allowed_tools, file_exists in a read-only case). Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
-argument-hint: "[eval-dir (default: evals/ under the plugin root)]"
+argument-hint: "[eval-dir]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Static FAIL/WARN check of an eval suite's cases and graders, with no model call
 ---
+
+**Arguments.** `[eval-dir]`. default: evals/ under the plugin root
 
 # Validate eval cases before a run spends money
 

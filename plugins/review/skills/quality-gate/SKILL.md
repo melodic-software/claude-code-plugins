@@ -1,6 +1,6 @@
 ---
 description: "Single-lens review checkpoint between 'code works' and 'code is ready'. Routes to self, code, architecture, security, spec, close-out, downstream, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', 'security review', 'does this match the spec/issue/plan', or 'close-out review' / 'review the container' for a shipped spec container, or after implementation completes. Downstream mode covers 'what could this break', 'blast radius', 'what else does this touch', 'who calls this'. Breakage outside the diff on a change already written; assessing a plan's reach before implementation is '/planning:plan' and '/planning:devils-advocate', and a rename sweep is '/docs-hygiene:rename-references audit blast'."
-argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate close-out [--container <id>] [--dry-run], /review:quality-gate downstream, /review:quality-gate slice <name>)"
+argument-hint: "[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
@@ -9,6 +9,8 @@ metadata:
   workflow-stage: review
   summary: Single-lens review checkpoint routed to the matching reviewer
 ---
+
+**Arguments.** `[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]`. `spec` takes `[--spec <path|id>]`, `close-out` takes `[--container <id>] [--dry-run]`, and `slice` takes `<name>`.
 
 ## Repository context. Gather first
 

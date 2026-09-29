@@ -1,5 +1,13 @@
 # Changelog: evals
 
+## [0.3.4] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `validate` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
 ## [0.3.3] - 2026-09-28
 
 ### Changed

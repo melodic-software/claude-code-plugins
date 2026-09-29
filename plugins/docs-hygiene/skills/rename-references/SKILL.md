@@ -1,12 +1,14 @@
 ---
 description: "Sweep stale references after a rename, including forms token-only grep misses (slash-tokens, paths, chain prose, table rows, frontmatter globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. A whole tree against a casing rule is docs-hygiene:audit-file-names."
-argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
+argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--container|--identifier]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Sweep stale references after renames, including forms grep misses
 ---
+
+**Arguments.** `[action] [<old> [to <new>]] [--include-historical|--include-memory|--container|--identifier]`. Full form: [action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)
 
 ## Repository context. Gather first
 

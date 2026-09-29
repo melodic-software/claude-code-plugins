@@ -1,12 +1,14 @@
 ---
 description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
-argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended)"
+argument-hint: "[file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: session
   summary: Delegate the task to a fresh background agent now
 ---
+
+**Arguments.** `[file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended
 
 ## Context. Gather first
 

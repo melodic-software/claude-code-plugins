@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.18] - 2026-09-28
+## [0.23.19] - 2026-09-28
 
 ### Changed
 
@@ -15,6 +15,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   runs: the simplifier agent takes every group and the block records the skip.
 - **`tidy` and `batch-simplify` descriptions route to `simplify`** when it resolves: current-diff
   and single-file cleanup go there.
+
+## [0.23.18] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `batch-simplify` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
 
 ## [0.23.17] - 2026-09-28
 

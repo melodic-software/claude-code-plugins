@@ -1,12 +1,14 @@
 ---
 description: "Diagnose and fix failing tests. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
-argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
+argument-hint: "[failure]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Root-cause failing tests, never retry blindly
 ---
+
+**Arguments.** `[failure]`. e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop
 
 ## Repository context. Gather first
 

@@ -1,6 +1,6 @@
 ---
 description: "Read-only sweep for instruction content on the wrong surface: demote always-loaded conventions that belong on one file type or subtree; promote stranded docs conventions. Safety rails are hard-denied from demotion. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Sibling realign applies accepted findings."
-argument-hint: "[core|expanded] [path ...]. Default: core+expanded over the whole repository"
+argument-hint: "[core|expanded] [path ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -20,6 +20,8 @@ metadata:
   workflow-stage: anytime
   summary: Find instruction content on the wrong surface and propose validated destinations
 ---
+
+**Arguments.** `[core|expanded] [path ...]`. Default: core+expanded over the whole repository
 
 ## Pre-computed context
 

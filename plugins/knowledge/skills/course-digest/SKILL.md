@@ -1,10 +1,12 @@
 ---
 description: "Extract and synthesize online video courses into repo-applicable recommendations. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', or a Dometrain/Pluralsight/Udemy course URL. Single public YouTube videos use /knowledge:video-digest."
-argument-hint: "[action] [url|slug] (e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status)"
+argument-hint: "[action] [url|slug]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 ---
+
+**Arguments.** `[action] [url|slug]`. e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status
 
 ## Pre-computed context
 

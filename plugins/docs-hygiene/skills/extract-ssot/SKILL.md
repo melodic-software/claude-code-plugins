@@ -1,12 +1,14 @@
 ---
 description: "Deduplicate repeated markdown (rule files, skill bodies, ADRs, docs) into one named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept recurs across files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching several files. Below the Rule of Three it offers only non-abstracting remedies and refuses a new SSOT artifact."
-argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves] [--commit-mode=<per-wave|single|none>]"
+argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Deduplicate repeated prose into one named source of truth
 ---
+
+**Arguments.** `[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--yes]`. Full form: [identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves] [--commit-mode=<per-wave|single|none>]
 
 # Extract SSOT
 

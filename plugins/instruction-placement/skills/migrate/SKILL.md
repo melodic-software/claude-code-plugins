@@ -1,6 +1,6 @@
 ---
 description: "Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load. Plans first; every write is operator-gated. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not the placement sweep (audit) or applying findings (realign)."
-argument-hint: "[plan | apply | cutover-check | remove-shims] [path ...]. Default: plan the repository at the current root"
+argument-hint: "[plan | apply | cutover-check | remove-shims] [path ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -21,6 +21,8 @@ metadata:
   workflow-stage: implement
   summary: Move a repository's instruction content to AGENTS.md behind an operator gate
 ---
+
+**Arguments.** `[plan | apply | cutover-check | remove-shims] [path ...]`. Default: plan the repository at the current root
 
 # Migrate a repository to AGENTS.md
 

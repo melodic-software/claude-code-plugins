@@ -1,12 +1,14 @@
 ---
 description: "Capture a baseline or post-change snapshot with the host qualified first: refuse a wall-clock claim from a bimodal-contention host and name the drift-immune counter instead. Interleaves before/after arms in one run. Use when: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists, or when the claim is code shape (/verification:measure)."
 user-invocable: true
-argument-hint: "[baseline|post] [<target>] (e.g. /performance:snapshot baseline, /performance:snapshot post)"
+argument-hint: "[baseline|post] [<target>]"
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
   summary: Capture a snapshot only from a host proven measurable
 ---
+
+**Arguments.** `[baseline|post] [<target>]`. e.g. /performance:snapshot baseline, /performance:snapshot post
 
 ## Purpose
 

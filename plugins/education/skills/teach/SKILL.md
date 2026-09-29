@@ -1,12 +1,14 @@
 ---
 description: "Interactive multi-session learning coach for general topics or repo-grounded concepts; also a single-session domain primer (primer action). Use when: 'teach me', 'study session', 'help me learn', 'onboard me to', 'learn this codebase'. Coaches through the Knowledge-Skills-Wisdom progression with persistent per-topic learning state. Not for one-off inline questions (answer directly)."
-argument-hint: "<action> [args] (e.g., /education:teach topic rust-ownership, /education:teach codebase auth-flow, /education:teach primer color-grading)"
+argument-hint: "<action> [args]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
   workflow-stage: anytime
   summary: Multi-session learning coach for general topics or repo-grounded concepts
 ---
+
+**Arguments.** `<action> [args]`. e.g., /education:teach topic rust-ownership, /education:teach codebase auth-flow, /education:teach primer color-grading
 
 ## Purpose
 

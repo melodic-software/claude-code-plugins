@@ -1,6 +1,6 @@
 ---
 description: "When the bundled simplify skill resolves in this session, prefer it for the current diff; this skill for proactive lane hunts. Proactively hunt a rotated lane for Beck tidyings and ship one structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items."
-argument-hint: "[<lane> | <glob>... | dry-run [<lane> | <glob>...] | self-update | help] [override] [in-place[=commit]]"
+argument-hint: "[<lane>|<glob>... | dry-run [<lane>|<glob>...] | self-update | help] [override] [in-place[=commit]]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
