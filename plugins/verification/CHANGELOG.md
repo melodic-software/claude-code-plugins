@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11] - 2026-09-29
+
+### Changed
+
+- **`measure` metrics comparison is INCONCLUSIVE across schema or root changes.** A pair of
+  `code-metrics` documents whose `schema` or `root.path` differ is INCONCLUSIVE, and a baseline
+  taken before `code-metrics/v2` must be re-taken.
+
 ## [0.6.10] - 2026-09-28
 
 ### Changed
