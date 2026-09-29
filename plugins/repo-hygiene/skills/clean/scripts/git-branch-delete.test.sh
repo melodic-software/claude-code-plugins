@@ -606,6 +606,130 @@ assert_exit "an operation in progress exits 3" 3 "$rc"
 assert_contains "operation in progress is refused by name" "$out" "Refused: operation in progress: $op_file"
 assert_branch "operation in progress: feat/review intact" present feat/review
 
+# ---- Landed branches ---------------------------------------------------------
+# A branch whose work is on origin/main under other SHAs (a cherry-pick or rebase
+# merge, a squash merge), with no upstream: no remote ref reaches its commits, so
+# the reachability check alone refuses it. The audit's Landed proof, recorded in
+# the capture and found again live, is what admits it. The upstream-less branches
+# are audited with no PR data (the gh stub fails), the case the proof exists for.
+LD="$TEST_TMPDIR/landed-del"
+git init -q --bare "$TEST_TMPDIR/landed-del-origin.git"
+git init -q -b main "$LD"
+git -C "$LD" config user.email "t@example.com"
+git -C "$LD" config user.name "Test"
+ld_commit() { # <file> <message>
+  echo "$1" >"$LD/$1"
+  git -C "$LD" add "$1"
+  git -C "$LD" commit -qm "$2"
+}
+ld_commit a init
+git -C "$LD" remote add origin "$TEST_TMPDIR/landed-del-origin.git"
+git -C "$LD" push -q origin HEAD:main
+git -C "$LD" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+ld_base="$(git -C "$LD" rev-parse HEAD)"
+for b in merged rebased squashed partial; do
+  git -C "$LD" checkout -q -b "feat/$b" main
+  case "$b" in
+  merged) ld_commit m1 "merged one" ;;
+  rebased) ld_commit r1 "rebased one" ;;
+  squashed)
+    ld_commit s1 "squashed one"
+    ld_commit s2 "squashed two"
+    ;;
+  partial)
+    ld_commit p1 "partial one"
+    ld_commit p2 "partial two"
+    ;;
+  *) ;;
+  esac
+  git -C "$LD" checkout -q main
+done
+git -C "$LD" merge -q --no-ff -m "merge feat/merged" feat/merged
+ld_commit m2 "main moves on"
+git -C "$LD" cherry-pick feat/rebased >/dev/null
+git -C "$LD" merge -q --squash feat/squashed >/dev/null 2>&1
+git -C "$LD" commit -qm "squash feat/squashed"
+git -C "$LD" cherry-pick feat/partial~1 >/dev/null
+git -C "$LD" push -q origin main
+git -C "$LD" fetch -q --prune origin
+run_delete_ld() { (cd "$LD" && bash "$DELETE" "$@"); }
+ld_tip() { git -C "$LD" rev-parse "refs/heads/$1"; }
+ld_pin() { git -C "$LD" rev-parse --verify --quiet "refs/repo-hygiene/deleted/$1" || echo none; }
+ld_assert_branch() { # <label> <present|absent> <branch>
+  local got=absent
+  git -C "$LD" rev-parse --verify --quiet "refs/heads/$3" >/dev/null 2>&1 && got=present
+  if [[ "$got" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$got"; fi
+}
+ld_audit="$(cd "$LD" && bash "$AUDIT")"
+LDCAP="$(printf '%s\n' "$ld_audit" | sed -n 's/^TipCapture: //p')"
+assert_contains "audit: a cherry-picked branch is LIKELY-SAFE with its proof" "$ld_audit" "Branch: feat/rebased
+Tip: $(ld_tip feat/rebased)
+Tier: LIKELY-SAFE"
+assert_contains "audit: a squash-merged branch is LIKELY-SAFE with its proof" "$ld_audit" "Branch: feat/squashed
+Tip: $(ld_tip feat/squashed)
+Tier: LIKELY-SAFE"
+assert_contains "audit: an ancestry-merged branch is SAFE" "$ld_audit" "Branch: feat/merged
+Tip: $(ld_tip feat/merged)
+Tier: SAFE"
+assert_contains "capture records the cherry proof" "$(cat "$LDCAP")" "feat/rebased	$(ld_tip feat/rebased)	LIKELY-SAFE	none	none	-	-	1	landed by patch-id (git cherry)	"
+assert_contains "capture records the squash proof" "$(cat "$LDCAP")" "feat/squashed	$(ld_tip feat/squashed)	LIKELY-SAFE	none	none	-	-	2	landed as a squash (tree patch-id)	"
+
+out="$(run_delete_ld --capture "$LDCAP" feat/merged feat/rebased feat/squashed 2>&1)"
+rc=$?
+assert_exit "landed branches ride a SAFE batch: dry-run exits 0" 0 "$rc"
+assert_not_contains "landed branches are not refused for live reachability" "$out" "Refused:"
+assert_contains "dry-run plans the cherry-picked branch" "$out" "Planned: feat/rebased $(ld_tip feat/rebased) (LIKELY-SAFE, force delete)"
+assert_contains "dry-run plans the squash-merged branch" "$out" "Planned: feat/squashed $(ld_tip feat/squashed) (LIKELY-SAFE, force delete)"
+assert_contains "dry-run counts all three in one batch" "$out" "Summary: planned=3 refused=0 deleted=0"
+
+# A proof recorded on a branch that never landed is not taken as the answer: the
+# proof runs again, finds nothing, and the reachability check refuses.
+awk -F'\t' -v OFS='\t' '$1 == "feat/partial" { $3 = "LIKELY-SAFE"; $9 = "landed by patch-id (git cherry)" } 1' "$LDCAP" >"$TEST_TMPDIR/forged-landed.tsv"
+out="$(run_delete_ld --capture "$TEST_TMPDIR/forged-landed.tsv" feat/rebased feat/partial 2>&1)"
+rc=$?
+assert_exit "a forged Landed proof exits 3" 3 "$rc"
+assert_contains "a forged Landed proof is refused for live loss" "$out" "Refused: feat/partial (live reachability now loses 2 commits that exist on no remote ref and no tag; captured as LIKELY-SAFE with a Landed proof that no longer holds; re-run git-branch-audit.sh before deleting)"
+assert_not_contains "a forged Landed proof refuses only the forged branch" "$out" "Refused: feat/rebased"
+ld_assert_branch "a forged Landed proof: feat/partial intact" present feat/partial
+ld_assert_branch "a forged Landed proof: the whole batch deletes nothing" present feat/rebased
+
+# The same proof, written by an older audit into a capture without the column, is
+# not one: the column holds the timestamp there.
+awk -F'\t' -v OFS='\t' 'NF == 10 && $2 ~ /^[0-9a-f]+$/ { print $1, $2, $3, $4, $5, $6, $7, $8, $10; next } 1' "$LDCAP" >"$TEST_TMPDIR/old-format.tsv"
+out="$(run_delete_ld --capture "$TEST_TMPDIR/old-format.tsv" feat/rebased 2>&1)"
+rc=$?
+assert_exit "a capture without the landed column exits 3" 3 "$rc"
+assert_contains "a capture without the landed column names the live loss" "$out" "Refused: feat/rebased (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as LIKELY-SAFE; re-run git-branch-audit.sh before deleting)"
+
+# The proof is checked at delete time, not trusted from the audit: origin/main
+# losing the landing commits after the capture leaves the branch unproven.
+ld_main="$(git -C "$LD" rev-parse refs/remotes/origin/main)"
+git -C "$LD" update-ref refs/remotes/origin/main "$ld_base"
+out="$(run_delete_ld --capture "$LDCAP" feat/rebased 2>&1)"
+rc=$?
+git -C "$LD" update-ref refs/remotes/origin/main "$ld_main"
+assert_exit "a proof that no longer holds exits 3" 3 "$rc"
+assert_contains "a proof that no longer holds is named" "$out" "Refused: feat/rebased (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as LIKELY-SAFE with a Landed proof that no longer holds; re-run git-branch-audit.sh before deleting)"
+ld_assert_branch "a proof that no longer holds: feat/rebased intact" present feat/rebased
+
+ld_rebased_tip="$(ld_tip feat/rebased)"
+ld_squashed_tip="$(ld_tip feat/squashed)"
+out="$(run_delete_ld --capture "$LDCAP" --apply feat/merged feat/rebased feat/squashed 2>&1)"
+rc=$?
+assert_exit "apply deletes the landed branches with the SAFE one" 0 "$rc"
+assert_contains "apply deletes the cherry-picked branch" "$out" "Deleted: feat/rebased $ld_rebased_tip (was LIKELY-SAFE) restore: git branch feat/rebased $ld_rebased_tip"
+assert_contains "apply deletes the squash-merged branch" "$out" "Deleted: feat/squashed $ld_squashed_tip (was LIKELY-SAFE) restore: git branch feat/squashed $ld_squashed_tip"
+assert_contains "apply summary" "$out" "Summary: planned=3 refused=0 deleted=3 failed=0"
+assert_eq "apply pins the cherry-picked tip" "$ld_rebased_tip" "$(ld_pin feat/rebased)"
+assert_eq "apply pins the squash-merged tip" "$ld_squashed_tip" "$(ld_pin feat/squashed)"
+assert_contains "apply records the landed branch in the ledger" "$(cat "${LDCAP%.tsv}.deleted.tsv")" "feat/rebased	$ld_rebased_tip	"
+ld_assert_branch "apply removes the cherry-picked branch" absent feat/rebased
+ld_assert_branch "apply removes the squash-merged branch" absent feat/squashed
+ld_assert_branch "apply removes the SAFE branch" absent feat/merged
+ld_assert_branch "apply leaves the half-landed branch" present feat/partial
+git -C "$LD" branch -q feat/rebased "$ld_rebased_tip"
+assert_eq "a deleted landed branch is restorable from its capture" "$ld_rebased_tip" "$(ld_tip feat/rebased)"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

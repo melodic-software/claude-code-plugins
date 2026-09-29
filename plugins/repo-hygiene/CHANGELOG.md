@@ -8,8 +8,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **`git-branch-audit.sh` proves a branch landed without a PR record (#5230).** When the PR map
-  has no entry, it runs `git cherry` against the default branch (every commit equivalent) and
-  then a tree-equality check before falling to REVIEW or LOSSY.
+  has no entry, it runs `git cherry` against the default branch (every commit equivalent; skipped
+  for a branch with a merge commit, which `git cherry` does not list), then a tree-equality check
+  against the default branch, then the patch-id of the branch's whole diff (a squash), before
+  falling to REVIEW or LOSSY. A proof makes the branch LIKELY-SAFE with a `Landed:` line, recorded
+  in a new `landed` column of the tip capture, and `git-branch-delete.sh` runs the same proof
+  again at delete time in place of its remote-reachability check, so a landed branch is deletable
+  through the audit's own capture. The squash check writes one unreferenced loose object per
+  branch it reaches, which `git gc` prunes.
 - **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
   dirty file count, and any merge, rebase, cherry-pick or bisect in progress, naming the file
   that shows it. It emits no deletable tier while an operation is in progress, and
