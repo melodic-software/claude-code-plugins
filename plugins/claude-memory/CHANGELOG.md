@@ -3,6 +3,29 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.10] - 2026-09-29
+
+### Fixed
+
+- The `audit` scope-boundary eval (case 2) expects routing to `audit` and `audit-automation-gaps`
+  in the claude-config plugin, the skills `SKILL.md` names, instead of the removed
+  `automation-gaps` route
+  ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
+
+### Changed
+
+- **Corrected two released entries in place.** 0.13.7 is now stated as a re-release with no
+  `claude-memory` change (it had repeated the 0.13.6 entry verbatim). 0.13.6 moved from Fixed to
+  Changed and is reworded as a `lib/managed-scope.sh` sync with no behavior change.
+
+### Added
+
+- `scripts/spoke-script-paths.test.sh` gates the `<skill-dir>` spoke-script convention from
+  0.13.5: no literal `${CLAUDE_PLUGIN_ROOT}` in spoke files, every `<skill-dir>/scripts/<name>.sh`
+  reference resolves to a real script, and each `SKILL.md` that has such spokes renders
+  `<skill-dir>` from `${CLAUDE_SKILL_DIR}`
+  ([#4613](https://github.com/melodic-software/claude-code-plugins/issues/4613)).
+
 ## [0.13.9] - 2026-09-28
 
 ### Changed
