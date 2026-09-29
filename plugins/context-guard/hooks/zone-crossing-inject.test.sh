@@ -1090,10 +1090,10 @@ fi
 
 # --- Windows-shaped payloads keep the builtin id proof (#4392) ----------------
 # Claude Code puts transcript_path and cwd ahead of tool_calls, and on Windows
-# both carry backslashes: `\\` per separator, `\"` for a quote. A header-wide
-# backslash test used to send every such payload through hook-utils.sh (about
-# five milliseconds to source, far more on Windows) and jq. Now only the two id
-# values must be plain.
+# both carry backslashes: `\\` per separator, `\"` for a quote. Only the two id
+# values must be plain; backslashes in the paths do not send the payload
+# through hook-utils.sh (about five milliseconds to source, far more on
+# Windows) and jq.
 #
 # Payloads are single-quoted text printed with %s, never a printf format: a
 # format would turn `\\` into `\` and `\"` into `"`, and the fixture would test
@@ -1174,7 +1174,7 @@ cw_fast() {
 }
 
 # cw_fall <label> <expected sid> <sourced: 0|1> <payload>: the payload resolves
-# the real ids, never the decoy id `x` a mis-proof would key on, and the steady
+# the real ids, never the decoy id `x` a faulty proof would key on, and the steady
 # fire does (1) or does not (0) load hook-utils.
 cw_fall() {
   local label="$1" want="$2" sourced="$3" p="$4"
@@ -1205,19 +1205,19 @@ cw_fall() {
 # 1. Escaped backslashes and escaped quotes ahead of tool_calls take the fast
 # path. The rows cover a trailing `\\` before the closing quote, braces, brackets
 # and commas inside an escaped string, a \u escape, and the paths after the ids.
-cw_fast bs 'C:\\Users\\kyle\\.claude\\projects\\p\\k.jsonl' 'C:\\Users\\kyle\\repo'
-cw_fast q 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir'
+cw_fast bs 'C:\\proj\\.claude\\projects\\p\\k.jsonl' 'C:\\proj\\repo'
+cw_fast q 'C:\\proj\\t.jsonl' 'C:\\proj\\my \"repo\" dir'
 # shellcheck disable=SC1003  # JSON text ending in an escaped backslash
-cw_fast tail 'C:\\Users\\kyle\\t.jsonl' 'C:\\'
+cw_fast tail 'C:\\proj\\t.jsonl' 'C:\\'
 # shellcheck disable=SC1003  # JSON text ending in an escaped backslash
 cw_fast punct 'C:\\a \"{,[\" b' 'D:\\x\\\"y\"\\'
-cw_fast uni 'C:\\Users\\k\u00e9\\t.jsonl' 'D:\\r'
-cw_fast late 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\"' ok late
+cw_fast uni 'C:\\proj\u00e9\\t.jsonl' 'D:\\r'
+cw_fast late 'C:\\proj\\t.jsonl' 'C:\\proj\\my \"repo\"' ok late
 
 # 5. No nested value: the leading-object scan fails and the header is the whole
 # payload. The xtrace line is the `(( n <= 65536 ))` size guard only that branch
 # runs.
-cw_fast flat 'C:\\Users\\kyle\\t.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir' ok flat
+cw_fast flat 'C:\\proj\\t.jsonl' 'C:\\proj\\my \"repo\" dir' ok flat
 if grep -qE '^\++ \(\( [0-9]+ <= 65536 \)\)' "$WORK/cw-flat.xtrace.steady"; then
   ok "windows payload 'flat': the whole-payload header branch ran"
 else
@@ -1225,9 +1225,9 @@ else
 fi
 
 # 6. An envelope past 64 KiB, Windows paths ahead of tool_calls.
-cw_fast big 'C:\\Users\\kyle\\.claude\\projects\\p\\g.jsonl' 'C:\\Users\\kyle\\my \"repo\" dir' "$OVER"
+cw_fast big 'C:\\proj\\.claude\\projects\\p\\g.jsonl' 'C:\\proj\\my \"repo\" dir' "$OVER"
 # shellcheck disable=SC1003  # JSON text ending in an escaped backslash
-cw_fast biglate 'C:\\Users\\kyle\\t.jsonl' 'C:\\' "$OVER" late
+cw_fast biglate 'C:\\proj\\t.jsonl' 'C:\\' "$OVER" late
 if ((${#OVER} > 65536)); then
   ok "windows payload 'big': the envelope is past the builtin parser's ceiling"
 else

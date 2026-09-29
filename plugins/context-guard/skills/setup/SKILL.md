@@ -1,5 +1,5 @@
 ---
-description: "Verify the context-guard plugin's wiring on this machine: jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), and live-session snapshot freshness. Print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
+description: "Verify the context-guard plugin's wiring on this machine: jq, node, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), and live-session snapshot freshness. Print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
 argument-hint: "check | apply [defaults]"
 user-invocable: true
 disable-model-invocation: true
@@ -8,9 +8,10 @@ shell: bash
 
 ## Pre-computed context
 
-Three of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
+Four of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
 
 `jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
+`node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
 Installed shim (first path) against the shipped source (second path), with both `# shim-revision:` markers; a `No such file` line names the side that is missing: !`{ grep -H "^# shim-revision:" "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" 2>&1; cmp -s "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" && echo "cmp: identical" || echo "cmp: not identical, or a file is absent"; }`
 `zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`{ if [ -e "$HOME/.claude/context-guard/zones.json" ]; then cat "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi; } | head -40`
 
@@ -49,6 +50,14 @@ zone bands, zones.json shape) are owned by
    cannot tee (it stays transparent and shows a visible notice), the standalone statusline
    degrades, and the zone resolver prints `unknown`. Remediation: install jq
    (<https://jqlang.org/download/>).
+
+   **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: every hook row in
+   `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs <script>`, and Claude
+   Code's native binary neither ships nor uses Node
+   (<https://code.claude.com/docs/en/setup>), so without `node` on `PATH` the injection, the gate
+   and the PostCompact marker do not launch and are not enforced. Report that a hook that fails to
+   launch is non-blocking, so nothing else says so. The statusline tee and shim do not use `node`.
+   Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude Code.
 2. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
    pre-computed shim value compares `~/.claude/context-guard/bin/statusline-shim.sh` (the durable
    shim copy) against `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and

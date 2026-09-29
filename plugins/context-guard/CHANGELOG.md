@@ -16,6 +16,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `zone-crossing-inject.sh` names its copies of the shipped band edges and the staleness window, and a test pins them to `context-zone.sh` so the two cannot drift ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
 - `reference/reader-contract.md`: the prompt-cache miss cause section sits after the auto-compact caveats instead of splitting them. `CHANGELOG.md` drops the entries 0.7.82 repeated from 0.7.77 and 0.7.79.
+- README Requirements and `/context-guard:setup check` declare Node.js on `PATH`, which every hook row's `node hooks/exec-bash.mjs` launcher needs. `reference/zone-crossing/PLAN.md` states that its wall-time table and realistic band exclude the launcher and records the launcher's measured start-up.
 
 ## [0.7.87] - 2026-09-28
 
