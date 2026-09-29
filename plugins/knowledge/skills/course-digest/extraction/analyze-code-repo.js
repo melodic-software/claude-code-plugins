@@ -28,12 +28,18 @@ import {
 } from "@melodic/repo-analysis";
 import { createLogger } from "@melodic/video-digestion/shared/logger";
 
+import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
-const args = parseCliArgs({
-  "skip-clone": { type: "boolean", default: false },
-});
-const log = createLogger(resolveLogLevel(args));
+let args;
+let log;
+
+function bindCli() {
+  args = parseCliArgs({
+    "skip-clone": { type: "boolean", default: false },
+  });
+  log = createLogger(resolveLogLevel(args));
+}
 
 const MAX_SIZE_KB = 500000;
 const WARN_SIZE_KB = 100000;
@@ -135,6 +141,7 @@ function buildReadme(githubUrl, structure, frameworks, fileCounts) {
 }
 
 function main() {
+  bindCli();
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const codeOutputDir = join(courseDir, "code");
   const githubUrl = course.resources?.githubUrl;
@@ -219,4 +226,6 @@ function main() {
   log.info(`  README: ${join(codeOutputDir, "README.md")}\n`);
 }
 
-main();
+if (invokedAsCli(import.meta.url)) {
+  main();
+}

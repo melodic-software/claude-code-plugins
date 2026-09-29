@@ -3,6 +3,18 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.7.4] - 2026-09-28
+
+### Changed
+
+- README: a missing-tool skip says it fires once per session and agent, renewed every eighth skip, to both Claude and the user ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+
 ## [0.7.3] - 2026-09-28
 
 ### Fixed

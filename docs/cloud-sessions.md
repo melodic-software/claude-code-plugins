@@ -212,7 +212,8 @@ when a marketplace is declared, enabled, **and installed**. `.claude/settings.js
 marketplace and carries this repo's deltas, the fleet list baked into the snapshot turns the
 catalog on, and the cloud bootstrap installs from the two together (see
 [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
-[extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings#plugin-settings)):
+[extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) /
+[enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)):
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
@@ -317,7 +318,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
   pre-installs before process start; do not invent plugin-side registry hacks.
 - Being a `directory` source may compound the symptom:
-  [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
+  [that source is documented for development only](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
   and the carry-over note qualifies install-at-session-start with "requires network access to reach
   the marketplace source". The two candidates were not separated, because the trust gate alone
   accounts for the symptom and the bootstrap makes both moot.
@@ -421,7 +422,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `plugin enable --scope user`, and that first step drops enabled state.
   Operator opt-in outside that path is `/plugin enable`. That covers the two whose bundled MCP
   servers need `userConfig` credentials this environment has no reason to hold, `miro`
-  (`miro_api_token`) and `dometrain` (`dometrain_api_key`), set with `/plugin configure`,
+  (`miro_api_token`) and `dometrain-mcp` (`dometrain_api_key`), set with `/plugin configure`,
   alongside `songwriting`, `kindle-dedrm`, and `ai-briefing`.
 
 ### GitHub MCP tools vs the gh CLI

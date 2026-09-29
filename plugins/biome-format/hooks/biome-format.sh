@@ -121,11 +121,11 @@ fi
 # The repo opted in via a Biome config but no binary is available → visible
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
-  if hook::notice_once "biome-format-biome" "$INPUT"; then
+  if hook::notice_once "biome-format-biome" "$INPUT" prerequisite; then
     BIOME_NOTICE=""
     hook::tool_missing_notice_to BIOME_NOTICE \
       "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit" \
-      matching "; a repo-local install (npm i -D @biomejs/biome) is the reliable route."
+      matching "; a repo-local install (npm i -D @biomejs/biome) is the reliable route. Run /biome-format:check. It does not install."
     hook::emit_skip_notice PostToolUse "$BIOME_NOTICE"
   fi
   emit_skipped

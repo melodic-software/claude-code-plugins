@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.30] - 2026-09-28
+## [0.63.32] - 2026-09-28
 
 ### Fixed
 
@@ -13,6 +13,22 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   their lock directory, so readers that test for it still work, and now decide the race with
   a token file inside it (`owner-pid`, `owner`) created with bash `noclobber`, an `O_EXCL`
   open. Stale-lock recovery is unchanged.
+
+## [0.63.31] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.63.30] - 2026-09-28
+
+### Changed
+
+- The `audit-performance` spoke `known-performance-issues.md` and the `observability` spoke
+  `data-sources.md` open with a Contents block of section anchors, so skill-quality check 26
+  (long spoke files carry a table of contents) passes on them. Two prose mentions of `stat` in
+  `known-performance-issues.md` carry `portability-ok` comments so the shell-portability gate
+  reads them as prose.
 
 ## [0.63.29] - 2026-09-28
 

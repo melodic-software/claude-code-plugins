@@ -1,5 +1,17 @@
 # audit: Phase 2 validation categories
 
+## Contents
+
+- [Category A: Schema & Structure](#category-a-schema--structure)
+- [Category B: Permissions](#category-b-permissions)
+- [Category C: MCP Servers](#category-c-mcp-servers)
+- [Category D: Hooks](#category-d-hooks)
+- [Category E: Plugins](#category-e-plugins)
+- [Category F: Environment Variables](#category-f-environment-variables)
+- [Category G: Skill-listing budget](#category-g-skill-listing-budget)
+- [Category H: Model and effort settings](#category-h-model-and-effort-settings)
+- [Category I: Deep-link registration](#category-i-deep-link-registration)
+
 Detailed checks for each Phase 2 category (A–I). SKILL.md Phase 2 names the categories + points here;
 this file carries the per-check criteria. Run each category's checks and record findings with severity
 ratings.
