@@ -729,14 +729,15 @@ lane_gopls() {
 
 # 0 when a package.json root owns the repo-relative path. JS/TS inside a root
 # is knip's unused-file finding; unreferenced-file does not repeat it.
-# PKG_ROOTS is filled by the caller. nested/owns_path read it through a nameref.
+# The caller names its package-root array; nested/owns_path read it through a nameref.
 dc_path_owned_by_package() {
-  local path="$1" r
+  local path="$1" roots_name="$2" r
+  local -n _dc_pkg_roots="$roots_name"
   # shellcheck disable=SC2034
   local -a nested=()
-  [[ ${#PKG_ROOTS[@]} -eq 0 ]] && return 1
-  for r in ${PKG_ROOTS[@]+"${PKG_ROOTS[@]}"}; do
-    nested_roots "$r" PKG_ROOTS nested
+  [[ ${#_dc_pkg_roots[@]} -eq 0 ]] && return 1
+  for r in ${_dc_pkg_roots[@]+"${_dc_pkg_roots[@]}"}; do
+    nested_roots "$r" "$roots_name" nested
     owns_path "$r" nested "$path" && return 0
   done
   return 1
@@ -747,9 +748,9 @@ dc_path_owned_by_package() {
 # path never names.
 collect_file_ref_files() {
   local f
-  # shellcheck disable=SC2034
   local -a PKG_ROOTS=()
   FILE_REF_FILES=()
+  # shellcheck disable=SC2034  # read by dc_path_owned_by_package through a nameref
   mapfile -t PKG_ROOTS < <(project_roots package.json)
   for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
     FILE_REF_FILES+=("$f")
@@ -759,7 +760,7 @@ collect_file_ref_files() {
     FILE_REF_FILES+=("$f")
   done
   for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
-    dc_path_owned_by_package "$f" && continue
+    dc_path_owned_by_package "$f" PKG_ROOTS && continue
     FILE_REF_FILES+=("$f")
   done
   for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
