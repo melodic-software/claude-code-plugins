@@ -3,6 +3,21 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-09-28
+
+### Added
+
+- **hooks:** opt-in `test-scan` PostToolUse hook (`test_guards_enabled`, default `false`). After
+  Claude writes or edits a test file it runs the can't-fail scanner on that file and feeds the
+  findings back through `additionalContext`. A new file reports every test block; an edit reports
+  only blocks that overlap the lines it wrote. A recomputed expectation asks Claude where the
+  expected value comes from. The first write per file per session and agent adds a pointer to the
+  test-value guidance. The hook starts only for paths its `if` rows match, generated from the
+  adapters' `files:` globs by `scripts/gen-hook-filters.sh`; gitignored files are left alone, and
+  a scanner error or timeout lets the edit through and logs a line.
+- **audit:** `cant-fail-scan.sh --file <path> --lines <list>` reports only findings whose test
+  block overlaps the listed lines.
+
 ## [0.9.7] - 2026-09-28
 
 ### Changed

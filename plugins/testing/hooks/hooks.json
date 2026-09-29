@@ -1,0 +1,220 @@
+{
+  "description": "Scans a test file for tests that cannot fail after Claude writes or edits it (opt-in: test_guards_enabled).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.cjs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.js)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.jsx)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.mjs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.ts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.tsx)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.cjs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.js)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.jsx)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.mjs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.ts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.tsx)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*Test.cs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*Tests.cs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*_test.py)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(test_*.py)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          }
+        ]
+      }
+    ]
+  }
+}

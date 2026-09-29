@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# Contract test for test-scan.sh, the testing plugin's PostToolUse hook.
+#
+# Builds a throwaway git repository per run, writes test files into it, and
+# pipes hand-built PostToolUse payloads through the hook. Covers the option
+# gate (through the exec-form launcher), findings on a create, the once-per-
+# file-per-agent rules note, Edit scoping to the changed block, the scanner
+# timeout, gitignored paths, the doubtful-hit prompt, and the per-call dedup
+# that keeps two overlapping `if` rows from reporting twice.
+
+set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK="$HOOK_DIR/test-scan.sh"
+
+PASS=0
+FAIL=0
+fail() {
+  echo "FAIL: $*" >&2
+  FAIL=$((FAIL + 1))
+}
+ok() {
+  echo "ok: $*"
+  PASS=$((PASS + 1))
+}
+assert_contains() {
+  if [[ "$2" == *"$3"* ]]; then ok "$1"; else fail "$1 (missing: $3; got: ${2:0:400})"; fi
+}
+assert_not_contains() {
+  if [[ "$2" != *"$3"* ]]; then ok "$1"; else fail "$1 (unexpected: $3)"; fi
+}
+assert_empty() {
+  if [[ -z "$2" ]]; then ok "$1"; else fail "$1 (got: ${2:0:400})"; fi
+}
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+REPO="$TMP/repo"
+mkdir -p "$REPO/src" "$REPO/scratch"
+git -C "$REPO" init -q
+printf 'scratch/\n' >"$REPO/.gitignore"
+export CLAUDE_PLUGIN_DATA="$TMP/data"
+export CLAUDE_PROJECT_DIR="$REPO"
+export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
+
+cat >"$REPO/src/sum.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { sum } from './sum';
+
+test('adds', () => {
+  sum(1, 2);
+});
+EOF
+
+cat >"$REPO/src/mixed.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { sum } from './sum';
+
+test('adds', () => {
+  sum(1, 2);
+});
+
+test('adds two', () => {
+  expect(sum(1, 2)).toBe(3);
+});
+EOF
+
+cat >"$REPO/src/again.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { sum } from './sum';
+
+test('adds', () => {
+  expect(sum(1, 2)).toBe(sum(1, 2));
+});
+EOF
+
+cp "$REPO/src/sum.test.ts" "$REPO/scratch/ignored.test.ts"
+
+# payload <tool> <file> <session> <agent> <tool_use_id> <tool_response json>
+payload() {
+  jq -cn --arg t "$1" --arg f "$2" --arg s "$3" --arg a "$4" --arg u "$5" --argjson r "$6" \
+    '{hook_event_name: "PostToolUse", tool_name: $t, session_id: $s, tool_use_id: $u,
+      tool_input: {file_path: $f}, tool_response: $r}
+     | if $a == "" then . else . + {agent_id: $a} end'
+}
+CREATE='{"type":"create","structuredPatch":[]}'
+N=0
+run() {
+  N=$((N + 1))
+  out="$(payload "$1" "$2" "${3:-s1}" "${4:-}" "${5:-call-$N}" "${6:-$CREATE}" | bash "$HOOK" 2>/dev/null)"
+  rc=$?
+}
+
+# (a) option unset: the launcher never starts the hook.
+out="$(payload Write "$REPO/src/sum.test.ts" s0 "" call-a "$CREATE" |
+  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
+    --require-true TEST_GUARDS_ENABLED "$HOOK" 2>&1)"
+assert_empty "(a) option unset: no output" "$out"
+
+# (b) a zero-assertion Vitest create reports the rule, with the rules note.
+run Write "$REPO/src/sum.test.ts"
+if [[ $rc -eq 0 ]]; then ok "(b) exits 0"; else fail "(b) exit $rc"; fi
+assert_contains "(b) names rule-zero-assertion" "$out" "rule-zero-assertion"
+assert_contains "(b) goes back through additionalContext" "$out" '"additionalContext"'
+assert_contains "(b) first write carries the rules note" "$out" "testing:test-value"
+
+# (c) the note is once per session + agent + file.
+run Write "$REPO/src/sum.test.ts"
+assert_contains "(c) findings still reported on a repeat write" "$out" "rule-zero-assertion"
+assert_not_contains "(c) same session and agent: no second note" "$out" "testing:test-value"
+run Write "$REPO/src/sum.test.ts" s1 agent-2
+assert_contains "(c) a different agent_id gets the note" "$out" "testing:test-value"
+
+# (d) an Edit touching only the good block leaves the bad block silent.
+EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
+  "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'
+run Edit "$REPO/src/mixed.test.ts" s1 "" "" "$EDIT_GOOD"
+assert_not_contains "(d) untouched bad block stays quiet" "$out" "rule-zero-assertion"
+EDIT_BAD='{"structuredPatch":[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":1,
+  "lines":["-  sum(2, 2);","+  sum(1, 2);"]}]}'
+run Edit "$REPO/src/mixed.test.ts" s1 "" "" "$EDIT_BAD"
+assert_contains "(d) an Edit inside the bad block reports it" "$out" "rule-zero-assertion"
+
+# (e) a hanging scanner is cut off: exit 0 and a log line.
+cat >"$TMP/hang.sh" <<'EOF'
+#!/usr/bin/env bash
+sleep 30
+EOF
+began=$SECONDS
+out="$(payload Write "$REPO/src/sum.test.ts" s9 "" call-e "$CREATE" |
+  TEST_SCAN_SCANNER="$TMP/hang.sh" TEST_SCAN_TIMEOUT=1 bash "$HOOK" 2>/dev/null)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "(e) timeout exits 0"; else fail "(e) exit $rc"; fi
+if ((SECONDS - began < 5)); then
+  ok "(e) returns before the hooks.json timeout"
+else
+  fail "(e) took $((SECONDS - began))s"
+fi
+assert_contains "(e) logs the timeout" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log" 2>/dev/null)" "timed out"
+
+# (f) a gitignored test file is left alone.
+run Write "$REPO/scratch/ignored.test.ts"
+assert_empty "(f) gitignored path: no output" "$out"
+
+# (g) a recomputed expectation asks where the expected value comes from.
+run Write "$REPO/src/again.test.ts"
+assert_contains "(g) names rule-recomputed-expectation" "$out" "rule-recomputed-expectation"
+assert_contains "(g) asks for the expected value's source" "$out" "where the expected value"
+
+# Two overlapping `if` rows run the hook twice for one call; only one reports.
+run Write "$REPO/src/sum.test.ts" s1 "" dup-call
+first="$out"
+run Write "$REPO/src/sum.test.ts" s1 "" dup-call
+assert_contains "dedup: first run for a tool_use_id reports" "$first" "rule-zero-assertion"
+assert_empty "dedup: second run for the same tool_use_id is silent" "$out"
+
+echo
+echo "$PASS passed, $FAIL failed"
+((FAIL == 0))
