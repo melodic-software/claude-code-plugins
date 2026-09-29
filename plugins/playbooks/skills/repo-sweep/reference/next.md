@@ -31,11 +31,15 @@ never combined with `&&` or other commands in one call. The record for these sha
    - 15: several open sweeps. List them and ask which. Stop.
    - 1: the PR body has no checklist markers. Show the body and stop.
    - 0: continue.
-3. For each `untick-committed <id> <sha> <skill@version>...` line, run `S/tick.sh <id> committed
+3. If `state.sh` printed `mergeable CONFLICTING` (exit 0, 12, or 13), stop before section 2 and any
+   step. GitHub runs no `pull_request` workflows on a conflicting PR, so pushed step commits get no
+   CI. Ask the user to merge the base branch into the sweep branch and push, then rerun `next`.
+   `UNKNOWN` never stops.
+4. For each `untick-committed <id> <sha> <skill@version>...` line, run `S/tick.sh <id> committed
    <sha> <skill@version>...`; that step already landed. Report each `done-unverified <id>` line:
    it was ticked in the web UI and no commit backs it. Run `S/state.sh` again if you ticked
    anything.
-4. The `next <id> in-progress|pending` line names the step. `in-progress` with a dirty tree means
+5. The `next <id> in-progress|pending` line names the step. `in-progress` with a dirty tree means
    resume: the earlier session stopped partway and its changes are the step's work so far.
 
 ## 2. Prepare
