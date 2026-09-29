@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`sync` accepts `--skip`, `--skip-from` and `--repos-from`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+  `--skip` and `--skip-from` add directory names to the skip list, and `--repos-from` restricts the
+  run to the listed repositories. Every plan line, and every skipped line, ends with a tab-separated
+  `rung=<rung>` field naming the scope rung that found the repository.
+- **Scope resolution probes every `ghq root` and an ancestor rung.** `scope-resolve.sh` reads
+  `ghq root --all`, and walks up to 4 levels from the working directory, accepting an ancestor only
+  when it holds 2 or more repositories.
+
+### Changed
+
+- **`audit` and `sync` share one discovery script**, `scripts/fleet-discovery.sh`, for the default
+  skip list, fleet config scope loading and repository discovery. `sync` now honors `fleet.skip` and
+  `fleet.skipAppend`, and the skip-list drift-guard test is removed.
+
 ## [0.24.2] - 2026-09-29
 
 ### Fixed
