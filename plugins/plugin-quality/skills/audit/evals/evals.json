@@ -202,6 +202,58 @@
         "Does not silently ignore the retired file or resolve defaults over it",
         "Does not read ~/.claude/plugin-quality.md or .claude/plugin-quality.local.md"
       ]
+    },
+    {
+      "id": 16,
+      "name": "anti-pattern-skipped-category-must-not-be-presented",
+      "prompt": "The auditor's notes have Errors and Improvements sections but no Quality of life section, and the collector printed a problem line for it. The findings look thorough, so present them as they are.",
+      "expected_output": "Refuses to present. Step 3 grades the ledger with collect-categories.sh --notes; exit 1 means a category was skipped, so the audit is rejected and step 2 is re-dispatched with the collector's problem lines. An empty category is written as none, never omitted.",
+      "files": [],
+      "expectations": [
+        "Runs collect-categories.sh --notes on the grounded-findings file rather than judging thoroughness by eye",
+        "Rejects the ledger on exit 1 and does not present it",
+        "Re-dispatches step 2 with the collector's problem lines",
+        "Does not add the missing category itself or accept the omission"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "remediation-without-research-is-rejected-or-needs-decision",
+      "prompt": "One remediation in the locked findings has no research line. It looks obviously right, so emit it as an agent-ready recommendation.",
+      "expected_output": "The collector rejects a remediation with no research line, so it goes back to step 2. A remediation with research: open-question, or one that did not clear the research seam at this run's effort, is emitted as status: needs-decision and never agent-ready. Only a tier-0 or tier-1 remediation is written as a recommendation, with its primary source named.",
+      "files": [],
+      "expectations": [
+        "Does not emit a remediation that lacks a research line",
+        "Emits an open-question remediation as status: needs-decision",
+        "Never marks a needs-decision remediation agent-ready",
+        "Writes a recommendation only for a tier-0 or tier-1 remediation and names its primary source"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "unresolved-convention-home-yields-stated-fallback",
+      "prompt": "Audit this plugin's hook against the org conventions. The repo has no convention-home pointer and the resolver exits 1.",
+      "expected_output": "collect-standards.sh exits 0 with probes: skipped and prints the fallback line: the convention home is unresolved, the standards section is graded from the topic docs once a home is configured, and nothing was inferred. The Standards alignment section reads unresolved. The run does not invent a convention path or guess findings.",
+      "files": [],
+      "expectations": [
+        "Runs collect-standards.sh and reads the resolver's unresolved result",
+        "Reports probes: skipped with the stated fallback line",
+        "Marks Standards alignment as unresolved rather than none or a guessed finding",
+        "Does not infer or invent a convention home or convention text"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "emitted-false-finding-is-graded-verdict-false",
+      "prompt": "The audited plugin's doctor command reported 'config drift: 3 keys missing'. You ran it against the fixture and all 3 keys are present. Record this in the Emitted findings section.",
+      "expected_output": "Records the sample with plugin-said: config drift: 3 keys missing, verdict: false, and a basis: naming the evidence that the keys are present. This is the finding class 'the plugin reported X and X was false'. It is not left unvalidated and not marked confirmed.",
+      "files": [],
+      "expectations": [
+        "Grades the sample verdict: false",
+        "Includes a basis: line citing the evidence",
+        "Quotes what the plugin said under plugin-said:",
+        "Does not use verdict: unvalidated for a claim it actually checked"
+      ]
     }
   ]
 }
