@@ -687,16 +687,15 @@ function whole_file(    n, parts) {
 
 # test_skip here matches a decorator on a line above the def, or above a class,
 # which skips every test indented under it (skip_cls is that class's indent).
-# A line inside open brackets continues the one before it, so it never dedents:
-# a signature split over lines closes on its ") -> None:", not the block.
+# A line inside open brackets continues the one before it, so it never dedents
+# and never resets a pending skip: a signature split over lines closes on its
+# ") -> None:", not the block, and a decorator split over lines stays one.
 function indent(    code) {
-  code = masked !~ /^[[:space:]]*$/
+  code = masked !~ /^[[:space:]]*$/ && bracket_depth <= 0
   if (skip_cls >= 0 && code && indent_of(raw) <= skip_cls) skip_cls = -1
-  if (in_test && code && bracket_depth <= 0 && indent_of(raw) <= def_indent) close_block()
-  if (in_test) {
-    append_block(masked, raw)
-    bracket_depth += delta(masked, "([{", ")]}")
-  } else if (skip_cls < 0) {
+  if (in_test && code && indent_of(raw) <= def_indent) close_block()
+  if (in_test) append_block(masked, raw)
+  else if (skip_cls < 0 && bracket_depth <= 0) {
     if (has(masked, R_SKIP)) pending_skip = 1
     if (has(masked, R_START)) {
       if (pending_skip) pending_skip = 0
@@ -706,12 +705,12 @@ function indent(    code) {
         sub(/^[[:space:]]+/, "", block_name)
         def_indent = indent_of(raw)
         append_block(masked, raw)
-        bracket_depth = delta(masked, "([{", ")]}")
       }
     } else if (pending_skip && masked ~ /^[[:space:]]*class[[:space:]]/) {
       skip_cls = indent_of(raw); pending_skip = 0
     } else if (masked !~ /^[[:space:]]*@/ && code) pending_skip = 0
   }
+  bracket_depth += delta(masked, "([{", ")]}")
   taut_scan(raw, masked)
 }
 

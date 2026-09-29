@@ -1062,12 +1062,14 @@ corpus_files=(
   pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
   py-pytest/bad/test_pytest_price_recomputed.py.fixture
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
   py-pytest/good/test_pytest_raises.py.fixture
   py-pytest/good/test_pytest_skip_marker.py.fixture
+  py-pytest/good/test_pytest_skipif_split.py.fixture
   py-pytest/good/test_pytest_skipped_class.py.fixture
   py-pytest/good/test_pytest_slugify.py.fixture
   py-pytest/good/test_pytest_split_signature.py.fixture
@@ -1081,6 +1083,7 @@ corpus_files=(
   py-unittest/good/test_unittest_skiptest.py.fixture
   py-unittest/good/test_unittest_skipped_class.py.fixture
   py-unittest/good/test_unittest_skipunless.py.fixture
+  py-unittest/good/test_unittest_skipunless_split.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
 )
 on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
