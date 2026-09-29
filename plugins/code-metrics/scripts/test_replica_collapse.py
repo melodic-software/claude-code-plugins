@@ -43,7 +43,7 @@ def row(file: str, function: str = "greet", **fields) -> dict:
 def document(measures: list[dict]) -> str:
     return json.dumps(
         {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-complexity",
             "status": "complete",
             "scope": {"mode": "all", "files": len(measures)},
