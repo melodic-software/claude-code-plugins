@@ -132,12 +132,12 @@
 # `emit::finding`). That includes a quoted command word (`"emit" error P1`,
 # `'emit' error P1`) and a call nested in a command substitution, including
 # one inside double quotes (`x="$(emit error P1)"`, the round-6 shape).
-# `time` and `coproc`
-# wrap the real command; the walk follows the inner statement. `command`,
-# `builtin`, `exec`, `nohup`, and bare `eval` are ordinary words in front of
-# the real command, so the walk shifts them when the next word is the
-# emitter. An assignment prefix (`FOO=1 emit`, `x+=1 emit`) and a leading
-# redirection stay on the statement and do not hide the call.
+# `time` and `coproc` wrap the real command; the walk follows the inner
+# statement. `command`, `builtin`, `exec`, `nohup`, and bare `eval` are
+# ordinary words in front of the real command, so the walk shifts them when
+# the next word is the emitter. An assignment prefix (`FOO=1 emit`,
+# `x+=1 emit`) and a leading redirection stay on the statement and do not hide
+# the call.
 #
 # A call with no arguments is not a site. A forwarder (`emit error "$@"`,
 # `$*`, `$@`, or the `${@}` / `${*}` spellings) as the last argument, standing
@@ -169,9 +169,9 @@
 # where a later word of one of those, or of `env` or `xargs`, is an emit name
 # is counted as a candidate and reported UNRESOLVED (exit 2, site named), not
 # dropped. The exclusions above still hold: `command -v emit` (or `-pv`) is a
-# lookup, and a call with no arguments or a trailing forwarder is not a site. Any later
-# word that is an emit name counts, even as an argument (`env -u emit printf
-# ok`), which reads UNRESOLVED: the safe side.
+# lookup, and a call with no arguments or a trailing forwarder is not a site.
+# Any later word that is an emit name counts, even as an argument
+# (`env -u emit printf ok`), which reads UNRESOLVED: the safe side.
 #
 # The self-test keeps arm-and-close: a call after a heredoc terminator must
 # still be seen. "The body's own emit is hidden" is also true of a skip that

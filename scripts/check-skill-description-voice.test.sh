@@ -44,6 +44,13 @@ run 1 "a pronoun after the last trigger phrase still fails" \
 run 0 "the SKILL.md body is not judged" \
   "Audit the widgets."
 
+printf -- '---\nname: demo\ndescription: >-\n  Audit the widgets.\n\n  Tells you which drift.\n---\n' >"$TMP/SKILL.md"
+if bash "$SCRIPT" --paths "$TMP/SKILL.md" 2>/dev/null; then
+  fail "a folded block-scalar description is checked"
+else
+  ok "a folded block-scalar description is checked"
+fi
+
 if bash "$SCRIPT" 2>/dev/null; then
   fail "no argument should be a usage error"
 else

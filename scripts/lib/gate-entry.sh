@@ -18,8 +18,9 @@
 # check-skill-portability, and check-skill-precompute-compose. Only require_base
 # is used by check-guardrails-ps-differential. affected-tests,
 # check-changed-skills, check-docs-only, check-changelog-parity,
-# check-contract-slice-prune, check-stale-base-overlap, and
-# check-vendor-version-bump still dispatch modes and map exits themselves; the
+# check-contract-slice-prune, check-skill-description-voice,
+# check-stale-base-overlap, and check-vendor-version-bump still dispatch modes
+# and map exits themselves; the
 # #3413 triage brief scoped out adding modes to other gates.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

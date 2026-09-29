@@ -62,8 +62,12 @@ esac
 }
 
 awk '
-  FNR == 1 { fm = ($0 ~ /^---[[:space:]]*$/); next }
+  FNR == 1 { fm = ($0 ~ /^---[[:space:]]*$/); blk = 0; next }
+  # A block-scalar description (`>-`, `|`) is its indented continuation lines.
+  fm && blk && /^([[:space:]]|$)/ { acc = acc " " $0; next }
+  fm && blk { check(FILENAME, acc); blk = 0 }
   fm && /^---[[:space:]]*$/ { fm = 0; next }
+  fm && /^description:[[:space:]]*[>|][-+0-9]*[[:space:]]*$/ { blk = 1; acc = ""; next }
   fm && /^description:/ { check(FILENAME, substr($0, 13)) }
 
   function strip(s,   out, i, j, n, c, prev) {
