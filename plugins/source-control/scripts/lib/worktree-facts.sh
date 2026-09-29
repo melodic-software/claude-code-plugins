@@ -2,9 +2,11 @@
 # Worktree fact record for source-control. Sourced by the scripts; run directly
 # with `list` to print the record (see the end of this file).
 #
-# One porcelain parse, one lock-reason codec, and one TSV row schema. Callers
-# read WT_FACT_* after worktree_facts_parse_z. An empty column is `-`, applied
-# once for every argument, so a new column cannot shift the row.
+# For the shell surfaces: one porcelain parse, one lock-reason codec, and one TSV
+# row schema. Callers read WT_FACT_* after worktree_facts_parse_z. An empty
+# column is `-`, applied once for every argument, so a new column cannot shift
+# the row. The one other reader is skills/babysit-prs/scripts/prune_babysit_worktrees.py,
+# which parses porcelain itself because it runs in Python.
 
 # worktree_lock_reason CREATOR [SESSION]
 # CREATOR is the script name that arms the lock (worktree-create.sh or

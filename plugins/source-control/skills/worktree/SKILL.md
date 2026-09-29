@@ -93,7 +93,7 @@ Detect current state and guide user to the right action.
    - **In a worktree** → Show current worktree info: branch name, last commit, associated PR (via `gh pr list --head <branch> --json number,title,state`). If a PR exists, suggest the next `/source-control:pull-request` phase.
    - **On a feature branch (not worktree)** → Show branch info and any associated PR.
 
-5. **Check for stale/prunable worktrees**: Run a `git worktree list --porcelain` scan. If any worktrees are prunable or branches have merged PRs → suggest `/source-control:worktree cleanup`.
+5. **Check for stale/prunable worktrees**: Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` and read its `prunable` column. If any worktrees are prunable or branches have merged PRs → suggest `/source-control:worktree cleanup`.
 
 6. **Otherwise** → Show brief status summary (worktree count, any needing attention).
 
