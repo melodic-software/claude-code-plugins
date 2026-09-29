@@ -22,15 +22,15 @@ bash "${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.sh"
 
 The table columns are tool, plugin, present or missing, the check skill, and the documented install command. `missing=N present=M` is the last line. Exit 1 means at least one tool is missing. Exit 2 means no plugin roots could be read.
 
-With no arguments the script merges `enabledPlugins` from the user settings in `~/.claude` (`CLAUDE_CONFIG_DIR` overrides that directory) and the project's `.claude/settings.json` and `settings.local.json`, then reads each enabled record's `installPath`. Only when none of that state exists does it scan `plugins/*/prerequisites.json` in the current repository; a state with nothing enabled prints an empty table.
+With no arguments and a `claude` executable on PATH, the script reads the enabled set and each `installPath` from `claude plugin list --json`. That output lists installs across every project, so it keeps user and managed rows, and project or local rows only when their `projectPath` is the current project (`CLAUDE_PROJECT_DIR`, else the git toplevel); an id resolves by its most specific scope, so user-enabled and project-disabled is disabled. When `claude` is absent or its output does not parse, it merges `enabledPlugins` from the settings files instead: the user settings in `~/.claude` (`CLAUDE_CONFIG_DIR` overrides that directory) and the project's `.claude/settings.json` and `settings.local.json`. A file holding any non-Boolean `enabledPlugins` value contributes none of its keys, and the managed scope is not read there. Only when none of that state exists does it scan `plugins/*/prerequisites.json` in the current repository; a state with nothing enabled prints an empty table.
 
 ## Next
 
-- A tool is missing: the `check` skill that row names
+- A formatter binary is missing: /biome-format:check, /go-format:check or /markdown-format:check
 - The fleet's versions, a different question: /claude-ops:plugins audit
-
-The table's `check` column names the skill for that row. Run the named check. Do not install unless the user asked.
 
 ## Gotchas
 
 A missing row is a report, not an install. Do not run `npx`, `npm install`, or `go install` from this skill.
+
+The table's `check` column names the skill for that row. When that skill is model-invocable, run it. When it is a setup skill (`/context7:setup check`, `/playwright:setup check`), the model cannot invoke it: tell the user to type it and show the row's install command. Install nothing unless the user asked.

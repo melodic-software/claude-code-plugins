@@ -4,11 +4,16 @@
 #   check-prerequisites.sh --plugin-root <dir> [--plugin-root <dir>...]
 #   check-prerequisites.sh
 #
-# With no roots, merge enabledPlugins from the user settings in ~/.claude (or
-# $CLAUDE_CONFIG_DIR) and the project's .claude/settings.json and
-# settings.local.json ($CLAUDE_PROJECT_DIR, else the git toplevel), then read
-# each enabled install's prerequisites.json. Only when none of that state
-# exists and this repo has plugins/*/prerequisites.json, scan those instead.
+# With no roots and a claude executable on PATH, read the enabled set and each
+# install path from `claude plugin list --json`: user and managed rows, plus
+# project and local rows whose projectPath is the current project
+# ($CLAUDE_PROJECT_DIR, else the git toplevel); the most specific scope wins per
+# id. When claude is absent or its output does not parse, merge enabledPlugins
+# from settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR)
+# and the project's .claude directory instead, skipping a whole file whose
+# enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
+# keys); that fallback does not read the managed scope. Only when none of that
+# state exists and this repo has plugins/*/prerequisites.json, scan those.
 #
 # Prints one TSV header and one row per declared tool:
 #   tool plugin status check install
@@ -25,7 +30,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,16p' "${BASH_SOURCE[0]}" >&2
+    sed -n '2,22p' "${BASH_SOURCE[0]}" >&2
     exit 0
     ;;
   *)
@@ -40,51 +45,86 @@ if [[ ${#ROOTS[@]} -eq 0 ]]; then
   config="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
   project="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
   project="${project%$'\r'}"
-  mapfile -t found < <(python3 - "$config" "$project" <<'PY'
+  listing=""
+  if command -v claude >/dev/null 2>&1; then
+    listing="$(timeout 30 claude plugin list --json 2>/dev/null || true)"
+  fi
+  mapfile -t found < <(PREREQ_LIST="$listing" python3 - "$config" "$project" <<'PY'
 import json, os, sys
 config, project = sys.argv[1], sys.argv[2]
-# User, then project, then local: a later scope's true/false wins.
-scopes = [os.path.join(config, "settings.json"), os.path.join(config, "settings.local.json")]
-if project:
-    scopes += [os.path.join(project, ".claude", "settings.json"),
-               os.path.join(project, ".claude", "settings.local.json")]
-state = {}
-read = False
-for path in scopes:
-    if not os.path.isfile(path):
-        continue
-    try:
-        doc = json.load(open(path, encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        continue
-    read = True
-    for key, value in (doc.get("enabledPlugins") or {}).items():
-        state[key] = bool(value)
-enabled = {key for key, value in state.items() if value}
-installed = os.path.join(config, "plugins", "installed_plugins.json")
-if os.path.isfile(installed):
-    read = True
+RANK = {"user": 0, "project": 1, "local": 2, "managed": 3}
+
+def same_dir(a, b):
+    return bool(a and b) and os.path.realpath(a) == os.path.realpath(b)
+
+def from_cli(rows):
+    best = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("id"):
+            continue
+        scope = row.get("scope")
+        if scope not in RANK:
+            continue
+        if scope in ("project", "local") and not same_dir(row.get("projectPath") or "", project):
+            continue
+        key = row["id"]
+        if key not in best or RANK[scope] >= RANK[best[key]["scope"]]:
+            best[key] = row
+    return [row["installPath"] for _, row in sorted(best.items())
+            if row.get("enabled") is True and row.get("installPath")]
+
+def from_settings():
+    # User, then project, then local: a later scope's true/false wins.
+    scopes = [os.path.join(config, "settings.json"), os.path.join(config, "settings.local.json")]
+    if project:
+        scopes += [os.path.join(project, ".claude", "settings.json"),
+                   os.path.join(project, ".claude", "settings.local.json")]
+    state = {}
+    read = False
+    for path in scopes:
+        if not os.path.isfile(path):
+            continue
+        try:
+            doc = json.load(open(path, encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        read = True
+        plugins = doc.get("enabledPlugins") if isinstance(doc, dict) else None
+        if not isinstance(plugins, dict) or not all(isinstance(v, bool) for v in plugins.values()):
+            continue
+        state.update(plugins)
+    enabled = {key for key, value in state.items() if value}
+    installed = os.path.join(config, "plugins", "installed_plugins.json")
+    if os.path.isfile(installed):
+        read = True
+    found = []
+    if enabled and os.path.isfile(installed):
+        try:
+            doc = json.load(open(installed, encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            doc = {}
+        plugins = doc.get("plugins") or {}
+        for key in sorted(enabled):
+            records = plugins.get(key) or []
+            if isinstance(records, dict):
+                records = [records]
+            path = ""
+            for record in records:
+                if isinstance(record, dict) and record.get("installPath"):
+                    path = record["installPath"]
+                    if record.get("scope") == "user":
+                        break
+            if path:
+                found.append(path)
+    return read, found
+
+try:
+    rows = json.loads(os.environ.get("PREREQ_LIST") or "")
+except json.JSONDecodeError:
+    rows = None
+read, found = (True, from_cli(rows)) if isinstance(rows, list) else from_settings()
 if read:
     print("STATE_READ")
-found = []
-if enabled and os.path.isfile(installed):
-    try:
-        doc = json.load(open(installed, encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        doc = {}
-    plugins = doc.get("plugins") or {}
-    for key in sorted(enabled):
-        records = plugins.get(key) or []
-        if isinstance(records, dict):
-            records = [records]
-        path = ""
-        for record in records:
-            if isinstance(record, dict) and record.get("installPath"):
-                path = record["installPath"]
-                if record.get("scope") == "user":
-                    break
-        if path:
-            found.append(path)
 if found:
     print("\n".join(found))
 PY
