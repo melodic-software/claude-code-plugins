@@ -46,6 +46,11 @@ The refusal names what it can still report. That matters: an unexplained refusal
 reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
+**Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
+variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
+pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
+< 1 ms) are warnings. Presenting this refusal as consensus would be a miscitation.
+
 ### 1b. Measuring-tool integrity (before timing)
 
 Before any timed arm runs, record the **measuring tool's identity** for every executable the goal's
@@ -59,11 +64,6 @@ command). Carry the record in the report:
 ```text
 Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing>
 ```
-
-**Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
-variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
-pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
-< 1 ms) are warnings. Presenting this refusal as consensus would be a miscitation.
 
 ### 2. Capture the drift-immune counter first
 
@@ -82,6 +82,10 @@ tracks a Windows Job Object or other host counter, state that label explicitly a
 [harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash)
 so a +2 delta is not chased as a mystery third process.
 
+A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
+fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
+average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
+
 ### 2b. Code path under test (before each arm)
 
 The goal must name which **code path(s)** the metric is meant to exercise (for example skip with no
@@ -97,10 +101,6 @@ Path (<arm>): <intended path from goal> -> <observed path> (evidence: <marker | 
 An arm whose observed path does not match the goal's named path is **flagged**; its duration is not
 reported as the goal's headline metric. A harness that always exercised the rare path while the
 common session path stayed unmeasured is exactly the failure this step prevents.
-
-A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
-fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
-average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
 
 ### 3. Capture durations, only if step 1 allowed it
 
