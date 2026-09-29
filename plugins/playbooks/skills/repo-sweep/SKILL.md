@@ -37,10 +37,16 @@ File issue bodies from a path, not from stdin.
 heredoc whose text mentioned git; direct script paths, one git command per call, and a body file
 were accepted. Basis: observed during the melodic-software/.github sweep (PR
 melodic-software/.github#153), recorded in
-[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537); the guard's
-documented rule is <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
-(Command shape). As of: 2026-09-26. Recheck: the Command shape bullet or a release note changes
-which Bash forms an isolated session accepts. The procedure files point here for these shapes.
+[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). Rechecked against
+Claude Code 2.1.284 on 2026-09-29: the Command shape bullet of
+<https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> and the changelog
+after 2.1.259 through 2.1.284 name none of the three forms. Changelog 2.1.257 stopped refusing
+heredocs that never touch git and 2.1.259 stopped refusing loops, xargs pipelines and
+launcher-wrapped commands that cannot reach the main checkout; 2.1.274 refused more nested
+expansions. Status: all three forms unverified, so the conservative procedure stays. Not
+re-probed in a live isolated session. As of: 2026-09-29. Recheck: the Command shape bullet or a
+release note changes which Bash forms an isolated session accepts, or a live isolated session
+runs the three forms. The procedure files point here for these shapes.
 
 ## Scripts
 
@@ -134,8 +140,10 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   A same-named personal or project skill replaces the bundled one and is stamped `@personal` or
   `@project` instead ([skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name),
   fetched 2026-09-27). The Claude Code version standing in for a bundled skill's version is an
-  inference from the 2.1.280 binary, which keys its bundled-skills directory on its own version;
-  no docs page states it. Recheck when that docs table changes or a Claude Code release note
+  inference from the observed path: a bundled skill loaded from
+  `/tmp/claude-1000/bundled-skills/2.1.283/...` while `claude --version` printed 2.1.283
+  ([#4601](https://github.com/melodic-software/claude-code-plugins/issues/4601)); no docs page
+  states it. Recheck when that docs table changes or a Claude Code release note
   gives bundled skills their own versions.
 - A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
   `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
