@@ -1,0 +1,14 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected slug is a literal. No usings, as with a
+// global using for Xunit, so cs-xunit claims the file as the C# default.
+public class SlugifyLiteralTests
+{
+    [Theory]
+    [InlineData("Hello World", "hello-world")]
+    [InlineData("  Trim Me ", "trim-me")]
+    public void From_LowercasesAndHyphenates(string title, string expected)
+    {
+        Assert.Equal(expected, Slug.From(title));
+        Assert.Equivalent(new[] { "hello", "world" }, Slug.Words("Hello World"));
+    }
+}

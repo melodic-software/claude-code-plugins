@@ -1,0 +1,10 @@
+// expect: rule-recomputed-expectation
+// The expected side runs the same parse as the actual side.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseRow } from '../src/csv.mjs';
+
+test('splits a quoted row', () => {
+  const row = 'a,"b,c",d';
+  assert.deepStrictEqual(parseRow(row), parseRow(row));
+});

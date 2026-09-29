@@ -13,6 +13,16 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `CLEAN_GUARD_ACK` prefix lifts the block, and it is the only way a bare `git branch -D` runs
   during a clean session. `git-branch-delete.sh` deletes with `git update-ref -d`, so the
   confirmed path is unaffected. The guard header, `SKILL.md`, and README state the new coverage.
+- **The guard's global-option prefix accepts flag-only options (`-p`, `-P`, `--no-pager`).** The
+  `clean`, `reset --hard`, `checkout --`, `stash drop`/`clear` and `worktree remove` patterns share
+  it, so `git --no-pager clean -fd` and the other destructive forms are now blocked after those
+  options too.
+
+## [0.11.2] - 2026-09-29
+
+### Fixed
+
+- **`clean` `**Arguments.**` line leads with the argument hint,** so the hint and the line agree.
 
 ## [0.11.1] - 2026-09-29
 

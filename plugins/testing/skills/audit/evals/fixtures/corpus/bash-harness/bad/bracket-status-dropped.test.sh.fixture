@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# expect: rule-inert-assertion
+# With no set -e, a [ ] test whose status nothing reads decides nothing: the
+# script goes on and exits 0 whatever sort printed.
+set -uo pipefail
+
+out="$(printf 'b\na\n' | sort | head -1)"
+[ "$out" = a ]
+echo "sorted"
+[ -n "$out" ] || fail "sort printed nothing"
+pass "sort"

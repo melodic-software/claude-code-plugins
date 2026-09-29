@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# The checks run in a node driver written from a heredoc; its exit code
+# carries the verdict. Shape from check-loop-closure-helpers.test.sh.
+set -euo pipefail
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cat >"$work/driver.mjs" <<'EOF'
+let fail = 0;
+const check = (name, cond) => { if (!cond) { fail++; console.log(`not ok: ${name}`); } };
+check('sort puts a first', ['b', 'a'].sort()[0] === 'a');
+process.exit(fail > 0 ? 1 : 0);
+EOF
+node "$work/driver.mjs"

@@ -121,33 +121,8 @@ chmod +x "$TEST_BIN/markdownlint-cli2"
 PATH="$TEST_BIN:$PATH"
 export PATH
 
-# make_sink <body> → path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). The contract requires
-# HOOK_TELEMETRY_SINK to be a single executable path, not a command-with-args,
-# so tests point it at a stub script. Stubs live under $WORK so the trap reaps them.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [max_polls] → block until <file> is non-empty (the
-# fire-and-forget sink has flushed) or the bound elapses, polling in 20ms steps.
-# Replaces a fixed sleep so delivery assertions fire as soon as the write lands
-# instead of racing variable process-spawn latency (notably on Windows Git Bash).
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # epoch_delta_ms <start> <end> → whole milliseconds between two $EPOCHREALTIME
 # reads. Splits on either '.' or ',' (locale decimal separator) and forces

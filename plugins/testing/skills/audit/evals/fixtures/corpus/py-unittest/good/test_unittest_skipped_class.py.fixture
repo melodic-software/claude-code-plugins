@@ -1,0 +1,11 @@
+# good-for: rule-zero-assertion
+# A skip decorator on the TestCase class skips every method in it.
+import unittest
+
+from repo import clone_fixture
+
+
+@unittest.skip("the clone fixture is being rebuilt")
+class CloneTests(unittest.TestCase):
+    def test_clone_fixture_repo(self):
+        clone_fixture("tiny-repo")

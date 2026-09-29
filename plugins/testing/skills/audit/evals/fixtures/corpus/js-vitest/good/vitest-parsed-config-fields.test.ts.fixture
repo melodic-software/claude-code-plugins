@@ -1,0 +1,24 @@
+// good-for: rule-constant-restatement
+// An uppercase field of a value the test computed: the code under test ran
+// first, so the literal checks its output, not a constant.
+import { expect, it } from 'vitest';
+import { parseEnv } from '../src/env';
+import { createUser } from '../src/users';
+
+it('parses the port', () => {
+  const parsed = parseEnv('PORT=8080');
+  expect(parsed.PORT).toBe('8080');
+});
+
+it('assigns the first id', async () => {
+  const user = await createUser();
+  expect(user.ID).toBe(42);
+});
+
+it('parses the port, on one line', () => {
+  const parsed = parseEnv('PORT=8080'); expect(parsed.PORT).toBe('8080');
+});
+
+it('assigns the first id, on one line', async () => {
+  const user = await createUser(); expect(user.ID).toBe(42);
+});
