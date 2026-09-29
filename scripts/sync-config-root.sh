@@ -27,7 +27,11 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-config-root.sh"
 src="plugins/source-control/lib/config-root.sh"
-copies=(plugins/docs-hygiene/lib/config-root.sh)
+copies=(
+  plugins/ai-slop/lib/config-root.sh
+  plugins/attribution/lib/config-root.sh
+  plugins/docs-hygiene/lib/config-root.sh
+)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"
