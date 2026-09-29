@@ -90,17 +90,14 @@ upstream says now, and drift since that date is exactly what this audit exists t
 
 The rule, stated so no judge has to improvise it:
 
-- **The finding caps at `source-fetched-similar` and is never fix-eligible**, whatever the
-  fingerprint module reports. `fingerprint-confirmed` requires an identity-checked live fetch
-  because fix eligibility rests on current upstream state, which a snapshot cannot establish.
-  Stale evidence licenses no edit.
+- **The finding takes the `vendored-snapshot` tier, which is report-only and never
+  fix-eligible**, whatever the fingerprint module reports. `fingerprint-confirmed` requires an
+  identity-checked live fetch because fix eligibility rests on current upstream state, which a
+  snapshot cannot establish. Stale evidence licenses no edit. The tier has its own row in
+  `reference/rubric.md` "Tier mapping".
 - **Record `source.route: vendored-snapshot`** and name, in the finding: the snapshot path, its
   declared upstream ref, its sync date, and each live fetch that failed with how it failed. The
   human report must be able to say the basis was a committed copy, not a live read.
-- **The tier is borrowed knowingly.** `source-fetched-similar` is worded for a fetched source; a
-  snapshot basis is admitted under it as the strongest report-only tier, and the recorded route
-  is what keeps the report honest about the difference. This rule caps the tier and leaves the
-  table in `reference/rubric.md` unchanged.
 - **The follow-up is human.** Recommend re-running the candidate when upstream is reachable
   again or the snapshot re-syncs; do not hold the finding open waiting for either.
 

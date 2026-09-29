@@ -380,10 +380,17 @@ write_report withheld-llm.json '{
     {"tier": "llm-suspected", "file": "c.md", "excerpt": "LEAKCANARY-LLM"}
   ]
 }'
+write_report withheld-vs.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "vendored-snapshot", "file": "e.md", "excerpt": "LEAKCANARY-VS"}
+  ]
+}'
 
 for wcase in "nf:not-found:LEAKCANARY.example" \
   "sfs:source-fetched-similar:LEAKCANARY-SFS" \
-  "llm:llm-suspected:LEAKCANARY-LLM"; do
+  "llm:llm-suspected:LEAKCANARY-LLM" \
+  "vs:vendored-snapshot:LEAKCANARY-VS"; do
   IFS=: read -r wname wtier wcanary <<<"$wcase"
   WOUT="$OUTDIR/withheld-$wname.md"
   run --report "$REPORTS/withheld-$wname.json" --out "$WOUT" >/dev/null 2>&1
@@ -394,6 +401,31 @@ for wcase in "nf:not-found:LEAKCANARY.example" \
   assert_not_contains "a rule-less $wtier finding opens no Unparsed section" "$WBODY" "## Unparsed"
   assert_contains "a rule-less $wtier finding is counted, not dropped" "$WBODY" "1 judgment"
 done
+
+# Paired with a copy rule id, a vendored-snapshot verdict is still a judgment
+# verdict: it is counted as one, not as a copy declaring no relayable tier.
+write_report withheld-vs-rule.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"rule": "attribution/audit/rule-verbatim-copy", "tier": "vendored-snapshot",
+     "file": "e.md", "excerpt": "LEAKCANARY-VSRULE",
+     "source": {"route": "vendored-snapshot"}}
+  ]
+}'
+WVSR="$OUTDIR/withheld-vs-rule.md"
+run --report "$REPORTS/withheld-vs-rule.json" --out "$WVSR" >/dev/null 2>&1
+assert_exit "a rule-paired vendored-snapshot finding exits 0" "$?" "0"
+VSR_BODY="$(cat "$WVSR")"
+assert_eq "a rule-paired vendored-snapshot finding is no relay row" \
+  "$(grep -c '^| [0-9]' "$WVSR")" "0"
+assert_not_contains "a rule-paired vendored-snapshot tier name never reaches the file" \
+  "$VSR_BODY" "vendored-snapshot"
+assert_not_contains "a rule-paired vendored-snapshot payload never reaches the file" \
+  "$VSR_BODY" "LEAKCANARY-VSRULE"
+assert_contains "a rule-paired vendored-snapshot finding is counted as judgment" \
+  "$VSR_BODY" "1 judgment"
+assert_not_contains "a rule-paired vendored-snapshot finding is not counted as ineligible" \
+  "$VSR_BODY" "Not relay-eligible"
 
 # Casing is not a way around the boundary: the tier is matched case-folded.
 write_report withheld-cased.json '{

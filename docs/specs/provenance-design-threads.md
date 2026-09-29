@@ -156,8 +156,8 @@ hash-store trigger evaluation and #2297 closure evidence.
   Jaccard axis if containment alone is evadable. Tag: golden-set growth, action 5 of the
   handoff.
 - The neutral not-found disposition has never been exercised live (all spike sources were
-  supplied); the built plugin's first no-breadcrumb case validates the searched-surfaces
-  listing. Tag: build-time harness.
+  supplied); the built plugin's first no-breadcrumb case exercises it. The searched-surfaces
+  listing is checked for presence only, never for completeness. Tag: build-time harness.
 - Judge prompt diversity: S3 measured self-consistency (three identical prompts), not
   perspective diversity; whether distinct judge lenses change split rates is a
   golden-set-growth question, not a v1 blocker.

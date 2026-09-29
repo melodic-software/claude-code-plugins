@@ -262,6 +262,7 @@ prose**, and a unanimous panel does not upgrade one.
 | Tier | Evidence gate | Reaches relay | Fix-eligible |
 |---|---|---|---|
 | `fingerprint-confirmed` | A matched span above the separation rule, against an identity-checked fetched source | Yes | Yes |
+| `vendored-snapshot` | The source was read from a committed snapshot because the live fetch was unavailable or failed; the finding records `source.route: vendored-snapshot` and names the snapshot path, its declared upstream ref and its sync date | No, human report | No |
 | `source-fetched-similar` | Source fetched, below the deterministic rule, unanimous STANDS | No, human report | No |
 | `llm-suspected` | No lexical evidence is possible (paraphrase, summary) | No, human report | No |
 | `not-found` | Budgets exhausted with no source; every searched surface named | No, human report | No |

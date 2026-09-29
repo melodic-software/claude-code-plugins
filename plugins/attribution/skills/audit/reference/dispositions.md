@@ -83,12 +83,14 @@ to the human with the guard's own reason.
 4. **Carve-outs re-checked at edit time.** A passage inside a quotation context, a conforming
    stamped record, or a vendored tree is not edited, even if a finding reached this point.
 
-One gap is flagged here rather than guarded: a corpus file can be the rendered output of a
-generator whose source of record lives outside the markdown corpus, in a data file whose
-rendering carries a never-hand-edit marker in its own header. A fix applied to such a rendering edits a file its
-own header forbids editing, and the next regeneration overwrites it. Check the file head for a
-generated-output marker before applying any disposition; when one is present, route the finding
-to the human and name the generator's input as the real fix site. No script enforces this check.
+**`fix` and `sweep` apply dispositions to hand-written markdown only.** A corpus file can be the
+rendered output of a generator whose source of record lives outside the markdown corpus, in a
+data file, and whose rendering carries a never-hand-edit marker in its own header. A fix applied
+to such a rendering edits a file its own header forbids editing, and the next regeneration
+overwrites it. Check the file head for a generated-output marker before applying any
+disposition. A file that carries one is not edited: its findings are reported and routed to the
+human, and each names the generator's input as the fix site. The exclusion is the marker, never
+a list of files. No script enforces this check.
 
 ## The demotion path when a pointer later dies
 

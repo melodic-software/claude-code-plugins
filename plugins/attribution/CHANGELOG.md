@@ -1,5 +1,44 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`vendored-snapshot` is an evidence tier of its own.** `reference/rubric.md` "Tier mapping"
+  gains a row between `fingerprint-confirmed` and `source-fetched-similar`: the source was read
+  from a committed snapshot because the live fetch was unavailable or failed, the finding records
+  `source.route: vendored-snapshot` and names the snapshot path, its declared upstream ref and its
+  sync date, and it never reaches the relay and is never fix-eligible. The 0.4.0 rule that a
+  snapshot basis caps at `source-fetched-similar` and borrows that tier is replaced in
+  `reference/source-fetch.md` and `SKILL.md`, and the README and the two `docs/specs/provenance-*`
+  tier lists carry the new row. The fix-eligibility rule itself is unchanged.
+
+  `emit-findings.sh` recognizes the name as a withheld judgment verdict. Before, a finding
+  declaring it and carrying no rule id printed verbatim into `## Unparsed`, tier name and payload
+  included, and one paired with a copy rule id was counted as "not relay-eligible" rather than as a
+  judgment finding. Both now take the withheld path and are counted under "judgment findings". The
+  suite pins both shapes.
+
+  **The rubric stays at version 4.** Its header rule names carve-outs and criteria, and a tier row
+  is neither: judges grade carve-outs and criteria before any tier is mapped, no grade changes, and
+  no golden case declares this tier, so no recorded measurement is invalidated (Refs #3465).
+
+### Changed
+
+- **`fix` and `sweep` apply dispositions to hand-written markdown only.** The generated-output
+  paragraph in `reference/dispositions.md` was a flagged gap and is now the rule: a file whose head
+  carries a generated-output marker is not edited, its findings are reported and routed to the
+  human, and each names the generator's input as the fix site. The exclusion is the marker, never a
+  list of files, and no script enforces the check. `SKILL.md` "Sweep" states the same in one
+  sentence (Refs #3465).
+- **The searched-surfaces listing is stated as checked for presence only.** No live doc claims it
+  validates anything: `docs/specs/provenance-design-threads.md` no longer says the first
+  no-breadcrumb case "validates" it, and the README says `emit-findings.sh` checks the listing is
+  present and never that it is complete. The 0.5.1 entry for the sidecar check and the 0.4.0 entry
+  recording the listing as unenforced already say this and are left as recorded (Refs #3465).
+- **`SKILL.md`'s description no longer enumerates the tier names**, so a tier added later does not
+  leave it stale.
+
 ## [0.6.2] - 2026-09-29
 
 ### Fixed

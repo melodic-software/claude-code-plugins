@@ -41,6 +41,7 @@ Evidence tiers are discrete and evidence-gated, never verbalized probabilities:
 | Tier | Evidence | Fix-eligible |
 |---|---|---|
 | `fingerprint-confirmed` | matched span above the separation rule against an identity-checked source | yes |
+| `vendored-snapshot` | source read from a committed snapshot because the live fetch failed | no, human report |
 | `source-fetched-similar` | source fetched, below the deterministic rule, judges unanimous | no, human report |
 | `llm-suspected` | no lexical evidence is possible (paraphrase, summary) | no, human report |
 | `not-found` | budgets exhausted; every searched surface is named | no, human report |
@@ -129,7 +130,8 @@ prints one warning naming it and the `attribution` file name to rename it to.
 - **Web search**, optional. It is the enrichment branch used only when no breadcrumb names a
   candidate source. Without it the audit degrades to breadcrumb-only resolution: passages whose
   source is already cited nearby still reach `fingerprint-confirmed`, and the rest land on
-  `not-found` with the searched surfaces named.
+  `not-found` with the searched surfaces named. That listing is the run's own claim:
+  `emit-findings.sh` checks it is present, never that it is complete.
 
 ## Boundary
 

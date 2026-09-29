@@ -1,5 +1,5 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers (fingerprint-confirmed, source-fetched-similar, llm-suspected, not-found); only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -124,8 +124,8 @@ texts, file composition); every judgment about whether a passage is a copy is mo
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
    unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
-   snapshot, reached because every live fetch failed, caps at `source-fetched-similar` and is
-   never fix-eligible; the full rule is in
+   snapshot, reached because every live fetch failed, takes the report-only `vendored-snapshot`
+   tier and is never fix-eligible; the full rule is in
    [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
    over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
 
@@ -183,7 +183,9 @@ an explicit neutral outcome**, never when the interesting ones are done. Write e
 the sweep ledger at `.work/<topic-slug>/sweep-ledger.md` in the run's memory slice, so an
 interrupted sweep resumes without re-deciding closed files and the closure count is a fact rather
 than a memory. The entry's required fields are in
-[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure".
+[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure". Like `fix`, it applies
+dispositions to hand-written markdown only: a file whose head carries a generated-output marker is
+reported and routed to the human, and its finding names the generator's input as the fix site.
 
 **Nothing writes or reads that ledger for you.** No script in this plugin creates it, parses it,
 or checks an entry for completeness. It is a file the run keeps by hand, and every resume rule
@@ -226,8 +228,8 @@ fired on an identifier, a test runner exiting non-zero without failing.
 
 - **Does not fix on bare invocation.** Mutation rides only the explicit `fix` or `sweep`
   argument.
-- **Does not put judgment verdicts in the findings file.** `source-fetched-similar`,
-  `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
+- **Does not put judgment verdicts in the findings file.** `vendored-snapshot`,
+  `source-fetched-similar`, `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
   look a tier up from, and a relay row is an instruction to a remediation surface.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
   concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose
