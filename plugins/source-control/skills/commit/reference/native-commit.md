@@ -1,4 +1,4 @@
-# The bundled `commit` skill: verification record
+# Native commit surfaces: verification record
 
 Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
 record: the claim, the basis it rests on, the date it was checked, and the event that makes it
@@ -10,6 +10,8 @@ worth checking again.
 | It is model-invocable and user-invocable, and its registration is gated | Same extraction (`model_invocable`, `user_invocable`, `gated` all true) | 2026-09-29 | A release changes its invocability or gate |
 | It is undocumented on the commands reference: <https://code.claude.com/docs/en/commands> has no `/commit` row | That page, read 2026-09-29 | 2026-09-29 | The commands page gains a `/commit` row |
 | Bundled skills turn off with `disableBundledSkills`, and one bundled skill hides with a `skillOverrides` entry of `"off"` | <https://code.claude.com/docs/en/skills>, bundled skills and skill visibility sections | 2026-09-29 | The skills page changes either setting |
+| `commit-push-pr` is a built-in command of type `prompt`, described as "Commit, push, and open a PR". Model-invocable, user-invocable, not gated | The same extraction | 2026-09-29 | A release renames or removes it, or changes its invocability or gate |
+| `/commit-push-pr` is undocumented on the commands reference (no row) | <https://code.claude.com/docs/en/commands>, as parsed by `/claude-ops:inventory --docs` on 2026-09-29 | 2026-09-29 | The commands page gains a `/commit-push-pr` row |
 
 ## Why the verdict is complementary
 
@@ -18,3 +20,5 @@ This skill exists for repositories that declare their own: the layered `source-c
 convention and `trailer_policy`, a project commit-msg hook, surgical staging against the four
 preconditions, and the per-commit format, exec-bit, and pre-check steps that composing workflows
 rely on. Neither replaces the other; both create a commit, so one is chosen per commit.
+`/commit-push-pr` goes further than either: it also pushes and opens a PR, so a request to commit
+and nothing more never routes to it.
