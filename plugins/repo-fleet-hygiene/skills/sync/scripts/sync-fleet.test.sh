@@ -108,11 +108,13 @@ git -C "$TMP/evil.git" symbolic-ref HEAD refs/heads/-evil
 git clone -q "$bare" "$TMP/victim"
 git -C "$TMP/victim" remote set-url origin "$TMP/evil.git"
 evil="$(bash "$SCRIPT" --repo "$TMP/victim")"
+code=$?
 if [[ "$evil" == *$'skip\t'"$TMP/victim"$'\t\tls-remote'* ]]; then
   pass "a remote default branch starting with a dash is refused"
 else
   fail "a remote default branch starting with a dash is refused" "$evil"
 fi
+expect "a dry-run that plans a skip still exits 0" "code=$code" is "$code" 0
 
 evil_applied="$(bash "$SCRIPT" --repo "$TMP/victim" --apply --yes)"
 code=$?
