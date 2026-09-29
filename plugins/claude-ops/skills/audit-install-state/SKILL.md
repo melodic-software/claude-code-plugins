@@ -158,7 +158,14 @@ days or more). A directory with no marker has `orphaned_at: null` and is never p
 nothing will sweep it. When the registry is missing, unparseable, or belongs to another root, the
 list is empty and `unreferenced_versions_note` says why; an empty list then means "not checked",
 not "none". The list is a report, not a deletion list, and removing anything stays with
-`/disk-hygiene:clean`.
+`/disk-hygiene:clean`. That skill treats the cache as managed state and leaves version directories
+to the product's own sweep; do not remove them by hand.
+
+A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
+the previous version's path after an update. Restart the session to pick up the new version; the
+old path is expected, not a defect. Upstream behavior and its recheck trigger: the mid-session update
+note in the `/claude-ops:plugins` gotchas and
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference).
 
 ## Phase 4. Numeric names and liveness
 
