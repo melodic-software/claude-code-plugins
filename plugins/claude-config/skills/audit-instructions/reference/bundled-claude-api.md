@@ -35,6 +35,6 @@ sweep surfaces into the catalog as rows rather than re-running the sweep to find
 
 Bundled skills can be removed by `disableBundledSkills`, hidden by `skillOverrides`, and vary by
 plan, platform, and host surface. The routing in `SKILL.md` therefore reads "when the surface
-resolves in your session" and never "the surface is available". Verified against
+resolves in this session" and never "the surface is available". Verified against
 `code.claude.com/docs/en/settings-reference.md` on 2026-09-09; recheck when a release or docs
 change adds, removes, or renames a gating axis.

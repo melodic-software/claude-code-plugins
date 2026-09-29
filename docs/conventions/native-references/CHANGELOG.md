@@ -6,6 +6,19 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.0.0] - 2026-09-28
+
+Major: the canonical route-gate token changes, which the Versioning section names as a major change.
+The suggest token from 2.0.0 is unchanged.
+
+- **The route gate token is `resolves in this session`.** It was `resolves in your session`, which
+  addressed the reader in a description that is injected into the system prompt. Anthropic's
+  [skill-authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions)
+  say to always write a description in the third person (verified 2026-09-28). The old spelling is
+  no longer an accepted variant; `claude-ops:audit-native-overlap` keys its parity checks on the new
+  one ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The suggest
+  sentence keeps `is available in your session (`, the person-facing token 2.0.0 added.
+
 ## [2.0.0] - 2026-09-28
 
 Major. Two triggers from this convention's Versioning section fire together: an enforceability

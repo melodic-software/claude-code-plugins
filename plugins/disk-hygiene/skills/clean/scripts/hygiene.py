@@ -335,6 +335,69 @@ def glob_matches(subject: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
 
 
+_ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
+
+
+def protection_glob_pattern(entry: Any) -> str | None:
+    """The glob string from a protection entry, or None when the shape is unusable."""
+    if isinstance(entry, str) and entry:
+        return entry
+    if isinstance(entry, dict):
+        pattern = entry.get("glob")
+        if isinstance(pattern, str) and pattern:
+            return pattern
+    return None
+
+
+def protection_glob_is_absolute(pattern: str) -> bool:
+    """True when the glob is an absolute POSIX path or a drive-letter path."""
+    return bool(_ABSOLUTE_GLOB.match(pattern))
+
+
+def consumer_path_protected(path: Path, target: Path, globs: Iterable[Any]) -> bool:
+    """True when a consumer protection glob covers *path*.
+
+    A relative glob matches the path relative to the scan target. A glob that
+    starts with ``/`` or a drive letter matches ``path.as_posix()``, so a
+    standing overlay can protect a tree regardless of which parent is scanned.
+    An absolute glob also matches with ``\\`` read as ``/``, so a native
+    Windows spelling covers the forward-slash subject. Object entries
+    contribute their ``glob`` field.
+    """
+    try:
+        relative = path.relative_to(target).as_posix()
+    except ValueError:
+        relative = path.as_posix()
+    absolute = path.as_posix()
+    for entry in globs:
+        pattern = protection_glob_pattern(entry)
+        if not pattern:
+            continue
+        if protection_glob_is_absolute(pattern):
+            if glob_matches(absolute, pattern) or glob_matches(
+                absolute, pattern.replace("\\", "/")
+            ):
+                return True
+        elif glob_matches(relative, pattern):
+            return True
+    return False
+
+
+def _validate_protection_glob_entry(entry: Any) -> None:
+    if protection_glob_pattern(entry) is None:
+        raise HygieneError(
+            "protection globs must be non-empty strings or {glob, reason} objects"
+        )
+    if isinstance(entry, dict) and not set(entry) <= {"glob", "reason"}:
+        raise HygieneError("protection glob objects may only carry glob and reason")
+    if (
+        isinstance(entry, dict)
+        and "reason" in entry
+        and not (isinstance(entry["reason"], str) and entry["reason"])
+    ):
+        raise HygieneError("protection glob reason must be a non-empty string")
+
+
 def is_within(path: Path, parent: Path) -> bool:
     try:
         return os.path.commonpath(
@@ -699,12 +762,15 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     A cloud-sync root's name embeds the tenant — Microsoft documents the
     OneDrive for Business sync root as ``OneDrive - <organization name>`` — so
     no exact name can cover it, and a consumer cannot cover it either:
-    ``additional_protected_path_globs`` is matched against a path RELATIVE to
-    the scan target, so a standing overlay protects such a root only when the
-    target happens to be its parent. Protection that must hold for every target
-    has to ship in the baseline, which is why this reads the bundled file
-    directly rather than taking policy as a parameter — exactly as
-    ``baseline_protected_names`` does on the validation lanes.
+    ``additional_protected_path_globs`` relative globs match a path relative to
+    the scan target, so they protect such a root only when the target happens
+    to be its parent. An absolute glob (``/`` or a drive letter) matches the
+    absolute path and does not need that parent, but it still cannot name a
+    tenant-specific OneDrive folder the overlay does not know. Protection that
+    must hold for every target without a known absolute path ships in the
+    baseline, which is why this reads the bundled file directly rather than
+    taking policy as a parameter — exactly as ``baseline_protected_names``
+    does on the validation lanes.
 
     Matched casefolded through ``fnmatchcase`` rather than ``fnmatch``, whose
     case folding follows the host platform; a protection whose verdict depends
@@ -753,8 +819,10 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     protections = overlay.get("additional_protected_path_globs", [])
     if not isinstance(disabled, list) or not isinstance(protections, list):
         raise HygieneError("disabled_hint_ids and protection globs must be arrays")
-    if not all(isinstance(value, str) and value for value in disabled + protections):
-        raise HygieneError("policy IDs and protection globs must be non-empty strings")
+    if not all(isinstance(value, str) and value for value in disabled):
+        raise HygieneError("policy IDs must be non-empty strings")
+    for item in protections:
+        _validate_protection_glob_entry(item)
     if not isinstance(additions, list):
         raise HygieneError("additional_hints must be an array")
     known_ids = {hint.get("id") for hint in result["hints"]}
@@ -1870,9 +1938,8 @@ def scan_tree(
             protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
-            if any(
-                glob_matches(relative, pattern)
-                for pattern in policy["additional_protected_path_globs"]
+            if consumer_path_protected(
+                path, target, policy["additional_protected_path_globs"]
             ):
                 protections.append("consumer-protected-path")
             try:
@@ -2262,20 +2329,19 @@ def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
 
 
 def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[str]:
-    """Consumer protection globs a snapshot's policy recorded, strings only.
+    """Consumer protection glob patterns a snapshot's policy recorded.
 
     Read from the snapshot rather than from live policy on purpose: an approved
     snapshot must stay previewable under the protections it was scanned with.
-    Non-string members are dropped here so the three validation lanes cannot
-    differ on how they tolerate a hand-edited policy block.
+    Object members contribute their ``glob`` string; other shapes are dropped
+    so the three validation lanes cannot differ on a hand-edited policy block.
     """
-    return [
-        pattern
-        for pattern in snapshot.get("policy", {}).get(
-            "additional_protected_path_globs", []
-        )
-        if isinstance(pattern, str)
-    ]
+    patterns: list[str] = []
+    for entry in snapshot.get("policy", {}).get("additional_protected_path_globs", []):
+        pattern = protection_glob_pattern(entry)
+        if pattern:
+            patterns.append(pattern)
+    return patterns
 
 
 def validate_plan(
@@ -3297,8 +3363,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
-            relative_current = current.relative_to(target).as_posix()
-            if any(glob_matches(relative_current, pattern) for pattern in globs):
+            if consumer_path_protected(current, target, globs):
                 blockers.append("consumer-protected-path")
         if "truncated-not-inventoried" in blockers:
             # Same rationale as the current_descendants short-circuit above: a
@@ -3483,7 +3548,7 @@ def verify_emptied_container(
     if not same_object_identity(info, entries[relative]):
         drifted.add("changed-since-scan")
     contested.update(hard_protection(path, target, exact_names, known_mounts))
-    if any(glob_matches(relative, pattern) for pattern in globs):
+    if consumer_path_protected(path, target, globs):
         contested.add("consumer-protected-path")
     expected_paths = subtree_names(relative, entries)
     current_paths: set[str] | None = None
@@ -3744,8 +3809,7 @@ def handoff_verify(
                         exact_names,
                     )
                 contested.update(current_protections)
-                relative_current = current.relative_to(target).as_posix()
-                if any(glob_matches(relative_current, pattern) for pattern in globs):
+                if consumer_path_protected(current, target, globs):
                     contested.add("consumer-protected-path")
             if not truncated or evidence_inventory_eligible:
                 # A hung git (TimeoutExpired) must degrade to this one path's
@@ -4028,7 +4092,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 baseline_protected_names(),
                 fresh_mounts,
             )
-            if any(glob_matches(relative, pattern) for pattern in globs):
+            if consumer_path_protected(path, target, globs):
                 fresh_protections.append("consumer-protected-path")
             fresh_vcs = tracked_blocker(path, target)
             if fresh_vcs:
