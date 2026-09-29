@@ -117,6 +117,22 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking biome..."
+          }
+        ]
+      }
     ]
   }
 }

@@ -32,7 +32,6 @@ This file documents the working pipeline schema + commands. For brand spec, slid
 | `lib/provider-logos.js` | Resolves bundled provider SVGs; missing optional assets downgrade to text-only headers without network access | n/a |
 | `lib/paths.js` | Resolves the build root and the per-profile state root every generated artifact is written under | n/a |
 | `lib/brand-overlay.js` | Overlays a schema-validated profile `brand.json` on the neutral engine defaults | n/a |
-| `lib/window.js` | Parses and renders the briefing header's `Window:` line | n/a |
 | `lib/url-policy.js` |  | n/a |
 | `lib/url-display.js` | Shared URL display formatter used by the HTML build and the validator | n/a |
 | `build-pptx.js` | pptxgenjs ESM. Provider-aware decorate(), 11 slide types | `../meetings/ai-meeting-{N}.pptx` |

@@ -137,11 +137,11 @@ hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED:
 # builtin, and the exec below looks the name up on PATH itself, so nothing here
 # needs the resolved path.
 if ! command -v goimports >/dev/null 2>&1; then
-  if hook::notice_once "go-format-goimports" "$INPUT"; then
+  if hook::notice_once "go-format-goimports" "$INPUT" prerequisite; then
     GO_NOTICE=""
     hook::tool_missing_notice_to GO_NOTICE \
       "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit" \
-      matching ". Install: go install golang.org/x/tools/cmd/goimports@latest"
+      matching ". Install: go install golang.org/x/tools/cmd/goimports@latest. Run /go-format:check. It does not install."
     hook::emit_skip_notice PostToolUse "$GO_NOTICE"
   fi
   emit_skipped

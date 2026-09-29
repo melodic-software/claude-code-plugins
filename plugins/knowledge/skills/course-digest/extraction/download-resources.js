@@ -14,12 +14,18 @@ import { basename, dirname, extname, join } from "node:path";
 
 import { createLogger } from "@melodic/video-digestion/shared/logger";
 
+import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
-const args = parseCliArgs({
-  "dry-run": { type: "boolean", default: false },
-});
-const log = createLogger(resolveLogLevel(args));
+let args;
+let log;
+
+function bindCli() {
+  args = parseCliArgs({
+    "dry-run": { type: "boolean", default: false },
+  });
+  log = createLogger(resolveLogLevel(args));
+}
 
 /**
  * A received client response always carries a status code, unlike the
@@ -161,6 +167,7 @@ async function downloadAllItems(downloadItems) {
 }
 
 async function main() {
+  bindCli();
   const { courseDir } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
   const downloadsDir = join(courseDir, "code", "downloads");
@@ -232,7 +239,9 @@ async function main() {
   log.info(`  ${articlesPath}`);
 }
 
-main().catch((e) => {
-  log.error("Fatal:", e);
-  process.exit(1);
-});
+if (invokedAsCli(import.meta.url)) {
+  main().catch((e) => {
+    log.error("Fatal:", e);
+    process.exit(1);
+  });
+}

@@ -50,6 +50,18 @@
         "Output includes an attestation row for the models exercised, naming the alias list (haiku, sonnet, opus, fable)",
         "Output names /skill-quality:check <skill> as the closing step and does NOT claim a script verified a judgment or attestation row"
       ]
+    },
+    {
+      "id": 5,
+      "name": "fork-context-points-at-invocation-context-rubric",
+      "prompt": "Should I set context: fork on a new read-only audit skill that interviews the user mid-run?",
+      "expected_output": "No. Fork is not the default; the invocation-context rubric owns the choice. Fork pays only for read-only, argument-scoped, no-human-gate skills with heavy isolated reading. A mid-flow interview is an anti-candidate class, so the skill stays inline. A skill that does fork writes background: false unless a skill-specific confirmation chooses async. The answer points at the invocation-context rubric rather than inventing a new rule.",
+      "files": [],
+      "expectations": [
+        "Output refuses context: fork for a skill with a mid-flow interview / confirmation",
+        "Output names the invocation-context rubric as the owner of when fork pays, the anti-candidate classes, and the background: false default",
+        "Output does not treat context: fork as the fleet default"
+      ]
     }
   ]
 }

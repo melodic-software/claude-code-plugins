@@ -3,11 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.7] - 2026-09-28
+## [0.41.8] - 2026-09-28
 
 ### Fixed
 
 - **Hook suites no longer fail when run inside a Claude Code session.** `guardrails-test-helpers.sh` now unsets `CLAUDE_PLUGIN_DATA` and `HOOK_TELEMETRY_SINK` for every suite that sources it. An inherited `CLAUDE_PLUGIN_DATA` latched the levers notice that `block-hook-bypass.test.sh` counts, and the sink's extra output broke two jq counts in `run-guards.test.sh`. Test-only; hook behavior is unchanged.
+
+## [0.41.7] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
 
 ## [0.41.6] - 2026-09-28
 

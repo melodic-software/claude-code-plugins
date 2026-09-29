@@ -1,0 +1,42 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said biome-format found no biome binary. Is Biome installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for the biome binary. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /biome-format:setup and reports its PASS/FAIL table",
+        "Resolves biome the way the hook does (node_modules/.bin walk, then PATH) rather than a bare assumption",
+        "Does not run `apply`, `npm install`, `npx`, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/biome-format:check\n\nThe check failed. Just install biome for me.",
+      "expected_output": "Does not install from this skill. Names /biome-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install biome itself and does not invoke `npx`",
+        "Names /biome-format:setup apply as the route for an install the user asked for",
+        "Does not claim biome is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/biome-format:check",
+      "expected_output": "When biome resolves, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /biome-format:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

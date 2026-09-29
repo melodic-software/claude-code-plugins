@@ -33,6 +33,7 @@
   "enabledPlugins": {
     "animation@melodic-software": false,
     "attribution@melodic-software": true,
+    "dometrain-mcp@melodic-software": false,
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
     "pixel-art@melodic-software": false,

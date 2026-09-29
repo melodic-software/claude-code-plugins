@@ -3,11 +3,17 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.77] - 2026-09-28
+## [0.11.78] - 2026-09-28
 
 ### Fixed
 
 - **The two PATH-probed trim cases pass where jq is not in `/usr/bin`.** Their fixture PATH now includes the directory of the jq on the host PATH (mise, Homebrew), so the hook reaches the notice under test instead of skipping for a missing jq. Test-only; hook behavior is unchanged.
+
+## [0.11.77] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. The session-start probe reads every tool name, check, and install line from the plugin's `prerequisites.json`. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
 
 ## [0.11.76] - 2026-09-28
 
