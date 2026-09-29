@@ -18,6 +18,11 @@ async page => {
   ok("dependent group shows locked", /opens after New group/.test(lock), lock);
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
   ok("needs connector on N2", /needs N1/.test(await page.textContent('.qbtn[data-q="N2"]')));
+  await page.setViewportSize({width: 510, height: 860});
+  if (!(await page.isVisible('.qbtn[data-q="Q7"]'))) await page.click('.sec[data-key="g:realtime"] .sec-h');
+  const n4 = await page.evaluate(() => { const b = document.querySelector('.qbtn[data-q="Q7"]'), r = b.getBoundingClientRect(), i = b.querySelector(".qid").getBoundingClientRect(), t = b.querySelector(".qtitle").getBoundingClientRect(); return {idRight: i.right, tLeft: t.left, tW: t.width, cardW: r.width}; });
+  ok("a rail card with two dependsOn keeps its title right of the id and wider than 40% of the card", n4.tLeft >= n4.idRight && n4.tW > 0.4 * n4.cardW, JSON.stringify(n4));
+  await page.setViewportSize({width: 1400, height: 860});
 
   // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
