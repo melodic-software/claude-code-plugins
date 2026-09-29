@@ -23,8 +23,9 @@ A participating plugin reads consumer gotchas from a `## Gotchas` section in its
 file (for example `.claude/bugs.md`).
 
 Layers follow the normal three-layer cascade (user-global, team, local overlay). Concatenation
-applies: every layer that exists is loaded and appended in layer order after the bundled gotchas. Unknown keys in the YAML block of a shared config file stay inert; only the
-Gotchas prose section participates.
+applies: every layer that exists is loaded and appended in layer order after the bundled gotchas.
+Unknown keys in the YAML block of a shared config file stay inert; only the Gotchas prose section
+participates.
 
 Loads **only when the skill loads** (instruction-placement doctrine).
 
