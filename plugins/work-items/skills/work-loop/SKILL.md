@@ -361,9 +361,8 @@ default). A PR open longer than that stops silently excluding its item: it is st
 or classified, and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
 number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
 marker read suppresses duplicates only while the item still wears the human-gated label; an item
-back on the frontier gets a fresh marker naming the PR, and the labelled item leaves the
-autonomous frontier. The cycle
-report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
+back on the frontier gets a fresh marker naming the PR, and the labeled item leaves the
+autonomous frontier. The cycle report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
 A failed check has no age and stays excluded. The escalation is not progress: it does not reset
 the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover
 this: it runs only for dispatched items, never a queued or escalated one.
@@ -442,14 +441,12 @@ citation. This lane's specifics:
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
   swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
-  in-flight escalation is not progress. A dirty
-  execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
+  in-flight escalation is not progress. A dirty execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
   excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
-  idle and the counter holds. A cycle
-  in which the rate-limit guard barred this lane from claiming new work is **held**, and the
+  idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap
   ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.
