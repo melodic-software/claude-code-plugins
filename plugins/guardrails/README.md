@@ -1310,6 +1310,13 @@ as before.
 - **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, each guard
   fails **open** (disabled) and prints a one-line stderr notice, never a silent
   disable.
+- **Node.js** on `PATH`. Every hook row starts through `hooks/exec-bash.mjs`, which finds bash
+  and runs the guard; the script declares no minimum Node version. Claude Code resolves an
+  exec-form `command` on `PATH` ([exec form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)).
+  Its hooks reference documents a hook that cannot start as a
+  [non-blocking error](https://code.claude.com/docs/en/hooks#other-exit-codes) for most events,
+  with a missing script as the example, and does not document a `command` absent from `PATH`.
+  `/guardrails:setup check` reports a missing `node`.
 - On Windows, **Git Bash** (the hooks run via Git Bash's bash).
 - `cli-flag-verify` runs `<bin> --help` for the binaries it scans; findings
   require those binaries on PATH (missing binaries are skipped, never flagged).

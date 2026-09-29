@@ -5,11 +5,12 @@
       "id": 1,
       "name": "check-is-default-and-read-only",
       "prompt": "/guardrails:setup",
-      "expected_output": "Routes to check (the default action): probes Bash 5.0+, jq presence, each guard's effective toggle, the cli-flag-verify scan surface, the block-dangerous-git allowlist, and hook registration. Reports a PASS/FAIL/INFO table with one remediation line per FAIL. Edits nothing — every tunable is native userConfig.",
+      "expected_output": "Routes to check (the default action): probes Bash 5.0+, jq and node presence, each guard's effective toggle, the cli-flag-verify scan surface, the block-dangerous-git allowlist, and hook registration. Reports a PASS/FAIL/INFO table with one remediation line per FAIL. Edits nothing — every tunable is native userConfig.",
       "files": [],
       "expectations": [
         "Routes to the check action when no argument is given",
-        "Reports PASS/FAIL/INFO for Bash, jq, and per-guard toggles rather than inventing configuration",
+        "Reports PASS/FAIL/INFO for Bash, jq, node, and per-guard toggles rather than inventing configuration",
+        "Reads the pre-computed node row rather than re-issuing the probe, and reports a missing node as FAIL with the README Requirements remediation",
         "Does not write settings, pluginConfigs, or any consumer-project file during check"
       ]
     },
@@ -17,26 +18,26 @@
       "id": 2,
       "name": "apply-points-only-never-writes",
       "prompt": "/guardrails:setup apply",
-      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq or old Bash, and /plugin configure guardrails (or, headless, a plain claude plugin install ... --config rerun) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
+      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq, missing node, or old Bash, and /plugin configure guardrails (or, headless, a plain claude plugin install ... --config rerun) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
       "files": [],
       "expectations": [
         "Runs check before offering remediations",
-        "Points at /plugin configure, or headless at a plain `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` rerun, for toggle changes",
+        "Points at /plugin configure, or headless at a plain `claude plugin install guardrails@<marketplace> -s user --config KEY=VALUE` rerun, for toggle changes",
         "Never tells the operator to `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README's Options reference to its manifest default",
-        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, states the scope rule (`-s` defaults to `user`; pass the scope `claude plugin list` reports), and defers observation of the new value to rerunning check in a fresh session",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, states the scope rule (pass `-s user`; do not copy a scope from `claude plugin list`), says a rejected value still exits 0 so the output is what to read, and defers observation of the new value to rerunning check in a fresh session",
         "Never installs system packages and never writes user settings or pluginConfigs"
       ]
     },
     {
       "id": 3,
       "name": "disabled-guards-downgrade-prereq-failures",
-      "prompt": "/guardrails:setup check\n\nEvery guard toggle is disabled on this machine and jq is missing.",
-      "expected_output": "When every guard's toggle is disabled, the missing-jq prerequisite downgrades from FAIL to INFO — a deliberately disabled plugin is not broken. Reports the probes informationally and notes that re-enabling restores the FAIL semantics.",
+      "prompt": "/guardrails:setup check\n\nEvery guard toggle is disabled on this machine, and jq and node are missing.",
+      "expected_output": "When every guard's toggle is disabled, the missing-jq and missing-node prerequisites downgrade from FAIL to INFO — a deliberately disabled plugin is not broken. Reports the probes informationally and notes that re-enabling restores the FAIL semantics.",
       "files": [],
       "expectations": [
-        "Treats missing jq as INFO rather than FAIL when every guard toggle is disabled",
+        "Treats missing jq and missing node as INFO rather than FAIL when every guard toggle is disabled",
         "Notes that re-enabling a guard restores the FAIL semantics for prerequisites",
-        "Does not claim the plugin is broken solely because jq is absent while all guards are off"
+        "Does not claim the plugin is broken solely because jq or node is absent while all guards are off"
       ]
     },
     {

@@ -8,10 +8,11 @@ shell: bash
 
 ## Pre-computed context
 
-`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
-the tool's path when present, or `absent` when missing:
+`check`'s `jq` and `node` probes ran at load time. Read these rows instead of re-issuing them;
+each shows the tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
@@ -34,8 +35,8 @@ The guard scripts (`${CLAUDE_PLUGIN_ROOT}/hooks/*.sh`) and `hooks.json` are the 
 source of truth for the guard inventory and each guard's runtime needs.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+pre-computed `jq` and `node` rows, run the remaining probes via Bash, and report a
+PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When every guard's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. Each guard exits through its enabled-gate before probing anything, so a deliberately
@@ -47,17 +48,20 @@ restores the FAIL semantics.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, every guard then fails
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
    exactly what this check exists to surface.
-3. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per
+3. **`node`.** The pre-computed `node` row. FAIL if absent, with the README Requirements
+   remediation: every hook row starts through `hooks/exec-bash.mjs`, so no guard starts
+   without it. The README records what Claude Code documents about a hook that cannot start.
+4. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per
    guard, so the user sees the live guard surface at a glance. The effective value is the
    configured option, else that guard's `default` in `plugin.json`; the guards read it as the
    `CLAUDE_PLUGIN_OPTION_<GUARD>_ENABLED` export. Defaults differ per guard (the advisory
    opt-in guards ship `false`), so take each default from the manifest and never assume `true`.
-4. **`cli-flag-verify` scan surface.** Report the effective `cli_flag_verify_bins` /
+5. **`cli-flag-verify` scan surface.** Report the effective `cli_flag_verify_bins` /
    `cli_flag_verify_skip_bins` values and INFO-note the guard's own behavior for scanned
    binaries missing from `PATH` (skipped, never flagged, per the guard source).
-5. **`block-dangerous-git` allowlist.** Report the effective `block_dangerous_git_allow`
+6. **`block-dangerous-git` allowlist.** Report the effective `block_dangerous_git_allow`
    value (patterns only, verbatim; it contains no secrets by design).
-6. **Hook registration.** INFO: confirm the plugin is enabled for this project
+7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)
@@ -66,23 +70,23 @@ Run `check`, then for each FAIL point at the resolution. Every prerequisite is a
 tool and every tunable is native `userConfig`, so `apply` installs nothing and writes
 nothing. It only points:
 
-- missing `jq` / old Bash: platform install instructions from the README Requirements
-  section; this skill never installs system packages.
+- missing `jq` or `node` / old Bash: platform install instructions from the README
+  Requirements section; this skill never installs system packages.
 - any toggle or scalar change: reconfigure through Claude Code's native flow, per the
   marketplace's plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
-  which owns the verified-version record): interactive `/plugin configure guardrails@<marketplace>`
-  any time, or headless `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the rerun adds a second install
-  record at the scope passed and enables the plugin there; the value itself always lands in user
-  settings. A rejected value prints a warning yet exits 0, so read the output. This skill never
-  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each hook's
-  `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
-  the OLD value; report the observed effective value, never an unobserved change.
+  which owns the verified-version record). Two routes: interactive
+  `/plugin configure guardrails@<marketplace>` any time, or headless
+  `claude plugin install guardrails@<marketplace> -s user --config KEY=VALUE` (repeatable per
+  key); against an already-installed plugin it prints `already installed` and still writes the
+  value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
+  `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. Pass `-s user` and do not copy a scope from `claude plugin list`; the
+  convention gives the reason. A rejected value prints a warning yet exits 0, so read the
+  output, not the exit code. This skill never writes user settings or `pluginConfigs`.
+  Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each
+  hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
+  reports the OLD value; report the observed effective value, never an unobserved change.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
