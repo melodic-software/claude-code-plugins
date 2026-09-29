@@ -19,6 +19,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
   both.
 
+### Fixed
+
+- **`inventory --docs` parses table rows in linear time.** The tools and commands row regexes
+  backtracked super-linearly on long whitespace runs (seconds per row well under the 8,000-character
+  row cap); both now match only the first cell and split the rest with string methods, with the
+  same rows parsed from the live pages.
+
 ## [0.66.0] - 2026-09-29
 
 ### Added

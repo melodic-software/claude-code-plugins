@@ -40,9 +40,10 @@ STATUSES = (
 )
 
 _SECTION = "## All commands"
-_ROW_RE = re.compile(
-    r"^\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|\s*(?P<text>.*?)\s*\|\s*$"
-)
+# Only a table row's first cell is a regex (here and in _TOOL_ROW_RE); the rest
+# is split with string methods, because a lazy `.*?` cell between `\s*` runs
+# backtracks super-linearly on a long whitespace run.
+_ROW_RE = re.compile(r"\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|")
 _KIND_RE = re.compile(r"^\*\*\[?(Skill|Workflow)\]?(?:\([^)]*\))?\.?\*\*\.?\s*")
 _ALIAS_OF_RE = re.compile(r"^Alias (?:for|of) \[?`/([a-z0-9:_-]+)")
 _TOKENS = r"((?:`/[a-z0-9:_-]+`(?:,\s*|\s+and\s+|,\s*and\s+)?)+)"
@@ -55,10 +56,7 @@ _LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 TOOLS_URL = "https://code.claude.com/docs/en/tools-reference.md"
 TOOL_STATUSES = ("documented", "alias", "undocumented", "docs_only")
 _TOOL_HEADER_RE = re.compile(r"^\|\s*Tool\s*\|\s*Description\s*\|")
-_TOOL_ROW_RE = re.compile(
-    r"^\|\s*`(?P<name>[A-Za-z][A-Za-z0-9_]*)`\s*\|\s*(?P<text>.*?)\s*\|"
-    r"\s*(?P<perm>[^|]*?)\s*\|\s*$"
-)
+_TOOL_ROW_RE = re.compile(r"\|\s*`(?P<name>[A-Za-z][A-Za-z0-9_]*)`\s*\|")
 
 _VERSION_RE = re.compile(r"^##\s+\[?v?(\d+\.\d+\.\d+)")
 _EVENT_WORDS = (
@@ -69,8 +67,10 @@ _EVENT_WORDS = (
     ("alias", re.compile(r"\balias(?:es|ed)?\b", re.I)),
 )
 _EVENT_TEXT_MAX = 240
-# Bounds on untrusted fetched text: the row regexes backtrack polynomially on a
-# pathological line, and the fetch has no other size limit.
+# Bounds on untrusted fetched text. _ROW_MAX is the longest table line parsed; a
+# longer one is skipped. It caps how much text each row's parsing scans; it does
+# not bound backtracking within that text, which is why the row parsers use no
+# backtracking cell pattern. The fetch has no other size limit.
 _ROW_MAX = 8_000
 _FETCH_MAX = 16_000_000
 
@@ -107,6 +107,14 @@ def _read_source(
     return text, err, {"url": url}
 
 
+def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
+    """The first-cell match and the text between it and the row's closing pipe,
+    or None when `line` is not such a row."""
+    m = pattern.match(line)
+    rest = line[m.end() :].rstrip() if m else ""
+    return (m, rest[:-1]) if m and rest.endswith("|") else None
+
+
 def parse_tools_table(text: str) -> dict[str, dict[str, Any]]:
     """Rows of the tools reference's table (`| Tool | Description | Permission
     required |`), keyed by tool name. Stops where the table ends."""
@@ -122,11 +130,13 @@ def parse_tools_table(text: str) -> dict[str, dict[str, Any]]:
             if rows:
                 break
             continue
-        m = _TOOL_ROW_RE.match(line)
-        if m:
+        row = _row_rest(_TOOL_ROW_RE, line)
+        if row and "|" in row[1]:
+            m, rest = row
+            text, _, perm = rest.rpartition("|")
             rows[m.group("name")] = {
-                "summary": _LINK_RE.sub(r"\1", m.group("text"))[:_EVENT_TEXT_MAX],
-                "permission_required": m.group("perm"),
+                "summary": _LINK_RE.sub(r"\1", text.strip())[:_EVENT_TEXT_MAX],
+                "permission_required": perm.strip(),
             }
     return rows
 
@@ -213,11 +223,12 @@ def parse_commands_table(text: str) -> dict[str, dict[str, Any]]:
     for line in text[start : end if end > 0 else len(text)].splitlines():
         if len(line) > _ROW_MAX:
             continue
-        m = _ROW_RE.match(line)
-        if not m:
+        parsed = _row_rest(_ROW_RE, line)
+        if not parsed:
             continue
+        m, rest = parsed
         name = m.group("name")
-        body = m.group("text").replace("\\|", "|")
+        body = rest.strip().replace("\\|", "|")
         kind_m = _KIND_RE.match(body)
         kind = kind_m.group(1).lower() if kind_m else "command"
         body = body[kind_m.end() :] if kind_m else body

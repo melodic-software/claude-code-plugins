@@ -1367,6 +1367,24 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertLess(time.monotonic() - began, 1.0)
         self.assertEqual(set(rows), {"b"})
 
+    def test_whitespace_runs_under_the_row_cap_parse_in_linear_time(self) -> None:
+        import time
+
+        run = " " * (self.dc._ROW_MAX // 2 - 10)
+        lines = [
+            "| `/a` |" + run + "|" + run + "| x",
+            "| `/a` |" + run + "|" + run,
+            "| `/a` |" + " |" * (len(run) - 1) + "x",
+        ]
+        for line in lines:
+            self.assertLessEqual(len(line), self.dc._ROW_MAX)
+            began = time.monotonic()
+            self.dc.parse_commands_table("## All commands\n\n" + line + "\n")
+            self.assertLess(time.monotonic() - began, 1.0)
+        valid = "| `/a` |" + run + "|" + run + "|"
+        rows = self.dc.parse_commands_table("## All commands\n\n" + valid + "\n")
+        self.assertEqual(rows["a"]["summary"], "|")
+
     def test_removed_anchors_on_the_row_start(self) -> None:
         self.assertFalse(self.rows["reload-skills"]["removed"])
         self.assertTrue(self.rows["ultraplan"]["removed"])
@@ -1504,6 +1522,35 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
             rows["Bash"]["summary"], "Executes shell commands. See Bash tool behavior"
         )
         self.assertEqual(rows["Read"]["permission_required"], "No")
+
+    def test_a_pipe_in_the_description_stays_in_the_summary(self) -> None:
+        header = "| Tool | Description | Permission required |\n|:--|:--|:--|\n"
+        rows = self.dc.parse_tools_table(header + "| `X` | a \\| b | c |  Yes  |  \n")
+        self.assertEqual(rows["X"]["summary"], "a \\| b | c")
+        self.assertEqual(rows["X"]["permission_required"], "Yes")
+
+    def test_whitespace_runs_under_the_row_cap_parse_in_linear_time(self) -> None:
+        import time
+
+        header = "| Tool | Description | Permission required |\n|:--|:--|:--|\n"
+        run = " " * (self.dc._ROW_MAX // 2 - 10)
+        lines = [
+            "| `A` |" + run + "|" + run + "| x",
+            "| `A` |" + run + "|" + run,
+            "| `A` |" + run + "|" + run + "|",
+            "| `A` |" + " |" * (len(run) - 1) + "x",
+        ]
+        for line in lines:
+            self.assertLessEqual(len(line), self.dc._ROW_MAX)
+            began = time.monotonic()
+            rows = self.dc.parse_tools_table(header + line + "\n")
+            self.assertLess(time.monotonic() - began, 1.0)
+        self.assertEqual(rows, {})
+        valid = "| `A` |" + run + "|" + run + "|" + " No |"
+        self.assertEqual(
+            self.dc.parse_tools_table(header + valid + "\n")["A"],
+            {"summary": "|", "permission_required": "No"},
+        )
 
     def test_statuses(self) -> None:
         block = self._block(TOOLS_DOCS)
