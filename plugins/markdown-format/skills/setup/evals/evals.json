@@ -79,6 +79,19 @@
         "Prescribes `-s user` and does not copy the scope that `claude plugin list` reports for the plugin",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]
+    },
+    {
+      "id": 7,
+      "name": "toggle-off-node-missing-stays-fail",
+      "prompt": "/markdown-format:setup check\n\nI turned the hook off (markdown_format_enabled=false) and this machine has no working node. jq is also missing. What does check say?",
+      "expected_output": "Reports Node.js as FAIL even though the toggle is off, because Claude Code must spawn `node` for the hook row before the enabled gate can run, and reports the other missing prerequisites (jq, markdownlint-cli2) as INFO. Node is probed with `node --version`.",
+      "files": [],
+      "expectations": [
+        "Reports the Node.js item as FAIL with an install-or-repair remediation line, despite the disabled toggle",
+        "Reports the missing jq as INFO, not FAIL, and notes that re-enabling the toggle restores the FAIL semantics",
+        "Probes Node.js by running `node --version` and treats a non-zero exit as FAIL, not merely `command -v node` resolving",
+        "Modifies nothing"
+      ]
     }
   ]
 }
