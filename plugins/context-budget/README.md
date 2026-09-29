@@ -54,13 +54,13 @@ disk. These routes change a settings file without an ask:
 
 For a signal that fires whatever wrote the file, Claude Code's `ConfigChange` hook event runs
 when a settings file changes during a session. It can stop the new settings from applying to the
-running session (except for `policy_settings`), but it cannot ask, it discards `systemMessage`
-and surfaces no message for a block, and the file on disk has already changed. That is a
-different control from this one, and this plugin does not register it.
+running session (except for `policy_settings`), and it can surface a `systemMessage`, but it
+cannot ask, and the file on disk has already changed. That is a different control from this one,
+and this plugin does not register it.
 Verified 2026-09-29 against Claude Code 2.1.284 at <https://code.claude.com/docs/en/hooks>
 ("ConfigChange" and "FileChanged", and the matcher table that filters PreToolUse on
-`tool_name`). Recheck when that page gives `ConfigChange` an `ask` outcome or a visible message,
-or gives PreToolUse a matcher on target path.
+`tool_name`). Recheck when that page gives `ConfigChange` an `ask` outcome or gives PreToolUse
+a matcher on target path.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
@@ -160,8 +160,7 @@ Three supported routes, in the order most people want them:
    about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin (from the home directory the
-   list can label one file as both `user` and `project`; pass `user`). The verified-version
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
    record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
