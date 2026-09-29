@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import native_drift as nd  # noqa: E402  - path shim above must run first
+import native_drift  # noqa: E402  - path shim above must run first
 
 DRIFT_ADVISORY = (
     "cli 2.1.285 differs from the last validated build 2.1.284; counts are believed, "
@@ -60,7 +60,7 @@ def inventory(**overrides) -> dict:
             "status": "degraded",
             "cli_version": "2.1.285",
             "validated_against": "2.1.284",
-            "lanes": {lane: {"status": "ok"} for lane in nd.LANE_CLASS},
+            "lanes": {lane: {"status": "ok"} for lane in native_drift.LANE_CLASS},
             "advisories": [DRIFT_ADVISORY],
         },
         "docs_crosscheck": {
@@ -114,7 +114,7 @@ def row(
 
 class SummarizeTests(unittest.TestCase):
     def test_lanes_markers_and_invocability(self):
-        s = nd.summarize(inventory(), None)
+        s = native_drift.summarize(inventory(), None)
         self.assertEqual(s["cli_version"], "2.1.285")
         self.assertNotIn("security-review", s["surfaces"]["builtin_commands"])
         backed = s["surfaces"]["plugin_backed"]["security-review"]
@@ -136,7 +136,7 @@ class SummarizeTests(unittest.TestCase):
         )
 
     def test_candidate_keys_come_from_detect(self):
-        s = nd.summarize(
+        s = native_drift.summarize(
             inventory(), detect(candidate("loop", "work-items", "work-loop"))
         )
         self.assertEqual(
@@ -145,20 +145,20 @@ class SummarizeTests(unittest.TestCase):
         self.assertEqual(s["detect"]["threshold"], 0.3)
 
     def test_rejects_non_inventory(self):
-        with self.assertRaises(nd.InputError):
-            nd.summarize({"schema": 2}, None)
+        with self.assertRaises(native_drift.InputError):
+            native_drift.summarize({"schema": 2}, None)
 
 
 class KeyTests(unittest.TestCase):
     def test_key_shapes(self):
         self.assertEqual(
-            nd.candidate_key(
+            native_drift.candidate_key(
                 candidate("plan", "planning", "plan-reviewer", kind="agent")
             ),
             "native-drift:candidate:plan:planning:plan-reviewer@agent",
         )
         self.assertEqual(
-            nd.drift_key("recheck", "plugin eval", "evals:plugin-eval"),
+            native_drift.drift_key("recheck", "plugin eval", "evals:plugin-eval"),
             "native-drift:recheck:plugin_eval:evals:plugin-eval",
         )
 
@@ -194,7 +194,7 @@ class SurfaceDiffTests(unittest.TestCase):
                 "fresh": self.rec(description="unrelated words entirely"),
             },
         )
-        d = nd.diff_surfaces(prev, cur)
+        d = native_drift.diff_surfaces(prev, cur)
         self.assertEqual(d["added"], [{"lane": "bundled_skills", "name": "fresh"}])
         self.assertEqual(d["removed"], [{"lane": "bundled_skills", "name": "gone"}])
         self.assertEqual(
@@ -221,7 +221,7 @@ class SurfaceDiffTests(unittest.TestCase):
                 ),
             }
         )
-        d = nd.diff_surfaces(prev, cur)
+        d = native_drift.diff_surfaces(prev, cur)
         self.assertEqual(
             {(r["from"], r["to"]) for r in d["renamed"]},
             {("old", "new"), ("older", "newer")},
@@ -233,12 +233,12 @@ class SurfaceDiffTests(unittest.TestCase):
         cur = self.summary(
             builtin_commands={"new": self.rec("builtin-command", aliases=["old"])}
         )
-        d = nd.diff_surfaces(prev, cur)
+        d = native_drift.diff_surfaces(prev, cur)
         self.assertEqual(d["renamed"], [])
         self.assertEqual(len(d["removed"]), 1)
 
     def test_docs_status_changes(self):
-        d = nd.diff_docs(
+        d = native_drift.diff_docs(
             {"docs": {"status": "ok", "names": {"a": "documented"}}},
             {
                 "docs": {
@@ -253,10 +253,10 @@ class SurfaceDiffTests(unittest.TestCase):
 
 class TriggerTests(unittest.TestCase):
     def setUp(self):
-        self.cur = nd.summarize(inventory(), None)
+        self.cur = native_drift.summarize(inventory(), None)
 
     def test_markers_differ_fires(self):
-        reasons = nd.evaluate_row(
+        reasons = native_drift.evaluate_row(
             row("usage", "builtin-command", []), self.cur, None, {}
         )
         self.assertEqual(len(reasons), 1)
@@ -264,37 +264,40 @@ class TriggerTests(unittest.TestCase):
 
     def test_matching_row_does_not_fire(self):
         r = row("usage", "builtin-command", ["model-invocation-disabled"])
-        self.assertEqual(nd.evaluate_row(r, self.cur, None, {}), [])
+        self.assertEqual(native_drift.evaluate_row(r, self.cur, None, {}), [])
 
     def test_reclassified_fires(self):
-        reasons = nd.evaluate_row(
+        reasons = native_drift.evaluate_row(
             row("loop", "builtin-command", []), self.cur, None, {}
         )
         self.assertTrue(any(r.startswith("reclassified") for r in reasons))
 
     def test_unknown_invocability_ignores_the_invocation_marker(self):
         r = row("twin", "bundled-skill", ["model-invocation-disabled"])
-        self.assertEqual(nd.evaluate_row(r, self.cur, None, {}), [])
+        self.assertEqual(native_drift.evaluate_row(r, self.cur, None, {}), [])
 
     def test_absence_is_an_event_only_against_a_previous_extraction(self):
         r = row("plugin eval", "builtin-command", ["gated"])
-        self.assertIsNone(nd.evaluate_row(r, self.cur, None, {}))
+        self.assertIsNone(native_drift.evaluate_row(r, self.cur, None, {}))
         prev = {"surfaces": {"builtin_commands": {"plugin eval": {}}}}
-        self.assertIn("removed", nd.evaluate_row(r, self.cur, prev, {})[0])
+        self.assertIn("removed", native_drift.evaluate_row(r, self.cur, prev, {})[0])
         self.assertIn(
-            "renamed", nd.evaluate_row(r, self.cur, prev, {"plugin eval": "eval"})[0]
+            "renamed",
+            native_drift.evaluate_row(r, self.cur, prev, {"plugin eval": "eval"})[0],
         )
 
     def test_broken_lane_is_not_evaluable(self):
         cur = dict(self.cur, integrity={"lanes": {"builtin_commands": "broken"}})
         self.assertIsNone(
-            nd.evaluate_row(row("usage", "builtin-command", []), cur, None, {})
+            native_drift.evaluate_row(
+                row("usage", "builtin-command", []), cur, None, {}
+            )
         )
 
 
 class InventoryVerdictTests(unittest.TestCase):
     def setUp(self):
-        self.cur = nd.summarize(inventory(), None)
+        self.cur = native_drift.summarize(inventory(), None)
         self.none = {
             k: []
             for k in (
@@ -309,14 +312,17 @@ class InventoryVerdictTests(unittest.TestCase):
 
     def test_version_only_drift_proposes_revalidation(self):
         self.assertEqual(
-            nd.inventory_verdict(self.cur, 3, self.none)["verdict"], "revalidate"
+            native_drift.inventory_verdict(self.cur, 3, self.none)["verdict"],
+            "revalidate",
         )
 
     def test_unknown_or_real_surface_changes_stay_degraded(self):
-        self.assertEqual(nd.inventory_verdict(self.cur, 3, None)["verdict"], "degraded")
+        self.assertEqual(
+            native_drift.inventory_verdict(self.cur, 3, None)["verdict"], "degraded"
+        )
         changed = dict(self.none, added=[{"lane": "bundled_skills", "name": "x"}])
         self.assertEqual(
-            nd.inventory_verdict(self.cur, 3, changed)["verdict"], "degraded"
+            native_drift.inventory_verdict(self.cur, 3, changed)["verdict"], "degraded"
         )
 
     def test_older_cli_or_lane_advisory_stays_degraded(self):
@@ -326,26 +332,28 @@ class InventoryVerdictTests(unittest.TestCase):
             advisories=[DRIFT_ADVISORY.replace("2.1.285", "2.1.283")],
         )
         self.assertEqual(
-            nd.inventory_verdict(older, 3, self.none)["verdict"], "degraded"
+            native_drift.inventory_verdict(older, 3, self.none)["verdict"], "degraded"
         )
         lane = dict(self.cur)
         lane["integrity"] = dict(
             self.cur["integrity"], advisories=[DRIFT_ADVISORY, "bundled_skills: floor"]
         )
         self.assertEqual(
-            nd.inventory_verdict(lane, 3, self.none)["verdict"], "degraded"
+            native_drift.inventory_verdict(lane, 3, self.none)["verdict"], "degraded"
         )
 
     def test_exit_codes(self):
-        self.assertEqual(nd.inventory_verdict(self.cur, 0, self.none)["verdict"], "ok")
         self.assertEqual(
-            nd.inventory_verdict(self.cur, 1, self.none)["verdict"], "broken"
+            native_drift.inventory_verdict(self.cur, 0, self.none)["verdict"], "ok"
+        )
+        self.assertEqual(
+            native_drift.inventory_verdict(self.cur, 1, self.none)["verdict"], "broken"
         )
 
 
 class DiffItemsTests(unittest.TestCase):
     def setUp(self):
-        self.cur = nd.summarize(inventory(), None)
+        self.cur = native_drift.summarize(inventory(), None)
         self.prev = dict(self.cur, candidates=["native-drift:candidate:loop:old:seen"])
 
     def kinds(self, report: dict) -> list:
@@ -359,14 +367,14 @@ class DiffItemsTests(unittest.TestCase):
             candidate("loop", "ruled", "row", store_verdict="complementary"),
             candidate("loop", "broken", "lane", re_derivable=False),
         )
-        report = nd.diff(self.cur, self.prev, None, det, 0)
+        report = native_drift.diff(self.cur, self.prev, None, det, 0)
         self.assertEqual(
             self.kinds(report), [("candidate", "native-drift:candidate:loop:new:fresh")]
         )
         self.assertEqual(len(report["new_candidates"]), 4)
 
     def test_baseline_files_no_candidates_and_flags_unknown_changes(self):
-        report = nd.diff(
+        report = native_drift.diff(
             self.cur, None, None, detect(candidate("loop", "new", "fresh")), 3
         )
         self.assertTrue(report["baseline"])
@@ -389,7 +397,7 @@ class DiffItemsTests(unittest.TestCase):
                 row("morning", "session-skill", [], observation="live-roster"),
             ]
         }
-        report = nd.diff(self.cur, self.cur, store, None, 3)
+        report = native_drift.diff(self.cur, self.cur, store, None, 3)
         self.assertEqual(
             self.kinds(report),
             [
@@ -407,7 +415,7 @@ class CliTests(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
         ):
-            return nd.main(list(argv))
+            return native_drift.main(list(argv))
 
     def test_summarize_then_diff(self):
         with tempfile.TemporaryDirectory() as tmp:
