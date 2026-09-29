@@ -1,0 +1,16 @@
+import sqlite3
+
+db = sqlite3.connect("notifications.db")
+
+
+def list_pending():
+    return db.execute(
+        "SELECT id, user_email, body FROM notifications WHERE sent_at IS NULL"
+    ).fetchall()
+
+
+def mark_sent(notification_id):
+    db.execute(
+        "UPDATE notifications SET sent_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (notification_id,),
+    )
