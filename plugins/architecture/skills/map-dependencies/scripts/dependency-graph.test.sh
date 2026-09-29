@@ -747,5 +747,58 @@ nodemix_json="$(bash "$GRAPH" "$nodemix")"
 assert_contains "node beside dotnet: ecosystem is mixed" "$nodemix_json" '"ecosystem": "mixed"'
 assert_contains "node beside dotnet: each node keeps its own ecosystem" "$nodemix_json" '"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node"'
 
+# Go modules: replace, go.work membership, and everything else external.
+gotree="$(make_tree gotree)"
+put "$gotree/app/go.mod" 'module example.com/acme/app
+
+go 1.22
+
+require (
+	example.com/acme/lib v1.0.0
+	example.com/acme/shared v1.0.0
+	example.com/acme/plain v1.0.0
+	github.com/pkg/errors v0.9.1
+)
+
+replace example.com/acme/lib => ../lib
+replace example.com/acme/gone => ../nope
+replace example.com/acme/away => ../../elsewhere
+replace github.com/pkg/errors => github.com/fork/errors v0.9.2
+frobnicate this'
+put "$gotree/lib/go.mod" 'module example.com/acme/lib'
+put "$gotree/shared/go.mod" 'module example.com/acme/shared'
+put "$gotree/plain/go.mod" 'module example.com/acme/plain'
+put "$gotree/go.work" 'go 1.22
+use (
+	./app
+	./shared
+	./missing
+)'
+put "$TEST_TMPDIR/elsewhere/go.mod" 'module escape'
+go_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
+assert_contains "go: ecosystem go" "$go_json" '"ecosystem": "go"'
+assert_contains "go: a go.mod is a project node named by its module path" "$go_json" '{"id":"app/go.mod","name":"example.com/acme/app","path":"app/go.mod","ecosystem":"go","kind":"project"}'
+assert_contains "go: a local replace is an internal edge citing the replace line" "$go_json" '{"from":"app/go.mod","to":"lib/go.mod","kind":"project","status":"resolved","evidence":"app/go.mod: replace example.com/acme/lib => ../lib"}'
+assert_not_contains "go: a replaced require is not also external" "$go_json" '"to":"pkg:go:example.com/acme/lib"'
+assert_contains "go: a replace to a missing folder is unresolved" "$go_json" '"to":"../nope","kind":"project","status":"unresolved","evidence":"app/go.mod: replace example.com/acme/gone => ../nope"'
+assert_contains "go: a replace outside the root is unresolved" "$go_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "go: the outside module is never matched" "$go_json" 'elsewhere/go.mod'
+assert_contains "go: a require of a go.work member is internal citing the use line" "$go_json" '{"from":"app/go.mod","to":"shared/go.mod","kind":"project","status":"resolved","evidence":"go.work: ./shared"}'
+assert_contains "go: a require matching a repo module with no replace or use stays external" "$go_json" '{"from":"app/go.mod","to":"pkg:go:example.com/acme/plain","kind":"package","status":"resolved","evidence":"app/go.mod: example.com/acme/plain v1.0.0"}'
+assert_contains "go: a module replace leaves the require external" "$go_json" '"to":"pkg:go:github.com/pkg/errors","kind":"package"'
+assert_contains "go: an unknown directive is an unread-manifest finding" "$go_json" '{"kind":"unread-manifest","path":"app/go.mod","evidence":"app/go.mod: frobnicate this"}'
+assert_contains "go: a use line with no go.mod is an unread-manifest finding" "$go_json" '{"kind":"unread-manifest","path":"go.work","evidence":"go.work: ./missing"}'
+go_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
+assert_equals "go: two runs are byte-identical" "$go_again" "$go_json"
+
+# A single-line require is read, and Go beside Node is one mixed record.
+gomix="$(make_tree gomix)"
+put "$gomix/svc/go.mod" 'module example.com/svc
+require github.com/pkg/errors v0.9.1'
+put "$gomix/web/package.json" '{ "name": "web" }'
+gomix_json="$(bash "$GRAPH" "$gomix")"
+assert_contains "go beside node: ecosystem is mixed" "$gomix_json" '"ecosystem": "mixed"'
+assert_contains "go: a single-line require is an external edge" "$gomix_json" '"from":"svc/go.mod","to":"pkg:go:github.com/pkg/errors"'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

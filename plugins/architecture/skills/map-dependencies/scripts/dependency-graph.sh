@@ -131,6 +131,20 @@
 # https://pnpm.io/workspaces Verified 2026-09-29. Recheck when either page
 # changes what "workspaces" or "packages" may hold or what workspace: accepts.
 #
+# The Go adapter (lib/go-references.sh): every go.mod is a project node whose id
+# is its repo-relative path and whose name is its module path. A replace whose
+# target is a local path (./, ../) holding a go.mod inside the root is an
+# internal project edge to that module, and the evidence cites the replace
+# line; a target that is missing or outside the root is status "unresolved".
+# A require whose module path is that of another go.mod in the repo is internal
+# only when a replace or a go.work use line points it there (both modules named
+# by one go.work); otherwise it is an external edge to "pkg:go:<module>". A
+# directive the reader cannot parse, a go.work replace, and a use line naming no
+# go.mod in the root are unread-manifest findings.
+# Basis: https://go.dev/ref/mod#go-mod-file-replace and
+# https://go.dev/ref/mod#workspaces Verified 2026-09-29. Recheck when either
+# page changes what a replace target or a use directive may hold.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -156,6 +170,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 # shellcheck source=../../../lib/node-references.sh
 source "$SCRIPT_DIR/../../../lib/node-references.sh"
+# shellcheck source=../../../lib/go-references.sh
+source "$SCRIPT_DIR/../../../lib/go-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -497,7 +513,7 @@ done < <(
     -o -name 'global.json' \
     -o -name 'package.json' -o -name 'pnpm-workspace.yaml' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
-    -o -name 'go.mod' -o -name 'Cargo.toml' \
+    -o -name 'go.mod' -o -name 'go.work' -o -name 'Cargo.toml' \
     -o -name 'pom.xml' -o -name 'build.gradle*' \
     -o -name 'Gemfile' -o -name 'composer.json' \
     \) -print 2>/dev/null |
@@ -512,6 +528,8 @@ declare -A BUILD_FILE=()
 has_global_json=0
 node_files=()
 pnpm_files=()
+go_files=()
+gowork_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -528,7 +546,8 @@ for rel in "${files[@]+"${files[@]}"}"; do
   package.json) node_files+=("$rel") ;;
   pnpm-workspace.yaml) pnpm_files+=("$rel") ;;
   pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
-  go.mod) OTHER[go]="$rel" ;;
+  go.mod) go_files+=("$rel") ;;
+  go.work) gowork_files+=("$rel") ;;
   Cargo.toml) OTHER[rust]="$rel" ;;
   pom.xml | build.gradle*) OTHER[jvm]="$rel" ;;
   Gemfile) OTHER[ruby]="$rel" ;;
@@ -544,7 +563,7 @@ done
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
 # lists the shipped readers, in the order they run. A reader parses in its own
 # file, lib/<name>-references.sh, sourced above.
-READERS=(dotnet node)
+READERS=(dotnet node go)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
@@ -817,6 +836,103 @@ read_node() {
         ;;
       esac
     done <<<"${pkg_recs[$rel]}"
+  done
+}
+
+has_go() { [[ ${#go_files[@]} -gt 0 || ${#gowork_files[@]} -gt 0 ]]; }
+
+read_go() {
+  local -A mod_recs=() mod_name=() replaced=() ws_members=()
+  local rel dir name label rec decl target old is_local normalized cand
+  local us=$'\x1f'
+
+  # Every go.mod is a project node; its id is its repo-relative path.
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    mod_recs[$rel]="$(go_mod_records "$root/$rel")"
+    name="$(printf '%s\n' "${mod_recs[$rel]}" | awk -F '\t' '$1 == "module" { print $2; exit }')"
+    mod_name[$rel]="$name"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    while IFS= read -r rec; do
+      [[ "$rec" == unread$'\t'* ]] && add_unread_manifest "$rel" "${rec#*$'\t'}"
+    done <<<"${mod_recs[$rel]}"
+  done
+
+  # A replace whose target is a local path is an internal edge to the go.mod in
+  # that folder; a missing or out-of-root folder is unresolved. The replaced
+  # module path is then not also drawn as an external requirement.
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == replace$'\t'* ]] || continue
+      IFS=$'\t' read -r _ old target is_local decl <<<"$rec"
+      [[ "$is_local" == 1 ]] || continue
+      replaced[$rel$us$old]=1
+      cand=""
+      if normalized="$(normalize_within_root "$(proj_dir_of "$rel")" "$target")"; then
+        cand="${normalized:+$normalized/}go.mod"
+      fi
+      if [[ -n "$cand" && "$cand" != "$rel" && -n "${mod_recs[$cand]+x}" ]]; then
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      else
+        add_edge "$rel" "$target" "project" "unresolved" "$rel: $decl"
+      fi
+    done <<<"${mod_recs[$rel]}"
+  done
+
+  # go.work use lines are membership: modules used by one go.work resolve each
+  # other's module paths. A use line naming no go.mod in the root is unread.
+  # ws_members[go.work] holds one member per line: go.mod<US>use declaration.
+  local work
+  for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
+    while IFS= read -r rec; do
+      case "$rec" in
+      unread$'\t'*) add_unread_manifest "$work" "${rec#*$'\t'}" ;;
+      use$'\t'*)
+        IFS=$'\t' read -r _ target decl <<<"$rec"
+        cand=""
+        if normalized="$(normalize_within_root "$(proj_dir_of "$work")" "$target")"; then
+          cand="${normalized:+$normalized/}go.mod"
+        fi
+        if [[ -n "$cand" && -n "${mod_recs[$cand]+x}" ]]; then
+          ws_members[$work]+="$cand$us$decl"$'\n'
+        else
+          add_unread_manifest "$work" "$decl"
+        fi
+        ;;
+      *) ;;
+      esac
+    done <<<"$(go_work_records "$root/$work")"
+  done
+
+  # Requirements. Internal only through a local replace (above) or a shared
+  # go.work; otherwise the module path is an external package.
+  local mod ver hit hit_decl line
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == require$'\t'* ]] || continue
+      IFS=$'\t' read -r _ mod ver decl <<<"$rec"
+      [[ -z "${replaced[$rel$us$mod]+x}" ]] || continue
+      hit=""
+      for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
+        [[ "${ws_members[$work]-}" == *"$rel$us"* ]] || continue
+        while IFS= read -r line; do
+          [[ -n "$line" ]] || continue
+          cand="${line%%"$us"*}"
+          [[ "$cand" != "$rel" && "${mod_name[$cand]}" == "$mod" ]] || continue
+          hit="$cand"
+          hit_decl="$work: ${line#*"$us"}"
+          break
+        done <<<"${ws_members[$work]}"
+        [[ -z "$hit" ]] || break
+      done
+      if [[ -n "$hit" ]]; then
+        add_edge "$rel" "$hit" "project" "resolved" "$hit_decl"
+      else
+        add_node "pkg:go:$mod" "$mod" "" "package"
+        add_edge "$rel" "pkg:go:$mod" "package" "resolved" "$rel: $decl"
+      fi
+    done <<<"${mod_recs[$rel]}"
   done
 }
 

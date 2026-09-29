@@ -93,7 +93,19 @@ The Node adapter:
   value are `unread-manifest` findings, not edges. The script header carries the sources
   for the workspace rules.
 
-Other ecosystems stay unread. The message names them. Go, Python, Rust, and JVM
+The Go adapter:
+
+- Every `go.mod` is a project node, id its repo-relative path, name its module path.
+- A `replace` whose target is a local path (`./` or `../`) holding a `go.mod` inside the
+  root is an internal project edge, and the evidence cites the `replace` line. A missing
+  or out-of-root target is `unresolved`.
+- A `require` of a module that is another `go.mod` in the repo is internal only when a
+  `replace` or a `go.work` `use` line points it there; otherwise it is an external edge
+  to `pkg:go:<module>`. `go.work` `use` lines are membership.
+- Any other directive the reader cannot parse, a `go.work` `replace`, and a `use` line
+  naming no `go.mod` in the root are `unread-manifest` findings.
+
+Other ecosystems stay unread. The message names them. Python, Rust, and JVM
 adapters are not this skill yet.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
