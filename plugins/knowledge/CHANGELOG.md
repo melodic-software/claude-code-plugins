@@ -4,13 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.8] - 2026-09-28
+## [0.14.9] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `course-digest`, `docpage-digest`, `map-corpus`, `video-digest` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.14.8] - 2026-09-28
+
+### Changed
+
+- **Course-digest CLIs run only as the process entrypoint.** Importing
+  `analyze-code-repo.js`, `build-course-json.js`, `discover-resources.js`,
+  `download-resources.js`, `extract-course.js`, or `validate-extraction.js`
+  does not parse argv or start the program. Each still exits 1 when
+  `--course-dir` or `course.json` is missing. `build-course-json.js` prints
+  its usage line in that case. `validate-extraction.js` writes
+  `validation-report.json`, `analyze-code-repo.js --skip-clone` writes
+  `analysis.json`, and `download-resources.js` writes `article-links.json`.
+  The entrypoint check compares real paths, so a CLI started through a
+  symlinked plugin root still runs.
 
 ## [0.14.7] - 2026-09-28
 

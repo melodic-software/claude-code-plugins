@@ -3,13 +3,25 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.44] - 2026-09-28
+## [0.7.45] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `generate` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.7.44] - 2026-09-28
+
+### Changed
+
+- **`emit-slides-data.js` runs only as the process entrypoint.** Importing it
+  does not parse argv or write a deck. A missing briefing still exits 1, and
+  `--briefing` plus `--out` writes `slides-data.js`, including the formatted
+  meeting window. `lib/window.js` is folded back into `emit-slides-data.js`,
+  its only production caller; `test/window.test.js` imports the separator
+  matrix from the now import-safe entrypoint (#3421). The entrypoint check
+  compares real paths, so a run through a symlinked plugin root still emits.
 
 ## [0.7.43] - 2026-09-28
 

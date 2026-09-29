@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.14] - 2026-09-28
+
+### Changed
+
+- README: a missing-tool skip says it fires once per session and agent, renewed every eighth skip, to both Claude and the user (#4612).
+
 ## [0.24.13] - 2026-09-28
 
 ### Fixed
