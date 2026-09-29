@@ -75,7 +75,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test uses public interface only
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test: one behavioral concept, not one `Assert` statement
-- [ ] No tautological assertions: expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing
+- [ ] Every expected value names its independent source, per `testing:test-value`
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 

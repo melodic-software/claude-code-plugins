@@ -1,0 +1,33 @@
+{
+  "skill_name": "test-value",
+  "evals": [
+    {
+      "id": 1,
+      "name": "expected-value-needs-a-source",
+      "prompt": "I'm testing calculateTotal. Is `const expected = items.reduce((s, i) => s + i.price, 0); expect(calculateTotal(items)).toBe(expected);` a good test?",
+      "expected_output": "Says the expected value is recomputed the way the code computes it, so the test has no independent source (rule-recomputed-derived). Replaces it with a hand-computed literal (for items priced 10 and 5, expect 15) and names that the value came from a hand computation.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "call-count-at-unmanaged-boundary",
+      "prompt": "Code review says never assert call counts. My test verifies the payment gateway client's Charge method was called once. Should I delete that assertion?",
+      "expected_output": "Keeps it: the payment gateway is an unmanaged, state-changing dependency, so the call is observable behavior and verifying it once is the recommended test (Khorikov). Says the same count assertion would be a defect on an internal collaborator, a managed dependency or a query call.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "constant-restatement-is-a-change-detector",
+      "prompt": "Is `expect(X_POST_CHARACTER_LIMIT).toBe(280)` a tautological test that cannot fail?",
+      "expected_output": "Says it can fail (any change to the constant fails it), so it is a change detector (rule-constant-restatement), not a test that cannot fail. Recommends testing the behavior at the boundary instead (280 characters accepted, 281 rejected), and a `cant-fail-ok:` marker only when the literal is an external contract.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "db-read-back-is-state-verification",
+      "prompt": "My integration test calls createUser and then queries the users table directly and does expect(row).toBeDefined(). Is reading the database directly the problem?",
+      "expected_output": "Says the direct read after the act step is legitimate state verification against a real managed database; the weakness is the toBeDefined() oracle (rule-weak-oracle), which passes for wrong data. Recommends asserting the row's fields.",
+      "files": []
+    }
+  ]
+}
