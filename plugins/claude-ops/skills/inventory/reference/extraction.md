@@ -4,24 +4,23 @@ Background for maintaining `scripts/inventory.py`. Read this before changing the
 a run reports a layout error. The skill body carries what a caller needs; this carries what an
 editor needs.
 
+Contents: [Why the binary is read at all](#why-the-binary-is-read-at-all) ·
+[Shape of the artifact](#shape-of-the-artifact) ·
+[The extraction decisions](#the-extraction-decisions) ·
+[Known non-commands](#known-non-commands) · [Integrity, per lane](#integrity-per-lane) ·
+[Docs cross-check](#docs-cross-check) · [When a build changes](#when-a-build-changes) ·
+[Cost](#cost)
+
 ## Why the binary is read at all
 
-Claude Code's documentation does not publish its built-in slash commands. `docs/en/slash-commands`
-now serves the skills page: the two URLs return byte-identical markdown, because commands were
-merged into skills, so no upstream page enumerates `/clear`, `/rewind`, `/artifacts`, or the rest.
-Plugin components are on disk and need no such measure; the binary read exists only for the built-in
-and bundled surfaces, which have no other complete source.
-
-Verify that premise rather than trusting this paragraph:
-
-```bash
-curl -sSL -o /tmp/slash.md https://code.claude.com/docs/en/slash-commands.md
-curl -sSL -o /tmp/skills.md https://code.claude.com/docs/en/skills.md
-cmp /tmp/slash.md /tmp/skills.md && echo "still identical - binary read still required"
-```
-
-If those files ever differ and the slash-commands page grows a command table, prefer the
-documentation and reduce the binary read to a cross-check.
+`docs/en/commands.md` carries an "All commands" table, but it is partial: on 2.1.284 the binary
+registers 39 user-facing names the table does not list, and the table marks `/ultraplan` removed
+while the build still registers it. `docs/en/slash-commands` serves the skills page byte for byte. Plugin
+components are on disk and need no such measure; the binary read exists only for the built-in and
+bundled surfaces, which have no other complete source. Verified 2026-09-29 against Claude Code
+2.1.284 by a `--binary-only --docs` run and a `cmp` of the two pages; recheck when the
+`undocumented` count in `docs_crosscheck.counts` reaches zero, at which point the page could
+become the source and the binary read the cross-check.
 
 ## Shape of the artifact
 
@@ -162,6 +161,58 @@ listed under `flag_driven`, matching the binary's own serializer. On 2.1.263 `do
 model-disabled and terminal-oriented and is the one registration that survives the bundled kill
 switch; `simplify` and `run` carry no invocation-control field and are model-invocable.
 
+From those, every command, bundled-skill, and bundled-workflow record carries `user_invocable` and
+`model_invocable`, each a bool or null. The rules come from the 2.1.284 bundle:
+
+| Surface | `user_invocable` | `model_invocable` |
+|---|---|---|
+| Built-in command | false only with `userInvocable:!1` | the Skill tool's filter: `type:"prompt"`, no `disableModelInvocation`, and `source:"builtin"`; `local`/`local-jsx` are false; a prompt command without `source:"builtin"` is null |
+| Bundled skill | the registrar's `userInvocable ?? true` | the registrar's `disableModelInvocation ?? false`, negated |
+| Bundled workflow | true: the workflow becomes a `type:"prompt"` command with no `userInvocable` | the command loader calls the registration's `disableModelInvocation` function, so it is null unless the registration passes a constant |
+
+A function-valued field is null: the registrar installs it as a getter, so its value is decided per
+session. The Skill tool also drops a name that a per-machine skill override turns off; that is
+settings, not bundle, and is out of scope. `integrity.undetermined` lists every null.
+
+### 7. Resolve descriptions and argument hints statically
+
+`description` and `argument_hint` are read by `resolve_field`, which evaluates one field of an
+object literal without running anything:
+
+| Form | Example (2.1.284) | `_source` |
+|---|---|---|
+| String or single-quoted literal, or a `+` concatenation of them | `keybindings-help` | `literal` |
+| Template literal; each `${...}` renders as an ellipsis | `workflow-authoring` | `template` |
+| Identifier bound to a value, followed by the locality rule | `description:Ki` | `constant` |
+| Identifier naming a `function f(){...}`, or a no-argument call | `description:ta` (`code-review`) | `call` |
+| `get description(){...}`, each `return` collected | `exit`, `init`, `diff`, `terminal-setup` | `getter` |
+| `()=>...` | `artifact-pr-review` | `arrow` |
+| A loop variable of a literal-table roster | `artifact-report` | `roster` |
+| Anything else (`()=>n().description()`) | `design` | `unresolved` |
+
+Within a returned expression, only operands in value position count: the start, and after a
+top-level ternary `?` or `:`. An operand followed by `?` is a condition, which is how
+`OMt(rc()?"fullscreen":"inline")==="fullscreen"?"Toggle...":"View..."` yields the two branch
+strings and not the condition's. Several values become `_variants`, and `value` is the last:
+the else branch of a ternary, the final `return` of a getter, which is the default-session text in
+every 2.1.284 case. A single-character identifier is trusted only within
+`SHORT_VALUE_LOCALITY_BYTES` of the registration, because it is function-local. A skill field that
+resolves to nothing falls back to its descriptor object, then to `menuDescription`.
+
+### 8. Find bundled workflows by what the registrar does
+
+The workflow registrar has no readable export name (`function dro(o,e,r){eo().bundledWorkflows.push(
+{source:"built-in",...e,script:o,disableModelInvocation:r?.disableModelInvocation})}` in 2.1.284),
+so `_workflow_registrars` finds every function whose body pushes onto `bundledWorkflows` and reads
+which parameter is spread (the metadata) and which carries `disableModelInvocation`. Each call's
+metadata object is resolved from the call site: the first argument is the workflow script, a
+template literal whose own `const e = ...` lines would otherwise win the nearest-preceding rule, so
+identifier lookups anchor at the call, not at the field. `phases` resolves to the `title` of each
+row of its array literal. `bundled_workflow_notes.registrar_route` is `push-site`.
+
+A literal list of workflow names (`["autopilot","bugfix","dashboard","deep-research",...]`) also
+sits in the bundle; it is a telemetry allowlist, not a registration, and is not read.
+
 ## Known non-commands
 
 Strings that match a naive `name:"…"` search but are not slash commands. Each was verified by
@@ -180,8 +231,9 @@ the remainder that are real registrations but never user-typed.
 
 ## Integrity, per lane
 
-`check_integrity` returns `lanes` (`builtin_commands`, `bundled_skills`, `plugin_backed`), each with
-its own `status`, `problems`, and `advisories`. One rule for one state: the top-level `status` is
+`check_integrity` returns `lanes` (`builtin_commands`, `bundled_skills`, `plugin_backed`, and
+`bundled_workflows` whenever workflows were extracted), each with its own `status`, `problems`, and
+`advisories`. One rule for one state: the top-level `status` is
 the worst lane. `broken` at the top level means every lane is broken or the binary is unreadable; a
 run with at least one healthy lane is at most `degraded`, with each broken lane's problems restated
 as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `broken` 1,
@@ -192,8 +244,45 @@ as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `
 | `builtin_commands` | a canary command absent; command yield under `MIN_COMMAND_YIELD` | nothing lane-specific |
 | `bundled_skills` | no bundled skill resolved | an unknown registrar-shaped export (either export shape); computed names unresolved; a dynamic roster; registration literals in runs below the floor |
 | `plugin_backed` | a `PLUGIN_BACKED_CANARY` name absent | nothing lane-specific |
+| `bundled_workflows` | no `bundledWorkflows.push` registrar; a `WORKFLOW_CANARY` name absent | a registration whose name did not resolve |
 
-The CLI-version advisory is top-level, not a lane's.
+The CLI-version advisory is top-level, not a lane's. `integrity.undetermined` is informational: a
+runtime-decided field is a property of the build, not an extraction failure, so it never degrades
+a lane.
+
+## Docs cross-check
+
+`scripts/docs_crosscheck.py` runs only with `--docs` and writes `docs_crosscheck`. It reads the
+binary lanes and never changes them.
+
+`parse_commands_table` reads rows of the form ``| `/name <args>` | text |`` under
+`## All commands`, stopping at the next `##`. From each row: the synopsis after the name, a
+leading **Skill** or **Workflow** marker, `Alias for`/`Alias of` `/x` at the start (the row is an
+alias), `Alias:`/`Aliases:` lists and "`/x` and `/y` are aliases" (the row declares aliases),
+"`/x` is an alias" naming the row itself (an alias whose target the row does not state), and
+`Removed` or `Removed in vX.Y.Z` at the start. Anchoring on the start is what keeps `/reload-skills`
+("how many were added or removed") from reading as removed, and present tense is what keeps
+"Before v2.1.212, `/bug` and `/share` were aliases of `/feedback`" from declaring anything.
+
+| Status | Docs | Binary |
+|---|---|---|
+| `documented` | a row, not an alias, not removed | registers the name or has it as an alias |
+| `undocumented` | absent | registers it (internal names are left out) |
+| `alias` | an alias row, or an alias another row declares | has it as an alias |
+| `docs_alias_but_registered` | an alias | registers it as its own name |
+| `removed_in_docs` | a removed row | absent |
+| `removed_in_docs_but_registered` | a removed row | still registers it |
+| `docs_only` | a row or a declared alias | absent |
+
+Each entry also carries `binary_kind`, `docs_kind`, `kind_mismatch`, `docs_args`, `docs_summary`,
+`docs_alias_of`, `binary_alias_of`, `alias_disagreement` (aliases only one side lists), and
+`changelog`. `parse_changelog` walks `## X.Y.Z` headings and, for each name, records the earliest
+version whose lines mention `/name` and every mentioning line that also uses an add, rename,
+remove, deprecate, or alias word. That is a heuristic, and `method.changelog` says so.
+
+The block's own `status`: `unavailable` when the commands page cannot be read or the binary was
+not, `broken` when no table rows parse, `degraded` when the changelog is unavailable or a binary
+lane is not `ok`, else `ok`.
 
 ## When a build changes
 
@@ -210,13 +299,16 @@ check failed, and each maps to one edit:
 | `bundled_skills` degraded: computed names unresolved | A binding shape the locality rule does not see | Report as a floor; extend `_KEBAB_BINDING_RE` only if the count grows |
 | `bundled_skills` degraded: dynamic roster | A family registered in a loop or template over something other than a literal table | Acceptable; the names are enumerable only by running the binary |
 | `builtin_commands` broken: yield collapses and one brace pair spans megabytes | The tokenizer desynced on a new syntax shape | Find the largest pairs in `build_brace_map`, read the text at the open brace, fix the tokenizer state that misread it |
+| `bundled_workflows` broken: no push-site registrar | The registrar no longer pushes onto `bundledWorkflows` | Find where `deep-research` is registered and adapt `_workflow_registrars` |
+| `bundled_workflows` broken: canary absent | The call shape changed | Read the `deep-research` call and adapt `extract_bundled_workflows` |
+| `integrity.undetermined` grows | A field moved behind a getter or a new indirection | Read one such field; extend `_scan` or `_resolve_chain` if the form is static |
+| `docs_crosscheck` broken | The commands page restructured its table | Re-derive `_ROW_RE` and `_SECTION` from the page |
 
 After revalidating, bump `VALIDATED_AGAINST`. Leaving it stale is not a bug: every report then says
 its counts are believed rather than verified, which is the honest state until someone checks.
 
 ## Cost
 
-Reading and scanning the executable dominates. On 2.1.263 in a Linux container: about 214 MB read
-once, the region pass about 4 seconds, the brace map over the 37 MB joined source about 5 seconds,
-name resolution about 2 seconds, roughly 14 seconds wall clock in all. The file is opened read-only
-and never executed.
+Reading and scanning the executable dominates. On 2.1.284 under WSL2: about 243 MB read once, the
+region pass under 2 seconds, and about 11 seconds wall clock in all, including field resolution
+and, with `--docs`, both fetches. The file is opened read-only and never executed.
