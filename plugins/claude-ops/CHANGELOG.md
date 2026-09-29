@@ -12,6 +12,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   a phrase to live in, so the integration check now reports the combination as a problem.
 - **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
   matching the rule above.
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
 
 ## [0.64.0] - 2026-09-29
 
