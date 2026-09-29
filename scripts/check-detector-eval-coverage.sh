@@ -143,16 +143,24 @@
 # literal, or whose id does not match the row pattern, is UNRESOLVED. The
 # candidate count is compared with the ids actually resolved. Any mismatch
 # is exit 2, and the unparsed sites are named. The row pattern is applied as
-# a full-string match. jq's engine is RE2; the patterns this gate accepts are
-# the same subset the eval-side awk ERE already uses.
+# a full-string match. jq uses Oniguruma; a row pattern must stay within the
+# subset awk ERE and Oniguruma read identically.
 #
 # What the tree does not re-parse, on purpose: a quoted string, a heredoc
 # body, `trap '...'`, or `eval '...'`. Those are data until runtime. An
-# `emit error P9` in help text is not a call. An emitter that exists only
-# inside `eval '...'` or `trap '...'` is invisible, the same class as an
-# emitter renamed so it does not begin with `emit`, or reached through a
-# variable (`$emitter error P1`). Computed ids (`emit "$sev" P4`,
-# `emit error ${id}`) stay unresolved, which is the safe side.
+# `emit error P9` in help text is not a call. The list of what the walk misses
+# is known, not exhaustive. An emitter that exists only inside `eval '...'` or
+# `trap '...'` is invisible, the same class as an emitter renamed so it does not
+# begin with `emit`, or reached through a variable (`$emitter error P1`).
+# Computed ids (`emit "$sev" P4`, `emit error ${id}`) stay unresolved, which is
+# the safe side.
+#
+# Wrapper prefixes the walk does not follow: `command -p emit error P1`,
+# `env FOO=1 emit error P1`, `xargs emit error P1`. The walk shifts only the
+# word directly after `command`, `builtin`, `exec`, `nohup` or `eval`. A call
+# where a later word of one of those, or of `env` or `xargs`, begins with `emit`
+# is counted as a candidate and reported UNRESOLVED (exit 2, site named), not
+# dropped. `command -v emit` is a lookup, not a call, and is skipped.
 #
 # The self-test keeps arm-and-close: a call after a heredoc terminator must
 # still be seen. "The body's own emit is hidden" is also true of a skip that
@@ -333,6 +341,32 @@ def emit_words:
     else $c.Args
     end;
 
+# A wrapper the walk does not follow whose LATER word starts an emit call
+# (`command -p emit ...`, `env FOO=1 emit ...`, `xargs emit ...`). The words the
+# walk shifts are handled by emit_words; this finds the ones it cannot, so they
+# count as candidates and surface as UNRESOLVED instead of vanishing.
+def hidden_wrapped_emit:
+  (.Args[0] | static) as $w0
+  | if ($w0 == "command" or $w0 == "builtin" or $w0 == "exec" or $w0 == "nohup"
+        or $w0 == "eval" or $w0 == "env" or $w0 == "xargs")
+    then
+      [.Args[1:][] | static] as $ws
+      | if $w0 == "command" and (($ws | index("-v")) != null or ($ws | index("-V")) != null)
+        then null
+        else
+          ($ws | map(. != null and test("^emit")) | index(true)) as $i
+          | if $i == null then null
+            else
+              (.Args[1:][$i + 1:] | map(select(. != null))) as $after
+              | if (($after[0] | is_forward) // false) or (($after[1] // null | is_forward) // false)
+                then null
+                else $w0 + " ... " + $ws[$i]
+                end
+            end
+        end
+    else null
+    end;
+
 [
   .. | objects | select(.Type == "CallExpr" and ((.Args // []) | length) > 0)
 ] as $calls
@@ -340,7 +374,13 @@ def emit_words:
     {candidates: 0, lines: []};
     ($c | emit_words) as $args
     | ($args[0] | static) as $cmd
-    | if ($cmd == null) or (($cmd | test("^emit[A-Za-z0-9_]*$")) | not) then .
+    | if ($cmd == null) or (($cmd | test("^emit[A-Za-z0-9_]*$")) | not) then
+        ($c | hidden_wrapped_emit) as $hidden
+        | if $hidden == null then .
+          else
+            .candidates += 1
+            | .lines += ["UNRESOLVED line " + ($c.Pos.Line | tostring) + ": " + $hidden]
+          end
       else
         ($args[1:] | map(select(. != null))) as $rest
         | if ($rest | length) == 0 then .

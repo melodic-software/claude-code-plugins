@@ -1052,6 +1052,36 @@ else
 fi
 rm -rf "$root"
 
+# A wrapper prefix the walk does not follow must be UNRESOLVED (exit 2, site
+# named), never a silent loss. `command emit ...` is shifted and still resolves.
+wrapper_unresolved() {
+  local label="$1" wrapped="$2"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$wrapped"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* && "$ERR" == *"line 4: ${wrapped%% *} ... emit"* && -z "$OUT" ]]; then
+    ok "wrapper: $label is UNRESOLVED and named"
+  else
+    fail "wrapper $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+wrapper_unresolved 'command -p emit' 'command -p emit error P1 SRC "message"'
+wrapper_unresolved 'env X=1 emit' 'env X=1 emit error P1 SRC "message"'
+wrapper_unresolved 'xargs emit' 'xargs emit error P1 SRC "message"'
+
+mk_tree
+mk_detector det.sh 'emit warning P2 SRC "message"' 'command emit error P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P2 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P1"* && "$ERR" != *"emit call site"* ]]; then
+  ok "wrapper: command emit still resolves"
+else
+  fail "wrapper command emit: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
 # ============== P4: the registry is the stopping rule =====================
 # A qualifying skill absent from the registry is unenforced, which is the same
 # false-green one level up. Following check-script-contract.test.sh's precedent.
