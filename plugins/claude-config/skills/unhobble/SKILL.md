@@ -455,10 +455,10 @@ scheduling surfaces vary per consumer and are the operator's choice.
 - **Machine-specific paths.** A committed manifest that contains an absolute host path fails the
   machine-specific-paths CI lane. This skill records none: identity is `origin_url`, `branch`, and
   `base_commit`.
-- **State writes go through Write or Edit.** The guardrails `block-hook-bypass` hook blocks shell
-  redirects and heredocs that write a file, exit 2, because those forms skip the Write and Edit
-  gates. Writing the manifest or the ledger with `cat >`, `echo >`, or a heredoc is the blocked
-  form. Use Write or Edit.
+- **State writes go through Write or Edit.** Write the manifest and the ledger with those tools,
+  never a shell redirect or heredoc: a shell write skips the Write and Edit hook gates. Where the
+  guardrails plugin's `block-hook-bypass` hook is installed it can block such a write; its README
+  states what it catches and what it exempts.
 
 ## What this skill does NOT do
 

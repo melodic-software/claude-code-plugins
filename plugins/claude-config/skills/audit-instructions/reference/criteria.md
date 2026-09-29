@@ -1479,15 +1479,16 @@ not a `Model scope` annotation**, for the reason I17 states.
   against and stating that a model change re-opens it, or run the sweep. Upstream's own wording for the
   action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
   your evals rather than reusing them."
-- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** It is
-  "Equivalent to not setting the parameter", so on a model that defaults to `high` such a pin
-  carries no measured calibration that could go stale. **The exemption keys to the resolved target,
-  never to the wording.** `high` is the default on every model that supports effort **except Opus
-  4.7, which defaults to `xhigh`**, so when the run's resolved target is Opus 4.7 the exemption
-  lifts and a `high` pin is a finding, **including a broad model-agnostic "always use `high`" that
-  names no model at all**. That broad pin is the sharper case rather than the excluded one: written
-  where `high` was the no-op default and then carried to a model whose default sits above it, it
-  silently becomes a step-down nobody measured, which is this row's subject exactly. A resolved target
+- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** Setting
+  the default "produces exactly the same behavior as omitting the `effort` parameter entirely", so
+  on a model that defaults to `high` such a pin carries no measured calibration that could go stale.
+  **The exemption keys to the resolved target, never to the wording.** In Claude Code `high` is the
+  default on every model that supports effort **except Opus 5.5 and Sonnet 5.5, which default to
+  `medium`, and Opus 4.7, which defaults to `xhigh`**, so when the run's resolved target is one of
+  those the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
+  "always use `high`" that names no model at all**. That broad pin is the sharper case rather than
+  the excluded one: written where `high` was the no-op default and then carried to a model whose
+  default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
   fence never has to guess which side of it a surface falls on. **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
@@ -1515,14 +1516,15 @@ not a `Model scope` annotation**, for the reason I17 states.
   is `OPINION`-tier testimony, not a pin the surface owns.
 - **Source:** model configuration: "The effort scale is calibrated per model, so the same level name
   does not represent the same underlying value across models", stated with no model qualifier, and
-  the whole basis for the check. The same page supplies the first-run hold with its Opus 5 exception,
-  and the default carve-out: "The default effort is `high` on every model that supports effort,
-  except Opus 4.7, which defaults to `xhigh`." Effort supplies the remediation's wording and `high`'s
-  equivalence to omitting the parameter.
-- **Verified 2026-08-03** against both pages, fetched as raw markdown (model configuration 83,644
-  bytes; effort 21,744 bytes). **Recheck trigger:** the calibration property being restated as
-  cross-model-stable, the set of models carrying a first-run default hold changing, or `high` ceasing
-  to be the general default.
+  the whole basis for the check. The same page supplies the resolution order, with the default carve-out:
+  "`high` on every model that supports effort, except that Opus 5.5 and Sonnet 5.5 default to
+  `medium`, Opus 4.7 defaults to `xhigh`". Effort supplies the remediation's wording and the
+  equivalence of the default to omitting the parameter.
+- **Verified 2026-09-28** against both pages, fetched as raw markdown (model configuration 109,848
+  bytes; effort 39,458 bytes). **Recheck trigger:** the calibration property being restated as
+  cross-model-stable, a first-run effort hold returning to the model-config page, the resolution
+  order or the `effortLevel` user-settings exemption for Opus 5.5 changing, or `high` ceasing to be
+  the general default.
 
 ### I22: Model-routing doctrine with no baseline named
 

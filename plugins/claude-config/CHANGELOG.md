@@ -46,6 +46,14 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Fixed
 
+- **`audit-instructions`: I21 and the `audit` effort-pin row state the current effort defaults.**
+  The default carve-out named only Opus 4.7 as a non-`high` default; the model-config page's
+  resolution order also has Opus 5.5 and Sonnet 5.5 defaulting to `medium`, so the "`high` is the
+  default" exemption lifts for them too. The stale first-run-hold clause is removed from Source,
+  and Verified and the recheck trigger follow the 2026-09-28 read of both pages.
+- **`unhobble`: the state-write gotcha and its eval no longer restate the `block-hook-bypass`
+  exit code or call a heredoc alone a blocked form.** The skill says why a shell write is wrong and
+  leaves what the hook catches to its README.
 - **`audit-instructions`: `finding-ids.sh` no longer hashes a non-instruction file under `$HOME`.**
   A row naming `~/.ssh/config` or `~/.claude/.credentials.json` is refused as
   `surface-not-an-instruction-file`. The user surface stays home-wide for instruction-file shapes
