@@ -1,5 +1,23 @@
 # Test-value guards: stop tautological AI-written tests
 
+Status: APPROVED by Kyle Sexton 2026-09-28. Phase 1 is on main (#5205). Phases 2 and 3 are
+implemented on branch `feat/testing-test-scan-hook`, which has no PR yet. Phases 4 to 8 and
+Releases 2 and 3 have not started; this document is their approved plan, and its user gates still
+hold. It graduated here from the task branch's `docs/topics/tautological-tests/` contract slice
+(`PLAN.md` and `design/design-resolution.md`). Paths below under `docs/topics/tautological-tests/`
+name working files on an implementing branch; their outcomes graduate into this spec before that
+branch merges. Plugin versions are stated relative to main: "one patch above main at merge" means
+the number is picked when the PR merges, not here.
+
+## Contents
+
+- [Brief](#brief)
+- [Design contracts](#design-contracts)
+- [Plan](#plan)
+- [Blast radius](#blast-radius)
+- [Execution shape](#execution-shape)
+- [Approval](#approval)
+
 ## Brief
 
 ### TLDR
@@ -44,7 +62,7 @@ cleaned up safely.
     Bash (~800 files), C# xUnit v3, Vitest and `node:test`, Python unittest and pytest, PowerShell
     Pester (65 files) and Go stdlib `testing` (65 files). Wave 1 adds Pester, `node:test`,
     unittest and Go stdlib `testing`. Wave 2 keeps Rust, Java/Kotlin and Go testify. Languages
-    and frameworks are added through declarative adapters (`design/design-resolution.md`).
+    and frameworks are added through declarative adapters ([Design contracts](#design-contracts)).
 - Q6: Test-file detection uses framework filename conventions only, never bare `test/` or `tests/`
   folders.
   - Defaults sit in the hook `if` filter, so a non-matching edit spawns nothing. There is one
@@ -118,8 +136,8 @@ cleaned up safely.
   MCP and scripts are a known gap, caught later by the audit and the judge.
 - No published LLM judge for tautology has been validated against human labels, so the judge
   stays advisory until the local labeled set exists.
-- Surface-page defects seen during this interview are tracked separately (issue #5009 and a
-  findings log to be filed); they do not affect this plan.
+- Surface-page defects seen during the interview are tracked separately (issue #5009 and #5191);
+  they do not affect this plan.
 
 ### Out-of-scope
 
@@ -130,9 +148,133 @@ cleaned up safely.
 - Separate maintenance found during research: `mutation-testing` `tooling.md` staleness and the
   `testing:audit` coverage-counter discrepancy.
 
-### Deferred questions
+## Design contracts
 
-- none
+The interview (Brief Q1-Q13) fixed the module boundaries: the work extends `testing`, with small
+changes in `mutation-testing`, `review`, `implementation` and `debugging`. The user accepted an early
+exit from full `/planning:design` on 2026-09-28 and asked for the plugin to be extensible to other
+languages and frameworks. Evidence: `.work/tautological-tests/extensibility/RESEARCH.md` (engine
+options, measured timings, adapter schema) and the fleet language inventory taken the same day.
+
+### 1. Scanner engine: awk rules, lexers, block models, adapter data
+
+The scanner stays pure bash plus POSIX awk. Measured at 4-5 ms per file, with nothing to install.
+All knowledge of individual languages and frameworks moves out of the awk source and into
+declarative adapter files.
+
+| Layer | Form | Closed or open | Contents |
+|---|---|---|---|
+| Rules | awk, language-neutral | closed (plugin release) | zero-assertion, recomputed-expectation, mock-only-oracle, plus the new rules in section 4 |
+| Lexers | awk | closed | one per language: `js`, `cs`, `go`, `python`, `bash` (Bash and bats), `pwsh` (PowerShell, `<# #>` and here-strings); wave 2 adds Rust and Java/Kotlin |
+| Block models | awk | closed | `brace`, `indent`, `file` (hand-rolled Bash, which has no per-case marker) |
+| Adapters | data files | open (consumers add) | globs, detection, test start, skips, assertion calls and idioms, delegation, mocks, snapshots, equality forms |
+
+There is no shared lexer family: every language has its own lexer, because JS and C# need
+different comment and string maskers. Adding a language whose lexer exists means writing an adapter
+that names that lexer and a block model. A new lexer or block model needs a plugin release.
+
+### 2. Adapter file contract
+
+- Location: `plugins/testing/skills/audit/adapters/<id>.yaml`. Consumer adapters live in
+  directories named by `adapter_dirs` and use the same schema.
+- Format: a restricted YAML subset: block maps, block lists, one-line flow lists, plain or
+  single-quoted scalars, and dotted keys. The loader strips `\r` and validates regexes against a
+  portable ERE subset for gawk, mawk and BSD awk. The awk loader parses exactly that subset and
+  rejects anything else with exit 2, naming the file and line. This adds no dependency (`jq`, `yq`,
+  Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
+- Fields: `id`, `extends`, `language`, `block_model`, `advisory`, `files`, `detect.any_regex`,
+  `test_start`, `test_skip`, `body_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`,
+  `delegation`, `mock.create`, `mock.verify`, `mock.strip`, `snapshot`, `equality.call2`,
+  `equality.receiver`, `equality.pipeline`, `suppress_marker`.
+  - `language` names the lexer: `js`, `cs`, `python`, `bash`, `pwsh`, `go`.
+  - `block_model` is `brace`, `indent` (Python only) or `file` (Bash only: the whole file is one
+    test, for a harness with no per-case marker). C# `brace` uses the attribute-then-signature
+    state machine; every other `brace` adapter opens a block on its `test_start` line.
+  - `advisory: true` keeps the adapter's findings out of the `--check` gate unless `--strict`.
+  - `test_skip` matches the start line or the decorators and attributes above it; `body_skip`
+    matches inside the body (`t.Skip`, bats `skip`, Playwright `test.skip(`).
+  - `assertion.idioms` and `delegation` match raw text, strings and comments included, over a
+    window of three consecutive body lines. The other regex fields match masked code.
+  - Every list field is a list of EREs, except `files` (basename globs), `equality.call2` (helper
+    names matched as substrings; for `bash` and `pwsh` also the command form `fn A B`),
+    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`) and `equality.pipeline`
+    (literal matchers after a pipe, as in `A | Should -Be B`).
+  - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
+    file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
+    otherwise the first claimant with no `detect` list; otherwise the first claimant.
+- `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
+  value is never dropped silently.
+- `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
+  ast-grep backend for one rule, added only when the fixture corpus shows awk missing
+  argument-structure cases.
+
+Wave-1 adapters, taken from the fleet inventory (Brief Q5 as amended 2026-09-28): `bash-harness`
+(hand-rolled `*.test.sh`), `bash-bats`, `pwsh-pester`, `cs-xunit`, `cs-nunit`, `cs-mstest` (with
+Shouldly, FluentAssertions, NSubstitute, Moq and Verify vocabulary), `js-vitest`, `js-jest`,
+`js-node-test`, `js-playwright`, `py-pytest`, `py-unittest`, `go-testing`. Wave 2 is Rust,
+Java/Kotlin and Go testify.
+
+### 3. Test-file pattern list and `.claude/testing.yaml`
+
+- One source: the union of every shipped adapter's `files:` globs. `hooks/hooks.json` `if` filters
+  are generated from that union by `scripts/gen-hook-filters.sh`. A `--check` mode fails CI when the
+  two drift. No bare `test/` or `tests/` folder pattern is allowed (Q6).
+- `.claude/testing.yaml` resolves through the config-cascade layers: `~/.claude/testing.yaml`, then
+  `${CLAUDE_PROJECT_DIR}/.claude/testing.yaml`, then `.claude/testing.local.yaml`. Merge semantics
+  are additive: lists concatenate, and a scalar in a later layer overrides an earlier one. The
+  resolver is a plugin-local script modeled on `plugins/docs-hygiene/scripts/resolve-config.sh`. It
+  is not imported from that plugin (shell-test-helpers convention: no cross-plugin imports).
+- Keys: `adapters.enable`, `adapters.disable`, `paths.include`, `paths.exclude`, `extend.<adapter>.<field>`,
+  `adapter_dirs`, `rules.<rule-id>: off | warn | error`.
+- Removals (`adapters.disable`, `paths.exclude`) apply inside the script, so hook and audit go silent
+  with no plugin change.
+- Additions (`paths.include`, consumer adapters with new globs) reach the audit at once. They reach
+  the hook only through a consumer hook entry that `/testing:setup check` prints for pasting (Q6).
+  The audit report lists any consumer glob that no hook filter covers, so a skip is never silent.
+
+### 4. New scanner rules (release 1)
+
+Rule IDs follow `testing/audit/rule-<name>` (detector-findings contract). Every new rule needs a
+severity-crosswalk row and eval coverage.
+
+| Rule | Detects | Posture in release 1 |
+|---|---|---|
+| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited async matcher, `expect` only inside `catch` | advisory |
+| `rule-constant-restatement` | expected value equals a literal defined in the production module the test imports | advisory |
+| `rule-source-text-read` | test reads a production source file as text (`readFileSync`, `open(...).read()`, `File.ReadAllText`, `Get-Content`, `cat`) | advisory |
+| `rule-snapshot-only` | snapshot or `Verify` is the only assertion in the block | advisory |
+| existing `rule-zero-assertion`, `rule-recomputed-expectation` | as today, now driven by adapters | eligible to block after the precision run (D4) |
+
+### 5. Hooks
+
+Both hooks are gated by `userConfig.test_guards_enabled` (boolean, default `false`), read in the
+script as `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED`. They are exec-form, with `if` filters
+generated as described in section 3. A script error or timeout lets the edit proceed and logs the
+failure.
+
+| Hook | Event | Input | Output |
+|---|---|---|---|
+| `test-scan` | PostToolUse `Write\|Edit\|MultiEdit` | written file path; for Edit, the new hunk | findings whose test block overlaps the changed hunk (hook-precision rule 1), fed back through `additionalContext`. For a doubtful hit it asks the agent to state where the expected value comes from, in the same turn (Q7 tier 2). The first test-file write per file per session also injects the rules-skill note (Q2). |
+| `test-weaken` | PreToolUse `Edit\|MultiEdit\|Write` | `old_string` and `new_string`, or the old file versus the new content | removed assertion, added skip, removed test block, or changed expected value. Release 1: allow and inject context that asks the agent for its reason. After the precision run, deleted or skipped tests may deny with a reason, and the agent retries with a `test-change: <reason>` marker (D5). |
+
+Once-per-session state lives under `${CLAUDE_PLUGIN_DATA}`, keyed by `session_id`, `agent_id` and
+the normalized file path. The marker is an atomic `mkdir`, and markers older than 7 days are pruned.
+`test-weaken` returns `additionalContext` with no `permissionDecision` field while advisory.
+
+Lint-rule presence (eslint-plugin-jest/vitest/playwright, xUnit2021, NUnit2009, ruff PLR0124) is
+reported by `/testing:setup check`, not by the scanner. It reads lint config, not test bodies, and
+Bash, Pester and Go have no maintained rule.
+
+The option gate uses exec-form `--require-true TEST_GUARDS_ENABLED`. A hook `if` row cannot read a
+userConfig value, so while the option is off each matching test-file write starts one launcher
+process that exits at once. Non-test paths start none.
+
+### 6. Rules skill
+
+`testing:test-value` is model-invoked. It holds the one statement of what makes a test worth
+keeping: where expected values come from, the taxonomy, and Pocock's examples. Three things load
+it: auto-invocation, a `skills:` preload in `implementer`, `phase-verifier` and `code-reviewer`, and
+the hook note. Other skills carry a one-line pointer.
 
 ## Plan
 
@@ -150,7 +292,6 @@ flags 0 of 10 planted variants beyond its core rules, and nothing runs while a t
 CI, except the false-positive-becomes-a-fixture rule, which is enforced by process (Phase 8). The
 changed plugins are version-bumped with CHANGELOG entries, and the precision-run report is committed.
 
-- Design contracts: `design/design-resolution.md` (early exit accepted 2026-09-28).
 - Evidence: `.work/tautological-tests/RESEARCH-synthesis.md` and
   `.work/tautological-tests/extensibility/RESEARCH.md`.
 - The engine choice rests on local timings and first-party docs. The verifier failed row 4
@@ -191,7 +332,7 @@ changed plugins are version-bumped with CHANGELOG entries, and the precision-run
 
 ### Phase 1: Adapter engine, behavior-preserving [DONE]
 
-Implemented on a branch, not yet on main: draft PR #5205 (as of 2026-09-28).
+On main: #5205.
 
 Move the JS/TS, Python and C# knowledge out of `cant-fail-scan.awk` into adapter files, with no
 change in findings.
@@ -209,7 +350,7 @@ change in findings.
   mawk and BSD awk: no `\s`, no backreferences, and no intervals unless mawk passes them.
 - Schema fits the subset:
   - `equality` becomes two lists, `equality.call2` and `equality.receiver`; `equality.pipeline` is
-    reserved (design-resolution section 2).
+    reserved ([Design contracts](#design-contracts) section 2).
   - Adapter precedence: the adapter whose `detect.any_regex` matches wins; on a tie, the one declared
     first in load order wins. A fixture covers `*.test.ts` under Vitest versus Jest.
 - Split the engine into rules, per-language lexers (`js`, `cs`, `python`) and block models (`brace`,
@@ -225,13 +366,13 @@ change in findings.
 
 | File | Action |
 |---|---|
-| [ ] `plugins/testing/skills/audit/scripts/cant-fail-scan.awk` | MODIFY |
-| [ ] `plugins/testing/skills/audit/scripts/cant-fail-scan.sh` | MODIFY |
-| [ ] `plugins/testing/skills/audit/scripts/adapter-load.awk` | CREATE |
-| [ ] `plugins/testing/skills/audit/adapters/{js-vitest,js-jest,py-pytest,cs-xunit}.yaml` | CREATE |
-| [ ] `plugins/testing/skills/audit/scripts/parity-check.sh` | CREATE |
-| [ ] `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | MODIFY (loader, `--file` and precedence cases) |
-| [ ] `plugins/testing/skills/audit/scripts/mask-js.awk`, `runner-config-scan.awk` | KEEP |
+| [x] `plugins/testing/skills/audit/scripts/cant-fail-scan.awk` | MODIFY |
+| [x] `plugins/testing/skills/audit/scripts/cant-fail-scan.sh` | MODIFY |
+| [x] `plugins/testing/skills/audit/scripts/adapter-load.awk` | CREATE |
+| [x] `plugins/testing/skills/audit/adapters/{js-vitest,js-jest,py-pytest,cs-xunit}.yaml` | CREATE |
+| [x] `plugins/testing/skills/audit/scripts/parity-check.sh` | CREATE |
+| [x] `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` | MODIFY (loader, `--file` and precedence cases) |
+| [x] `plugins/testing/skills/audit/scripts/mask-js.awk`, `runner-config-scan.awk` | KEEP |
 
 **Sanity Check:**
 
@@ -240,10 +381,9 @@ change in findings.
 - `grep -cE '_ERE *=' plugins/testing/skills/audit/scripts/cant-fail-scan.awk` returns 0.
 - `bash plugins/testing/skills/audit/scripts/parity-check.sh` exits 0 and prints `examined>0` for every run.
 
-### Phase 2: `test-scan` hook, end to end on existing rules [DONE]
+### Phase 2: `test-scan` hook, end to end on existing rules [IMPLEMENTED, not on main]
 
-Implemented on a branch, not yet on main: `feat/testing-test-scan-hook`, no PR yet (as of
-2026-09-28).
+Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 
 The integration slice: an opt-in PostToolUse hook runs `cant-fail-scan.sh --file` on the written
 test file and feeds findings back.
@@ -302,9 +442,12 @@ test file and feeds findings back.
 - `bash scripts/sync-exec-bash.sh --check`, `bash scripts/check-hook-exec-form.sh`, `bash scripts/check-hook-userconfig-argv.sh`, `bash scripts/check-hooks-description.sh` and `bash scripts/check-hook-wiring-liveness.sh` exit 0.
 - `grep -c 'p95' docs/topics/tautological-tests/probes.md` is at least 2 (WSL and Windows), at most 150 ms on WSL and 1 s on Windows.
 
-### Phase 3: Wave-1 adapters for every fleet language [DONE]
+### Phase 3: Wave-1 adapters for every fleet language [IMPLEMENTED, not on main]
 
-- Add the `shell` lexer family and the `file` block model to the awk engine.
+Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
+
+- Add the `bash`, `pwsh` and `go` lexers and the `file` block model to the awk engine
+  ([Design contracts](#design-contracts) section 1).
 - `rule-recomputed-expectation` exists today for JS and Python only (`cant-fail-scan.awk:277,315`).
   Extend it to C#, Bash, PowerShell and Go through the adapter `equality` lists. This is rule work,
   red first.
@@ -424,7 +567,8 @@ test file and feeds findings back.
   one `phase-verifier` line saying new tests are checked against it.
 - One "(if installed)" pointer line each in `testing:write`, `testing:plan` and `testing:diagnose`.
 - `debugging:debug` Phase 5: the regression test's expected value comes from the bug report.
-- Version bumps and CHANGELOG entries for `implementation`, `review` and `debugging`.
+- Version bumps and CHANGELOG entries for `testing` (the new skill and the three pointer lines),
+  `implementation`, `review` and `debugging`, each one patch above main at merge.
 
 **Sanity Check:**
 
@@ -445,14 +589,14 @@ test file and feeds findings back.
   this by process (acceptance criterion 5).
 - Blocking stays off. The report names which deterministic rules qualify to block, excluding
   `bash-harness` zero-assertion. That switch ships in a later minor version (D4).
-- Bump `testing` to 0.10.1 with a CHANGELOG entry, and update its README and plugin description.
+- Bump `testing` one patch above main at merge, with a CHANGELOG entry, and update its README and
+  plugin description.
 
 **Sanity Check:**
 
 - `grep -cE '^\| (claude-code-plugins|medley|ci-runner) \|' docs/topics/tautological-tests/precision-run.md` returns 3.
 - `bash scripts/run-plugin-tests.sh` exits 0.
 - `bash scripts/check-changelog-parity.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
-- `jq -r .version plugins/testing/.claude-plugin/plugin.json` prints `0.10.1`.
 
 ### Release 2 outline: task-end judge and mutation scope [TODO]
 
@@ -516,77 +660,41 @@ HIGH.
 - Agent preloads in three other plugins.
 - Four plugin version bumps.
 
-## Stress-test summary
-
-A fresh-context plan-reviewer (20 findings: 2 critical, 14 important) and a `/planning:devils-advocate`
-pass (15 findings: 1 critical, 7 high) both ran, and both critical findings were confirmed against the code:
-
-- The scanner takes no path argument and prunes `evals/fixtures`, so the first parity check was vacuous.
-- A userConfig option cannot be read by a hook `if` row.
-
-The revised plan applies every confirmed finding. Three of them need the user at approval: the
-acceptance-criterion-10 wording, moving `rule-lint-missing` into setup, and the Phase 8 steps outside
-this checkout.
-
 ## Execution shape
 
 - Phases 1-6 and 8 run in order on the `testing` plugin: each changes the scanner or its hooks, and
   they share `cant-fail-scan.{sh,awk}`, `hooks.json` and the corpus.
 - Phase 7 touches only `plugins/testing/skills/test-value/`, three agent files, three skill pointer
-  lines and `debugging:debug`. It can run in parallel from Phase 1 onward. Two agents instead of one
-  roughly doubles token use for that stretch.
+  lines and `debugging:debug`. It can run in parallel from Phase 1 onward.
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 1 | main session | engine refactor, parity judgment |
 | 2 | main session | hook contract and live probes |
-| 3 | sub-agent worker per adapter group (bash+pwsh, go+node-test, C#, Python) after the shell lexer lands | mechanical adapter data plus fixtures; file-disjoint by `adapters/<id>.yaml` and `corpus/<id>/` |
+| 3 | sub-agent worker per adapter group (bash+pwsh, go+node-test, C#, Python) after the shell lexers land | mechanical adapter data plus fixtures; file-disjoint by `adapters/<id>.yaml` and `corpus/<id>/` |
 | 4 | main session | Pocock mapping may need a user decision |
 | 5 | main session | config contract |
 | 6 | sub-agent worker | follows the Phase 2 pattern |
 | 7 | sub-agent worker, parallel | file-disjoint from 1-6 |
 | 8 | main session | outside-checkout approval |
 
-## Open questions
+PR slicing, each opened as a draft. Every version is one patch or minor above main at merge:
 
-- None beyond the approval items listed at Step 5.
+- PR A: Phase 1, a `testing` patch bump (merged as #5205).
+- PR B: Phases 2-6, a `testing` minor bump, committed per phase.
+- PR C: Phase 7, bumps for `testing`, `implementation`, `review` and `debugging`.
+- PR D: Phase 8, a `testing` patch bump.
 
-## Handoff to implementation
+## Approval
 
-Approval: attended. Approved by Kyle Sexton on 2026-09-28. Each listed change was answered
-separately: X1, reword acceptance criterion 10; X2, lint presence moves to `/testing:setup check`;
-X3, the wave-1 amendment is confirmed; X4, the fleet-host and other-repo steps are approved, with
-each run gated again when it happens.
+Approved by Kyle Sexton on 2026-09-28, attended. Each listed change was answered separately: X1,
+reword acceptance criterion 10; X2, lint presence moves to `/testing:setup check`; X3, the wave-1
+amendment is confirmed; X4, the fleet-host and other-repo steps are approved, with each run gated
+again when it happens.
 
-### User-approval gates
+User-approval gates that still hold:
 
 - Phase 2 and Phase 8: running on a Windows fleet machine through `/fleet:reach`.
 - Phase 8: scanning `medley` and `ci-runner`, read-only.
 - Phase 4: any Pocock example that no deterministic rule can catch.
 - Phase 5 `[FALLBACK]`: the consumer-entry shim, if the probe shows plugin variables are missing.
-
-### Execution shape ([EXEC-SHAPE] tagged)
-
-- `[EXEC-SHAPE]` PR slicing, each opened as a draft:
-  - PR A: Phase 1 (testing patch bump to 0.9.5).
-  - PR B: Phases 2-6 (testing minor bump to 0.10.0, committed per phase).
-  - PR C: Phase 7 (implementation, review and debugging bumps).
-  - PR D: Phase 8 (testing patch bump to 0.10.1).
-- `[EXEC-SHAPE]` Phase 3 fan-out scope fences:
-
-| Worker | ALLOWED | FORBIDDEN |
-|---|---|---|
-| bash+pwsh | `adapters/{bash-harness,bash-bats,pwsh-pester}.yaml`, `corpus/{bash-harness,bash-bats,pwsh-pester}/**` | awk engine, `cant-fail-scan.test.sh`, `GRID.md`, PLAN.md |
-| go+node | `adapters/{go-testing,js-node-test,js-playwright}.yaml`, `corpus/` same ids | same |
-| C# | `adapters/{cs-nunit,cs-mstest}.yaml`, `adapters/cs-xunit.yaml` vocabulary, `corpus/cs-*/**` | same |
-| Python | `adapters/py-unittest.yaml`, `corpus/py-unittest/**` | same |
-
-  The main session owns the engine, the test file, `GRID.md` and PLAN.md, and merges the worker
-  output. Sequential fallback: if a worker breaches its fence or cannot finish, the main session does
-  that adapter group itself.
-
-### Mechanical work
-
-- Commit per phase with `git commit -F - --cleanup=verbatim`.
-- Tick the phase tag here in the same commit.
-- Run `bash scripts/run-plugin-tests.sh` before each push.
