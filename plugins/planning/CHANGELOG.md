@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.2] - 2026-09-29
+
+### Added
+
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park or drop, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+
 ## [0.46.1] - 2026-09-29
 
 ### Changed
