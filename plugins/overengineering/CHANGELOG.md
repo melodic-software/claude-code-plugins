@@ -3,6 +3,13 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-09-28
+
+### Changed
+
+- The `audit` spoke `context/surface-walk.md` opens with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on it.
+
 ## [0.4.16] - 2026-09-28
 
 ### Changed

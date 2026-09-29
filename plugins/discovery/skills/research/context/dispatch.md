@@ -1,5 +1,15 @@
 # Dispatch contract: the parent's side
 
+## Contents
+
+- [The orchestration boundary](#the-orchestration-boundary)
+- [Discipline liveness: why a token at all](#discipline-liveness-why-a-token-at-all)
+- [The acceptance gate: why it grades the slice path, not the payload](#the-acceptance-gate-why-it-grades-the-slice-path-not-the-payload)
+- [The coverage ledger is graded separately, and its freshness is not bound](#the-coverage-ledger-is-graded-separately-and-its-freshness-is-not-bound)
+- [Recovery ladder](#recovery-ladder)
+- [Truncation](#truncation)
+- [What dispatch does and does not buy](#what-dispatch-does-and-does-not-buy)
+
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
 dispatched run **that is specific to research**, and why each obligation exists. The agent's own side
 is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).

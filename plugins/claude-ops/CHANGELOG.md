@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.30] - 2026-09-28
+
+### Changed
+
+- The `audit-performance` spoke `known-performance-issues.md` and the `observability` spoke
+  `data-sources.md` open with a Contents block of section anchors, so skill-quality check 26
+  (long spoke files carry a table of contents) passes on them. Two prose mentions of `stat` in
+  `known-performance-issues.md` carry `portability-ok` comments so the shell-portability gate
+  reads them as prose.
+
 ## [0.63.29] - 2026-09-28
 
 ### Fixed
