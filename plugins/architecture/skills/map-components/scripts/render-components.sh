@@ -10,14 +10,18 @@
 #   render-components.sh --help
 #
 # Options:
-#   --graph <file>         schema_version 1 record. Required.
+#   --graph <file>         The record map-dependencies' dependency-graph.sh
+#                          writes (schema_version 1, with a "result" key).
+#                          Required.
 #   --out <dir>            Directory the artifacts are written into. Required.
 #   --container <name>     Deployable to chart: a node id, path, or unique name.
 #                          With one indegree-zero deployable whose closure covers
 #                          every project, that deployable is the default. Several
 #                          deployables exit 3 and name the choices. Nothing is
 #                          written in that case.
-#   --group-by <strategy>  directory (default), namespace, or layer.
+#   --group-by <strategy>  directory (default), namespace, or layer. directory
+#                          groups by the parent of the project's own directory;
+#                          namespace by the namespace minus its last segment.
 #                          layer requires --layers.
 #   --layers <a,b,c>       Layering convention, outside to inside. An edge from
 #                          a later layer to an earlier one is marked as a
@@ -32,22 +36,28 @@
 #   --source <text>        Provenance line. Default: dependency-graph.json.
 #   --node-threshold <N>   Component count above which the view aggregates to
 #                          coarser groups and says so. Default: the record's
-#                          node_threshold, else 24. Aggregation never drops a
+#                          node_threshold, else 40. Aggregation never drops a
 #                          component or an evidence row.
+#   --root <dir>           The charted repository. When given and it is a git
+#                          checkout, a graph whose generated_on differs from
+#                          the HEAD commit date gets one warning line in
+#                          components.md and on stderr. The warning never
+#                          blocks the render.
 #   --notes <file>         Appended verbatim to components.md.
 #
 # The record's physical shape is one object per line, the same contract as
 # landscape.json. A node line's first key is "id". An edge line's first key is
-# "from". Any other layout exits 1 and writes nothing.
+# "from". Any other layout exits 1 and writes nothing. So does a record with no
+# "result" key, which is not a dependency-graph.sh record: regenerate it.
 #
-# Edge kind "project" (or ProjectReference) is an internal component edge.
-# Kind "package" (or PackageReference) is collapsed, not drawn. Kind
-# "unresolved", or a project edge whose target is not a charted project, is
-# listed and never matched to a similarly named project.
+# An edge of kind "project" and status "resolved" whose ends are both charted
+# projects is an internal component edge. Kind "package" is collapsed, not
+# drawn. A project edge whose status is "unresolved", or whose target is not a
+# charted project, is listed and never matched to a similarly named project.
 #
 # A single project with no internal edges is a thin result: components.md says
 # so and names the neighboring rungs, and no one-box diagram is written.
-# ecosystem "unknown" writes that reason and no diagram.
+# ecosystem "unknown" writes the record's message and no diagram.
 #
 # Prints one summary line on stdout:
 #
@@ -85,6 +95,7 @@ dialect="none"
 source_name="dependency-graph.json"
 threshold=""
 notes=""
+root=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -164,6 +175,15 @@ while [[ $# -gt 0 ]]; do
     threshold="${1#--node-threshold=}"
     shift
     ;;
+  --root)
+    [[ $# -ge 2 ]] || die "--root needs a directory" 2
+    root="$2"
+    shift 2
+    ;;
+  --root=*)
+    root="${1#--root=}"
+    shift
+    ;;
   --notes)
     [[ $# -ge 2 ]] || die "--notes needs a path" 2
     notes="$2"
@@ -205,6 +225,8 @@ fi
 [[ -z "$notes" || -r "$notes" ]] || die "cannot read notes: $notes" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$graph" ||
   die "not a schema_version 1 record: $graph" 1
+grep -q '^[[:space:]]*"result"[[:space:]]*:' "$graph" ||
+  die "not a dependency-graph.sh record (no result key); regenerate it with /architecture:map-dependencies: $graph" 1
 
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
@@ -241,14 +263,11 @@ layout_problem="$(awk "$LAYOUT_AWK" "$graph")"
 
 if [[ -z "$threshold" ]]; then
   threshold="$(sed -n 's/^[[:space:]]*"node_threshold"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$graph" | head -n 1)"
-  [[ -n "$threshold" ]] || threshold=24
+  [[ -n "$threshold" ]] || threshold=40
 fi
 
 ecosystem="$(sed -n 's/^[[:space:]]*"ecosystem"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-unknown_reason="$(sed -n 's/^[[:space:]]*"unknown_reason"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-if [[ -z "$unknown_reason" ]]; then
-  unknown_reason="$(sed -n 's/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-fi
+message="$(sed -n 's/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 [[ -n "$generated_on" ]] || generated_on="unknown"
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
@@ -256,8 +275,20 @@ generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\
 # shellcheck disable=SC1003 # the backslash is a tr operand, not an escape
 prose() { printf '%s' "$1" | tr -d '\000-\037`"\\'; }
 generated_on="$(prose "$generated_on")"
-unknown_reason="$(prose "$unknown_reason")"
+message="$(prose "$message")"
 source_name="$(prose "$source_name")"
+
+stale_md=""
+if [[ -n "$root" ]]; then
+  head_date="$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)"
+  if [[ -n "$head_date" && "$head_date" != "$generated_on" ]]; then
+    stale_line="dependency-graph.json was generated on $generated_on; HEAD commit date is $head_date"
+    stale_md="Warning: $stale_line.
+
+"
+    printf 'render-components.sh: warning: %s\n' "$stale_line" >&2
+  fi
+fi
 
 md_out="$outdir/components.md"
 
@@ -267,11 +298,11 @@ write_summary() {
 }
 
 if [[ "$ecosystem" == "unknown" ]]; then
-  [[ -n "$unknown_reason" ]] || unknown_reason="The dependency graph reports ecosystem unknown."
+  [[ -n "$message" ]] || message="The dependency graph reports ecosystem unknown."
   {
     printf '# Component view\n\n'
-    printf 'Generated on %s from %s.\n\n' "$generated_on" "$source_name"
-    printf 'Unknown: the dependency graph reports ecosystem `unknown`. %s\n\n' "$unknown_reason"
+    printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
+    printf 'Unknown: the dependency graph reports ecosystem `unknown`. %s\n\n' "$message"
     printf 'No diagram is drawn. An unrecognized ecosystem is not an empty architecture.\n'
     if [[ -n "$notes" ]]; then
       printf '\n'
@@ -380,15 +411,6 @@ function md(v,   n, parts, i, out) {
   for (i = 2; i <= n; i++) out = out "\\|" parts[i]
   return out
 }
-function norm_edge(k) {
-  if (k == "project" || k == "ProjectReference" || k == "module" || k == "workspace") return "project"
-  if (k == "package" || k == "PackageReference" || k == "nuget" || k == "npm") return "package"
-  if (k == "unresolved") return "unresolved"
-  return "other"
-}
-function is_proj_kind(k) {
-  return k == "project" || k == "module"
-}
 function trim(s) {
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
   return s
@@ -396,14 +418,19 @@ function trim(s) {
 function directory_of(path,   n, segs, i, out) {
   if (path == "") return "."
   n = split(path, segs, "/")
-  if (n <= 1) return "."
+  if (n <= 2) return "."
   out = segs[1]
-  for (i = 2; i < n; i++) out = out "/" segs[i]
+  for (i = 2; i < n - 1; i++) out = out "/" segs[i]
   return out
 }
-function namespace_of(id) {
-  if (ns[id] != "") return ns[id]
-  return name[id]
+function namespace_of(id,   full, n, segs, i, out) {
+  full = ns[id]
+  if (full == "") full = name[id]
+  n = split(full, segs, ".")
+  if (n <= 1) return full
+  out = segs[1]
+  for (i = 2; i < n; i++) out = out "." segs[i]
+  return out
 }
 function consider_segment(seg,   low, L) {
   low = tolower(seg)
@@ -514,8 +541,9 @@ BEGIN {
   if (eco[id] == "") eco[id] = "unknown"
   nkind[id] = unquote(field($0, "kind"))
   ns[id] = unquote(field($0, "namespace"))
+  if (unquote(field($0, "test")) == "yes") is_test[id] = 1
   layer_field[id] = unquote(field($0, "layer"))
-  if (is_proj_kind(nkind[id])) is_project[id] = 1
+  if (nkind[id] == "project") is_project[id] = 1
   next
 }
 /^[[:space:]]*\{"from":/ {
@@ -523,17 +551,17 @@ BEGIN {
   efrom[ne] = unquote(field($0, "from"))
   edge_to[ne] = unquote(field($0, "to"))
   ekind[ne] = unquote(field($0, "kind"))
+  estatus[ne] = unquote(field($0, "status"))
   eevidence[ne] = unquote(field($0, "evidence"))
   next
 }
 END {
   for (i = 1; i <= ne; i++) {
-    ek = norm_edge(ekind[i])
-    if (ek == "project" && (efrom[i] in is_project) && (edge_to[i] in is_project)) eclass[i] = "project"
-    else if (ek == "package") eclass[i] = "package"
-    else if (ek == "unresolved" || ek == "project") eclass[i] = "unresolved"
+    if (ekind[i] == "project" && estatus[i] != "unresolved" && (efrom[i] in is_project) && (edge_to[i] in is_project)) eclass[i] = "project"
+    else if (ekind[i] == "package") eclass[i] = "package"
+    else if (ekind[i] == "project") eclass[i] = "unresolved"
     else eclass[i] = "other"
-    if (eclass[i] == "project") indegree[edge_to[i]]++
+    if (eclass[i] == "project" && !(efrom[i] in is_test)) indegree[edge_to[i]]++
   }
 
   nproj = 0
@@ -546,16 +574,18 @@ END {
   nr = 0
   for (i = 1; i <= nn; i++) {
     id = nid[i]
-    if (!(id in is_project)) continue
+    if (!(id in is_project) || (id in is_test)) continue
     if (indegree[id] + 0 == 0) roots[++nr] = id
   }
 
   delete reached
   for (i = 1; i <= nr; i++) bfs(roots[i])
   nu_un = 0
+  ntest = 0
   for (i = 1; i <= nn; i++) {
     id = nid[i]
     if (!(id in is_project)) continue
+    if (id in is_test) { tests[++ntest] = id; continue }
     if (!(id in reached)) unreached[++nu_un] = id
   }
 
@@ -591,10 +621,13 @@ END {
     ncand = 0
     for (i = 1; i <= nr; i++) cands[++ncand] = roots[i]
     for (i = 1; i <= nu_un; i++) cands[++ncand] = unreached[i]
+    if (ncand == 0) for (i = 1; i <= ntest; i++) cands[++ncand] = tests[i]
     if (ncand == 1 && nr == 1 && nu_un == 0) {
       chosen = roots[1]
     } else {
-      if (nr == 0)
+      if (nr == 0 && nu_un == 0)
+        printf "status\tchoice\tevery root is a test project, and a test project is not a deployable; pass --container to chart one anyway. Charting every deployable is map-containers.\n"
+      else if (nr == 0)
         printf "status\tchoice\tno indegree-zero deployable; pass --container. Charting every deployable is map-containers.\n"
       else
         printf "status\tchoice\tseveral deployables; pass --container. Charting every deployable is map-containers.\n"
@@ -616,7 +649,7 @@ END {
   noutside = 0
   for (i = 1; i <= nn; i++) {
     id = nid[i]
-    if ((id in is_project) && !(id in reached)) noutside++
+    if ((id in is_project) && !(id in reached) && !(id in is_test)) noutside++
   }
 
   ninternal = 0
@@ -798,7 +831,7 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   collect_groups()
   drawn = 0
   printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
   lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
@@ -833,8 +866,7 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
     label = edge_label(ekind[i], eevidence[i])
     vio = is_violation(efrom[i], edge_to[i])
     if (vio) label = label ", layer violation"
-    printf "puml\tRel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[edge_to[i]], label
-    if (vio) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", alias[efrom[i]], alias[edge_to[i]]
+    printf "puml\tRel(%s, %s, \"%s\"%s)\n", alias[efrom[i]], alias[edge_to[i]], label, (vio ? ", $tags=\"layer-violation\"" : "")
     lc4_rel(fqn[efrom[i]], fqn[edge_to[i]], label, vio)
     drawn++
   }
@@ -845,7 +877,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
   collect_groups()
   drawn = 0
   printf "puml\ttitle Components of %s\n", safe(name[chosen])
-  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", $descr=\"deployable\") {\n", safe(name[chosen])
   lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
@@ -895,8 +927,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
     label = pair_label[key]
     if (pair_count[key] > 1) label = label " (" pair_count[key] ")"
     if (pair_vio[key]) label = label ", layer violation"
-    printf "puml\tRel(%s, %s, \"%s\")\n", galias[pair_from[key]], galias[pair_to[key]], label
-    if (pair_vio[key]) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", galias[pair_from[key]], galias[pair_to[key]]
+    printf "puml\tRel(%s, %s, \"%s\"%s)\n", galias[pair_from[key]], galias[pair_to[key]], label, (pair_vio[key] ? ", $tags=\"layer-violation\"" : "")
     lc4_rel("c4system.c4container." galias[pair_from[key]], "c4system.c4container." galias[pair_to[key]], label, pair_vio[key])
     drawn++
   }
@@ -969,7 +1000,7 @@ fi
 if [[ "$status" == "empty" ]]; then
   {
     printf '# Component view\n\n'
-    printf 'Generated on %s from %s.\n\n' "$generated_on" "$source_name"
+    printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
     printf 'Thin result: yes. The graph has no internal modules. A one-box diagram is not the answer.\n\n'
     printf 'Neighboring rungs:\n\n'
     printf '%s\n' '- `/architecture:map-landscape` charts the repositories this one sits among.'
@@ -1003,7 +1034,7 @@ layers_declared="$(meta_get layers_declared)"
 
 {
   printf '# Component view\n\n'
-  printf 'Generated on %s from %s.\n\n' "$generated_on" "$source_name"
+  printf 'Generated on %s from %s.\n\n%s' "$generated_on" "$source_name" "$stale_md"
   printf 'Container: %s (`%s`).\n' "$cname" "$cid"
   printf 'Grouping: %s.\n' "$grouping"
   if [[ "$thin" == "yes" ]]; then
@@ -1022,6 +1053,9 @@ layers_declared="$(meta_get layers_declared)"
     printf 'No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the graph.\n\n'
   elif [[ "$dialect" == "c4-plantuml" ]]; then
     printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
+    if [[ "$nviol" -gt 0 ]]; then
+      printf 'AddRelTag("layer-violation", $textColor="#b00020", $lineColor="#b00020")\n'
+    fi
     cat "$puml"
     printf '@enduml\n```\n\n'
   else

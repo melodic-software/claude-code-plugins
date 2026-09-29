@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.5] - 2026-09-29
+## [0.14.6] - 2026-09-29
 
 ### Changed
 
@@ -13,6 +13,15 @@ only after that version increases.
   longer forbids the interview. The returned decisions go into the step commit's
   `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
   of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
+## [0.14.5] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep next` stops when the sweep PR conflicts with its base** ([#5206](https://github.com/melodic-software/claude-code-plugins/issues/5206)).
+  GitHub runs no `pull_request` workflows on a conflicting PR, so step commits pushed to it got no
+  CI. `state.sh` now prints `mergeable CONFLICTING`, and `next` stops before any step and asks the
+  user to merge the base branch into the sweep branch and push.
 
 ## [0.14.4] - 2026-09-29
 

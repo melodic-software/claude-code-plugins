@@ -90,6 +90,18 @@
         "Stops the step on a Blocked: line until the user answers",
         "With planning not installed, falls back to a numbered chat list"
       ]
+    },
+    {
+      "id": 8,
+      "name": "next-stops-on-conflicting-pr",
+      "prompt": "/playbooks:repo-sweep next (state.sh exits 0 with a pending step and prints mergeable CONFLICTING)",
+      "expected_output": "The skill stops before running any step, says GitHub runs no pull_request workflows on a conflicting PR so pushed commits get no CI, and asks the user to merge the base branch into the sweep branch and push, then rerun next.",
+      "files": [],
+      "expectations": [
+        "Stops on the mergeable CONFLICTING line without running the pending step",
+        "Names merging the base branch into the sweep branch as the fix",
+        "Does not stop when mergeable is UNKNOWN"
+      ]
     }
   ]
 }

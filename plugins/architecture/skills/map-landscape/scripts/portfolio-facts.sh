@@ -70,6 +70,8 @@ fi
 _ARCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
 source "$_ARCH_LIB/dotnet-references.sh"
+# shellcheck source=../../../lib/github-remote.sh
+source "$_ARCH_LIB/github-remote.sh"
 
 # ---------------------------------------------------------------------------
 # JSON emission helpers
@@ -497,38 +499,7 @@ for raw_path in "$@"; do
   # --- name (github.com origin repository segment, else directory basename) -
   # #4554: identity follows the repository, not the checkout directory, when
   # origin is github.com. Other hosts and path remotes keep basename behavior.
-  name="$(basename "$repo")"
-  if [[ "$remote" != "unknown" ]]; then
-    _ident_url="${remote%/}"
-    _ident_url="${_ident_url%.git}"
-    _ident_scheme=0
-    [[ "$_ident_url" == *://* ]] && _ident_scheme=1 && _ident_url="${_ident_url#*://}"
-    [[ "${_ident_url%%/*}" == *@* ]] && _ident_url="${_ident_url#*@}"
-    _ident_host="${_ident_url%%[:/]*}"
-    _ident_rest="${_ident_url#"$_ident_host"}"
-    if [[ $_ident_scheme -eq 1 ]]; then
-      [[ "$_ident_rest" =~ ^:[0-9]*/ ]] && _ident_rest="${_ident_rest#:*/}"
-      if [[ "$_ident_rest" != :* ]]; then
-        _ident_rest="${_ident_rest#/}"
-      else
-        _ident_rest=""
-      fi
-    else
-      if [[ "$_ident_rest" == :* ]]; then
-        _ident_rest="${_ident_rest#:}"
-        _ident_rest="${_ident_rest#/}"
-      else
-        _ident_rest=""
-      fi
-    fi
-    _ident_host_l="$(printf '%s' "$_ident_host" | tr '[:upper:]' '[:lower:]')"
-    if [[ -n "$_ident_rest" && ( "$_ident_host_l" == "github.com" || "$_ident_host_l" == "www.github.com" ) ]]; then
-      _ident_repo="${_ident_rest#*/}"
-      _ident_repo="${_ident_repo%%/*}"
-      [[ -n "$_ident_repo" && "$_ident_repo" != "$_ident_rest" ]] && name="$_ident_repo"
-    fi
-    unset _ident_url _ident_scheme _ident_host _ident_rest _ident_host_l _ident_repo
-  fi
+  name="$(github_repo_name "$remote")" || name="$(basename "$repo")"
 
   # --- owner (CODEOWNERS, then the remote's owner segment) ------------------
   owner="unknown"
