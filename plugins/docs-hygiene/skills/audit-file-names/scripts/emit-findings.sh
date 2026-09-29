@@ -30,7 +30,9 @@
 #
 # Exit: 0 written, 1 a case collision (nothing written, the pair named on
 #       stderr), 2 usage or an unreadable input, 3 the inputs carry no records
-#       at all (refusing beats composing from garbage).
+#       at all (refusing beats composing from garbage), or the inventory scanned
+#       0 files while the existing plan holds findings and --replace is absent
+#       (an empty root would drop every recorded decision; nothing written).
 set -uo pipefail
 
 die() {
@@ -135,6 +137,10 @@ if [[ -f "$OUT" && "$REPLACE" -eq 0 ]]; then
   prior_branch="$(awk -F': ' '/^branch: /{print $2; exit}' "$OUT")"
   if [[ -n "$prior_branch" && "$prior_branch" != "$BRANCH" ]]; then
     die "the artifact at $OUT was written on branch '$prior_branch', this checkout is on '$BRANCH'; re-audit or pass --replace"
+  fi
+  prior_findings="$(awk -F': ' '/^findings: /{print $2; exit}' "$OUT")"
+  if [[ "${SCANNED:-0}" -eq 0 && "${prior_findings:-0}" -gt 0 ]]; then
+    die "the inventory scanned 0 files but the existing plan at $OUT holds $prior_findings finding(s); an empty root would drop every recorded decision. Fix the root, or pass --replace" 3
   fi
   CARRIED="$(awk '
     /^### FN-/ { id = $2 }
