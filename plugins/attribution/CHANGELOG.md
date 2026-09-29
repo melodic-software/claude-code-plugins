@@ -12,9 +12,11 @@
   stays at v4. The dispatching run picks the rubric: copy when the fingerprint matched above the
   separation rule, restated-fact when the passage states a checkable external fact, copy
   otherwise; an unnamed dispatch defaults to copy.
-- Every restated-fact finding that a unanimous panel upholds goes through one refutation pass
-  that tries to show the passage is already a pointer, a stamped record, or owned content. An
-  open question counts as refuted.
+- Every restated-fact `STANDS` verdict goes through one refutation pass, whatever
+  `accuracy.review_agents` is set to: a fresh adversary that tries to break the finding through a
+  missed carve-out or any of the four rubric criteria, including a pointer or whole record already
+  in the file. An open question counts as refuted, and a refuted finding stays on the human
+  report and off the relay.
 - The detector-findings relay has a row for a restated fact, and only for one whose panel was
   unanimous, whose verdict is `STANDS` and whose refutation pass `SURVIVES`. It ranks last at
   tier IMPORTANT with an empty confidence cell. A restated-fact finding under any other rule id is
