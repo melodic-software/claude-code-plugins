@@ -12,11 +12,13 @@
 # The shipped adapter is C# in the MassTransit shape: Publish<T> or
 # Publish(new T(..)) (broadcast), Send<T> or Send(new T(..)) (point-to-point),
 # IConsumer<T> (consumer of T). AddConsumer<C> and ConfigureConsumer<C> register
-# consumer class C; inside ReceiveEndpoint("q", ..) they give C's edges queue q.
+# consumer class C; inside a ReceiveEndpoint("q", ..) call (its own line or block)
+# they give C's consume edges queue q. Publish and send edges carry no queue.
 # A message is a type some publish, send, or consume names. Other types are not.
 # A publish or send whose type does not resolve is an unresolved edge and finding.
-# Identity is the namespace-qualified type. A short name resolves through the
-# file's namespace and using directives, then through a unique repo match.
+# Identity is the namespace-qualified type. A short or dotted name resolves through
+# the file's namespace and using directives, a short name also through a unique
+# repo match. A name matching no declared type is unresolved, never an orphan.
 # fanout_threshold is 3, a limit of this plugin, not of the broker.
 #
 # schema_version 1. Message lines start with {"id":. Edge lines start with
@@ -115,13 +117,15 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       }
       return ""
     }
+    # Open parens minus close parens, ignoring string literals.
+    function depth(s,    o, c) { gsub(/"[^"]*"/, "", s); o = gsub(/\(/, "", s); c = gsub(/\)/, "", s); return o - c }
     # Names a short type name can bind to here: the namespace, its parents, and usings.
     function scope(    s, n) {
       s = ","
       for (n = ns; n != ""; ) { s = s n ","; if (!sub(/\.[^.]*$/, "", n)) n = "" }
       return s usings
     }
-    BEGIN { ns = ""; queue = "-"; cls = "-"; usings = "" }
+    BEGIN { ns = ""; queue = "-"; qd = 0; cls = "-"; usings = "" }
     {
       line = strip($0)
       sub(/\r$/, "", line)
@@ -147,9 +151,15 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
           printf "T\t%s\t%s\t%s\t%s\t%d\n", cls, name, ns, rel, FNR
         }
       }
+      # The queue holds while the ReceiveEndpoint( call parens are open: its own line or block.
+      fresh = 0
       if (match(line, /ReceiveEndpoint[[:space:]]*\([[:space:]]*"/)) {
+        fresh = 1
+        call = substr(line, RSTART)
+        sub(/^[^(]*/, "", call)
         rest = substr(line, RSTART + RLENGTH)
         if (match(rest, /[^"]*/)) queue = substr(rest, RSTART, RLENGTH)
+        qd = depth(call)
       }
       n = split("IConsumer,Publish,Send,AddConsumer,ConfigureConsumer", keys, ",")
       for (k = 1; k <= n; k++) {
@@ -163,7 +173,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
             continue
           }
           kind = (k == 1 ? "consume" : tolower(keys[k]))
-          printf "E\t%s\t%s\t%s\t%s\t%d\t%s\tstatic\t%s\n", kind, arg, scope(), rel, FNR, queue, cls
+          printf "E\t%s\t%s\t%s\t%s\t%d\t%s\tstatic\t%s\n", kind, arg, scope(), rel, FNR, (k == 1 ? queue : "-"), cls
         }
       }
       s = line
@@ -171,26 +181,37 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
         kind = (substr(s, RSTART + 1, 4) == "Send" ? "send" : "publish")
         s = substr(s, RSTART + RLENGTH)
         arg = "-"
-        if (match(s, /^[[:space:]]*new[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*/)) {
+        if (match(s, /^[[:space:]]*new[[:space:]]+[A-Za-z_][A-Za-z0-9_.:]*/)) {
           arg = substr(s, RSTART, RLENGTH)
           sub(/^[[:space:]]*new[[:space:]]+/, "", arg)
         }
-        printf "E\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", kind, arg, scope(), rel, FNR, queue, (arg == "-" ? "unresolved" : "static"), cls
+        printf "E\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", kind, arg, scope(), rel, FNR, "-", (arg == "-" ? "unresolved" : "static"), cls
       }
+      if (!fresh && qd > 0) qd += depth(line)
+      if (qd <= 0) { queue = "-"; qd = 0 }
     }
   ' "$root/$rel"
 done < <(git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n') >"$raw"
 
 awk -F'\t' '$1 == "T" { print }' "$raw" >"$types"
 
-# Resolve short type names. A qualified name is itself. A short name binds to the
-# one match in scope (namespace, parents, usings; the global namespace always),
-# else to the one match in the repo. Anything else stays unresolved.
+# Resolve type names against the declared types. A dotted name is tried as written,
+# then under each enclosing namespace and each using; `global::` allows only the
+# first. A short name binds to the one match in scope (namespace, parents, usings;
+# the global namespace always), else to the one match in the repo. A name that
+# matches no declared type stays unresolved.
 # Pass 1 reads types, pass 2 registrations, pass 3 edges.
 awk -F'\t' '
-  function qualify(arg, sc,    n, i, c, pick, inscope) {
+  function qualify(arg, sc,    g, n, i, c, pick, inscope, t) {
     if (arg == "" || arg == "-") return "-"
-    if (index(arg, ".") > 0) return arg
+    g = sub(/^global::/, "", arg)
+    if (g) return (arg in nsof) ? arg : "-"
+    if (index(arg, ".") > 0) {
+      if (arg in nsof) return arg
+      n = split(sc, t, ",")
+      for (i = 1; i <= n; i++) if (t[i] != "" && (t[i] "." arg) in nsof) return t[i] "." arg
+      return "-"
+    }
     n = split(byname[arg], c, SUBSEP)
     inscope = 0
     for (i = 2; i <= n; i++) if (nsof[c[i]] == "" || index(sc, "," nsof[c[i]] ",")) { inscope++; pick = c[i] }
