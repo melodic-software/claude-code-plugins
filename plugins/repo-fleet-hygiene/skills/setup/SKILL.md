@@ -2,7 +2,7 @@
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it by adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides, preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--max-depth <1..12>]"
+argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>]"
 ---
 
 ## Purpose
@@ -35,13 +35,14 @@ report header names which config (if any) was consumed.
 ```text
 check | apply [--config <path>] [--root <dir>]... [--repo <dir>]...
         [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]...
-        [--skip <name>]... [--max-depth <1..12>]
+        [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>]
 ```
 
-`--max-depth` writes `[fleet] maxDepth`; `--skip` writes repeatable `[fleet] skip` entries. This
-skill owns the config file that carries both. See "Configuration grammar" below for the `skip`
-replace semantics, and state them whenever you write a `skip` entry, because "extend" is the
-naive reading.
+`--max-depth` writes `[fleet] maxDepth`; `--skip` writes repeatable `[fleet] skip` entries;
+`--extend-skip` writes repeatable `[fleet] skipAppend` entries. This skill owns the config file
+that carries them. See "Configuration grammar" below for the `skip` replace semantics, and state
+them whenever you write a `skip` entry, because "extend" is the naive reading. An operator who
+wants to add names to the defaults wants `--extend-skip`.
 
 ## `check` (read-only)
 
@@ -65,9 +66,10 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
    normalized key. Flag as FAIL only a key that is not a normalizable `github.com/owner/repository`.
 6. **Acknowledged identities**. INFO listing each `fleet.ackUnavailable` entry (normalized). FAIL any
    value that is not a normalizable `github.com/owner/repository`.
-7. **Discovery skip names**. INFO listing each `fleet.skip` entry. FAIL any value that is empty or
-   contains a path separator (must be a bare directory name). Remind that any present `fleet.skip`
-   **replaces** the audit default skip list rather than appending.
+7. **Discovery skip names**. INFO listing each `fleet.skip` and `fleet.skipAppend` entry. FAIL any
+   value that is empty or contains a path separator (must be a bare directory name). Remind that
+   any present `fleet.skip` **replaces** the audit default skip list rather than appending, while
+   `fleet.skipAppend` adds to whichever list is in effect.
 8. **Tracked-file pair** (only when the config lives inside a git worktree, e.g. a project's
    tracked `.claude/repo-fleet-hygiene.conf`): resolve the worktree that owns the file
    (`git -C "$(dirname -- "<path>")" rev-parse --show-toplevel`) and run both probes there
@@ -97,7 +99,8 @@ Run `check`, then create or update the config from the supplied arguments.
    Validate each `--skip` value as a bare directory name (reject empty and any path separator);
    write it as a repeatable `[fleet] skip` entry, deduplicating exact matches against entries
    already present. State the replace semantics from "Configuration grammar" when writing.
-   Removing a skip entry is a manual edit.
+   Validate each `--extend-skip` value the same way and write it as a repeatable
+   `[fleet] skipAppend` entry, deduplicating exact matches. Removing a skip entry is a manual edit.
 2. If the config exists, read it with `git config --file <path> --list --show-origin`. Preserve every
    unrelated entry. Never source it.
 3. State the proposed additions/updates before writing. With complete arguments, proceed
@@ -133,8 +136,8 @@ Run `check`, then create or update the config from the supplied arguments.
    - **`maxDepth`**. When present, confirm it is an integer in `1..12`
    - **Canonical identity** and **acknowledged identities**. Confirm each key/value normalizes to
      `github.com/owner/repository`
-   - **Discovery skip names**. When present, confirm each `fleet.skip` value is a bare directory
-     name (non-empty, no path separator)
+   - **Discovery skip names**. When present, confirm each `fleet.skip` and `fleet.skipAppend`
+     value is a bare directory name (non-empty, no path separator)
    - **Tracked-file pair** (when the config lives inside a git worktree, e.g. the tracked
      `.claude/repo-fleet-hygiene.conf`): resolve the owning worktree
      (`git -C "$(dirname -- "<config-path>")" rev-parse --show-toplevel`) and run both probes
@@ -166,6 +169,7 @@ Re-running `apply` with the same arguments after everything resolves changes not
     maxDepth = 5                   # integer 1..12
     ackUnavailable = github.com/owner/repository   # repeatable; acknowledge a known-inaccessible identity
     skip = vendor                  # repeatable; REPLACE default discovery skip list (not append)
+    skipAppend = third_party       # repeatable; ADD to whichever skip list is in effect
 
 [canonical "github.com/owner/repository"]
     path = ../../../canonical-checkout
@@ -177,11 +181,14 @@ affecting non-404/403 failures or successful-response evidence. Use it for fores
 upstream repositories made private or deleted, or repositories owned by a different GitHub account
 than the authenticated `gh` login.
 
-`skip` replaces the audit's default discovery skip list (`node_modules`, `vendor`, `.venv`)
-whenever any entry is present. It does **not** append. A lone `skip = third_party` means only
-`third_party` is skipped (plus unconditional `.` / `..` / `.git`). To extend the defaults, write
-those three plus the extra names. CLI `--skip` and config `fleet.skip` compose additively with each
-other the same way other scope inputs do.
+`skip` replaces the audit's default discovery skip list (`vendor` plus the package-manager cache
+trees `node_modules`, `.venv`, `.pnpm-store`, `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`,
+`.nuget`, `__pycache__`, `.tox`) whenever any entry is present. It does **not** append. A lone
+`skip = third_party` means only `third_party` is skipped (plus unconditional `.` / `..` / `.git`).
+To extend the defaults, write `skipAppend = third_party` instead: `skipAppend` (and the audit's
+`--extend-skip`) adds to whichever list is in effect, the defaults or an explicit `skip` list. CLI
+`--skip` and config `fleet.skip` compose additively with each other the same way other scope inputs
+do; so do `--extend-skip` and `fleet.skipAppend`.
 
 Resolution priority is explicit audit CLI override, canonical config entry, then the discovered
 checkout's own **main worktree** (the first record of `git worktree list --porcelain`). A canonical

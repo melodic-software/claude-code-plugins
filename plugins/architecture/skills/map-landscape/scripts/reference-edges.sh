@@ -164,6 +164,11 @@ github_remote_path() {
     rest="${rest#:}"
     rest="${rest#/}"
   fi
+  # A remote rewrite can leave an empty segment (host//owner/repo). It is not
+  # part of the repository path.
+  while [[ "$rest" == /* ]]; do
+    rest="${rest#/}"
+  done
   shopt -q nocasematch && had_nocase=1
   shopt -s nocasematch
   [[ "$host" == github.com || "$host" == www.github.com ]] && result=0

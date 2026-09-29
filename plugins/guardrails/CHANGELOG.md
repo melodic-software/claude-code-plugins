@@ -3,12 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.4] - 2026-09-28
+## [0.41.5] - 2026-09-28
 
 ### Fixed
 
 - **`block-hook-bypass` judges a PowerShell call variable bound to a literal as that literal** ([#4234](https://github.com/melodic-software/claude-code-plugins/issues/4234)). `$sh='C:/Program Files/Git/bin/bash.exe'; & $sh x.sh record dir` was refused as a file write: a call through a variable with two leading positionals, one a bare word, has the shape of `Set-Content <path> <value>`. When the same command binds the variable to a single-quoted literal, each later `& $var` call site is now read as `& '<literal>'`, so it gets exactly the verdict the literal quoted path gets. The binding counts only when it is a whole statement at bracket depth zero, is the only assignment to that variable (a multiple-target `$v, $y = …` or parenthesized `($v) = …` counts), and precedes the call, in a command with no backtick, comment, `$(`, splat, `--%`, dot-source, scope or `variable:` qualifier, `*-Variable` cmdlet or alias (`set`, `sv`, `nv`, `gv`, `clv`, `rv`), `-OutVariable`-style parameter, `foreach` over the variable, `function`, `filter`, `param` or `class`, and no non-ASCII byte. A literal naming a writer, or whose basename does (`'Set-Content'`, `'C:/Git/usr/bin/tee.exe'`), is left as a variable and still blocks, as does `& $py $script out.jsonl` with no binding in the command.
 - **The two-positional arm names itself.** Its refusal now reads "PowerShell call through a variable (& $var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>" instead of "file-write cmdlet/redirect", followed by the rewrites that pass: a literal quoted path, a single-quoted literal bound first, or a flag before the positionals. It reports the `powershell-computed-positional` telemetry form instead of `powershell-write`. The README documents the shape and its rewrites.
+
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **`block-no-verify` honors the PowerShell sink tokens `block_dangerous_git_allow` already names** ([#4252](https://github.com/melodic-software/claude-code-plugins/issues/4252)). The fail-closed sink message told the operator to add `ps-unparsable-<trigger>` to that list. That cleared `block-dangerous-git` and left `block-no-verify` still blocking a mutating shape (`Invoke-Command -ScriptBlock { git reset --hard }`), so the next lever an operator reached for was `block_no_verify_enabled=false`. The same token now blanks the unreadable region in both guards; a visible `--no-verify` beside it still blocks. `herestring-comment-char` still has no token.
 
 ## [0.41.3] - 2026-09-28
 
