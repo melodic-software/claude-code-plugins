@@ -27,11 +27,6 @@ exclude_path = [
   '\.venv',
   '(^|/)bin/',
   '(^|/)obj/',
-  # Specimen links, not citations. The filename auditor's fixture tree points
-  # at a fake acme/fixture repo on purpose. The hooks table is an upstream
-  # excerpt; its root-relative /docs/en/agent-teams link has no local root.
-  'plugins/docs-hygiene/skills/audit-file-names/scripts/fixtures/',
-  'scripts/fixtures/hooks-lifecycle-table\\.md',
 ]
 
 # URL excludes for a manual online run (the offline lane skips URLs entirely):
@@ -51,11 +46,6 @@ exclude = [
   # 2026-08-11), so the failure is entirely the checker being refused at the
   # door: the cited standard page is the stable canonical link.
   '^https?://www\.iso\.org/standard/78907\.html/?([?#].*)?$',
-  # journals.sagepub.com answers 403 to curl with a browser User-Agent, and
-  # doi.org redirects to that same 403 (verified 2026-09-28). The citing spec
-  # catalogs the DOI and states the paper was not fetched. Re-test before
-  # removing: a real 404 would be a dead citation, not a publisher refusal.
-  '^https?://journals\.sagepub\.com/doi/(abs/)?10\.1177/0963721409359277/?([?#].*)?$',
   # 403 to the checker, 200 with a browser User-Agent (verified 2026-07-30):
   # the documented bot-block case this list already exists for.
   '^https?://docs\.genius\.com/?([?#].*)?$',
