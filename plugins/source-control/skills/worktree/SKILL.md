@@ -72,7 +72,7 @@ This skill is self-contained, every action runs on plain `git`, plus `gh` for PR
 | *(empty)* | Smart default | Detect current state, suggest appropriate action |
 | `create [name]` | Create worktree | Validate name, explain setup, call EnterWorktree |
 | `status` | Inventory | List all worktrees with PR status and staleness |
-| `cleanup [--dry-run]` | Remove stale | Prune orphans, detect merged PRs, remove with confirmation |
+| `cleanup [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation |
 | `audit` | Health check | Run status + verify configuration health |
 
 ---
@@ -136,7 +136,7 @@ The **Work** axis answers a question age and PR state cannot: whether removing a
 
 ## Action: `cleanup [--dry-run]`
 
-Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (4 detection reasons: orphaned dir / prunable / PR-merged / stale) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c emit branch deletion for the user) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
+Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (detection reasons: orphaned dir / prunable / PR-merged / stale / stale lock) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c emit branch deletion for the user) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
 
 **Safety invariants cleanup MUST honor** (full detail in context/cleanup.md):
 
