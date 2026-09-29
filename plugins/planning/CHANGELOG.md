@@ -20,6 +20,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **Plan eval case 11** is keyed to the Step 4.6 invariant (a decision the brief left open is tagged and tabled, never folded into a mechanical section) instead of a collapse self-check the body never instructs ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
 - Recommendation-basis links point at the plugin-shipped `context/recommendation-basis.md`, and the wayfind spoke names `/work-items:track` instead of a bare `/work-items` ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
 - **Surface docs:** R-K sits after R-J, both record-terminal uses are named, and the README states that CI skips the browser checks ([#5009](https://github.com/melodic-software/claude-code-plugins/issues/5009), [#4652](https://github.com/melodic-software/claude-code-plugins/issues/4652)).
+- **0.45.10 reverses the `arguments:` field 0.45.3 added to `prd`**, so the 0.45.3 entry no longer describes the shipped skill.
+- **The 0.45.9 eval cases are eval-only checks** for behaviors the skill bodies do not yet instruct: the `brainstorm` observed-fact evidence bar and the `plan` collapse self-check. The 0.45.9 entry reads as if those rules exist in the skills; the `plan` case is now keyed to the Step 4.6 invariant instead.
 
 ### Fixed
 
