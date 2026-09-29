@@ -9,7 +9,7 @@ Every changelog item gets one action lens per owner surface it touches. A lens s
 | **correct** | A component states something now false. Covers scripts and fixtures that encode a claim, not only prose. | Decision row stating the false-versus-true pair | Fix the component |
 | **replace** | A custom component where Claude Code now ships a native surface. Widened: a harness behavior that overlaps a component with no routable native surface also counts. | Decision row stating the problem the component solves | Nominate the native surface; with no routable native surface, keep the component and re-rationalize it |
 | **adopt** | The item solves a problem a component works around or lacks. | Decision row stating the problem solved | Adopt, decline, or defer pending probe |
-| **note** | Worth knowing, changes no component. | One line in the read summary | None |
+| **note** | Worth knowing, changes no component. | One line under the decision table | None |
 | **skip** | Cosmetic, internal, or irrelevant to the repo. | None. Counts toward the read | None |
 
 A skip item leaves no row and no line; only the count in the read summary shows it was seen.
@@ -27,7 +27,7 @@ The row names the claim as the component states it (false) and as the item state
 - A component reimplements what a native command, skill, setting, hook event or frontmatter field now does
 - A harness behavior now overlaps a component that no native surface can replace one-for-one. The outcome is keep, and the row re-rationalizes the component against the new behavior
 
-The row names the problem the component solves, so the reader can judge whether the native surface solves the same one. A run never edits or removes the component: a replace candidate is nominated to `/claude-ops:audit-native-overlap`, which owns the decision.
+The row names the problem the component solves, so the reader can judge whether the native surface solves the same one. A run never edits or removes the component: a replace candidate is nominated to `/claude-ops:audit-native-overlap`, which owns the decision. That gate compares skills and agents; a candidate on another owner surface (script, hook, rule, doc, setting) waits as `nominated` in the ledger until the gate can represent it.
 
 ### adopt
 

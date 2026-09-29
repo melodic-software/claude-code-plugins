@@ -12,7 +12,7 @@ the same surface and lens fold into one row that lists their ids.
 
 | Owner surface | Lens | Items | Required sentence | Outcome |
 |---|---|---|---|---|
-| `<component path>` | correct, replace, adopt | `257-001, 260-015` | see below | fix, nominate, adopt, decline, defer pending probe |
+| `<component path>` | correct, replace, adopt | `2.1.257-001, 2.1.260-015` | see below | fix, nominate, adopt, decline, defer pending probe |
 
 The required sentence is what makes a row a decision and not a restated item:
 
@@ -27,9 +27,10 @@ After the table, a **docs-lag** section lists each changelog-versus-docs disagre
 (what the changelog states, what the page states, the page). It is input to `/claude-ops:known-issues`
 when that skill is installed, and is never a decision row.
 
-Item ids are stable: `<patch>-<ordinal>` for release `2.1.<patch>`, the ordinal counted over the
-release block's bullets in page order as three digits, `[VSCode]` lines included in the count so an
-id never shifts. `257-001` is the first bullet of `2.1.257`.
+Item ids are stable: `<version>-<ordinal>`, the ordinal counted as three digits over every bullet of
+the release block in the order the fetched page lists them, whatever its prefix. `2.1.257-001` is the
+first bullet of release `2.1.257`. The item files record each id, so a saved working set keeps its
+pointers if the page's layout later changes.
 
 ## Where decisions live
 
@@ -69,10 +70,10 @@ range adds explorers in steps of about fifty items and adds researchers only for
 `<memory_dir>` is the consuming repo's bound memory directory (default `.work/`) and `<range>` reads
 `<A>..<B>`:
 
-- `items/<patch>.md`: the item files
-- `rows.md`: the decision rows and the docs-lag section, each row with its recheck trigger (the page it rests on and the condition that would change it)
+- `items/<version>.md`: the item files
+- `rows.md`: the repository revision (`git rev-parse HEAD`) the rows were derived at, then the decision rows and the docs-lag section, each row with its recheck trigger (the page it rests on and the condition that would change it)
 - `pages/`: the docs pages the researchers fetched, each with its URL and fetch time on its first line
 
 `apply` consumes that directory instead of re-running `diff`. It re-fetches only what a recheck
 trigger names: a release newer than `<B>` exists, or a row's own trigger is met. A row whose
-trigger has not fired is used as saved. With no working set for the range, `apply` runs `diff` first.
+trigger has not fired is used as saved, once the local verifier has re-checked it against the current tree: the row's owner path must exist and its false-versus-true pair must still hold there. A row that fails is re-derived. When the recorded revision is not the current one, or the memory directory is shared across worktrees, the verifier runs on every row. With no working set for the range, `apply` runs `diff` first.

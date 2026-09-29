@@ -99,9 +99,9 @@ Resolve the range, check the cap, and check version alignment:
    - A range or version was given → `--range` as given
    - Otherwise → no `--range`; the default range from the read marker applies
 2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
-3. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
-4. **Reuse the working set** when `diff` saved one for this range: `apply` consumes it and re-fetches only what a recheck trigger names, per "Persistence" in [context/decisions.md](context/decisions.md)
-5. **Parse** into structured items. Each item gets: a stable id (`257-001`), summary, category (feature / fix / UI / internal), affected surface (if identifiable). Ids and the working-set directory are defined in [context/decisions.md](context/decisions.md)
+3. **Reuse the working set** when `diff` saved one for this range and it passes the checks under "Persistence" in [context/decisions.md](context/decisions.md): `apply` consumes it, resolves no content, and re-fetches only what a recheck trigger names. Otherwise continue
+4. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
+5. **Parse** into structured items. Each item gets: a stable id (`2.1.257-001`), summary, category (feature / fix / UI / internal), affected surface (if identifiable). Ids and the working-set directory are defined in [context/decisions.md](context/decisions.md)
 
 ### Phase 1. Explore
 
