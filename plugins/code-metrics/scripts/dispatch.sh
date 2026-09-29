@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # The code-metrics dispatcher: resolve the scope, detect lanes, walk the
-# collector ladder, and print one `code-metrics/v1` document (design T1, T3,
+# collector ladder, and print one `code-metrics/v2` document (design T1, T3,
 # T5). Every audit skill's entry script (skills/<name>/scripts/<name>.sh) calls this; skill-specific options are the
 # skill's own and never reach here.
 #
 #   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
 #               [--config <resolved.json>] [--ladder <file.tsv>]
 #               [--lane-globs <lane>=<glob>[,<glob>...]]... [--disable-lane <lane>]...
-#               [--scope-file <file>] [--print-scope] [--no-collapse] [--] [<path>...]
+#               [--scope-file <file>] [--print-scope] [--no-collapse] [--no-anchor]
+#               [--] [<path>...]
 #
 # Scope: `<path>...` measures those files and directories (an explicitly named
 # path that does not exist is a usage error, exit 2); `--all` measures every
@@ -18,8 +19,12 @@
 # what the change is measured from, so commits the ref made after HEAD
 # diverged are not reported as this change's.
 # `--scope-file` reads the file list from a file (one path per line) instead.
-# Every path is emitted with forward slashes. `--print-scope` prints the
-# resolved scope as `lane<TAB>path` rows and stops, producing no document.
+# Every path in the document is relative to its `root` (the repository's top
+# level, else the working directory) with forward slashes, whatever directory
+# the run started in; `scan_root` records where it started. `--no-anchor`
+# leaves the paths cwd-relative for a caller that still joins them against
+# files of its own and anchors afterwards. `--print-scope` prints the resolved
+# scope as cwd-relative `lane<TAB>path` rows and stops, producing no document.
 #
 # Configuration: without `--config`, the cascade is resolved here through
 # scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
@@ -52,7 +57,7 @@ SCOPE_FILTER="$PLUGIN_ROOT/scripts/scope-filter.py"
 CONFIG=""
 
 usage() {
-  cm_usage_banner "${BASH_SOURCE[0]}" 25
+  cm_usage_banner "${BASH_SOURCE[0]}" 30
 }
 
 die_usage() {
@@ -73,6 +78,7 @@ MODE_SET=0
 BASE_SET=0
 PRINT_SCOPE=0
 NO_COLLAPSE=0
+NO_ANCHOR=0
 SCOPE_FILE=""
 DETECT_ARGS=()
 PATHS=()
@@ -108,6 +114,13 @@ while [[ $# -gt 0 ]]; do
     # itself, so collapsing here would drop the copies before their coverage
     # was ever looked up. The registries are still validated.
     NO_COLLAPSE=1
+    shift
+    ;;
+  --no-anchor)
+    # Leave measured paths cwd-relative. The coverage and duplication skills
+    # join or merge those paths against cwd-relative inputs of their own, so
+    # they anchor the finished document once, after that.
+    NO_ANCHOR=1
     shift
     ;;
   --config)
@@ -737,15 +750,18 @@ done
 
 "${PY[@]}" "$REPORT" assemble --skill "$SKILL" --scope "$SCOPE_JSON" --run "$RUN" --measures "$ROWS" --thresholds "$THRESHOLDS" >"$WORK/assembled.json" || exit 2
 
-if [[ "$NO_COLLAPSE" -eq 1 ]]; then
-  cat "$WORK/assembled.json"
-else
+FINAL="$WORK/assembled.json"
+if [[ "$NO_COLLAPSE" -eq 0 ]]; then
   # Rows for a file the registry names collapse to one row per function with
   # a replica count, and the summary is recomputed from what survived so the
   # over-reference count stops counting one function once per copy.
   cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/collapsed.json" || exit 2
-  cat "$WORK/collapsed.json"
+  FINAL="$WORK/collapsed.json"
 fi
+# Anchoring follows the collapse: the registries name root-relative files and
+# the collapse rebases the cwd-relative scope onto them itself.
+[[ "$NO_ANCHOR" -eq 1 ]] || cm_anchor_document "$FINAL" || exit 2
+cat "$FINAL"
 
 [[ $COLLECT_FAILED -eq 0 ]] || exit 3
 exit 0
