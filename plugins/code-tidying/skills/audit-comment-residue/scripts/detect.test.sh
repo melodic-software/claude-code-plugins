@@ -452,7 +452,7 @@ cat >"$ORIGIN_NEG" <<'EOF'
 # supported from version 3.0 onward
 # padded 2026-01-01 for alignment
 # bytes copied from the source buffer are hashed
-# rows migrated from the old schema each tick
+# rows migrated from a legacy schema each tick
 # cache helper\ copied from the dotfiles profile
 EOF
 origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
@@ -461,8 +461,8 @@ assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" 
 # origin-note is tier 1, which reads "remove". A license or attribution header carries
 # text the reader may be legally required to keep, and a marker comment is tracked work,
 # so neither is an origin note however it opens. The marker test reuses
-# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a bare
-# TODO is exempt here exactly as it already is for ticket-pr-residue.
+# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a marker
+# in the TODO(#n) or TODO: form is exempt here exactly as it is for ticket-pr-residue.
 ORIGIN_EXEMPT="$TEST_TMPDIR/origin-exempt.py"
 cat >"$ORIGIN_EXEMPT" <<'EOF'
 # TODO(#123): ported from lib/x
@@ -598,6 +598,290 @@ cat >"$FEATURE_BRANCH" <<'EOF'
 EOF
 feature_branch_out="$(bash "$DETECT" "$FEATURE_BRANCH")"
 assert_contains "from the feature branch is ticket-pr-residue" "$feature_branch_out" "Finding shape: ticket-pr-residue"
+
+# --- 10. Cue coverage, word boundaries, bare repo#N, anchored marker exemption ---------
+
+# Each case is one comment line in a throwaway file, so a finding cannot be blamed on a
+# neighbor. `expect_shape` wants the shape reported; `expect_clean` wants no finding at all.
+CUE_N=0
+cue_file() {
+  CUE_N=$((CUE_N + 1))
+  local f="$TEST_TMPDIR/cue-$CUE_N.py"
+  printf '# %s\n' "$1" >"$f"
+  printf '%s' "$f"
+}
+expect_shape() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_contains "$1" "$out" "Finding shape: $3"
+}
+expect_clean() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_contains "$1" "$out" "T1=0 T2=0 T3=0"
+}
+
+# Every example in SKILL.md's shapes table is a finding.
+expect_shape "example: used to" "used to buffer writes" history-narration
+expect_shape "example: no longer" "no longer needed after the rewrite" history-narration
+expect_shape "example: previously" "previously a linked list" history-narration
+expect_shape "example: renamed from" "renamed from fetchAll" history-narration
+expect_shape "example: we switched from" "we switched from polling to events" history-narration
+expect_shape "example: now returns" "now returns a copy" history-narration
+expect_shape "example: Task 2 replaces the old" "Task 2 replaces the old tokenizer" plan-reference
+expect_shape "example: as planned" "as planned" plan-reference
+expect_shape "example: in this PR" "in this PR" plan-reference
+expect_shape "example: in this commit" "in this commit" plan-reference
+expect_shape "example: in this refactor" "in this refactor" plan-reference
+expect_shape "example: per your request" "per your request" conversational-antecedent
+expect_shape "example: as you asked" "as you asked" conversational-antecedent
+expect_shape "example: like you said" "like you said" conversational-antecedent
+expect_shape "example: per our discussion" "per our discussion" conversational-antecedent
+expect_shape "example: see PR #45" "see PR #45" ticket-pr-residue
+expect_shape "example: bare repo#N" "dotfiles#647" ticket-pr-residue
+expect_shape "example: repo#N inside prose" "fixed upstream, see dotfiles#647 for details" ticket-pr-residue
+expect_shape "example: org/repo#N" "melodic-software/dotfiles#647" ticket-pr-residue
+expect_shape "example: from the feature branch" "from the feature branch" ticket-pr-residue
+expect_shape "example: JIRA-123" "JIRA-123" ticket-pr-residue
+
+# Every tier-1 cue is a whole phrase. The negatives sit one character off the cue: a longer
+# word behind it, or a longer word in front of it.
+expect_clean "used tokens is not used to" "used tokens are cached"
+expect_clean "reformerly is not formerly" "reformerly"
+expect_clean "previouslyx is not previously" "previouslyx"
+expect_clean "no longerx is not no longer" "no longerx"
+expect_clean "unchanged to is not changed to" "unchanged to the caller"
+expect_clean "changed tomorrow is not changed to" "changed tomorrow"
+expect_clean "prerenamed from is not renamed from" "prerenamed from x"
+expect_clean "unrefactored into is not refactored into" "unrefactored into modules"
+expect_clean "we switchedly is not we switched" "we switchedly"
+expect_clean "this used tokens is not this used to" "this used tokens"
+expect_clean "now doesnt is not now does" "now doesnt"
+expect_clean "now returnsx is not now returns" "now returnsx"
+expect_clean "per the planet is not per the plan" "per the planet"
+expect_clean "as plannedly is not as planned" "as plannedly"
+expect_clean "replaces the older is not replaces the old" "replaces the older"
+expect_clean "in this prior is not in this pr" "in this prior"
+expect_clean "in this committed is not in this commit" "in this committed"
+expect_clean "in this sessions is not in this session" "in this sessions"
+expect_clean "step 2 in the planet is not the plan cue" "step 2 in the planet"
+expect_clean "per your requestor is not per your request" "per your requestor"
+expect_clean "as requestedly is not as requested" "as requestedly"
+expect_clean "per our chatter is not per our chat" "per our chatter"
+expect_clean "as you askedn is not as you asked" "as you askedn"
+expect_clean "as we decidedly is not as we decided" "as we decidedly"
+expect_clean "you wantedly is not you wanted" "you wantedly"
+expect_clean "like you saidx is not like you said" "like you saidx"
+expect_clean "pull request in plain prose" "runs on every pull request before merge"
+
+# The end boundary is a boundary, not a space: punctuation after the cue still fires.
+expect_shape "cue followed by punctuation" "used to, until the rewrite" history-narration
+
+# Bare name#N needs a name of at least three characters and a non-alphanumeric character
+# before it, so language names with a sharp and a section number are not references. A
+# bare (#3126) stays uncounted.
+expect_clean "C#7 is not a reference" "C#7 records need the newer compiler"
+expect_clean "F# 3 is not a reference" "F# 3 supports type providers"
+expect_clean "A#5 is not a reference" "A#5 is a note name"
+expect_clean "see section #3 is not a reference" "see section #3"
+expect_clean "bare (#3126) is not counted" "fixes the loop (#3126)"
+
+# The marker exemption is anchored: a whole word that opens the comment or a clause and is
+# followed by `(` or `:`. A marker mentioned mid-sentence exempts nothing. A marker inside a
+# longer word (`TODOS`, `XXXL`) is no marker.
+expect_clean "TODO(#n) exempts its ticket ref" "TODO(#123): see PR #45"
+expect_clean "TODO: exempts its ticket ref" "TODO: see PR #45"
+expect_clean "clause-opening FIXME: exempts" "note; FIXME: from branch x"
+expect_shape "marker mentioned mid-sentence exempts nothing" "see PR #45 and the TODO list" ticket-pr-residue
+expect_shape "bare TODO without ( or : exempts nothing" "TODO fix, see PR #45" ticket-pr-residue
+expect_shape "marker inside a longer word exempts nothing" "TODOS: see PR #45" ticket-pr-residue
+
+# history-narration-weak (tier 2): cues that also open ordinary prose. Each whole-word cue
+# fires, the shape is Tier 2, and a longer word on either side of the cue does not.
+expect_no_shape() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_not_contains "$1" "$out" "Finding shape: $3"
+}
+weak_out="$(bash "$DETECT" "$(cue_file "exactly as before")")"
+assert_contains "weak cue reports tier 2" "$weak_out" "Finding tier: 2"
+assert_contains "weak cue T2 summary" "$weak_out" "T1=0 T2=1 T3=0"
+expect_shape "weak: exactly as before" "exactly as before" history-narration-weak
+expect_shape "weak: as before" "keeps the order as before" history-narration-weak
+expect_shape "weak: has always used" "this has always used a lock" history-narration-weak
+expect_shape "weak: always used" "always used a lock here" history-narration-weak
+expect_shape "weak: the old shared group" "the old shared group" history-narration-weak
+expect_shape "weak: (ci-perf Phase 6b)" "(ci-perf Phase 6b)" history-narration-weak
+expect_shape "weak: bare phase number before punctuation" "runs in phase 3, then stops" history-narration-weak
+expect_shape "weak: bare phase number ends the comment" "cleanup for Phase 6" history-narration-weak
+expect_shape "weak: as before before the loop stays a finding" "as before the loop starts" history-narration-weak
+expect_shape "weak: cue after punctuation" "fine;as before" history-narration-weak
+
+expect_clean "as beforehand is not as before" "as beforehand"
+expect_clean "alias before is not as before" "alias before the loop"
+expect_clean "always usedx is not always used" "always usedx"
+expect_clean "the older is not the old" "the older shared group"
+expect_clean "the oldest is not the old" "the oldest entry wins"
+expect_clean "the old-style is not the old word" "the old-style form"
+expect_clean "trailing the old is not the old word" "the old"
+expect_clean "phase 2 of the build is prose" "phase 2 of the build"
+expect_clean "the second phase is prose" "the second phase"
+expect_clean "in phase two is prose" "in phase two"
+expect_clean "biphase 2b is not a phase cue" "biphase 2b"
+expect_clean "phase 6bx is not a phase cue" "phase 6bx"
+expect_clean "phase 2 samples is prose" "phase 2 samples the signal"
+expect_no_shape "replaces the old is plan-reference, not weak" "Task 2 replaces the old tokenizer" history-narration-weak
+expect_shape "replaces the old stays plan-reference" "Task 2 replaces the old tokenizer" plan-reference
+expect_shape "the old after replaces the old still counts" "replaces the old tokenizer; the old shared group" history-narration-weak
+expect_no_shape "identifier is not a comment" 'the_old_shared = 1' history-narration-weak
+
+# A comment line that continues a comment on the previous line is also read joined to it. The
+# wrapped finding is reported once, at the first line's number.
+wrap_fixture() {
+  local f="$TEST_TMPDIR/wrap-$1.py"
+  cat >"$f"
+  printf '%s' "$f"
+}
+wrap_count() { grep -c '^Finding shape:' <<<"$1" || true; }
+assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture basic <<'EOF'
+x = 1
+# grouped for speed (ci-perf Phase
+# 6b) and nothing else
+y = 2
+EOF
+)")"
+assert_contains "wrapped Phase 6b is found" "$wrap_out" "Finding shape: history-narration-weak"
+assert_contains "wrapped finding sits on the first line" "$wrap_out" "Finding line: 2"
+assert_not_contains "wrapped finding is not repeated on the second line" "$wrap_out" "Finding line: 3"
+assert_contains "wrapped excerpt shows both halves" "$wrap_out" "Finding excerpt: grouped for speed (ci-perf Phase 6b) and nothing else"
+assert_contains "wrapped finding is counted once" "$wrap_out" "T1=0 T2=1 T3=0"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture tier1 <<'EOF'
+# tuned as you
+# asked last week
+EOF
+)")"
+assert_contains "wrapped tier-1 cue is found" "$wrap_out" "Finding shape: conversational-antecedent"
+assert_contains "wrapped tier-1 cue sits on the first line" "$wrap_out" "Finding line: 1"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture slashes <<'EOF'
+// used
+// to be a list
+EOF
+)")"
+assert_contains "wrapped cue over // comments" "$wrap_out" "Finding shape: history-narration"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture block <<'EOF'
+/*
+ * the old
+ * shared group is gone
+ */
+EOF
+)")"
+assert_contains "wrapped cue over block-comment lines" "$wrap_out" "Finding shape: history-narration-weak"
+assert_contains "block-comment finding sits on the first line" "$wrap_out" "Finding line: 2"
+
+# A phrase on one line is reported once even when a comment line follows it.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture once <<'EOF'
+# keeps the order as before
+# for every caller
+EOF
+)")"
+assert_eq "a single-line finding is not reported again when joined" "1" "$(wrap_count "$wrap_out")"
+
+# Findings on both lines keep line order and each shape is reported once.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture both <<'EOF'
+# as before, see PR #45
+# and the old shared group
+EOF
+)")"
+assert_eq "two lines with own findings give three findings" "3" "$(wrap_count "$wrap_out")"
+first_line="$(grep -m1 '^Finding line:' <<<"$wrap_out")"
+assert_eq "own findings keep line order" "Finding line: 1" "$first_line"
+
+# No join across code, a blank comment line, or a gap.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture nojoin <<'EOF'
+# grouped (ci-perf Phase
+value = 6
+# 6b) ends here
+#
+# (ci-perf Phase
+#
+# 6b) ends here
+EOF
+)")"
+assert_contains "no join across code or a blank comment line" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# A trailing comment on a code line does not continue a comment.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture trailing <<'EOF'
+# grouped (ci-perf Phase
+value = 6  # 6b) ends here
+EOF
+)")"
+assert_contains "code line with a trailing comment starts no join" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# Opt-out markers still hold for a joined finding, on either line and on the line before.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture ignore <<'EOF'
+# grouped (ci-perf Phase
+# 6b) ends here comment-residue-ignore
+# ok (ci-perf Phase comment-residue-ignore
+# 6b) ends here
+# comment-residue-ignore
+# (ci-perf Phase
+# 6b) ends here
+EOF
+)")"
+assert_contains "opt-out marker suppresses a joined finding" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# A license block stays exempt from origin-note when the cue wraps.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture license <<'EOF'
+# SPDX-License-Identifier: MIT
+# vendored: ported
+# from upstream
+EOF
+)")"
+assert_contains "wrapped origin cue inside a license block is exempt" "$wrap_out" "T1=0 T2=0 T3=0"
+wrap_out="$(bash "$DETECT" "$(wrap_fixture originwrap <<'EOF'
+# vendored: ported
+# from upstream
+EOF
+)")"
+assert_contains "wrapped origin cue outside a license block is found" "$wrap_out" "Finding shape: origin-note"
+
+# --- Upstream labels and --exclude-from ---------------------------------------------------
+
+REPOUP="$TEST_TMPDIR/repoup"
+mkdir -p "$REPOUP/gen"
+git -C "$REPOUP" init -q
+printf '%s\n' '# SYNC-MANAGED FILE - DO NOT EDIT' '# used to buffer; now flushes' >"$REPOUP/synced.py"
+printf '%s\n' '// @generated by codegen' '// used to buffer; now flushes' >"$REPOUP/gen/out.js"
+printf '%s\n' '# used to buffer; now flushes' >"$REPOUP/plain.py"
+printf '%s\n' '# SYNC-MANAGED FILE - DO NOT EDIT' 'x = 1' >"$REPOUP/synced-clean.py"
+
+up_out="$(cd "$REPOUP" && bash "$DETECT" synced.py plain.py gen/out.js synced-clean.py)"
+assert_contains "sync-managed header gets the upstream note" "$up_out" "Note: upstream (sync-managed or generated file) $REPOUP/synced.py"
+assert_contains "@generated header gets the upstream note" "$up_out" "Note: upstream (sync-managed or generated file) $REPOUP/gen/out.js"
+assert_not_contains "normal file gets no upstream note" "$up_out" "Note: upstream (sync-managed or generated file) $REPOUP/plain.py"
+assert_not_contains "header file without findings gets no upstream note" "$up_out" "Note: upstream (sync-managed or generated file) $REPOUP/synced-clean.py"
+assert_contains "upstream note precedes its summary line" "$up_out" "Note: upstream (sync-managed or generated file) $REPOUP/synced.py"$'\n'"Summary file: $REPOUP/synced.py | T1=1"
+assert_contains "labeled finding still counts" "$up_out" "Summary total: files=4 T1=3 T2=0 T3=0"
+
+printf '%s\n' '# comment' '' 'synced.py' 'gen/*' >"$REPOUP/excludes.txt"
+ex_out="$(cd "$REPOUP" && bash "$DETECT" --exclude-from excludes.txt synced.py plain.py gen/out.js)"
+assert_contains "--exclude-from reports the excluded count" "$ex_out" "Note: excluded 2 file(s) by --exclude-from"
+assert_not_contains "--exclude-from skips a matching file" "$ex_out" "Summary file: $REPOUP/synced.py"
+assert_not_contains "--exclude-from skips a matching glob" "$ex_out" "Summary file: $REPOUP/gen/out.js"
+assert_contains "--exclude-from keeps a non-matching file" "$ex_out" "Summary file: $REPOUP/plain.py"
+assert_contains "--exclude-from leaves the summary counting the rest" "$ex_out" "Summary total: files=1 T1=1 T2=0 T3=0"
+
+ex_missing_exit=0
+(cd "$REPOUP" && bash "$DETECT" --exclude-from nope.txt plain.py >/dev/null 2>&1) || ex_missing_exit=$?
+assert_exit "--exclude-from with a missing file exits 2" 2 "$ex_missing_exit"
+ex_noval_exit=0
+timeout 10 bash "$DETECT" --exclude-from >/dev/null 2>&1 || ex_noval_exit=$?
+assert_exit "--exclude-from with no value exits 2" 2 "$ex_noval_exit"
 
 # --- Final report --------------------------------------------------------------------
 
