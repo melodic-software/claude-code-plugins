@@ -1,0 +1,16 @@
+# good-for: rule-zero-assertion
+# The -ForEach table spans lines before the script block opens; the test must
+# not read as an empty one-line block.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds <A> and <B>' -ForEach @(
+        @{ A = 2; B = 3; Expected = 5 }
+        @{ A = -1; B = 1; Expected = 0 }
+    ) {
+        Get-Sum -A $A -B $B | Should -Be $Expected
+    }
+}

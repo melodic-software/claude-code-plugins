@@ -1,0 +1,12 @@
+// expect: rule-conditional-assertion
+// The only assertion sits in a loop over the query's rows, so an empty result
+// passes the test.
+import { expect, it } from 'vitest';
+import { activeUsers } from '../src/users';
+
+it('returns only active users', async () => {
+  const rows = await activeUsers();
+  for (const row of rows) {
+    expect(row.active).toBe(true);
+  }
+});

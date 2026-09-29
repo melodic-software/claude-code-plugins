@@ -1,0 +1,8 @@
+// adapter: js-jest
+// expect: rule-constant-restatement
+// Planted #1.
+import { X_POST_CHARACTER_LIMIT } from '../src/limits';
+
+test('constant restatement', () => {
+  expect(X_POST_CHARACTER_LIMIT).toBe(280);
+});

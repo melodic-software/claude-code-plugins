@@ -2486,9 +2486,13 @@ jobs:
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check
+      # The second suite is the contract of the telemetry-sink test helper, which
+      # drives hook::emit_telemetry from this same library.
       - name: Run shared lib tests
         if: needs.changes.outputs.run_shell == 'true'
-        run: bash lib/hook-utils.test.sh
+        run: |
+          bash lib/hook-utils.test.sh
+          bash lib/hook-test-sink.test.sh
       - name: Verify carrying plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:

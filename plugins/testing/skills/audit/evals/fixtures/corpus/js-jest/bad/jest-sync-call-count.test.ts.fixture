@@ -1,0 +1,11 @@
+// source: pocock M4
+// expect: rule-mock-only-oracle
+// Reconstructed: "asserting on call counts/order" as the only oracle.
+import { syncOrders } from './sync';
+
+test('sync fetches each page once', async () => {
+  const fetchPage = jest.fn().mockResolvedValue([]);
+  await syncOrders(fetchPage, 3);
+  expect(fetchPage).toHaveBeenCalledTimes(3);
+  expect(fetchPage).toHaveBeenNthCalledWith(1, 1);
+});

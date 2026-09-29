@@ -1,0 +1,14 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected text is a literal per data row. No usings,
+// as with a global or implicit using: the attributes claim the file.
+public class OrderTotalFormatLiteralTests
+{
+    [DataTestMethod]
+    [DataRow(12.5, "$12.50")]
+    [DataRow(3.0, "$3.00")]
+    public void Format_ShowsTwoDecimals(double amount, string expected)
+    {
+        Assert.AreEqual(expected, Money.Format((decimal)amount, "USD"));
+        CollectionAssert.AreEquivalent(new[] { "USD" }, Money.Currencies((decimal)amount));
+    }
+}
