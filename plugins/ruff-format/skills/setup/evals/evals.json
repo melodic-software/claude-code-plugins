@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-mirrors-the-venv-walk-and-the-closest-config",
       "prompt": "/ruff-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the Ruff binary resolved by the hook's repo-managed .venv walk then PATH, the governing consumer Ruff config, the ruff_format_enabled toggle, and hook registration — one remediation line per FAIL, nothing modified.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the Ruff binary resolved by the hook's repo-managed .venv walk then PATH, the governing consumer Ruff config, the ruff_format_enabled toggle, hook registration and Node.js on PATH — one remediation line per FAIL, nothing modified.",
       "files": [],
       "expectations": [
         "Resolves Ruff the way the hook does — the exact .venv interpreter paths it tests for the current platform, walking up from the edited file toward the repo root, then PATH — and does not PASS a binary the hook would not accept",

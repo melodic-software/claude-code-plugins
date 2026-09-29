@@ -67,6 +67,9 @@ restores the FAIL semantics.
    `${user_config.ruff_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
+   through `node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip
+   notice.
 
 ## `apply` (idempotent)
 
