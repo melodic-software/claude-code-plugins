@@ -84,7 +84,8 @@ never combined with `&&` or other commands in one call. The record for these sha
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
    edit them here, and ask whether to draft an issue in the source repository, filed only when
-   the user asks. Do not run `/planning:interview` for this. Record each question and answer for
+   the user asks. When the agreed fix lives in another repository, file the issue there after the
+   user approves, then tick `filed <issue-url>`, never `no-findings`. Do not run `/planning:interview` for this. Record each question and answer for
    the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
@@ -115,7 +116,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    `report-only <n>` where `<n>` is that count. When there are zero findings of any kind, tick
    `no-findings`. The one call is `S/tick.sh <id> <outcome> <skill@version>...`; when the skill
    reported uncovered scope, use instead `S/tick.sh <id> --partial "<what was not covered>"
-   <outcome> <skill@version>...` for `declined <n>` or `report-only <n>`, or `S/tick.sh <id>
+   <outcome> <skill@version>...` for `declined <n>`, `report-only <n>` or `filed <issue-url>`, or `S/tick.sh <id>
    partial "<what was not covered>" <skill@version>...` for zero findings (one line, no
    commas), so partial never hides a findings count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
