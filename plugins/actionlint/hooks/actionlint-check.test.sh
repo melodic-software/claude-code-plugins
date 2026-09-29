@@ -335,7 +335,7 @@ else
 fi
 rm -f "$TELC"
 
-# --- actionlint-absent -> exit 0, VISIBLE once-per-session notice, skipped ---
+# --- actionlint-absent -> exit 0, VISIBLE notice once per session, skipped ---
 # The fake-bin dir shadows actionlint. First run must emit the skip notice on
 # both channels; a second run in the same session (same CLAUDE_PLUGIN_DATA +
 # session_id) must be silent; telemetry still records status "skipped".
@@ -369,7 +369,7 @@ fi
 OUT_ABS2=$(run_absent)
 RC_ABS2=$?
 if [[ $RC_ABS2 -eq 0 && -z "$OUT_ABS2" ]]; then
-  ok "actionlint-absent -> second run same session is silent (once-per-session)"
+  ok "actionlint-absent -> second run same session is silent (once per session)"
 else
   fail "actionlint-absent second run (rc=$RC_ABS2 out=$OUT_ABS2)"
 fi
@@ -425,7 +425,7 @@ else
   fail "actionlint-absent: renewal notice wrong: $RENEW_OUT"
 fi
 
-# --- jq-absent -> exit 0, VISIBLE once-per-session notice --------------------
+# --- jq-absent -> exit 0, VISIBLE notice once per session and agent --------------------
 # Same fake-bin, minus jq: the hook cannot parse its input at all, so the gate
 # must surface the skip instead of silently no-opping on every edit.
 rm -f "$FAKEBIN/jq"
@@ -447,7 +447,7 @@ else
 fi
 OUT_NOJQ2=$(run_nojq)
 if [[ -z "$OUT_NOJQ2" ]]; then
-  ok "jq-absent -> second run same session is silent (once-per-session)"
+  ok "jq-absent -> second run same session is silent (once per session and agent)"
 else
   fail "jq-absent second run not silent: $OUT_NOJQ2"
 fi

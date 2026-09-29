@@ -23,7 +23,8 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. actionlint
 auto-discovers its own optional config from the repository, and the tunables are the native
-`userConfig` options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every
+`userConfig` options (`actionlint_enabled`, `actionlint_lint_gitignored` and
+`stdin_read_timeout`). Every
 prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
 system packages, so `apply` is guidance-only with **no write path**. It never modifies the
 repository, user settings, or the plugin cache.
@@ -49,9 +50,10 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of linting.
+   notice, once per session and agent and renewed every eighth skip, instead of linting.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the hook skips workflow lint
-   with a visible once-per-session notice (it ships no binary of its own).
+   with a visible notice, once per session (all agents share it) and renewed every eighth
+   skip (it ships no binary of its own).
 4. **actionlint config.** INFO: actionlint auto-discovers an optional
    `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
    runs with its built-in defaults without one. Report whether one exists for the reader's
@@ -59,6 +61,10 @@ restores the FAIL semantics.
 5. **Hook toggle.** Report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the hook).
+5a. **Path scope, gitignored workflow files.** INFO: report the effective
+   `${user_config.actionlint_lint_gitignored}` value (unexpanded or empty means default
+   `false`; only `true` lints gitignored workflow files). A tracked file that matches an
+   ignore pattern is always in scope. Consult it when a workflow edit produced no lint.
 5b. **Stdin read timeout.** INFO: report the effective `stdin_read_timeout` value:
    `${user_config.stdin_read_timeout}` (unexpanded or empty means default `2` seconds,
    minimum `1`). It is an IDLE bound. Any byte arriving resets it, so it fires only once

@@ -10,7 +10,8 @@
       "expectations": [
         "Defaults to check when no action argument is given, and never prompts for one",
         "Reads the plugin's actionlint-check hook script first and probes what it actually does, rather than reciting the setup SKILL.md",
-        "Covers all six probe areas: the Bash version floor, jq, the actionlint binary, actionlint config discovery, the actionlint_enabled toggle with stdin_read_timeout, and hook registration",
+        "Covers all seven probe areas: the Bash version floor, jq, the actionlint binary, actionlint config discovery, the actionlint_enabled toggle, the actionlint_lint_gitignored scope with stdin_read_timeout, and hook registration",
+        "Reports the effective actionlint_lint_gitignored value (unexpanded or empty means the default false; only true lints gitignored workflow files), notes that a tracked file matching an ignore pattern is always in scope, and says to consult it when a workflow edit produced no lint",
         "Modifies nothing and runs no linter — exercising the hook is editing a workflow file, not a setup action"
       ]
     },
@@ -23,7 +24,7 @@
       "expectations": [
         "Runs no package-manager install command and does not offer to run one",
         "Points at the README Requirements section and the upstream actionlint install guide, and states the plugin ships no actionlint binary of its own",
-        "Names the consequence of each absence: the hook skips workflow lint with a visible once-per-session notice instead of linting",
+        "Names the consequence of each absence: the hook skips workflow lint with a visible notice instead of linting: a missing jq notifies once per session and agent, a missing actionlint once per session (all agents share it), both renewed every eighth skip",
         "Writes nothing — not the repository, not Claude Code user settings, not pluginConfigs, not the plugin cache",
         "After pointing at each remediation, re-runs the relevant probe and reports its actual result rather than accepting the reader's report that they installed something"
       ]
@@ -65,7 +66,7 @@
         "Reports the absent config as INFO and never as a FAIL, because actionlint runs with its built-in defaults without one",
         "States that actionlint auto-discovers the config from the repository when present, and that this plugin owns no consumer-project configuration",
         "Does not create the config file and does not offer to create it",
-        "Names the actual once-per-session skip causes — a missing jq, a missing actionlint binary, or the disabled toggle — instead of accepting the absent config as the explanation"
+        "Names the actual skip causes — a missing jq (notice once per session and agent), a missing actionlint binary (notice once per session, renewed every eighth skip), or the disabled toggle — instead of accepting the absent config as the explanation"
       ]
     },
     {
