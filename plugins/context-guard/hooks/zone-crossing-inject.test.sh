@@ -1435,16 +1435,21 @@ parity_pair CG_FUTURE_SLACK "future slack" "$res_future"
 
 hook_reuse_src=$(sed -n '/^CG_[A-Z_]*=[0-9]*$/p;/^cg_iso_to_epoch() {/,/^}/p;/^cg_ts_fresh() {/,/^}/p;/^cg_shipped_band() {/,/^}/p' "$HOOK")
 PH="$WORK/parity-home"
-now_epoch=$(date +%s)
 for off in -61 -59 59 61 599 601; do
-  # a snapshot captured <off> seconds ago (negative: that far in the future)
-  ts=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' $((now_epoch - off)))
-  mkdir -p "$PH/$CTX_REL"
-  printf '{"captured_at":"%s","session_id":"pw","context_window":{"used_percentage":10,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
-    "$ts" >"$PH/$CTX_REL/pw.json"
-  res_word=$(HOME="$PH" bash "$RESOLVER" pw 2>/dev/null)
-  bash -c "$hook_reuse_src"$'\n''cg_ts_fresh "$1"' _ "$ts" 2>/dev/null
-  hook_fresh=$?
+  # A snapshot captured <off> seconds ago (negative: that far in the future).
+  # The resolver and the hook each read the clock, so a sample counts only when
+  # the second did not roll over between building the timestamp and both reads.
+  while :; do
+    now_epoch=$(date +%s)
+    ts=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' $((now_epoch - off)))
+    mkdir -p "$PH/$CTX_REL"
+    printf '{"captured_at":"%s","session_id":"pw","context_window":{"used_percentage":10,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
+      "$ts" >"$PH/$CTX_REL/pw.json"
+    res_word=$(HOME="$PH" bash "$RESOLVER" pw 2>/dev/null)
+    bash -c "$hook_reuse_src"$'\n''cg_ts_fresh "$1"' _ "$ts" 2>/dev/null
+    hook_fresh=$?
+    [[ "$(date +%s)" == "$now_epoch" ]] && break
+  done
   [[ "$res_word" == unknown ]] && res_fresh=1 || res_fresh=0
   if [[ $res_fresh -eq $hook_fresh ]]; then
     ok "parity: snapshot ${off}s old is treated alike (fresh=$((1 - res_fresh)))"

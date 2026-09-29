@@ -58,6 +58,9 @@ zone bands, zones.json shape) are owned by
    and the PostCompact marker do not launch and are not enforced. Report that a hook that fails to
    launch is non-blocking, so nothing else says so. The statusline tee and shim do not use `node`.
    Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude Code.
+   The Node claim was verified 2026-09-29 against the setup page above; recheck when a Claude Code
+   release note says the native binary bundles Node or runs hooks without it, or when that page
+   stops saying the native binary needs no Node.
 2. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
    pre-computed shim value compares `~/.claude/context-guard/bin/statusline-shim.sh` (the durable
    shim copy) against `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and
