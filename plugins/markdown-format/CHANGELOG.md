@@ -9,13 +9,14 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - The SessionStart prerequisite probe honors `markdown_format_enabled`: the launcher skips it when the switch is off.
 - The missing-`markdownlint-cli2` notice says it is shown on the first skip and renewed every eighth, not that it latches once per session ([#4265](https://github.com/melodic-software/claude-code-plugins/issues/4265)). A test covers the 8-fire sequence.
-- The setup skill prescribes `-s user` and defers to the plugin-reconfiguration convention instead of telling the reader to copy the scope from `claude plugin list`.
+- The setup skill tells the reader to pass the scope `claude plugin list` reports, and `user` from the home directory, and defers to the plugin-reconfiguration convention.
 - The check skill runs its own `jq` probe via Bash; the pre-computed row in the setup skill does not run under `/markdown-format:check`.
 
 ### Changed
 
 - README: notice paragraphs are split by class, the session-start probe and `/markdown-format:check` are documented, and the reason `jq` is absent from `prerequisites.json` is stated.
 - The hook comment states that `rewrite-guard.sh` is sourced only for the gitignore helper.
+- README Requirements declare Node.js on `PATH`, which every hook row launches through, and the setup `check` probes it. The hook budget figures are annotated as predating the launcher and the SessionStart probe.
 
 ## [0.11.78] - 2026-09-28
 
@@ -46,7 +47,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). No hook row of this plugin passed either flag at the time.
 
 ## [0.11.73] - 2026-09-28
 
@@ -97,6 +98,8 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ## [0.11.67] - 2026-09-27
 
+### Changed
+
 - **`setup` probes `jq` at load time.** The `command -v jq` check runs as pre-computed context, so
   `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
   policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
@@ -104,10 +107,15 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ## [0.11.66] - 2026-09-27
 
+### Fixed
+
+- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
+
+### Changed
+
 - README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
 - README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
 - README and markdown-format.sh: document the timeout tail. `--fix` rewrites in place before the hook reports, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
-- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
 
 ## [0.11.65] - 2026-09-27
 

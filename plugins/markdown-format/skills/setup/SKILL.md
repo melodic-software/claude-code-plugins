@@ -44,21 +44,25 @@ INFO. The hook and the `SessionStart` probe both exit through the enabled gate b
 probing anything, so a deliberately disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements),
+1. **Node.js.** Every hook row starts through `node hooks/exec-bash.mjs`, so without
+   `node` on `PATH` no hook launches and nothing is enforced. Probe it via Bash with
+   `{ command -v node 2>/dev/null || echo absent; }` (a hook cannot report its own missing
+   launcher). FAIL if absent; the remediation is to install Node.js (README Requirements).
+2. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
-2. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. FAIL if absent *and* the repository opted in per item 4: the
+3. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. FAIL if absent *and* the repository opted in per item 5: the
    hook then skips with a visible notice, once per session and agent and renewed every
    eighth skip, instead of formatting. Without
    that opt-in the hook decides the opt-in first and emits nothing at all, so report jq's
    absence as INFO there. The missing config, not jq, is why nothing happens.
-3. **`markdownlint-cli2`.** Resolve it exactly the way the hook's resolution code does
+4. **`markdownlint-cli2`.** Resolve it exactly the way the hook's resolution code does
    (its sanctioned lookup paths, including its symlink/escape validation of a repo-local
    shim). A binary or shim the hook would reject must not PASS here. Then confirm the
    resolved tool actually executes. Run it with `--version` (a repo shim can resolve yet
    still be broken: missing Node interpreter, dangling target); resolution without
    successful execution is FAIL, with the execution error in the remediation line. FAIL
    when nothing the hook would accept resolves.
-4. **Consumer markdownlint config, the opt-in.** This is what activates the hook, not a
+5. **Consumer markdownlint config, the opt-in.** This is what activates the hook, not a
    style detail. Mirror its walk: from an edited file's directory up to the repo root, so
    nested configs apply to nested files and the opt-in is per-path (a root config covers
    the tree; a `docs/` config covers only `docs/`). Where that walk finds nothing the hook
@@ -72,7 +76,7 @@ restores the FAIL semantics.
    and that is the whole reason formatting is not happening. Name the remediation in the
    same line rather than leaving the reader to infer it. Never report markdownlint's own
    default rules as the fallback. An unconfigured repo gets no rules, not the defaults.
-5. **Path scope, the repository's `.gitignore`.** INFO: the hook leaves a gitignored
+6. **Path scope, the repository's `.gitignore`.** INFO: the hook leaves a gitignored
    file alone, neither rewriting nor reporting on it, because a path the repository
    excludes is not part of the reviewable artifact. List the ignored Markdown the
    repository carries as out of scope with
@@ -81,9 +85,9 @@ restores the FAIL semantics.
    as ignored even when a pattern matches it. Report the effective
    `${user_config.markdown_format_lint_gitignored}` value (unexpanded or empty means
    default `false`, i.e. gitignored files are skipped); `true` restores linting there.
-6. **Hook toggle.** Report the effective `markdown_format_enabled` value:
+7. **Hook toggle.** Report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
-7. **Hook registration.** INFO: confirm the plugin is enabled for this project
+8. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)
@@ -116,11 +120,14 @@ install command's exit code alone. For everything else `apply` only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
   any time, or headless
-  `claude plugin install markdown-format@<marketplace> -s user --config markdown_format_enabled=true`
+  `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Pass `-s user`; do not copy a scope from `claude plugin list`. A rejected value prints a warning yet exits 0, so read the output.
+  manifest default. Pass the scope `claude plugin list` reports for the plugin, and for a `project`
+  or `local` scope run from that project's directory, so the rerun matches the existing install
+  record; from the home directory the list can label one file as both `user` and `project`, so
+  pass `user`. A rejected value prints a warning yet exits 0, so read the output.
   This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports

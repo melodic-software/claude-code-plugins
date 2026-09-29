@@ -15,7 +15,7 @@ Run the read-only check. Do not run `apply`. Do not install, download, or invoke
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. The pre-computed `jq` row in that file does not run under this skill, so for item 2 run `{ command -v jq 2>/dev/null || echo absent; }` via Bash and report its result as the `jq` PASS/FAIL row. Stay read-only and install-free. Report the PASS/FAIL table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. The pre-computed `jq` row in that file does not run under this skill, so for item 3 run `{ command -v jq 2>/dev/null || echo absent; }` via Bash and report its result as the `jq` PASS/FAIL row. Stay read-only and install-free. Report the PASS/FAIL table. Stop.
 
 ## Next
 

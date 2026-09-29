@@ -128,6 +128,9 @@ this is the likely cause.
 
 The hook requires the following tools:
 
+- [Node.js](https://nodejs.org/) on `PATH`. Every hook row starts through
+  `hooks/exec-bash.mjs`, so without `node` the hooks do not launch and nothing is
+  enforced. `/markdown-format:check` reports it.
 - Bash 3.2 or later. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run this Bash hook; WSL is also supported.
@@ -211,7 +214,11 @@ Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budge
 this hook is always-on for every `Write` and `Edit` of a `.md` or `.mdc` file (the two `if`
 rows in `hooks/hooks.json` keep every other extension from spawning it), so its cost on a clean
 Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, twelve interleaved
-trials against an interleaved `bash -c :` floor (2026-09-02):
+trials against an interleaved `bash -c :` floor (2026-09-02). These figures predate the `node`
+launcher (`hooks/exec-bash.mjs`) and the `SessionStart` probe: each fire now adds one `node`
+process before `bash`, and the figures have not been re-measured. The `SessionStart` probe is
+exec form, so its k is 1 (the launcher); it then runs `bash` and `probe-prerequisite.sh` once
+per session start. It is not measured here:
 
 | Event | Fires | Spawn-equivalents | What changed |
 | --- | --- | --- | --- |
@@ -346,7 +353,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 This plugin's PostToolUse hook is filtered to `*.md` and `*.mdc` by an `if`
 condition on its two `Write|Edit` rows, so it costs nothing on any other file.
 On a Markdown edit it owes the marketplace's
-[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
+[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure. The figures below
+predate the `node` launcher and the `SessionStart` probe (see
+[Hook budget accounting](#hook-budget-accounting)).
 
 **Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
 interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
