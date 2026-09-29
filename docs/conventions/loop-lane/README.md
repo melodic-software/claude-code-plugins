@@ -236,13 +236,12 @@ Three rules make the signal deterministic:
   what makes the seam fail loud rather than silent; no reconciliation pass is needed, and none
   would be reliable, since a compensating write can stop in exactly the same window.
 
-**Background-job launch mode.** Claude Code background jobs block Write/Edit to the shared
-default-branch checkout until the session calls `EnterWorktree`. Loop lanes run on that checkout and
+**Background-job launch mode.** Launch mode decides whether the escalation record file can be
+written. The tracker marker comment stays the escalation of record either way. A loop lane still
 must not call `EnterWorktree` (the terminal would end the long-lived orchestrator session). The
-gitignore preflight above does not lift the harness block, so the record write is refused while the
-tracker marker comment still posts. Operators who need the notification hook leg must launch the
-lane in a foreground interactive session, or accept that background launches lose the record
-([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+observed conditions and their verification record are in the work-loop skill's "Background-job
+launch mode" paragraph in
+[`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/skills/work-loop/SKILL.md).
 
 The `summary` restates the marker comment's one-line question, text the lane already published on
 the tracker, so the record itself adds no new secret surface. The hook payload the seam sends is
