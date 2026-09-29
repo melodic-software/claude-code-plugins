@@ -28,28 +28,24 @@
 
 ### Changed
 
-- **`write-for-agents` lists the system-prompt file and subagent append flags**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
-  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
-  rows are in `docs/specs/agent-doc-surfaces.md`.
+- No functional change. No plugin file changed; this release restates the 0.23.10 entry.
 
 ## [0.23.10] - 2026-09-28
 
 ### Changed
 
-- **`write-for-agents` lists the system-prompt file and subagent append flags**
+- **`write-for-agents` gains a "CLI prompt appends" section**
   ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
-  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
-  rows are in `docs/specs/agent-doc-surfaces.md`.
+  `reference/agent-doc-surfaces.md` records that `--append-system-prompt-file` is not `-p`-only,
+  and that the two `--append-subagent-system-prompt` forms are `-p` only, cannot be combined, and
+  need Claude Code v2.1.261 (file form) or v2.1.205 (text form) or later.
 
 ## [0.23.9] - 2026-09-28
 
 ### Changed
 
 - **`write-for-agents` CLI surface table names the file and subagent append flags**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 261-003).
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
   `reference/agent-doc-surfaces.md` now lists `--append-system-prompt-file`,
   `--append-subagent-system-prompt`, and `--append-subagent-system-prompt-file` beside
   `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
@@ -59,12 +55,7 @@
 
 ### Changed
 
-- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Ten of the 11 listed skills
-  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
-  nearest sibling. What the bodies already carry is cut: verdict-weighing axes, classification
-  detail, and the long "not for" lists. `check-listing-budget.sh plugins/docs-hygiene/skills` goes
-  from 7,985 to 5,234 characters, under the 8,000 default. No skill is renamed or merged, and
-  `setup` and `generate-file-name-gate` stay user-invoked and unlisted.
+- No functional change. Duplicate of 0.23.5 (#4661); the description trim shipped there.
 
 ## [0.23.7] - 2026-09-28
 
