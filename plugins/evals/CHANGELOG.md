@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.3.3] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `methodology` skill's `eval-design` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
 ## [0.3.2] - 2026-09-28
 
 ### Added

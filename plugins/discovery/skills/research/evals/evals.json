@@ -382,6 +382,20 @@
         "Confirms each cited primary from its on-disk artifact before counting it as Tier 0/1",
         "Leaves an unanswered gap open rather than closing it in the merge"
       ]
+    },
+    {
+      "id": 27,
+      "name": "breadth-token-narrows-below-session-effort",
+      "prompt": "/discovery:research breadth=low who owns the vendor folder C:\\eSupport on this machine and is there a supported cleanup [Caller effort for this load resolves to high. Resolve the envelope yourself before dispatching.]",
+      "files": [],
+      "expected_output": "Strips breadth=low from the topic and writes Topic: without it. Resolves source breadth as the lower of the token and caller effort, so the envelope carries Source breadth: low and Budget: low even though caller effort is high. The low row runs Phase 0 if bounded, Phase 1 at its floors and Phase 2 as the falsification query only, skipping Phase 3 and Phase 4, and the artifact names the skipped phases. It states that the token only narrows and does not widen the researcher's maxTurns: 40.",
+      "expectations": [
+        "The Topic: line does not contain the breadth=low token",
+        "The envelope carries Source breadth: low although caller effort is high",
+        "The envelope's Budget: line opens with low",
+        "Phase 3 and Phase 4 are skipped and named as skipped in the artifact",
+        "Does not treat breadth= as able to raise breadth or extend maxTurns"
+      ]
     }
   ]
 }

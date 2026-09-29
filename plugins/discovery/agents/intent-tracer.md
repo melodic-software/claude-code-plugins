@@ -60,7 +60,8 @@ load-time machinery, no user turn, no unresolved target.
   why the problem was worth solving, why this design beat the alternatives argued at the time, why
   the thing still exists. Intent is what decides which one is wanted. Answer the wrong one and
   both sides get a well-formed artifact about a question nobody asked.
-- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth
+  as `low`, `medium`, or `full` (parent contract, "`Budget:` vocabulary");
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
   reserve your last turns" below). A value above that default is ignored and noted in

@@ -144,7 +144,7 @@ LANES: tuple[tuple[str, str, str], ...] = (
 
 # The canonical presence-gate token owned by docs/conventions/native-references.
 # A baked description phrase carries it; the reverse-parity scan keys on it.
-GATE_TOKEN = "resolves in your session"
+GATE_TOKEN = "resolves in this session"
 
 # The parity token for marketplace-plugin rows (a first-party plugin skill is
 # not a native surface, so its routing lines phrase per seam-phrasing, not
