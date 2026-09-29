@@ -45,10 +45,12 @@ alone will not tell you what runs.
 pre-computed `jq` and `node` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report those probes informationally and note that re-enabling
+restores the FAIL semantics. A missing `node` stays FAIL whatever the toggle says: the hook row
+launches `node` before `exec-bash.mjs` can evaluate the gate, so every Write/Edit still tries an
+unavailable command until `node` is installed or the plugin registration is disabled.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
@@ -97,8 +99,8 @@ tool, so `apply` installs nothing and writes nothing. It only points:
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   rerun adds a second install record at the scope passed and enables the plugin there; the
   value itself always lands in user settings. A rejected value prints a warning yet exits 0,
-  so read the output. Basis: that convention's Verified-version record. Verified 2026-09-27 on
-  Claude Code 2.1.283. Recheck when that section is updated for a newer release. This skill never
+  so read the output. Basis for the same-scope write, scope-mismatch and user-settings claims:
+  that convention's Verified-version record. Verified 2026-09-27 on Claude Code 2.1.283. Recheck when that section is updated for a newer release. This skill never
   writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
