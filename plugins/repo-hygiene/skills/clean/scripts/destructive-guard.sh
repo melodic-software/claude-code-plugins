@@ -23,24 +23,24 @@
 # destructive spellings an agent might fumble and route them through the clean
 # skill's confirmation gate. The durable destructive-op boundary is the consumer's own
 # settings.json permissions.deny plus their git hooks, which apply independent
-# of clean-session state. Known coverage gaps are accepted, not patched reactively.
+# of clean-session state. Coverage is whatever is_destructive() lists.
 #
-# Branch and remote-branch deletion are an accepted coverage gap, not a defect
-# (#3852, 2026-09-28). Claim: this net does not match `git branch -D`/`-d` or
-# `git push --delete`. Local deletion goes through git-branch-delete.sh after
-# the confirmation gate; remote deletion is not a sanctioned skill path. Basis:
-# is_destructive() below, SKILL.md section 4.2, and git-branch-delete.sh.
-# Recheck: git-branch-delete.sh stops being the only sanctioned local-delete
-# path, or a paid slice adds those patterns with an ack path that does not
-# duplicate the confirmation gate.
+# Branch deletion. Claim: as of 2026-09-29 this net does not match
+# `git branch -D`/`-d` or `git push --delete`. Whether it should is an open
+# owner decision on #3852. Local deletion through git-branch-delete.sh runs
+# `git update-ref -d`, so a pattern for bare `git branch -D` would not fire on
+# that confirmed path. Basis: is_destructive() below and the allow cases in
+# destructive-guard.test.sh. Recheck: the owner answers #3852, or
+# is_destructive() changes.
 #
-# The skill's own mutating scripts are in the net only in their --apply
-# spelling (clean-caches, clean-build, git-prune, git-tree-reset,
-# git-tree-reset-batch, remove-path, clean-batch). A dry-run stays allowed so
-# the confirmation gate can still run. `git worktree remove` with a force flag
-# is in the net too: the skill does not own worktree removal, and a force
-# remove during a clean session is the accidental spelling the audit recorded.
-# The ack prefix still lifts either block after the confirmation gate.
+# Apply scripts and forced worktree removal. #3346 (#5130) added the seven
+# mutating scripts of the clean skill (clean-caches, clean-build, git-prune,
+# git-tree-reset, git-tree-reset-batch, remove-path, clean-batch) in their
+# --apply spelling, and `git worktree remove` with a force flag. Claim: as of
+# 2026-09-29 a dry-run of those scripts is allowed so the confirmation gate can
+# still run, and the ack prefix lifts either block after the gate. Basis:
+# is_destructive() below and section 2e of destructive-guard.test.sh. Recheck:
+# is_destructive() changes.
 
 set -uo pipefail
 
