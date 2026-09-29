@@ -17,16 +17,19 @@
 # was silently dropped after being written; a question never written at all is
 # out of reach of any file-based check and is the skill's contract to keep.
 #
-# Exit 0 = every registered question is resolved (register is clean)
+# Exit 0 = every registered question is resolved (register is clean) and, with
+#          --procedure, the procedure checks below pass
 # Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
-#          contract is not locked)
+#          contract is not locked), or --procedure found a procedure defect
+#          (the register is gradeable but the interview did not complete its
+#          own procedure; fix the ledger or Brief and re-run)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate or
 #          non-contiguous Q id, or a named `--brief` that is missing
 #
 # Usage:
-#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>]
+#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure]
 #   bash check-open-questions.sh --help
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
@@ -47,13 +50,35 @@
 # headings and fences are not graded, so a stray fence in an unrelated section
 # of a large planning document cannot fail a clean register.
 #
+# --procedure is OPT-IN and adds checks a script can derive from the ledger, so
+# a caller that omits it keeps every verdict and exit code above unchanged:
+#   - round numbers in the register rows run contiguously from 1 (a `round`
+#     field that is not `round <N>` with N >= 1 counts as a defect)
+#   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
+#     non-empty resolution (the fifth field)
+#   - with --brief, the Brief holds every section of the literal Brief template:
+#     TLDR, Goal, Constraints, Acceptance criteria, Captured assumptions,
+#     Out-of-scope, Deferred questions (headings only; content is not graded)
+# Each defect is named on stderr. Without --procedure the verdict says
+# `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
+# register with a procedure defect exits 1 with `status=incomplete` (`open` when
+# a row is also unresolved); ungradeable stays exit 2 with `procedure=unchecked`.
+# With --procedure the named Brief is always read, so an unterminated fence in
+# it is ungradeable even when the register retired nothing.
+#
+# What stays a model judgment and is NOT checked here: whether the Step 1
+# survey genuinely grounded the questions, whether the domain was classified,
+# whether the register was written at ask-time rather than answer-time, and
+# whether the frontier was recomputed between rounds. A file written after the
+# fact looks identical to one written at ask-time.
+#
 # Fenced blocks (``` or ~~~) are documentation in both files. A fence closes
 # only on a line of the same character at least as long as its opener with
 # nothing else on it, so a four-backtick fence can quote a three-backtick
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
 
 set -uo pipefail
 
@@ -141,10 +166,11 @@ extract_section() {
 ledger=""
 brief=""
 brief_named=0
+procedure_on=0
 
 die_ungradeable() {
   echo "error: $1" >&2
-  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable"
+  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable procedure=unchecked"
   exit 2
 }
 
@@ -170,6 +196,10 @@ while [[ $# -gt 0 ]]; do
   --brief=*)
     brief="${1#*=}"
     brief_named=1
+    shift
+    ;;
+  --procedure)
+    procedure_on=1
     shift
     ;;
   *)
@@ -231,6 +261,9 @@ superseded=0
 seen_ids=" "
 deferred_ids=""
 expected=1
+rounds_seen=" "
+max_round=0
+proc_problems=""
 
 # What counts as a CANDIDATE register row, defined once. The fenced branch and
 # the live branch below both test it, and they must agree: a shape skipped as
@@ -311,6 +344,26 @@ while IFS= read -r line; do
   expected=$((expected + 1))
 
   registered=$((registered + 1))
+
+  # Fields after the id: status | round | question | resolution. A question
+  # containing `|` shifts the resolution, which can only turn a missing one into
+  # a present one, never fail a row that has one.
+  after_status="${rest#*|}"
+  round_field="${after_status%%|*}"
+  round_field="${round_field#"${round_field%%[![:space:]]*}"}"
+  round_field="${round_field%"${round_field##*[![:space:]]}"}"
+  resolution="${after_status#*|}"
+  if [[ "$resolution" == *"|"* ]]; then resolution="${resolution#*|}"; else resolution=""; fi
+  resolution="${resolution#"${resolution%%[![:space:]]*}"}"
+  resolution="${resolution%"${resolution##*[![:space:]]}"}"
+  if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
+    round_num="${BASH_REMATCH[1]}"
+    rounds_seen="$rounds_seen$round_num "
+    [[ "$round_num" -gt "$max_round" ]] && max_round="$round_num"
+  else
+    proc_problems="$proc_problems$id: round field is not 'round <N>' (N >= 1): '$round_field'"$'\n'
+  fi
+
   # Statuses match case-insensitively without a subprocess per row (a `tr` fork
   # costs over a second per row on a loaded Windows host). nocasematch, not
   # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
@@ -329,6 +382,12 @@ while IFS= read -r line; do
     deferred_ids="$deferred_ids$id "
     ;;
   *) die_ungradeable "unknown status '$status_field' in row: $line ($where)" ;;
+  esac
+  case "$status_field" in
+  answered | deferred | withdrawn | blocked)
+    [[ -n "$resolution" ]] || proc_problems="$proc_problems$id: $status_field row has an empty resolution"$'\n'
+    ;;
+  *) ;;
   esac
   shopt -u nocasematch
 done <<<"$section"
@@ -393,12 +452,48 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
+procedure_state="unchecked"
+if [[ "$procedure_on" -eq 1 ]]; then
+  for ((round_num = 1; round_num <= max_round; round_num++)); do
+    case "$rounds_seen" in
+    *" $round_num "*) ;;
+    *) proc_problems="${proc_problems}round $round_num has no register row (rounds must run contiguously from 1; highest is $max_round)"$'\n' ;;
+    esac
+  done
+
+  if [[ "$brief_named" -eq 1 ]]; then
+    for section_pattern in 'tl;?dr' 'goal' 'constraints' 'acceptance criteria' \
+      'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
+      section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
+      section_status=$?
+      if [[ "$section_status" -eq 4 ]]; then
+        die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+      elif [[ "$section_status" -ne 0 ]]; then
+        die_ungradeable "could not read the headings of: $brief"
+      fi
+      [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
+    done
+  fi
+
+  if [[ -n "$proc_problems" ]]; then
+    procedure_state="fail"
+    printf 'procedure: %s\n' "${proc_problems%$'\n'}" >&2
+  else
+    procedure_state="ok"
+  fi
+fi
+
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 
 if [[ $((open_count + superseded)) -gt 0 ]]; then
-  echo "$verdict status=open"
+  echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi
 
-echo "$verdict status=clean"
+if [[ "$procedure_state" == "fail" ]]; then
+  echo "$verdict status=incomplete procedure=fail"
+  exit 1
+fi
+
+echo "$verdict status=clean procedure=$procedure_state"
 exit 0
