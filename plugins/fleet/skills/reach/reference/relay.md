@@ -44,8 +44,12 @@ interop still answers by absolute path even though `$WSL_INTEROP` is unset there
 account's login shell so `claude` is on `PATH`:
 
 ```console
-wsl.exe -d <distro> --cd /tmp -- <shell> -lc 'claude -p "<prompt>" < /dev/null'
+wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude -p "<prompt>" < /dev/null'
 ```
+
+Use `--exec`, not `--`: with `--` the distro's login shell re-parses the tail first. A
+native-Windows Claude runs this through its Bash tool, which is Git Bash, so bash quoting applies
+(`'\''` for an apostrophe); through its PowerShell tool, pwsh quoting applies (`''`).
 
 **Either lane to another machine (R2, R3, R5, R6).** The hop is always the target's WSL sshd
 (`<wsl-alias>`, port 2222), through the Windows OpenSSH client. For the target's WSL lane, run
@@ -198,7 +202,7 @@ fetched 2026-09-29 against 2.1.284. Recheck when a release note names any of tho
 | R1 WSL to this machine's Windows | `powershell.exe -NoProfile -Command` ran a script. `claude.exe -p` listed the Windows sessions; `--session-id` then `--resume` recalled a word from the first turn; a second `claude.exe -p` messaged the receiver `claude.exe -p -n win-relay-target`, which acknowledged mid-turn |
 | R2 WSL to other machine's WSL | A plain command ran over ssh. `claude -p "SendMessage to <name> ..."` delivered to an interactive session and to a `-p -n` receiver with `crossSessionInbound: accept`, across accounts. `--session-id` then `--resume` recalled a word. One stream-json pipe ran two turns under one session id. `--bg` started in a trusted directory and failed in an untrusted one; `agents --json --all`, `stop` and `rm` worked; `logs` accepted only the id |
 | R3 WSL to other machine's Windows | Reached the target's `claude.exe`: `auth status` reported `loggedIn: false`, and `-p` failed with the OAuth expired error |
-| R4 Windows to this machine's WSL | `wsl.exe -d <distro> --cd /tmp -- zsh -lc` ran a script and a `claude -p` that listed the WSL sessions. `wsl.exe` was launched through interop from WSL, not from a Windows shell |
+| R4 Windows to this machine's WSL | A native-Windows `claude.exe -p` ran `wsl.exe -d <distro> --cd /tmp --exec zsh -lc 'hostname; echo ok-exec'` with its Bash tool (Git Bash) and printed the WSL hostname and `ok-exec`. Through the same tool, `'what'\''s up'` arrived intact and `'what''s up'` arrived as `whats up`. Separately, a `claude -p` over this hop listed the WSL sessions |
 | R5, R6 from a Windows origin | Untested; same far-side hop as R2 and R3 |
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |

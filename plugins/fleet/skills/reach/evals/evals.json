@@ -60,7 +60,7 @@
     {
       "id": 10,
       "prompt": "From a PowerShell window on the laptop, ask the WSL side of the laptop to run the test suite in my repo and report back.",
-      "expected_output": "Uses row R4: resolves the distro name from wsl.exe -l -q rather than guessing, then wsl.exe -d <distro> --cd /tmp -- <shell> -lc with claude -p \"<prompt>\" < /dev/null inside single quotes. Gives the prompt the whole task and a stop condition. Escapes any apostrophe for pwsh by doubling it. Prefers WSL as the agent lane since the repos and toolchain live there.",
+      "expected_output": "Uses row R4: resolves the distro name from wsl.exe -l -q rather than guessing, then wsl.exe -d <distro> --cd /tmp --exec <shell> -lc (--exec, not --) with claude -p \"<prompt>\" < /dev/null inside single quotes. Gives the prompt the whole task and a stop condition. Escapes any apostrophe by doubling it, which is the pwsh rule; notes that Git Bash (a native-Windows Claude's Bash tool) needs '\\'' instead, because doubling drops the apostrophe there. Prefers WSL as the agent lane since the repos and toolchain live there.",
       "files": []
     },
     {

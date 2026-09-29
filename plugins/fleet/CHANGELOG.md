@@ -8,8 +8,9 @@ All notable changes to the `fleet` plugin are documented here. Format follows
 ### Added
 
 - `reach` covers same-machine cross-lane reach: WSL to native Windows by running `claude.exe` over
-  interop, and Windows to WSL through `wsl.exe -d <distro>`, with the distro read from
-  `wsl.exe -l -q`.
+  interop, and Windows to WSL through `wsl.exe -d <distro> --exec`, with the distro read from
+  `wsl.exe -l -q`. Apostrophe quoting follows the origin shell: `'\''` in bash and Git Bash,
+  `''` in pwsh.
 - A route matrix at the top of `reach`: every origin lane against every target lane, each row
   carrying its command shape and whether it was tested.
 - A Verbs section: run a script, prompt, multi-turn (`--session-id` then `--resume`), one open

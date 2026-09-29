@@ -35,7 +35,7 @@ what each run showed.
 | R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> < /dev/null` | tested: script (`powershell.exe`), list, multi-turn, message a `-n` receiver |
 | R2 | WSL | other machine, WSL | `<ssh> <wsl-alias> 'claude <agent-args> < /dev/null'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
 | R3 | WSL | other machine, Windows | `<ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | reaches `claude.exe`; needs `/login` at that machine's console |
-| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp -- <shell> -lc 'claude <agent-args> < /dev/null'` | tested: script, list (`wsl.exe` launched through interop, not from a Windows shell) |
+| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude <agent-args> < /dev/null'` | tested: script from a native-Windows `claude.exe` (its Bash tool, Git Bash); list |
 | R5 | Windows | other machine, WSL | `ssh.exe <wsl-alias> 'claude <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R2) |
 | R6 | Windows | other machine, Windows | `ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R3) |
 
@@ -171,9 +171,14 @@ on-demand tasks FLEET.md lists.
 - **Redirect stdin, always.** `claude -p` reads stdin, so without `< /dev/null` (or `ssh -n`) it
   waits several seconds before answering every turn.
 - **Escape apostrophes in `<prompt>`.** Every row except R1 wraps the remote command in single
-  quotes on the LOCAL shell, so a `'` in the prompt ("what's") closes that quote early. In bash,
-  replace each `'` with `'\''`, or wrap the command in `$'...'` and write `\'`. In pwsh (R4 to R6),
-  double it: `''`.
+  quotes on the LOCAL shell, so a `'` in the prompt ("what's") closes that quote early. The rule
+  follows the origin shell, not the lane:
+  - **bash, zsh, and Git Bash** (a native-Windows Claude's Bash tool, R4 to R6): replace each `'`
+    with `'\''`, or wrap the command in `$'...'` and write `\'`. Doubling (`''`) silently drops the
+    apostrophe here: `'what''s'` arrives as `whats`.
+  - **pwsh** (a native-Windows Claude's PowerShell tool, or a pwsh terminal): double it, `''`.
+- **Use `wsl.exe --exec`, not `--`.** With `--`, the distro's login shell re-parses the rest of the
+  line before `<shell> -lc` sees it; `--exec` hands the arguments over as they are.
 - **Probe interop by absolute path.** `cmd.exe /c` prints nothing inside an sshd session and reads
   as "interop is broken" when it is not; run the `.exe` by absolute path.
 - **Parse the JSON, not the stream.** `SessionEnd` hooks print `Hook cancelled` on stdout. Extract
