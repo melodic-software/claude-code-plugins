@@ -7,7 +7,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 ### Fixed
 
-- **`generate` argument hint lists the `retro` and `search` subcommands again.** The `--since`
+- **`generate` argument hint lists the `retro` and `search` subcommands again, action first.** The `--since`
   choices shorten to `1d|7d|30d` to stay within the 100-character budget
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)). The duplicate
   `**Arguments.**` paragraph in the skill body is gone; the Arguments table carries the full flag list.
@@ -25,8 +25,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 - **Argument hints** on `generate` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
-  The hint keeps the common flags and the `retro|search` subcommands; the full flag list is the
-  Arguments table in the skill body.
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
 
 ## [0.7.44] - 2026-09-28
 

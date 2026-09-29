@@ -1,6 +1,6 @@
 ---
 description: "Build a source-backed AI industry briefing from official vendor publications, configured RSS feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs. Use when: 'ai briefing', 'ai news', 'what's new in AI', 'catch me up on AI', 'prep for AI meeting', 'AI roundup', or 'generate AI slides'."
-argument-hint: "[--profile <name>] [--since <1d|7d|30d>] [--format markdown|slides|html] [--yes] [retro|search]"
+argument-hint: "[retro|search] [--profile <name>] [--since <1d|7d|30d>] [--format markdown|slides|html] [--yes]"
 user-invocable: true
 disable-model-invocation: false
 ---
