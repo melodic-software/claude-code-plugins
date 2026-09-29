@@ -215,8 +215,9 @@ cannot carry it. For that repository, porcelain output and local heads that are 
 `accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
 repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
 the acknowledgement the verdict is unchanged. A refusal alone does not prevent deletion, so the
-lane keeps every other check in force and records the acknowledgement. Before deleting under it, tell the operator that unpushed commits
-and untracked or ignored files in the checkout will be lost.
+lane keeps every other check in force and records the acknowledgement. Before deleting under it,
+tell the operator that unpushed commits and untracked or ignored files in the checkout will be
+lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
