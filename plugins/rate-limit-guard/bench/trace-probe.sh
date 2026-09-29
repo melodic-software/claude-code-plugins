@@ -36,6 +36,9 @@ if ((COUNT)); then
   printf '#!%s\nprintf "%%s\\n" "$$" >>"%s"\nexec "$(PATH="%s" type -P "${0##*/}")" "$@"\n' \
     "$BASH" "$LOG" "$REAL_PATH" >"$W/stub"
   chmod +x "$W/stub"
+  # PS4 is set from BASH_ENV, inside the traced shell: bash 5.2 drops a PS4 that
+  # arrives only in the environment, which left the pid prefix off every line.
+  printf '%s\n' "PS4='@\${BASHPID}@ '" >"$W/ps4.sh"
   # The counted render's PATH holds only these stubs, so an external the tee
   # starts calling that is missing here fails loudly instead of going uncounted.
   for c in jq mv rm mkdir chmod find sleep date; do
@@ -48,7 +51,7 @@ if ((COUNT)); then
     local label="$1" home="$2" trace="$W/trace.txt" main n
     : >"$LOG"
     printf '%s' "$3" | HOME="$home" PATH="$W/stubs" RLG_TEE_DRAIN_INTERVAL=30 \
-      PS4='@${BASHPID}@ ' BASH_XTRACEFD=9 "$BASH" -x "$TEE" "$PASSTHROUGH" \
+      BASH_ENV="$W/ps4.sh" BASH_XTRACEFD=9 "$BASH" -x "$TEE" "$PASSTHROUGH" \
       >/dev/null 2>"$W/err" 9>"$trace"
     if grep -q 'command not found' "$W/err"; then
       echo "trace-probe: the tee called an external with no stub; add it to the stub list:" >&2

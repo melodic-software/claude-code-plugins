@@ -191,6 +191,18 @@ else
   fail "trace-probe --count: fake tee rc=$RC out=$OUT"
 fi
 
+# --- trace-probe --count: pure-bash forks count too --------------------------
+# A subshell and a command substitution spawn no external. bash 5.2 drops a PS4
+# that is only in the environment, so the pid prefix must come from inside.
+printf '#!/usr/bin/env bash\n( : )\nx=$(printf x)\nset +o pipefail\n' >"$FAKE"
+OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count "$FAKE" 2>&1)"
+RC=$?
+if [[ $RC -eq 0 && "$(grep -c ': processes spawned: 2$' <<<"$OUT")" -eq 6 ]]; then
+  ok "trace-probe --count: a subshell and a command substitution count as 2 in every shape"
+else
+  fail "trace-probe --count: pure-bash fake tee rc=$RC out=$OUT"
+fi
+
 # --- trace-probe --count: an external with no stub is a loud failure ---------
 printf '#!/usr/bin/env bash\nuname\nset +o pipefail\n' >"$FAKE"
 OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count "$FAKE" 2>&1)"
