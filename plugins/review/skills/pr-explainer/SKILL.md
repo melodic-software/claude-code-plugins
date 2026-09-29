@@ -40,7 +40,7 @@ EOF
 
 Write stdout to an untracked path (a temp file is the default). Do not `git add` it. Tell the reader the path. The builder escapes every field and stamps the generator marker. Do not hand-write the HTML, do not pre-escape values, and do not put a diff URL in `href`. A page that bypasses the builder is not this lane's output; `${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs --check <file>` flags it.
 
-The page is a report. It has no loop-closure control and no script. Palette and the accessibility floor come from the rendered-views chrome reference; the builder inlines them so the file stays self-contained.
+The page is a report. It has no loop-closure control and no script. Palette and the accessibility floor come from the rendered-views chrome reference; the builder inlines them so the file stays self-contained. It inlines rather than syncs because the chrome reference lives in one plugin, so a registered byte-identical copy is not possible; `tests/pr-explainer-chrome.test.sh` fails when an inlined token drifts from the reference. The generator marker is an unkeyed SHA-256: it detects a missing, stale or zeroed digest, not a forged one, and the structural allowlist scan is the actual guarantee.
 
 ## Next
 
