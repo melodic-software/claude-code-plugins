@@ -102,7 +102,7 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
   cross-checked against each producer's own emitter script for the ids it constructs at run time.
   The `attribution:audit` producer holds crosswalk rows in that contract without an adopters-table
   row, which is why its ids appear here and its adoption status does not.
-- **As of.** 2026-09-27.
+- **As of.** 2026-09-29.
 - **Recheck trigger.** A new producer row lands in that contract's crosswalk, or an existing
   producer's emitter starts constructing an id this table does not list. Either shows up as a
   finding whose id reaches the rule-family step instead of the rule-id step.
