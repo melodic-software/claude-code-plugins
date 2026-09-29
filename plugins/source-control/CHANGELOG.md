@@ -13,7 +13,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
   `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
   lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
-  alternative or addition rather than invoking it.
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
 
 ## [0.62.27] - 2026-09-29
 
