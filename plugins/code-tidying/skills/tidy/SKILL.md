@@ -149,8 +149,9 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 `git checkout -b chore/tidy-<lane>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch, a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
 
-**`in-place`:** create no branch; stay on the current one. If it is the default branch, stop
-and tell the user.
+**`in-place`:** create no branch; stay on the current one. If it is the default branch, or the
+index already holds staged changes, stop and tell the user: the staged set this run hands back
+(or commits under `in-place=commit`) must be the tidyings alone.
 
 ### Phase C. Explore + research
 
