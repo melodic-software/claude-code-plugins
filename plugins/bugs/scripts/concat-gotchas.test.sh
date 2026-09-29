@@ -14,6 +14,10 @@ fi
 PASS=0
 FAIL=0
 
+# Fixture repos must never inherit the caller's git environment.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+NO_GIT=0
+
 FIXTURES="$(mktemp -d)"
 trap 'rm -rf "$FIXTURES"' EXIT
 
@@ -26,6 +30,9 @@ layer() {
 run_case() {
   local desc="$1" expected="$2"
   local actual
+  if [[ "$NO_GIT" -eq 0 && ! -e "$CLAUDE_PROJECT_DIR/.git" && "$CLAUDE_PROJECT_DIR" != "$HOME" ]]; then
+    git init -q "$CLAUDE_PROJECT_DIR"
+  fi
   actual="$(HOME="$HOME" CLAUDE_PROJECT_DIR="$CLAUDE_PROJECT_DIR" bash "$SCRIPT")"
   if [[ "$actual" == "$expected" ]]; then
     echo "PASS: $desc"
@@ -160,6 +167,31 @@ make seed
 '
 # shellcheck disable=SC2016  # backticks are literal markdown in the expected output
 run_case "fenced block inside Gotchas is kept whole" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Run the seed first:\n\n```bash\n## not a heading\nmake seed\n```\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
+
+HOME="${FIXTURES}/home-h"
+CLAUDE_PROJECT_DIR="$HOME"
+mkdir -p "$HOME/.claude"
+layer "$HOME/.claude/bugs.md" '## Gotchas
+
+- User: read once.
+'
+layer "$HOME/.claude/bugs.local.md" '## Gotchas
+
+- Overlay under home: not a layer here.
+'
+# shellcheck disable=SC2016  # backticks are literal markdown in the expected output
+run_case "home-rooted session reads user-global once, no team or overlay" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: read once.\n' "$HOME/.claude/bugs.md")"
+
+HOME="${FIXTURES}/home-i"
+CLAUDE_PROJECT_DIR="${FIXTURES}/not-a-repo"
+mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"
+layer "$CLAUDE_PROJECT_DIR/.claude/bugs.md" '## Gotchas
+
+- Not a repository: skipped.
+'
+NO_GIT=1
+run_case "root outside a git work tree has no team layer" $'(none)'
+NO_GIT=0
 
 if [[ "$FAIL" -gt 0 ]]; then
   echo "concat-gotchas tests: $PASS passed, $FAIL failed"

@@ -75,9 +75,26 @@ if [[ -z "$root" ]]; then
   root="$(git rev-parse --show-toplevel 2>/dev/null)" || root=""
 fi
 
-[[ -n "${HOME:-}" ]] && emit_layer "user-global" "$HOME/.claude/bugs.md"
-[[ -n "$root" ]] && emit_layer "team" "$root/.claude/bugs.md"
-[[ -n "$root" ]] && emit_layer "local overlay" "$root/.claude/bugs.local.md"
+# Config-cascade 1.3 special-root classification: a root that is $HOME or an
+# ancestor of it, or is not inside a git working tree, has no team or overlay
+# layer. Otherwise ~/.claude/bugs.md would be read again as the team layer.
+if [[ -n "$root" && -n "${HOME:-}" ]]; then
+  rp="$(cd "$root" 2>/dev/null && pwd -P)" || rp="$root"
+  hp="$(cd "$HOME" 2>/dev/null && pwd -P)" || hp="$HOME"
+  [[ "$hp" == "$rp" || "$hp" == "${rp%/}"/* ]] && root=""
+fi
+if [[ -n "$root" && "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]]; then
+  root=""
+fi
+
+user="${HOME:+$HOME/.claude/bugs.md}"
+[[ -n "$user" ]] && emit_layer "user-global" "$user"
+for pair in "team:bugs.md" "local overlay:bugs.local.md"; do
+  [[ -n "$root" ]] || break
+  file="$root/.claude/${pair#*:}"
+  [[ -n "$user" && "$file" -ef "$user" ]] && continue
+  emit_layer "${pair%%:*}" "$file"
+done
 
 if [[ "$emitted" -eq 0 ]]; then
   printf '(none)\n'

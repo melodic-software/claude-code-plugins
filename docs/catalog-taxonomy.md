@@ -21,7 +21,7 @@ the official Claude Code marketplace, and the VS Code and Chrome category enumer
 
 The taxonomy is **lifecycle-primary with a subject catch-all**. A plugin that serves the general software
 lifecycle is filed by its lifecycle **activity**. A plugin whose defining trait is a special **subject**,
-such as Claude Code itself, the workstation, music, or personal life, is filed by that subject.
+such as Claude Code itself, the workstation, audio, or personal life, is filed by that subject.
 
 When a plugin is an activity applied to a special subject, **subject wins if the subject is the salient
 reason the plugin exists**. `skill-quality` audits (activity) Claude Code skills (subject) and is filed
@@ -56,7 +56,7 @@ Domain-and-cross-cutting tier, filed by subject:
 | `operations` | Workstation day-2 operations: monitoring and remediation. |
 | `learning` | Coaching the human through a subject. |
 | `visual-arts` | Visual-medium craft: pixel art, illustration, animation, and moving images. |
-| `music` | Songwriting and music craft. |
+| `audio` | Songwriting, chiptune, and other sound: music and non-music audio. |
 | `personal` | The owner's personal-life tooling, outside the software-delivery lifecycle. |
 
 Current per-plugin assignments are owned by `marketplace.json`, not restated here; the generated catalog
@@ -81,10 +81,12 @@ Category-level:
 | Trigger | Action |
 |---|---|
 | First deployment plugin lands | Populate the `deployment` category (already reserved above). |
-| A non-music audio plugin lands (sound effects, sound design) | Rename `music` to `audio`, so the label predicts both music and non-music sound. |
-| A literary plugin lands (fiction, plays, screenplays, poetry) | Add a `literature` medium category beside `visual-arts` and `music`. |
+| A literary plugin lands (fiction, plays, screenplays, poetry) | Add a `literature` medium category beside `visual-arts` and `audio`. |
 | A plugin whose subject is making games lands (engine, level editor, game build tooling) | Add a `game-development` category; games combine media, so no medium category owns them. |
 | A broader automation plugin lands (automation that is not governed-autonomy-scoped) | Broaden `autonomy` or add a sibling category rather than filing the newcomer under `autonomy`. |
+
+The `music` category was renamed to `audio` when `retro-audio` landed, so one label covers
+songwriting and sound effects.
 
 Plugin-scoped (owned by the named plugin's README):
 
