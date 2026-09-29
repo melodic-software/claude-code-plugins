@@ -3,6 +3,17 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- The missing-`actionlint` notice is now the session-only `prerequisite` class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). It fires once per session for every agent, and the eighth-skip renewal keeps the install route. It names `/actionlint:check`. The missing-`jq` notice stays once per session and agent.
+
+### Added
+
+- `/actionlint:check`, a model-invocable read-only check that the `actionlint` binary resolves. It follows `/actionlint:setup`'s `check` section and installs nothing.
+- `prerequisites.json` declares `actionlint`, so `/claude-ops:prerequisites` reports it.
+
 ## [0.9.5] - 2026-09-28
 
 ### Changed

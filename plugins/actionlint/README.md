@@ -29,8 +29,10 @@ your `PATH`.
   actionlint 1.7.x, and either adds latency unsuited to an edit-time hook.
   Native workflow diagnostics are unaffected; run the full integrations in CI.
 - **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
-  skips and says so, a notice, once per session and agent, renewed every eighth skip, to both Claude
-  (`additionalContext`) and you (`systemMessage`), never a silent no-op.
+  skips and says so, to both Claude (`additionalContext`) and you (`systemMessage`),
+  never a silent no-op. A missing `actionlint` notice fires once per session, and every
+  agent in the session shares it. A missing `jq` notice fires once per session and agent.
+  Both renew every eighth skip; the `actionlint` renewal keeps the install route.
 
 ## Requirements
 
@@ -40,8 +42,10 @@ your `PATH`.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
-  with a visible notice, once per session and agent, renewed every eighth skip. See the
+  with a visible notice, once per session (all agents share it), renewed every eighth skip
+  with the install route kept. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
+  `/actionlint:check` reports whether the binary resolves and installs nothing.
 
 ### Hook budget accounting
 

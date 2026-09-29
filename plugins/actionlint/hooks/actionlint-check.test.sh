@@ -375,6 +375,56 @@ else
 fi
 rm -f "$ABSENT_TEL"
 
+# The missing-binary notice is the session-only prerequisite class: a subagent
+# is one more edit in the same session, so it shares the session's latch instead
+# of earning a second first notice. The first notice names the check skill and
+# the install route.
+run_absent_as() {
+  local data="$1" session="$2" agent="$3" payload
+  printf -v payload '{"session_id":"%s","agent_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
+    "$session" "$agent" "$REPO/.github/workflows/clean.yml"
+  (
+    cd "$UNRELATED" || return 1
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" HOOK_NOTICE_RENEW_EVERY=8 \
+      CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK" <<<"$payload"
+  )
+}
+if jq -e '.systemMessage | contains("/actionlint:check") and contains("docs/install.md")' <<<"$OUT_ABS" >/dev/null 2>&1; then
+  ok "actionlint-absent -> first notice names /actionlint:check and the install route"
+else
+  fail "actionlint-absent first notice lacks the check skill or install route: $OUT_ABS"
+fi
+OUT_ABS3=$(run_absent_as "$ABSENT_DATA" test-absent-1 subagent-other)
+if [[ -z "$OUT_ABS3" ]]; then
+  ok "actionlint-absent -> a different agent in the same session is silent (session-only key)"
+else
+  fail "actionlint-absent: different agent_id re-emitted the notice: $OUT_ABS3"
+fi
+
+# Eight skips, one per agent in rotation, in a fresh session: the count is the
+# session's, so skips 2-7 are silent and the eighth is the renewal, which keeps
+# the install route and reports the count.
+RENEW_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+RENEW_QUIET=1
+RENEW_OUT=""
+for i in 1 2 3 4 5 6 7 8; do
+  RENEW_OUT=$(run_absent_as "$RENEW_DATA" test-renew-1 "agent-$((i % 3))")
+  if [[ $i -ge 2 && $i -le 7 && -n "$RENEW_OUT" ]]; then RENEW_QUIET=0; fi
+done
+if [[ $RENEW_QUIET -eq 1 ]]; then
+  ok "actionlint-absent -> skips 2-7 across three agents are silent"
+else
+  fail "actionlint-absent: a skip between the first notice and the renewal was not silent"
+fi
+if jq -e '
+  (.systemMessage | contains("docs/install.md") and contains("/actionlint:check") and contains("8 skips this session")) and
+  (.hookSpecificOutput.additionalContext | contains("docs/install.md") and contains("8 skips this session"))
+' <<<"$RENEW_OUT" >/dev/null 2>&1; then
+  ok "actionlint-absent -> the eighth skip renews the notice and keeps the install route"
+else
+  fail "actionlint-absent: renewal notice wrong: $RENEW_OUT"
+fi
+
 # --- jq-absent -> exit 0, VISIBLE once-per-session notice --------------------
 # Same fake-bin, minus jq: the hook cannot parse its input at all, so the gate
 # must surface the skip instead of silently no-opping on every edit.
