@@ -134,7 +134,7 @@ fixing still runs.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
-where `typos` finds nothing is the figure that counts. Each row is interleaved trials against an
+where `typos` finds nothing is the figure that counts. Each row of the first table is interleaved trials against an
 interleaved `bash -c :` floor on Windows 11 under Git Bash:
 
 | Event | Fires | Spawn-equivalents | Measured | What changed |
@@ -142,15 +142,25 @@ interleaved `bash -c :` floor on Windows 11 under Git Bash:
 | PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
 | PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
 
-| PostToolUse `Write`, clean `.md`, hook enabled | 1 | 62.7 ms with the launcher, 34.6 ms for the script alone, on a floor of about 1 ms (0.7.6) | 2026-09-29, n=30, Linux x86_64, bash 5.3, node 24, `typos` 1.49 | the exec-form row runs `node hooks/exec-bash.mjs`, which spawns the script's bash: one `node` process on top of the script's own |
-| PostToolUse `Write`, hook disabled | 1 | 23.8 ms on a floor of about 1 ms (0.7.6) | 2026-09-29, n=30, same host | the launcher exits before bash, but the `node` process itself still starts |
+Linux wall time for 0.7.6, from `hyperfine -N --warmup 3 --runs 30` on a clean `.md` `Write`
+payload (Linux x86_64, bash 5.3, node 24, `typos` 1.49, 2026-09-29, three repeats):
 
-The two 0.7.6 rows are wall time on a Linux host, not spawn-equivalents: the floor there is about
+| PostToolUse `Write`, clean `.md` | Mean wall time | What it is |
+| --- | --- | --- |
+| Hook enabled, launcher plus script | 84 to 120 ms | `node hooks/exec-bash.mjs` spawns the script's bash: one `node` process on top of the script's own |
+| Script alone | 58 to 73 ms | `bash hooks/typos-format.sh` |
+| Hook disabled, launcher only | 37 to 45 ms | the launcher exits before bash, but the `node` process itself still starts |
+| `bash -c :` floor | 1 to 2 ms | |
+
+The host was loaded (load average near 30) and the repeats spread by about 40%, so read these as
+ranges and as a launcher cost of roughly 35 to 45 ms, not as absolute figures.
+
+The 0.7.6 table is wall time on a Linux host, not spawn-equivalents: the floor there is about
 1 ms, so a ratio to it says little, and no `strace` was available for a kernel census. The
 Windows rows are the last spawn-equivalent figures. Releases after 0.6.55 have not been measured
 on Windows, and the 0.6.35 and 0.6.55 figures and the 0.6.48 census below predate the launcher
 and the current `hooks/hook-utils.sh`, so they do not describe the 0.7.6 process shape.
-Reproduce the Linux rows with `hyperfine -N --input <payload.json>` over the command in
+Reproduce the Linux table with `hyperfine -N --input <payload.json>` over the command in
 `hooks/hooks.json`, with `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false` exported for the
 disabled row.
 
@@ -336,8 +346,8 @@ change, not a saving.
 (0.7.1). With `typos_format_enabled` off the launcher exits before it resolves or spawns bash, so
 `node` is the only process the hook creates. With it on, `node` spawns bash for the script, so the
 edit path carries one more process than the pre-0.7.1 row, which `exec`'d the script in place of
-its own shell. The 2026-09-29 Linux run in Hook budget accounting measured 23.8 ms disabled and
-62.7 ms enabled, against 34.6 ms for the script alone. The earlier Windows figures for a disabled
+its own shell. The 2026-09-29 Linux run in Hook budget accounting measured 37 to 45 ms disabled and
+84 to 120 ms enabled, against 58 to 73 ms for the script alone. The earlier Windows figures for a disabled
 row describe a row that no longer exists and are not repeated.
 
 ### Why the row stays synchronous (#4677)
