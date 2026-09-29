@@ -22,6 +22,15 @@ personal `~/.claude/<surface>` as the team layer.
   implement the home-root rule; other surfaces adopt it or record why not. The degrade-soft
   step is now numbered 5.
 
+## Implementers table, 2026-09-28 (architecture map family)
+
+- **Architecture map skills read the existing surfaces.** Every `/architecture:map-*`
+  skill reads `architecture_dir`. `landscape_dialect` stays read by `map-landscape`
+  alone. `map-data` reads `diagram_dialect.data`; `map-components`, `map-context`,
+  `map-containers`, and `map-deployment` read `diagram_dialect.system`.
+  No `contract_version` bump: no layering rule changed. The per-skill decision
+  stays in the architecture plugin's `reference/config.md`.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
