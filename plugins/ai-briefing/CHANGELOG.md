@@ -15,7 +15,8 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 - **Argument hints** on `generate` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
-  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+  The hint keeps the common flags and the `retro|search` subcommands; the full flag list is the
+  Arguments table in the skill body.
 
 ## [0.7.44] - 2026-09-28
 
