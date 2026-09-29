@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.1] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `lint` step covers the whole repository** ([#5201](https://github.com/melodic-software/claude-code-plugins/issues/5201)).
+  The catalog entry passed only `--fix`, so `toolchain:lint` linted the changed files, which on a
+  clean sweep tree are the earlier steps' edits. The entry now passes `all --fix`.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added
