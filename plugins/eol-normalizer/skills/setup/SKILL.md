@@ -93,8 +93,9 @@ tool, so `apply` installs nothing and writes nothing. It only points:
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   rerun adds a second install record at the scope passed and enables the plugin there; the
   value itself always lands in user settings. A rejected value prints a warning yet exits 0,
-  so read the output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
+  so read the output. Basis: that convention's Verified-version record. Verified 2026-09-27 on
+  Claude Code 2.1.283. Recheck when that section is updated for a newer release. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
   still reports the OLD value; report the observed effective value, never an unobserved change.

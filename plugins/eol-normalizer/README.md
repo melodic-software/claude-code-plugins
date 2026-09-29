@@ -26,6 +26,12 @@ imposes no rules of its own.
   There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly
   win over broad ones (`*.txt eol=crlf`).
+- **Gitignored → no-op.** A file the repository gitignores and does not track is
+  left alone, since a rewrite of an ignored file has no git checkout to undo it.
+  A tracked file matching an ignore pattern stays in scope. Any failure to decide
+  (git absent, no repo, `check-ignore` error) acts as before. Set
+  `eol_normalizer_lint_gitignored=true` to act on ignored files (see the Options
+  reference).
 - **Advisory, never blocking.** The hook always exits `0`. Make a commit hook or
   CI (`git add --renormalize`, an EditorConfig check) your hard gate.
 
