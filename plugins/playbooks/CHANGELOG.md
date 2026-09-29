@@ -13,6 +13,16 @@ only after that version increases.
   another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
   `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
 
+## [0.14.6] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` records a not-applicable step without a skill version** ([#5181](https://github.com/melodic-software/claude-code-plugins/issues/5181)).
+  A step whose `applies-when` no longer holds invokes no skill, yet `tick.sh` required
+  `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
+  takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
+  `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
 ## [0.14.5] - 2026-09-29
 
 ### Fixed

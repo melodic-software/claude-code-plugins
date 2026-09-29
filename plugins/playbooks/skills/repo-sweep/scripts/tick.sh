@@ -6,7 +6,7 @@
 #   tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...
 #   tick.sh <id> no-findings <skill@version>...
 #   tick.sh <id> partial <detail> <skill@version>...     zero findings, partial coverage
-#   tick.sh <id> not-applicable <evidence> <skill@version>...
+#   tick.sh <id> not-applicable <evidence>                records no skill version
 #   tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
 #   tick.sh <id> [--partial <detail>] declined <n> <skill@version>...
 #   tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...
@@ -23,7 +23,7 @@ usage() {
   printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...\n' >&2
   printf '       tick.sh <id> no-findings <skill@version>...\n' >&2
   printf '       tick.sh <id> partial <detail> <skill@version>...\n' >&2
-  printf '       tick.sh <id> not-applicable <evidence> <skill@version>...\n' >&2
+  printf '       tick.sh <id> not-applicable <evidence>\n' >&2
   printf '       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...\n' >&2
   printf '       tick.sh <id> [--partial <detail>] declined <n> <skill@version>...\n' >&2
   printf '       tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...\n' >&2
@@ -53,8 +53,8 @@ partial)
   shift
   ;;
 not-applicable)
-  [[ ${1-} == ?* && $1 != *","* ]] || usage
-  suffix=", not applicable: $1"
+  [[ $# == 1 && $1 == ?* && $1 != *","* ]] || usage
+  suffix="not applicable: $1"
   shift
   ;;
 report-only)
@@ -75,7 +75,7 @@ filed)
 *) usage ;;
 esac
 versions=""
-if [[ $mode != in-progress ]]; then
+if [[ $mode != in-progress && $mode != not-applicable ]]; then
   (($#)) || usage
   for v in "$@"; do
     [[ $v == ?*@?* && $v != *[[:space:],]* ]] || usage
@@ -87,7 +87,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 body=$(gh pr view --json body | jq -r .body)
 rc=0
-printf '%s\n' "$body" | awk -v id="$id" -v done_text="$versions$suffix" -v newf="$tmp/new" '
+printf '%s\n' "$body" | awk -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
   { cr = sub(/\r$/, "") }
   /^<!-- repo-sweep:begin / { inb = 1 }
   /^<!-- repo-sweep:end -->/ { inb = 0 }
@@ -95,8 +95,8 @@ printf '%s\n' "$body" | awk -v id="$id" -v done_text="$versions$suffix" -v newf=
     rest = substr($0, 7); i = index(rest, ": ")
     if (i && substr(rest, 1, i - 1) == id) {
       hit = 1; tail = substr(rest, i + 2)
-      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\)|, filed [^ ,]+)(, partial coverage: .+)?$|, not applicable: .+$/) { done = 1; exit }
-      $0 = done_text == "" ? "- [~] " id ": " tail : "- [x] " id ": " done_text
+      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\)|, filed [^ ,]+)(, partial coverage: .+)?$|(^|, )not applicable: .+$/) { done = 1; exit }
+      $0 = mode == "in-progress" ? "- [~] " id ": " tail : "- [x] " id ": " done_text
       print > newf
     }
   }
