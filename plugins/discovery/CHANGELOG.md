@@ -1,5 +1,49 @@
 # Changelog: discovery plugin
 
+## [0.25.9] - 2026-09-29
+
+### Fixed
+
+- **The `research` hub keeps its post-dispatch rules inside the 20,000-byte re-attach slice.** The
+  Disciplines, the effort ceiling and the topic slot sat past byte 23,000, so after a compaction a
+  run kept the outcome gate that grades them and lost the rules themselves. The acceptance gate,
+  outcome gate table, topic slot, disciplines and effort ceiling now end at byte 19,922; the
+  pre-dispatch material and the caveats follow, and the by-value exception, fan-out and verifier
+  write-back explanations point at `context/dispatch.md`
+  ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).
+- **Stale references.** `blindspot` cited the explore hub for dimensions that live in
+  `reference/workflow.md`, and the researcher's liveness check expected phases that moved to
+  `context/phases.md`. Both now point at the spokes, and `research` and `blindspot` gain the
+  required `## Next` section.
+- **The per-gap fan-out threshold reads two or more numbered gaps everywhere**, matching the
+  acceptance criteria, and a test holds every site to it. `research-deep` cites the `Budget:`
+  vocabulary and names `discovery:research-verifier`, and the README lists the `report` skill
+  ([#4151](https://github.com/melodic-software/claude-code-plugins/issues/4151),
+  [#4230](https://github.com/melodic-software/claude-code-plugins/issues/4230)).
+- **`research-verifier` is pinned to `opus` at `high` effort.** It grades outcome-gate rows 4, 7
+  and 12, so it is a verdict lane. The parent contract names its 30-turn limit and stop turn 24 as
+  the exception to the workers' 40, and `contract.test.sh` pins the limit, stop turn, model and
+  effort ([#4231](https://github.com/melodic-software/claude-code-plugins/issues/4231)).
+- **One `verification:` value table.** `reference/parent-contract.md` states `pending`, `pass`,
+  `fail`, `skipped (cost)` and `unverified (none, <date>)` once; `artifact-shape.md` and the
+  research hub point at it. The `explore` and `trace-intent` verifier returns `result: pass|fail`
+  instead of `verdict:`, which the report contract reserves for complete, partial or stopped, and
+  the contract intro no longer carries a statement count
+  ([#4274](https://github.com/melodic-software/claude-code-plugins/issues/4274)).
+- **The read-each-file-once rule has one owner.** It was pasted into three agents; the parent
+  contract now holds it and each of the four agents carries a pointer
+  ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
+- **The credential read boundary covers every shell-holding agent**, including the per-gap workers
+  and the sibling verifier, and `research-verifier` bars a credential file from `Read`. The sandbox
+  settings detail is a pointer to the `claude-config` required-permissions reference
+  ([#4244](https://github.com/melodic-software/claude-code-plugins/issues/4244)).
+- **`explorer`, `researcher`, `intent-tracer` and `research-verifier` no longer preload
+  `discovery:report`.** Each defines its own return block, so the preload gave two final-message
+  shapes; the skill stays shipped as the canonical copy, and a test pins both facts.
+- **The researcher's `gate_owed` names the whole acceptance gate**, including the
+  `discovery:research-verifier` dispatch and project-file checks, not only the three scripts
+  ([#4275](https://github.com/melodic-software/claude-code-plugins/issues/4275)).
+
 ## [0.25.8] - 2026-09-28
 
 ### Changed
