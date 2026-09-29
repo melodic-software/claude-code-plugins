@@ -105,7 +105,8 @@ section names. **Accept hits only from assistant text output**, in two stages:
 - **Capture the goal region, every mode, every discovery path.** A qualified candidate can hold
   four rails, two regions, each headed by its own instruction line directly above its top rail:
   the resume region by the `/clear`, then copy line, the goal region by the line beginning
-  ``Type `/goal ` `` (save-point.md "Goal region"). The goal region sits above or below the resume
+  ``Type `/goal ` `` (the Goal region bullet under "Emit the copy/paste resume prompt" in
+  save-point.md). The goal region sits above or below the resume
   region, so do not stop at the first bottom rail: after the resume region's bottom rail, look for
   the goal instruction line, and before its top rail, look above it. Take the text between each
   region's own rails verbatim, in the emitted order, and surface each region under its own
