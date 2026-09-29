@@ -8,9 +8,9 @@ against the current version before any precision figure is cited against it**, a
 becomes fix-eligible on a measurement pinned to a superseded rubric.
 
 Read this at the judgment step. **Each judge dispatch names the one rubric it applies, `copy` or
-`restated-fact`, and the judge applies that rubric alone.** The other rubric's section is context;
-its criteria are never graded. Judges apply the rubric blind, three samples by default; unanimity
-renders the verdict and any split routes to the human.
+`restated-fact`, and the judge applies that rubric alone.** A dispatch that names none applies the
+copy rubric. The other rubric's section is context; its criteria are never graded. Judges apply
+the rubric blind; unanimity renders the verdict and any split routes to the human.
 
 ## What these rubrics are for, and what they are not
 
@@ -335,7 +335,8 @@ cannot be read from the passage alone.
 
 **R1-external-owner.** *Does the passage assert a fact an external source owns?* Quote the fact
 and name its owner, from what the passage or file says or from the fact itself (a named product's
-own flag, field or limit). If no owner can be named, UNKNOWN.
+own flag, field or limit). A fact that is general practice, which no source decides, FAILS. A fact
+that plainly has an external owner the material does not let you name is UNKNOWN.
 
 - **PASS, worked.** `The client library retries three times by default.` The library's
   documentation owns the default.
@@ -374,8 +375,9 @@ lacks; where there is none, say so.
 **A restated-fact STANDS never carries `fingerprint-confirmed`, whatever the fingerprint module
 reported, so it is never fix-eligible.** That tier needs the copy rubric's evidence: a matched
 span above the separation rule. This rubric judges drift risk in any wording and yields no
-lexical evidence, and unanimity does not manufacture any. Every other tier is mapped from
-evidence by the table above, by fixed rule, never from a judge's confidence.
+lexical evidence, and unanimity does not manufacture any. A fetched source caps the verdict at
+`source-fetched-similar` whatever the fingerprint showed. Every other tier is mapped from evidence
+by the table above, by fixed rule, never from a judge's confidence.
 
 ## Restated external rules, as four-part records
 
