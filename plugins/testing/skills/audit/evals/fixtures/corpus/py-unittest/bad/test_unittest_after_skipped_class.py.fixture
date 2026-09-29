@@ -1,0 +1,17 @@
+# expect: rule-zero-assertion
+# The skip covers only the class it decorates: the next class runs, and its
+# test clones the fixture without looking at the result.
+import unittest
+
+from repo import clone_fixture
+
+
+@unittest.skip("the clone fixture is being rebuilt")
+class CloneShallowTests(unittest.TestCase):
+    def test_clone_shallow(self):
+        clone_fixture("tiny-repo", depth=1)
+
+
+class CloneTests(unittest.TestCase):
+    def test_clone_fixture_repo(self):
+        clone_fixture("tiny-repo")

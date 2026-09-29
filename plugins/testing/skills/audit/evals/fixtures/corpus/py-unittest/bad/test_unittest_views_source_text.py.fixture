@@ -1,0 +1,11 @@
+# expect: rule-source-text-read
+# reads: app/views.py
+# Searches the module's source instead of calling the view.
+import unittest
+
+
+class ViewSourceTests(unittest.TestCase):
+    def test_view_requires_login(self):
+        with open("app/views.py") as handle:
+            src = handle.read()
+        self.assertIn("require_login", src)

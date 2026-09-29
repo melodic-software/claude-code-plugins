@@ -1,0 +1,12 @@
+// expect: rule-snapshot-only
+// The inline snapshot is the only oracle: whatever render returned when the
+// snapshot was written is what the test now requires.
+import { expect, it } from 'vitest';
+import { renderInvoice } from '../src/invoice';
+
+it('renders the invoice', () => {
+  expect(renderInvoice({ id: 7, total: 15 })).toMatchInlineSnapshot(`
+    "Invoice 7
+    Total: 15"
+  `);
+});

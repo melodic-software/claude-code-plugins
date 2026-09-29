@@ -1,0 +1,15 @@
+// good-for: rule-zero-assertion
+// A fuzz test whose target checks a round trip through the fuzz target's t.
+package codec
+
+import "testing"
+
+func FuzzRoundTrip(f *testing.F) {
+	f.Add("hello")
+	f.Fuzz(func(t *testing.T, s string) {
+		got, err := Decode(Encode(s))
+		if err != nil || got != s {
+			t.Errorf("Decode(Encode(%q)) = %q, %v", s, got, err)
+		}
+	})
+}

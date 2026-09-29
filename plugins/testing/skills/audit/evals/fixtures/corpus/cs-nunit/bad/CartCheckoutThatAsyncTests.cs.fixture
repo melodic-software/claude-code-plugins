@@ -1,0 +1,16 @@
+// expect: rule-inert-assertion
+// Assert.ThatAsync returns a Task; unawaited, the constraint is never evaluated.
+using System.Threading.Tasks;
+using NUnit.Framework;
+
+[TestFixture]
+public class CartCheckoutThatAsyncTests
+{
+    [Test]
+    public async Task Checkout_OfEmptyCart_Throws()
+    {
+        var cart = new Cart();
+        Assert.ThatAsync(() => cart.CheckoutAsync(), Throws.TypeOf<EmptyCartException>());
+        await Task.CompletedTask;
+    }
+}

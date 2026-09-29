@@ -1,0 +1,12 @@
+# good-for: rule-zero-assertion
+# -Skip on It means the test does not run, so it is not judged.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds decimals' -Skip {
+        Get-Sum -A 0.1 -B 0.2
+    }
+}

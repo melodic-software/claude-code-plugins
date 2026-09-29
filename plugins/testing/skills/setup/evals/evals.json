@@ -1,0 +1,23 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Is the testing plugin configured for this repo? Which test lint rules are missing?",
+      "expected_output": "Runs setup.sh check read-only and shows its four sections: the resolved .claude/testing.yaml (or that no layer exists), one lint row per rule for each language the tracked tests use with every missing rule reported as a finding rather than a neutral absence and Bash, PowerShell and Go marked no maintained rule, the optional instruction line offered for pasting, and the hook-entry section. Writes nothing and does not edit CLAUDE.md or AGENTS.md.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Exclude our legacy folder from the can't-fail audit and scan *.it.ts files as Vitest tests.",
+      "expected_output": "Runs check first, then apply with --exclude 'legacy/**' and --extend js-vitest.files='*.it.ts', keeping any values the existing file already holds. Only .claude/testing.yaml is written. Re-runs check and shows the settings hook entry printed for *.it.ts, which no shipped hook row covers, explaining that the user adds it to .claude/settings.json and that it passes --enabled because settings hooks get no plugin variables. Offers the git add and commit without running them unasked.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Add a line to our CLAUDE.md telling Claude to write tests that can fail.",
+      "expected_output": "Does not edit CLAUDE.md. Prints the optional instruction line from check's instruction section for the user to paste themselves, and states that the setup skill never edits CLAUDE.md or AGENTS.md.",
+      "files": []
+    }
+  ]
+}
