@@ -124,7 +124,10 @@ Bounded by design. Full evidence catalogue in
 ## Hard rules
 
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. The skill writes **no file**, not even
-  a findings file. Every deletion is the human's.
+  a findings file. Every deletion is the human's. The one exception is installing or fetching a
+  detector, and it happens only through the consent path in "When coverage is incomplete" step 3,
+  after an explicit yes. The scan script itself never fetches and invokes no package runner, so
+  there is no silent network or code execution.
 - **Tier semantics.** The detector's tiers are candidate priors: T1 = high-confidence candidate,
   T2 = uncertain candidate, T3 = **detector drift** (output no parser recognized). In the
   adjudicated report the same tiers carry verdicts: `dead` → T1, `uncertain` → T2. **`alive` is
@@ -137,7 +140,10 @@ Bounded by design. Full evidence catalogue in
 - **Presence is proven by invocation.** A locator hit is not a presence proof. Measured,
   `command -v rust-analyzer` succeeds while invocation fails.
 - **Never fetch.** Detectors run from a resolvable local binary (PATH, the repo-local
-  `node_modules/.bin` walk, or `.venv/bin`) or the lane is `skipped`. No package runner is invoked.
+  `node_modules/.bin` walk, or `.venv/bin`) or the lane is `skipped`. The scan script never fetches
+  and invokes no package runner. An install or fetch of a detector happens only through the consent
+  path in "When coverage is incomplete" step 3, after an explicit yes: no silent network or code
+  execution.
 - **knip evaluates repo-controlled config through jiti.** Disclosed on every run that loads one,
   never hidden. It is narrower than a build; vulture, measured, is genuinely pure.
 - **`**/evals/fixtures/**` is never scanning input**, matching the policy `ruff.toml` already sets.
@@ -158,8 +164,8 @@ all are gaps, not a clean bill. After presenting the lane roster:
    language, show the choice and its install command, and install or invoke it only after an
    explicit yes. Record its precision as **unmeasured** until trap fixtures cover it.
 
-The default stays read-only: no package runner, no network fetch, and no build without consent
-(#4524). Consent-gated lanes that may compile or execute project code remain out of scope here.
+The default stays read-only: no package runner, no network fetch, and no build without consent.
+Consent-gated lanes that may compile or execute project code remain out of scope here.
 
 ## Output schema
 

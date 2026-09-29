@@ -108,6 +108,23 @@
         "handle_alpha is NOT verdicted dead, and the indirect invocation through the constructed handler name is cited",
         "Rust and C# get no building detector; their source files can still be unreferenced-file candidates, and a computed path or glob is uncertain rather than dead"
       ]
+    },
+    {
+      "id": 7,
+      "name": "coverage-gap-offer-needs-consent",
+      "prompt": "Here is the dead-code scan output for this repository, saved at evals/fixtures/scan-uncovered-java.txt. It has an uncovered file. Show me the coverage-gap section of the report and tell me what happens next.",
+      "expected_output": "Names the gap from the Summary coverage line and the Note: uncovered line with its path and reason: src/Legacy.java is uncovered because there is no lane for the language. Offers both follow-ups and waits: filing an issue against this plugin with the file count and language pre-filled for the operator to edit and submit, and researching a detector for the language and installing it. It installs, fetches, or builds nothing without an explicit yes, and shows the chosen detector with its install command before any install. Records the precision of any detector it picks as unmeasured until trap fixtures cover it. The audit itself stays read-only and edits nothing.",
+      "files": [
+        "evals/fixtures/scan-uncovered-java.txt"
+      ],
+      "expectations": [
+        "Names the uncovered file src/Legacy.java with its path and the reason, no lane for the language",
+        "Offers to file an issue against the plugin with the file count and language pre-filled for the operator to edit and submit",
+        "Offers to research a detector for the language and install it, as a separate option from the issue",
+        "Performs no install, fetch, or build without an explicit yes, and shows the detector and its install command before installing",
+        "Records the precision of any chosen detector as unmeasured",
+        "Edits and writes no file"
+      ]
     }
   ]
 }
