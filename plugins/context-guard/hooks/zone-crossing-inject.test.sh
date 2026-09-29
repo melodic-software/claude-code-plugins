@@ -1248,6 +1248,11 @@ cw_fall bare w3 1 "$(cw_payload w3 'C:\\a' 'session_id')"
 cw_fall bareev w3e 1 "$(cw_payload w3e 'C:\\a' 'hook_event_name')"
 cw_fall escopen w3o 1 "$(cw_payload w3o 'C:\\a' 'x\"session_id')"
 cw_fall escopenev w3p 1 "$(cw_payload w3p 'C:\\a' 'x\"hook_event_name' ok late)"
+# The same spelling as a KEY with the real id after tool_calls, so the cut
+# header holds the text once and the count alone cannot tell it from the key.
+# The escaped opening quote is what refuses it.
+cw_fall keysess w5 1 '{"hook_event_name":"PostToolBatch","x\"session_id":"x","tool_calls":[{"tool_response":"ok"}],"session_id":"w5"}'
+cw_fall keyev w5e 1 '{"session_id":"w5e","x\"hook_event_name":"Fake","tool_calls":[{"tool_response":"ok"}],"hook_event_name":"PostToolBatch"}'
 
 # 4. An escape inside an id value falls back, and the full parser's answer is
 # what counts: \u0034 decodes to `4`, \u0054 to `T`.

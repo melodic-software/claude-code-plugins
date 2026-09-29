@@ -324,9 +324,11 @@ cg::leading_scalar_object() {
 # without hook-utils. The scan stops at the first nested value, so a
 # tool-result that repeats these keys is not read. The header may carry
 # backslashes: Windows paths in transcript_path and cwd do, and they precede
-# tool_calls. A key text inside another string is escaped, so it does not match
-# the quoted key; the one form that does (`\"session_id"`) makes the key appear
-# twice and falls back. An escape inside either id value falls back too.
+# tool_calls. Key text inside another string is escaped, so it does not match
+# the quoted key. The one spelling that does, an escaped quote before the key
+# text and the string's own quote after it (`\"session_id"`), is refused when it
+# is the only match and counts twice beside the real key. A value equal to the
+# key text counts twice. An escape inside either id value falls back too.
 # Returns 1 when the two fields are not both plain strings.
 cg_prove_scalar_ids() {
   local s="$1" header ev="" sid=""
@@ -354,6 +356,10 @@ cg_json_plain_string() {
   stripped=${s//"\"$key\""/}
   count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
   ((count == 1)) || return 1
+  # A backslash right before the quoted key means the opening quote is escaped:
+  # the text is the tail of another string, and the real key sits elsewhere.
+  rest=${s%%"\"$key\""*}
+  [[ "$rest" != *\\ ]] || return 1
   rest=${s#*"\"$key\""}
   [[ "$rest" =~ $re ]] || return 1
   # printf -v, not a nameref: namerefs need bash 4.3 and this plugin supports 3.2.
