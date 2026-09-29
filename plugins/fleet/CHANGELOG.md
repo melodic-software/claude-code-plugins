@@ -3,6 +3,35 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-09-29
+
+### Added
+
+- `reach` covers same-machine cross-lane reach: WSL to native Windows by running `claude.exe` over
+  interop, and Windows to WSL through `wsl.exe -d <distro>`, with the distro read from
+  `wsl.exe -l -q`.
+- A route matrix at the top of `reach`: every origin lane against every target lane, each row
+  carrying its command shape and whether it was tested.
+- A Verbs section: run a script, prompt, multi-turn with `--resume`, list sessions, message a
+  session, query and wait with `notify_when_idle`, and a named headless receiver (`-n <name>` with
+  `crossSessionInbound: accept`). Every verb but running a script starts an agent and prompts under
+  auto mode. Multi-turn picks its id up front with `--session-id`, and background sessions
+  (`claude --bg --name`) host a session that outlives the hop. Each verb is marked tested or
+  untested.
+- `reference/relay.md` lists the mechanisms the skill does not use (Remote Control, cloud sessions,
+  Channels, the raw inbox socket, agent teams) and why, and documents the signed-out Windows lane check (`Failed to authenticate: OAuth
+  session expired`, fixed by `/login` at that console), the receiver's nested quoting and lifetime,
+  and a verification record for each route.
+- Evals for the cross-lane routes, query and wait, the named receiver, the signed-out lane, and the
+  run-a-script verb.
+
+### Changed
+
+- The account model is per lane, not per machine: WSL and native Windows on one machine can sign
+  into different accounts, and the built-in peer tools reach only the current lane. Description,
+  Boundary and README now say so, and the peer tools own same-lane messaging only.
+- Commands address targets by their FLEET.md ssh alias through the Windows OpenSSH client.
+
 ## [0.1.3] - 2026-09-27
 
 ### Fixed
