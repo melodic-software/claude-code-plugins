@@ -10,6 +10,8 @@ All notable changes to the `animation` plugin are documented here. Format follow
 - `produce` states the model-sheet scene contract (`DURATION`, `renderFrame`, `renderDrawing`),
   that the approval gate is soft and prompt-level, that a board carries one palette pack, and a
   verification record for the third-of-the-source claim (#4591).
+- woodcut-ink `STYLE.md` states that the pack's bands and reference values predate the corrected
+  final-hold statistic and have not been relearned (#4594).
 
 ### Fixed
 

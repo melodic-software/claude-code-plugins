@@ -56,3 +56,9 @@ The check in `style.json` `check` has not yet validated a new, untraced scene. T
 ("the keeper") passed an earlier check that a blur and ruled stripes could satisfy, and is being
 rebuilt. What the check separates, the control suite it is held to, and its held-out results are in
 the learn-style skill's `reference/statistics.md`.
+
+The pack predates the corrected final-hold statistic. The `timing` values (`offstep`, `per_second`,
+`holds`), the `bands` and the `ref` values, including the on-1s/2s/3s mix and duration, were
+learned before `inkstats.py` counted a rotoscope work dir's final hold up to `d/index.json` `t1`.
+A film checked against them is measured with the corrected statistic against bands learned with a
+one-frame final hold. The pack has not been relearned; how to relearn it is open in issue #4594.
