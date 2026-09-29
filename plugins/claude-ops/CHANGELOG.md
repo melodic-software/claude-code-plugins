@@ -3,6 +3,38 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.35] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads enablement from `claude plugin list --json`** when `claude`
+  is on PATH, keeping user and managed rows and only the project and local rows for the current
+  project, with the most specific scope winning per plugin. The settings-merge fallback now skips
+  a whole file whose `enabledPlugins` holds a non-Boolean value, as Claude Code does. The Next
+  section drops its placeholder bullet and names the three model-invocable formatter checks; a
+  check that a setup skill owns (context7, playwright) is typed by the person.
+- **The `audit-skill-visibility` test runs the `--installed` contract on cygpath hosts** instead
+  of skipping it with an exit-0 block on Git Bash.
+
+### Changed
+
+- **`--permission-prompts none` denial is stated as unprobed.** The lanes Record, the primitives
+  paragraph and the launcher comment say the flag is documented for print mode and unattended
+  runs, that `--bg` accepts it, and that denial in a `--bg` lane has not been probed. Launcher
+  behavior is unchanged. The lanes skill keeps one record per decline.
+- **The `/doctor` claim in `audit-performance` is narrowed:** the engine reads no transcripts,
+  and whether `/doctor` prints a per-hook history is not established. The suggest sentences in
+  `audit-install-state`, `audit-performance` and `audit-skill-visibility` carry their own
+  four-part records inline.
+- **Argument hints** on `observability` and `audit-skill-visibility` use tokens their Full form
+  defines, `audit-install-state` moves its root default and `--csv` rule into an Arguments line,
+  and the three audit skills state that `unattended` is consumed by the skill and never passed
+  to the engine.
+- **`audit-native-overlap` names `/skill-quality:check`** in its Apply step, and sibling
+  pointers are restored.
+- **CHANGELOG history:** duplicate entries collapsed, false claims corrected and missing
+  headings restored in earlier entries.
+
 ## [0.63.34] - 2026-09-29
 
 ### Fixed
