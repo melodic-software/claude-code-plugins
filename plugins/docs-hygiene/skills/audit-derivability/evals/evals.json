@@ -166,8 +166,8 @@
     {
       "id": 14,
       "name": "routing-only-root-claude-md-is-already-a-pointer",
-      "prompt": "Run a sweep whose only document is the repository's root CLAUDE.md, which loads at session start. Its full text is: \"# acme-billing. Where to look. This file states no rules and no rationale. Build, test, and lint commands: README.md, 'Development'. CI checks and what each one gates: the header comment of .github/workflows/ci.yml. Pull request title and body format: .claude/rules/pr-body-contract.md. Service settings and their values: config/settings.json. Module layout: the src/ directory tree.\" Every pointer target exists. Its git log shows only ordinary edits, no commit that records a decision about it. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
-      "expected_output": "Grades the file on the routing row of Factor 1, not as derivable-from-code: it holds pointers only ('fact X lives at Y'), and because it loads at launch it is what tells the agent where to look. Verdict `convert-to-pointer (already satisfied)`: no new pointer to write, not actionable, never `delete`. Checks git log first and finds no recorded decision. The aggregate line counts the file (1 convert-to-pointer) and the confirmed-actionable subset is empty. A spot-test, if run, uses an Explore or Plan agent (the file is launch-loaded) and asks for the substantive conclusions the pointer targets own, not the trigger question 'what does this file tell you to read?'.",
+      "prompt": "Run a sweep whose only document is the repository's root CLAUDE.md, which loads at session start. Its full text is: \"# acme-billing. Where to look. This file states no rules and no rationale. Build, test, and lint commands: README.md, 'Development'. CI checks and what each one gates: the header comment of .github/workflows/ci.yml. Pull request title and body format: .claude/rules/pr-body-contract.md. Service settings and their values: config/settings.json. Module layout: the src/ directory tree.\" Every pointer target exists. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
+      "expected_output": "Grades the file on the routing row of Factor 1, not as derivable-from-code: it holds pointers only ('fact X lives at Y'), and because it loads at launch it is what tells the agent where to look. Verdict `convert-to-pointer (already satisfied)`: no new pointer to write, not actionable, never `delete`. The verdict recommends no change, so the git-log precondition does not apply and no `reverses a recorded decision` label is added. The aggregate line counts the file (1 convert-to-pointer) and the confirmed-actionable subset is empty. A spot-test, if run, uses an Explore or Plan agent (the file is launch-loaded) and asks for the substantive conclusions the pointer targets own, not the trigger question 'what does this file tell you to read?'.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -175,7 +175,6 @@
         "The file is excluded from the confirmed-actionable subset, and no work-item routing is offered for it",
         "The aggregate line counts the file as 1 convert-to-pointer, so the routing doc is visible in the total rather than dropped",
         "The rationale says the file loads at launch and routes the agent to where facts live (the Factor 1 routing row), not that an agent could just look",
-        "Consults git log before finalizing the verdict",
         "Any spot-test named uses an Explore or Plan agent and does not ask the fresh agent what the file tells it to read"
       ]
     },

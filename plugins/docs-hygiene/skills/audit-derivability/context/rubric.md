@@ -57,7 +57,8 @@ derivable-from-code. A routing-only doc that loads at session start (root
 `CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file) is what tells the
 agent where to look, so the verdict is never `delete`. It stays
 `convert-to-pointer (already satisfied)`, not actionable, and counts in the
-aggregate.
+aggregate. The deliberate-state precondition below does not change this: that
+verdict recommends no change, so it reverses no recorded decision.
 
 A document is *fully* derivable only when every substantive claim sits in the
 top two rows. One claim in the bottom "owned fact" row flips the whole document
@@ -191,7 +192,8 @@ recommended pointer target exists before the verdict ships: one `ls` (or URL
 check) per anchor, recorded in the rationale. A pointer at a nonexistent
 anchor is worse than the doc it replaces.
 
-**Deliberate-state precondition, every `delete` and `convert-to-pointer`.** Run
+**Deliberate-state precondition, every `delete` and `convert-to-pointer` that
+recommends a change** (`convert-to-pointer (already satisfied)` is exempt). Run
 `git log` on the file before the verdict ships, not only for empty files. A
 commit that records a decision about the doc (a deliberate creation, an emptying,
 a reset) is an owned fact (Factor 4). Where the recorded decision is the file's
@@ -228,7 +230,7 @@ a sweep cannot spot-test every keep, so it samples.
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
 | A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1 exception); launch-loaded, so it is what tells the agent where to look | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
-| A doc whose `git log` shows a commit recording a decision about it. Case 1: an empty root `CLAUDE.md` deliberately emptied as an instruction-baseline reset. Case 2: a routing-only `CLAUDE.md` whose creating commit says it was made on purpose | `git log` is checked before EVERY `delete`/`convert-to-pointer`. The decision in the commit message is an owned fact (Factor 4 "decisions" class), though the file's mechanical history is derivable | Case 1: `keep-owns-facts`, the emptiness is the decision. Case 2: the verdict ships provisional, `reverses a recorded decision` |
+| A doc whose `git log` shows a commit recording a decision about it. Case 1: an empty root `CLAUDE.md` deliberately emptied as an instruction-baseline reset. Case 2: a `docs/deploy-notes.md` restating config values, whose creating commit says it was kept on purpose | `git log` is checked before EVERY `delete`/`convert-to-pointer` that recommends a change. The decision in the commit message is an owned fact (Factor 4 "decisions" class), though the file's mechanical history is derivable | Case 1: `keep-owns-facts`, the emptiness is the decision. Case 2: the verdict ships provisional, `reverses a recorded decision` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |
 | A doc explaining *why* the retry count is 3 (rate limit, past incident, breaker invariant) | Bare value derivable, but owns rationale + constraint + cross-cutting invariant | `keep-owns-facts` |
