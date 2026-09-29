@@ -38,8 +38,7 @@ An operator facing a full disk acts with OS tools, Recycle Bin / Trash, or the o
 GC; this engine does not become more aggressive under pressure.
 
 Regenerable-but-costly state (a build cache versus an irreplaceable artifact) is not an engine
-signal. High/Medium/Low already encode provenance, not regeneration cost; ranking stays a model
-instruction per the #3858 park.
+signal. High/Medium/Low already encode provenance, not regeneration cost.
 
 **Claim:** the cleaner does not distinguish a tidiness pass from a disk-full emergency; none of
 the three rules yields, and regenerable-at-a-cost is not an engine signal. **Basis:** #3855 is
