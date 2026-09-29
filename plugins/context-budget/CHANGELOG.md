@@ -7,6 +7,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.6.45] - 2026-09-29
+
+### Fixed
+
+- **`setup` passes the scope `claude plugin list` reports.** The headless toggle no longer says
+  to always pass `-s user`: a rerun at a scope other than the installed one adds an install
+  record and enables the plugin there. When the working directory is the home directory and the
+  list labels one file as both `user` and `project`, pass `user`. The README and eval 6 say the
+  same. The unsourced `fnm_multishells` path example is gone, and `setup` now ends with a
+  `## Next` section pointing at `audit`.
+- **`audit` reference text.** `engine.md` lists the binary stamp and `skillListingSignature`
+  among the record's fields again (a splice had detached them from the sentence) and documents
+  the two harness-only `cli-parse` marker lines, `Caveat:` and `<!-- synthesized-zero: -->`, as
+  the hermetic test's input contract. The README's ConfigChange wording now matches the hooks
+  page (Claude Code 2.1.284): blocks surface no message, and `policy_settings` changes are the
+  exception.
+- **Connectors lever.** The 2.1.259 `allowedMcpServers` fact is stated once, in the caveat,
+  and the lever rows no longer cite changelog item ids. The manifest description says `fix`
+  applies one approved project-scope trim instead of "applies nothing".
+
+### Changed
+
+- **Changelog corrections to released entries.** 0.6.42 carried bullets duplicated from 0.6.39
+  and 0.6.41 and now records that it changed no plugin behavior; 0.6.36 gains the
+  `settings_write_ask_enabled` description line it shipped without; a note under the header
+  records that 0.6.38 and 0.6.40 were never published.
+
 ## [0.6.44] - 2026-09-28
 
 ### Changed
