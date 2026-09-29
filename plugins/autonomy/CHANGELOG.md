@@ -3,6 +3,13 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.16] - 2026-09-29
+
+### Changed
+
+- **`reference/return-accounting.md` points at the attestation decision instead of restating it (#4703).** The section "Agent-run artifact attestation is out of scope (#4703)" keeps its heading and now names `docs/out-of-scope/agent-run-artifact-attestation.md` in one sentence. The options list and the Claim, Basis, As of and Recheck lines are removed from this plugin; the ledger holds them. The decision is unchanged.
+- **The 0.24.9 entry body is corrected in place.** It repeated the 0.24.8 text and now states that 0.24.9 changed no plugin file.
+
 ## [0.24.15] - 2026-09-28
 
 ### Changed
