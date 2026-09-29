@@ -89,7 +89,8 @@ never combined with `&&` or other commands in one call. The record for these sha
    `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
    section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
    that question before step 5, then record the user's answer beside that line in the section.
-   When the planning plugin is not installed, ask the questions as one short numbered list in chat and record each question and answer for the commit.
+   When the planning plugin is not installed, ask the questions as one short numbered list
+   in chat and record each question and answer for the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
 ## 4. Guard, commit, tick
