@@ -5,8 +5,7 @@
 #
 # Last version run per skill, first source holding the skill wins:
 #   1. Merged sweep PRs (head branch chore/repo-sweep-*), newest merge first: the done lines
-#      ("- [x] <id>: <skill@version, ...>, ...") between the repo-sweep markers. Survives
-#      squash merges.
+#      (SKILL.md Formats) between the repo-sweep markers. Survives squash merges.
 #   2. Playbook-Step trailers on the default branch (origin/HEAD, else HEAD), newest first.
 # Partial coverage counts only from the newest merged sweep PR that ran the step.
 # gh absent, unauthenticated, or failing: trailers only, with a warning on stderr.

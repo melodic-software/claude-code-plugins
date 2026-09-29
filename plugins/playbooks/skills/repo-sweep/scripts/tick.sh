@@ -2,40 +2,44 @@
 # Set one checklist line in the current branch's sweep PR body (grammar:
 # ../SKILL.md "Formats").
 #
-#   tick.sh <id> in-progress                          "- [~] <id>: <skills>"
-#   tick.sh <id> committed <sha> <skill@version>...   "- [x] <id>: <skill@version, ...>, committed <sha>"
-#   tick.sh <id> no-findings <skill@version>...       "- [x] <id>: <skill@version, ...>, no findings"
-#   tick.sh <id> partial <detail> <skill@version>...  "- [x] ...>, no findings, partial coverage: <detail>"
+#   tick.sh <id> in-progress
+#   tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...
+#   tick.sh <id> no-findings <skill@version>...
+#   tick.sh <id> partial <detail> <skill@version>...     zero findings, partial coverage
 #   tick.sh <id> not-applicable <evidence> <skill@version>...
-#       "- [x] ...>, not applicable: <evidence>"
-#   tick.sh <id> report-only <n> <skill@version>...   "- [x] ...>, no fix-eligible findings (N report-only)"
+#   tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
 #
 # Reads the body with `gh pr view --json body`, writes it with `gh pr edit --body-file -`,
 # re-reads it, and prints the new line. Only the first line for <id> between the repo-sweep
 # markers changes; every other line keeps its bytes, CRLF included. A "[ ]", "[~]", or bare
-# "[x]" line can be set; a done line ("[x]" ending ", committed <sha>" or ", no findings")
-# cannot. No lock: one session per sweep.
+# "[x]" line can be set; a done line cannot. No lock: one session per sweep.
 # Exit: 0 ok; 1 line missing or already done, or the edit did not land (any other non-zero
 # code is a failed gh or jq); 2 usage.
 set -euo pipefail
 
 usage() {
-  printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> committed <sha> <skill@version>...\n' >&2
+  printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...\n' >&2
   printf '       tick.sh <id> no-findings <skill@version>...\n' >&2
   printf '       tick.sh <id> partial <detail> <skill@version>...\n' >&2
   printf '       tick.sh <id> not-applicable <evidence> <skill@version>...\n' >&2
-  printf '       tick.sh <id> report-only <n> <skill@version>...\n' >&2
+  printf '       tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...\n' >&2
   exit 2
 }
 (($# >= 2)) || usage
 id=$1 mode=$2
 shift 2
+cover=""
+if [[ $mode == --partial ]]; then
+  [[ ${1-} == ?* && $1 != *","* && ${2-} =~ ^(committed|report-only)$ ]] || usage
+  cover=", partial coverage: $1" mode=$2
+  shift 2
+fi
 suffix=""
 case $mode in
 in-progress) (($# == 0)) || usage ;;
 committed)
   [[ ${1-} =~ ^[0-9a-f]{7,40}$ ]] || usage
-  suffix=", committed $1"
+  suffix=", committed $1$cover"
   shift
   ;;
 no-findings) suffix=", no findings" ;;
@@ -51,7 +55,7 @@ not-applicable)
   ;;
 report-only)
   [[ ${1-} =~ ^[0-9]+$ ]] || usage
-  suffix=", no fix-eligible findings ($1 report-only)"
+  suffix=", no fix-eligible findings ($1 report-only)$cover"
   shift
   ;;
 *) usage ;;
@@ -77,7 +81,7 @@ printf '%s\n' "$body" | awk -v id="$id" -v done_text="$versions$suffix" -v newf=
     rest = substr($0, 7); i = index(rest, ": ")
     if (i && substr(rest, 1, i - 1) == id) {
       hit = 1; tail = substr(rest, i + 2)
-      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings(, partial coverage: .+)?|, no fix-eligible findings \([0-9]+ report-only\)|, not applicable: .+)$/) { done = 1; exit }
+      if (substr($0, 4, 1) ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\))(, partial coverage: .+)?$|, not applicable: .+$/) { done = 1; exit }
       $0 = done_text == "" ? "- [~] " id ": " tail : "- [x] " id ": " done_text
       print > newf
     }

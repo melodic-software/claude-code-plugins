@@ -114,6 +114,12 @@ pr OPEN "$(body '' '- [x] one: p:a@1.0, committed abc1234' '- [X] two: p:b@2.0, 
 run
 assert_eq "all steps done: exit 13, no next line" "13 " "$rc $(grep '^next' <<<"$out")"
 
+pr OPEN "$(body '' '- [x] one: p:a@1.0, committed abc1234, partial coverage: 2 files' \
+  '- [x] two: p:b@2.0, no fix-eligible findings (3 report-only), partial coverage: docs only' \
+  '- [x] three: p:c@1, no findings, partial coverage: docs only' '- [x] four: p:d@1, not applicable: no tests')" | serve head
+run
+assert_eq "suffixed done forms: skipped by next and untick detection, exit 13" "13 " "$rc $(grep -E '^(next|untick|done-unverified)' <<<"$out")"
+
 {
   pr CLOSED "$(body '' '- [ ] a: p:a')" 9
   pr OPEN "$(body '' '- [ ] a: p:a')" 7

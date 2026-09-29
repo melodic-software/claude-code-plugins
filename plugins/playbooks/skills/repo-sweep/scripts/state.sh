@@ -21,7 +21,6 @@
 #   done-unverified <id>   a bare "[x]" line (no versions: ticked in the web UI) no trailer backs
 #   next <id> in-progress|pending   the first "[~]" line, else the first "[ ]" line
 #   sweep <number> <branch>         one per open sweep PR (exit 15 only)
-# A done line is "[x]" ending ", committed <sha>" or ", no findings".
 #
 # Exit:
 #   0  next step found; under an in-progress step a dirty tree means resume
@@ -108,7 +107,7 @@ awk -v logf="$tmp/log" '
     if (!i) next
     id = substr(rest, 1, i - 1); tail = substr(rest, i + 2)
     if (id !~ /^[a-z0-9-]+$/) { print "state.sh: unsafe step id: " id > "/dev/stderr"; bad = 1; exit }
-    if (mark ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings(, partial coverage: .+)?|, no fix-eligible findings \([0-9]+ report-only\)|, not applicable: .+)$/) next
+    if (mark ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\))(, partial coverage: .+)?$|, not applicable: .+$/) next
     n = split(tail, s, /, */)
     for (c = 1; c <= nc; c++) {
       if (cnt[c] != n) continue

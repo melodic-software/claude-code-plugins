@@ -101,18 +101,23 @@ never combined with `&&` or other commands in one call. The record for these sha
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
 3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): tick only
-   after section 3 steps 3–4. When the skill reported uncovered scope, `S/tick.sh <id>
-   partial "<what was not covered>" <skill@version>...` (one line, no commas). Otherwise count
-   findings the skill marks report-only (tiers the procedure says never edit in this pass, such
-   as `source-fetched-similar` or `not-found`). When that count is greater than zero, `S/tick.sh
-   <id> report-only <n> <skill@version>...` where `<n>` is that count. When coverage
-   was complete and there are zero findings of any kind, `S/tick.sh <id> no-findings
-   <skill@version>...`. No commit.
+   after section 3 steps 3–4. Decide the base outcome first. Count findings the skill marks
+   report-only (tiers the procedure says never edit in this pass, such as
+   `source-fetched-similar` or `not-found`). When that count is greater than zero, `S/tick.sh
+   <id> report-only <n> <skill@version>...` where `<n>` is that count. When there are zero
+   findings of any kind, `S/tick.sh <id> no-findings <skill@version>...`. Then, when the skill
+   reported uncovered scope, add it: `S/tick.sh <id> --partial "<what was not covered>"
+   report-only <n> <skill@version>...` for report-only findings, or `S/tick.sh <id> partial
+   "<what was not covered>" <skill@version>...` for zero findings (one line, no commas), so
+   partial never hides a report-only count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
    and the `Co-Authored-By:` trailer, so git parses them together. Push, then `S/tick.sh <id>
-   committed <short-sha> <skill@version>...`.
+   committed <short-sha> <skill@version>...`. When the skill reported uncovered scope, tick
+   `S/tick.sh <id> --partial "<what was not covered>" committed <short-sha> <skill@version>...`
+   so the uncovered scope survives into `history.sh`; the coverage read stays step-wide as in
+   section 3 step 3.
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 

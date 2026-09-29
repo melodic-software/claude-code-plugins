@@ -80,6 +80,35 @@ body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
 run four report-only 3 p:q@2.0
 assert_eq "report-only" "0 - [x] four: p:q@2.0, no fix-eligible findings (3 report-only)" "$rc $out"
 
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four --partial '2 files uncovered' committed abc1234 p:q@2.0
+assert_eq "--partial with committed" "0 - [x] four: p:q@2.0, committed abc1234, partial coverage: 2 files uncovered" "$rc $out"
+cp "$TMP/body" "$TMP/before"
+run four in-progress
+assert_eq "committed line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+run four report-only 1 p:q@2.0
+assert_eq "committed line with the suffix cannot be overwritten: exit 1" "1" "$rc"
+if cmp -s "$TMP/before" "$TMP/body"; then pass "re-tick leaves the body alone"; else fail "re-tick" "unchanged" "changed"; fi
+
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four --partial 'docs only' report-only 3 p:q@2.0
+assert_eq "--partial with report-only keeps the count" "0 - [x] four: p:q@2.0, no fix-eligible findings (3 report-only), partial coverage: docs only" "$rc $out"
+run four in-progress
+assert_eq "report-only line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four partial 'docs only' p:q@2.0
+assert_eq "partial mode still reads as zero findings" "0 - [x] four: p:q@2.0, no findings, partial coverage: docs only" "$rc $out"
+run four in-progress
+assert_eq "no-findings line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+
+for bad in "four --partial x no-findings p:q@1" "four --partial x in-progress" "four --partial x partial y p:q@1" \
+  "four --partial x not-applicable y p:q@1" "four --partial a,b committed abc1234 p:q@1" "four --partial x" "four --partial"; do
+  read -ra args <<<"$bad"
+  run "${args[@]}"
+  assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
+done
+
 for bad in "two" "two in-progress p:b@1" "two committed xyz p:b@1" "two committed abc1234" "two no-findings p:b" "two done p:b@1"; do
   read -ra args <<<"$bad"
   run "${args[@]}"
