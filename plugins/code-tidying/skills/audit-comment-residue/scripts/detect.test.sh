@@ -452,7 +452,7 @@ cat >"$ORIGIN_NEG" <<'EOF'
 # supported from version 3.0 onward
 # padded 2026-01-01 for alignment
 # bytes copied from the source buffer are hashed
-# rows migrated from the old schema each tick
+# rows migrated from a legacy schema each tick
 # cache helper\ copied from the dotfiles profile
 EOF
 origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
@@ -695,6 +695,160 @@ expect_clean "clause-opening FIXME: exempts" "note; FIXME: from branch x"
 expect_shape "marker mentioned mid-sentence exempts nothing" "see PR #45 and the TODO list" ticket-pr-residue
 expect_shape "bare TODO without ( or : exempts nothing" "TODO fix, see PR #45" ticket-pr-residue
 expect_shape "marker inside a longer word exempts nothing" "TODOS: see PR #45" ticket-pr-residue
+
+# history-narration-weak (tier 2): cues that also open ordinary prose. Each whole-word cue
+# fires, the shape is Tier 2, and a longer word on either side of the cue does not.
+expect_no_shape() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_not_contains "$1" "$out" "Finding shape: $3"
+}
+weak_out="$(bash "$DETECT" "$(cue_file "exactly as before")")"
+assert_contains "weak cue reports tier 2" "$weak_out" "Finding tier: 2"
+assert_contains "weak cue T2 summary" "$weak_out" "T1=0 T2=1 T3=0"
+expect_shape "weak: exactly as before" "exactly as before" history-narration-weak
+expect_shape "weak: as before" "keeps the order as before" history-narration-weak
+expect_shape "weak: has always used" "this has always used a lock" history-narration-weak
+expect_shape "weak: always used" "always used a lock here" history-narration-weak
+expect_shape "weak: the old shared group" "the old shared group" history-narration-weak
+expect_shape "weak: (ci-perf Phase 6b)" "(ci-perf Phase 6b)" history-narration-weak
+expect_shape "weak: bare phase number before punctuation" "runs in phase 3, then stops" history-narration-weak
+expect_shape "weak: bare phase number ends the comment" "cleanup for Phase 6" history-narration-weak
+expect_shape "weak: as before before the loop stays a finding" "as before the loop starts" history-narration-weak
+expect_shape "weak: cue after punctuation" "fine;as before" history-narration-weak
+
+expect_clean "as beforehand is not as before" "as beforehand"
+expect_clean "alias before is not as before" "alias before the loop"
+expect_clean "always usedx is not always used" "always usedx"
+expect_clean "the older is not the old" "the older shared group"
+expect_clean "the oldest is not the old" "the oldest entry wins"
+expect_clean "the old-style is not the old word" "the old-style form"
+expect_clean "trailing the old is not the old word" "the old"
+expect_clean "phase 2 of the build is prose" "phase 2 of the build"
+expect_clean "the second phase is prose" "the second phase"
+expect_clean "in phase two is prose" "in phase two"
+expect_clean "biphase 2b is not a phase cue" "biphase 2b"
+expect_clean "phase 6bx is not a phase cue" "phase 6bx"
+expect_clean "phase 2 samples is prose" "phase 2 samples the signal"
+expect_no_shape "replaces the old is plan-reference, not weak" "Task 2 replaces the old tokenizer" history-narration-weak
+expect_shape "replaces the old stays plan-reference" "Task 2 replaces the old tokenizer" plan-reference
+expect_shape "the old after replaces the old still counts" "replaces the old tokenizer; the old shared group" history-narration-weak
+expect_no_shape "identifier is not a comment" 'the_old_shared = 1' history-narration-weak
+
+# A comment line that continues a comment on the previous line is also read joined to it. The
+# wrapped finding is reported once, at the first line's number.
+wrap_fixture() {
+  local f="$TEST_TMPDIR/wrap-$1.py"
+  cat >"$f"
+  printf '%s' "$f"
+}
+wrap_count() { grep -c '^Finding shape:' <<<"$1" || true; }
+assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture basic <<'EOF'
+x = 1
+# grouped for speed (ci-perf Phase
+# 6b) and nothing else
+y = 2
+EOF
+)")"
+assert_contains "wrapped Phase 6b is found" "$wrap_out" "Finding shape: history-narration-weak"
+assert_contains "wrapped finding sits on the first line" "$wrap_out" "Finding line: 2"
+assert_not_contains "wrapped finding is not repeated on the second line" "$wrap_out" "Finding line: 3"
+assert_contains "wrapped excerpt shows both halves" "$wrap_out" "Finding excerpt: grouped for speed (ci-perf Phase 6b) and nothing else"
+assert_contains "wrapped finding is counted once" "$wrap_out" "T1=0 T2=1 T3=0"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture tier1 <<'EOF'
+# tuned as you
+# asked last week
+EOF
+)")"
+assert_contains "wrapped tier-1 cue is found" "$wrap_out" "Finding shape: conversational-antecedent"
+assert_contains "wrapped tier-1 cue sits on the first line" "$wrap_out" "Finding line: 1"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture slashes <<'EOF'
+// used
+// to be a list
+EOF
+)")"
+assert_contains "wrapped cue over // comments" "$wrap_out" "Finding shape: history-narration"
+
+wrap_out="$(bash "$DETECT" "$(wrap_fixture block <<'EOF'
+/*
+ * the old
+ * shared group is gone
+ */
+EOF
+)")"
+assert_contains "wrapped cue over block-comment lines" "$wrap_out" "Finding shape: history-narration-weak"
+assert_contains "block-comment finding sits on the first line" "$wrap_out" "Finding line: 2"
+
+# A phrase on one line is reported once even when a comment line follows it.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture once <<'EOF'
+# keeps the order as before
+# for every caller
+EOF
+)")"
+assert_eq "a single-line finding is not reported again when joined" "1" "$(wrap_count "$wrap_out")"
+
+# Findings on both lines keep line order and each shape is reported once.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture both <<'EOF'
+# as before, see PR #45
+# and the old shared group
+EOF
+)")"
+assert_eq "two lines with own findings give three findings" "3" "$(wrap_count "$wrap_out")"
+first_line="$(grep -m1 '^Finding line:' <<<"$wrap_out")"
+assert_eq "own findings keep line order" "Finding line: 1" "$first_line"
+
+# No join across code, a blank comment line, or a gap.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture nojoin <<'EOF'
+# grouped (ci-perf Phase
+value = 6
+# 6b) ends here
+#
+# (ci-perf Phase
+#
+# 6b) ends here
+EOF
+)")"
+assert_contains "no join across code or a blank comment line" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# A trailing comment on a code line does not continue a comment.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture trailing <<'EOF'
+# grouped (ci-perf Phase
+value = 6  # 6b) ends here
+EOF
+)")"
+assert_contains "code line with a trailing comment starts no join" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# Opt-out markers still hold for a joined finding, on either line and on the line before.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture ignore <<'EOF'
+# grouped (ci-perf Phase
+# 6b) ends here comment-residue-ignore
+# ok (ci-perf Phase comment-residue-ignore
+# 6b) ends here
+# comment-residue-ignore
+# (ci-perf Phase
+# 6b) ends here
+EOF
+)")"
+assert_contains "opt-out marker suppresses a joined finding" "$wrap_out" "T1=0 T2=0 T3=0"
+
+# A license block stays exempt from origin-note when the cue wraps.
+wrap_out="$(bash "$DETECT" "$(wrap_fixture license <<'EOF'
+# SPDX-License-Identifier: MIT
+# vendored: ported
+# from upstream
+EOF
+)")"
+assert_contains "wrapped origin cue inside a license block is exempt" "$wrap_out" "T1=0 T2=0 T3=0"
+wrap_out="$(bash "$DETECT" "$(wrap_fixture originwrap <<'EOF'
+# vendored: ported
+# from upstream
+EOF
+)")"
+assert_contains "wrapped origin cue outside a license block is found" "$wrap_out" "Finding shape: origin-note"
 
 # --- Final report --------------------------------------------------------------------
 

@@ -134,13 +134,31 @@ mapfile -t SORTED < <(printf '%s\n' "${EXPANDED[@]}" | LC_ALL=C sort -u)
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
+# Print one finding and count it. Reads t1/t2/t3 from audit_file's frame (dynamic scope).
+emit_finding() {
+  local file="$1" shape="$2" line_num="$3" excerpt="$4" tier
+  tier="$(cr_shape_tier "$shape")"
+  printf 'File: %s\n' "$file"
+  printf 'Finding tier: %s\n' "$tier"
+  printf 'Finding shape: %s\n' "$shape"
+  printf 'Finding line: %s\n' "$line_num"
+  printf 'Finding excerpt: %s\n' "$excerpt"
+  printf '%s\n' '---'
+  case "$tier" in
+  1) t1=$((t1 + 1)) total_t1=$((total_t1 + 1)) ;;
+  2) t2=$((t2 + 1)) total_t2=$((total_t2 + 1)) ;;
+  *) t3=$((t3 + 1)) total_t3=$((total_t3 + 1)) ;;
+  esac
+}
+
 audit_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
   files_audited=$((files_audited + 1))
 
   local t1=0 t2=0 t3=0
-  local prev_line="" line_num=0 shapes shape tier excerpt
+  local prev_line="" line_num=0 shapes shape excerpt
+  local prev_ct="" prev_shapes="" ct joined
 
   # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
   # even when the cue sits on another line of the same NOTICE block.
@@ -154,28 +172,42 @@ audit_file() {
     line_num=$((line_num + 1))
     if cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
+      prev_ct=""
       continue
     fi
     shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" || true)"
+
+    # A comment line that continues a comment on the line before it is also read joined to
+    # that line, so a phrase wrapped across the break is found. Only a shape neither line
+    # yields alone is new, and it is reported once, at the first line's number.
+    ct=""
+    if cr_is_comment_line "$line"; then
+      ct="$(cr_comment_text "$line")"
+      ct="${ct#"${ct%%[![:space:]]*}"}"
+      ct="${ct%"${ct##*[![:space:]]}"}"
+    fi
+    if [[ -n "$ct" && -n "$prev_ct" ]]; then
+      joined="$(cr_trim_excerpt "$prev_ct $ct")"
+      while IFS= read -r shape; do
+        [[ -z "$shape" ]] && continue
+        case $'\n'"$shapes"$'\n'"$prev_shapes"$'\n' in
+        *$'\n'"$shape"$'\n'*) continue ;;
+        *) ;;
+        esac
+        emit_finding "$file" "$shape" $((line_num - 1)) "$joined"
+      done < <(cr_detect_shapes_text "$prev_ct $ct" "${license_block[$line_num]:-0}" || true)
+    fi
+
     if [[ -n "$shapes" ]]; then
       excerpt="$(cr_trim_excerpt "$line")"
       while IFS= read -r shape; do
         [[ -z "$shape" ]] && continue
-        tier="$(cr_shape_tier "$shape")"
-        printf 'File: %s\n' "$file"
-        printf 'Finding tier: %s\n' "$tier"
-        printf 'Finding shape: %s\n' "$shape"
-        printf 'Finding line: %s\n' "$line_num"
-        printf 'Finding excerpt: %s\n' "$excerpt"
-        printf '%s\n' '---'
-        case "$tier" in
-        1) t1=$((t1 + 1)) total_t1=$((total_t1 + 1)) ;;
-        2) t2=$((t2 + 1)) total_t2=$((total_t2 + 1)) ;;
-        *) t3=$((t3 + 1)) total_t3=$((total_t3 + 1)) ;;
-        esac
+        emit_finding "$file" "$shape" "$line_num" "$excerpt"
       done <<<"$shapes"
     fi
     prev_line="$line"
+    prev_ct="$ct"
+    prev_shapes="$shapes"
   done <"$file"
 
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"

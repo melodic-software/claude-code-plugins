@@ -26,7 +26,8 @@ Six skills, one capability:
   (`scc`, `pygments`, `tree-sitter`, `pwsh`, `ruff`, `ast-grep`) at run time,
   naming what each absent one costs.
 - **`/code-tidying:audit-comment-residue`**. Read-only classifier for
-  out-of-context comment residue (history narration, plan/session references,
+  out-of-context comment residue (history narration, weak history cues,
+  plan/session references,
   conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
   findings for author-applied deletion, edits nothing.
 - **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of

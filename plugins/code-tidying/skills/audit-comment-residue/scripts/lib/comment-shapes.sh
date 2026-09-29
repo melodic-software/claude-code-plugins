@@ -122,10 +122,13 @@ cr_license_block_lines() {
 
 # Emit zero or more shape names, one per line; return 1 if any emitted.
 cr_detect_shapes() {
-  local line="$1"
+  cr_detect_shapes_text "$(cr_comment_text "$1")" "${2:-0}"
+}
+
+# The same over comment text already extracted from a line, or joined from two lines.
+cr_detect_shapes_text() {
+  local ct="$1"
   local in_license_block="${2:-0}"
-  local ct
-  ct="$(cr_comment_text "$line")"
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
   local lc="${ct,,}"
   local found=0
@@ -173,6 +176,18 @@ cr_detect_shapes() {
     fi
   fi
 
+  # history-narration-weak (tier 2): cues that usually narrate the past but also open ordinary
+  # prose ("as before the loop starts", "the old value is compared"), so a person decides.
+  # `replaces the old` is plan-reference's, so it is blanked before the `the old <word>` cue.
+  local wk="$lc" rre='replaces[[:space:]]+the[[:space:]]+old'
+  while [[ "$wk" =~ $rre ]]; do wk="${wk/"${BASH_REMATCH[0]}"/ }"; done
+  if [[ "$wk" =~ ${sb}(as[[:space:]]+before|always[[:space:]]+used)${eb} ]] ||
+    [[ "$wk" =~ ${sb}the[[:space:]]+old[[:space:]]+[[:alnum:]] ]] ||
+    [[ "$wk" =~ ${sb}phase[[:space:]]+[0-9]+([a-z]${eb}|[[:space:]]*([^[:alnum:][:space:]]|$)) ]]; then
+    printf '%s\n' 'history-narration-weak'
+    found=1
+  fi
+
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
@@ -189,7 +204,7 @@ cr_detect_shapes() {
 cr_shape_tier() {
   case "$1" in
   history-narration | plan-reference | conversational-antecedent | origin-note) printf '1' ;;
-  ticket-pr-residue) printf '2' ;;
+  history-narration-weak | ticket-pr-residue) printf '2' ;;
   *) printf '3' ;;
   esac
 }
