@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Fixed
 
-- **The interview defenses suite pins the current `interview` frontmatter.** The 0.45.11 argument-hint rewrite changed the frontmatter digest the suite compares against, so the suite failed on every pull request. Neither pinned defense changed. Test-only.
+- **The interview defenses suite re-pins the `SKILL.md` frontmatter digest.** The 0.45.11 argument-hint change altered only the `argument-hint` key, which states neither defense, so the stale digest failed the suite. Test-only.
 
 ## [0.45.12] - 2026-09-28
 

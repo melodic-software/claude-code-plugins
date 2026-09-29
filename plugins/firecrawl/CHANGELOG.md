@@ -3,6 +3,14 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.19] - 2026-09-29
+
+### Fixed
+
+- `firecrawl` states the `firecrawl init --all --browser` prohibition in plain sentence case instead of bold capitals (#4120).
+- `update` flow no longer names the unmarked `/skill-creator:skill-creator` route; it points to the rewrite helper the `update` skill body names, so the marketplace attribution lives in one place (#4119).
+- `firecrawl` argument hint makes the command slot required again (`<scrape|search|...|credit-usage> [args]`) instead of an all-optional bracket list.
+
 ## [0.5.18] - 2026-09-28
 
 ### Changed
