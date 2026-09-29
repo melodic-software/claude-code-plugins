@@ -14,7 +14,7 @@ offered because there is nothing it could conformingly write. Only the **detache
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
 runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
 are all native `userConfig` (the carve-out's native-`userConfig` class), and its remaining
-prerequisites are system tools (Python 3.10+, `jq`, the external-prerequisites class), so setup
+prerequisites are system tools (Node.js, Python 3.10+, `jq`, the external-prerequisites class), so setup
 installs nothing and edits nothing (writing `pluginConfigs` is what the setup contract forbids).
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
@@ -33,17 +33,20 @@ prerequisite absence downgrades from FAIL to INFO, the hook exits through its op
 touching anything, so a deliberately disabled plugin is not broken. Report the probes informationally
 and note that re-enabling restores the FAIL semantics.
 
-1. **Python 3.10+**, the launcher and tailer are stdlib-only Python 3.10+. Probe the same interpreter
+1. **Node.js on PATH**, every hook row runs through `node ${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs`.
+   Probe `node --version` through Bash. FAIL if absent: the hook does not launch, so the observer
+   never arms. Remediation: install Node.js on PATH (<https://nodejs.org/en/download>).
+2. **Python 3.10+**, the launcher and tailer are stdlib-only Python 3.10+. Probe the same interpreter
    detection the hook uses (`python3` then `python`, requiring `sys.version_info >= (3, 10)`). FAIL if
    none qualifies: without it the hook silently skips arming. Remediation: install Python 3.10+ on PATH.
-2. **`jq`**, the SessionStart hook parses its stdin (`session_id`, `transcript_path`, `source`,
+3. **`jq`**, the SessionStart hook parses its stdin (`session_id`, `transcript_path`, `source`,
    `agent_type`) with `jq`. FAIL (auto-arm path only) if absent: the hook exits early and never arms.
    The manual `arm` action resolves inputs without `jq`, so absence is INFO for that path. Remediation:
    install `jq` (<https://jqlang.org/download/>).
-3. **`claude` CLI on PATH**, the autonomous analysis leg invokes `claude -p`. INFO if absent: the
+4. **`claude` CLI on PATH**, the autonomous analysis leg invokes `claude -p`. INFO if absent: the
    observer still distills and retains observations under its plugin work dir; the analysis run is
    skipped and nothing is written to the ledger.
-4. **Observer config**. Report the effective value of each native key (an unexpanded `${user_config.…}`
+5. **Observer config**. Report the effective value of each native key (an unexpanded `${user_config.…}`
    token or empty means the default): `${user_config.observer_enabled}` (default off),
    `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`
    (default `claude-haiku-4-5`), `${user_config.observer_analysis_bare}` (default off),
@@ -52,7 +55,7 @@ and note that re-enabling restores the FAIL semantics.
    86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (the
    analysis run reports "Not logged in"); `observer_idle_seconds` below the machine's longest expected
    single turn risks firing analysis on a partial transcript.
-5. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
+6. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
    rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
 
 ## Remediation guidance (printed by `check`; the operator applies it)

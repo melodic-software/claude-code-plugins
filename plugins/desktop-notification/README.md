@@ -39,12 +39,19 @@ just the message.
 
 The hook runs on Bash 3.2+. On native Windows, install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so Git Bash is
-available. It needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
+available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
+Claude Code's native binary neither ships nor uses Node, so without it the hook does not launch and
+notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
 are disabled with a visible notice, once per session and agent, renewed every eighth skip. macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
 skipped while notifications still fire.
+
+Node.js claim verified 2026-09-29 per the
+[Claude Code setup page](https://code.claude.com/docs/en/setup) ("The installed `claude` binary
+does not itself invoke Node") and the [hooks reference](https://code.claude.com/docs/en/hooks)
+("Exec form and shell form"). Recheck when either page changes those statements.
 
 ## Install
 

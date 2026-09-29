@@ -3,6 +3,30 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.7] - 2026-09-29
+
+### Changed
+
+- `tileset`, `ui`, and `vfx` render through `backends.py` and follow `reference/brief.md` for the
+  shared brief fields, matching `sprite` and `animate` (#4400, #4402).
+- The Aseprite adapter rewrites its `sheet.json` to the native contract: frame keys are the spec
+  frame names and `meta.image` is `sheet.png`. A frame-count mismatch falls back to the native
+  renderer with a notice, and `frameTags` indexes follow the compacted frame map (#4402).
+- `tileset`, `ui`, and `vfx` stay on native unless the request or `${user_config.backend}` names
+  another backend.
+- `backends.md` and the README state that the adapters have run only against local stand-ins.
+- The click-to-start audio rule in `scene` is recorded with its basis in `scene-canvas.md`. The
+  docs say `--record` writes video only, so the campfire WebM is silent (#4404, #4403).
+- `sprite` points at `scripts/kit.py` for full-body humanoids. `AUDIO.txt` no longer cites
+  `retro-audio` script paths, and `brief.md` drops two records that backed no rule (#4405, #4404,
+  #4399).
+
+### Fixed
+
+- `capture.py --record` rejects `inf`, `-inf`, and `nan` instead of hanging (#4403).
+- `backends.test.sh` runs every `test_*.py` suite; only `test_backends.py` ran in CI before.
+  New browser-free tests cover capture cleanup, the video-less default, and the served copy.
+
 ## [0.3.6] - 2026-09-28
 
 ### Added
@@ -66,9 +90,9 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
   including MV-style `img/animations`. Effekseer (`.efkefc`) stays out of scope.
 - Worked generators under `examples/tileset`, `examples/ui`, and `examples/vfx`, rendered by
   `scripts/render.py`. Tests check an MZ A2 sheet, a `Window.png` skin, and a five-column animation
-  sheet against the grids in `engine-layouts.md`.
+  sheet against the grids in `engine-layouts.md` (#4400).
 
-## [0.3.0]
+## [0.3.0] - 2026-09-28
 
 ### Added
 
@@ -79,7 +103,7 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 - `render.py --snap` maps an 8-bit RGB or RGBA PNG onto a palette (nearest sRGB color, alpha below
   128 transparent). `--dither` adds 4x4 Bayer ordered dither. `--emit-frames` writes spec rows.
 
-## [0.2.0]
+## [0.2.0] - 2026-09-28
 
 ### Added
 

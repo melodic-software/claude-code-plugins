@@ -58,6 +58,18 @@
         "The skill does NOT perform a code-quality review of the diff",
         "Score/report output is confined to plugin state (${CLAUDE_PLUGIN_DATA}); nothing is written into the consumer's repo except user-approved codifications"
       ]
+    },
+    {
+      "id": 6,
+      "name": "leading-unattended-then-quick-mode",
+      "prompt": "/session-flow:retro unattended quick",
+      "expected_output": "The leading bare `unattended` is stripped first and only gates the /export step: the suggestion is recorded in the output and not asked. The mode is then read from the remainder, so `quick` selects the abbreviated quick pass rather than session, codify or trends.",
+      "files": [],
+      "expectations": [
+        "The leading `unattended` is stripped before the mode is read, and `quick` is then selected as the mode (abbreviated pass, not session/codify/trends)",
+        "The /export step records the suggestion in the output and does not ask the operator",
+        "`unattended` is not read as a mode and does not change anything other than the /export step"
+      ]
     }
   ]
 }

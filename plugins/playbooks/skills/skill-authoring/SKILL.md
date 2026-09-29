@@ -196,22 +196,14 @@ Recheck: that row changes the turn scope, the auto-mode exception, or the `conte
 
 ## Arguments (Melodic Software addition)
 
-`arguments` in frontmatter names positional slots. It is not keyword arguments. With
-`arguments: [issue, branch]`, `\$issue` is the first argument and `\$branch` is the second. A
-space-separated string and a YAML list are both accepted, and a missing name expands to nothing.
 The [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
-declines the field: its names are only positional aliases, and with no flag parser it adds no
-validation. Read
-`\$ARGUMENTS` whole and parse it in prose.
+owns the argument shape and the decision to decline the `arguments` field.
 
 Verification record. Claim: `\$0` is the first argument and `\$1` the second; `\$ARGUMENTS[N]` is
-the same 0-based index; an indexed placeholder with no argument stays unchanged; a named
-placeholder with no argument expands to an empty string; only a single backslash directly before
-the token escapes it, and a doubled backslash leaves `\$1` expanding; indexed values use
-shell-style quoting. Basis:
-<https://code.claude.com/docs/en/skills#available-string-substitutions> and the `arguments` row of
-<https://code.claude.com/docs/en/skills#frontmatter-reference>. As of: 2026-09-28. Recheck: either
-section changes indexing, the empty-name rule, or the escape rule.
+the same 0-based index; only a single backslash directly before the token escapes it, and a
+doubled backslash leaves `\$1` expanding. Basis:
+<https://code.claude.com/docs/en/skills#available-string-substitutions>. As of: 2026-09-28.
+Recheck: that section changes indexing or the escape rule.
 
 A 2.1.251 probe recorded on
 [#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543) found that
