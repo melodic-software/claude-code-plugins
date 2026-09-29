@@ -7,7 +7,7 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class (#4240). bash-format does not use it: its missing-tool notices stay ordinary once-per-session-and-agent notices, and it ships no session-start probe, no `prerequisites.json` and no model-invocable check.
 
 ## [0.8.4] - 2026-09-28
 
