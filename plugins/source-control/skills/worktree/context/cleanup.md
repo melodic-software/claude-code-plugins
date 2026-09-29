@@ -236,8 +236,10 @@ git worktree remove --force <path>   # dirty-tree override — only after the co
 
 A **locked** worktree never takes the second `--force`. The lock is an owning lane's claim, armed
 at creation by `worktree-create.sh`, not a stronger kind of dirt, and `--force --force` answers
-both questions with one flag. Only a **Stale lock** (Step 2) is removable at all: a merged or landed branch plus `worktree-claim.sh stale <path>` exiting 0. Any other locked worktree stays. On explicit confirmation that the owner is done, re-run `worktree-claim.sh stale <path>` immediately before unlocking (the owning session may have resumed while the confirmation was pending) and leave the tree locked when it no longer exits 0:
-`git worktree unlock <path>` first, then remove (plain, or a single `--force` only for a
+both questions with one flag. Only a **Stale lock** (Step 2) is removable at all: a merged or landed branch plus `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exiting 0. Any other locked worktree stays.
+
+On explicit confirmation that the owner is done, first re-run `bash "<scripts-dir>/worktree-claim.sh" stale <path>` (the owning session may have resumed while the confirmation was pending). If it no longer exits 0, stop and leave the tree locked. Only when it still exits 0, run
+`git worktree unlock <path>`, then remove (plain, or a single `--force` only for a
 confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag ever
 silently answers a question it was not asked.
 

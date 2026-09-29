@@ -327,6 +327,13 @@ CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-such-config" HOSTNAME="$STALE_HOST" run_claim
 assert_exit "stale: an unreadable transcript directory is not provable (exit 1)" 1 "$?"
 assert_contains "stale: the refusal names the directory" "$OUT" "unreadable"
 
+mkdir -p "$CFG/projects/-locked"
+chmod 000 "$CFG/projects/-locked"
+run_stale wt-st-old
+assert_exit "stale: a scan that fails mid-way is not provable (exit 1)" 1 "$?"
+assert_contains "stale: the refusal says the scan failed" "$OUT" "failed"
+chmod 755 "$CFG/projects/-locked"
+
 run_stale wt-st-bare
 assert_exit "stale: an unlocked tree is not provable (exit 1)" 1 "$?"
 
