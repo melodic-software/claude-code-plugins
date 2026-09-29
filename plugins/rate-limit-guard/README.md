@@ -102,7 +102,9 @@ print that combined form.
 The scripts run on Bash (Git Bash on native Windows; install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows); the statusline wiring
 invokes `bash` explicitly) and need [`jq`](https://jqlang.org/download/) on `PATH` for the tee and
-the standalone statusline. Proactive window data requires Claude.ai subscription auth (Pro/Max).
+the standalone statusline. The `StopFailure` hook launches through `node hooks/exec-bash.mjs`, so
+Node.js must be on `PATH` too: Claude Code's native binary does not ship or use Node, and without it
+the hook does not launch and records nothing. Proactive window data requires Claude.ai subscription auth (Pro/Max).
 `rate_limits` appears only there, per the
 [statusline reference](https://code.claude.com/docs/en/statusline); on other auth the guard is
 reactive-only. The tee updates only while an interactive session refreshes the statusline.

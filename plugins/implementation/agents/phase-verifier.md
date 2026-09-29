@@ -24,12 +24,6 @@ and PowerShell remain available for inspection (diffs, greps, read-only checks, 
 Concretely: never re-run a build, render, format, or lint script that writes files; read its
 committed output instead. A verifier that touches the artifact it grades has voided its verdict.
 
-Claim: where the PowerShell tool is unavailable, the `PowerShell` entry resolves to nothing and
-Bash remains, since a subagent fails to launch only when no `tools` entry resolves. Basis:
-<https://code.claude.com/docs/en/sub-agents>, verified 2026-09-28 (the same record as the
-`implementer` cage paragraph). As of: 2026-09-28. Recheck: that page changes how unresolved
-`tools` entries are handled.
-
 **Decide every criterion, or return no verdict.** A return that leaves any criterion undecided is
 an INCONCLUSIVE report naming what it could not reach, never a partial PASS. This definition
 deliberately sets no `maxTurns`, because an audit's length is set by the diff, and a turn cap would

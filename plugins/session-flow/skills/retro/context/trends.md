@@ -5,11 +5,7 @@ attention. No current-session analysis; purely retrospective across sessions.
 
 ## Data source
 
-Score history persisted by session/quick mode:
-
-```text
-${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md
-```
+Score history persisted by session/quick mode: the file SKILL.md "Paths" names, `<project-slug>.md`.
 
 Format: `| Date | Session | Type | Workflow | Technical | Alignment | Efficiency | Errors | Overall |`
 

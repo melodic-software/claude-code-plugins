@@ -301,6 +301,19 @@
         "The reasoning states that named subagents stay live and addressable across /clear and across sessions, which is why idle ones must be reaped at the save-point",
         "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
+    },
+    {
+      "id": 22,
+      "name": "leading-unattended-consumed-before-method",
+      "prompt": "/session-flow:handoff unattended prompt",
+      "expected_output": "The leading bare `unattended` token is consumed before method detection, so `prompt` is read as the method (prompt-only path, no durable file) and `unattended` is never taken as the topic or a method. The only effect of `unattended` is on the /export step: the suggestion is recorded in the output and the operator is not asked. The skill still STOPS after emitting the resume prompt.",
+      "files": [],
+      "expectations": [
+        "The leading `unattended` token is consumed before method detection, and `prompt` is then read as the method (first remaining token)",
+        "No durable handoff file is written (prompt-only path), and the topic is not 'unattended'",
+        "The /export step records the suggestion in the output and does not ask the operator",
+        "The self-contained resume prompt is emitted between two dashed U+2500 rails and the skill STOPS after emitting it"
+      ]
     }
   ]
 }

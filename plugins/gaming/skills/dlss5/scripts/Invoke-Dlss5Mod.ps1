@@ -424,7 +424,6 @@ function ErrorPath($err, $fallback) {
     $msg = "$($err.Exception.Message)"
     if ($msg -match "'([A-Za-z]:\\[^']+)'") { return $Matches[1] }
     if ($msg -match '"([A-Za-z]:\\[^"]+)"') { return $Matches[1] }
-    if ("$fallback") { return "$fallback" }
     return "$fallback"
 }
 # Lists a folder; an absent one is silent, one that cannot be listed is reported.

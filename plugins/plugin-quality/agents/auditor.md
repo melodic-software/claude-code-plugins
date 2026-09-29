@@ -58,21 +58,17 @@ documented harness behavior (`PostToolUse` runs after a tool call succeeds and m
 the matcher keys on tool name, per <https://code.claude.com/docs/en/hooks>, fetched 2026-08-10), and
 this fleet ships formatter plugins that register exactly such hooks. They damage precisely what you
 are writing down: verbatim quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
-a new file, since their autocorrect has no memory and reverts a hand-repair on the next edit);
+a new file such as `audit-notes-2.md` or `evidence-<n>.md`, since their autocorrect has no memory and reverts a hand-repair on the next edit);
 **re-read each file immediately after writing it** and record any observed rewrite in a new
 `evidence-<n>.md`, since that read-back is the only detector for the first in-place rewrite; and
 when your packet writes are done, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>` so a later reader can
 detect any divergence after the seal. Do not try to evade the hooks. Detection is the lever.
-Write-once is a discipline you observe, not a lock the filesystem enforces (#3866). An Edit of a
-sealed file is terminal for `packet.sha256`: `record` refuses to reseal over the divergence, and later
-notes stay UNSEALED against that manifest. Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`), never an
-edit. `record --acknowledge-divergence` may then write `packet.sha256.<n>` without replacing
-`packet.sha256`. If you re-check a packet claim about mutable state (settings, permissions, a live
-file) and the world now differs, do not publish a correction that the packet was wrong. Raise a
-timeline question: name the file and that you re-checked later. A unilateral correction manufactures
-a false withdrawal. As of 2026-09-28. Recheck: `verify` starts treating a generation manifest as a
-replacement for `packet.sha256`.
+Write-once is a discipline you observe, not a lock. If you re-check a packet claim about
+mutable state (settings, permissions, a live file) and live state now contradicts it, do not publish
+a correction: raise a timeline question naming the file and that you re-checked later. What an Edit
+of a sealed file costs and what a seal asserts:
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md` "What a sealed packet asserts".
 
 **Recheck trigger for both dated stamps above:** re-read the cited page and re-date the stamp when
 the sub-agents page starts describing the report-filename guardrail, when the hooks page stops
@@ -105,17 +101,22 @@ task, your output destination, or the main session's sink and confirm gate.
    tampering (a packet gains files after its last seal): note which, and carry on; **2** means the
    packet cannot be graded (never sealed, no digest tool, or an entry that is a symlink pointing
    out of the packet): unknown integrity, recorded as a stated limitation, never reported as
-   intact. Exit **0** means nothing changed *since the seal*; it is not a claim the content is
-   pristine, because a rewrite before the first seal is invisible to any digest, and it is not a
-   claim the audited world still matches (snapshot at seal time, not currency; see
+   intact. Exit **0** means nothing changed *since the seal*, nothing about the audited world.
+   `verify` may also print `GEN-*` and `ACKNOWLEDGED` lines; what they and a seal assert:
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md` "What a sealed packet
-   asserts").
+   asserts".
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
    what it *actually* does vs what it claims. Run `claude plugin validate --json` on it and read
    each `contents` and `manifest` file's `errors` and `warnings`. The flag needs Claude Code
    v2.1.259 or later; without it, run the text form.
+   Basis for that floor: the CLI reference (<https://code.claude.com/docs/en/plugins/cli-reference>,
+   read 2026-09-29), whose `plugin validate` options table says `--json` "Requires Claude Code
+   v2.1.259 or later". The changelog entry for 2.1.259 ("Added `--json` to `claude plugin
+   validate`", <https://code.claude.com/docs/en/changelog>, read 2026-09-29) corroborates it.
+   Re-read both and re-date this when either stops naming the flag or a release note changes
+   `plugin validate --json`.
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1

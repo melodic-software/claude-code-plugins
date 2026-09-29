@@ -246,19 +246,22 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 > non-interactive `-p` mode "applies to the current session only and isn't saved as your
 > default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
 > and "holds it across sessions until you make an explicit effort choice". Opus 5 has no such
-> hold. That page owns the current level names, persistence rules, and per-model availability;
-> read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
+> hold (superseded by the amendment below). That page owns the current level names, persistence
+> rules, and per-model availability; read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
 > page finds it no longer matching this record.
 
-> **Amended (verified 2026-09-28 against
+> **Amended (verified 2026-09-29 against
 > [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-> 115,913 bytes):** the hold sentence above is no longer on the page. What the page says now:
-> Opus 5.5 starts at `medium` unless an explicit choice sets a level, and a top-level
-> `effortLevel` in the user settings file does not count for Opus 5.5. That key still applies on
-> Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it start at their own
-> default until `/effort` or the `/model` picker saves a level for them. A top-level
-> `effortLevel` in project, local, or managed settings, or one passed with `--settings`, applies
-> to every model. `max` applies to the current session only unless it is set through
+> 109,282 bytes as raw markdown):** the hold sentence above is no longer on the page. What the page
+> says now: the session's level comes from the first source that applies, in this order: an explicit
+> choice (`CLAUDE_CODE_EFFORT_LEVEL`, launching with `--effort`, or `/effort` in the session), your
+> saved settings, then the model's default. Launching with `--effort` is an explicit choice for that
+> launch. Opus 5.5 starts at `medium` unless one of those sources sets a level for it, and a
+> top-level `effortLevel` in the user settings file does not count for Opus 5.5. That key still
+> applies on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it start at
+> their own default until you choose a level for them with `/effort` or the `/model` picker. A
+> top-level `effortLevel` in project, local, or managed settings, or one passed with `--settings`,
+> applies to every model. `max` applies to the current session only unless it is set through
 > `CLAUDE_CODE_EFFORT_LEVEL`. `/effort` in a `-p` run applies to that session only.
 > **Recheck trigger:** a re-fetch of that section no longer matching this record.
 

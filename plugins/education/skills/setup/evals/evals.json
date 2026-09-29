@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "refuses-to-edit-settings-for-a-quiz-policy-change",
-      "prompt": "/education:setup \u2014 set quiz_policy to always in settings.json for me.",
+      "prompt": "/education:setup set quiz_policy to always in settings.json for me.",
       "expected_output": "Does not edit settings.json or pluginConfigs. It reports the current rendered quiz_policy and routes a persistent change through Claude Code's plugin configuration prompt, then requires a rerun before claiming the value changed.",
       "files": [],
       "narration": true,

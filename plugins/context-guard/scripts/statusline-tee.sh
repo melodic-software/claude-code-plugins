@@ -377,9 +377,12 @@ tee_snapshot() {
   # The builtin reader walks bytes: the C locale makes every length and offset
   # a byte count and every [A-Za-z0-9] range ASCII. The caller's LC_ALL is put
   # back before anything else runs, since the wrapped statusline inherits it.
+  # An empty now (bash below 4.2, or a failed printf %()T) skips the reader:
+  # its byte-for-byte match with jq is proven on bash 5.x only, so those hosts
+  # take the body from jq.
   local lc_set=${LC_ALL+x} lc_was=${LC_ALL-} built=1
   LC_ALL=C
-  if [[ -n "${CG_TEE_FORCE_JQ:-}" ]] || ! cg_body_builtin; then built=0; fi
+  if [[ -z "$now" || -n "${CG_TEE_FORCE_JQ:-}" ]] || ! cg_body_builtin; then built=0; fi
   if [[ -n "$lc_set" ]]; then LC_ALL=$lc_was; else unset LC_ALL; fi
 
   if ((built)); then

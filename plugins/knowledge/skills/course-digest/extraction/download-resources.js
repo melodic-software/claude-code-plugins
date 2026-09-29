@@ -13,8 +13,8 @@ import https from "node:https";
 import { basename, dirname, extname, join } from "node:path";
 
 import { createLogger } from "@melodic/video-digestion/shared/logger";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
-import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
 let args;
@@ -239,7 +239,7 @@ async function main() {
   log.info(`  ${articlesPath}`);
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     log.error("Fatal:", e);
     process.exit(1);

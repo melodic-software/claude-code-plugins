@@ -1,9 +1,9 @@
 # review
 
 A Claude Code plugin bundling one cohesive capability: **code review**. Six reviewer
-agents, read-only over the reviewed code, plus two orchestration skills, a single-lens quality gate and a
+agents, read-only over the reviewed code, plus orchestration skills: a single-lens quality gate, a
 multi-surface review fan-out that normalizes every reviewer's output into one
-severity-ranked, deduplicated findings report.
+severity-ranked, deduplicated findings report, and the other review skills listed below.
 
 ## Components
 
@@ -29,7 +29,9 @@ limits apply:
 - **"Read-only" is an instruction, not a tool boundary.** None of the six lists `Write` or `Edit`,
   but with auto memory on the harness enables both so the agent can manage its memory files,
   and nothing scopes them to the memory directory. `permissionMode` cannot narrow a plugin
-  subagent either. Keeping writes to the memory directory is the agents' own convention.
+  subagent either. Bash is a second unenforced write path for all six agents, and
+  `ecosystem-specialist` runs build and test commands that write artifacts. Keeping writes to
+  the memory directory and off the reviewed code is the agents' own convention.
 
 Each agent also treats the reviewed code, `REVIEW.md`, rules files and cited documents as data:
 an instruction embedded in them is reported as a finding, and project conventions override an
