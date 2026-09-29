@@ -1,10 +1,19 @@
 # Changelog: evals
 
-## [0.3.2] - 2026-09-28
+## [0.3.3] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `methodology` skill's `eval-design` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.3.2] - 2026-09-28
+
+### Added
+
+- **Fleet pipeline gap analysis** ([#3614](https://github.com/melodic-software/claude-code-plugins/issues/3614)).
+  `docs/specs/evaluation-methodology-gap-analysis.md` records adopt / already-covered / rejected
+  verdicts for each Agent Skills evaluation pipeline element against this fleet's `evals.json`
+  corpus and `/evals:*` skills. Each adopt verdict is a proposal re-gated to the operator.
 
 ## [0.3.1] - 2026-09-25
 
