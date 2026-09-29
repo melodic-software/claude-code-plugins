@@ -22,7 +22,7 @@ The append happens at bind time, before any overlay exists, because an overlay w
 line is present leaks a personal file into the index. A recommendation the consumer may act on
 later cannot close that window.
 
-[ADR 0015](0015-bind-the-tracker-at-the-repo-root-with-an-allowlisted-personal-overlay.md) already
+[ADR 0015](0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md) already
 declares the same kind of exception for `/work-items:setup apply`, which appends
 `.work-item-tracker.local.json`. The source-control append had no record of its own.
 

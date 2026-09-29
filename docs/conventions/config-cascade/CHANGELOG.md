@@ -25,8 +25,8 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 ## [1.4] - 2026-09-29
 
 Additive relaxation (minor bump): the overlay-naming rule "no plugin writes the consumer's
-`.gitignore`" becomes that rule plus two declared consumer-root append exceptions, on the same
-footing as the exception class ratified in 1.1. Recommend stays the default posture.
+`.gitignore`" becomes that rule plus two declared consumer-root append exceptions.
+Recommend stays the default posture.
 
 - **Overlay naming names its exceptions (#3573).** `/source-control:setup apply` appends the
   recursive `.claude/**/*.local.*` line and `/work-items:setup apply` appends

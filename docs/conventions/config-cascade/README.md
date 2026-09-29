@@ -135,8 +135,6 @@ Discovery, verification, planning, review, claude-ops, and the standards root al
 self-ignoring `.gitignore`, but *inside a plugin-owned directory* (memory root or
 `<standards_dir>/`). That file is not the consumer's `.gitignore`, so it is not an exception.
 
-The owner decided on #3573 to keep these three postures rather than converge them.
-
 ## Expression doctrine: which surfaces are files, and which are convention docs
 
 The layers above describe **where** a surface's values live relative to each other. This section
