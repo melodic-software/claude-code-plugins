@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.23] - 2026-09-29
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, and `setup` `**Arguments.**` lines lead with the argument hint,** so each hint and line agree.
+
 ## [0.62.22] - 2026-09-29
 
 ### Fixed
