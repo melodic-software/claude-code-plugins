@@ -2,8 +2,6 @@
 name: research-verifier
 description: "Grades the verifier-owned outcome-gate rows of a /discovery:research artifact in a fresh context: re-reads the index and sidecars off disk, re-fetches cited primaries, and returns a per-row verdict plus the verification: line the parent writes into RESEARCH.md. Read-only. Dispatched by /discovery:research and /discovery:research-deep after the acceptance gate passes; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob, WebFetch, WebSearch"
-skills:
-  - discovery:report
 model: opus
 effort: high
 maxTurns: 30

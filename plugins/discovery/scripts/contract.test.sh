@@ -1012,6 +1012,30 @@ for file in skills/research/SKILL.md skills/blindspot/SKILL.md; do
   assert_present "$file carries a Next section" "$file" '^## Next$'
 done
 
+# ---------------------------------------------------------------------------
+# 18. Each agent carries one final-message shape
+#
+# `discovery:report` is a second return shape. An agent that preloads it carries
+# that core beside its own `Return exactly this` block, and the parent parses
+# the agent's own block, so the preload adds a contradiction and no contract.
+# A bare `report` entry resolves inside this plugin, so it counts too.
+# ---------------------------------------------------------------------------
+for agent in explorer researcher intent-tracer research-verifier; do
+  file="agents/$agent.md"
+  if awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on' "$PLUGIN_ROOT/$file" |
+    grep -qE "^skills:.*report|^[[:space:]]+-[[:space:]]*[\"']?(discovery:)?report[\"']?[[:space:]]*$"; then
+    fail "$file does not preload the report return contract"
+  else
+    pass "$file does not preload the report return contract"
+  fi
+  sections="$(grep -cE '^## Return exactly this' "$PLUGIN_ROOT/$file")"
+  if [[ "$sections" -eq 1 ]]; then
+    pass "$file has exactly one Return exactly this section"
+  else
+    fail "$file has exactly one Return exactly this section — found $sections"
+  fi
+done
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
