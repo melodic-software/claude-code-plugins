@@ -194,9 +194,11 @@ version_sort_key() {
 # content. Comment markers inside fenced code are content; fence markers inside a
 # comment are suppressed. A line that BEGINS inside a comment is suppressed whole
 # even when the comment closes on it: what follows `-->` can never be a
-# column-one heading anyway. Reads $1, or stdin when $1 is `-`.
+# column-one heading anyway. Reads $1, or stdin when $1 is `-`. A non-empty $2
+# also emits the fence lines and fenced content, each prefixed with a control
+# character so none of it can read as a heading.
 rendered_lines() {
-  awk '
+  awk -v keep="${2:-}" '
     {
       if (!infence && inhtml) {
         p = index($0, "-->")
@@ -224,13 +226,13 @@ rendered_lines() {
         if (mlen >= 3) {
           if (!infence) {
             # opening fence; a backtick info string must not contain a backtick
-            if (!(mchar == "`" && rest ~ /`/)) { infence = 1; fchar = mchar; flen = mlen; next }
+            if (!(mchar == "`" && rest ~ /`/)) { infence = 1; fchar = mchar; flen = mlen; if (keep != "") print "\001" $0; next }
           } else if (mchar == fchar && mlen >= flen && rest ~ /^[ \t]*$/) {
-            infence = 0; next
+            infence = 0; if (keep != "") print "\001" $0; next
           }
         }
       }
-      if (infence) next
+      if (infence) { if (keep != "") print "\001" $0; next }
       print
       rem = $0
       while ((q = index(rem, "<!--")) > 0) {
@@ -298,11 +300,10 @@ missing_preserved_headings() {
 
 # "<added> <copied>" per line: an entry of $1 whose version is in $2 (space
 # separated added versions) and whose trimmed body, at least MIN_REPEATED_BODY
-# characters, equals another entry's body. Bodies are read from rendered_lines,
-# so fenced code is not part of the comparison.
+# characters, equals another entry's body, fenced code included.
 repeated_added_bodies() {
   local changelog="$1" added="$2"
-  rendered_lines "$changelog" | awk -v added="$added" -v min="$MIN_REPEATED_BODY" '
+  rendered_lines "$changelog" fenced | awk -v added="$added" -v min="$MIN_REPEATED_BODY" '
     function trim(s) { gsub(/^[ \t\n]+|[ \t\n]+$/, "", s); return s }
     function commit() { if (cur != "") body[cur] = trim(text) }
     /^##[ \t]/ {
@@ -674,7 +675,10 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
 
   base_body=""
   if git cat-file -e "$merge_base:$changelog" 2>/dev/null; then
-    base_body="$(git show "$merge_base:$changelog")" || exit 2
+    if ! base_body="$(git show "$merge_base:$changelog")"; then
+      echo "check-changelog-parity: 'git show $merge_base:$changelog' failed; refusing to pass without checking." >&2
+      exit 2
+    fi
   fi
   declare -A base_has=()
   for v in $(printf '%s\n' "$base_body" | changelog_versions -); do base_has["$v"]=1; done

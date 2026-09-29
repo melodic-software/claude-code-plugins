@@ -1238,4 +1238,11 @@ if [[ $rc -eq 0 ]]; then ok "added entry with a distinct long body passes --chec
 repeated_body_case $'## [1.0.1]\n\n'"$long_body"$'\n\n## [1.0.0]\n\n'"$long_body"$'\n' "- $(printf 'z%.0s' {1..130})"
 if [[ $rc -eq 0 ]]; then ok "pre-existing repeated bodies pass --check-bump"; else fail "pre-existing repeat wrongly failed: rc=$rc out='$out'"; fi
 
+# Fenced content is part of the body: same prose with a different command differs.
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n\n```sh\nrun one\n```\n' "$long_body"$'\n\n```sh\nrun two\n```'
+if [[ $rc -eq 0 ]]; then ok "same prose with different fenced content passes --check-bump"; else fail "differing fence wrongly failed: rc=$rc out='$out'"; fi
+
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n\n```sh\nrun one\n```\n' "$long_body"$'\n\n```sh\nrun one\n```'
+if [[ $rc -eq 1 ]]; then ok "same prose with identical fenced content fails --check-bump"; else fail "identical fence not caught: rc=$rc out='$out'"; fi
+
 test_harness::report
