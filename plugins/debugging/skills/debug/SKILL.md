@@ -179,6 +179,29 @@ Required before declaring done:
 - Make the recommendation **after** the fix is in, not before. The post-fix view has more information than the pre-fix one
 - State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
 
+## Boundary, the bundled `debug` skill
+
+The names collide outright, so "debug this" can land on either, but the two debug different things.
+
+- **`debug` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It turns
+  on debug logging for the current Claude Code session and troubleshoots Claude Code itself by
+  reading that session's debug log. It is reserved for the person to run; the model does not
+  invoke it.
+- **This skill (marketplace plugin).** Debugs the user's application: build a feedback loop,
+  reproduce, hypothesize, instrument, fix with a regression test, clean up.
+
+**Routing.** When the broken thing is Claude Code itself (a hook, a tool call, a permission, a
+session misbehaving) rather than the user's code, offer it to the person: you can run `/debug`
+instead of or alongside this skill. Make the offer at Phase 1, before building a loop against the
+application. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `debug` starts debug logging for the session from the moment it runs. This
+skill never runs it on the person's behalf.
+
+**Availability is never assumed.** Bundled skills are gated on settings, environment, plan, and
+host; this section states what to do when the person can run it, never that it is present. The
+four-part records live in [reference/native-debug.md](reference/native-debug.md).
+
 ## What this skill does NOT do
 
 - **Does not ship without a feedback loop**. Phase 1 is a hard gate. If a loop cannot be built, that is the report you deliver
