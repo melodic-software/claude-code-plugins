@@ -302,6 +302,28 @@ Plan mode is also a natural moment for a **scoping confirm**. If you're entering
 
 **Substantive rounds do not belong in plan mode.** A question that resolves *what we are building*, real tradeoffs, contested requirements, anything whose answer changes the plan's shape, routes to `/planning:interview` via the Skill tool, run with **plan mode off**, for two reasons. Mechanically, that skill's ask-time open-question register is a disk write, and plan mode's read-only enforcement blocks it, so questions get asked with nothing on disk holding them. Doctrinally, plan mode primes the run toward producing the plan when the job is still reaching shared understanding. Plan mode's round confirms scope; it is not a substitute for the interview. **Getting there is the user's move, not yours**. Symmetric to entering plan mode above: you do not toggle permission modes, so when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode on the assumption the register write will survive. It will not.
 
+## Boundary, the built-in `/plan` command
+
+The command and this skill share a name, so "plan this" can mean either.
+
+- **`/plan` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
+  `/plan [description]` enters plan mode, the read-only permission mode Plan Mode Integration
+  above describes, optionally starting on the description; `/plan open` views the session plan.
+  It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an
+  approval gate, and a persisted PLAN.md a cleared session can execute.
+
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: you
+can run `/plan` (or press `shift+tab`) alongside this skill. Prefer this skill for the plan
+itself. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission
+mode. This skill never toggles the mode on the person's behalf.
+
+**Availability is never assumed.** This section states what to do when the person can run `/plan`,
+never that it is present. The four-part records live in
+[reference/native-plan.md](reference/native-plan.md).
+
 ## Plan Review Mode
 
 Read [context/review-mode.md](context/review-mode.md) when invoked with `review`. It holds the review procedure and how it differs from `/planning:devils-advocate`.
