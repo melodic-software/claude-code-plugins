@@ -6,9 +6,13 @@
 # ENVIRON. Nothing here prints the raw value.
 #
 # redact_shape(key, value) records zero or more shapes. redact_dump(cfgkey)
-# prints them as: kind, host, port, cfgkey, tab-separated.
+# prints them as: kind, host, port, cfgkey, database, scheme, tab-separated.
 #
-# A shape is a service kind plus a hostname and an optional numeric port.
+# A shape is a service kind plus a hostname and an optional numeric port. A sql
+# shape may also carry a database name, which identifies the store beside the
+# host and port, and a scheme (mongodb, postgres, mysql) when the value was a
+# URL. Both are empty when the value names none. A database name is kept only
+# when it is a plain identifier that carries no credential.
 # Userinfo, query strings, passwords, account keys, tokens, and secret-only
 # values are dropped. A value that is only a credential produces no row.
 #
@@ -46,13 +50,19 @@ function redact_host_ok(h) {
   return 1
 }
 
-function redact_emit(kind, host, port,    id, j) {
+function redact_db_name(s) {
+  if (length(s) < 1 || length(s) > 128 || s !~ /^[A-Za-z0-9_.-]+$/) return ""
+  if (redact_secret_value(s)) return ""
+  return tolower(s)
+}
+
+function redact_emit(kind, host, port, db, scheme,    id, j) {
   host = tolower(host)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
   sub(/\.$/, "", host)
   if (!redact_host_ok(host)) return
   if (port != "" && port !~ /^[0-9]+$/) port = ""
-  id = host SUBSEP port
+  id = host SUBSEP port SUBSEP db SUBSEP scheme
   if (id in redact_at) {
     j = redact_at[id]
     if (redact_rank(kind) > redact_rank(redact_kind[j])) redact_kind[j] = kind
@@ -63,6 +73,8 @@ function redact_emit(kind, host, port,    id, j) {
   redact_kind[redact_n] = kind
   redact_host[redact_n] = host
   redact_port[redact_n] = port
+  redact_db[redact_n] = db
+  redact_scheme[redact_n] = scheme
 }
 
 function redact_dump(cfgkey,    i, k) {
@@ -71,7 +83,7 @@ function redact_dump(cfgkey,    i, k) {
   gsub(/\r/, "", k)
   gsub(/\n/, " ", k)
   for (i = 1; i <= redact_n; i++)
-    printf "%s\t%s\t%s\t%s\n", redact_kind[i], redact_host[i], redact_port[i], k
+    printf "%s\t%s\t%s\t%s\t%s\t%s\n", redact_kind[i], redact_host[i], redact_port[i], k, redact_db[i], redact_scheme[i]
 }
 
 function redact_last_segment(key,    n, parts, leaf) {
@@ -125,7 +137,7 @@ function redact_known_kind(host,    h) {
   return ""
 }
 
-function redact_server(raw, kind,    port, host) {
+function redact_server(raw, kind, db,    port, host) {
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", raw)
   if (tolower(substr(raw, 1, 4)) == "tcp:") raw = substr(raw, 5)
   port = ""
@@ -138,10 +150,10 @@ function redact_server(raw, kind,    port, host) {
     if (index(host, ":") > 0) return
   } else host = raw
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
-  redact_emit(kind, host, port)
+  redact_emit(kind, host, port, db, "")
 }
 
-function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard) {
+function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db) {
   rest = value
   guard = 0
   while (match(rest, /[A-Za-z][A-Za-z0-9+.-]*:\/\//)) {
@@ -168,19 +180,32 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     }
     if (index(host, ":") > 0) continue
     kind = "http"
+    tech = ""
+    db = ""
     if (scheme == "amqp" || scheme == "amqps") kind = "broker"
     else if (scheme == "redis" || scheme == "rediss") kind = "cache"
     else if (scheme == "mongodb" || scheme == "mongodb+srv" || scheme == "postgres" ||
-             scheme == "postgresql" || scheme == "mysql") kind = "sql"
+             scheme == "postgresql" || scheme == "mysql") {
+      kind = "sql"
+      tech = scheme
+      sub(/\+srv$/, "", tech)
+      if (tech == "postgresql") tech = "postgres"
+      if (substr(rest, 1, 1) == "/") {
+        db = substr(rest, 2)
+        if (match(db, /[\/?# \t\r\n]/)) db = substr(db, 1, RSTART - 1)
+        db = redact_db_name(db)
+      }
+    }
     else if (scheme == "smtp" || scheme == "smtps") kind = "mail"
     if (bias == "authority") kind = "authority"
     hk = redact_known_kind(host)
     if (hk != "") kind = hk
-    redact_emit(kind, host, port)
+    if (kind == "sql") redact_emit(kind, host, port, db, tech)
+    else redact_emit(kind, host, port)
   }
 }
 
-function redact_shape(key, value,    cls, account, suffix, server, kl, bare, port, host, hk, nbrok, bi, brok) {
+function redact_shape(key, value,    cls, account, suffix, server, kl, bare, port, host, hk, nbrok, bi, brok, db) {
   gsub(/\r/, "", value)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
   if (length(value) > 4000) return
@@ -203,7 +228,13 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
     server = redact_cs_field(value, "Server")
     if (server == "") server = redact_cs_field(value, "Data Source")
     if (server == "") server = redact_cs_field(value, "Host")
-    if (server != "") redact_server(server, "sql")
+    db = ""
+    if (value !~ /["']/) {
+      db = redact_cs_field(value, "Initial Catalog")
+      if (db == "") db = redact_cs_field(value, "Database")
+      db = redact_db_name(db)
+    }
+    if (server != "") redact_server(server, "sql", db)
     return
   }
 

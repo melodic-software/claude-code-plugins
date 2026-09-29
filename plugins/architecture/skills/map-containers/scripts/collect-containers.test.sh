@@ -432,5 +432,236 @@ rec_text="$(cat "$TEST_TMPDIR/records.json")"
 assert_contains "family records: a real config file still yields a row" "$rec_text" "real.db.example"
 assert_not_contains "family records: tracked deployment, containers and events records are not sources" "$rec_text" "record.example"
 
+web_project() {
+  mkdir -p "$1"
+  printf '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n' >"$1/$2.csproj"
+}
+config_json() {
+  printf '{ "%s": { "%s": "%s" } }\n' "$2" "$3" "$4" >"$1/appsettings.json"
+}
+collect_render() {
+  mkdir -p "$2"
+  bash "$COLLECT" --repo "$1" --out "$2/containers.json" --generated-on 2026-09-28 >"$2/collect.out" 2>"$2/collect.err"
+  bash "$RENDER" --record "$2/containers.json" --out "$2" --dialect c4-plantuml >"$2/render.out" 2>"$2/render.err"
+}
+
+# FROM: a digest, options, a variable, and stages do not become the image name.
+DOCK="$TEST_TMPDIR/docker-repo"
+web_project "$DOCK/src/Api" Api
+digest="sha256:$(printf 'a%.0s' {1..64})"
+printf 'FROM mcr.microsoft.com/dotnet/aspnet:8.0@%s\nCOPY app /app\n' "$digest" >"$DOCK/src/Api/Dockerfile"
+mkdir -p "$DOCK/images/digest" "$DOCK/images/platform" "$DOCK/images/arg" "$DOCK/images/brace" "$DOCK/images/alias" "$DOCK/images/stage" "$DOCK/images/argstage"
+printf 'FROM mcr.microsoft.com/dotnet/aspnet:8.0@%s\n' "$digest" >"$DOCK/images/digest/Dockerfile"
+cat >"$DOCK/images/platform/Dockerfile" <<'EOF'
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+EOF
+cat >"$DOCK/images/arg/Dockerfile" <<'EOF'
+ARG BASE=alpine
+FROM $BASE
+EOF
+cat >"$DOCK/images/brace/Dockerfile" <<'EOF'
+FROM ${REGISTRY}/app:1
+EOF
+cat >"$DOCK/images/alias/Dockerfile" <<'EOF'
+FROM alpine:3.20 AS runtime
+COPY app /app
+EOF
+cat >"$DOCK/images/stage/Dockerfile" <<'EOF'
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM base AS final
+EOF
+cat >"$DOCK/images/argstage/Dockerfile" <<'EOF'
+ARG BASE=alpine
+FROM $BASE AS base
+FROM base AS final
+EOF
+commit_repo "$DOCK"
+collect_render "$DOCK" "$TEST_TMPDIR/docker-out"
+DREC="$TEST_TMPDIR/docker-out/containers.json"
+dtext="$(cat "$DREC")"
+digest_line="$(node_line "$DREC" 'images/digest/Dockerfile')"
+assert_equals "FROM digest: technology is the image without the digest" "$(field "$digest_line" technology)" "mcr.microsoft.com/dotnet/aspnet:8.0"
+assert_equals "FROM digest: the aspnet image is still kind api" "$(field "$digest_line" kind)" "api"
+assert_not_contains "FROM digest: the hash is not cited anywhere" "$dtext" "sha256:"
+assert_contains "FROM digest: an attached Dockerfile cites the image" "$(field "$(node_line "$DREC" 'src/Api/Api.csproj')" evidence)" "Dockerfile FROM mcr.microsoft.com/dotnet/aspnet:8.0"
+assert_equals "FROM --platform: the option is not the image" "$(field "$(node_line "$DREC" 'images/platform/Dockerfile')" technology)" "mcr.microsoft.com/dotnet/sdk:8.0"
+assert_equals "FROM as: the stage name is not the image" "$(field "$(node_line "$DREC" 'images/alias/Dockerfile')" technology)" "alpine:3.20"
+assert_equals "FROM \$ARG: a variable stores unknown" "$(field "$(node_line "$DREC" 'images/arg/Dockerfile')" technology)" "unknown"
+assert_equals "FROM \${VAR}: a braced variable stores unknown" "$(field "$(node_line "$DREC" 'images/brace/Dockerfile')" technology)" "unknown"
+assert_not_contains "FROM variable: the variable text is not stored" "$dtext" 'BUILDPLATFORM'
+stage_line="$(node_line "$DREC" 'images/stage/Dockerfile')"
+assert_equals "FROM stage: a last stage that names an earlier stage resolves to its image" "$(field "$stage_line" technology)" "mcr.microsoft.com/dotnet/aspnet:8.0"
+assert_equals "FROM stage: the resolved aspnet image is kind api" "$(field "$stage_line" kind)" "api"
+assert_equals "FROM stage: a stage built on a variable stays unknown" "$(field "$(node_line "$DREC" 'images/argstage/Dockerfile')" technology)" "unknown"
+
+# Test projects are not deployables, even when the output type is Exe.
+TESTS="$TEST_TMPDIR/tests-repo"
+web_project "$TESTS/src/Api" Api
+mkdir -p "$TESTS/tests/Api.Tests" "$TESTS/tests/Api.Bench" "$TESTS/tests/Api.Perf" "$TESTS/tests/Lib.Tests" "$TESTS/tools/Tool"
+cat >"$TESTS/tests/Api.Tests/Api.Tests.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup><PackageReference Include="xunit.v3" Version="1.0.0" /></ItemGroup>
+</Project>
+EOF
+cat >"$TESTS/tests/Api.Bench/Api.Bench.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" /></ItemGroup>
+</Project>
+EOF
+cat >"$TESTS/tests/Api.Perf/Api.Perf.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup>
+</Project>
+EOF
+cat >"$TESTS/tests/Lib.Tests/Lib.Tests.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" /></ItemGroup>
+</Project>
+EOF
+cat >"$TESTS/tools/Tool/Tool.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+commit_repo "$TESTS"
+collect_render "$TESTS" "$TEST_TMPDIR/tests-out"
+TREC="$TEST_TMPDIR/tests-out/containers.json"
+ttext="$(cat "$TREC")"
+assert_equals "tests: an Exe test project on the xunit package is not a deployable" "$(node_line "$TREC" 'tests/Api.Tests/Api.Tests.csproj' || true)" ""
+assert_equals "tests: an Exe project on the test SDK is not a deployable" "$(node_line "$TREC" 'tests/Api.Bench/Api.Bench.csproj' || true)" ""
+assert_equals "tests: IsTestProject=true is not a deployable" "$(node_line "$TREC" 'tests/Api.Perf/Api.Perf.csproj' || true)" ""
+assert_equals "tests: a plain Exe is still a cli" "$(field "$(node_line "$TREC" 'tools/Tool/Tool.csproj')" kind)" "cli"
+assert_equals "tests: the host is still a deployable" "$(field "$(node_line "$TREC" 'src/Api/Api.csproj')" kind)" "web"
+assert_contains "tests: the excluded count is a finding" "$ttext" '"kind":"excluded-test-projects","count":3,'
+assert_contains "tests: the finding names an excluded project" "$ttext" "tests/Api.Bench/Api.Bench.csproj"
+assert_not_contains "tests: a library test project that was never a candidate is not counted" "$ttext" "Lib.Tests"
+assert_contains "tests: the report line carries the excluded count" "$(cat "$TEST_TMPDIR/tests-out/render.out")" "excluded_tests=3"
+assert_equals "tests: the diagram draws the host and the tool only" "$(grep -c 'Container(' "$TEST_TMPDIR/tests-out/containers.md" || true)" "2"
+
+# SQL identity is host, port, and database.
+DBS="$TEST_TMPDIR/dbs-repo"
+for svc in Orders Billing Reports Legacy1 Legacy2; do
+  web_project "$DBS/src/$svc" "$svc"
+done
+config_json "$DBS/src/Orders" ConnectionStrings Main "Server=tcp:sql.example.com,1433;Initial Catalog=Orders;User ID=sa;Password=${leak_sql}"
+config_json "$DBS/src/Billing" ConnectionStrings Main "Server=tcp:sql.example.com,1433;Database=Billing;User ID=sa;Password=${leak_sql}"
+config_json "$DBS/src/Reports" ConnectionStrings Main "Server=tcp:sql.example.com,1433;Database=orders;User ID=sa;Password=${leak_sql}"
+config_json "$DBS/src/Legacy1" ConnectionStrings Main "Server=legacy.example.com;User ID=sa;Password=${leak_sql}"
+config_json "$DBS/src/Legacy2" ConnectionStrings Main "Server=legacy.example.com;User ID=sa;Password=${leak_sql}"
+commit_repo "$DBS"
+collect_render "$DBS" "$TEST_TMPDIR/dbs-out"
+SREC="$TEST_TMPDIR/dbs-out/containers.json"
+stext="$(cat "$SREC")"
+assert_equals "database: two databases on one server and one server with none are three stores" "$(grep -c '"kind":"store"' "$SREC" || true)" "3"
+assert_contains "database: the store id carries the database" "$stext" '"id":"store:sql:sql.example.com:1433:orders"'
+assert_contains "database: the store name carries the database" "$(field "$(node_line "$SREC" 'store:sql:sql.example.com:1433:billing')" name)" "sql.example.com/billing"
+assert_contains "database: two owners of one database share it" "$stext" '{"from":"src/Orders/Orders.csproj","to":"src/Reports/Reports.csproj","kind":"shared-infrastructure","via":"store:sql:sql.example.com:1433:orders"'
+assert_equals "database: a different database on the same server is not shared" "$(grep 'shared-infrastructure' "$SREC" | grep -c 'Billing' || true)" "0"
+assert_equals "database: same database shared, and same unknown-database server shared" "$(grep -c '"kind":"shared-infrastructure"' "$SREC" || true)" "2"
+assert_contains "database: no database is named in the store id" "$stext" '"id":"store:sql:legacy.example.com::database unknown"'
+unknown_edge="$(grep 'shared-infrastructure' "$SREC" | grep 'Legacy1' || true)"
+assert_contains "database: a shared unknown-database edge says so" "$unknown_edge" "same server, database unknown"
+assert_not_contains "database: a shared known-database edge does not" "$(grep 'shared-infrastructure' "$SREC" | grep 'Reports' || true)" "database unknown"
+assert_not_contains "database: the password is redacted" "$(cat "$SREC" "$TEST_TMPDIR/dbs-out/containers.md")" "$leak_sql"
+assert_contains "database: the report line counts both shared rows" "$(cat "$TEST_TMPDIR/dbs-out/render.out")" "shared=2"
+
+# The technology of a sql store is its scheme, never SQL for a host that is not.
+TECH="$TEST_TMPDIR/tech-repo"
+web_project "$TECH/src/Api" Api
+cat >"$TECH/src/Api/appsettings.json" <<EOF
+{
+  "Stores": {
+    "Mongo": "mongodb+srv://svc:${leak_sql}@mongo.example.com/catalog?authSource=admin",
+    "Pg": "postgresql://svc:${leak_sql}@pg.example.com:5432/orders",
+    "My": "mysql://svc:${leak_sql}@my.example.com:3306/shop",
+    "Plain": "Server=plain.example.com;Database=misc;User ID=sa;Password=${leak_sql}",
+    "Azure": "Server=tcp:az.database.windows.net,1433;Initial Catalog=x;User ID=sa;Password=${leak_sql}",
+    "Search": "https://acct.search.windows.net"
+  }
+}
+EOF
+commit_repo "$TECH"
+collect_render "$TECH" "$TEST_TMPDIR/tech-out"
+XREC="$TEST_TMPDIR/tech-out/containers.json"
+xtext="$(cat "$XREC")"
+assert_equals "technology: a mongodb URL is mongodb" "$(field "$(node_line "$XREC" 'store:sql:mongo.example.com::catalog')" technology)" "mongodb"
+assert_equals "technology: a postgresql URL is postgres" "$(field "$(node_line "$XREC" 'store:sql:pg.example.com:5432:orders')" technology)" "postgres"
+assert_equals "technology: a mysql URL is mysql" "$(field "$(node_line "$XREC" 'store:sql:my.example.com:3306:shop')" technology)" "mysql"
+assert_equals "technology: a connection string on a plain host is unknown" "$(field "$(node_line "$XREC" 'store:sql:plain.example.com::misc')" technology)" "unknown"
+assert_equals "technology: an Azure SQL host is Azure SQL" "$(field "$(node_line "$XREC" 'store:sql:az.database.windows.net:1433:x')" technology)" "Azure SQL"
+assert_equals "technology: every one of those stays kind sql" "$(grep -c '"store_kind":"sql"' "$XREC" || true)" "5"
+assert_not_contains "technology: nothing is labelled SQL" "$xtext" '"technology":"SQL"'
+assert_not_contains "technology: a search index is not a store kind that is read" "$xtext" "acct.search.windows.net"
+assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"
+
+# A store with three owners is one shared row per owner pair.
+THREE="$TEST_TMPDIR/three-repo"
+for svc in Api Worker Batch; do
+  web_project "$THREE/src/$svc" "$svc"
+  config_json "$THREE/src/$svc" Messaging Broker "sb://bus.servicebus.windows.net/"
+done
+commit_repo "$THREE"
+collect_render "$THREE" "$TEST_TMPDIR/three-out"
+HREC="$TEST_TMPDIR/three-out/containers.json"
+htext="$(cat "$HREC")"
+assert_equals "three owners: one shared edge per owner pair" "$(grep -c '"kind":"shared-infrastructure"' "$HREC" || true)" "3"
+assert_contains "three owners: api and batch" "$htext" '{"from":"src/Api/Api.csproj","to":"src/Batch/Batch.csproj","kind":"shared-infrastructure"'
+assert_contains "three owners: api and worker" "$htext" '{"from":"src/Api/Api.csproj","to":"src/Worker/Worker.csproj","kind":"shared-infrastructure"'
+assert_contains "three owners: batch and worker" "$htext" '{"from":"src/Batch/Batch.csproj","to":"src/Worker/Worker.csproj","kind":"shared-infrastructure"'
+assert_not_contains "three owners: a pair cites only its own owners" "$(grep '"to":"src/Batch/Batch.csproj","kind":"shared-infrastructure"' "$HREC")" "src/Worker/appsettings.json"
+assert_contains "three owners: the report line counts the pairs" "$(cat "$TEST_TMPDIR/three-out/render.out")" "shared=3"
+hmd="$(cat "$TEST_TMPDIR/three-out/containers.md")"
+assert_contains "three owners: the table names the store" "$hmd" "| from | to | store | evidence |"
+assert_contains "three owners: the table lists every pair" "$hmd" "| src/Batch/Batch.csproj | src/Worker/Worker.csproj | store:broker:bus.servicebus.windows.net: |"
+assert_contains "three owners: the table lists the first pair" "$hmd" "| src/Api/Api.csproj | src/Batch/Batch.csproj |"
+
+# Files are read from the working tree, and a dirty tracked file is a finding.
+DIRTY="$TEST_TMPDIR/dirty-repo"
+web_project "$DIRTY/src/Api" Api
+config_json "$DIRTY/src/Api" ConnectionStrings Main "Server=committed.example.com;Database=o"
+commit_repo "$DIRTY"
+collect_render "$DIRTY" "$TEST_TMPDIR/clean-out"
+assert_not_contains "clean tree: no dirty finding" "$(cat "$TEST_TMPDIR/clean-out/containers.json")" "dirty-tracked-files"
+assert_contains "clean tree: the report line says zero" "$(cat "$TEST_TMPDIR/clean-out/render.out")" "dirty_tracked_files=0"
+printf 'notes\n' >"$DIRTY/notes2.txt"
+config_json "$DIRTY/src/Api" ConnectionStrings Main "Server=edited.example.com;Database=o"
+collect_render "$DIRTY" "$TEST_TMPDIR/dirty-out"
+dirtext="$(cat "$TEST_TMPDIR/dirty-out/containers.json")"
+assert_contains "dirty tree: one edited tracked file is one finding" "$dirtext" '"kind":"dirty-tracked-files","count":1,'
+assert_contains "dirty tree: the working-tree content is what is charted" "$dirtext" "edited.example.com"
+assert_not_contains "dirty tree: the committed content is not" "$dirtext" "committed.example.com"
+assert_contains "dirty tree: the collector says so on stderr" "$(cat "$TEST_TMPDIR/dirty-out/collect.err")" "1 tracked file(s) differ from HEAD"
+assert_contains "dirty tree: the report line carries the count" "$(cat "$TEST_TMPDIR/dirty-out/render.out")" "dirty_tracked_files=1"
+assert_contains "dirty tree: the tables carry the finding" "$(cat "$TEST_TMPDIR/dirty-out/containers.md")" "| dirty-tracked-files | 1 |"
+assert_not_contains "bus: untracked files are not dirty tracked files" "$bus_text" "dirty-tracked-files"
+
+# The findings array is optional, and one that is not one object per line is refused.
+cat >"$TEST_TMPDIR/old-record.json" <<'EOF'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "subject": "x",
+  "focal": "x",
+  "containment": "project-references",
+  "containers": [
+    {"id":"a","name":"a","kind":"web","technology":"unknown","store_kind":"","summary":"","evidence":"a"}
+  ],
+  "modules": [],
+  "edges": []
+}
+EOF
+mkdir -p "$TEST_TMPDIR/old-render"
+old_out="$(bash "$RENDER" --record "$TEST_TMPDIR/old-record.json" --out "$TEST_TMPDIR/old-render" --dialect none)"
+assert_equals "findings: a record without the array renders" "$?" "0"
+assert_contains "findings: its counts are zero" "$old_out" "excluded_tests=0 dirty_tracked_files=0"
+sed 's/^  "edges": \[\]$/  "edges": [],\n  "findings": [{"kind":"dirty-tracked-files","count":1,"evidence":"x"}]/' "$TEST_TMPDIR/old-record.json" >"$TEST_TMPDIR/compact-findings.json"
+bash "$RENDER" --record "$TEST_TMPDIR/compact-findings.json" --out "$TEST_TMPDIR/old-render" --dialect none >/dev/null 2>"$TEST_TMPDIR/compact-findings.err"
+assert_equals "findings: a compacted array is refused" "$?" "1"
+assert_contains "findings: the refusal names the array" "$(cat "$TEST_TMPDIR/compact-findings.err")" "findings array"
+
 printf 'cases=%s failed=%s\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
