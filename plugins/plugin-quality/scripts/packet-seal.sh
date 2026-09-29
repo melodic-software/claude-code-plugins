@@ -26,6 +26,25 @@
 #   refuses to reseal over an already-divergent file, because doing so would
 #   replace the evidence of a rewrite with a digest of the rewritten bytes.
 #
+#   ACKNOWLEDGED DIVERGENCE — `record --acknowledge-divergence` never replaces
+#   `packet.sha256`: verify keeps reporting the original divergence as CHANGED
+#   (exit 1). It writes `packet.sha256.<N>` (N starts at 2), a manifest of the
+#   bytes as they are now, so notes added afterwards can be sealed. verify reads
+#   `packet.sha256` exactly as before and also every entry of the LATEST
+#   generation (highest N by numeric value), labeled GEN-MATCH / GEN-CHANGED /
+#   GEN-MISSING, so a second edit of an already-diverged file is still caught.
+#   A file in neither manifest is UNSEALED. Once a generation exists an ordinary
+#   `record` is refused (it would launder the acknowledged divergence), and
+#   `record --acknowledge-divergence` writes the next generation, also after the
+#   altered file was restored. It names (GEN-MISSING) any file the previous
+#   generation sealed that is now gone, because the next generation stops
+#   listing it.
+#
+#   With a generation, verify prints `ACKNOWLEDGED generation=<N>` on every run,
+#   including when a restore made every digest match and the exit is 0: verify
+#   reports what the bytes are, and the visible line, not a permanent nonzero
+#   exit, keeps the incident in front of a reader.
+#
 #   NOT COVERED — the FIRST in-place rewrite. PostToolUse runs after the write
 #   succeeds, so by the time any subsequent tool call can hash the file, the
 #   formatter has already run; the digest necessarily covers the post-hook bytes.
@@ -38,25 +57,44 @@
 #   bash packet-seal.sh verify <packet-dir>
 #   bash packet-seal.sh --help
 #
-# The manifest is `packet.sha256` inside the packet directory, in the standard
-# `<digest>  <name>` coreutils format, one line per non-manifest regular file
-# anywhere under the packet, named by its path RELATIVE to the packet. Coverage
-# is recursive on purpose: a packet holds raw artifacts as well as the markdown
-# files, and content the manifest silently said nothing about is exactly the
-# content a reader would trust on the strength of a manifest that never covered
-# it. The manifest's own name is outside the .md class, so neither known sibling
-# formatter matches it (markdown-format filters to `*.md|*.mdc`; typos leaves a
-# hex digest alone).
+# The manifest is `packet.sha256` inside the packet directory: a first line
+# `# sealed-at <UTC ISO-8601>`, then `<digest>  <name>` lines (the coreutils
+# format), one per non-manifest regular file anywhere under the packet, named by
+# its path RELATIVE to the packet. Coverage is recursive on purpose: a packet
+# holds raw artifacts as well as the markdown files, and content the manifest
+# silently said nothing about is exactly the content a reader would trust on the
+# strength of a manifest that never covered it. The manifest's own name is
+# outside the .md class, so neither known sibling formatter matches it
+# (markdown-format filters to `*.md|*.mdc`; typos leaves a hex digest alone).
+#
+# SEAL MOMENT — `record` writes the `# sealed-at` line, and so does each
+# generation manifest, so a later reader can tell how old a seal is. The value
+# is SELF-ATTESTED: this script wrote it from the local clock, it is unsigned,
+# and anyone who can write the manifest can edit it. It says when the packet
+# claims to have been sealed, not proof of when it was. Every reader of a
+# manifest here skips lines starting with `#`; a real entry starts with a hex
+# digest, so the two cannot clash. A manifest written before the header existed
+# has no seal moment and verifies as before, reporting `unknown`. The reverse
+# fails closed: a verify from a version of this script older than the header
+# reads that line as a sealed name, reports it MISSING, and exits 1. That is
+# loud, not silent, and acceptable.
 #
 # Output (stdout, greppable): per-file `<verdict> <name>` lines for verify
-# (MATCH / CHANGED / MISSING / UNSEALED), then a summary line.
+# (MATCH / CHANGED / MISSING, then GEN-MATCH / GEN-CHANGED / GEN-MISSING for the
+# latest generation, then UNSEALED), `ACKNOWLEDGED generation=<N>` when a
+# generation exists, `sealed-at=<value>` (`unknown` without a header) and, when
+# a generation exists, `gen-sealed-at=<value>` for the latest generation, then a
+# summary line that gains gen-matched / gen-changed / gen-missing counters only
+# when a generation exists. The seal moment never changes an exit code.
 #
-# Exit 0 = recorded, or verified with every manifest entry matching and nothing
-#          unsealed. NOT a claim the content is pristine — only that nothing
-#          changed since the seal; a rewrite before the first seal is invisible
-#          to any digest and is the read-back's job, not this script's.
-# Exit 1 = verify found at least one CHANGED or MISSING file (altered evidence),
-#          or `record` refused to reseal over an already-divergent file.
+# Exit 0 = recorded, or verified with every manifest entry (and every entry of
+#          the latest generation) matching and nothing unsealed. NOT a claim
+#          the content is pristine, only that nothing changed since the seal;
+#          a rewrite before the first seal is invisible to any digest and is
+#          the read-back's job, not this script's.
+# Exit 1 = verify found at least one CHANGED, MISSING, GEN-CHANGED or GEN-MISSING
+#          file (altered evidence), or `record` refused to reseal over an
+#          already-divergent file or once a generation exists.
 # Exit 2 = usage error, unusable packet directory, no digest tool, or a packet
 #          entry that is a symlink (never permitted). FAIL CLOSED: a packet this
 #          script cannot grade never reports as intact.
@@ -103,6 +141,79 @@ digest_of() {
   shasum) shasum -a 256 -- "$1" 2>/dev/null | awk '{print $1}' ;;
   *) return 2 ;;
   esac
+}
+
+# The original manifest, or a generation manifest `packet.sha256.<digits>`.
+is_manifest_name() {
+  [[ "$1" == "$MANIFEST_NAME" || "$1" =~ ^packet\.sha256\.[0-9]+$ ]]
+}
+
+# The first line of every manifest this script writes: the self-attested seal
+# moment (see the header comment). `date -u` with this format is the same on
+# GNU and BSD.
+seal_header() {
+  printf '# sealed-at %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
+# The seal moment a manifest states, or `unknown` when its first line is not a
+# `# sealed-at` header (a manifest written before the header existed).
+seal_moment() {
+  local moment
+  moment="$(sed -n '1s/^# sealed-at \([^ ]*\).*/\1/p' "$1")"
+  printf '%s' "${moment:-unknown}"
+}
+
+# The highest generation number in the packet, compared numerically (10 sorts
+# after 9), or empty when there is none. `10#` keeps a leading zero from being
+# read as octal. Returns 2, naming the file, for a generation that cannot be
+# trusted: a symlink (verify would read its target, outside the packet) or a
+# number past 18 digits (Bash arithmetic would wrap it).
+latest_generation() {
+  local f n latest=""
+  for f in "$1"/packet.sha256.*; do
+    n="${f##*/packet.sha256.}"
+    [[ "$n" =~ ^[0-9]+$ ]] || continue
+    if [[ -L "$f" ]]; then
+      echo "error: generation manifest is a symlink: packet.sha256.$n" >&2
+      return 2
+    fi
+    [[ -f "$f" ]] || continue
+    if [[ "$n" =~ ^0*[1-9][0-9]{18,}$ ]]; then
+      echo "error: generation number is too large to read: packet.sha256.$n" >&2
+      return 2
+    fi
+    if [[ -z "$latest" ]] || ((10#$n > 10#$latest)); then
+      latest="$n"
+    fi
+  done
+  printf '%s' "$latest"
+}
+
+# note_divergence <manifest> <label> [<missing-label>]: prints `<label> <name>`
+# for each entry whose file still exists with different bytes, and adds each to
+# `relaundered`. A missing file is skipped unless <missing-label> is given: the
+# original manifest reports it as MISSING on every verify, but a new generation
+# stops listing it, so acknowledging one is the last time it is named.
+note_divergence() {
+  local line prev_digest prev_name now_digest
+  while IFS= read -r line; do
+    [[ -n "$line" && "$line" != "#"* ]] || continue
+    prev_digest="${line%% *}"
+    prev_name="${line#* }"
+    prev_name="${prev_name# }"
+    if [[ ! -e "$packet/$prev_name" ]]; then
+      if [[ -n "${3:-}" ]]; then
+        echo "$3 $prev_name"
+        relaundered=$((relaundered + 1))
+      fi
+      continue
+    fi
+    now_digest="$(digest_of "$packet/$prev_name")" || continue
+    if [[ "$now_digest" != "$prev_digest" ]]; then
+      echo "$2 $prev_name"
+      relaundered=$((relaundered + 1))
+    fi
+  done <"$1"
 }
 
 [[ -n "$digest_tool" ]] || {
@@ -176,54 +287,46 @@ if [[ "$action" == record ]]; then
   # manifest is verified first, and a changed entry stops the reseal.
   # An acknowledged divergence is permanent: once a generation manifest exists,
   # an ordinary reseal is refused even if the altered bytes were restored.
-  if [[ "$acknowledge" -eq 0 ]] && compgen -G "$packet/packet.sha256.[0-9]*" >/dev/null; then
-    echo "error: this packet has an acknowledged divergence (packet.sha256.N exists) — refusing to reseal packet.sha256" >&2
-    echo "       use record --acknowledge-divergence to write a new generation." >&2
+  # Later notes are sealed into the next generation instead.
+  latest="$(latest_generation "$packet")" || exit 2
+  if [[ "$acknowledge" -eq 0 && -n "$latest" ]]; then
+    echo "error: this packet has an acknowledged divergence (packet.sha256.$latest exists) — refusing to reseal packet.sha256" >&2
+    echo "       later notes are sealed into a generation: record --acknowledge-divergence writes the next one, and verify reads the latest." >&2
     exit 1
   fi
   if [[ -f "$manifest" ]]; then
     relaundered=0
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      prev_digest="${line%% *}"
-      prev_name="${line#* }"
-      prev_name="${prev_name# }"
-      [[ -e "$packet/$prev_name" ]] || continue
-      now_digest="$(digest_of "$packet/$prev_name")" || continue
-      if [[ "$now_digest" != "$prev_digest" ]]; then
-        echo "CHANGED $prev_name"
-        relaundered=$((relaundered + 1))
-      fi
-    done <"$manifest"
-    if [[ "$relaundered" -gt 0 ]]; then
+    note_divergence "$manifest" CHANGED
+    [[ -z "$latest" ]] || note_divergence "$packet/packet.sha256.$latest" GEN-CHANGED GEN-MISSING
+    # With a generation in place nothing has to differ: restoring the altered
+    # bytes and then adding notes leaves only notes to seal, and they belong in
+    # the next generation. Without one, acknowledging needs a divergence.
+    if [[ "$relaundered" -gt 0 || -n "$latest" ]]; then
       if [[ "$acknowledge" -eq 0 ]]; then
         echo "error: $relaundered already-sealed file(s) differ from the existing manifest — refusing to reseal" >&2
         echo "       resealing would overwrite the evidence of that divergence with a digest of the altered bytes." >&2
-        echo "       The original manifest is left in place. This packet stays permanently unsealable against it:" >&2
-        echo "       a later note cannot be sealed into packet.sha256, so it remains UNSEALED." >&2
+        echo "       The original manifest is left in place and verify keeps reporting CHANGED against it." >&2
         echo "       Treat the named files as altered evidence; record the divergence in a NEW packet file." >&2
-        echo "       record --acknowledge-divergence writes packet.sha256.N and does not overwrite packet.sha256." >&2
+        echo "       record --acknowledge-divergence writes packet.sha256.N and does not overwrite packet.sha256:" >&2
+        echo "       later notes are sealed into that generation, and verify reads the latest one." >&2
         exit 1
       fi
       # A generation manifest seals the bytes as they are now. packet.sha256
       # stays the record of the divergence. Generation files are not themselves
       # packet content: verify of the original still reports CHANGED, and a
       # generation is not a clean bill of health for the first seal.
-      generation=2
+      generation=$((10#${latest:-1} + 1))
       while [[ -e "$packet/packet.sha256.$generation" ]]; do
         generation=$((generation + 1))
       done
       gen_manifest="$packet/packet.sha256.$generation"
       gen_tmp="$gen_manifest.tmp.$$"
-      : >"$gen_tmp" || {
+      seal_header >"$gen_tmp" || {
         echo "error: cannot write the generation manifest in: $packet" >&2
         exit 2
       }
       for name in ${files[@]+"${files[@]}"}; do
-        case "$name" in
-        packet.sha256 | packet.sha256.*) continue ;;
-        *) ;;
-        esac
+        ! is_manifest_name "$name" || continue
         file="$packet/$name"
         if [[ -L "$file" ]]; then
           rm -f -- "$gen_tmp"
@@ -256,7 +359,7 @@ if [[ "$action" == record ]]; then
   fi
 
   tmp="$manifest.tmp.$$"
-  : >"$tmp" || {
+  seal_header >"$tmp" || {
     echo "error: cannot write the manifest in: $packet" >&2
     exit 2
   }
@@ -300,37 +403,61 @@ fi
   exit 2
 }
 
-matched=0
-changed=0
-missing=0
 unsealed=0
 sealed_names=()
 
-# A sealed name that no longer matches, or is gone entirely.
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  expected="${line%% *}"
-  name="${line#* }"
-  name="${name# }"
-  sealed_names+=("$name")
-  file="$packet/$name"
-  if [[ ! -f "$file" ]]; then
-    echo "MISSING $name"
-    missing=$((missing + 1))
-    continue
-  fi
-  actual="$(digest_of "$file")" || {
-    echo "error: cannot digest: $file" >&2
-    exit 2
-  }
-  if [[ "$actual" == "$expected" ]]; then
-    echo "MATCH $name"
-    matched=$((matched + 1))
-  else
-    echo "CHANGED $name"
-    changed=$((changed + 1))
-  fi
-done <"$manifest"
+# verify_manifest <manifest> <label-prefix>: a sealed name that no longer
+# matches, or is gone entirely. Every name read joins sealed_names, and the
+# tallies land in v_matched / v_changed / v_missing.
+verify_manifest() {
+  local line expected name file actual
+  v_matched=0
+  v_changed=0
+  v_missing=0
+  while IFS= read -r line; do
+    [[ -n "$line" && "$line" != "#"* ]] || continue
+    expected="${line%% *}"
+    name="${line#* }"
+    name="${name# }"
+    sealed_names+=("$name")
+    file="$packet/$name"
+    if [[ ! -f "$file" ]]; then
+      echo "$2MISSING $name"
+      v_missing=$((v_missing + 1))
+      continue
+    fi
+    actual="$(digest_of "$file")" || {
+      echo "error: cannot digest: $file" >&2
+      exit 2
+    }
+    if [[ "$actual" == "$expected" ]]; then
+      echo "$2MATCH $name"
+      v_matched=$((v_matched + 1))
+    else
+      echo "$2CHANGED $name"
+      v_changed=$((v_changed + 1))
+    fi
+  done <"$1"
+}
+
+# packet.sha256 is graded exactly as before. The latest generation, if any, is
+# graded on top of it and never in place of it.
+verify_manifest "$manifest" ""
+matched=$v_matched
+changed=$v_changed
+missing=$v_missing
+
+latest="$(latest_generation "$packet")" || exit 2
+if [[ -n "$latest" ]]; then
+  echo "ACKNOWLEDGED generation=$latest"
+  verify_manifest "$packet/packet.sha256.$latest" "GEN-"
+  gen_matched=$v_matched
+  gen_changed=$v_changed
+  gen_missing=$v_missing
+else
+  gen_changed=0
+  gen_missing=0
+fi
 
 # A packet file that the manifest never covered. Reported, never ignored: an
 # unsealed file is content a reader would otherwise trust on the strength of a
@@ -342,7 +469,7 @@ done <"$manifest"
 # which is the one direction this check must never fail in.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
-  [[ "$name" != "$MANIFEST_NAME" ]] || continue
+  ! is_manifest_name "$name" || continue
   found=0
   for sealed in ${sealed_names[@]+"${sealed_names[@]}"}; do
     if [[ "$sealed" == "$name" ]]; then
@@ -356,14 +483,22 @@ while IFS= read -r name; do
   fi
 done < <(packet_files "$packet")
 
-echo "matched=$matched changed=$changed missing=$missing unsealed=$unsealed"
+echo "sealed-at=$(seal_moment "$manifest")"
+[[ -z "$latest" ]] || echo "gen-sealed-at=$(seal_moment "$packet/packet.sha256.$latest")"
+
+summary="matched=$matched changed=$changed missing=$missing unsealed=$unsealed"
+if [[ -n "$latest" ]]; then
+  summary="$summary gen-matched=$gen_matched gen-changed=$gen_changed gen-missing=$gen_missing"
+fi
+echo "$summary"
 
 # CHANGED/MISSING and UNSEALED are different facts and must not share an exit
 # code. A packet routinely acquires files after its last seal — `contract.md` at
 # step 4, `item.md` at step 6 — so collapsing them would make the ordinary
 # interrupted-run packet, the exact case resume exists for, report as tampered
-# evidence and get discarded.
-if [[ $changed -gt 0 || $missing -gt 0 ]]; then
+# evidence and get discarded. The GEN- verdicts count the same way: a generation
+# entry that differs was altered after it was acknowledged.
+if [[ $changed -gt 0 || $missing -gt 0 || $gen_changed -gt 0 || $gen_missing -gt 0 ]]; then
   echo "packet integrity: NOT INTACT — treat the differing files as altered evidence, not ground truth" >&2
   [[ $unsealed -eq 0 ]] || echo "packet integrity: additionally, $unsealed file(s) are outside the manifest" >&2
   exit 1
@@ -372,6 +507,10 @@ if [[ $unsealed -gt 0 ]]; then
   echo "packet integrity: INCOMPLETE — every sealed file matches, but $unsealed file(s) were never sealed" >&2
   echo "       Unsealed is not altered: files added after the last seal land here. Their integrity is simply unknown." >&2
   exit 3
+fi
+if [[ -n "$latest" ]]; then
+  echo "packet integrity: every digest matches, but generation $latest acknowledges a divergence — matching bytes do not undo it"
+  exit 0
 fi
 echo "packet integrity: sealed files intact (a rewrite BEFORE the first seal is outside what this can detect)"
 exit 0
