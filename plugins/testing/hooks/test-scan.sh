@@ -22,7 +22,8 @@ set -uo pipefail
 # for the consumer settings entry /testing:setup check prints for a glob no
 # shipped row covers: a settings hook receives no CLAUDE_PLUGIN_OPTION_*
 # (probes.md), and adding that entry is the opt-in.
-[[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" || "${1:-}" == --enabled ]] || exit 0
+[[ "${1:-}" == --enabled ]] && CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
+[[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" ]] || exit 0
 
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
