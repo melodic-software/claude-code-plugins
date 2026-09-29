@@ -13,6 +13,7 @@ only after that version increases.
   longer forbids the interview. The returned decisions go into the step commit's
   `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
   of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
 ## [0.14.6] - 2026-09-29
 
 ### Fixed
