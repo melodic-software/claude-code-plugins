@@ -673,6 +673,22 @@ class SelfCheckTests(unittest.TestCase):
         ]
         self.assertEqual(overlap.validate_row(row, 0), [])
 
+    def test_model_disabled_suggest_row_rejects_description_phrase(self):
+        row = deep_copy(BASE_ROW)
+        row["native"]["markers"] = ["gated", "model-invocation-disabled"]
+        row["integration"] = "suggest"
+        row["baked"]["boundary_section"] = False
+        row["evidence"] = [
+            "invocation mode: model-invocation-disabled (disableModelInvocation)"
+        ]
+        row["baked"]["description_phrase"] = False
+        self.assertEqual(overlap.validate_row(row, 0), [])
+        row["baked"]["description_phrase"] = True
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(
+            any("never bakes a description phrase" in problem for problem in problems)
+        )
+
     def test_defer_overrides_model_disabled_and_takes_route(self):
         # design-sync is both defer and model-invocation-disabled. The
         # confirmed verdict table records route; defer wins because nothing
