@@ -195,6 +195,27 @@ else
   fail "a native proof's nonzero exit keeps the resource unreleased" "$msg"
 fi
 
+# Prove must be a real proof: name|prove block|expected outcome.
+for case in 'provefalse|$false|held' 'provenone||held' 'provetrue|$true|released' 'provecmp|1 -eq 1|released'; do
+  IFS='|' read -r name prove outcome <<<"$case"
+  code="$(run_pwsh "$name" "
+    \$dir = '$TEST_TMPDIR/$name'
+    Initialize-UnattendedResult -ResultDirectory \$dir
+    try {
+      Use-GuardedResource -Name 'fleet' -Take { } -Prove { $prove } -Release { 'released' }
+    } catch { \$_.Exception.Message }
+    Complete-UnattendedResult -Status ok
+    'held=' + ((Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json).held_resources -join ',')
+  ")"
+  msg="$(cat "$TEST_TMPDIR/$name.out")"
+  if [[ "$outcome" == held && "$msg" == *'prove fleet failed: proof failed'* && "$msg" != *released* && "$msg" == *'held=fleet'* ]] \
+    || [[ "$outcome" == released && "$msg" == *released* && "$msg" != *failed* && "$msg" == *'held='* && "$msg" != *'held=fleet'* ]]; then
+    pass "proof '$prove' leaves the resource $outcome"
+  else
+    fail "proof '$prove' leaves the resource $outcome" "$msg"
+  fi
+done
+
 code="$(WIZARD_TEST_SECRET="$SECRET" run_pwsh jsonredact "
   \$dir = '$TEST_TMPDIR/jsonredact'
   Initialize-UnattendedResult -ResultDirectory \$dir

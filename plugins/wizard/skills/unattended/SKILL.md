@@ -62,8 +62,10 @@ these helpers:
 - `Invoke-IdempotentStep -Name -Done -Action`. A re-run after a partial failure
   skips work that is already done.
 - `Use-GuardedResource -Name -Take -Prove -Release`. Take a shared resource out
-  of service and release it only after proof. A failure leaves it listed in
-  `held_resources`.
+  of service and release it only after proof. `Prove` must throw on failure or
+  emit a truthy value as its last output; `$false`, no output, or a nonzero
+  native exit all count as failed proof and keep the resource held. A failure
+  leaves it listed in `held_resources`.
 - `Confirm-Irreversible -Name`. The human types the name. Anything else aborts.
 
 Set the result directory to a path the agent can read after the human runs the

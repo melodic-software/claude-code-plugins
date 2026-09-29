@@ -163,7 +163,14 @@ function Use-GuardedResource {
     # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
     Invoke-Checked "take $Name" $Take
-    Invoke-Checked "prove $Name" $Prove
+    $global:LASTEXITCODE = 0
+    $proof = @(& $Prove)
+    if ($LASTEXITCODE -ne 0) {
+        throw "prove $Name failed: native command exited $LASTEXITCODE"
+    }
+    if ($proof.Count -eq 0 -or -not $proof[-1]) {
+        throw "prove $Name failed: proof failed"
+    }
     Invoke-Checked "release $Name" $Release
     $script:Held.Remove($Name) | Out-Null
 }
