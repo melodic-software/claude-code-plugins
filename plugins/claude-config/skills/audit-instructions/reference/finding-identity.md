@@ -22,7 +22,10 @@ identity = (check, claim, sites)
   cross-surface conflict is one finding with two sites, never two linked findings, and the order the
   lane met the two surfaces in does not change its id.
 - **`surface`** is the repo-relative POSIX path of the physical file, or `user:<path under the home
-  directory>` for a user-scope surface.
+  directory>` for a user-scope surface. Under the home directory only an instruction file is a
+  surface: a markdown file, or, inside a `.claude` tree or the resolved
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, a `settings.json`, `settings.local.json` or `hooks.json`, or
+  any file beneath a `skills/` directory.
 - **`anchor`** is always an excerpt anchor (`e:`), over the flagged line's text, discriminated by the
   enclosing heading path. Every check in this catalog is about a sentence, so none takes the
   whole-surface form (`s:`): an `s:` finding survives every edit to its file, including the edit
@@ -47,7 +50,8 @@ Each output line is the input row, then `finding_id/v1`, then `group/v1`, then o
 field per site, tab-separated. `--records` prints the same finding as a JSON record that
 `finding-identity.sh validate-record` accepts. A row the script cannot identify (an id with no
 template, a pairwise row for a check that is not I15, a surface outside the repository and the home
-directory, an unreadable line) prints `#REFUSED`, the row, and the reason, and is never given an id.
+directory, a file under the home directory that is not an instruction file, an unreadable line)
+prints `#REFUSED`, the row, and the reason, and is never given an id.
 
 ## Claim templates
 

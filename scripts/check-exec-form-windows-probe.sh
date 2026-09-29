@@ -4,12 +4,12 @@
 #   scripts/check-exec-form-windows-probe.sh
 #
 # Static half (every host): an exec-form hook (`args` present) whose `command`
-# is a shebang script, a .cmd/.bat shim, a bare name other than the documented
-# real executables, or a bash.exe/sh.exe path fails. Shell form (no `args`) is
-# not inspected. This script does not rewrite rows. A .sh path is not a legal
-# `command`; the landed spelling is "node" plus hooks/exec-bash.mjs. Bare bash
-# plus the script in args is the shape scripts/check-hook-exec-form.sh already
-# rejects.
+# is a shebang script, a .cmd/.bat shim, a bare name that is not on the
+# EXEC_NAME_ALLOWLIST of scripts/check-hook-exec-form.sh, or a bash.exe/sh.exe
+# path fails. Shell form (no `args`) is not inspected. This script does not
+# rewrite rows. A .sh path is not a legal `command`; the landed spelling is
+# "node" plus hooks/exec-bash.mjs. Bare bash plus the script in args is the
+# shape scripts/check-hook-exec-form.sh already rejects.
 #
 # Spawn half (Windows, or EXEC_FORM_WINDOWS_PROBE_FORCE=1): spawn node.exe with
 # an args array and a stdin payload, with no shell. If the sentinel arg is
@@ -22,6 +22,19 @@
 # failure on a host where the spawn half runs (the Windows CI lane).
 # EXEC_FORM_WINDOWS_PROBE_SIMULATE_DROP=1 omits the sentinel so the stop path
 # can be tested.
+#
+# Launcher half (same condition as the spawn half, after it): a native node
+# runs lib/exec-bash.mjs, the launcher every hook row goes through, with an
+# explicit env object and a recording bash script, the way Claude Code runs a
+# hook. It exits 1 when the argv token, the stdin payload, a backslash
+# CLAUDE_PLUGIN_ROOT (in the env and in an argument) or the script's own exit 2
+# does not come back through the launcher. On Windows it also exits 1 when the
+# script does not run under Git Bash, when a launcher with no bash to find does
+# not exit 1 on a first stderr line naming the script and saying it enforces
+# nothing, or when Git's bin directory on PATH does not resolve bash. Off
+# Windows those three checks are skipped and the rest run.
+# EXEC_FORM_WINDOWS_PROBE_SIMULATE_LAUNCHER_DROP=1 makes the recording script
+# exit 0 instead of 2 so the failure path can be tested.
 #
 # Live half (EXEC_FORM_WINDOWS_PROBE_LIVE=1, and a `claude` on PATH): one
 # throwaway exec-form PreToolUse row under `claude -p`. Without that opt-in,
@@ -87,6 +100,20 @@ if ((${#reader_cmd[@]} == 0)); then
   exit 2
 fi
 
+# One allowlist for bare names: the gate's own EXEC_NAME_ALLOWLIST line. A probe
+# that cannot read it exits 2 rather than guess a second list.
+GATE="scripts/check-hook-exec-form.sh"
+allow_line="$(grep -E '^EXEC_NAME_ALLOWLIST=\([^)]*\)$' "$GATE" 2>/dev/null || true)"
+exec_names=()
+if [[ -n "$allow_line" && "$allow_line" != *$'\n'* ]]; then
+  allow_line="${allow_line#EXEC_NAME_ALLOWLIST=(}"
+  read -r -a exec_names <<<"${allow_line%)}"
+fi
+if ((${#exec_names[@]} == 0)); then
+  echo "check-exec-form-windows-probe: cannot read exactly one EXEC_NAME_ALLOWLIST=(...) line from ${GATE}" >&2
+  exit 2
+fi
+
 windows=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) windows=1 ;;
@@ -118,6 +145,19 @@ image_name() {
   lower "$base"
 }
 
+# allowed_name <command>: exact match, the way the gate compares.
+allowed_name() {
+  local name
+  for name in "${exec_names[@]}"; do
+    if [[ "$1" == "$name" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+NOT_EXE_HINT='is not a real Windows executable (no shell and no shebang). Use "command": "node" with the script in args; a bash script goes through hooks/exec-bash.mjs.'
+
 # consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
@@ -132,26 +172,23 @@ consider() {
     low="$(lower "$base")"
     case "$low" in
     bash.exe | sh.exe)
-      flag "$file" "$where" "$cmd" "names a shell image (${base}). Keep the hook in shell form with \"shell\": \"bash\"; a machine-specific bash.exe path is not a portable exec-form row."
+      flag "$file" "$where" "$cmd" "names a shell image (${base}). Use \"command\": \"node\" with hooks/exec-bash.mjs and then the script; a machine-specific bash.exe path is not a portable exec-form row."
       ;;
     *.exe)
       ok_rows=$((ok_rows + 1))
       ;;
     *)
-      flag "$file" "$where" "$cmd" "is not a real Windows executable (no shell and no shebang). Use \"command\": \"node\" with the script in args, or shell form with \"shell\": \"bash\"."
+      flag "$file" "$where" "$cmd" "$NOT_EXE_HINT"
       ;;
     esac
     ;;
   *)
-    low="$(lower "$cmd")"
-    case "$low" in
-    node | node.exe | powershell.exe | pwsh.exe)
+    # shellcheck disable=SC2310 # allowed_name is a pure loop test; it cannot fail unexpectedly
+    if allowed_name "$cmd"; then
       ok_rows=$((ok_rows + 1))
-      ;;
-    *)
-      flag "$file" "$where" "$cmd" "is not a real Windows executable (no shell and no shebang). Use \"command\": \"node\" with the script in args, or shell form with \"shell\": \"bash\"."
-      ;;
-    esac
+    else
+      flag "$file" "$where" "$cmd" "$NOT_EXE_HINT"
+    fi
     ;;
   esac
 }
@@ -369,6 +406,105 @@ run_spawn() {
   return 0
 }
 
+# The driver runs in node, so the launcher gets an explicit env object that no
+# MSYS hop rewrites, and every comparison sees the exact strings the script
+# saw. argv: launcher, script, token, script exit code, empty dir, Git bin dir.
+# The last two are only used on Windows. Findings go to stderr and set the exit
+# code; the clean statement goes to stdout.
+launcher_driver_js() {
+  cat <<'JS'
+const { spawnSync } = require("child_process");
+const path = require("path");
+const [launcher, script, token, exitCode, emptyDir, gitBin] = process.argv.slice(2);
+const win = process.platform === "win32";
+const root = "C:\\probe root\\plugin";
+const rootArg = root + "/hooks/guard.sh";
+const payload = '{"probe":"launcher"}';
+const problems = [];
+const need = (ok, what) => { if (!ok) problems.push(what); };
+const launch = (env, args, input) =>
+  spawnSync(process.execPath, [launcher, script, ...args], { env, input, encoding: "utf8", timeout: 60000, windowsHide: true });
+const firstLine = (r) => (r.stderr || "").split(/\r?\n/)[0];
+const ctx = (r) => `exit ${r.status}${r.error ? ", " + r.error.message : ""}, first stderr line ${JSON.stringify(firstLine(r))}`;
+const seen = (r) => Object.fromEntries((r.stdout || "").split(/\r?\n/).filter((l) => l.includes("="))
+  .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+
+const run = launch({ ...process.env, CLAUDE_PLUGIN_ROOT: root }, [token, rootArg, exitCode], payload);
+const got = seen(run);
+need(got.token === token, `the argv token did not reach the script (${ctx(run)}); exit 0 with no output means the launcher's main never ran`);
+need(got.stdin === String(Buffer.byteLength(payload)), `the script read ${got.stdin} stdin bytes, expected ${Buffer.byteLength(payload)}`);
+need(run.status === 2, `the script's own exit 2 came back as exit ${run.status}, so a blocking guard would stop blocking`);
+need(got.rootenv === root, `CLAUDE_PLUGIN_ROOT reached the script as ${JSON.stringify(got.rootenv)}, expected ${JSON.stringify(root)}`);
+need(got.rootarg === rootArg, `a script argument reached the script as ${JSON.stringify(got.rootarg)}, expected ${JSON.stringify(rootArg)}`);
+if (win) {
+  need(/^(MINGW|MSYS|CYGWIN)/.test(got.uname || ""), `the script ran under uname ${JSON.stringify(got.uname)}, not Git Bash`);
+  const hidden = { SystemRoot: process.env.SystemRoot, ProgramFiles: emptyDir, "ProgramFiles(x86)": emptyDir, LOCALAPPDATA: emptyDir };
+  const none = launch({ ...hidden, PATH: emptyDir }, [token, rootArg, exitCode], "");
+  need(none.status === 1 && !none.stdout && firstLine(none).includes(path.basename(script)) && firstLine(none).includes("enforces nothing"),
+    `with no bash to find the launcher must exit 1, write nothing to stdout and lead stderr with a line naming ${path.basename(script)} and saying it enforces nothing (${ctx(none)}, stdout ${JSON.stringify(none.stdout)})`);
+  const viaPath = launch({ ...hidden, PATH: gitBin }, [token, rootArg, exitCode], payload);
+  need(seen(viaPath).token === token, `with the fixed Git roots hidden the launcher did not find bash through PATH ${gitBin} (${ctx(viaPath)})`);
+}
+if (problems.length) {
+  for (const p of problems) console.error(`LAUNCHER-PROBE: ${p}`);
+  process.exitCode = 1;
+} else {
+  console.log("check-exec-form-windows-probe: launcher probe delivered argv, stdin, exit 2 and a backslash CLAUDE_PLUGIN_ROOT through lib/exec-bash.mjs" +
+    (win ? ", and Git Bash identity, the no-bash failure line and the PATH lookup held." : " (Git Bash identity, the no-bash failure line and the PATH lookup are Windows-only and were skipped)."));
+}
+JS
+}
+
+run_launcher() {
+  local node_exe="$1" tmp script launcher empty driver gitbin="" exit_code=2 token out rc=0
+  launcher="$PWD/lib/exec-bash.mjs"
+  if [[ ! -f "$launcher" ]]; then
+    echo "LAUNCHER-PROBE: lib/exec-bash.mjs not found, so the launcher every hook row runs was not exercised and cannot clear a fleet sweep." >&2
+    return 1
+  fi
+  if [[ "${EXEC_FORM_WINDOWS_PROBE_SIMULATE_LAUNCHER_DROP:-}" == 1 ]]; then
+    exit_code=0
+  fi
+  token="exec-bash-probe-token-$$"
+  tmp="$(mktemp -d)"
+  script="$tmp/exec-bash-probe-guard.sh"
+  empty="$tmp/empty"
+  driver="$tmp/launcher-probe.cjs"
+  mkdir "$empty"
+  launcher_driver_js >"$driver"
+  # Builtins and printf only, so it runs with nothing but bash on PATH.
+  # uname is the one external, and a missing one shows up as an empty field.
+  cat >"$script" <<'SH'
+LC_ALL=C
+IFS= read -r -d '' payload
+printf 'token=%s\nrootarg=%s\nrootenv=%s\nstdin=%s\nuname=%s\n' \
+  "$1" "$2" "${CLAUDE_PLUGIN_ROOT-}" "${#payload}" "$(uname -s 2>/dev/null)"
+exit "$3"
+SH
+  if ((windows)); then
+    gitbin="$(dirname "$BASH")"
+    if ! out="$(bash scripts/emit-windows-path.sh "$script" "$launcher" "$empty" "$gitbin" "$driver")"; then
+      rm -rf "$tmp"
+      echo "LAUNCHER-PROBE: could not emit native paths for the launcher probe, so the launcher was not exercised and cannot clear a fleet sweep." >&2
+      return 1
+    fi
+    {
+      read -r script
+      read -r launcher
+      read -r empty
+      read -r gitbin
+      read -r driver
+    } <<<"$out"
+  fi
+  if out="$("$node_exe" "$driver" "$launcher" "$script" "$token" "$exit_code" "$empty" "$gitbin")"; then
+    note "$out"
+  else
+    rc=1
+  fi
+  rm -rf "$tmp"
+  return "$rc"
+}
+
 spawn_active=0
 if ((windows)) || [[ "${EXEC_FORM_WINDOWS_PROBE_FORCE:-}" == 1 ]]; then
   spawn_active=1
@@ -376,17 +512,21 @@ fi
 
 if ((spawn_active)); then
   node_exe=""
-  # shellcheck disable=SC2310 # resolve_node/run_spawn report their own failures; a miss is a skip or a finding, not an abort
+  # shellcheck disable=SC2310 # resolve_node/run_spawn/run_launcher report their own failures; a miss is a skip or a finding, not an abort
   if node_exe="$(resolve_node)"; then
     # shellcheck disable=SC2310
     if ! run_spawn "$node_exe"; then
+      errors=$((errors + 1))
+    fi
+    # shellcheck disable=SC2310
+    if ! run_launcher "$node_exe"; then
       errors=$((errors + 1))
     fi
   elif [[ "${EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN:-}" == 1 ]]; then
     echo "SPAWN-PROBE: Windows exec-form spawn was required but no real node.exe was found on PATH. The spawn did not run, so it cannot clear a fleet sweep." >&2
     errors=$((errors + 1))
   else
-    note "SKIP: Windows exec-form spawn probe: node.exe not on PATH. anthropics/claude-code#90495 was not exercised. A skip does not authorize converting .sh rows to exec form."
+    note "SKIP: Windows exec-form spawn and launcher probes: node.exe not on PATH. anthropics/claude-code#90495 was not exercised. A skip does not authorize converting .sh rows to exec form."
   fi
 else
   note "SKIP: Windows exec-form spawn probe not exercised (OSTYPE=${OSTYPE:-unset}). A skip does not show that anthropics/claude-code#90495 is absent and does not authorize converting .sh rows to exec form."
