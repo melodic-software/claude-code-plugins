@@ -3,7 +3,8 @@
 # tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
 #
 # Two load-bearing groups here. First, the relay boundary: only
-# fingerprint-confirmed copies and the two deterministic stamp rules may reach
+# fingerprint-confirmed copies, the two deterministic stamp rules, and a restated
+# fact carrying a declared unanimous-and-refutation-survived outcome may reach
 # the findings file, and a judgment verdict that leaks into it would break the
 # boundary the Brief draws. Second, cell escaping: the fix action parses the
 # table, so a pipe in a quoted excerpt splits a row into phantom columns.
@@ -1485,6 +1486,158 @@ assert_exit "a zero-finding run still exits 0" "$?" "0"
 assert_file "a zero-finding run still writes the file" "$EMPTY"
 assert_contains "coverage is reported even with no findings" "$(cat "$EMPTY")" "## Surfaces"
 assert_contains "the surfaces line names the corpus size" "$(cat "$EMPTY")" "10"
+
+# --- The restated-fact lane relays on a declared outcome, never on a tier -----------
+#
+# rule-restated-upstream-fact is the one judged rule that reaches the relay. A
+# restated-fact finding maps to a judgment tier by fixed rule and is never
+# fingerprint-confirmed, so no tier test can decide it: the relay reads the class,
+# the rule id, and a declared outcome (a unanimous STANDS that the refutation pass
+# could not refute). Every restated-fact record lacking that outcome stays withheld
+# and counted, and no tier name or grade ever reaches the file.
+RS_BASE='{
+  "rule": "attribution/audit/rule-restated-upstream-fact",
+  "file": "rs.md", "line": 7, "class": "restated-fact", "tier": "llm-suspected",
+  "excerpt": "RSEXCERPT a|b",
+  "rubric": {"samples": 3, "unanimous": true, "verdict": "STANDS",
+             "grades": {"R1-external-owner": {"pass": true, "evidence": "RSGRADECANARY"}}},
+  "review": {"agents": 1, "verdict": "SURVIVES", "evidence": "RSREVIEWCANARY"}
+}'
+
+# rs_case <name> <jq filter applied to the base record>: writes the sidecar, runs the
+# emitter, and leaves RS_OUT, RS_BODY and RS_ROWS for the assertions.
+rs_case() {
+  jq -c "$2" <<<"$RS_BASE" | jq -s '{counts: {files: 2}, findings: .}' >"$REPORTS/$1.json"
+  RS_OUT="$OUTDIR/$1.md"
+  run --report "$REPORTS/$1.json" --out "$RS_OUT" >/dev/null 2>&1
+  RS_EXIT=$?
+  RS_BODY="$(cat "$RS_OUT" 2>/dev/null)"
+  RS_ROWS="$(grep -c '^| [0-9]' "$RS_OUT" 2>/dev/null)"
+}
+# rs_withheld <label> <name> <filter>: the record emits no row, is counted as
+# withheld, never opens `## Unparsed`, and leaks neither a grade nor a tier name.
+rs_withheld() {
+  rs_case "$2" "$3"
+  assert_exit "$1: the run still exits 0" "$RS_EXIT" "0"
+  assert_eq "$1: no row" "$RS_ROWS" "0"
+  assert_contains "$1: counted as withheld" "$RS_BODY" "Withheld from the relay: 1 judgment"
+  assert_not_contains "$1: not sent to Unparsed" "$RS_BODY" "## Unparsed"
+  assert_not_contains "$1: no grade leaks" "$RS_BODY" "RSGRADECANARY"
+  assert_not_contains "$1: no review leaks" "$RS_BODY" "RSREVIEWCANARY"
+}
+
+# Relays: unanimous, survived, at every tier the class can carry, and at none.
+rs_case rs-relay '.'
+assert_eq "a unanimous survived restated fact is one row" "$RS_ROWS" "1"
+assert_contains "the row leads with the qualified rule id" "$RS_BODY" \
+  "attribution/audit/rule-restated-upstream-fact: restates a fact"
+assert_contains "the fired values are the panel size and the refutation outcome" "$RS_BODY" \
+  "unanimous panel of 3 samples, refutation survived"
+assert_contains "the tier is IMPORTANT and Confidence is omitted" "$RS_BODY" \
+  "| 1 | IMPORTANT |  | rs.md:7 | attribution:audit |"
+assert_contains "the excerpt pipe is escaped" "$RS_BODY" 'RSEXCERPT a\|b'
+assert_contains "the relayed count is one" "$RS_BODY" "Relay-eligible findings: 1."
+assert_not_contains "no withheld count on a clean relay" "$RS_BODY" "Withheld from the relay"
+for leaked in llm-suspected source-fetched-similar not-found fingerprint-confirmed \
+  STANDS SURVIVES RSGRADECANARY RSREVIEWCANARY; do
+  assert_not_contains "the relayed file never carries $leaked" "$RS_BODY" "$leaked"
+done
+
+rs_case rs-relay-fetched '.tier = "source-fetched-similar" | .source = {"url": "https://rs.example/page"}'
+assert_eq "a survived restated fact at the fetched-source tier relays" "$RS_ROWS" "1"
+assert_contains "the source it was compared with is named" "$RS_BODY" "; source https://rs.example/page"
+assert_not_contains "and the tier name still does not appear" "$RS_BODY" "source-fetched-similar"
+
+rs_case rs-relay-notfound '.tier = "not-found" | .searched = ["RSSEARCHED-1", "RSSEARCHED-2"]'
+assert_eq "a survived restated fact whose source search ended not-found relays" "$RS_ROWS" "1"
+assert_not_contains "and the searched surfaces stay out of the file" "$RS_BODY" "RSSEARCHED"
+
+# The searched-surfaces gate is the tier reader's, and it is unchanged: a not-found
+# outcome naming no surfaces concludes nothing, for this class as for any other.
+rs_case rs-notfound-unlisted '.tier = "not-found"'
+assert_exit "a not-found restated fact naming no surfaces is still refused" "$RS_EXIT" "3"
+
+rs_case rs-relay-no-tier 'del(.tier)'
+assert_eq "the declared tier plays no part: a record declaring none relays" "$RS_ROWS" "1"
+rs_case rs-relay-folded '.rubric.verdict = "  stands " | .review.verdict = "Survives"'
+assert_eq "a verdict spelled in another case still reads as the name it shows" "$RS_ROWS" "1"
+
+# The cell prints only values of the expected type, so a stray object where a number,
+# a URL or an excerpt belongs cannot carry a tier name into the file.
+rs_case rs-relay-odd-values \
+  '.rubric.samples = {"x": "llm-suspected"} | .source = {"url": {"tier": "not-found"}} | .excerpt = {"tier": "source-fetched-similar"}'
+assert_eq "a record whose cell values are the wrong type still relays" "$RS_ROWS" "1"
+assert_contains "the panel size falls back to a question mark" "$RS_BODY" "unanimous panel of ? samples"
+for leaked in llm-suspected source-fetched-similar not-found; do
+  assert_not_contains "a wrong-typed value never carries $leaked into the file" "$RS_BODY" "$leaked"
+done
+
+# Withheld: each is a restated-fact finding on the human report.
+rs_withheld "a split panel" rs-split '.rubric.unanimous = false'
+rs_withheld "a panel verdict other than STANDS" rs-not-stands '.rubric.verdict = "MIXED"'
+rs_withheld "a refuted finding" rs-vetoed '.review.verdict = "REFUTED"'
+rs_withheld "a refutation outcome that is neither" rs-review-open '.review.verdict = "INCONCLUSIVE"'
+rs_withheld "a judgment tier with no declared outcome" rs-no-outcome 'del(.rubric, .review)'
+rs_withheld "a missing refutation block" rs-no-review 'del(.review)'
+rs_withheld "a missing panel block" rs-no-rubric 'del(.rubric)'
+rs_withheld "the rule id and class with no tier and no outcome" rs-bare 'del(.tier, .rubric, .review)'
+rs_withheld "a unanimity that is a string" rs-string-unanimous '.rubric.unanimous = "true"'
+rs_withheld "a unanimity that is a number" rs-number-unanimous '.rubric.unanimous = 1'
+rs_withheld "a panel block that is not an object" rs-rubric-string '.rubric = "STANDS"'
+rs_withheld "a refutation block that is a list" rs-review-list '.review = ["SURVIVES"]'
+rs_withheld "a verdict that is a list" rs-verdict-list '.review.verdict = ["SURVIVES"]'
+rs_withheld "a differently cased block key" rs-cased-key '.Rubric = .rubric | del(.rubric)'
+rs_withheld "a class other than restated-fact" rs-wrong-class '.class = "paraphrase"'
+rs_withheld "a missing class" rs-no-class 'del(.class)'
+rs_withheld "a foreign plugin's rule id" rs-foreign-rule '.rule = "other/audit/rule-restated-upstream-fact"'
+
+# A restated-fact class never becomes a copy row. The copy row's Action names the fix
+# flow, and this class is never eligible for it, so the class routes the record even
+# when the rule id and the tier both say copy.
+rs_withheld "the copy rule id under a fingerprint-confirmed tier" rs-copy-confirmed \
+  '.rule = "attribution/audit/rule-verbatim-copy" | .tier = "fingerprint-confirmed"'
+rs_withheld "the copy rule id and no tier" rs-copy-untiered \
+  '.rule = "attribution/audit/rule-verbatim-copy" | del(.tier)'
+
+# The other direction: a COPY record carrying the same outcome relays nothing new.
+# The outcome is read for the restated rule alone.
+write_report rs-copy-with-outcome.json "{
+  \"counts\": {\"files\": 2},
+  \"findings\": [{
+    \"rule\": \"attribution/audit/rule-verbatim-copy\", \"file\": \"rc.md\",
+    \"span\": {\"start_line\": 5}, \"class\": \"paraphrase\", \"tier\": \"llm-suspected\",
+    \"rubric\": {\"samples\": 3, \"unanimous\": true, \"verdict\": \"STANDS\"},
+    \"review\": {\"agents\": 1, \"verdict\": \"SURVIVES\"}
+  }]
+}"
+run --report "$REPORTS/rs-copy-with-outcome.json" --out "$OUTDIR/rs-copy-with-outcome.md" >/dev/null 2>&1
+assert_eq "a copy finding carrying a survived outcome is still withheld" \
+  "$(grep -c '^| [0-9]' "$OUTDIR/rs-copy-with-outcome.md")" "0"
+assert_contains "and is counted as withheld" "$(cat "$OUTDIR/rs-copy-with-outcome.md")" \
+  "Withheld from the relay: 1 judgment"
+
+# Beside the other rules: the existing counts stay exact, the new row ranks last, and
+# the remedy is pinned to the scope it fires in. The copy row names the fix flow; the
+# restated row names the two dispositions and never the fix flow, in either direction.
+jq --argjson rs "$RS_BASE" '.findings += [$rs]' "$REPORTS/full.json" >"$REPORTS/rs-mixed.json"
+run --report "$REPORTS/rs-mixed.json" --out "$OUTDIR/rs-mixed.md" >/dev/null 2>&1
+RS_MIXED="$(cat "$OUTDIR/rs-mixed.md")"
+assert_eq "the four relay rules give four rows" "$(grep -c '^| [0-9]' "$OUTDIR/rs-mixed.md")" "4"
+assert_contains "the withheld count is unchanged by the new rule" "$RS_MIXED" \
+  "Withheld from the relay: 2 judgment"
+RS_ROW="$(grep '^| [0-9].*rule-restated-upstream-fact' "$OUTDIR/rs-mixed.md")"
+RS_COPY_ROW="$(grep '^| [0-9].*rule-verbatim-copy' "$OUTDIR/rs-mixed.md")"
+assert_match "the restated row ranks last" "$RS_ROW" '^\| 4 \|'
+assert_contains "the copy row keeps Confidence high" "$RS_COPY_ROW" "| high |"
+assert_contains "the copy row still names the fix flow" "$RS_COPY_ROW" '/attribution:audit fix'
+assert_contains "the restated remedy is a pointer" "$RS_ROW" "a pointer at the point of use"
+assert_contains "or a four-part record" "$RS_ROW" "four-part record (claim, basis URL, as-of date, observable recheck trigger)"
+assert_contains "and it says the row is report-only" "$RS_ROW" "Not auto-applicable: report-only"
+assert_not_contains "the restated remedy never names the fix flow" "$RS_ROW" '/attribution:audit fix'
+assert_not_contains "nor the sweep flow" "$RS_ROW" '/attribution:audit sweep'
+assert_not_contains "nor a remediating invocation of any kind" "$RS_ROW" "remediated by"
+assert_not_contains "and the stamp rows do not carry the restated remedy" \
+  "$(grep '^| [0-9].*rule-stamp-expired' "$OUTDIR/rs-mixed.md")" "pointer at the point of use"
 
 # --- Non-overwrite naming --------------------------------------------------------
 

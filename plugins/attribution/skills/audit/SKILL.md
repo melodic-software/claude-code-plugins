@@ -152,7 +152,10 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
     grades with their quoted evidence, and the source with the rung it came from. State the
     carve-out declines with counts, the stamp declines with reasons, the budget telemetry, and
     what the run did not cover. Emit the machine-parseable report sidecar to the run's memory
-    slice so scoring never parses prose.
+    slice so scoring never parses prose. A restated-fact finding records its `class`,
+    `rubric.unanimous`, `rubric.verdict` and `review.verdict`: the relay reads exactly those
+    ([`context/persist-findings.md`](context/persist-findings.md)), and a finding missing one is
+    withheld and counted, never relayed.
 
 11. **Persist the findings file** per
     [`context/persist-findings.md`](context/persist-findings.md) whenever the audit examined

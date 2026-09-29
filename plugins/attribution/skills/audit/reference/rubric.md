@@ -271,6 +271,10 @@ prose**, and a unanimous panel does not upgrade one.
 | `llm-suspected` | No lexical evidence is possible (paraphrase, summary) | No, human report | No |
 | `not-found` | Budgets exhausted with no source; every searched surface named | No, human report | No |
 
+The relay column is the copy class's. A restated-fact finding maps to a row above by the same fixed
+rule and relays by a rule of its own, on the panel's unanimity and the refutation pass, whatever the
+row says; it is never fix-eligible.
+
 Two consequences that judges get wrong if they are not stated:
 
 - **A paraphrase can never be `fingerprint-confirmed`**, however confident the panel. There is no

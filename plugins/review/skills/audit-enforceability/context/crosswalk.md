@@ -65,6 +65,7 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `attribution/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
 | `attribution/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | expiry is a date comparison the producing script performs |
 | `attribution/audit/rule-trigger-less-stamp` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | a missing recheck trigger is a structural absence the producing script observes |
+| `attribution/audit/rule-restated-upstream-fact` | `design-judgment` | `llm-only` | none | whether a passage states a fact an external source owns is a panel's judgment, so the family default of "already deterministic" would claim a check the producer does not compute |
 
 ### Rule-family rows (prefix match on `<plugin>/<skill>/`)
 
