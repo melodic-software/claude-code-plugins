@@ -28,7 +28,9 @@ New questions need a `commits` key (an explicit empty list is allowed; `--commit
 flags) and at least two alternatives.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
-unhandled user event on it), unless --force. revise --alt keeps at least two alternatives.
+unhandled user event on it), unless --force. A recommendation change also sets aside the
+question's counted `own` answer; record-terminal --decision own records the resolved decision.
+revise --alt keeps at least two alternatives.
 reply --handled N marks every event with seq at or below N handled, including other questions'
 events; prefer `handle` with explicit seqs.
 """
@@ -242,6 +244,17 @@ def require_affects(qid, affects):
         )
 
 
+def set_aside_own(d, doc, q):
+    """A recommendation revision answers the user's own text, so a counted `own` decision stops
+    counting (the same stamps as a user hold, without the hold). Accept, alt and defer stay."""
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    latest = exporters.latest_decision(q, r.get("responses", {}))
+    if latest and latest.get("decision") == "own":
+        q.update(
+            setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1
+        )
+
+
 def add_question(doc, q):
     """Validate and append one question; returns the questions whose rev must bump. Exits before any write."""
     for req in ("id", "short", "title"):
@@ -423,6 +436,7 @@ def op_reply(d, doc, a):
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
         guard_revision(d, doc, a.id, a.seq, a.force)
+        set_aside_own(d, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -465,6 +479,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
+        set_aside_own(d, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."

@@ -1144,6 +1144,130 @@ class TestRecordTerminal(DirCase):
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
 
+class TestReviseSetsAsideOwn(DirCase):
+    """A recommendation revision sets aside the counted own answer; other decisions stay."""
+
+    REC = ["--rec", "Use the lock.", "--affects", "none"]
+    CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
+    OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
+
+    def answer(self, kind, text=""):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": kind,
+                    "alt": "a" if kind == "alt" else None,
+                    "text": text,
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+    def status(self):
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        return out.splitlines()
+
+    def latest(self):
+        from exporters import latest_decision
+
+        responses = json.loads((self.dir / "responses.json").read_text("utf-8"))
+        return latest_decision(self.q("Q1"), responses["responses"])
+
+    def test_revise_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        self.assertIn(self.CLOSED, self.status())
+        rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["setAsideSeq"], 1)
+        self.assertEqual(q["setAsideRev"], self.doc()["rev"])
+        self.assertNotIn("waiting", q)
+        self.assertNotIn("waitingBy", q)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        rc, out, err = self.rp(
+            "reply", "Q1", "--text", "See below.", *self.REC, "--seq", "1"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["setAsideSeq"], 1)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_without_rec_and_revise_without_rec_keep_the_answer(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("reply", "Q1", "--text", "Noted.", "--seq", "1")[0], 0)
+        self.assertEqual(
+            self.rp("revise", "Q1", "--title", "Renamed?", "--seq", "1")[0], 0
+        )
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_accept_and_alt_answers_are_not_set_aside(self):
+        for kind in ("accept", "alt"):
+            self.answer(kind)
+            rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("setAsideSeq", self.q("Q1"))
+            self.assertIsNotNone(self.latest())
+            self.assertIn(self.CLOSED, self.status())
+
+    def test_a_terminal_own_answer_is_set_aside_too(self):
+        self.apply_ops(
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "x"}
+        )
+        self.apply_ops(
+            {"op": "revise", "id": "Q1", "rec": "Use the lock.", "affects": "none"}
+        )
+        q = self.q("Q1")
+        self.assertGreater(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertIn(self.OPEN, self.status())
+
+    def test_a_terminal_own_record_after_the_revision_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("revise", "Q1", *self.REC, "--seq", "1")[0], 0)
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "own", "--text", "the patterns"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "own")
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_a_terminal_record_in_the_same_apply_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.apply_ops(
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": "Use the lock.",
+                "affects": "none",
+                "seq": 1,
+            },
+            {
+                "op": "record-terminal",
+                "id": "Q1",
+                "decision": "own",
+                "text": "the patterns",
+            },
+        )
+        q = self.q("Q1")
+        self.assertLess(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def apply_ops(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestArchive(DirCase):
     """AC20 server side: archive sets archived {why, at}, never state."""
 
