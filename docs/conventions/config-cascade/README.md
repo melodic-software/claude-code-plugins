@@ -120,23 +120,22 @@ surface grew one, while leaving team files tracked. The narrower
 `.claude/*.local.*` silently fails to ignore any folder-form overlay; recommend the recursive form
 only, and never ask a consumer for two lines where one is exact.
 
-**No plugin writes the consumer's `.gitignore`.** A setup skill recommends the line and leaves the
-edit to the consumer; their ignore file is their artifact. That is the **recommend** posture, the
-default. Two other postures stay, declared rather than converged (#3573):
+**A setup skill recommends the ignore line and leaves the edit to the consumer; their ignore file is
+their artifact.** That is the **recommend** posture, the default. Two consumer-root exceptions
+append the line, announce the edit, and touch nothing else:
 
-- **Append-announced**, two consumer-root exceptions: `/source-control:setup apply` appends the
-  recursive `.claude/**/*.local.*` line when missing, because an overlay write before that line
-  exists would leak a personal file into the index; `/work-items:setup apply` appends
-  `.work-item-tracker.local.json` (ADR 0015), because that overlay sits at repo root outside the
-  one-liner. Both announce the edit and touch nothing else.
-- **Own-ignore-file**: discovery, verification, planning, review, claude-ops, and the standards
-  root write a self-ignoring `.gitignore` *inside a plugin-owned directory* (memory root or
-  `<standards_dir>/`). That file is not the consumer's `.gitignore`, so it is not an exception to
-  the sentence above.
+- `/source-control:setup apply` appends the recursive `.claude/**/*.local.*` line when missing,
+  because an overlay written before that line exists would leak a personal file into the index
+  ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)).
+- `/work-items:setup apply` appends `.work-item-tracker.local.json`, because that overlay sits at
+  repo root outside the one-liner
+  ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)).
 
-Converging the three (every setup recommends only, or every setup appends) was declined: recommend
-cannot guarantee an overlay is ignored before `apply` writes it, and append cannot be the rule for
-a memory-root guard the plugin itself owns.
+Discovery, verification, planning, review, claude-ops, and the standards root also write a
+self-ignoring `.gitignore`, but *inside a plugin-owned directory* (memory root or
+`<standards_dir>/`). That file is not the consumer's `.gitignore`, so it is not an exception.
+
+The owner decided on #3573 to keep these three postures rather than converge them.
 
 ## Expression doctrine: which surfaces are files, and which are convention docs
 
@@ -295,18 +294,16 @@ surface, or amend this contract) is a separate human-gated decision.
   gitignoring one. Claude Code documents local behavior only for surfaces it actually resolves
   (`CLAUDE.local.md`, `settings.local.json`); a generic `*.local.*` filename has no
   platform-defined meaning.
-- **gitignore postures stay three-way (#3573).** Recommend remains the default ("No plugin writes
-  the consumer's `.gitignore`"). The two consumer-root appends named in Overlay naming above are
-  sanctioned exceptions, not undeclared drift: `source-control`'s recursive overlay line, and
-  `work-items`' ADR 0015 overlay line. Own-ignore-file inside a plugin-owned directory stays a
-  different file, not a third exception. Fleet-wide convergence was declined.
+- **gitignore postures stay three-way (#3573).** Recommend is the default. Two consumer-root
+  appends are declared exceptions, not undeclared drift: `source-control`'s recursive overlay line
+  ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md))
+  and `work-items`' overlay line
+  ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)).
+  Own-ignore-file inside a plugin-owned directory is a different file, not a third exception.
   - **Claim:** the three gitignore postures stay; recommend is default; two consumer-root
-    appends are sanctioned exceptions; own-ignore-file is a different file.
-  - **Basis:** #3573 (recommend / append-announced / own-ignore-file). Overlay spelling drift
-    already described the two appends and the standards-dir own-ignore-file. ADR 0015 owns the
-    work-items overlay path. Converging would either leak overlays or write a memory-root
-    guard into the consumer ignore file.
-  - **As of:** 2026-09-28.
+    appends are declared exceptions; own-ignore-file is a different file.
+  - **Basis:** the owner decision on #3573 (keep the three postures), ADR 0040, and ADR 0015.
+  - **As of:** 2026-09-29.
   - **Recheck:** a setup skill grows a third consumer-root append, or a maintainer
     converges the fleet onto one posture.
 - **`source-control` stops `branch_issue_pattern` resolution on an unusable layer (#4673).**
@@ -383,7 +380,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line (#3573); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, or is not inside a git working tree, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; a shared root resolver for other surfaces is the follow-up. Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
+| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, or is not inside a git working tree, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; a shared root resolver for other surfaces is the follow-up. Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `bugs` | `.claude/bugs.md` | all three | conforms; `lanes` concatenate and deduplicate by lane `name`, with a declared empty-list opt-out that also drops the bundled defaults, and `filing_posture` is a nearest-wins scalar. A `## Gotchas` section outside the YAML fence concatenates across layers and is pre-computed by `/bugs:scan` and `/bugs:write`. Keys owned by the plugin's `reference/config.md`, which also partitions them from the plugin's `output_dir` `userConfig` option. That option is never a key in this surface, and a layer declaring it is reported as an inert unknown key. Written (team layer only) by `/bugs:setup apply`, read by `/bugs:scan` |
@@ -396,7 +393,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 | `code-metrics` | `.claude/code-metrics.yaml` | all three | conforms; per-key override, declared because every value is a scalar or a closed list (`scope.exclude` and `lanes.<lane>.collectors.<measure>` replace whole). Unknown keys inert. Keys owned by [`plugins/code-metrics/reference/config.md`](../../../plugins/code-metrics/reference/config.md). Written (team layer only) by `/code-metrics:setup apply`; read by every audit skill. The consumer's `.claude/ecosystems/<lane>.yaml` files are a separate convention (ecosystem-commands); this surface does not absorb them. **Claim:** the plugin already implements this row. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and merge form". **As of:** 2026-09-28. **Recheck:** when that section adds a layer, changes merge form, or starts owning an ecosystem-commands key |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
-| `work-items` | `.work-item-tracker.json` (repo root) | team + local overlay | declared deviation ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)): layers live at the repo root, not under `.claude/` (precedent: `standards` location); overlay (`.work-item-tracker.local.json`) merges per-key over a deny-by-default allowlist (lease TTL, jira/linear/gitea auth identity, `docs`); deliberately no user-global layer, since a cross-repo personal rung would reopen the per-user provider trap the allowlist forecloses. Anchors at the repo root (`CLAUDE_PROJECT_DIR`, else git toplevel), no CWD climb. The overlay's gitignore line is outside the `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends it, announced, a ratified exception to the no-plugin-writes rule (#3573) |
+| `work-items` | `.work-item-tracker.json` (repo root) | team + local overlay | declared deviation ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)): layers live at the repo root, not under `.claude/` (precedent: `standards` location); overlay (`.work-item-tracker.local.json`) merges per-key over a deny-by-default allowlist (lease TTL, jira/linear/gitea auth identity, `docs`); deliberately no user-global layer, since a cross-repo personal rung would reopen the per-user provider trap the allowlist forecloses. Anchors at the repo root (`CLAUDE_PROJECT_DIR`, else git toplevel), no CWD climb. The overlay's gitignore line is outside the `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends it, announced, a declared exception to the recommend default (ADR 0015) |
 | `ai-slop` | `.claude/ai-slop.json` | all three | conforms; per-key override, resolved by `/ai-slop:audit` (user-global, team, `.claude/ai-slop.local.json` overlay). Four list keys are additive-by-replacement rather than merged (`vocab_add` / `vocab_remove` tune the shipped word list, `phrase_add` / `phrase_remove` the shipped model-era phrase roster; the later layer's list wins per key). No policy-floor class: every key is a taste dial over prose style, and a personal overlay that silences a rule weakens nothing another surface depends on. Keys owned by `/ai-slop:setup`; `_comment` is an allowed free-text annotation, not drift |
 | `docs-hygiene` | `.claude/docs-hygiene.json` | all three | conforms; per-key override on `file_names.*`, with a policy-floor class on `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three `exempt_*` keys: a personal layer may ADD entries and never remove them, and `generated` is team-layer only. Those keys decide what `/docs-hygiene:realign-file-names` does to a tree (which files are frozen, which reference forms are rewritten, and which shell command runs after a move), so narrowing one from a single machine would weaken a team decision, while adding a scope root or an exemption weakens nothing and stays open. `rule`, `regex`, and `redirect_map` are nearest-wins. Keys owned by [`plugins/docs-hygiene/reference/config.md`](../../../plugins/docs-hygiene/reference/config.md), which also partitions them from plugin `userConfig` (this plugin declares none, so a layer naming one is an inert unknown key). Written by `/docs-hygiene:setup apply`, resolved by `plugins/docs-hygiene/scripts/resolve-config.sh` |
 | `rendered-views` | `.claude/rendered-views.md` | all three | conforms; per-key override on `medium`, no policy-floor class (taste dial, the `ai-slop` precedent). Keys owned by [`rendered-views`](../rendered-views/README.md), which also partitions them from plugin `userConfig` dials (never keys in this surface; a layer declaring one is reported as an inert unknown key). Resolved by `visualization:visualize` (wave-1 exemplar) |
@@ -414,7 +411,7 @@ sweep, and each migration updates its own row in the same change.
 ### Overlay spelling drift
 
 Every setup surface that owns a `*.local.*` overlay now recommends (or, for
-`source-control`, appends, ratified #3573) the recursive line above. The narrow spellings the
+`source-control`, appends per [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)) the recursive line above. The narrow spellings the
 fleet used to ship, `.claude/*.local.*`, `.claude/ecosystems/*.local.*`, and
 `.claude/autonomy/**/*.local.*`, were each narrowly correct for their own
 surface but collectively defeated the one-line promise: a consumer running
