@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` reports a merged-PR tip that is an ancestor of the merged head as `SAFE` (5a)**
+  ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)). When a branch's PR merged
+  but the local tip differs from `headRefOid`, and the head commit exists locally and contains the tip,
+  every local commit was in the merged PR. One batched ancestry pass answers it for all such branches; a
+  head commit absent from the clone stays `REVIEW`.
+- **Each branch record carries a `Family:` line** (`agent`, `claude`, `plan`, `stranded`, `pre-wipe`, or
+  `none`), read from the branch name. It is information only and changes no tier.
+
 ## [0.12.0] - 2026-09-29
 
 ### Added
