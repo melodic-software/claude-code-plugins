@@ -9,8 +9,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **A post-phase orchestrator source commit gets a fresh-context `phase-verifier` pass.** A source commit
   made after the last numbered phase is marked `[DONE]` is checked against its stated purpose before the
-  push or PR, with no worker and the rationale withheld, including review and simplify fixes made in
-  the pre-PR sequence, which `implement` Step 5 now points back to
+  push or PR, with no worker and the rationale withheld; `implement` Step 5 points back to the rule
   ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).
 - **`reference/run-end-outcome-verify.md` is removed.** The question it recorded is decided and the
   contract lives in `implement-dispatch`.
