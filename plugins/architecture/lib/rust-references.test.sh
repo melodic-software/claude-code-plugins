@@ -61,7 +61,7 @@ serde = "1"   # comment
 tokio = { version = "1", features = ["full"] }
 local = { path = "../local", optional = true }
 ren = { package = "Real_Name", version = "1" }
-inh = { workspace = true, features = ["x"] }
+inherited = { workspace = true, features = ["x"] }
 dot.path = "../dot"
 dot.version = "1"
 flat.workspace = true
@@ -99,7 +99,7 @@ assert_contains "a version string is a crate, comment removed" "$records" "pkg${
 assert_contains "an inline table without path is a crate" "$records" "pkg${T}tokio${T}"
 assert_contains "an inline table path is a path line" "$records" "path${T}../local${T}local = { path = \"../local\", optional = true }${T}local"
 assert_contains "package = renames to the real name, folded" "$records" "pkg${T}real-name${T}"
-assert_contains "workspace = true is inherit" "$records" "inherit${T}inh${T}inh = { workspace = true, features = [\"x\"] }"
+assert_contains "workspace = true is inherit" "$records" "inherit${T}inherited${T}inherited = { workspace = true, features = [\"x\"] }"
 assert_contains "a dotted path key is a path line" "$records" "path${T}../dot${T}dot.path = \"../dot\"${T}dot"
 assert_not_contains "a dotted version key beside a path adds no crate" "$records" "pkg${T}dot"
 assert_contains "a dotted workspace key is inherit" "$records" "inherit${T}flat${T}flat.workspace = true"

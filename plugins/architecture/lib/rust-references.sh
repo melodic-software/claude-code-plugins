@@ -117,7 +117,7 @@ function setattr(key, dep, attr, val, decl, ws,    p) {
     p = unquote(val)
     if (p != "") { d_path[key] = p; d_pdecl[key] = decl } else unread(decl)
   } else if (attr == "workspace") {
-    if (val == "true") { d_inh[key] = 1; d_idecl[key] = decl }
+    if (val == "true") { d_inherits[key] = 1; d_idecl[key] = decl }
   } else if (attr == "package") {
     p = unquote(val)
     if (p != "") d_pkg[key] = p
@@ -192,7 +192,7 @@ END {
   for (i = 1; i <= nord; i++) {
     key = order[i]
     if (d_path[key] != "") printf "%s\t%s\t%s\t%s\n", d_ws[key] ? "wpath" : "path", d_path[key], tidy(d_pdecl[key]), d_dep[key]
-    else if (d_inh[key] && !d_ws[key]) printf "inherit\t%s\t%s\n", d_dep[key], tidy(d_idecl[key])
+    else if (d_inherits[key] && !d_ws[key]) printf "inherit\t%s\t%s\n", d_dep[key], tidy(d_idecl[key])
     else if (d_ws[key]) printf "wpkg\t%s\t%s\t%s\n", d_dep[key], norm(d_pkg[key]), tidy(d_decl[key])
     else printf "pkg\t%s\t%s\n", norm(d_pkg[key]), tidy(d_decl[key])
   }

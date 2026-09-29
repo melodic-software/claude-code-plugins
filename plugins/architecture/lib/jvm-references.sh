@@ -71,7 +71,7 @@ function depth(s,    i, c, q, n, d) {
   }
   return d
 }
-function lits(text,    i, c, q, n, start, item) {
+function quoted_items(text,    i, c, q, n, start, item) {
   nl = 0; bad = 0; n = length(text); i = 1
   while (i <= n) {
     c = substr(text, i, 1)
@@ -92,7 +92,7 @@ function lits(text,    i, c, q, n, start, item) {
 function finish(    t, d, i) {
   t = acc
   sub(/^include[[:space:]]*/, "", t)
-  lits(t)
+  quoted_items(t)
   d = tidy(acc)
   for (i = 1; i <= nl; i++) printf "include\t%s\t%s\n", lit[i], d
   if (bad || nl == 0) unread(d)

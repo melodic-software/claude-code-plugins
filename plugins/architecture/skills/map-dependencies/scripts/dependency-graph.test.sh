@@ -642,6 +642,8 @@ assert_contains "test: a test framework reference marks the node" "$(node_of Tes
 assert_not_contains "test: an ordinary project has no test field" "$(node_of Bare/Bare.csproj)" '"test"'
 assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version": 1'
 
+T=$'\t'
+
 # Node workspaces. Members are the package folders the workspaces globs expand
 # to; a package elsewhere on disk is never matched by name.
 put() {
@@ -749,31 +751,31 @@ assert_contains "node beside dotnet: each node keeps its own ecosystem" "$nodemi
 
 # Go modules: replace, go.work membership, and everything else external.
 gotree="$(make_tree gotree)"
-put "$gotree/app/go.mod" 'module example.com/acme/app
+put "$gotree/app/go.mod" "module example.com/acme/app
 
 go 1.22
 
 require (
-	example.com/acme/lib v1.0.0
-	example.com/acme/shared v1.0.0
-	example.com/acme/plain v1.0.0
-	github.com/pkg/errors v0.9.1
+${T}example.com/acme/lib v1.0.0
+${T}example.com/acme/shared v1.0.0
+${T}example.com/acme/plain v1.0.0
+${T}github.com/pkg/errors v0.9.1
 )
 
 replace example.com/acme/lib => ../lib
 replace example.com/acme/gone => ../nope
 replace example.com/acme/away => ../../elsewhere
 replace github.com/pkg/errors => github.com/fork/errors v0.9.2
-frobnicate this'
+frobnicate this"
 put "$gotree/lib/go.mod" 'module example.com/acme/lib'
 put "$gotree/shared/go.mod" 'module example.com/acme/shared'
 put "$gotree/plain/go.mod" 'module example.com/acme/plain'
-put "$gotree/go.work" 'go 1.22
+put "$gotree/go.work" "go 1.22
 use (
-	./app
-	./shared
-	./missing
-)'
+${T}./app
+${T}./shared
+${T}./missing
+)"
 put "$TEST_TMPDIR/elsewhere/go.mod" 'module escape'
 go_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
 assert_contains "go: ecosystem go" "$go_json" '"ecosystem": "go"'

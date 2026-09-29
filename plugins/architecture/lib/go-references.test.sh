@@ -48,7 +48,7 @@ assert_contains "the shared reader says it is sourced" "$ran" "sourced"
 
 T=$'\t'
 mod="$TEST_TMPDIR/go.mod"
-cat >"$mod" <<'EOF'
+cat >"$mod" <<EOF
 // a comment line
 module example.com/acme/app // trailing comment
 
@@ -57,23 +57,23 @@ toolchain go1.22.1
 
 require github.com/pkg/errors v0.9.1
 require (
-	github.com/spf13/cobra v1.8.0 // indirect
-	"quoted.example/mod" v1.0.0
+${T}github.com/spf13/cobra v1.8.0 // indirect
+${T}"quoted.example/mod" v1.0.0
 )
 replace example.com/acme/lib => ../lib
 replace (
-	example.com/acme/util v1.0.0 => ./util
-	github.com/pkg/errors => github.com/fork/errors v0.9.2
+${T}example.com/acme/util v1.0.0 => ./util
+${T}github.com/pkg/errors => github.com/fork/errors v0.9.2
 )
 exclude github.com/bad/mod v1.0.0
 retract v1.0.1
 tool (
-	golang.org/x/tools/cmd/stringer
+${T}golang.org/x/tools/cmd/stringer
 )
 frobnicate something odd
 require github.com/incomplete
 mystery (
-	a b
+${T}a b
 )
 EOF
 records="$(go_mod_records "$mod")"
@@ -92,12 +92,12 @@ assert_contains "an unknown block is unread once" "$records" "unread${T}mystery 
 assert_not_contains "an unknown block's members are skipped" "$records" "a b"
 
 work="$TEST_TMPDIR/go.work"
-cat >"$work" <<'EOF'
+cat >"$work" <<EOF
 go 1.22
 use ./app
 use (
-	./lib // shared
-	"./quoted"
+${T}./lib // shared
+${T}"./quoted"
 )
 replace example.com/x => ./x
 EOF
