@@ -153,16 +153,65 @@ function Invoke-IdempotentStep {
         })
 }
 
+# Polls an outcome instead of trusting the exit code of the request that caused
+# it. The predicate must assert a non-empty observation first: an empty set
+# satisfies "all of them are done".
+function Wait-ForState {
+    param(
+        [Parameter(Mandatory = $true)][string] $Name,
+        [Parameter(Mandatory = $true)][scriptblock] $Predicate,
+        [int] $TimeoutSeconds = 300,
+        [double] $IntervalSeconds = 5
+    )
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        try {
+            $observed = @(& $Predicate)
+            if ($observed.Count -gt 0 -and $observed[-1]) {
+                break
+            }
+            $last = if ($observed.Count -eq 0) { 'no output' } else { "value $($observed[-1])" }
+        } catch {
+            $last = "error $($_.Exception.Message)"
+        }
+        $elapsed = $clock.Elapsed.TotalSeconds
+        Write-Host ('waiting for {0}: attempt {1}, {2:N0}s elapsed' -f $Name, $attempt, $elapsed)
+        if ($elapsed -ge $TimeoutSeconds) {
+            throw "timed out waiting for $Name after ${TimeoutSeconds}s; last: $last"
+        }
+        Start-Sleep -Seconds ([Math]::Min($IntervalSeconds, $TimeoutSeconds - $elapsed))
+    }
+    $script:Steps.Add([pscustomobject]@{
+            name   = "wait $Name"
+            status = 'ok'
+            detail = ('reached after {0:N1}s' -f $clock.Elapsed.TotalSeconds)
+        })
+    # Emitting $true lets Wait-ForState stand alone as a Use-GuardedResource Prove block.
+    $true
+}
+
 function Use-GuardedResource {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
         [Parameter(Mandatory = $true)][scriptblock] $Take,
         [Parameter(Mandatory = $true)][scriptblock] $Prove,
-        [Parameter(Mandatory = $true)][scriptblock] $Release
+        [Parameter(Mandatory = $true)][scriptblock] $Release,
+        [switch] $TolerateTakeExit
     )
     # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
-    Invoke-Checked "take $Name" $Take
+    if ($TolerateTakeExit) {
+        # A thrown exception still fails; only the native exit code is deferred to Prove.
+        $global:LASTEXITCODE = 0
+        & $Take
+        if ($LASTEXITCODE -ne 0) {
+            $script:Warnings.Add("take $Name exited $LASTEXITCODE; state is proven by the next step") | Out-Null
+        }
+    } else {
+        Invoke-Checked "take $Name" $Take
+    }
     $global:LASTEXITCODE = 0
     $proof = @(& $Prove)
     if ($LASTEXITCODE -ne 0) {

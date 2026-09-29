@@ -216,6 +216,138 @@ for case in 'provefalse|$false|held' 'provenone||held' 'provetrue|$true|released
   fi
 done
 
+code="$(run_pwsh waitok "
+  \$dir = '$TEST_TMPDIR/waitok'
+  \$counter = '$TEST_TMPDIR/waitok-count'
+  Set-Content -LiteralPath \$counter -Value 0
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  Wait-ForState -Name 'drain' -TimeoutSeconds 10 -IntervalSeconds 0.05 -Predicate {
+    \$n = [int](Get-Content -LiteralPath \$counter) + 1
+    Set-Content -LiteralPath \$counter -Value \$n
+    \$n -ge 3
+  }
+  Complete-UnattendedResult -Status ok
+  'polls=' + (Get-Content -LiteralPath \$counter)
+  \$step = (Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json).steps | Where-Object name -eq 'wait drain'
+  'step=' + \$step.status + ':' + \$step.detail
+")"
+msg="$(cat "$TEST_TMPDIR/waitok.out")"
+if [[ "$msg" == *'polls=3'* && "$msg" == *'step=ok:reached after '* && "$msg" == *'attempt 2'* ]]; then
+  pass "Wait-ForState returns after the predicate turns truthy and records a step"
+else
+  fail "Wait-ForState returns after the predicate turns truthy and records a step" "$msg"
+fi
+
+code="$(run_pwsh waittimeout "
+  Initialize-UnattendedResult -ResultDirectory '$TEST_TMPDIR/waittimeout'
+  try {
+    Wait-ForState -Name 'drain' -TimeoutSeconds 1 -IntervalSeconds 0.05 -Predicate { \$false }
+    'reached'
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/waittimeout.out")"
+if [[ "$msg" == *'timed out waiting for drain after 1s'* && "$msg" == *'value False'* && "$msg" != *reached* ]]; then
+  pass "Wait-ForState times out with the last observed value"
+else
+  fail "Wait-ForState times out with the last observed value" "$msg"
+fi
+
+code="$(run_pwsh waitthrow "
+  \$counter = '$TEST_TMPDIR/waitthrow-count'
+  Set-Content -LiteralPath \$counter -Value 0
+  Initialize-UnattendedResult -ResultDirectory '$TEST_TMPDIR/waitthrow'
+  Wait-ForState -Name 'pool' -TimeoutSeconds 10 -IntervalSeconds 0.05 -Predicate {
+    \$n = [int](Get-Content -LiteralPath \$counter) + 1
+    Set-Content -LiteralPath \$counter -Value \$n
+    if (\$n -lt 3) { throw 'target not there yet' }
+    \$true
+  }
+  'polls=' + (Get-Content -LiteralPath \$counter)
+")"
+msg="$(cat "$TEST_TMPDIR/waitthrow.out")"
+if [[ "$msg" == *'polls=3'* ]]; then
+  pass "Wait-ForState treats a throwing predicate as not yet"
+else
+  fail "Wait-ForState treats a throwing predicate as not yet" "$msg"
+fi
+
+code="$(run_pwsh waitthrowfinal "
+  Initialize-UnattendedResult -ResultDirectory '$TEST_TMPDIR/waitthrowfinal'
+  try {
+    Wait-ForState -Name 'pool' -TimeoutSeconds 1 -IntervalSeconds 0.05 -Predicate { throw 'no such pool' }
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/waitthrowfinal.out")"
+if [[ "$msg" == *'timed out waiting for pool after 1s'* && "$msg" == *'no such pool'* ]]; then
+  pass "Wait-ForState timeout carries the last predicate error"
+else
+  fail "Wait-ForState timeout carries the last predicate error" "$msg"
+fi
+
+code="$(run_pwsh tolerate "
+  \$dir = '$TEST_TMPDIR/tolerate'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -TolerateTakeExit -Take { & pwsh -NoProfile -Command 'exit 5' } -Prove { Wait-ForState -Name 'drain' -TimeoutSeconds 5 -IntervalSeconds 0.05 -Predicate { \$true } } -Release { 'released' }
+  } catch { \$_.Exception.Message }
+  Complete-UnattendedResult -Status ok
+  \$json = Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json
+  'held=' + (\$json.held_resources -join ',')
+  'warnings=' + (\$json.warnings -join '|')
+")"
+msg="$(cat "$TEST_TMPDIR/tolerate.out")"
+if [[ "$msg" == *released* && "$msg" == *'held='* && "$msg" != *'held=fleet'* && "$msg" == *'warnings=take fleet exited 5; state is proven by the next step'* ]]; then
+  pass "TolerateTakeExit defers a nonzero take exit to the proof and warns"
+else
+  fail "TolerateTakeExit defers a nonzero take exit to the proof and warns" "$msg"
+fi
+
+code="$(run_pwsh tolerateprove "
+  \$dir = '$TEST_TMPDIR/tolerateprove'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -TolerateTakeExit -Take { & pwsh -NoProfile -Command 'exit 5' } -Prove { Wait-ForState -Name 'drain' -TimeoutSeconds 1 -IntervalSeconds 0.05 -Predicate { \$false } } -Release { 'released' }
+  } catch { \$_.Exception.Message }
+  Complete-UnattendedResult -Status failed
+  'held=' + ((Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json).held_resources -join ',')
+")"
+msg="$(cat "$TEST_TMPDIR/tolerateprove.out")"
+if [[ "$msg" == *'timed out waiting for drain'* && "$msg" != *released* && "$msg" == *'held=fleet'* ]]; then
+  pass "TolerateTakeExit keeps the resource held when the proof never arrives"
+else
+  fail "TolerateTakeExit keeps the resource held when the proof never arrives" "$msg"
+fi
+
+code="$(run_pwsh tolerateoff "
+  \$dir = '$TEST_TMPDIR/tolerateoff'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -Take { & pwsh -NoProfile -Command 'exit 5' } -Prove { \$true } -Release { 'released' }
+  } catch { \$_.Exception.Message }
+  Complete-UnattendedResult -Status failed
+  'held=' + ((Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json).held_resources -join ',')
+")"
+msg="$(cat "$TEST_TMPDIR/tolerateoff.out")"
+if [[ "$msg" == *'take fleet failed: native command exited 5'* && "$msg" != *released* && "$msg" == *'held=fleet'* ]]; then
+  pass "without TolerateTakeExit a nonzero take exit throws and stays held"
+else
+  fail "without TolerateTakeExit a nonzero take exit throws and stays held" "$msg"
+fi
+
+code="$(run_pwsh toleratethrow "
+  \$dir = '$TEST_TMPDIR/toleratethrow'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -TolerateTakeExit -Take { throw 'take blew up' } -Prove { \$true } -Release { 'released' }
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/toleratethrow.out")"
+if [[ "$msg" == *'take blew up'* && "$msg" != *released* ]]; then
+  pass "TolerateTakeExit still fails on a thrown take exception"
+else
+  fail "TolerateTakeExit still fails on a thrown take exception" "$msg"
+fi
+
 code="$(WIZARD_TEST_SECRET="$SECRET" run_pwsh jsonredact "
   \$dir = '$TEST_TMPDIR/jsonredact'
   Initialize-UnattendedResult -ResultDirectory \$dir

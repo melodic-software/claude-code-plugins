@@ -61,11 +61,25 @@ these helpers:
   remediation command in the result.
 - `Invoke-IdempotentStep -Name -Done -Action`. A re-run after a partial failure
   skips work that is already done.
-- `Use-GuardedResource -Name -Take -Prove -Release`. Take a shared resource out
-  of service and release it only after proof. `Prove` must throw on failure or
-  emit a truthy value as its last output; `$false`, no output, or a nonzero
-  native exit all count as failed proof and keep the resource held. A failure
-  leaves it listed in `held_resources`.
+- `Wait-ForState -Name -Predicate -TimeoutSeconds 300 -IntervalSeconds 5`. The
+  preferred way to prove a requested state: poll the outcome, never the exit
+  code of the request. It polls the predicate, prints one progress line per
+  poll, and returns once the predicate's last output is truthy; otherwise it
+  throws `timed out waiting for <Name>` with the last value or error. A
+  predicate that throws counts as not yet, because ephemeral targets race. The
+  predicate must first assert a non-empty observation (`$pools.Count -gt 0 -and
+  ...`): a vacuous pass is the author's bug, so a drain proof that sees no pools
+  must fail, not pass. It records a `wait <Name>` step.
+- `Use-GuardedResource -Name -Take -Prove -Release [-TolerateTakeExit]`. Take a
+  shared resource out of service and release it only after proof. `Prove` must
+  throw on failure or emit a truthy value as its last output; `$false`, no
+  output, or a nonzero native exit all count as failed proof and keep the
+  resource held. A failure leaves it listed in `held_resources`.
+  `-TolerateTakeExit` records a nonzero native exit from `Take` as a warning
+  instead of throwing (a thrown exception still fails), so `Prove` is the only
+  gate. Drain example: the request exits 5 while the drain proceeds, so use
+  `-TolerateTakeExit` with `-Prove { Wait-ForState -Name drain -Predicate {
+  $pools.Count -gt 0 -and -not ($pools | Where-Object Active) } }`.
 - `Confirm-Irreversible -Name`. The human types the name. Anything else aborts.
 
 Set the result directory to a path the agent can read after the human runs the
@@ -87,6 +101,9 @@ them to paste the transcript.
 
 - The agent never executes the script. A pipeline or an agent shell is the
   wrong principal.
+- A `Take` that asks a system to reach a state (a drain with `--wait`) can exit
+  nonzero while the state is reached. Do not trust that exit code either way:
+  pass `-TolerateTakeExit` and prove the state with `Wait-ForState`.
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the
