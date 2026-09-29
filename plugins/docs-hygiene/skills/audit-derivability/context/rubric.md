@@ -9,6 +9,7 @@
 - [Factor 4: Fact ownership (the trump card)](#factor-4-fact-ownership-the-trump-card)
 - [Audience: agent-facing vs human-facing](#audience-agent-facing-vs-human-facing)
 - [The empirical spot-test protocol](#the-empirical-spot-test-protocol)
+- [Keep-sample protocol](#keep-sample-protocol)
 - [Worked examples](#worked-examples)
 
 Reference for `/docs-hygiene:audit-derivability`. The SKILL.md carries the
@@ -44,7 +45,7 @@ lives:
 | Claim's truth lives in… | Derivable? | Example |
 |---|---|---|
 | Code, config, schema, build files, tests, directory layout | Yes | "The service listens on port 8080" (a config value) |
-| Metadata the tooling exposes (git history, manifests, lockfiles) | Yes, with effort | "This module depends on X" (a manifest) |
+| Metadata the tooling exposes (git history, manifests, lockfiles) | Yes, with effort. Mechanical history is derivable; a decision or rationale stated in a commit message is an owned fact (Factor 4), not derivable | "This module depends on X" (a manifest) |
 | Another tracked markdown document | No: this is duplication, not derivability | route to `/docs-hygiene:extract-ssot` |
 | Agent routing index, where to look, not what to do | Exception: graded on this row, not as derivable | `convert-to-pointer (already satisfied)` when the body is pointers only; not actionable |
 | Nowhere else, so the document is the only record | No: owned fact | "We chose X over Y because Acme's rate limit…" |
@@ -184,13 +185,44 @@ recommended pointer target exists before the verdict ships: one `ls` (or URL
 check) per anchor, recorded in the rationale. A pointer at a nonexistent
 anchor is worse than the doc it replaces.
 
+**Deliberate-state precondition, every `delete` and `convert-to-pointer`.** Run
+`git log` on the file before the verdict ships, not only for empty files. A
+commit that records a decision about the doc (a deliberate creation, an emptying,
+a reset) is an owned fact (Factor 4). Where the recorded decision is the file's
+state itself, the verdict is `keep-owns-facts`. Otherwise the verdict ships
+provisional with the text `reverses a recorded decision`, is excluded from the
+actionable subset, and the author decides.
+
+## Keep-sample protocol
+
+The spot-test above bounds false-deletes. A keep verdict can be wrong too, and
+a sweep cannot spot-test every keep, so it samples.
+
+- **Size and choice.** Draw every tenth `keep-owns-facts` verdict in lexical
+  filename order, and at least one per batch ledger. The ten is a judgment
+  number, not a measured one. `keep-as-derivation-cache` verdicts are not
+  sampled: they are derivable by definition, so convergence there is expected.
+- **Test.** Run the spot-test protocol above on each sampled doc: a fresh,
+  non-fork subagent that has not seen it reproduces the conclusions from native
+  exploration only.
+- **Diverged** (the agent could not reproduce the conclusions): the keep is
+  confirmed.
+- **Converged** (the agent reproduced them): the doc goes back through the four
+  factors with that result as evidence. If the re-grade is actionable
+  (`delete` or `convert-to-pointer`), the verdict ships provisional, never
+  confirmed-actionable, and the sample counts as overturned.
+- **Record.** Write the sampled file list and each outcome beside the batch
+  ledger when the sample is drawn, and report `<s>` sampled and `<o>` overturned
+  in the aggregate line. A sample set that was not recorded is not reconstructed
+  later.
+
 ## Worked examples
 
 | Document | Factors | Verdict |
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
 | A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1 exception); launch-loaded, so it is what tells the agent where to look | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
-| An empty root `CLAUDE.md` whose `git log` shows it was deliberately emptied as an instruction-baseline reset, with the decision recorded in the commit | The emptiness IS a recorded decision (Factor 4 "decisions" class), so check `git log` before grading an empty/near-empty file | `keep-owns-facts`, not `delete` |
+| A doc whose `git log` shows a commit recording a decision about it. Case 1: an empty root `CLAUDE.md` deliberately emptied as an instruction-baseline reset. Case 2: a routing-only `CLAUDE.md` whose creating commit says it was made on purpose | `git log` is checked before EVERY `delete`/`convert-to-pointer`. The decision in the commit message is an owned fact (Factor 4 "decisions" class), though the file's mechanical history is derivable | Case 1: `keep-owns-facts`, the emptiness is the decision. Case 2: the verdict ships provisional, `reverses a recorded decision` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |
 | A doc explaining *why* the retry count is 3 (rate limit, past incident, breaker invariant) | Bare value derivable, but owns rationale + constraint + cross-cutting invariant | `keep-owns-facts` |
