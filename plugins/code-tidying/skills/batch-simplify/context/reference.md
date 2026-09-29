@@ -31,6 +31,11 @@ Present a final report:
 ```text
 ## Batch Simplify Results
 
+Native step: simplify
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
+Scope: <file groups the step ran over, or none>
+Outside-scope changes: none | <paths>
+
 ## Deferred items remaining (user decides)
 
 - <site>: <what>. Ground: <Needs-human|Too-large|the recorded ground of a deferral the resolution wave could not finish>. <agent's recorded rationale> (Group 2)

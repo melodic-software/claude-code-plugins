@@ -1,14 +1,50 @@
 ---
-description: "Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
+description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]"
+argument-hint: "[unattended] [time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
+## Native step: simplify (bundled skill)
 
-**Arguments.** `[time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
+When the bundled `simplify` skill resolves in this session, Phase 6 step 2 invokes it with each
+group's file list as its target, in place of spawning the simplifier agent. This skill keeps the
+discovery, filtering, grouping, ordering, verification, and report around it. One mutating pass
+runs per group, never both. `docs` mode keeps the simplifier agent, since `simplify` has no
+factual-staleness pass, and records `State: skipped (docs mode)`. The skill body enters context
+once and stays there.
+
+**Identity check.** The name is in the skill listing; the description is advisory. A description
+that reads as a different surface is a likely user or project shadow: skip with a warning and
+spawn the agent. A name with no description (`name-only`, budget overflow) is invoked with the
+warning "identity confirmed by name alone".
+
+**Mutation.** Groups the step runs over go one at a time, never in a parallel wave. Before each
+invocation, fingerprint the tracked files outside that group; any change there right after it is
+**mutation detected after a scoped invocation**, and the run exits degraded.
+
+**Skip report.** When the step does not run, the state names why: `did not resolve in this
+session`, invocation refused (the reason, never retried), or identity mismatch; those three name the axis
+line: settings or environment, plan, platform or provider, host surface; and the enable path
+(`disableBundledSkills`, `skillOverrides`). When `simplify` runs but says it ran a weaker
+procedure, the state is resolved but degraded, and the report relays its disclosure instead of
+calling the group fully simplified.
+
+**Result block.** The Phase 8 report opens with this block, whichever state the step ended in:
+
+```text
+Native step: simplify
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (docs mode | unattended) | mutation detected after a scoped invocation
+Scope: <file groups the step ran over, or none>
+Outside-scope changes: none | <paths>
+```
+
+**`unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
+block records `State: skipped (unattended)` without asking.
+
+**Arguments.** `[unattended] [time-window | branch | repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
 
 ## Repository context. Gather first
 
@@ -57,7 +93,7 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Match the whole argument, never a substring: an argument that merely *contains* "branch", a path, a filename, a future scope value, is not a branch-mode request, and routing it there silently sweeps the wrong file set.
 
-**Detection heuristic** (after stripping the `docs` flag): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
+**Detection heuristic** (after stripping the `docs`, `override`, `unattended`, and `in-place` flags): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
 
 Decide the scope **before** testing any token as a path, never after. Stripping paths first lets a repository that happens to contain a directory named `repo` or `branch` swallow the scope keyword. `/code-tidying:batch-simplify repo` would resolve `repo` as a path, find no scope left, and silently run the 48-hour default narrowed to that directory instead of the whole-repository sweep that was asked for. If the first token is not a scope, the scope defaults to `48h` and *every* token is a path; a token that resolves to nothing is neither a scope nor a path, so it falls through to asking the user rather than guessing. To sweep a directory genuinely named `repo`, spell it `./repo`.
 
@@ -92,6 +128,11 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 **Detection:** split `$ARGUMENTS` into whitespace-separated tokens. If any token **equals** `docs` (case-insensitive), set the docs flag and drop that token; rejoin the rest as the remaining argument, which determines the mode.
 
 Strip token-wise, never by substring: a substring strip mutates any argument that happens to contain those four letters, including a path such as `docs/`. Leaving a corrupted remainder for the mode parser to read.
+
+### Flag: `unattended`
+
+Skips the Native step: the simplifier agent runs every group (see **Native
+step: simplify** above). Detected and stripped exactly like `docs`.
 
 ### Flag: `override`
 
@@ -181,13 +222,13 @@ Create one task per group using `TaskCreate`. Each task should include:
 
 **Before spawning any agents**, ground the run: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the batch scope and `/discovery:research` via the Skill tool covering idioms relevant to the dominant ecosystems in the wave; otherwise read representative files per group and do a focused inline research pass on the ecosystems' current idioms.
 
-Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies.
+Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies. Groups the Native step runs over are always serialized.
 
 For each group:
 
 1. **Mark the task in_progress** via `TaskUpdate`
 
-2. **Spawn a simplifier agent** via the `Agent` tool. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
+2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities
@@ -197,7 +238,7 @@ For each group:
    - An escalation clause: *"If you discover mid-task that the requested change is wrong, conflicts with project conventions, or requires touching files outside your file list, STOP and report back instead of improvising."*
    - **Fix-first deferral contract (required):** *"Apply every simplification you identify. Deferral is the exception, and each deferral must name one of these grounds: (a) HUMAN-DECISION, the change turns on a judgment only a human can make (a behavior or public-API question, an ambiguous contract, product intent); (b) TOO-LARGE, a genuinely huge refactor whose scope would dwarf this sweep (a redesign spanning ecosystems, a breaking API migration); (c) CROSS-GROUP, the change requires editing files outside your file list (a later resolution wave in this same run will take it); (d) PROTECTED, the target is in a Phase 2 excluded class. 'Out of scope', 'would dilute the diff', or 'could be a follow-up' are NOT grounds; if you can do it safely and verify it, do it now. Record each deferral in a `## Deferred` section of your final report with this shape per item: `- <path>:<line or range> — <one-line description>. Ground: <HUMAN-DECISION|TOO-LARGE|CROSS-GROUP|PROTECTED>. Reason: <why that ground applies>. Scope: <trivial|small|medium|large>. Category: <refactor|dedup|modernize|perf|cleanup>.` Do not silently skip, if you noticed it, list it. 'Already idiomatic' or 'preserves documented contract' do NOT need to appear. Only candidates you considered actionable but set aside."*
 
-3. **Collect deferred items**, when the agent returns, extract the `## Deferred` section verbatim into a running list keyed by group number. Do not lose or paraphrase these items.
+3. **Collect deferred items**, when the agent returns, extract the `## Deferred` section verbatim into a running list keyed by group number. Do not lose or paraphrase these items. A group `simplify` ran records "no `## Deferred` (simplify ran)".
 
 4. **Report results**. Summarize what the agent changed (or didn't) for that group, plus a count of deferred items.
 
@@ -228,7 +269,7 @@ Report the final verification results as a summary table.
 
 ### Phase 8: Summary report
 
-Present a final report. It opens with the remaining deferrals, the items waiting on the user; then scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + the resolved-in-run section. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
+Present a final report. It opens with the Native step result block, then the remaining deferrals, the items waiting on the user; then scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + the resolved-in-run section. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
 
 When any HARD path was lifted, add a `## Lifted HARD exclusions` section naming each path and the channel that lifted it (`override` flag, overrides file, or `hard_exclusions=advisory`). Omit the section when nothing was lifted; never print it empty.
 
@@ -250,8 +291,9 @@ conflated whenever the request is "run simplify":
 file or one diff. Prefer this skill when the scope is a window of sessions, a whole branch, or a
 repository, or when the passes need grouping and tracking.
 
-**Mutation gate.** Both edit the working tree. This skill runs its own passes and never chains
-into a `simplify` run; two mutating passes over one file in one sweep would mix their diffs.
+**Mutation gate.** Both edit the working tree. Each group gets one mutating pass, `simplify`
+through the Native step or this skill's simplifier agent, never both; two passes over one file in
+one sweep would mix their diffs.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
 host; this section states what to do when one resolves, never that it is present. The four-part
