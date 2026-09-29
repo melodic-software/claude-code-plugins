@@ -1719,6 +1719,11 @@ jobs:
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
+          # Dependabot's /.github pip entry bumps the animation wheels here but cannot reach the
+          # plugin's own pins, so a one-sided bump fails here instead of merging as drift.
+          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) \
+               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
+            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.txt pin different versions; bump the two together"; exit 1; }
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
