@@ -7,7 +7,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **Shared `hooks/hook-utils.sh` resynced (#4240).** `hook::notice_once` gains an optional `prerequisite` class that latches once per session and keeps its install route on renewal. No hook in this plugin passes it (`powershell-format.sh` calls `notice_once` with two arguments), and the plugin ships no `prerequisites.json` or session-start probe, so `/claude-ops:prerequisites` does not list it. `jq` is the only prerequisite, and a missing `jq` stays covered by the existing once-per-session skip notice; `pwsh`, PSScriptAnalyzer and the settings file stay quiet not-applicable.
 
 ## [0.8.4] - 2026-09-28
 
