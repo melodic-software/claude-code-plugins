@@ -1789,8 +1789,17 @@ hook::repo_relative_path_to() {
   # ends in / or \ makes the prefix "/repo//" and matches nothing, so every
   # in-project file collapses to its basename (#4527). The filesystem root
   # itself is kept: trimming its only slash would empty the anchor.
-  __hu_rp_file_n="${__hu_rp_file//\\//}"
-  __hu_rp_root_n="${__hu_rp_root//\\//}"
+  # Backslash is a separator only on Windows; on POSIX it is a filename
+  # character, and folding it could make an outside path look like a member.
+  __hu_rp_file_n=$__hu_rp_file
+  __hu_rp_root_n=$__hu_rp_root
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    __hu_rp_file_n="${__hu_rp_file_n//\\//}"
+    __hu_rp_root_n="${__hu_rp_root_n//\\//}"
+    ;;
+  *) ;; # POSIX: keep the caller's spelling
+  esac
   while [[ "$__hu_rp_root_n" == */ && "$__hu_rp_root_n" != / ]]; do
     __hu_rp_root_n="${__hu_rp_root_n%/}"
   done

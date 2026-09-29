@@ -51,7 +51,8 @@ posix_tmp_command_only() {
   c="${c,,}"
   [[ "$c" =~ (^|[^[:alnum:]])[a-z]:/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
   [[ "$c" =~ (^|[^[:alnum:]._/:])/[a-z]/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
-  [[ "$c" =~ (^|[^[:alnum:]._/])/tmp(/|[^[:alnum:]_./-]|$) ]]
+  # A glued short flag (`-o/tmp/x`) is POSIX /tmp too.
+  [[ "$c" =~ (^|[^[:alnum:]._/]|[[:space:]]-[a-z])/tmp(/|[^[:alnum:]_./-]|$) ]]
 }
 
 run_win() {
