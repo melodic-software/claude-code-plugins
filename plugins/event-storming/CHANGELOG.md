@@ -3,6 +3,15 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.19] - 2026-09-29
+
+### Fixed
+
+- `simulation`'s argument hint no longer lists only five of its ten modes
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)). The hint is now
+  `[--<mode>] [domain|board]`, and the body Arguments line names all ten modes once and states
+  which take a domain, a board URL or bounded-context name, or nothing.
+
 ## [0.6.18] - 2026-09-28
 
 ### Changed
