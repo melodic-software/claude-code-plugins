@@ -3,6 +3,38 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.13] - 2026-09-29
+
+### Fixed
+
+- **`check`: check 25 (description/verb-contract polarity) is a FAIL everywhere it is described**
+  ([#4586](https://github.com/melodic-software/claude-code-plugins/issues/4586)). The
+  `verb-contract-mismatch-fails-check` eval case graded an advisory WARN, and the README, the
+  `check` step 3 output guide, and the `check` description still called the polarity check
+  advisory or said the skill never blocks. `check-skill.sh` behavior is unchanged.
+- **`check`: check 1 accepts provider-format `model` ids and reads the whole `description` scalar**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027),
+  [#3612](https://github.com/melodic-software/claude-code-plugins/issues/3612)). The skills page
+  defines no grammar beyond "the same values as `/model`, or `inherit`", so `model` now fails only
+  when empty or containing whitespace; Bedrock ids with `:`, inference profile ARNs, and Vertex
+  ids with `@` pass. The unquoted-colon check now covers every continuation line of a plain
+  `description` and a line ending in `:`.
+- **`measure-invocation`: `score` exits 2 with guidance when no probe `skill_dir` resolves**
+  ([#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526)). `validate`
+  keeps its per-file WARN and adds an unresolved-count line. The `check` action resolves the
+  probes directory explicitly. `reference/invocation-probes.md` states the floor's limits: seed
+  positives that quote the description, no ingest path for `plugin-eval` or `claude -p` results,
+  and how to run outside the marketplace checkout.
+
+### Changed
+
+- **`check` gains a `## Next` section** and drops a paragraph that repeated the Arguments text.
+- **The manifest description names the `measure-invocation` probe harness.**
+- **Corrected released entries.** The 0.24.7 entry no longer carries the `### Recorded` interop
+  bullets (compaction, `.agents/skills/`, frontmatter stripping) or the fleet-scan sentence: they
+  were not ratified decisions, and #3612 is reopened to ask them. The 0.24.10 entry no longer
+  repeats the Check 1 `model` bullet that the 0.24.9 entry already carries.
+
 ## [0.24.12] - 2026-09-28
 
 ### Changed
