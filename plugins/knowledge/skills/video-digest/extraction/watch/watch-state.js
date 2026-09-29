@@ -7,9 +7,9 @@
 
 import fs from "node:fs/promises";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
 

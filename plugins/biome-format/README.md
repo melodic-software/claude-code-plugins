@@ -44,17 +44,30 @@ runs only when your repo has opted into Biome.
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash. A missing `node` is a hook launch error, not a skip notice.
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a visible notice.
+  [Install jq](https://jqlang.org/download/).
 - **Biome** available to the repo. Installed in the repo's `node_modules`
   (the hook runs `node_modules/.bin/biome`) or on `PATH`. Biome is never
   downloaded on the fly; if it is not present while a Biome config governs the
-  repo, the hook skips with a visible notice, once per session (a `prerequisite` notice), renewed with the install route every eighth skip.
+  repo, the hook skips with a visible notice.
   **Biome 2.x is recommended** (tested against 2.5.1): the hook invokes
   `check --write --error-on-warnings --reporter=github`, and on much older
   releases those flags may be absent, in which case the run is reported as a
   tool break rather than a finding.
 - A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
+
+Skip notices repeat by class:
+
+- `jq` and other non-binary prerequisites: once per session and agent, renewed every eighth skip.
+- The missing Biome binary, a prerequisite-class notice: once per session, renewed with the install
+  route every eighth skip.
+
+A `SessionStart` probe reports a missing Biome binary before the first edit. It reads the tool's
+name, check and install strings from `prerequisites.json`, resolves `biome` on `PATH` or as
+`node_modules/.bin/biome` walking up at most eight directories from the session cwd, does not run
+when `biome_format_enabled` is `false`, and installs nothing.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
@@ -91,7 +104,7 @@ probe and root resolver (`git` twice, `realpath`) and the disclosure snapshot.
 /plugin install biome-format@<marketplace>
 ```
 
-Then verify prerequisites with `/biome-format:setup check`.
+Then verify prerequisites with `/biome-format:setup check` or `/biome-format:check`.
 
 ## Configuration
 

@@ -1365,6 +1365,7 @@ if [[ "$husk_status" -ne 2 ]] &&
   grep -Fq "discovered path is not a Git working tree" "$husk_out" &&
   grep -Fq "Repo: $TMP/repo-b" "$husk_out" &&
   grep -Fq "Discovery skips: 1 non-repository" "$husk_out" &&
+  grep -Fq "/repo-fleet-hygiene:setup apply --extend-skip sdists-v9" "$husk_out" &&
   ! grep -Fq "Error: not a Git working tree" "$husk_out"; then
   printf 'PASS: a non-working-tree .git under --root is a discovery-skip and the fleet is audited\n'
 else
@@ -2453,6 +2454,7 @@ else
     if grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
       grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
       grep -Fq "Windows directory junctions" "$sym_mid_out" &&
+      grep -Fq "/repo-fleet-hygiene:setup apply --extend-skip via-link" "$sym_mid_out" &&
       grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
       grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
       ! grep -Fq "buried-repo" "$sym_mid_out"; then

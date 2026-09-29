@@ -61,10 +61,9 @@ Install nothing.
      read `true` while the hook it gates never runs.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment. A version
-   manager can return a per-call path whose directory name contains a process id (fnm's
-   `fnm_multishells\<pid>_<timestamp>\node` is the usual shape). That path is ephemeral: it is <!-- portability-ok: Windows path, not a shell regex -->
-   not the persisted Machine or User PATH the hook process inherits. FAIL when the only hit is
-   an ephemeral shim, and say so. Report the persisted resolution separately, from
+   manager can return a per-call path whose directory name contains a process id. That path is
+   ephemeral: it is not the persisted Machine or User PATH the hook process inherits. FAIL when
+   the only hit is an ephemeral shim, and say so. Report the persisted resolution separately, from
    `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`, not from the current
    process PATH. An in-process hit that is not ephemeral is INFO beside that persisted result,
    not a PASS by itself. The checkpoint is a checkpoint either way, never a guarantee. A
@@ -116,20 +115,28 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
   `/plugin configure context-budget@<marketplace>` any time, or headless
-  `claude plugin install context-budget@<marketplace> -s user --config settings_write_ask_enabled=true`
-  (repeatable per key). Print that command for the operator. This skill never runs it: it writes
+  `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
+  (repeatable per key; replace `<scope>` with the scope `claude plugin list` reports for this
+  plugin). Print that command for the operator. This skill never runs it: it writes
   `pluginConfigs`. Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Pass `-s user`. `-s` places `enabledPlugins`; the option value
-  lands in user settings either way. Do not copy a scope from `claude plugin list`. When the
-  working directory is the home directory, project scope and user scope are the same settings
-  file, so the list can label that one file as both `user` and `project`, and a project-scoped
-  install from there writes a second enablement record. A rejected value prints a warning yet exits 0,
+  to its manifest default. Pass the scope `claude plugin list` reports for this plugin's install
+  (`user`, `project` or `local`). `-s` places `enabledPlugins`; the option value lands in user
+  settings either way. A rerun at a scope other than the installed one adds an install record
+  and enables the plugin there; the convention's verified-version record holds the measurement.
+  When the working directory is the home directory, the list can label one settings file as both
+  `user` and `project`; pass `user` there. A rejected value prints a warning yet exits 0,
   so read the output. This skill never writes user settings or
   `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered token is
   injected at skill load, so a same-session `check` still reports the OLD value; report the
   observed effective value, never an unobserved change.
+
+## Next
+
+`/context-budget:audit`
+
+It takes the stamped baseline once `check` passes.
 
 ## What this skill does NOT do
 

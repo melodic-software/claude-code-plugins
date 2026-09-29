@@ -21,6 +21,9 @@
 # Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
 #   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
 #   query: id, split (train|validation), expect_trigger (bool), request
+# skill_dir resolves against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
+# git toplevel of this script, else $PWD). The shipped seed probes name this
+# marketplace's own skills; `score` exits 2 when none of them resolve.
 # Roughly 20 labeled queries per skill, both polarities, both splits.
 #
 # listing-overlap is a FLOOR, not a model-graded auto-invocation rate. It
@@ -146,7 +149,7 @@ cmd_validate() {
   fi
   local root
   root="$(repo_root)"
-  local f nfiles=0
+  local f nfiles=0 unresolved=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -218,6 +221,7 @@ cmd_validate() {
         note "$skill: listing $md"
       else
         warn "$f ($skill): skill_dir '$rel' does not resolve under $root"
+        unresolved=$((unresolved + 1))
       fi
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
@@ -225,6 +229,9 @@ cmd_validate() {
     note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
+  if ((unresolved > 0)); then
+    note "$unresolved of $nfiles probe file(s) have a skill_dir that does not resolve under $root; score cannot load those listings (see reference/invocation-probes.md, Outside the marketplace checkout)"
+  fi
 }
 
 cmd_score() {
@@ -252,6 +259,17 @@ cmd_score() {
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
     printf 'Error: no probe JSON files in %s\n' "$dir" >&2
+    exit 2
+  fi
+  local pf pf_rel resolvable=0
+  for pf in "${files[@]}"; do
+    pf_rel="$(jq -r '.skill_dir // empty' "$pf" 2>/dev/null)"
+    if [[ -n "$pf_rel" ]] && resolve_skill_md "$root" "$pf_rel" >/dev/null; then
+      resolvable=$((resolvable + 1))
+    fi
+  done
+  if ((resolvable == 0)); then
+    printf 'Error: none of the %s probe file(s) in %s has a skill_dir that resolves under %s. The shipped seed probes name skills of the melodic-software marketplace checkout (plugins/mcp-tools/..., plugins/skill-quality/...) that are not present here. Pass your own probes directory (same JSON shape, skill_dir relative to your repo root or absolute), or set MEASURE_INVOCATION_REPO_ROOT to the repo root the probes name.\n' "${#files[@]}" "$dir" "$root" >&2
     exit 2
   fi
   local skill_idx=0
