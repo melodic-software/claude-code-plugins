@@ -1,0 +1,22 @@
+# expect: rule-zero-assertion
+# Both cases define run_case(); only ParseCases' asserts. RenderCases.run_case()
+# calls production code alone, so its test asserts nothing.
+import unittest
+
+from report import parse, render
+
+
+class ParseCases(unittest.TestCase):
+    def run_case(self, text):
+        self.assertEqual(parse(text), {"ok": True})
+
+    def test_parse(self):
+        self.run_case("ok: true")
+
+
+class RenderCases(unittest.TestCase):
+    def run_case(self, doc):
+        render(doc)
+
+    def test_render(self):
+        self.run_case({"ok": True})

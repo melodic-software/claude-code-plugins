@@ -29,6 +29,20 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
   `contract_version` bump: plugin reader, not a contract rule change.
 
+## [1.4] - 2026-09-29
+
+Additive relaxation (minor bump): the overlay-naming rule "no plugin writes the consumer's
+`.gitignore`" becomes that rule plus two declared consumer-root append exceptions.
+Recommend stays the default posture.
+
+- **Overlay naming names its exceptions (#3573).** `/source-control:setup apply` appends the
+  recursive `.claude/**/*.local.*` line and `/work-items:setup apply` appends
+  `.work-item-tracker.local.json`; each announces the edit and touches nothing else. A
+  self-ignoring `.gitignore` inside a plugin-owned directory is a different file, not an
+  exception. `source-control`'s append is ratified by
+  [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
+  `work-items`' by [ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md).
+
 ## [1.3] - 2026-09-28
 
 Additive classification (minor bump): a new resolution step that does not change precedence
@@ -58,9 +72,9 @@ personal `~/.claude/<surface>` as the team layer.
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
   default. Two consumer-root appends are sanctioned exceptions (`source-control`
   recursive overlay line; `work-items` ADR 0015 overlay line). Own-ignore-file
-  inside a plugin-owned directory is a different file. No `contract_version`
-  bump: the layering rules are unchanged; the no-plugin-writes sentence now
-  names the exceptions it already described in Overlay spelling drift.
+  inside a plugin-owned directory is a different file. The postures were declared
+  in the Deviations list and the Implementers rows; the no-plugin-writes sentence
+  was left unchanged (reworded in 1.4).
 
 ## Consumer gotchas tier, 2026-09-28
 
