@@ -4,9 +4,11 @@
 #   check-prerequisites.sh --plugin-root <dir> [--plugin-root <dir>...]
 #   check-prerequisites.sh
 #
-# With no roots, read enabled plugins from ~/.claude (or $CLAUDE_CONFIG_DIR)
-# and each install's prerequisites.json. When that state is absent and this
-# repo has plugins/*/prerequisites.json, scan those instead.
+# With no roots, merge enabledPlugins from the user settings in ~/.claude (or
+# $CLAUDE_CONFIG_DIR) and the project's .claude/settings.json and
+# settings.local.json ($CLAUDE_PROJECT_DIR, else the git toplevel), then read
+# each enabled install's prerequisites.json. Only when none of that state
+# exists and this repo has plugins/*/prerequisites.json, scan those instead.
 #
 # Prints one TSV header and one row per declared tool:
 #   tool plugin status check install
@@ -33,24 +35,37 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+STATE_READ=0
 if [[ ${#ROOTS[@]} -eq 0 ]]; then
   config="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
-  mapfile -t ROOTS < <(python3 - "$config" <<'PY'
+  project="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+  project="${project%$'\r'}"
+  mapfile -t found < <(python3 - "$config" "$project" <<'PY'
 import json, os, sys
-config = sys.argv[1]
-enabled = set()
-for name in ("settings.json", "settings.local.json"):
-    path = os.path.join(config, name)
+config, project = sys.argv[1], sys.argv[2]
+# User, then project, then local: a later scope's true/false wins.
+scopes = [os.path.join(config, "settings.json"), os.path.join(config, "settings.local.json")]
+if project:
+    scopes += [os.path.join(project, ".claude", "settings.json"),
+               os.path.join(project, ".claude", "settings.local.json")]
+state = {}
+read = False
+for path in scopes:
     if not os.path.isfile(path):
         continue
     try:
         doc = json.load(open(path, encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         continue
+    read = True
     for key, value in (doc.get("enabledPlugins") or {}).items():
-        if value:
-            enabled.add(key)
+        state[key] = bool(value)
+enabled = {key for key, value in state.items() if value}
 installed = os.path.join(config, "plugins", "installed_plugins.json")
+if os.path.isfile(installed):
+    read = True
+if read:
+    print("STATE_READ")
 found = []
 if enabled and os.path.isfile(installed):
     try:
@@ -74,9 +89,14 @@ if found:
     print("\n".join(found))
 PY
 )
+  for line in "${found[@]}"; do
+    if [[ "$line" == "STATE_READ" ]]; then STATE_READ=1; else ROOTS+=("$line"); fi
+  done
 fi
 
-if [[ ${#ROOTS[@]} -eq 0 ]]; then
+# The repository scan stands in only when no settings or install state exists;
+# a read state with nothing enabled is an empty fleet, not a reason to scan.
+if [[ ${#ROOTS[@]} -eq 0 && "$STATE_READ" -eq 0 ]]; then
   repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   repo="${repo%$'\r'}"
   if [[ -n "$repo" && -d "$repo/plugins" ]]; then
@@ -86,7 +106,7 @@ if [[ ${#ROOTS[@]} -eq 0 ]]; then
   fi
 fi
 
-if [[ ${#ROOTS[@]} -eq 0 ]]; then
+if [[ ${#ROOTS[@]} -eq 0 && "$STATE_READ" -eq 0 ]]; then
   echo "check-prerequisites.sh: no plugin roots to read" >&2
   exit 2
 fi

@@ -22,11 +22,11 @@ bash "${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.sh"
 
 The table columns are tool, plugin, present or missing, the check skill, and the documented install command. `missing=N present=M` is the last line. Exit 1 means at least one tool is missing. Exit 2 means no plugin roots could be read.
 
-With no arguments the script reads enabled plugins from `~/.claude` (`CLAUDE_CONFIG_DIR` overrides that directory) and each record's `installPath`. When that state is absent, it scans `plugins/*/prerequisites.json` in the current repository.
+With no arguments the script merges `enabledPlugins` from the user settings in `~/.claude` (`CLAUDE_CONFIG_DIR` overrides that directory) and the project's `.claude/settings.json` and `settings.local.json`, then reads each enabled record's `installPath`. Only when none of that state exists does it scan `plugins/*/prerequisites.json` in the current repository; a state with nothing enabled prints an empty table.
 
 ## Next
 
-- A tool is missing: /markdown-format:check
+- A tool is missing: the `check` skill that row names
 - The fleet's versions, a different question: /claude-ops:plugins audit
 
 The table's `check` column names the skill for that row. Run the named check. Do not install unless the user asked.

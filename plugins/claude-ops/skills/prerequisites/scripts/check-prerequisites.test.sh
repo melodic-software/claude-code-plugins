@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The fleet table reports a declared tool present or missing and never installs.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-prerequisites.sh"
@@ -45,6 +46,31 @@ out="$(cd "$WORK" && PATH="$WORK/bin:$PATH" bash "$SCRIPT" --plugin-root "$WORK/
 rc=$?
 expect_eq "exit 0 when the local bin is executable" 0 "$rc"
 expect_has "local bin counts as present" 'missing=0 present=2' "$out"
+
+# Discovery with no roots. A plugin enabled only in the project's
+# settings.local.json is read; a read state with nothing enabled is an empty
+# fleet and never falls back to scanning a repository.
+CONFIG="$WORK/config"
+PROJECT="$WORK/project"
+mkdir -p "$CONFIG/plugins" "$PROJECT/.claude" "$WORK/plugin-b/.claude-plugin"
+printf '%s\n' '{"name":"plugin-b"}' >"$WORK/plugin-b/.claude-plugin/plugin.json"
+printf '%s\n' '{"tools":[{"name":"absent-b","check":"/plugin-b:check","install":"install absent-b"}]}' >"$WORK/plugin-b/prerequisites.json"
+printf '{"plugins":{"plugin-b@m":[{"scope":"local","installPath":"%s"}]}}\n' "$WORK/plugin-b" >"$CONFIG/plugins/installed_plugins.json"
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$CONFIG/settings.json"
+printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
+out="$(cd "$PROJECT" && CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" bash "$SCRIPT")"
+rc=$?
+expect_eq "project-local enablement is read" 1 "$rc"
+expect_has "project-local plugin row" $'absent-b\tplugin-b\tmissing' "$out"
+
+rm "$PROJECT/.claude/settings.local.json"
+mkdir -p "$WORK/repo/plugins/plugin-c"
+printf '%s\n' '{"tools":[{"name":"absent-c","check":"/plugin-c:check","install":"x"}]}' >"$WORK/repo/plugins/plugin-c/prerequisites.json"
+git -C "$WORK/repo" init -q
+out="$(cd "$WORK/repo" && CLAUDE_CONFIG_DIR="$CONFIG" CLAUDE_PROJECT_DIR="$PROJECT" bash "$SCRIPT")"
+rc=$?
+expect_eq "empty enabled fleet exits 0" 0 "$rc"
+expect_has "empty enabled fleet prints an empty table" 'missing=0 present=0' "$out"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
