@@ -72,13 +72,13 @@
       "id": 6,
       "name": "headless-toggle-change-reruns-install-never-uninstalls",
       "prompt": "/context-budget:setup — I want settings_write_ask_enabled set to false, headless. I cannot use the interactive configure prompt from this session.",
-      "expected_output": "Routes the headless option change to a plain `claude plugin install context-budget@<marketplace> -s user --config settings_write_ask_enabled=false` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, cites the plugin-reconfiguration convention as the owner of the verified-version record, and closes by rerunning check in a fresh session to report the observed value. The command is printed for the operator; setup does not run it.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun, with <scope> the scope claude plugin list reports for this plugin's install, against the already-installed plugin, refuses the uninstall-and-reinstall route, cites the plugin-reconfiguration convention as the owner of the verified-version record, and closes by rerunning check in a fresh session to report the observed value. The command is printed for the operator; setup does not run it.",
       "files": [],
       "expectations": [
-        "Prescribes a plain `claude plugin install context-budget@<marketplace> -s user --config settings_write_ask_enabled=false` rerun for the operator to run, and states that against an already-installed plugin it prints `already installed` and still writes the value",
+        "Prescribes a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun for the operator to run, and states that against an already-installed plugin it prints `already installed` and still writes the value",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version or its verification conditions itself",
-        "Tells the operator to pass -s user, that -s places enablement while the option value lands in user settings, and not to copy a scope from claude plugin list because one home-directory settings file can be labeled both user and project",
+        "Tells the operator to pass the scope claude plugin list reports for this plugin's install (user, project or local), not a hard-coded user, because a rerun at another scope adds an install record and enables the plugin there; states that -s places enablement while the option value lands in user settings; and names user as the scope to pass when the working directory is the home directory, where one settings file can be labeled both user and project",
         "Ends by rerunning check in a FRESH session, because the rendered user_config token is injected at skill load, and reports the OBSERVED effective value rather than asserting an unobserved change"
       ]
     }
