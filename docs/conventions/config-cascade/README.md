@@ -124,8 +124,10 @@ only, and never ask a consumer for two lines where one is exact.
 their artifact.** That is the **recommend** posture, the default. Two consumer-root exceptions
 append the line, announce the edit, and touch nothing else:
 
-- `/source-control:setup apply` appends the recursive `.claude/**/*.local.*` line when missing,
-  because an overlay written before that line exists would leak a personal file into the index
+- `/source-control:setup apply layer=team` appends the recursive `.claude/**/*.local.*` line when
+  missing, because an overlay written before that line exists would leak a personal file into the
+  index. `layer=local` never edits `.gitignore`: it fails with a recommendation when the overlay is
+  exposed
   ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)).
 - `/work-items:setup apply` appends `.work-item-tracker.local.json`, because that overlay sits at
   repo root outside the one-liner
@@ -293,7 +295,7 @@ surface, or amend this contract) is a separate human-gated decision.
   (`CLAUDE.local.md`, `settings.local.json`); a generic `*.local.*` filename has no
   platform-defined meaning.
 - **gitignore postures stay three-way (#3573).** Recommend is the default. Two consumer-root
-  appends are declared exceptions, not undeclared drift: `source-control`'s recursive overlay line
+  appends are declared exceptions, not undeclared drift: `source-control`'s recursive overlay line, appended at `layer=team` only
   ([ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md))
   and `work-items`' overlay line
   ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)).

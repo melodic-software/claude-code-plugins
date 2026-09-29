@@ -9,7 +9,7 @@ The [config-cascade convention](../conventions/config-cascade/README.md) says no
 the consumer's `.gitignore`: a setup skill recommends the ignore line and leaves the edit to the
 consumer. That is the recommend posture, the default.
 
-`/source-control:setup apply` does not follow it for one line. At team-layer bind it probes a
+`/source-control:setup apply` does not follow it for one line. At team-layer bind (`layer=team`) it probes a
 nested sentinel (`.claude/nested/overlay.local.md`) with `git check-ignore --no-index -v`, and when
 no repository `.gitignore` rule matches it appends the recursive `.claude/**/*.local.*` line to the
 consumer `.gitignore`, announces the edit, and stages that line with the team file
