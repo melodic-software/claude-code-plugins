@@ -1,0 +1,14 @@
+# expect: rule-conditional-assertion
+# The only assertion sits in the except block, so a parse that stops raising
+# passes the test.
+import unittest
+
+from app.parse import parse
+
+
+class ParseTests(unittest.TestCase):
+    def test_rejects_empty_input(self):
+        try:
+            parse("")
+        except ValueError as err:
+            self.assertEqual(str(err), "empty document")

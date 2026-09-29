@@ -1,0 +1,11 @@
+# good-for: rule-zero-assertion
+# A skip marker on the class skips every test in it: none is judged.
+import pytest
+
+from slugs import slugify
+
+
+@pytest.mark.skip(reason="accent folding lands with the v2 slug rules")
+class TestSlugifyAccents:
+    def test_folds_accents(self):
+        slugify("Creme Brulee")

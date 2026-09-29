@@ -1,0 +1,12 @@
+// expect: rule-weak-oracle
+// Any user passes the nil check, the wrong one included.
+package users
+
+import "testing"
+
+func TestCreateUserReturnsTheUser(t *testing.T) {
+	user := CreateUser("ada")
+	if user == nil {
+		t.Fatal("no user")
+	}
+}

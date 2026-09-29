@@ -1,0 +1,11 @@
+# good-for: rule-zero-assertion
+# Importing unittest.mock does not make this a unittest file: py-pytest
+# claims it.
+from unittest.mock import patch
+
+from clock import stamp
+
+
+def test_stamp_formats_the_patched_time():
+    with patch("clock.now", return_value=0):
+        assert stamp() == "1970-01-01T00:00:00Z"
