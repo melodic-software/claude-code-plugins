@@ -246,8 +246,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree
   - shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
-- **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-08-23)
+- **Observation:** extraction: extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch) (2026-09-29)
+- **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-09-29)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -264,8 +264,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
   - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
-- **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule starts covering transcripts (verified 2026-09-28)
+- **Observation:** extraction: extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch) (2026-09-29)
+- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule stops covering transcripts (the engine gains a transcript read) (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -278,6 +278,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `doctor` present in the 2026-08-23 extraction as bundled-skill (markers: gated; aliases: checkup), per the two sibling rows
   - the shipped doctor skill carries a check titled 'Check 1: unused skills, MCP servers, and plugins' whose prompt groups unused components, labels each group with a benefit estimate ('37 unused skills, saves ~2.2k est. tokens/session'), and applies only the groups the user selects; confirmed by string search of the installed v2.1.252 binary on 2026-08-31
+  - string search of the installed v2.1.284 binary (2026-09-29): the 'Check 1: unused skills, MCP servers, and plugins' title and the '37 unused skills, saves ~2.2k est. tokens/session' example are not present as literals, and the doctor summary line 'find unused skills, MCP servers, and plugins versus their context cost and disable dead weight' is; Check 1's grouping, disable offer, and benefit estimate are unconfirmed at this build, so this row's observation and verified date are not refreshed
   - our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill
   - our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch
   - recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces
@@ -360,16 +361,17 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `morning` → `claude-ops:morning-brief`
 
-- **Verdict:** `defer`: Undetermined, and deliberately so. `morning` was observed in a session roster, not in any binary extraction, so the only evidence available is one environment's roster on one day, not a basis for a routing line shipped to every consumer. The overlap is real enough to record and too thin to rule on: nothing is known about what the session-provided skill reads, whether it is gh-based, or whether it exists outside the surface it was seen on. Observation-only, never baked, until an in-session capture protocol exists.
+- **Verdict:** `defer`: Undetermined, and deliberately so. `morning` was observed in a session roster, not in any binary extraction, so the only evidence available is two session rosters on two days, not a basis for a routing line shipped to every consumer. The overlap is real enough to record and too thin to rule on: nothing is known about what the session-provided skill reads, whether it is gh-based, or whether it exists outside the surface it was seen on. Observation-only, never baked, until an in-session capture protocol exists.
 - **Integration:** `route`
 - **Native surface:** `morning` (session-provided skill; markers: none)
 - **Our component:** `claude-ops:morning-brief` (skill)
 - **Evidence:**
   - `morning` is absent from this extraction. Absence from the extraction is a statement about the extraction, not the product
   - observed in this repository's cloud session roster on 2026-08-23, alongside other session-provided skills (docx, pdf, pptx, xlsx, design, artifact-*) that the local-CLI bundled roster does not carry
+  - second observation (2026-09-29, Claude Code 2.1.284, a local session's own skill roster): listed as `anthropic-skills:morning`, namespaced with the other `anthropic-skills:` entries (docs, docx, pdf, pptx, xlsx, google-workspace, skill-creator, import-memory); `morning` is still absent from the v2.1.284 binary extraction's bundled-skill set, which is a floor
   - our description: prints the operator's read-only morning view for the current GitHub repo in one pass: queue-label counts, merge-ready PRs, parked decisions, loop-lane telemetry freshness
-- **Observation:** live-roster: observed in a Claude Code cloud session's own skill roster; one environment, one day, no second observation (2026-08-23)
-- **Recheck trigger:** an in-session roster capture protocol lands and can observe this surface repeatably, or `morning` appears in a binary extraction's bundled-skill set (verified 2026-08-23)
+- **Observation:** live-roster: observed in a Claude Code cloud session's own skill roster (2026-08-23) and again in a local session's roster as `anthropic-skills:morning` (2026-09-29); two sessions, no repeatable capture protocol (2026-09-29)
+- **Recheck trigger:** an in-session roster capture protocol lands and can observe this surface repeatably, or `morning` appears in a binary extraction's bundled-skill set (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
 
 ## First-party marketplace plugins
