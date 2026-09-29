@@ -110,6 +110,15 @@ authoring anti-pattern with the same fix. A **fixed** package-manager subcommand
 flagged too, but unlike a shell helper they have no bare-command-on-PATH analog to re-scope to.
 Remove or re-scope the rule, or run the sub-agent action outside auto mode.
 
+### House position: no inline-dependency runners
+
+Bundled scripts in this repository are not launched through PEP 723 inline-dependency runners
+(`uvx`, `pipx run` and the like). The reason is the one above: an allow rule written for a package
+runner is dropped in auto mode, so it grants nothing. The operator decided this on
+[#3615](https://github.com/melodic-software/claude-code-plugins/issues/3615#issuecomment-5858906921).
+The Python toolchain pin is in
+[`.claude/rules/ruff-pin.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/.claude/rules/ruff-pin.md).
+
 ## Anti-pattern 2: hardcoded absolute machine/user paths
 
 Bash permission rules match the command string **literally**. Per
