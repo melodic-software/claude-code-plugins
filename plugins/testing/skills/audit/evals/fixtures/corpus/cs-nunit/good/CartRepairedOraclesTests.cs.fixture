@@ -1,0 +1,26 @@
+// good-for: rule-inert-assertion
+// good-for: rule-source-text-read
+// The repaired twins: Assert.ThatAsync is awaited, and Clear is called rather
+// than found in the source text.
+using System.Threading.Tasks;
+using NUnit.Framework;
+
+[TestFixture]
+public class CartRepairedOraclesTests
+{
+    [Test]
+    public async Task Checkout_OfEmptyCart_Throws()
+    {
+        var cart = new Cart();
+        await Assert.ThatAsync(() => cart.CheckoutAsync(), Throws.TypeOf<EmptyCartException>());
+    }
+
+    [Test]
+    public void Clear_EmptiesTheCart()
+    {
+        var cart = new Cart();
+        cart.Add("A1");
+        cart.Clear();
+        Assert.That(cart.Count, Is.EqualTo(0));
+    }
+}

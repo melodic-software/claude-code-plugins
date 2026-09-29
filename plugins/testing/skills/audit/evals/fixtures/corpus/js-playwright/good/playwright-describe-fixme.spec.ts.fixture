@@ -1,0 +1,11 @@
+// good-for: rule-zero-assertion
+// Tests in a test.describe.fixme group do not run; test.describe is a group,
+// not a test.
+import { test } from '@playwright/test';
+
+test.describe.fixme('export', () => {
+  test('downloads a CSV', async ({ page }) => {
+    await page.goto('/reports');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+  });
+});

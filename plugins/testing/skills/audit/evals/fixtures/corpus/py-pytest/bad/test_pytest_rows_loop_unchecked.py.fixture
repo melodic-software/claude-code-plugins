@@ -1,0 +1,9 @@
+# expect: rule-conditional-assertion
+# The only assertion runs once per row; an empty query passes the test.
+from app.users import active_users
+
+
+def test_returns_only_active_users():
+    rows = active_users()
+    for row in rows:
+        assert row.active is True

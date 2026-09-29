@@ -1,0 +1,19 @@
+// good-for: rule-snapshot-only
+// No Verify package is imported, so Verify( is the file's own helper, which
+// asserts a literal.
+using Xunit;
+
+public class OrderPricedHelperTests
+{
+    [Fact]
+    public void Order_IsPriced()
+    {
+        var order = Pricing.Price(new Order(3));
+        Verify(order);
+    }
+
+    private static void Verify(Order o)
+    {
+        Assert.Equal(15, o.Total);
+    }
+}

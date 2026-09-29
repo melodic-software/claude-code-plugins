@@ -1,0 +1,24 @@
+# good-for: rule-inert-assertion
+# good-for: rule-constant-restatement
+# good-for: rule-source-text-read
+# The repaired twins: the mock assertion uses assert_called_once_with, the
+# limit is checked through is_valid, and the view is called, not read.
+import unittest
+from unittest.mock import MagicMock
+
+from app.limits import LIMIT, is_valid
+from app.notify import notify
+from app.views import profile
+
+
+class RepairedTests(unittest.TestCase):
+    def test_notify_mails_the_owner(self):
+        mailer = MagicMock()
+        self.assertTrue(notify(mailer, "owner@example.com"))
+        mailer.send.assert_called_once_with("owner@example.com")
+
+    def test_limit(self):
+        self.assertFalse(is_valid("a" * (LIMIT + 1)))
+
+    def test_view_requires_login(self):
+        self.assertEqual(profile(user=None).status_code, 302)

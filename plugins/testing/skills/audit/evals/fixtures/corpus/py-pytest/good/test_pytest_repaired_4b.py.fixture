@@ -1,0 +1,41 @@
+# good-for: rule-conditional-assertion
+# good-for: rule-recomputed-derived
+# good-for: rule-snapshot-only
+# good-for: rule-weak-oracle
+# The repaired twins: the row count is asserted before the loop, the total is
+# a literal, the snapshot sits beside a literal, the not-None check sits beside
+# the value, and the raises names its error.
+import pytest
+
+from app.cart import total
+from app.render import render_order
+from app.users import active_users, create_user
+from app.parse import parse
+
+
+def test_returns_only_active_users():
+    rows = active_users()
+    assert len(rows) == 2
+    for row in rows:
+        assert row.active is True
+
+
+def test_total_adds_the_prices():
+    assert total([10, 5]) == 15
+
+
+def test_render_order(snapshot):
+    out = render_order({"id": 7, "total": 15})
+    assert "Total: 15" in out
+    assert out == snapshot
+
+
+def test_create_user_returns_the_user():
+    user = create_user("ada")
+    assert user is not None
+    assert user.name == "ada"
+
+
+def test_parse_rejects_empty():
+    with pytest.raises(ValueError, match="empty"):
+        parse("")

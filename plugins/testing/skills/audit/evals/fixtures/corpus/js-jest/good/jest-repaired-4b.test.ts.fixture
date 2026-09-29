@@ -1,0 +1,42 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the error is asserted with toThrow and its message, the
+// total is a literal, the snapshot sits beside a literal assertion, and the
+// row is checked through the module's own read.
+import { parseConfig } from '../src/config';
+import { cartTotal } from '../src/cart';
+import { renderReceipt } from '../src/receipt';
+import { createUser, findUser } from '../src/users';
+
+test('rejects a config without a name', () => {
+  expect(() => parseConfig('{}')).toThrow('name is required');
+});
+
+test('totals the cart', () => {
+  const lines = [{ qty: 2, price: 3 }, { qty: 1, price: 4 }];
+  expect(cartTotal(lines)).toBe(10);
+});
+
+test('renders the receipt', () => {
+  const tree = renderReceipt({ id: 3, lines: [['tea', 4]] });
+  expect(tree.total).toBe(4);
+  expect(tree).toMatchSnapshot();
+});
+
+test('createUser saves the name', async () => {
+  await createUser({ name: 'Alice' });
+  const user = await findUser('Alice');
+  expect(user).not.toBeNull();
+  expect(user.name).toBe('Alice');
+});
+
+test('accepts an optional config branch', () => {
+  const config = parseConfig('{"name":"a"}');
+  if (config.region) {
+    expect(config.region).toBe('eu');
+  } else {
+    expect(config.region).toBeUndefined();
+  }
+});

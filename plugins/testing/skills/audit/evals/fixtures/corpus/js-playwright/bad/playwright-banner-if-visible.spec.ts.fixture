@@ -1,0 +1,12 @@
+// expect: rule-conditional-assertion
+// The only assertion runs when the banner happens to be visible; a page that
+// never shows it passes.
+import { expect, test } from '@playwright/test';
+
+test('the cookie banner names the policy', async ({ page }) => {
+  await page.goto('/');
+  const banner = page.getByRole('dialog');
+  if (await banner.isVisible()) {
+    await expect(banner).toHaveText(/cookie policy/);
+  }
+});

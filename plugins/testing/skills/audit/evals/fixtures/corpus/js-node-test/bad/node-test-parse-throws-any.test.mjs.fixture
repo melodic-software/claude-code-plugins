@@ -1,0 +1,10 @@
+// expect: rule-weak-oracle
+// assert.throws with no expected error passes for any throw, a TypeError from
+// a typo in parse included.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { parse } from '../src/parse.mjs';
+
+test('rejects an empty document', () => {
+  assert.throws(() => parse(''));
+});

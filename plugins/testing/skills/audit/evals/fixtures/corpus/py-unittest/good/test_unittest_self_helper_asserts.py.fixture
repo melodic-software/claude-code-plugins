@@ -1,0 +1,33 @@
+# good-for: rule-zero-assertion
+# refused() and roundtrip() are methods of the case whose bodies assert; a
+# subTest loop and a factory-built test call them.
+import unittest
+
+from ledger import apply_ops, dump, load
+
+
+class ApplyRefusals(unittest.TestCase):
+    def refused(self, *ops):
+        rc = apply_ops(list(ops))
+        self.assertEqual(rc, 2)
+
+    def roundtrip(self, ops):
+        self.assertEqual(load(dump(ops)), ops)
+
+    def test_wait_refusals(self):
+        for op in ({"id": "Q9"}, {"id": "Q3", "waitsOn": " "}):
+            with self.subTest(op=op):
+                self.refused({"op": "wait", **op})
+
+    def test_activity_refusals(self):
+        self.refused({"op": "activity", "text": " "})
+
+
+def _make(ops):
+    def test(self):
+        self.roundtrip(ops)
+
+    return test
+
+
+ApplyRefusals.test_roundtrip_wait = _make([{"op": "wait", "id": "Q1"}])

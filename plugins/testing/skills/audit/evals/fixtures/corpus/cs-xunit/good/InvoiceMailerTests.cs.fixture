@@ -1,0 +1,20 @@
+// good-for: rule-zero-assertion
+// An NSubstitute check plus a real value assertion on the same line: the mock
+// strip is bounded to the Received chain and leaves the Shouldly call.
+using NSubstitute;
+using Shouldly;
+using Xunit;
+
+public class InvoiceMailerTests
+{
+    [Fact]
+    public void Send_MailsTheCustomer()
+    {
+        var mailer = Substitute.For<IMailer>();
+        var sender = new InvoiceSender(mailer);
+
+        var receipt = sender.Send(new Invoice(taxRate: 0.1m), "ada@example.com");
+
+        mailer.Received(1).Send(Arg.Any<Message>()); receipt.Delivered.ShouldBeTrue();
+    }
+}
