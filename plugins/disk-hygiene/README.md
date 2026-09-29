@@ -217,7 +217,9 @@ launched.
 `--root-children` with `--root-child <name>` inventories only the named immediate children of the
 target. That is required for an OS-managed volume root (the root itself is never walked) and is
 also how a depth-1 home audit re-inventories the directories the operator approved, without
-walking the rest of the home.
+walking the rest of the home. Every volume root, OS-managed or a Windows Dev Drive, gets the
+strict child ladder described under Volume-root coverage; only a target that is not a volume root
+gets the relaxed directory listing.
 
 `--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
 large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
@@ -292,9 +294,10 @@ runs Storage Sense, and it changes nothing about what the engine may delete in t
 
 ## Volume-root coverage
 
-`--root-children` on an OS-managed volume root never walks the root itself. Immediate children are
-admitted or withheld one `scandir` deep. This supersedes #2588 criterion 2 (the volume root's own
-files are never inventoried): regular files now use the same admission ladder as directories.
+`--root-children` on a volume root, OS-managed or not (a Windows Dev Drive), never walks the root
+itself. Immediate children are admitted or withheld one `scandir` deep. This supersedes #2588
+criterion 2 (the volume root's own files are never inventoried): regular files now use the same
+admission ladder as directories.
 
 | Never covered | Why |
 |---|---|
@@ -308,7 +311,8 @@ files are never inventoried): regular files now use the same admission ladder as
 
 User residue that clears that ladder can be selected with `--root-child NAME` and inventoried as
 a file. A Windows root file such as `C:\vc_redist.x64.exe` clears it; `/opt` and other OS-owned names
-do not. On any other target, files stay withheld as `not-a-directory` and only directories are
+do not. On a target that is not a volume root, such as a home directory, files stay withheld as
+`not-a-directory`, only directories are selectable, and hidden and OS-named directories stay
 selectable.
 
 ## Relationship to other tools

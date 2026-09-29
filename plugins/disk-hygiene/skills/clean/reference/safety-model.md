@@ -55,12 +55,15 @@ bounded conditions.
   a recursive walk target, while `--root-children` may address that same root only as a listing of
   immediate non-OS child entries (regular files and directories) with explicit `--root-child`
   selection (never a whole-root
-  walk); `--root-children` is also valid on a non-OS directory (a user home), where only
-  directories are admitted, so approved immediate children can be re-inventoried into one snapshot
-  without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  walk); `--root-children` is also valid on a directory that is not a volume root (a user home),
+  where only directories are admitted and hidden and OS-named ones stay selectable, so approved
+  immediate children can be re-inventoried into one snapshot without walking the rest of the tree;
+  a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
-  confirm), and deletion stays gated by the preview and per-tier approval;
+  confirm), its `--root-children` listing uses the same strict ladder as an OS-managed volume root
+  (`System Volume Information`, `$Recycle.Bin`, `$`-prefixed, hidden, and OS-owned names are
+  withheld), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
   verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle

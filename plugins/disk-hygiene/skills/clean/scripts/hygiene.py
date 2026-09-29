@@ -1703,11 +1703,12 @@ def root_child_skip_reason(
 ) -> str | None:
     """Why an immediate child must not be offered or audited.
 
-    On an OS-managed volume root, mirrors the volume-root guard (OS-owned /
-    hidden / system / reparse) and fails closed on anything ambiguous (#2588).
-    Regular files use the same admission ladder as directories; non-regular
-    types are withheld as ``not-regular-file-or-directory``. On any other
-    target (#4221), only directories can be selected, and hidden and
+    On any volume root, OS-managed or not (a Windows Dev Drive), mirrors the
+    volume-root guard (OS-owned / hidden / system / reparse) and fails closed
+    on anything ambiguous (#2588). Regular files use the same admission ladder
+    as directories; non-regular types are withheld as
+    ``not-regular-file-or-directory``. On a target that is not a volume root
+    (#4221), only directories can be selected, and hidden and
     OS-owned-by-volume-name children stay selectable so a depth-1 home audit
     can re-inventory approved directories without walking the rest of the home.
     """
@@ -1775,12 +1776,12 @@ def enumerate_root_children(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """List immediate children into admitted vs skipped buckets.
 
-    Enumerates the target once and never recurses. On an OS-managed volume
-    root, admitted entries are regular files or directories that cleared every
-    root-children exclusion. On any other target, admitted entries are
-    directories only. ``strict_volume_root`` keeps the OS-owned / hidden /
-    system ladder that an OS-managed volume root needs; any other target drops
-    those so approved home children stay selectable.
+    Enumerates the target once and never recurses. On a volume root,
+    OS-managed or not, admitted entries are regular files or directories that
+    cleared every root-children exclusion. On any other target, admitted
+    entries are directories only. ``strict_volume_root`` keeps the OS-owned /
+    hidden / system ladder that every volume root needs; a target that is not
+    a volume root drops those so approved home children stay selectable.
     """
     exact_names = set(policy["protected_exact_names"])
     os_owned = volume_root_os_owned_names()
@@ -4318,7 +4319,7 @@ def main(argv: list[str] | None = None) -> int:
                     target,
                     policy,
                     known_mounts,
-                    strict_volume_root=os_managed and volume_root,
+                    strict_volume_root=volume_root,
                 )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
@@ -4338,7 +4339,7 @@ def main(argv: list[str] | None = None) -> int:
                         selection_note = (
                             "Re-run with --root-children and one or more "
                             "explicit --root-child NAME flags naming admitted "
-                            "immediate directories of this target; a general "
+                            "immediate children of this target; a general "
                             "'clean everything' is not selection. Selected "
                             "children are inventoried into one snapshot "
                             "without walking the rest of the target."

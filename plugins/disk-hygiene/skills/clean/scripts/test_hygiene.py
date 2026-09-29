@@ -1068,15 +1068,56 @@ class HygieneTests(unittest.TestCase):
             )
         return code, json.loads(output.getvalue())
 
-    def _non_os_volume_root_patches(self) -> list[object]:
+    def _non_os_volume_root_patches(self, target: Path | None = None) -> list[object]:
         # A drive-letter root is always os.path.ismount True; it holds no
         # OS-managed content (a Windows Dev Drive), so it is a valid non-OS
-        # volume root rather than a rejected OS root.
-        return [
-            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+        # volume root rather than a rejected OS root. Given a target, the
+        # volume-root and mount answers hold for that path alone, so its
+        # children reach the root-children ladder as ordinary directories, and
+        # the Windows name set stands in for the host's.
+        def is_target(path: Path) -> bool:
+            if target is None:
+                return True
+            try:
+                return Path(path).resolve() == target.resolve()
+            except OSError:
+                return False
+
+        patches = [
+            mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
             mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
-            mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+            mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda path, *args, **kwargs: (is_target(path), None),
+            ),
         ]
+        if target is not None:
+            patches += [
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                self._windows_volume_owned_names_patch(),
+            ]
+        return patches
+
+    def _windows_volume_owned_names_patch(self) -> object:
+        return mock.patch.object(
+            hygiene,
+            "volume_root_os_owned_names",
+            return_value={
+                name.casefold()
+                for name in (
+                    "Windows",
+                    "Program Files",
+                    "Program Files (x86)",
+                    "ProgramData",
+                    "Recovery",
+                    "$Recycle.Bin",
+                    "System Volume Information",
+                    "Users",
+                    "PerfLogs",
+                )
+            },
+        )
 
     def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
         # A non-OS volume root is accepted, but an unbounded whole-volume walk
@@ -1174,24 +1215,7 @@ class HygieneTests(unittest.TestCase):
             ),
             mock.patch.object(hygiene, "mount_state", side_effect=mount_state),
             mock.patch.object(hygiene, "system_roots", return_value=[]),
-            mock.patch.object(
-                hygiene,
-                "volume_root_os_owned_names",
-                return_value={
-                    name.casefold()
-                    for name in (
-                        "Windows",
-                        "Program Files",
-                        "Program Files (x86)",
-                        "ProgramData",
-                        "Recovery",
-                        "$Recycle.Bin",
-                        "System Volume Information",
-                        "Users",
-                        "PerfLogs",
-                    )
-                },
-            ),
+            self._windows_volume_owned_names_patch(),
         ]
 
     def test_root_children_without_selection_lists_admitted_only(self) -> None:
@@ -1252,6 +1276,228 @@ class HygieneTests(unittest.TestCase):
             self.assertIsInstance(orphan["mtime"], int)
             self.assertIn("current user's home", payload["note"])
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _make_root_children_ladder_fixture(self, target: Path) -> None:
+        target.mkdir()
+        for name in (
+            "System Volume Information",
+            "$Recycle.Bin",
+            ".devcache",
+            "Windows",
+            "builds",
+        ):
+            (target / name).mkdir()
+        (target / "orphan.tmp").write_text("x", encoding="utf-8")
+
+    def _assert_strict_volume_root_listing(self, payload: dict[str, object]) -> None:
+        self.assertEqual("root-children-selection-required", payload["status"])
+        admitted = {item["name"] for item in payload["admitted_children"]}
+        self.assertEqual({"builds", "orphan.tmp"}, admitted)
+        skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+        self.assertEqual(
+            {
+                "System Volume Information": "os-owned",
+                "$Recycle.Bin": "os-owned",
+                ".devcache": "hidden",
+                "Windows": "os-owned",
+            },
+            skipped,
+        )
+
+    def test_root_children_on_non_os_volume_root_keeps_the_strict_ladder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(target),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self._assert_strict_volume_root_listing(payload)
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_child_naming_withheld_entry_on_non_os_volume_root_is_refused(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(target),
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "System Volume Information",
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("withheld (os-owned)", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_on_os_managed_volume_root_lists_the_same_strict_ladder(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self._assert_strict_volume_root_listing(payload)
+
+    def test_root_children_on_non_volume_target_keeps_the_relaxed_listing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                    self._windows_volume_owned_names_patch(),
+                ],
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual(
+                {
+                    "System Volume Information",
+                    "$Recycle.Bin",
+                    ".devcache",
+                    "Windows",
+                    "builds",
+                },
+                admitted,
+            )
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual({"orphan.tmp": "not-a-directory"}, skipped)
+
+    def test_handoff_verify_clears_directory_from_root_children_snapshot(self) -> None:
+        # Patches: is_os_managed_target only because a macOS temp dir sits under
+        # /private, and handle_state because it shells out to lsof (or the
+        # Windows CreateFile probe). execution_blockers and os_key stay real
+        # (handoff-verify never consults them), and root_children_skipped is
+        # whatever the scan wrote to disk.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            (target / "scratch" / "deep").mkdir(parents=True)
+            (target / "scratch" / "deep" / "orphan.tmp").write_text(
+                "x", encoding="utf-8"
+            )
+            (target / "other").mkdir()
+            (target / "loose.tmp").write_text("x", encoding="utf-8")
+            self.enterContext(
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False)
+            )
+            self.enterContext(
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None))
+            )
+            bounded = hygiene.scan_tree(
+                target.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            truncated = hygiene.handoff_verify(bounded, ["scratch"])["verdicts"][0]
+            self.assertEqual("contested", truncated["verdict"])
+            self.assertIn("truncated-not-inventoried", truncated["reasons"])
+            code, _payload = self._scan_target(
+                target,
+                data_root,
+                [],
+                extra_args=["--root-children", "--root-child", "scratch"],
+            )
+            self.assertEqual(0, code)
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                [("loose.tmp", "not-a-directory")],
+                [
+                    (item["name"], item["reason"])
+                    for item in snapshot["root_children_skipped"]
+                ],
+            )
+            result = hygiene.handoff_verify(
+                snapshot, ["scratch", "scratch/deep/orphan.tmp"]
+            )
+            self.assertEqual(
+                [
+                    {"path": "scratch", "verdict": "clear", "reasons": []},
+                    {
+                        "path": "scratch/deep/orphan.tmp",
+                        "verdict": "clear",
+                        "reasons": [],
+                    },
+                ],
+                result["verdicts"],
+            )
+            self.assertEqual(2, result["clear"])
+
+    def test_root_children_entry_cap_counts_only_the_selected_children(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "home"
+            for name, files in (("AppData", 8), ("Projects", 2), ("Scratch", 2)):
+                (target / name).mkdir(parents=True)
+                for index in range(files):
+                    (target / name / f"file-{index}.tmp").write_text(
+                        "x", encoding="utf-8"
+                    )
+            policy = hygiene.load_policy(None)
+            root = target.resolve()
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 6):
+                with self.assertRaisesRegex(hygiene.HygieneError, "exceeds 6 entries"):
+                    hygiene.scan_tree(root, policy)
+                snapshot = hygiene.scan_tree(
+                    root, policy, root_children=["Projects", "Scratch"]
+                )
+                # The cap is still per snapshot: it bounds the selection's own
+                # entries, so selecting the large sibling too still fails.
+                with self.assertRaisesRegex(hygiene.HygieneError, "exceeds 6 entries"):
+                    hygiene.scan_tree(
+                        root, policy, root_children=["AppData", "Projects"]
+                    )
+            self.assertEqual(
+                {
+                    "Projects",
+                    "Projects/file-0.tmp",
+                    "Projects/file-1.tmp",
+                    "Scratch",
+                    "Scratch/file-0.tmp",
+                    "Scratch/file-1.tmp",
+                },
+                {entry["path"] for entry in snapshot["entries"]},
+            )
 
     def _root_child_lstat_with_attributes(self, names: dict[str, int]):
         real_lstat = Path.lstat
