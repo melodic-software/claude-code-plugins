@@ -34,6 +34,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
+# shellcheck source=scanner-run.sh
+source "$HOOK_DIR/scanner-run.sh"
 
 hook::begin --no-membership test-weaken PreToolUse
 
@@ -45,7 +47,7 @@ hook::jq_fields "$INPUT" '.tool_name' '.tool_use_id' '.tool_input.old_string' '.
   '.tool_input.content' || exit 0
 tool="${HOOK_JQ_FIELDS[0]}" call="${HOOK_JQ_FIELDS[1]}"
 
-DATA="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/testing-plugin-data}"
+testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
 # Two `if` rows can match one path; only the run that creates the marker
 # reports. PreToolUse and PostToolUse share a tool_use_id, so the name stays
@@ -68,16 +70,8 @@ Write)
 esac
 
 SCANNER="${TEST_WEAKEN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
-bash "$SCANNER" --file "$FILE" --inventory "$old" --inventory "$work/new" >"$work/out" 2>&1 &
-pid=$!
-(
-  sleep "${TEST_WEAKEN_TIMEOUT:-8}"
-  kill "$pid"
-) >/dev/null 2>&1 &
-watchdog=$!
-wait "$pid"
-rc=$?
-kill "$watchdog" 2>/dev/null
+testing::run_scanner "${TEST_WEAKEN_TIMEOUT:-8}" "$work/out" --file "$FILE" --inventory "$old" --inventory "$work/new"
+rc=$SCAN_RC
 
 if ((rc != 0)); then
   why="scanner exited $rc"

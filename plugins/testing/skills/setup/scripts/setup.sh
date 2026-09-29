@@ -13,7 +13,8 @@
 #   hook-entry    for each consumer glob no shipped hook row matches, a
 #                 .claude/settings.json entry that runs test-scan on it
 # apply writes <root>/.claude/testing.yaml from the answer flags, whole, and
-# keeps it only when it resolves; it writes no other file.
+# keeps it only when it resolves; it writes no other file, and refuses when
+# .claude or .claude/testing.yaml is a symlink.
 #
 # Usage:
 #   setup.sh check [--root <dir>]
@@ -70,8 +71,10 @@ flow() {
 }
 
 apply() {
-  local f="$ROOT/.claude/testing.yaml" old="" had=0 y="" e id field r
-  [[ -f "$f" ]] && had=1 && old="$(cat "$f")"
+  local d="$ROOT/.claude" f="$ROOT/.claude/testing.yaml" bak="" tmp y="" e id field r
+  # A committed symlink would turn the write into one on the file it names.
+  [[ ! -L "$d" && ! -L "$f" ]] || die "refusing to write through a symlink: $d or $f"
+  [[ ! -e "$f" || -f "$f" ]] || die "$f is not a regular file"
   if [[ ${#ena[@]} -gt 0 || ${#dis[@]} -gt 0 ]]; then
     y+=$'adapters:\n'
     [[ ${#ena[@]} -gt 0 ]] && y+="  enable: $(flow "${ena[@]}")"$'\n'
@@ -111,12 +114,23 @@ apply() {
       y+="  $id: ${r#*=}"$'\n'
     done
   fi
-  mkdir -p "$ROOT/.claude"
-  printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s' "$y" >"$f"
+  mkdir -p "$d" || die "cannot create $d"
+  [[ "$(cd "$d" && pwd -P)" == "$(cd "$ROOT" && pwd -P)"/* ]] || die "$d resolves outside $ROOT"
+  # Write beside the target and rename over it, so no write follows a link.
+  if [[ -f "$f" ]]; then
+    bak="$(mktemp "$d/.testing.yaml.XXXXXX")" || die "cannot create a temporary file in $d"
+    cp -p "$f" "$bak" || die "cannot back up $f"
+  fi
+  tmp="$(mktemp "$d/.testing.yaml.XXXXXX")" || die "cannot create a temporary file in $d"
+  # mktemp creates the file 0600; give it the mode a plain write would.
+  chmod "$(printf '%o' $((0666 & ~0$(umask))))" "$tmp"
+  printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s' "$y" >"$tmp"
+  mv -f "$tmp" "$f" || die "cannot write $f"
   if ! env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home" >/dev/null; then
-    if ((had)); then printf '%s\n' "$old" >"$f"; else rm -f "$f"; fi
+    if [[ -n "$bak" ]]; then mv -f "$bak" "$f"; else rm -f "$f"; fi
     die "the answers do not resolve (see above); $f is unchanged"
   fi
+  [[ -z "$bak" ]] || rm -f "$bak"
   printf 'wrote %s\n' "$f"
   cat "$f"
 }
@@ -231,6 +245,7 @@ check() {
       grep -Eqi 'Include="NUnit"' <<<"$cs" && dotnet_rule NUnit2009 NUnit.Analyzers NUnit.Analyzers
       ;;
     python)
+      # shellcheck disable=SC2143 # grep -q would SIGPIPE lint_text under pipefail
       if [[ -z "$(lint_text pyproject.toml ruff.toml .ruff.toml | grep -E '^\[(tool\.)?ruff|^(extend-)?select|^\[lint')" ]]; then
         report python ruff FINDING "no ruff config found; configure ruff with PLR0124, PT011 and F631"
       else
@@ -260,13 +275,14 @@ check() {
     # Pinned to the marketplace this copy runs from, so another marketplace's
     # plugin named testing is never picked.
     local mkt='<marketplace>' rest="${PLUGIN#*/.claude/plugins/cache/}"
-    if [[ "$rest" != "$PLUGIN" && "$rest" == */testing/* ]]; then
+    # The name is spliced into shell code, so only a plain name is.
+    if [[ "$rest" != "$PLUGIN" && "$rest" == */testing/* && "${rest%%/*}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
       mkt="${rest%%/*}"
     else
-      printf 'This copy is not in the plugin cache, so replace <marketplace> with the marketplace the testing plugin is installed from.\n'
+      printf 'This copy is not in the plugin cache under a plain marketplace name, so replace <marketplace> with the marketplace the testing plugin is installed from.\n'
     fi
     # shellcheck disable=SC2016 # the command is for the hook's shell, not this one
-    local cmd='p=$(ls -d "$HOME/.claude/plugins/cache/'"$mkt"'"/testing/*/hooks/test-scan.sh 2>/dev/null | sort -V | tail -n 1); if [ -n "$p" ] && grep -q -e --enabled "$p"; then exec bash "$p" --enabled; fi; echo "testing: no installed test-scan.sh under ~/.claude/plugins/cache/'"$mkt"'/testing takes --enabled; this settings hook did nothing" >&2'
+    local cmd='p=$(ls -d "$HOME/.claude/plugins/cache/'"$mkt"'"/testing/*/hooks/test-scan.sh 2>/dev/null | awk -F/ '"'"'{split($(NF-2),v,".");k=sprintf("%09d%09d%09d",v[1],v[2],v[3]);if(k>m){m=k;p=$0}}END{print p}'"'"'); if [ -n "$p" ] && grep -q -e --enabled "$p"; then exec bash "$p" --enabled; fi; echo "testing: no installed test-scan.sh under ~/.claude/plugins/cache/'"$mkt"'/testing takes --enabled; this settings hook did nothing" >&2'
     {
       for g in "${globs[@]}"; do
         jq -n --arg g "$g" --arg c "$cmd" '("Write", "Edit") | {type: "command", command: $c, if: "\(.)(\($g))", timeout: 10}'

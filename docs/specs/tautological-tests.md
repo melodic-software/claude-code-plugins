@@ -713,7 +713,7 @@ ms); the idle re-measure against the 150 ms budget moves to Phase 8.
 - Probe whether a consumer settings hook receives `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_OPTION_*`.
   Record the result in `probes.md`. If it does not, the printed consumer entry passes `--enabled` and
   locates the plugin through a stable shim `[FALLBACK]`. Taken: Claude Code 2.1.284 gives a settings
-  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and runs the highest version (`sort -V`) of
+  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and runs the highest major.minor.patch version of
   `cache/<marketplace>/testing/*/hooks/test-scan.sh`, pinned to the marketplace setup runs from (else a
   `<marketplace>` placeholder). It runs only a copy that takes `--enabled`, otherwise prints one
   stderr line and exits 0, and it shares the plugin hook's marker directory. No shim script was needed.

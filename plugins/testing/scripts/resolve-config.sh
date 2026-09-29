@@ -49,7 +49,8 @@
 #           where the scanner's own adapter load still refuses a bad extend.
 #           Adapter ids are still checked, against the adapter files' id: lines.
 #
-# Exit: 0 resolved, 2 usage error or an unreadable, unparsable or invalid
+# Exit: 0 resolved, 2 usage error, a team or overlay layer that is a symlink
+# or under a symlinked <root>/.claude, or an unreadable, unparsable or invalid
 # layer (the file and line are named on stderr).
 
 # tcfg_norm <path or glob>: set TCFG_NORM to it normalized.
@@ -151,6 +152,10 @@ declare -A layer_seen=()
 for f in ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"} \
   "$ROOT/.claude/testing.yaml" "$ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
+  # A repository could point a symlinked layer at any file and have it parsed.
+  if [[ "$f" == "$ROOT"/* ]] && [[ -L "$f" || -L "$ROOT/.claude" ]]; then
+    die "layer is a symlink or under a symlinked .claude, refusing to read it: $f"
+  fi
   [[ -r "$f" ]] || die "layer is not readable: $f"
   layer_seen[$f]=1
   layers+=("$f")

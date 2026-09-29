@@ -202,6 +202,27 @@ if [[ $rc -eq 0 ]]; then ok "(d) timeout exits 0"; else fail "(d) exit $rc"; fi
 if ((SECONDS - began < 5)); then ok "(d) returns before the hooks.json timeout"; else fail "(d) took $((SECONDS - began))s"; fi
 assert_no_decision "(d) timeout: no decision" "$out"
 assert_contains "(d) logs the timeout" "$(cat "$CLAUDE_PLUGIN_DATA/test-weaken.log" 2>/dev/null)" "timed out"
+cat >"$TMP/spawn.sh" <<EOF
+#!/usr/bin/env bash
+sleep 30 &
+echo \$! >"$TMP/child.pid"
+wait
+EOF
+run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP" TEST_WEAKEN_SCANNER="$TMP/spawn.sh" TEST_WEAKEN_TIMEOUT=1
+sleep 0.2
+if kill -0 "$(cat "$TMP/child.pid")" 2>/dev/null; then
+  kill "$(cat "$TMP/child.pid")"
+  fail "(d) a child the scanner spawned outlives the timeout"
+else
+  ok "(d) the timeout kills the scanner's children"
+fi
+
+# (d) with no CLAUDE_PLUGIN_DATA the log and markers stay out of TMPDIR.
+mkdir -p "$TMP/tmpdir"
+run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP" TEST_WEAKEN_SCANNER="$TMP/broken.sh" \
+  CLAUDE_PLUGIN_DATA= TMPDIR="$TMP/tmpdir" XDG_STATE_HOME="$TMP/state"
+assert_empty "(d) no CLAUDE_PLUGIN_DATA writes nothing under TMPDIR" "$(ls -A "$TMP/tmpdir")"
+assert_contains "(d) and logs under XDG_STATE_HOME" "$(cat "$TMP/state/claude-testing/test-weaken.log" 2>/dev/null)" "scanner exited 3"
 block_off
 
 # A pure addition, a new test with new assertions, is silent.

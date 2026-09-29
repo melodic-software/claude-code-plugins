@@ -172,6 +172,23 @@ else
 fi
 assert_contains "(e) logs the timeout" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log" 2>/dev/null)" "timed out"
 
+# (e) the timeout ends the scanner's children too, not just its shell.
+cat >"$TMP/spawn.sh" <<EOF
+#!/usr/bin/env bash
+sleep 30 &
+echo \$! >"$TMP/child.pid"
+wait
+EOF
+payload Write "$REPO/src/sum.test.ts" s9 "" call-e2 "$CREATE" |
+  TEST_SCAN_SCANNER="$TMP/spawn.sh" TEST_SCAN_TIMEOUT=1 bash "$HOOK" >/dev/null 2>&1
+sleep 0.2
+if kill -0 "$(cat "$TMP/child.pid")" 2>/dev/null; then
+  kill "$(cat "$TMP/child.pid")"
+  fail "(e) a child the scanner spawned outlives the timeout"
+else
+  ok "(e) the timeout kills the scanner's children"
+fi
+
 # (f) a gitignored test file is left alone.
 run Write "$REPO/scratch/ignored.test.ts"
 assert_empty "(f) gitignored path: no output" "$out"

@@ -30,6 +30,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
+# shellcheck source=scanner-run.sh
+source "$HOOK_DIR/scanner-run.sh"
 
 # --no-membership: the `if` rows bound this hook's scope, and a PostToolUse
 # check cannot undo the write, so the CLAUDE_PROJECT_DIR guard only loses
@@ -54,19 +56,7 @@ tool="${HOOK_JQ_FIELDS[0]}" session="${HOOK_JQ_FIELDS[1]}" agent="${HOOK_JQ_FIEL
 call="${HOOK_JQ_FIELDS[3]}" wtype="${HOOK_JQ_FIELDS[4]}" has_patch="${HOOK_JQ_FIELDS[5]}"
 lines="${HOOK_JQ_FIELDS[6]}"
 
-# The consumer settings entry gets no CLAUDE_PLUGIN_DATA; it derives the same
-# directory from this copy's cache path (~/.claude/plugins/cache/<mkt>/testing/
-# <version>/hooks), so a call through both paths shares one set of markers.
-DATA="${CLAUDE_PLUGIN_DATA:-}"
-if [[ -z "$DATA" ]]; then
-  DATA="${XDG_STATE_HOME:-${HOME:-}/.local/state}/claude-testing"
-  rest="$(cd "$HOOK_DIR/.." && pwd)"
-  rest="${rest#"${HOME:-}"/.claude/plugins/cache/}"
-  if [[ "$rest" =~ ^([^/]+)/testing/[^/]+$ ]]; then
-    mkt="${BASH_REMATCH[1]}"
-    DATA="${HOME:-}/.claude/plugins/data/testing-${mkt//[^A-Za-z0-9_-]/-}"
-  fi
-fi
+testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
 # No -type: markers are files now, and directories the earlier mkdir scheme left.
 find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
@@ -96,16 +86,8 @@ fi
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
 out_file="$(mktemp)"
 trap 'rm -f "$out_file"' EXIT
-bash "$SCANNER" --file "$FILE" "${scope[@]}" >"$out_file" 2>&1 &
-pid=$!
-(
-  sleep "${TEST_SCAN_TIMEOUT:-8}"
-  kill "$pid"
-) >/dev/null 2>&1 &
-watchdog=$!
-wait "$pid"
-rc=$?
-kill "$watchdog" 2>/dev/null
+testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}"
+rc=$SCAN_RC
 
 if ((rc != 0)); then
   why="scanner exited $rc"

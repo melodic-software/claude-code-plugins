@@ -186,6 +186,23 @@ match 0 'src/*.ts' './src/a.ts'
 match 0 'src/[x].ts' 'src/[x].ts'
 match 1 'src/[x].ts' 'src/x.ts'
 
+# --- a repository layer that is a symlink is refused ----------------------------
+reset
+printf 'paths:\n  exclude: [secret]\n' >"$T/foreign.yaml"
+ln -s ../../foreign.yaml "$REPO/.claude/testing.yaml"
+run
+assert_eq "a symlinked team layer exits 2" 2 "$rc"
+assert_contains "and names it" "$out" "$REPO/.claude/testing.yaml"
+assert_eq "without parsing the file it points at" "" "$(grep -F secret <<<"$out")"
+rm -f "$REPO/.claude/testing.yaml"
+mv "$REPO/.claude" "$T/real-claude"
+ln -s ../real-claude "$REPO/.claude"
+cp "$T/foreign.yaml" "$T/real-claude/testing.local.yaml"
+run
+assert_eq "a layer under a symlinked .claude exits 2" 2 "$rc"
+rm "$REPO/.claude" "$T/real-claude/testing.local.yaml"
+mv "$T/real-claude" "$REPO/.claude"
+
 # --- the whole suite again under mawk -----------------------------------------
 if [[ -z "${TCFG_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
   mkdir -p "$T/mawk-shim"

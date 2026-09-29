@@ -100,6 +100,21 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - **hooks:** `test-scan` claims its once-per-call and once-per-file markers as files created with
   `noclobber` (`O_EXCL`) instead of `mkdir`, which is not atomic under uutils coreutils.
 
+### Security
+
+- **setup:** `apply` refuses a `.claude` directory or `.claude/testing.yaml` that is a symlink, so a
+  repository cannot point it at `CLAUDE.md` and have it overwritten. It writes a temporary file in
+  `.claude/` and renames it into place, and restores a refused answer the same way.
+- **setup:** the `check` hook entry names the marketplace only when it is a plain name
+  (`[A-Za-z0-9_.-]`); any other name prints the `<marketplace>` placeholder instead of splicing it
+  into the command.
+- **config:** `resolve-config.sh` exits 2 on a team or overlay layer that is a symlink or sits under
+  a symlinked `.claude`, so a repository cannot have the loader parse a file outside it.
+- **hooks:** the `test-scan` and `test-weaken` scanner timeout ends the scanner's whole process
+  group, not just its shell, so no `awk` outlives it.
+- **hooks:** without `CLAUDE_PLUGIN_DATA`, `test-weaken` keeps its log and markers where `test-scan`
+  does (the plugin data directory, else `XDG_STATE_HOME`), never in a shared `TMPDIR` directory.
+
 ## [0.10.0] - 2026-09-29
 
 ### Changed

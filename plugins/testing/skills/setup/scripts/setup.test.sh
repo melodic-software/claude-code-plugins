@@ -83,6 +83,7 @@ assert_eq "apply writes the answers as .claude/testing.yaml" "$expected" "$(cat 
 run check
 assert_line "check prints the resolved config" "$out" $'^rules\\.weak-oracle\twarn$'
 assert_contains "and a hook entry for the uncovered glob" "$out" '"if": "Write(*.it.ts)"'
+# shellcheck disable=SC2016 # literal command text
 assert_contains "that runs test-scan with --enabled" "$out" 'exec bash \"$p\" --enabled'
 assert_contains "with an Edit row too" "$out" '"if": "Edit(*.it.ts)"'
 assert_contains "run outside the plugin cache, the marketplace is a placeholder" "$out" 'cache/<marketplace>\"/testing/'
@@ -94,7 +95,7 @@ assert_eq "left unreplaced, the entry says so on stderr and exits 0" \
   "0:testing: no installed test-scan.sh under ~/.claude/plugins/cache/<marketplace>/testing takes --enabled; this settings hook did nothing" "$rc:$got"
 
 # The entry, run from a cached copy: pinned to that copy's marketplace, the
-# highest version by sort -V whatever the mtimes, and never silent.
+# highest version (numeric major.minor.patch) whatever the mtimes, and never silent.
 C="$HOME/.claude/plugins/cache"
 mkdir -p "$C/mk/testing" "$C/other/testing/9.0.0/hooks"
 ln -s "$(cd "$(dirname "$SETUP")/../../.." && pwd)" "$C/mk/testing/0.0.1"
@@ -113,7 +114,7 @@ entry() {
   out="$(echo '{}' | bash -c "$cmd" 2>&1)" || rc=$?
 }
 entry
-assert_eq "the entry runs the highest version by sort -V, not the newest mtime" "0:1.10.0 --enabled" "$rc:$out"
+assert_eq "the entry runs the highest version, not the newest mtime" "0:1.10.0 --enabled" "$rc:$out"
 rm -rf "$C/mk/testing/1.10.0" "$C/mk/testing/0.0.1"
 printf 'echo old\n' >"$C/mk/testing/1.9.0/hooks/test-scan.sh"
 entry
@@ -124,6 +125,16 @@ rm -rf "$C/mk"
 entry
 assert_contains "no installed copy prints why on stderr" "$out" "test-scan"
 assert_eq "and exits 0" 0 "$rc"
+rm -rf "$HOME/.claude/plugins"
+
+# A marketplace name that is not a plain name is never spliced into the command.
+# shellcheck disable=SC2016 # the name must not expand
+bad='m$(touch pwned)k'
+mkdir -p "$C/$bad/testing"
+ln -s "$(cd "$(dirname "$SETUP")/../../.." && pwd)" "$C/$bad/testing/0.0.1"
+out="$(bash "$C/$bad/testing/0.0.1/skills/setup/scripts/setup.sh" check --root "$R" 2>&1)"
+assert_contains "a marketplace name with shell syntax falls back to the placeholder" "$out" 'cache/<marketplace>\"/testing/'
+assert_eq "and is not in the entry" "" "$(grep -F 'pwned' <<<"$out")"
 rm -rf "$HOME/.claude/plugins"
 
 # A paths.include glob adds no basename to the hook's `if` rows, so it needs
@@ -139,6 +150,23 @@ cp "$R/.claude/testing.yaml" "$T/kept.yaml"
 run apply --rule no-such-rule=off
 assert_eq "apply refuses answers that do not resolve" 2 "$rc"
 assert_eq "and leaves the file as it was" "$(cat "$T/kept.yaml")" "$(cat "$R/.claude/testing.yaml")"
+
+# apply never writes through a symlink a repository commits.
+S="$T/sym"
+mkdir -p "$S/.claude" "$S/elsewhere"
+git -C "$S" init -q
+printf '# Team instructions\n' >"$S/CLAUDE.md"
+ln -s ../CLAUDE.md "$S/.claude/testing.yaml"
+rc=0
+out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
+assert_eq "apply refuses a .claude/testing.yaml symlink" 2 "$rc"
+assert_eq "and CLAUDE.md is unchanged" "# Team instructions" "$(cat "$S/CLAUDE.md")"
+rm -rf "$S/.claude"
+ln -s elsewhere "$S/.claude"
+rc=0
+out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
+assert_eq "apply refuses a symlinked .claude directory" 2 "$rc"
+assert_eq "and writes nothing through it" "" "$(ls -A "$S/elsewhere")"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but .claude/testing.yaml" ".claude/testing.yaml" \
