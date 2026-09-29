@@ -1,0 +1,10 @@
+{
+  "tools": [
+    {
+      "name": "markdownlint-cli2",
+      "local_bin": "node_modules/.bin/markdownlint-cli2",
+      "check": "/markdown-format:check",
+      "install": "npm i -D markdownlint-cli2"
+    }
+  ]
+}

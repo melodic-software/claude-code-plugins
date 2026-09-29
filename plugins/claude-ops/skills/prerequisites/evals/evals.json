@@ -1,0 +1,41 @@
+{
+  "skill_name": "prerequisites",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fleet-table-from-the-script",
+      "prompt": "Does this machine have the external tools my enabled plugins need?",
+      "expected_output": "Runs scripts/check-prerequisites.sh and relays its table (tool, plugin, present or missing, check skill, install command) and the closing missing=N present=M line, reading exit 1 as at least one tool missing.",
+      "files": [],
+      "expectations": [
+        "Runs `bash \"${CLAUDE_SKILL_DIR}/scripts/check-prerequisites.sh\"` rather than probing binaries by hand",
+        "Reports the table with the tool, plugin, present/missing status, check skill, and install command columns, plus the missing=N present=M line",
+        "Reads exit 1 as at least one missing tool and exit 2 as no plugin roots readable, not as a script crash",
+        "Installs nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-row-routes-to-the-named-check",
+      "prompt": "/claude-ops:prerequisites\n\nmarkdownlint-cli2 shows as missing. Fix it.",
+      "expected_output": "Does not install. Routes to the check skill the table's check column names for that row (for markdownlint-cli2, /markdown-format:check) and leaves any install to the user's explicit request.",
+      "files": [],
+      "expectations": [
+        "Does not run `npx`, `npm install`, or `go install` from this skill",
+        "Names the check skill from the row's check column, here /markdown-format:check",
+        "Treats the missing row as a report, not a trigger to install"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "version-question-routes-to-plugins",
+      "prompt": "/claude-ops:prerequisites\n\nAre my plugins up to date with the marketplace?",
+      "expected_output": "Explains that plugin versions are a different question and names /claude-ops:plugins audit, rather than answering from the prerequisites table.",
+      "files": [],
+      "expectations": [
+        "Names /claude-ops:plugins audit for the version question",
+        "Does not present the prerequisites table as an answer about plugin versions"
+      ]
+    }
+  ]
+}

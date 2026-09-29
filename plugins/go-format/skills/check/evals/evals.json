@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said go-format found no goimports binary. Is goimports installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for goimports. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /go-format:setup and reports its PASS/FAIL table",
+        "Does not run `apply` or `go install`, and downloads nothing",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/go-format:check\n\nThe check failed. Just install goimports for me.",
+      "expected_output": "Does not install from this skill. Names /go-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not run `go install golang.org/x/tools/cmd/goimports@latest` itself",
+        "Names /go-format:setup apply as the route for an install the user asked for",
+        "Does not claim goimports is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/go-format:check",
+      "expected_output": "When goimports resolves, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /go-format:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}
