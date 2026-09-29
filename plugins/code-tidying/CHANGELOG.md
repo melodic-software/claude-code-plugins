@@ -11,6 +11,18 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
   and the report prints to the user.
 
+## [0.23.14] - 2026-09-28
+
+### Fixed
+
+- **`audit-dead-code` accounts for every in-scope source file.** A `Lane:` line's `files=`
+  is the real input count, including a missing tool and a lane with no manifest root. No
+  `package.json` or `go.mod` is `state=no-manifest`, distinct from `skipped` (no resolvable
+  binary). `Summary coverage: covered=N uncovered=M` plus one `Note:` per uncovered file names the
+  reason: no lane for the language, no manifest root, tool not installed, tool could not parse it,
+  or lane not selected. The clean-result note is printed only when nothing is uncovered.
+  `Summary total:` reports `files-with-findings=` so that key is not the scan count.
+
 ## [0.23.13] - 2026-09-28
 
 ### Added
