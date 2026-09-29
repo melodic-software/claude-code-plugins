@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.13] - 2026-09-28
+
+### Added
+
+- **Consumer protection globs accept an absolute path and `{glob, reason}` objects**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). A relative glob
+  still matches a path relative to the scan target. A glob that starts with `/` or a drive letter
+  matches the absolute path, so a standing overlay can protect a tree regardless of which parent
+  is scanned; a backslash spelling such as `C:\Legal\**` also matches. Object entries store an optional `reason`; matching uses the `glob` field. Scan,
+  preview, verify, and apply share one matcher. No schema bump: protection can only keep more.
+
+### Changed
+
+- **The skill-frontmatter belt does not reach subagents** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). SKILL.md records the observed non-inheritance. Enforcing "workers return evidence only" in a hook that fires for subagents is parked: a new hook surface, not a sentence. Recheck when the hooks page documents subagent inheritance.
+- **SKILL.md names the Bash supporting allowlist** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Absolute-path `[`, `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` are admitted; engine-gate mode answers them with `ask`. The denial text is the source if the list and the guard diverge.
+
+### Fixed
+
+- **Test wrappers convert the suite path with `cygpath -m` when that tool exists** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Under Git Bash a native Windows Python treated an MSYS path as a dotted module name (`ValueError: Empty module name`). `test_wrapper::python_file_to` in `scripts/test-wrapper-lib.sh` is the conversion.
+
 ## [0.28.12] - 2026-09-28
 
 ### Changed

@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.16] - 2026-09-28
+
+### Added
+
+- **`in-place` mode for `tidy` and `batch-simplify` repo mode.** Runs on the current branch with
+  no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
+  and the report prints to the user.
+
 ## [0.23.15] - 2026-09-28
 
 ### Changed
