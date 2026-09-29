@@ -135,26 +135,13 @@ engine plan:
    operator declines, skip and report the path; shortening or moving the tree to get under the
    limit is a relocation, out of scope (§3) and the operator's own action. Record such removals as
    permanent in the §6 summary, distinct from the reversible ones.
-
-   **Recycle vs permanent is the approval choice (#4228).** After a recycle, do not empty the
-   Recycle Bin (or Trash) unless the operator asked for the space back now. When
-   `os_autoclean` reports Storage Sense (or the equivalent) enabled, point at its retention
-   instead of a per-item bin delete. If the operator wants the bytes back in this session, the
-   confirmation-gate question offers **recycle** and **permanent** as distinct choices, with
-   permanent named irreversible. Choosing permanent produces one gated operation per path, not
-   a recycle plus a bin delete. **Claim:** recycle-then-empty doubles hook `ask`s and was never
-   the approval the operator gave. **Basis:** #4228 F5 on disk-hygiene 0.23.12, Windows 11,
-   Claude Code 2.1.278; this file already forbids `Clear-RecycleBin` as a container-wide
-   command. **As of:** 2026-09-28. **Recheck:** engine apply on Windows, or a Storage Sense
-   policy that requires emptying after recycle.
 3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
    everything in this container" spelling) are forbidden in the manual lane, they execute
    against the live container, so items arriving between approval (or even re-enumeration) and
    execution die under an approval that never saw them. Satisfy "empty the container" by
    enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
-   in the manual lane, where no snapshot token protects execution. A post-recycle per-item
-   `InvokeVerb('delete')` on the bin is that same container-wide class: skip it.
+   in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
    around a lock, or delete under a stale verdict.
 

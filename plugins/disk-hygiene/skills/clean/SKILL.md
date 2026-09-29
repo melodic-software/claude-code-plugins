@@ -152,7 +152,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown; on the manual handoff, also **recycle** or **permanent** (permanent named irreversible) |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
 
@@ -208,7 +208,7 @@ page describes skill-hook lifetime and is silent on subagent reach
 (https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
 **Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
 note names that reach. Enforcing "workers return evidence only" in a hook that fires for
-subagents is parked with this close: a plugin-level gate that reached subagents would be a new
+subagents is parked: a plugin-level gate that reached subagents would be a new
 hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
 belt-denied.
 
@@ -240,6 +240,12 @@ patterns and from live filesystem state, and an entry that names a single field 
 step straight past a cloud-sync root whose name embeds a tenant.
 This positional read is how session-state droppings that share no common name (a runner-controller
 status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
+
+The scan's `stdlib_shadowing` list names each home-root `*.py` file whose stem is a standard-library
+module name. The file's entry carries a `stdlib-module-shadow` advisory, and the home-root
+`__pycache__` entry carries `bytecode_sources` naming the modules its `.pyc` files come from. An
+advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
+renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
 For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
 

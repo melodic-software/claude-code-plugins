@@ -3540,6 +3540,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "stdlib_shadowing",
                 "children_rollup",
                 "errors",
                 "policy_sources",
@@ -3828,6 +3829,162 @@ class StandingPolicyTests(unittest.TestCase):
                 ".pulumi-write-test-42", ".pulumi-write-test-42", policy
             ),
         )
+
+
+class StdlibShadowingTests(unittest.TestCase):
+    @staticmethod
+    def home_fixture(home: Path) -> None:
+        cache = home / "__pycache__"
+        cache.mkdir(parents=True)
+        (home / "gettext.py").write_text("import urllib\n", encoding="utf-8")
+        (home / "notes.py").write_text("x = 1\n", encoding="utf-8")
+        (cache / "gettext.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (cache / "notes.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (home / "projects").mkdir()
+        (home / "projects" / "random.py").write_text("", encoding="utf-8")
+
+    def scan(self, target: Path, home: Path, max_depth: int | None = None):
+        with (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "user_home", return_value=home),
+        ):
+            policy = hygiene.load_policy(None)
+            snapshot = hygiene.scan_tree(target, policy, max_depth)
+        return snapshot, {entry["path"]: entry for entry in snapshot["entries"]}
+
+    def test_home_root_stdlib_name_is_flagged_and_tied_to_its_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home)
+        self.assertEqual(
+            [
+                {
+                    "path": "gettext.py",
+                    "module": "gettext",
+                    "bytecode_cache": "__pycache__",
+                }
+            ],
+            snapshot["stdlib_shadowing"],
+        )
+        advisories = by_path["gettext.py"]["advisories"]
+        self.assertEqual("stdlib-module-shadow", advisories[0]["id"])
+        self.assertIn("Rename or move", advisories[0]["reason"])
+        self.assertEqual([], by_path["gettext.py"]["hints"])
+        self.assertNotIn("advisories", by_path["notes.py"])
+        self.assertNotIn("advisories", by_path["projects/random.py"])
+        cache = by_path["__pycache__"]
+        self.assertIn("python-bytecode-cache", [hint["id"] for hint in cache["hints"]])
+        self.assertEqual(
+            [
+                {"module": "gettext", "source": "gettext.py", "shadows_stdlib": True},
+                {"module": "notes", "source": "notes.py", "shadows_stdlib": False},
+            ],
+            cache["bytecode_sources"],
+        )
+
+    def test_builtin_module_name_is_not_flagged_and_symlink_is(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "sys.py").write_text("", encoding="utf-8")
+            (home / "real.py").write_text("", encoding="utf-8")
+            try:
+                (home / "gettext.py").symlink_to(home / "real.py")
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            ["gettext.py"], [row["path"] for row in snapshot["stdlib_shadowing"]]
+        )
+
+    def test_windows_case_folding_links_source_and_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "__pycache__").mkdir()
+            (home / "__pycache__" / "random.cpython-314.pyc").write_bytes(b"\0")
+            entries = [
+                {"path": "Random.py", "kind": "file"},
+                {"path": "__pycache__", "kind": "directory"},
+            ]
+            with (
+                mock.patch.object(hygiene, "user_home", return_value=home),
+                mock.patch.object(hygiene.sys, "platform", "win32"),
+            ):
+                findings = hygiene.annotate_stdlib_shadowing(entries, home)
+        self.assertEqual(
+            [{"path": "Random.py", "module": "random", "bytecode_cache": "__pycache__"}],
+            findings,
+        )
+        self.assertEqual(
+            [{"module": "random", "source": "Random.py", "shadows_stdlib": True}],
+            entries[1]["bytecode_sources"],
+        )
+
+    def test_depth_cut_cache_still_names_its_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home, max_depth=1)
+        self.assertIn("__pycache__", snapshot["truncated_paths"])
+        self.assertEqual(
+            "__pycache__", snapshot["stdlib_shadowing"][0]["bytecode_cache"]
+        )
+        self.assertEqual(
+            ["gettext", "notes"],
+            [row["module"] for row in by_path["__pycache__"]["bytecode_sources"]],
+        )
+
+    def test_shadowing_file_without_bytecode_names_no_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "random.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            [{"path": "random.py", "module": "random", "bytecode_cache": None}],
+            snapshot["stdlib_shadowing"],
+        )
+
+    def test_home_below_the_target_is_found_by_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            home = base / "Users" / "someone"
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(base, home)
+        self.assertEqual(
+            ["Users/someone/gettext.py"],
+            [row["path"] for row in snapshot["stdlib_shadowing"]],
+        )
+        self.assertEqual(
+            "Users/someone/__pycache__",
+            snapshot["stdlib_shadowing"][0]["bytecode_cache"],
+        )
+        self.assertIn("bytecode_sources", by_path["Users/someone/__pycache__"])
+
+    def test_target_inside_home_reports_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            (home / "projects" / "email.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home / "projects", home)
+        self.assertEqual([], snapshot["stdlib_shadowing"])
+
+    def test_scan_stdout_carries_the_findings_in_quiet_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, _ = self.scan(home, home)
+        payload = hygiene.scan_stdout_payload(
+            hygiene.scan_complete_payload(
+                home,
+                home / "snapshot.json",
+                snapshot,
+                {"policy_sources": ["baseline"]},
+                None,
+                "note",
+            ),
+            True,
+        )
+        self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):

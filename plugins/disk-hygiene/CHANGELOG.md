@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.11] - 2026-09-28
+## [0.28.12] - 2026-09-28
 
 ### Added
 
@@ -16,13 +16,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **Recycle vs permanent is the approval choice on the manual handoff** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). After a recycle, do not empty the Recycle Bin unless the operator asked for the space back now. The confirmation-gate question offers recycle and permanent as distinct choices, with permanent named irreversible.
 - **The skill-frontmatter belt does not reach subagents** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). SKILL.md records the observed non-inheritance. Enforcing "workers return evidence only" in a hook that fires for subagents is parked: a new hook surface, not a sentence. Recheck when the hooks page documents subagent inheritance.
 - **SKILL.md names the Bash supporting allowlist** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Absolute-path `[`, `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` are admitted; engine-gate mode answers them with `ask`. The denial text is the source if the list and the guard diverge.
 
 ### Fixed
 
 - **Test wrappers convert the suite path with `cygpath -m` when that tool exists** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Under Git Bash a native Windows Python treated an MSYS path as a dotted module name (`ValueError: Empty module name`). `test_wrapper::python_file_to` in `scripts/test-wrapper-lib.sh` is the conversion.
+
+## [0.28.11] - 2026-09-28
+
+### Added
+
+- **`scan` flags home-root `*.py` files that shadow a standard-library module** ([#4217](https://github.com/melodic-software/claude-code-plugins/issues/4217)). A loose `~/gettext.py` shadowed stdlib `gettext` for Python started from the home directory, and the engine hinted only the `__pycache__` it kept rebuilding. The snapshot and stdout, including `--quiet`, now carry `stdlib_shadowing`, one row per home-root file whose stem is in the interpreter's `sys.stdlib_module_names` but not `sys.builtin_module_names` (a symlinked source counts; the match is case-insensitive on Windows), with the sibling `bytecode_cache` when that cache holds its `.pyc`. The file's entry gains a `stdlib-module-shadow` advisory, and the home-root `__pycache__` entry gains `bytecode_sources` naming the module each `.pyc` was compiled from, read with one directory listing even when a depth cut left the cache unwalked. The advisory is not a hint: it adds no tier and no eligibility.
 
 ## [0.28.10] - 2026-09-28
 
