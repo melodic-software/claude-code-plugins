@@ -224,6 +224,16 @@ if [[ $REFUSED -eq 0 ]]; then
   fi
 fi
 
+# A merge, rebase, cherry-pick, revert or bisect in progress: the audit offers no
+# deletable tier then, so refuse.
+for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
+  op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$op_file" && -e "$op_file" ]]; then
+    refuse "operation in progress: $op_file; finish or abort it, then re-run git-branch-audit.sh"
+    break
+  fi
+done
+
 # ---- Batch-wide precondition: every branch --------------------------------------
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"

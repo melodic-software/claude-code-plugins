@@ -68,6 +68,16 @@
 # operator confronts it as a separate decision before any deletion is
 # confirmed: a prose flag beside a verdict column is easy to skim past.
 #
+# MAIN CHECKOUT. Before the branch records, `MainCheckout:` names what the audit
+# runs from: the branch or `detached at <short sha>`, then `MainCheckoutDirty:`
+# (the `git status --porcelain` line count) and one `MainCheckoutOperation:
+# <name> <path>` per in-progress operation (MERGE_HEAD, rebase-merge,
+# rebase-apply, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG). An operation in
+# progress means the checkout is mid-change, so no branch is offered as deletable:
+# SAFE, LIKELY-SAFE and LOSSY become REVIEW with the reason `operation in
+# progress: <path>`, and `OperationInProgress: <path>` is printed. Detached and
+# dirty state are reported and do not block.
+#
 # TIP CAPTURE. Every branch's tip commit is written, together with its verdict,
 # upstream and ahead/behind counts, to a durable TSV under the repository's
 # common git dir (`.git/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv`), and
@@ -118,7 +128,11 @@ capture and prints its own `TipCapture:`; --capture-file with more than one repo
 is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
-Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
+Leading: PRCount or PRDataUnavailable, optional PRDataTruncated. Then
+`MainCheckout: <branch | detached at <sha>>`, `MainCheckoutDirty: <n>` and a
+`MainCheckoutOperation: <name> <path>` per merge, rebase, cherry-pick, revert or
+bisect in progress; any of those prints `OperationInProgress: <path>` and demotes
+SAFE, LIKELY-SAFE and LOSSY to REVIEW.
 Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a landed
 branch adds `Landed: <proof>`; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out.
 Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. A branch whose work
@@ -271,6 +285,21 @@ if [[ -f "$PR_MAP_FILE" ]]; then
     PR_REFOID["$head"]="$refoid"
   done <"$PR_MAP_FILE"
 fi
+
+# The checkout the audit runs from: HEAD, dirty count, in-progress operations.
+MAIN_HEAD_LINE="$CURRENT_BRANCH"
+[[ -n "$MAIN_HEAD_LINE" ]] || MAIN_HEAD_LINE="detached at $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null | tr -d '\r')"
+printf 'MainCheckout: %s\n' "$MAIN_HEAD_LINE"
+printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' \r')"
+OP_PATH=""
+for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
+  op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$op_file" && -e "$op_file" ]]; then
+    printf 'MainCheckoutOperation: %s %s\n' "$op_name" "$op_file"
+    OP_PATH="${OP_PATH:-$op_file}"
+  fi
+done
+[[ -n "$OP_PATH" ]] && printf 'OperationInProgress: %s\n' "$OP_PATH"
 
 # Membership sets, each read once. WORKTREE_PATH maps a branch to the worktree
 # that has it checked out.
@@ -547,6 +576,12 @@ classify_branch() {
     esac
   fi
 
+  # An operation in progress in the checkout offers no deletable tier.
+  if [[ -n "$OP_PATH" && ( "$tier" == SAFE || "$tier" == LIKELY-SAFE ) ]]; then
+    tier="REVIEW"
+    reason="operation in progress: $OP_PATH"
+  fi
+
   # Loss assessment, and the REVIEW -> LOSSY refinement. Only a REVIEW verdict
   # is ever refined, and only upward into "deletable, loses work": every branch
   # the chain above already deemed safe keeps its verdict untouched, and every
@@ -581,11 +616,15 @@ classify_branch() {
         loss_line+=" (PR open, stays REVIEW)"
         ;;
       *)
-        tier="LOSSY"
-        LOSSY_BRANCHES+=("$branch")
-        LOSSY_COUNTS+=("$lost")
-        LOSSY_REASONS+=("$reason")
-        LOSSY_TIPS+=("$local_tip")
+        if [[ -n "$OP_PATH" ]]; then
+          reason="operation in progress: $OP_PATH"
+        else
+          tier="LOSSY"
+          LOSSY_BRANCHES+=("$branch")
+          LOSSY_COUNTS+=("$lost")
+          LOSSY_REASONS+=("$reason")
+          LOSSY_TIPS+=("$local_tip")
+        fi
         ;;
       esac
     fi

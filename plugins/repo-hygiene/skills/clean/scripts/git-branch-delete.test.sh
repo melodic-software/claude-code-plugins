@@ -597,6 +597,15 @@ assert_exit "REVIEW whose remote-tracking ref was pruned after capture exits 3" 
 assert_contains "pruned REVIEW names live loss" "$out" "Refused: feat/review (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as REVIEW; re-run git-branch-audit.sh before deleting)"
 assert_branch "pruned REVIEW: feat/review intact" present feat/review
 
+op_file="$(git -C "$REPO" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+git -C "$REPO" rev-parse HEAD >"$op_file"
+out="$(run_delete --capture "$CAP" --force-review feat/review 2>&1)"
+rc=$?
+rm -f "$op_file"
+assert_exit "an operation in progress exits 3" 3 "$rc"
+assert_contains "operation in progress is refused by name" "$out" "Refused: operation in progress: $op_file"
+assert_branch "operation in progress: feat/review intact" present feat/review
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

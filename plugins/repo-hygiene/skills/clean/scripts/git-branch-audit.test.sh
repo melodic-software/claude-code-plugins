@@ -271,6 +271,28 @@ PR: none
 Unpushed: no upstream, 2 commits not on origin/main
 Loss: 2 commits only on this branch
 Reason: upstream gone, 2 commits not on origin/main"
+assert_contains "MainCheckout names the branch" "$gone_out" "MainCheckout: main"
+assert_contains "MainCheckout reports the dirty count" "$gone_out" "MainCheckoutDirty: 0"
+assert_not_contains "no operation, no OperationInProgress line" "$gone_out" "OperationInProgress:"
+
+# An operation in progress demotes every deletable tier to REVIEW and names the file.
+op_file="$(git -C "$NU_REPO" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+git -C "$NU_REPO" rev-parse HEAD >"$op_file"
+op_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+rm -f "$op_file"
+assert_contains "operation in progress is announced" "$op_out" "OperationInProgress: $op_file"
+assert_contains "operation is named in the MainCheckout block" "$op_out" "MainCheckoutOperation: MERGE_HEAD $op_file"
+assert_contains "operation demotes LOSSY to REVIEW with the reason" "$op_out" "Reason: operation in progress: $op_file"
+assert_not_contains "no LOSSY tier while an operation is in progress" "$op_out" "Tier: LOSSY"
+assert_not_contains "no SAFE tier while an operation is in progress" "$op_out" "Tier: SAFE"
+assert_not_contains "no LIKELY-SAFE tier while an operation is in progress" "$op_out" "Tier: LIKELY-SAFE"
+
+# Detached HEAD is reported and does not block.
+git -C "$NU_REPO" checkout -q --detach
+det_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+git -C "$NU_REPO" checkout -q main
+assert_contains "detached HEAD is reported" "$det_out" "MainCheckout: detached at "
+assert_not_contains "detached HEAD is not an operation" "$det_out" "OperationInProgress:"
 
 # Gone upstream with NO origin/<default> to compare against (feature-only clone /
 # unfetched remote HEAD): the script cannot prove the branch is merged, so it must
