@@ -219,10 +219,11 @@
       "name": "consequential-deletion-needs-a-closed-watch",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — delete the rule that says never commit straight to main. It governs commits. No watch is recorded yet. The exception register does not match it.",
-      "expected_output": "Does not delete the rule before a watch is recorded. Opens a watch in the ledger file first: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Then removes the rule and keeps it out of context for the whole window, because a rule still loaded cannot show its own absence; a disqualifying stumble restores it. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
+      "expected_output": "Does not delete the rule before a watch is recorded. No experiment is open, so it starts one for the single rule: mints an experiment id, creates the dedicated experiment branch, and writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/. Then opens the watch in that ledger file: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Then removes the rule and keeps it out of context for the whole window, because a rule still loaded cannot show its own absence; a disqualifying stumble restores it. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
       "files": [],
       "expectations": [
         "Refuses to delete a consequential rule before a watch is recorded",
+        "With no experiment open, mints an experiment id, creates the experiment branch, and writes manifest.json and stumbles.md before recording the watch",
         "Records the rule, surface, governed situation, qualifying-session window, and disqualifier",
         "Uses the re-add grammar and does not define a second evidence grammar",
         "States that the tier clears only when the closed watch has zero attributed rows",
