@@ -808,11 +808,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- detail ----------
   function visualsFor(q){
-    if (!q) return (S.doc.visuals || []).filter(v => v.scope === "all");
+    const live = (S.doc.visuals || []).filter(v => !v.archived).sort((a, b) => (a.order || 0) - (b.order || 0));
+    if (!q) return live.filter(v => v.scope === "all");
     const scopes = ["all", "question:" + q.id, "group:" + q.group, "round:" + (q.stage || "") + ":" + (q.round || 1)];
-    const own = (q.visuals || []).map(v => typeof v === "string" ? (S.doc.visuals || []).find(x => x.id === v) : v).filter(Boolean);
+    const own = (q.visuals || []).map(v => typeof v === "string" ? live.find(x => x.id === v) : v).filter(v => v && !v.archived);
     return [...own.map(v => Object.assign({where: "this question"}, v)),
-      ...(S.doc.visuals || []).filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))];
+      ...live.filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))];
   }
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;

@@ -729,7 +729,7 @@ def visuals_for(doc, q):
     out += [
         v for v in doc.get("visuals") or [] if v.get("scope") == f"question:{q['id']}"
     ]
-    return out
+    return [v for v in out if not v.get("archived")]
 
 
 def thread(q, resp):
@@ -837,7 +837,11 @@ def export_report(d):
     scoped = {
         v.get("id") for q in doc.get("questions") or [] for v in visuals_for(doc, q)
     }
-    others = [v for v in doc.get("visuals") or [] if v.get("id") not in scoped]
+    others = [
+        v
+        for v in doc.get("visuals") or []
+        if v.get("id") not in scoped and not v.get("archived")
+    ]
     if others:
         out.append("<h2>Visuals</h2>")
         out += [render_visual(v, d) for v in others]
