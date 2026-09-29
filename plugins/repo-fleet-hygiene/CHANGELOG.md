@@ -7,7 +7,8 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Added
 
-- **`sync` accepts `--skip`, `--extend-skip`, `--skip-from` and `--repos-from`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+- **`sync` accepts `--skip`, `--extend-skip`, `--skip-from`, `--repos-from` and `--dry-run`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+  `--dry-run` states the default explicitly and exits 2 when combined with `--apply`.
   An explicit `--skip` or `--skip-from` set replaces the default skip names (`vendor`,
   `node_modules`, ...), as it does in `audit`, and `--extend-skip` adds names to whichever set is in
   effect. `--repos-from` restricts the run to the checkouts listed one per line. Every plan line, and

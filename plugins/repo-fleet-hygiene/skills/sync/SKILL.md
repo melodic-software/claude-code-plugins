@@ -2,7 +2,7 @@
 description: "Move every canonical checkout in a fleet onto the remote default branch and fast-forward it. Divergent dirty work is parked in a linked worktree. Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation. Use when: 'sync the fleet', 'update all repos to main', 'fast-forward canonical checkouts', 'park my dirty branches and pull'."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--repos-from <file|->] [--skip <name>] [--extend-skip <name>] [--skip-from <file>] [--config <file>] [--apply] [--yes]"
+argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--repos-from <file|->] [--skip <name>] [--extend-skip <name>] [--skip-from <file>] [--config <file>] [--dry-run] [--apply] [--yes]"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh:*)
 metadata:
@@ -59,7 +59,7 @@ says otherwise.
 
 | Flags | Behavior |
 |---|---|
-| (default) | Dry-run plan. Nothing changes. |
+| (default), or `--dry-run` | Dry-run plan. Nothing changes. `--dry-run` with `--apply` exits 2. |
 | `--apply` on a terminal | One prompt for the whole plan. Decline changes nothing. |
 | `--apply` without a terminal | Exit 3. Nothing changes. |
 | `--apply --yes` | Apply. |

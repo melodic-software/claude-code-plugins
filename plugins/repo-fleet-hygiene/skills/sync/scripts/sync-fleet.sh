@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Move canonical checkouts onto the remote default branch and fast-forward.
-# Bare invocation prints a dry-run plan. Mutation requires --apply and one
-# confirmation (--yes, or a single prompt on a terminal).
+# Bare invocation prints a dry-run plan; --dry-run asks for that explicitly and cannot be combined
+# with --apply. Mutation requires --apply and one confirmation (--yes, or a single prompt on a
+# terminal).
 # Non-fast-forward, dubious ownership, and a partial stash apply are skipped
 # and reported. Nothing is reset.
 # Parking dirty work needs --worktree-create <path to worktree-create.sh>, the
@@ -38,6 +39,7 @@ SKIP_APPEND_NAMES=()
 CONFIG=""
 PROJECT_DIR=""
 APPLY=0
+DRY_RUN=0
 YES=0
 WT_ROOT=""
 WT_CREATE=""
@@ -130,6 +132,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --apply) APPLY=1; shift ;;
+  --dry-run) DRY_RUN=1; shift ;;
   --yes) YES=1; shift ;;
   --worktree-root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--worktree-root requires a directory"
@@ -150,6 +153,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+[[ "$DRY_RUN" -eq 0 || "$APPLY" -eq 0 ]] || fail "--dry-run and --apply cannot be combined"
 
 [[ -z "$WT_CREATE" ]] || [[ -f "$WT_CREATE" && "${WT_CREATE##*/}" == worktree-create.sh ]] ||
   fail "--worktree-create must name an existing file called worktree-create.sh: $WT_CREATE"

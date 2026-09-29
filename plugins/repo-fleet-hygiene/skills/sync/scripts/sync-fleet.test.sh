@@ -70,6 +70,12 @@ else
   fail "dry-run plans ff-only and does not move HEAD" "$dry"
 fi
 
+explicit_dry="$(bash "$SCRIPT" --repo "$clone" --dry-run)"
+expect "--dry-run is accepted and plans the same as the default" "$explicit_dry" is "$explicit_dry" "$dry"
+bash "$SCRIPT" --repo "$clone" --dry-run --apply --yes >"$TMP/dryapply.out" 2>"$TMP/dryapply.err"
+code=$?
+expect "--dry-run with --apply exits 2 and changes nothing" "code=$code" is "$code|$(git -C "$clone" rev-parse HEAD)" "2|$before"
+
 if bash "$SCRIPT" --repo "$clone" --apply >"$TMP/noyes.out" 2>"$TMP/noyes.err"; then
   fail "apply without --yes exits 3" "exit 0"
 else
