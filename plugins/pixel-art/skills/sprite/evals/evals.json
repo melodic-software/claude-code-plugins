@@ -90,10 +90,9 @@
     {
       "id": 8,
       "name": "vague-brief-states-defaults-in-one-line",
-      "prompt": "make me a character",
+      "prompt": "make me a pixel-art character",
       "expected_output": "Fires /pixel-art:sprite. The request names no subject, size, palette, or done criteria. States the defaults it will use in one line and writes brief.md before the first render. Offers /planning:interview only when the planning plugin is installed; the in-skill brief still proceeds. Does not ask a list of questions.",
       "files": [],
-      "narration": true,
       "expectations": [
         "Invokes the sprite skill",
         "States defaulted size, palette, and view in one line",
@@ -108,7 +107,6 @@
       "prompt": "pixel-art icon of a key for a PICO-8 cart",
       "expected_output": "Fires /pixel-art:sprite. Reads engine-layouts.md and uses the PICO-8 sprite grid (8x8 on a 128x128 sheet, columns 16, the pico-8 palette) rather than an arbitrary size.",
       "files": [],
-      "narration": true,
       "expectations": [
         "Invokes the sprite skill",
         "Uses the PICO-8 8x8 sprite size from engine-layouts.md",

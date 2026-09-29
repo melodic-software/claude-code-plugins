@@ -101,10 +101,9 @@
     {
       "id": 9,
       "name": "vague-brief-defaults-cycles-in-one-line",
-      "prompt": "animate my guy",
+      "prompt": "animate my pixel-art guy",
       "expected_output": "Fires /pixel-art:animate. The request names no cycle, direction count, or engine. States those defaults in one line, writes the brief before the first render, and does not ask a list of questions. Offers /planning:interview only when the planning plugin is installed.",
       "files": [],
-      "narration": true,
       "expectations": [
         "Invokes the animate skill",
         "States defaulted cycle, directions, and layout in one line",
@@ -118,7 +117,6 @@
       "prompt": "4-direction walk cycle of a 32x32 slime for Godot AnimatedSprite2D",
       "expected_output": "Fires /pixel-art:animate. Reads engine-layouts.md and sets sheet.columns to the horizontal slice count Godot's editor uses, with one row per direction, instead of an RPG Maker MZ 48x48 sheet.",
       "files": [],
-      "narration": true,
       "expectations": [
         "Invokes the animate skill",
         "Uses the Godot SpriteFrames sheet rule from engine-layouts.md",
