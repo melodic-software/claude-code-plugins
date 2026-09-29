@@ -309,6 +309,23 @@ rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out18" --index-url http://docs.test/docs/llms.txt skills >/dev/null 2>&1 || rc=$?
 assert_eq "case 18: a non-https index URL" 2 "$rc"
 
+# --- Case 19: a nested page never shadows the top-level page of the same name --
+src="$TEST_TMPDIR/served19"
+mkdir -p "$src"
+printf '%s\n' '# Docs' \
+  '- [Nested](https://docs.test/docs/en/plugins/x.md): nested' \
+  '- [Top](https://docs.test/docs/en/x.md): top' >"$src/llms.txt"
+printf '%s\n' '# X' 'body of x' >"$src/x.md"
+shim_run "$src" "$TEST_TMPDIR/out19" x
+m="$TEST_TMPDIR/out19/manifest.json"
+assert_eq "case 19: the url is the top-level page" "https://docs.test/docs/en/x.md" "$(page "$m" x .url)"
+assert_eq "case 19: the page is read" read "$(page "$m" x .state)"
+shim_run "$src" "$TEST_TMPDIR/out19d" --discover
+m="$TEST_TMPDIR/out19d/manifest.json"
+assert_eq "case 19: discover lists the top-level page with its url" "https://docs.test/docs/en/x.md" "$(page "$m" x .url)"
+assert_eq "case 19: discover does not call the top-level page not-in-index" read "$(page "$m" x .state)"
+assert_eq "case 19: discover still resolves the nested page" "https://docs.test/docs/en/plugins/x.md" "$(page "$m" plugins/x .url)"
+
 # --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
 # shellcheck disable=SC2016 # the stub script expands its own arguments

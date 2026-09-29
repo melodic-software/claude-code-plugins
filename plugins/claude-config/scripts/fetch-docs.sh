@@ -208,9 +208,12 @@ link_urls() {
   }' "$OUT/llms.txt"
 }
 
-# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
+# index_link <slug>: the first link URL in the index whose path is exactly
+# /docs/en/<slug>.md or /docs/<slug>.md, on any host (an off-origin link is
+# reported by the caller). A page nested under another path (plugins/x.md) is
+# a different slug and never matches x.
 index_link() {
-  link_urls | awk -v suf="/$1.md" 'length($0) >= length(suf) && substr($0, length($0) - length(suf) + 1) == suf { print; exit }'
+  link_urls | awk -v a="/docs/en/$1.md" -v b="/docs/$1.md" '{ p = $0; sub(/^https:\/\/[^\/]+/, "", p) } p == a || p == b { print; exit }'
 }
 
 # slug_of <url>: the slug an index link names: its path under /docs/, without a
