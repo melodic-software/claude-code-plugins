@@ -18,7 +18,11 @@
 #                                                         head, absent at <ref>),
 #                                                         or the new version is
 #                                                         not strictly greater
-#                                                         than the one at <ref>
+#                                                         than the one at <ref>;
+#                                                         also fail if an ADDED
+#                                                         entry's body repeats
+#                                                         another entry's body
+#                                                         in the same changelog
 #   scripts/check-changelog-parity.sh --check-preserved <ref>
 #                                                         fail if a changelog
 #                                                         this change set touched
@@ -80,6 +84,12 @@
 #     be bumped back down onto the skipped number, which --check-bump would read
 #     as a VERSION REGRESSION. In a diff that second shape is indistinguishable
 #     from the absorption this gate exists to catch.
+#   * --check-bump also rejects a REPEATED BODY: the body of an entry ADDED by
+#     this change set (heading absent at the fork point) must not be
+#     byte-identical, after trimming, to the body of any other entry in the same
+#     changelog. A body shorter than MIN_REPEATED_BODY characters is exempt, so
+#     the deliberate one-line "Shared launcher/library sync" entries stay legal.
+#     Repeats already on the base are not this change set's to fix.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -105,6 +115,9 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+
+# Bodies shorter than this many characters may repeat (see --check-bump).
+MIN_REPEATED_BODY=120
 
 BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 
@@ -281,6 +294,38 @@ missing_preserved_headings() {
     printf '%s\n' "$missing"
   fi
   return 0
+}
+
+# "<added> <copied>" per line: an entry of $1 whose version is in $2 (space
+# separated added versions) and whose trimmed body, at least MIN_REPEATED_BODY
+# characters, equals another entry's body. Bodies are read from rendered_lines,
+# so fenced code is not part of the comparison.
+repeated_added_bodies() {
+  local changelog="$1" added="$2"
+  rendered_lines "$changelog" | awk -v added="$added" -v min="$MIN_REPEATED_BODY" '
+    function trim(s) { gsub(/^[ \t\n]+|[ \t\n]+$/, "", s); return s }
+    function commit() { if (cur != "") body[cur] = trim(text) }
+    /^##[ \t]/ {
+      commit(); cur = ""; text = ""
+      h = $0; sub(/^##[ \t]+\[?/, "", h)
+      if (match(h, /^[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?/)) {
+        cur = substr(h, 1, RLENGTH); order[++n] = cur
+      }
+      next
+    }
+    { text = text $0 "\n" }
+    END {
+      commit()
+      split(added, a, " ")
+      for (i in a) isadded[a[i]] = 1
+      for (i = 1; i <= n; i++) {
+        v = order[i]
+        if (!isadded[v] || length(body[v]) < min) continue
+        for (j = 1; j <= n; j++)
+          if (order[j] != v && body[order[j]] == body[v]) { print v, order[j]; break }
+      }
+    }
+  '
 }
 
 if [[ "$mode" == "--check-order" ]]; then
@@ -610,6 +655,7 @@ preexisting=0
 nonmonotonic=0
 published_reuse=0
 absorbed=0
+repeated=0
 
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
@@ -624,6 +670,24 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
       echo "  ## [$v]" >&2
     done <<<"$missing_headings"
     absorbed=$((absorbed + 1))
+  fi
+
+  base_body=""
+  if git cat-file -e "$merge_base:$changelog" 2>/dev/null; then
+    base_body="$(git show "$merge_base:$changelog")" || exit 2
+  fi
+  declare -A base_has=()
+  for v in $(printf '%s\n' "$base_body" | changelog_versions -); do base_has["$v"]=1; done
+  added_versions=""
+  for v in $(changelog_versions "$changelog"); do
+    [[ -n "${base_has[$v]:-}" ]] || added_versions+="$v "
+  done
+  if [[ -n "$added_versions" ]]; then
+    while read -r added copied; do
+      [[ -n "$added" ]] || continue
+      echo "REPEATED CHANGELOG BODY: $changelog entry [$added] has the same body as [$copied]; describe what changed in this release." >&2
+      repeated=$((repeated + 1))
+    done < <(repeated_added_bodies "$changelog" "$added_versions")
   fi
 done
 
@@ -749,12 +813,13 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0)); then
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
   ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
+  ((repeated > 0)) && echo "An entry added by this change set may not repeat another entry's body verbatim (bodies under $MIN_REPEATED_BODY characters are exempt)." >&2
   ((published_reuse > 0)) && echo "Bump the manifest version and add a new '## [<version>]' release entry whenever this change set modifies shipped plugin files — reusing a published version number is not allowed." >&2
   exit 1
 fi
