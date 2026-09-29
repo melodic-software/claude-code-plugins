@@ -34,12 +34,12 @@
       "id": 3,
       "name": "title-action-does-not-skip-constraints",
       "prompt": "/songwriting:co-write title candidates for 'last call at the diner', country, first person",
-      "expected_output": "Routes to the title action, not the title-game cascade. Loads the hook's 'title generation' section, the idea-to-title reference and the title-generation-prompt template. Returns several labeled title candidates from the idea, holding the genre and POV constraints. Does not run the 10-15 chained-title cascade.",
+      "expected_output": "Routes to the title action, not the title-game cascade. Loads the hook's 'title generation' section, the idea-to-title reference and the title-generation-prompt template. Returns at least five labeled title candidates from the idea, holding the genre and POV constraints. Does not run the 10-15 chained-title cascade.",
       "files": [],
       "expectations": [
         "Does not run the Title Game cascade of 10-15 chained titles",
         "Loads the title-generation materials (hook 'title generation', idea-to-title, title-generation-prompt) via the title action",
-        "Returns multiple title candidates rather than a single title or a drafted verse",
+        "Returns at least five title candidates (response-filter.md ≥5 rule) rather than a single pick or a drafted verse",
         "Keeps the stated genre/POV constraints in view"
       ]
     }
