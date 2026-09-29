@@ -318,6 +318,38 @@ assert_eq "both scripts agree on the May line carrying a slack signal" \
   "$(echo "$SLACK_OUT" | jq -r "$SLACK_FILE | .stamp_lines | length")" "$SLACK_CANDIDATES"
 assert_eq "and they agree on two, not on zero" "$SLACK_CANDIDATES" "2"
 
+# --- Four digits that are not a date ----------------------------------------------
+#
+# A year inside a longer token or behind another number, and "read" inside an
+# identifier, are not stamp lines. The same fixture goes through check-stamps.sh,
+# and the count is pinned as well as the agreement.
+
+YEAR_DIR="$TEST_TMPDIR/year-shapes"
+mkdir -p "$YEAR_DIR"
+{
+  echo '# Year shapes'                                                 # 1
+  echo ''                                                              # 2
+  echo 'Dead code: variables set but never read (SC2034), and more.'   # 3
+  echo '        "cache_read_input_tokens": 2000'                       # 4
+  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'    # 5
+  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'    # 6
+  echo 'As of 2026-07 (official billing docs), surfaces varied.'       # 7
+  echo 'Checked as of 2024 and not revisited since.'                   # 8
+  echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
+  echo 'Read on 2026-01-02 from the vendor page.'                      # 10
+} >"$YEAR_DIR/year-shapes.md"
+
+YEAR_OUT="$(run --files "$YEAR_DIR/year-shapes.md" 2>/dev/null)"
+YEAR_FILE='.directories[0].files[0]'
+assert_eq "only the four dated lines are stamp lines" \
+  "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | [.stamp_lines[].line] | join(\",\")")" "7,8,9,10"
+
+YEAR_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
+  "$YEAR_DIR/year-shapes.md" 2>/dev/null | jq -r '.counts.candidates')"
+assert_eq "both scripts agree on the year-shapes candidates" \
+  "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | .stamp_lines | length")" "$YEAR_CANDIDATES"
+assert_eq "and they agree on four" "$YEAR_CANDIDATES" "4"
+
 # --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'

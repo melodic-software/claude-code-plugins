@@ -327,6 +327,44 @@ assert_contains "the line with the slack signal still declines as a month-name f
 assert_eq "no slack May line becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
 
+# --- Four digits that are not a date ----------------------------------------------
+#
+# A year is four digits standing alone and the first number after the keyword.
+# Inside a longer token, or behind another number, it is not a stamp date. "read"
+# inside an identifier is a name, not the verb. A year and month ("2026-07") is a
+# real stamp date this script does not parse, and says so in its own words.
+
+{
+  echo '# Year shapes'                                                 # 1
+  echo ''                                                              # 2
+  echo 'Dead code: variables set but never read (SC2034), and more.'   # 3
+  echo '        "cache_read_input_tokens": 2000'                       # 4
+  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'    # 5
+  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'    # 6
+  echo 'As of 2026-07 (official billing docs), surfaces varied.'       # 7
+  echo 'Checked as of 2024 and not revisited since.'                   # 8
+  echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
+  echo 'Read on 2026-01-02 from the vendor page.'                      # 10
+} >"$DIR/year-shapes.md"
+
+OUT="$(run "$DIR/year-shapes.md" 2>/dev/null)"
+assert_eq "a year inside a longer token is not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 3 or .line == 6)] | length')" "0"
+assert_eq "\"read\" inside an identifier is not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 4)] | length')" "0"
+assert_eq "a year behind another number is not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 5)] | length')" "0"
+assert_eq "a year and month declines as year and month, not as a bare year" \
+  "$(echo "$OUT" | jq -r '.declined[] | select(any(.examples[]; .line == 7)) | .reason')" \
+  "unparsed stamp date: year and month only, no day"
+assert_eq "a bare year after a keyword still declines as a bare year" \
+  "$(echo "$OUT" | jq -r '.declined[] | select(any(.examples[]; .line == 8)) | .reason')" \
+  "unparsed stamp date: bare year, no month or day"
+assert_eq "an ISO stamp behind an underscore keyword is still parsed" \
+  "$(echo "$OUT" | jq -r '.counts.parsed')" "2"
+assert_eq "four lines in the year-shapes fixture are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "4"
+
 # --- Trigger-less check ----------------------------------------------------------
 
 OUT="$(run "$DIR/no-trigger.md" 2>/dev/null)"

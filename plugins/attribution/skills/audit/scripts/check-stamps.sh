@@ -375,6 +375,32 @@ function may_form(w, worig,   ds, dl, cs, cl) {
   return 0
 }
 
+# year_form(w): does this window carry a bare year, or a year and month, as a
+# date? A year is four digits standing alone: not inside a longer token
+# ("SC2034", "20260901T100000Z", "Finder_2024"), and the first number after the
+# keyword, so "verified real (Issue 9, 2025" is prose that mentions a year, not
+# a stamp. On a match RSTART is the offset of the year and RLENGTH is 4, or 7 when
+# "-MM" follows, so the classifier can tell "2026-07" from "2026". A false
+# return leaves RSTART = 0 and RLENGTH = -1. extract-breadcrumbs.sh carries the
+# same test without the "-MM" extension.
+function year_form(w,   off, s, pre, post) {
+  off = 0
+  while (match(substr(w, off + 1), /(19|20)[0-9][0-9]/)) {
+    s = off + RSTART
+    if (substr(w, 1, s - 1) ~ /[0-9]/) break
+    pre = (s > 1) ? substr(w, s - 1, 1) : ""
+    post = substr(w, s + 4, 1)
+    if (pre !~ /[0-9a-z_]/ && post !~ /[0-9a-z_]/) {
+      RSTART = s; RLENGTH = 4
+      if (substr(w, s + 4, 3) ~ /^-[0-9][0-9]/ && substr(w, s + 7, 1) !~ /[0-9]/) RLENGTH = 7
+      return 1
+    }
+    off = s
+  }
+  RSTART = 0; RLENGTH = -1
+  return 0
+}
+
 # The stamp keyword list is shared with extract-breadcrumbs.sh on purpose: one
 # definition of what looks like a stamp, so the inventory and the check agree
 # about which lines are candidates. The month list, and may_form() above, are
@@ -397,6 +423,12 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
       return ""
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
+    # "read" inside an identifier ("cache_read_input_tokens") is a name, not the verb.
+    if (kw ~ /_read|read_/) {
+      off = pos
+      if (off >= length(low)) return ""
+      continue
+    }
     wlen = (kw ~ /read/) ? 30 : 60
     # The window is a distance from the keyword, not a cut through the text: a
     # date that STARTS inside it is read whole. So slice wlen plus 9 more
@@ -435,7 +467,7 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     # for a form nobody writes.
     if (may_form(win, win_orig) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
-    if (match(win, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (year_form(win) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     off = pos
     if (off >= length(low)) return ""
   }
@@ -487,6 +519,7 @@ tolower($0) ~ /((recheck|re-check|revisit|re-derivation|reopening|re-trigger)[^a
   # 9 characters of slack and relabel a bare-year decline as a month.
   else if (may_form(win, substr(win_orig, 1, length(win)))) d_reason[n_dec] = "month"
   else if (win ~ /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) d_reason[n_dec] = "month"
+  else if (win ~ /(19|20)[0-9][0-9]-[0-9][0-9]$/) d_reason[n_dec] = "yearmonth"
   else d_reason[n_dec] = "year"
 }
 
@@ -500,6 +533,7 @@ reason_text() {
   month) printf 'unparsed stamp date: month name form, not ISO 8601 (YYYY-MM-DD)' ;;
   slash) printf 'unparsed stamp date: slash form, not ISO 8601 (YYYY-MM-DD)' ;;
   year) printf 'unparsed stamp date: bare year, no month or day' ;;
+  yearmonth) printf 'unparsed stamp date: year and month only, no day' ;;
   invalid) printf 'unparsed stamp date: not a valid calendar date' ;;
   *) printf 'unparsed stamp date' ;;
   esac
@@ -560,7 +594,7 @@ printf '],\n'
 
 printf '  "declined": ['
 first=1
-for key in month slash year invalid; do
+for key in month slash year yearmonth invalid; do
   [[ -n "${DECLINED_COUNT[$key]:-}" ]] || continue
   [[ "$first" -eq 1 ]] && printf '\n' || printf ',\n'
   first=0

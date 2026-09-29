@@ -13,6 +13,17 @@
   sentence, not by the script (#4580).
 - `audit` rubric carve-out 4 marks its Basis `judgment` with a recheck trigger, since no source
   shows the carve-out behavior (#4577).
+- `check-stamps.sh` and `extract-breadcrumbs.sh` stop reading four digits that are not a date as a
+  stamp year: a year inside a longer token (`SC2034`, `20260901T100000Z`, `Finder_2024`) or behind
+  another number after the keyword (`verified real (Issue 9, 2025`), and `read` inside an identifier
+  (`cache_read_input_tokens`). Both scripts carry the same test and their suites pin the shared
+  count. A `2026-07` stamp now declines as `year and month only, no day` instead of `bare year, no
+  month or day`. Over 1,623 files at `14d5b0de2` on run date 2026-09-29: candidates 1,195 to
+  1,172, declined 51 to 28, `parsed` unchanged at 1,144 and `findings` unchanged at 268, so no
+  parsed stamp was reclassified. The 23 lines that left are 19 session-flow fixture handoff
+  paths, the SC2034, `cache_read_input_tokens` and Issue 9 lines, and one measurement line naming
+  Cyberpunk 2077 after `15.2`. The `2026-07` billing and Kindle lines, and two changelog
+  fragments quoting `2026-08-`, now carry the corrected reason (Refs #3465).
 
 ## [0.6.1] - 2026-09-28
 
