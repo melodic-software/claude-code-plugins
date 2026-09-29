@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.21] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` create.md states the `Refs: #N` linkage contract.** The pre-create body gate accepts a line that is only `Refs: #N` or `Relates to: #N` as non-closing linkage, matching `pr-linkage-validator.sh`; a bare `Refs #N` without the colon is still rejected.
+- **`pull-request` monitor.md** treats a queued job as stuck only when no free matching runner exists, and CI polling loops use REST only.
+- **`worktree` prose and evals** point at `worktree-facts.sh list`. Lock reasons are read raw, and the git 2.36 floor for `worktree list -z` is stated.
+- **PR-linkage MCP gate** also matches plugin-bundled GitHub servers (`mcp__plugin_*_github__create_pull_request` and `update_pull_request`).
+- **Nesting-invariant heading** is renamed "The nesting invariant, dated measurement", and its expired marker is time-bound.
+- **Promotion-evidence plan** is marked proposed and cites its basis; `config-resolution.md` cites ADR 0039 by filename instead of restating its merge modes.
+- **Config-root resolver** moves into `lib/config-root.sh` (`classify`), which `commit` and `pull-request` call before reading team or overlay layers, and which `parse-branch-issue.sh` sources; `setup` keeps its own inline rule, with two setup evals for the home-root check and apply.
+- **Docs:** `babysit-loop` points at the background-launch caveat, the README lists `worktree-create.sh --existing-branch`, and duplicated argument hints are dropped.
+- **Merge gate holds a PR whose body says "do not merge" or that carries the `do-not-merge` label.** `babysit_merge.py` reads the live PR body (over GraphQL, and over REST when GraphQL is refused) and adds a blocker in every tier, and blocks on the `do-not-merge` label whether or not the autopilot merge tier is engaged. The `babysit-prs` and `babysit-loop` skill bodies state the rule.
+- **Node.js on PATH is declared.** The README lists it beside the other requirements, and the setup `check` probes `node` through Bash, so the probe works when the hook launcher does not.
+- **0.62.6 entry corrected in place.** Its body restated 0.62.5; it now reads "No functional change", and its heading is unchanged.
+
 ## [0.62.20] - 2026-09-28
 
 ### Changed
@@ -123,12 +139,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **Worktree isolation is four checks, and unattended prompts have a flag**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
-  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
-  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
-  mode and its classifier.
+- No functional change. The version bump landed with a changelog-only edit
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)); the worktree-isolation
+  and `--permission-prompts none` notes are in 0.62.5.
 
 ## [0.62.5] - 2026-09-28
 

@@ -420,6 +420,34 @@ layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 run_cfg "a root outside any git repository skips team and overlay" \
   "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
 
+# Physical equality through a symlink. mklink <target> <link> <case> fails, with
+# a SKIP line, where the host cannot make a real symlink (Git Bash copies).
+mklink() {
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]] && return 0
+  echo "SKIP: host cannot create symlinks: $3" >&2
+  return 1
+}
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
+layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+CASE_REPO="${FIXTURES}/home-alias.$$"
+if mklink "$CASE_HOME" "$CASE_REPO" "a symlink alias of home skips team and overlay"; then
+  run_cfg "a symlink alias of home also skips team and overlay" \
+    "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+fi
+
+# The repo's .claude is a symlink to the home one, so its team file is the
+# user-global file. It must be skipped and the note must name the user-global
+# path, never the repo-side spelling of it.
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '(['
+if mklink "${CASE_HOME}/.claude" "${CASE_REPO}/.claude" "a team file that is the user-global file is skipped"; then
+  run_cfg "a team file that physically is the user-global file is read once, as user-global" \
+    "$WN" "" - "" 1 "home\.[^ ]*/\.claude/source-control\.md.*invalid ERE.*${STOPPED}" \
+    "${CASE_REPO}/.claude/source-control.md"
+fi
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]

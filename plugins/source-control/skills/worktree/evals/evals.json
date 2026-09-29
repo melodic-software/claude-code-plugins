@@ -70,7 +70,7 @@
       "expectations": [
         "Scans every worktree root the project uses for orphan directories and prunable/stale/merged candidates",
         "Identifies each candidate by reason (orphaned directory / prunable / PR merged / stale)",
-        "Extracts the real branch name from `git worktree list --porcelain` output, not from the directory name",
+        "Runs `worktree-facts.sh list` and reads the real branch name from its `branch` column, not from the directory name or a hand-parse of porcelain output",
         "Takes NO mutating action — reports candidates only and exits; any prune runs in --dry-run form, and no removal or branch-deletion command runs"
       ]
     },
@@ -90,10 +90,10 @@
       "id": 8,
       "name": "status-batched-gh-and-graceful-degrade",
       "prompt": "/worktree status",
-      "expected_output": "Parses `git worktree list --porcelain` (CR-stripped), cross-references open PRs via a single batched `gh pr list` call (not one call per worktree), computes staleness against the configured worktree_stale_days threshold (default 14), classifies each worktree, and presents a per-worktree table — degrading gracefully (skipping PR info with a note, not aborting) if `gh` is unavailable or fails.",
+      "expected_output": "Runs `worktree-facts.sh list` and reads its columns, cross-references open PRs via a single batched `gh pr list` call (not one call per worktree), computes staleness against the configured worktree_stale_days threshold (default 14), classifies each worktree, and presents a per-worktree table — degrading gracefully (skipping PR info with a note, not aborting) if `gh` is unavailable or fails.",
       "files": [],
       "expectations": [
-        "Runs `git worktree list --porcelain` and strips carriage returns on Windows/Git Bash",
+        "Runs `worktree-facts.sh list` and reads its columns; does not parse `git worktree list --porcelain` by hand",
         "Runs `gh pr list` ONCE as a batch cross-reference, not once per worktree branch",
         "Uses the worktree_stale_days userConfig value for the stale threshold, falling back to 14 when unset, invalid, or unexpanded",
         "Classifies each worktree (active / stale / in-review / merged / prunable / locked) in the presented table",

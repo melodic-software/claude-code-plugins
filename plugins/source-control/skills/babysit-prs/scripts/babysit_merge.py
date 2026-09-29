@@ -116,6 +116,15 @@ from babysit_util import (
 # merge) so ordinary prose does not false-block.
 HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re.I)
 
+# The PR author's own hold, written in the body ("Do not merge this draft"):
+# the label is not the only way a PR says it must not merge. The hyphenated
+# form is the label's name and is not matched, so a body that merely names the
+# label does not block.
+BODY_MERGE_HOLD_RE = re.compile(r"\bdo(?:n['’]?t| not)\s+merge\b", re.I)
+# The label form of the same hold: blocks in every tier, whether or not the
+# autopilot merge tier is engaged. `--block-labels` only adds to it.
+MERGE_HOLD_LABEL = "do-not-merge"
+
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
 # GitHub's own fixed enum contract. MergeStateStatus values meaning "mergeable,
@@ -952,6 +961,7 @@ def evaluate(
         "url",
         "title",
         "labels",
+        "body",
         "statusCheckRollup",
     ]
     if tier is not None:
@@ -1028,6 +1038,15 @@ def evaluate(
         blockers.append(f"state={pr.get('state')} (not OPEN)")
     if pr.get("isDraft"):
         blockers.append("PR is a draft -- mark ready first")
+    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
+        blockers.append(
+            "PR body says do not merge -- a human hold, report it and leave it"
+        )
+    if any(str(name).casefold() == MERGE_HOLD_LABEL for name in labels):
+        blockers.append(
+            f"PR carries the {MERGE_HOLD_LABEL!r} label -- a human hold, "
+            "report it and leave it"
+        )
     if pr.get("mergeable") != "MERGEABLE":
         blockers.append(
             f"mergeable={pr.get('mergeable')} (conflict or still computing)"
@@ -1226,7 +1245,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; no hardcoded hold-label list
+        "labels": labels,  # surfaced for agent reasoning; only do-not-merge is hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,

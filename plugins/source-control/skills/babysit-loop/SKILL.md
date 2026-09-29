@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]`. Full form: <owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier
+**Arguments.** Full form: <owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier
 
 ## Variables
 
@@ -190,8 +190,8 @@ before resolving the first cell of a run.
 
 ## do-not-merge
 
-A do-not-merge label is respected by default in every tier and at every rung, the PR is reported,
-never merged, and the label is never removed. Stripping it happens only behind the explicit
+A do-not-merge label, or a PR body that says "do not merge", is respected by default in every tier
+and at every rung, the PR is reported, never merged, and the label is never removed. Stripping it happens only behind the explicit
 `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never
 persisted.
 
@@ -221,7 +221,9 @@ notification silently. The record path is relative to **this session's checkout*
 `<owner/repo>` names another repository the notification reaches the *launching* project's endpoint
 and the target's tracked hook is never consulted (§2 owns why): **launching from the target
 repository's own checkout is required, not preferred, whenever that repository's endpoint is the
-one that must hear.** Telemetry is the report surface, never the escalation channel.
+one that must hear.** A background launch loses the record; the convention's
+[Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first
