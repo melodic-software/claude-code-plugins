@@ -225,7 +225,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": true
@@ -312,7 +312,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": true

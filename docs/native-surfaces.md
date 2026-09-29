@@ -249,7 +249,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
 - **Observation:** extraction: extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch) (2026-09-29)
 - **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-09-29)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-performance`
@@ -288,7 +288,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
 - **Observation:** extraction: targeted string search of the installed binary v2.1.284 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.284 extraction, not a re-extraction) (2026-09-29)
 - **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-29)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `run` → `testing:run-e2e`
