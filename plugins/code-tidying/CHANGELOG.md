@@ -47,7 +47,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Added
 
-- **`in-place` mode for `tidy` and `batch-simplify` repo mode.** Runs on the current branch with
+- **`in-place` mode for `tidy` and `batch-simplify` repo mode** ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)). Runs on the current branch with
   no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
   and the report prints to the user.
 
@@ -122,7 +122,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **Deferred standalone JS/TS dead-code scan** ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
   Grep-lane fallback and knip-without-manifest remain parked; #4525 documents the no-`package.json`
-  gap. Version 0.23.7 serializes with other open code-tidying parks on the same base.
+  gap.
 
 ## [0.23.7] - 2026-09-28
 

@@ -33,7 +33,9 @@ Six skills, one capability:
 - **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
-  structure-only PR. Overflow is filed as deferred work items, never silently
+  structure-only PR. Scope is a rotated lane or an ad hoc glob
+  (`tidy [dry-run] <glob>...`). `in-place` skips the branch and PR and leaves the
+  edits staged; `in-place=commit` makes one commit. Overflow is filed as deferred work items, never silently
   dropped.
 - **`/code-tidying:batch-simplify`**. Sweeps files through grouped,
   dependency-ordered simplification waves in one of three scope modes:
@@ -45,7 +47,9 @@ Six skills, one capability:
   confirmed inventory, runs a mandatory per-group refutation verifier, and
   delivers one feature branch and one PR for the whole run, with per-group
   commits. Use it when you forgot to run `/simplify` after each task, or to
-  sweep a repository that never had one.
+  sweep a repository that never had one. `in-place` (repo mode) runs on the
+  current branch with no new branch or PR and leaves the edits staged, or
+  `in-place=commit` makes one commit.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
@@ -119,8 +123,7 @@ personal variation is limited to lane names the team does not track: an uncommit
   phases use `/discovery:explore` + `/discovery:research`; if `work-items` is
   installed, deferrals file through `/work-items:track add`; if
   `code-simplifier` (or legacy `pr-review-toolkit`) is installed, batch-simplify uses its
-  `code-simplifier`
-  agent. Absent any of them, the skills fall back to inline
+  `code-simplifier` agent. Absent any of them, the skills fall back to inline
   exploration/research, `gh issue create`, and general-purpose agents.
 - Reads your conventions, assumes none: canonical build/test/lint commands,
   protected paths, and unverifiable areas come from your own project context.
