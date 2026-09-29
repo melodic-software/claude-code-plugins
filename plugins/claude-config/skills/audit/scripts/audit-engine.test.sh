@@ -252,6 +252,20 @@ assert_eq "case 3: a Read pattern on a Bash matcher is not covered" "0" "$(jq '[
 assert_eq "case 3: manifest recorded" "1" "$(jq '.coverage_manifests | length' <<<"$out")"
 assert_eq "case 3: a plugin with no manifest declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:guard@mkt")] | length' <<<"$out")"
 
+# --- Case 3b: the live-hook info row for the push ask-gate still says an ask rule blocks unattended lanes ---
+m="$(make_machine manifest-ask)"
+mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)"]},"enabledPlugins":{"guard@mkt":true},"extraKnownMarketplaces":{"mkt":{"source":{"source":"directory","path":"../mkt"}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/git.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+push_ask="$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .detail' <<<"$out")"
+assert_contains "case 3b: the live-hook row is used" "$push_ask" "a live PreToolUse hook already blocks it"
+assert_contains "case 3b: the live-hook row says an ask rule blocks unattended lanes" "$push_ask" "auto-denied under dontAsk"
+
 # --- Case 4: a suppression lever makes the manifest coverage not live ----------
 m="$(make_machine lever)"
 mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
