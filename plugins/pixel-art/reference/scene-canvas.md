@@ -107,7 +107,7 @@ brackets; "(judgment)" marks a rule no source states.
   [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)).
   The WebM is video only unless the scene exposes a gesture-free `audioStream` aligned to the seek
   clock. The campfire example does not: its audio starts only on a click that `capture.py` never
-  sends, so its WebM is silent. Audio in the recording is not supported yet.
+  sends, so its WebM is silent.
 - Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
   (judgment). Do not describe the picture as reviewed.
 

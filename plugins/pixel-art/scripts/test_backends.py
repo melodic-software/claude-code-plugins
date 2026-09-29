@@ -355,7 +355,7 @@ class BackendTest(unittest.TestCase):
             self.assertEqual(list(sheet["frames"]), ["a", "b"])
             self.assertEqual(sheet["meta"]["image"], "sheet.png")
             tags = {tag["name"]: (tag["from"], tag["to"]) for tag in sheet["meta"]["frameTags"]}
-            self.assertEqual(tags, {"hop": (0, 0), "land": (2, 2)})
+            self.assertEqual(tags, {"hop": (0, 0), "land": (1, 1)})
 
     def test_aseprite_frame_count_mismatch_falls_back_without_a_partial_sheet(self):
         spec = dict(SPEC, frames={"a": ["kr", "rk"], "b": ["rr", "kk"]})

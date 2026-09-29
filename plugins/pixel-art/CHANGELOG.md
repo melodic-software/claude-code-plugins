@@ -11,7 +11,9 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
   shared brief fields, matching `sprite` and `animate` (#4400, #4402).
 - The Aseprite adapter rewrites its `sheet.json` to the native contract: frame keys are the spec
   frame names and `meta.image` is `sheet.png`. A frame-count mismatch falls back to the native
-  renderer with a notice (#4402).
+  renderer with a notice, and `frameTags` indexes follow the compacted frame map (#4402).
+- `tileset`, `ui`, and `vfx` stay on native unless the request or `${user_config.backend}` names
+  another backend.
 - `backends.md` and the README state that the adapters have run only against local stand-ins.
 - The click-to-start audio rule in `scene` is recorded with its basis in `scene-canvas.md`. The
   docs say `--record` writes video only, so the campfire WebM is silent (#4404, #4403).

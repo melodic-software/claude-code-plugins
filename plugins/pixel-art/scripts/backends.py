@@ -119,8 +119,17 @@ def _normalize_sheet_json(data_path, plan):
     names = [frame["name"] for frame in plan["frames"]]
     if len(frames) != len(names):
         return f"sheet.json has {len(frames)} frames for {len(names)} sheet cells"
-    data["frames"] = {name: cell for name, cell in zip(names, frames.values()) if name is not None}
+    cells = list(frames.values())
+    kept = [i for i, name in enumerate(names) if name is not None]
+    data["frames"] = {names[i]: cells[i] for i in kept}
     meta["image"] = "sheet.png"
+    if "frameTags" in meta:
+        tags = []
+        for tag in meta["frameTags"]:
+            inside = [n for n, i in enumerate(kept) if tag["from"] <= i <= tag["to"]]
+            if inside:
+                tags.append(dict(tag, **{"from": inside[0], "to": inside[-1]}))
+        meta["frameTags"] = tags
     data_path.write_text(json.dumps(data, indent=2))
     return None
 

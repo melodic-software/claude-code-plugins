@@ -33,7 +33,7 @@ sheet instead. Do not write an `.efkefc` file.
 Same rule as `/pixel-art:sprite`: read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md).
 `native` is the default and always available. Honor `${user_config.backend}` when it names another
 backend, and pass no `--confirm` until the user accepts a paid call. Generative backends fit effect
-cells poorly; use one only when the request names it.
+cells poorly, so stay on native unless the request or that setting names another.
 
 ## 3. Author
 

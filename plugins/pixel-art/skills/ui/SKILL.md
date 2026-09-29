@@ -28,7 +28,7 @@ does, including the `brief.md` file, the one-line defaults, and the presence-gat
 Same rule as `/pixel-art:sprite`: read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md).
 `native` is the default and always available. Honor `${user_config.backend}` when it names another
 backend, and pass no `--confirm` until the user accepts a paid call. Generative backends fit UI
-skins poorly; use one only when the request names it.
+skins poorly, so stay on native unless the request or that setting names another.
 
 ## 3. Author
 

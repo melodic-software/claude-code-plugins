@@ -73,8 +73,8 @@ timeline and writes shots (and a WebM when `--record` is set):
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/capture.py" <out-dir>/<name>.html --at 0,1.5,6 --record 4 --out <out-dir>/capture
 ```
 
-Exit 0: read each `shot-<n>.png` and, when present, treat `scene.webm` as the shareable video-only
-recording. Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and
+Exit 0: read each `shot-<n>.png` and, when present, treat `scene.webm` as the shareable
+recording (video only unless the scene exposes an `audioStream`, see Deliver). Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and
 check silhouettes against the background, palette contrast, beat timing, text legibility, stray
 non-integer or smoothed pixels. Fix, rebuild, re-run the same command. Stop when every done
 criterion passes, or after the round budget (typically 2 to 4) with the failing criteria named.
@@ -96,7 +96,7 @@ paths, converted to a host path when the session runs in WSL (`wslpath -w`). A G
 scene is not produced here: GIF carries no audio and the scene is code. `--record` writes video
 only unless the scene exposes a gesture-free `window.__pixelScene.audioStream` aligned to the seek
 clock. The campfire example does not (its audio starts only on a click that `capture.py` never
-sends), so its WebM is silent. Audio in the recording is not supported yet.
+sends), so its WebM is silent.
 
 ## Next
 
