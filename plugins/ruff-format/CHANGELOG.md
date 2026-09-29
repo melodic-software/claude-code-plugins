@@ -11,7 +11,7 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
 
 ### Changed
 
-- README Requirements lists Node.js (every hook row launches through `hooks/exec-bash.mjs`), and `/ruff-format:setup check` gains a Node row. Without `node` the hooks do not launch.
+- README Requirements lists Node.js (every hook row launches through `hooks/exec-bash.mjs`), and `/ruff-format:setup check` gains a Node row. Without `node` the hooks do not launch. The Node row stays FAIL when the toggle is disabled (the launcher spawns `node` before the script reads it), and on Windows a hit that is only an ephemeral version-manager shim is a FAIL.
 - CHANGELOG: the 0.7.2, 0.6.60 and 0.6.59 entries are reworded in place to "shared launcher/library sync; no change to this plugin's behavior". The 0.7.2 entry said this plugin's hook rows were unchanged, but 0.7.1 (the same commit) changed them. The 0.6.60 and 0.6.59 entries described `hook::shell_c_operand`, `hook::wsl_operand` and `hook::bash_parse_segments`, which no hook here calls.
 - The session-start probe and `prerequisites.json` question for the remaining format plugins is tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
 

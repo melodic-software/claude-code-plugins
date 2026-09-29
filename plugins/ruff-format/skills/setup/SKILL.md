@@ -39,9 +39,10 @@ truth for what it requires and how it resolves things.
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
+When the plugin's toggle is disabled, every prerequisite absence except Node.js downgrades
+from FAIL to INFO. The hook script exits through its enabled-gate before probing anything, so
+a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` spawns `node`
+before the script can read the toggle. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
@@ -69,7 +70,11 @@ restores the FAIL semantics.
    (`/plugin` → Installed) rather than parsing settings files.
 7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
    through `node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip
-   notice.
+   notice. On Windows, `command -v node` is not the hook's environment: a version manager can
+   return an ephemeral per-call shim (fnm's `fnm_multishells\<pid>_<timestamp>\node`) that the
+   hook process cannot resolve. FAIL when the only hit is such a shim, and report the persisted
+   resolution from `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. An
+   in-process hit that is not ephemeral is INFO beside that result, not a PASS by itself.
 
 ## `apply` (idempotent)
 

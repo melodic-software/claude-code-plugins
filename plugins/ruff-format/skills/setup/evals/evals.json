@@ -11,7 +11,8 @@
         "Resolves Ruff the way the hook does — the exact .venv interpreter paths it tests for the current platform, walking up from the edited file toward the repo root, then PATH — and does not PASS a binary the hook would not accept",
         "Reports the config walk as stopping at the FIRST (closest) governing config found walking toward the repo root, honoring Ruff's own same-directory precedence",
         "Counts a pyproject.toml only when it carries a [tool.ruff] section or a [tool.ruff.*] subtable such as [tool.ruff.lint], reading the hook for the exact section test",
-        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting"
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting",
+        "Reports missing Node.js as FAIL and states the consequence: every hook row launches through `node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip notice, and it stays FAIL when ruff_format_enabled is false"
       ]
     },
     {
