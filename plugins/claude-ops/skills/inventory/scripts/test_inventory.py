@@ -1114,11 +1114,11 @@ class TestBuiltinAgents(unittest.TestCase):
 
 
 TOOL_SRC = (
-    'var Ue="Bash",at="Read",xt="Edit",hn="Write",wr="WebFetch";'
+    'var Qz="Bash",at="Read",xt="Edit",hn="Write",wr="WebFetch";'
     'var k1="SendUserFile";var m1="memory_read";'
     "var Kl={isEnabled:()=>!0,isConcurrencySafe:(e)=>!1};"
     'k1="system_assigned_identity";'
-    '$t({name:Ue,searchHint:"execute shell commands",'
+    '$t({name:Qz,searchHint:"execute shell commands",'
     "get maxResultSizeChars(){return 1},"
     'async description({description:e}){return e||"Run"},isEnabled(){return!0}});'
     '$t({name:at,maxResultSizeChars:1e5,async description(){return"Read a file"},'
