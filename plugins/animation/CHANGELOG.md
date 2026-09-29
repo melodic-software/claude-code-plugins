@@ -5,6 +5,12 @@ All notable changes to the `animation` plugin are documented here. Format follow
 
 ## [Unreleased]
 
+### Changed
+
+- `produce` states the model-sheet scene contract (`DURATION`, `renderFrame`, `renderDrawing`),
+  that the approval gate is soft and prompt-level, that a board carries one palette pack, and a
+  verification record for the third-of-the-source claim (#4591).
+
 ### Fixed
 
 - `frame_pair('tail')` in `scripts/woodcut_marks.py` and the woodcut-ink `STYLE.md` boil bullet
