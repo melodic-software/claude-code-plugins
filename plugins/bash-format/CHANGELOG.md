@@ -7,7 +7,7 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 ### Fixed
 
-- The setup skill, its evals and the README cover `bash_format_lint_gitignored`: `check` reports both options, explains why a gitignored edit is skipped by default, and `apply` can set either option ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). The skip-notice wording matches the README's "once per session and agent, renewed every eighth skip" ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+- The setup skill, its evals and the README cover `bash_format_lint_gitignored`: `check` reports both options, explains why a gitignored edit is skipped by default, and `apply` gives guidance for reconfiguring either option ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). The skip-notice wording matches the README's "once per session and agent, renewed every eighth skip" ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
 - README Requirements and `/bash-format:setup check` name Node.js on `PATH`: every hook row launches through `node hooks/exec-bash.mjs`, so without `node` the hook does not launch.
 - CHANGELOG: corrected the 0.8.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship, and reduced the 0.7.60, 0.7.61, 0.8.2 and 0.8.5 entries to a shared launcher/library sync with no change to this plugin's behavior.
 
