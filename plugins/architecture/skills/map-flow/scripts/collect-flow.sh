@@ -18,9 +18,11 @@
 # Output: flow.json, schema_version 1, one hop object per line.
 #   entry.name is the invocation string.
 #   hops[].resolution is statically-resolved, inferred, or unresolved.
-#   hops[].sync is synchronous or asynchronous.
+#   hops[].sync is synchronous or asynchronous (from await, except a hand-off,
+#   which is always asynchronous).
 #   hops[].handoff is yes when the call is Publish or Send (a hand-off to
-#   map-events). truncated is yes when --depth stopped the walk before a
+#   map-events; the hop is unresolved, mechanism broker). Hops are in call
+#   order, a followed callee's hops right after its call. truncated is yes when --depth stopped the walk before a
 #   callee that itself contains a call.
 #
 # Portability: bash plus POSIX awk. No jq, no python.

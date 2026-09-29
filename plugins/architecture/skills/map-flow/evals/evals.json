@@ -5,7 +5,7 @@
       "id": 1,
       "name": "cited-hops-and-unresolved-interface",
       "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. The subject is a git checkout. src/Transport/OrdersEndpoint.cs has [HttpGet(\"/orders/{id}\")] and awaits _orders.Place where _orders is IOrders, then awaits _service.Handle where _service is OrdersService. src/Application/OrdersService.cs Handle publishes OrderPlaced and calls Repository.Save. src/DecoyWorker/OrdersImpl.cs also defines Place. This is a non-interactive run.",
-      "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved dependency-injection, and does not name OrdersImpl. Handle is inferred. Publish is an asynchronous handoff to map-events. Save is synchronous.",
+      "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved dependency-injection, and does not name OrdersImpl. Handle is inferred. Publish is an unresolved broker hop and an asynchronous handoff to map-events. Save is synchronous.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -13,7 +13,8 @@
         "Writes flow.json before rendering, then runs render-flow.sh to produce flow.md",
         "The Place hop resolution is unresolved and the mechanism is dependency-injection",
         "OrdersImpl is not a callee",
-        "The Publish hop is handoff yes and asynchronous, and flow.md names /architecture:map-events",
+        "The Publish hop is resolution unresolved, mechanism broker, handoff yes and asynchronous, and flow.md names /architecture:map-events",
+        "Hops are in call order: the Handle callee's Publish and Save hops come right after the Handle hop",
         "The Save hop is synchronous",
         "Does not read or add a dialect key"
       ]

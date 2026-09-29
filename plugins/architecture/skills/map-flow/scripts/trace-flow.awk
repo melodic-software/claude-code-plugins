@@ -48,15 +48,21 @@ function route_of(line,    s) {
   return ""
 }
 
+# A declaration line starts with an access modifier, after any attributes. A
+# modifier inside an identifier (_internalService, publicUrl) is not one.
+function has_modifier(line) {
+  return line ~ /^[[:space:]]*(\[[^]]*\][[:space:]]*)*(public|private|protected|internal)[[:space:]]/
+}
+
 function is_decl(line, name) {
-  if (line !~ /(public|private|protected|internal)/) return 0
+  if (!has_modifier(line)) return 0
   return match(line, "(^|[^A-Za-z0-9_])" name "[[:space:]]*\\(")
 }
 
 function method_after(rel, attr_line,    i, line) {
   for (i = attr_line; i <= attr_line + 12 && i <= nlines[rel]; i++) {
     line = lines[rel, i]
-    if (line ~ /(public|private|protected|internal)/ && line ~ /\(/) return i
+    if (has_modifier(line) && line ~ /\(/) return i
   }
   return attr_line
 }
@@ -138,7 +144,7 @@ function callee_has_call(rel, decl_line,    saved_lo, saved_hi, i, line, work) {
   for (i = body_lo; i <= body_hi; i++) {
     if (i == decl_line) continue
     line = lines[rel, i]
-    if (line ~ /(public|private|protected|internal)/ && line ~ /\(/) continue
+    if (has_modifier(line) && line ~ /\(/) continue
     work = line
     sub(/\/\/.*/, "", work)
     if (match(work, /(await[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*(<[^>]*>)?[[:space:]]*\(/)) {
@@ -167,18 +173,17 @@ function add_hop(from_role, to_role, call, file, line, callee_file, callee_line,
   h_hand[nhops] = handoff
 }
 
-function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk, method, recv, typearg, n, parts, is_await, sync, resolution, mechanism, handoff, to_role, cfile, cline, hits, follow, base, saved, k) {
+function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk, method, recv, typearg, n, parts, is_await, sync, resolution, mechanism, handoff, to_role, cfile, cline, hits, follow) {
   if (seen[rel, decl_line]) return
   seen[rel, decl_line] = 1
   if (!find_body(rel, decl_line)) return
   lo = body_lo
   hi = body_hi
   from_role = role_of(rel)
-  base = nfollow
   for (i = lo; i <= hi; i++) {
     line = lines[rel, i]
     if (i == decl_line) continue
-    if (line ~ /(public|private|protected|internal)/ && line ~ /\(/) continue
+    if (has_modifier(line) && line ~ /\(/) continue
     work = line
     sub(/\/\/.*/, "", work)
     while (match(work, /(await[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*(<[^>]*>)?[[:space:]]*\(/)) {
@@ -207,15 +212,13 @@ function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk,
       cline = ""
       follow = 0
       if (method == "Publish" || method == "Send") {
+        # The broker owns delivery: never resolved here, always a hand-off,
+        # and asynchronous whether or not the call is awaited.
         handoff = "yes"
         to_role = "external"
-        if (typearg == "") {
-          resolution = "unresolved"
-          mechanism = "dynamic-publish"
-        } else {
-          resolution = "statically-resolved"
-          mechanism = "message"
-        }
+        sync = "asynchronous"
+        resolution = "unresolved"
+        mechanism = (typearg == "" ? "dynamic-publish" : "broker")
       } else if (method == "GetRequiredService" || method == "GetService") {
         resolution = "unresolved"
         mechanism = "dependency-injection"
@@ -244,20 +247,10 @@ function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk,
       }
       add_hop(from_role, to_role, (typearg != "" ? method "<" typearg ">" : method), rel, i, cfile, cline, sync, resolution, mechanism, handoff)
       if (follow && cfile != "") {
-        if (depth < depth_limit) {
-          nfollow++
-          ffile[nfollow] = cfile
-          fline[nfollow] = cline
-        } else if (callee_has_call(cfile, cline + 0)) {
-          truncated = 1
-        }
+        if (depth < depth_limit) walk(cfile, cline + 0, depth + 1)
+        else if (callee_has_call(cfile, cline + 0)) truncated = 1
       }
     }
-  }
-  saved = nfollow
-  for (k = base + 1; k <= saved; k++) {
-    if (!seen[ffile[k], fline[k]])
-      walk(ffile[k], fline[k] + 0, depth + 1)
   }
 }
 
@@ -276,7 +269,6 @@ BEGIN {
   status = ENVIRON["FLOW_STATUS"]
   if (generated == "") generated = "unknown"
   nhops = 0
-  nfollow = 0
   truncated = 0
   refused = 0
   nfiles = 0

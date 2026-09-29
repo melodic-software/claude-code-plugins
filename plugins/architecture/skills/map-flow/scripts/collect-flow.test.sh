@@ -115,6 +115,7 @@ pub_line="$(grep -n 'Publish<OrderPlaced>' "$repo/src/Application/OrdersService.
 assert_contains "publish cites its call site" "$blob" "\"file\":\"src/Application/OrdersService.cs\",\"line\":\"$pub_line\""
 assert_contains "publish is a handoff" "$blob" '"handoff":"yes"'
 assert_contains "publish is asynchronous" "$blob" '"sync":"asynchronous"'
+assert_contains "publish is an unresolved broker hand-off" "$blob" '"sync":"asynchronous","resolution":"unresolved","mechanism":"broker","handoff":"yes"'
 save_line="$(grep -n 'Repository.Save' "$repo/src/Application/OrdersService.cs" | awk -F: 'NR==1{print $1}')"
 assert_contains "save cites its call site" "$blob" "\"line\":\"$save_line\""
 assert_contains "save is synchronous" "$blob" '"sync":"synchronous"'
@@ -145,6 +146,50 @@ depth_md_dir="$TEST_TMPDIR/depth-md"
 mkdir -p "$depth_md_dir"
 bash "$RENDER" --record "$depth_record" --out "$depth_md_dir" >/dev/null
 assert_contains "artifact states the stopping point" "$(cat "$depth_md_dir/flow.md")" "Depth truncated at 1"
+
+# Hops come in call order: a followed callee's hops sit right after the call that leads to it.
+order="$TEST_TMPDIR/order"
+init_repo "$order"
+mkdir -p "$order/src/Application"
+cat >"$order/src/Application/Flow.cs" <<'CS'
+namespace Orders.Application;
+public class Flow {
+    public void Entry(string x) {
+        Alpha(x);
+        Beta(x);
+        _internalService.Run(x);
+        publicUrl = Build(x);
+        publicApi.Handle(x);
+        Bus.Send<Cmd>(x);
+        await Bus.Publish<Evt>(x);
+    }
+    public void Alpha(string x) {
+        Gamma(x);
+    }
+    public void Beta(string x) {
+    }
+    public void Gamma(string x) {
+    }
+    public string Build(string x) {
+        return x;
+    }
+}
+CS
+git -C "$order" add src
+git -C "$order" commit --quiet -m "order"
+order_record="$TEST_TMPDIR/order.json"
+bash "$COLLECT" --repo "$order" --entry "Entry" --out "$order_record" >/dev/null
+assert_equals "order collect exits 0" "$?" "0"
+order_blob="$(cat "$order_record")"
+calls="$(grep -o '"call":"[^"]*"' "$order_record" | sed 's/"call":"//; s/"$//' | tr '\n' ' ')"
+assert_equals "hops are in call order" "$calls" "Alpha Gamma Beta Run Build Handle Send<Cmd> Publish<Evt> "
+assert_contains "identifier containing a modifier word still yields a hop" "$order_blob" '"call":"Run"'
+assert_contains "a modifier-prefixed assignment still yields a hop" "$order_blob" '"call":"Build"'
+assert_contains "an unawaited Send is asynchronous" "$order_blob" '"call":"Send<Cmd>"'
+assert_contains "a Send hop is an unresolved broker hand-off" "$order_blob" '"sync":"asynchronous","resolution":"unresolved","mechanism":"broker","handoff":"yes"'
+no_decl="$(bash "$COLLECT" --repo "$order" --entry "Handle" --out "$TEST_TMPDIR/handle.json" 2>&1)"
+assert_equals "a call on publicApi is not a declaration of Handle" "$?" "3"
+assert_contains "the Handle entry is not found" "$no_decl" "refused: entry point not found"
 
 bad="$(bash "$COLLECT" --repo "$repo" --entry "/missing" --out "$TEST_TMPDIR/missing.json" 2>&1)"
 assert_equals "missing entry exits 3" "$?" "3"

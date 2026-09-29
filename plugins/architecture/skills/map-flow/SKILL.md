@@ -71,8 +71,14 @@ A call whose receiver is declared as an interface (`I` plus an uppercase letter)
 is `GetService`, `GetRequiredService`, or `CreateInstance`, is `unresolved` and names the
 mechanism. It is never followed into a class that happens to implement the method. A unique method
 in another file is `inferred`. A unique method in the same file is `statically-resolved`.
-`Publish` and `Send` are hand-offs: a type argument is `statically-resolved`, and a publish with
-no type argument is `unresolved` with mechanism `dynamic-publish`. Neither is dropped.
+`Publish` and `Send` are hand-offs to a broker this skill does not read: the hop is `unresolved`
+with mechanism `broker` (`dynamic-publish` when there is no type argument), `handoff` is `yes`,
+and `sync` is `asynchronous` whether or not the call is awaited. Every other hop takes `sync` from
+`await`. Neither hand-off is dropped.
+
+Hops are recorded in call order: a followed callee's hops come right after the call that leads to
+it, before the caller's next call. An access modifier marks a declaration only as a whole word
+at the start of the line, so `_internalService.Run(x)` and `publicUrl = Build(x)` are calls.
 
 `subject` is the github.com origin repository name when that remote resolves, otherwise the
 directory basename. The helper is inline in `collect-flow.sh`.
