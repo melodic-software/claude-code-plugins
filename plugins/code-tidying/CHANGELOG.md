@@ -11,8 +11,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   identity check, Phase 6 runs it on each group's files in place of the simplifier agent (`docs`
   mode keeps the agent), flags any change outside the group's files as mutation, and the Phase 8
   report opens with a Native step result block. A skip names its state, the axis line, and the
-  enable path. Native-step groups run one at a time. An `unattended` token runs the step without
-  asking, only when its identity is confirmed by description.
+  enable path. Native-step groups run one at a time. Under an `unattended` token the step never
+  runs: the simplifier agent takes every group and the block records the skip.
 - **`tidy` and `batch-simplify` descriptions route to `simplify`** when it resolves: current-diff
   and single-file cleanup go there.
 

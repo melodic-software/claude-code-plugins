@@ -18,8 +18,7 @@ factual-staleness pass. The skill body enters context once and stays there.
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
 spawn the agent. A name with no description (`name-only`, budget overflow) is invoked with the
-warning "identity confirmed by name alone", except under `unattended`, where it is skipped as an
-identity mismatch and the agent runs instead.
+warning "identity confirmed by name alone".
 
 **Mutation.** Groups the step runs over go one at a time, never in a parallel wave. Before each
 invocation, fingerprint the tracked files outside that group; any change there right after it is
@@ -36,15 +35,13 @@ calling the group fully simplified.
 
 ```text
 Native step: simplify
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped under unattended (mutating native surface) | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
 
-**`unattended`:** run the step when it resolves and its identity is confirmed by description;
-record the result block without asking. This departs from the Native-step convention's default
-(record instead of invoking a mutating surface) because this skill's own contract already edits
-the same files unattended.
+**`unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
+block records `State: skipped under unattended (mutating native surface)` without asking.
 
 ## Repository context. Gather first
 
@@ -131,7 +128,7 @@ Strip token-wise, never by substring: a substring strip mutates any argument tha
 
 ### Flag: `unattended`
 
-Runs the Native step without asking when its identity is confirmed by description (see **Native
+Skips the Native step: the simplifier agent runs every group (see **Native
 step: simplify** above). Detected and stripped exactly like `docs`.
 
 ### Flag: `override`
