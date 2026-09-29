@@ -1,5 +1,5 @@
 ---
-description: "Slowness diagnostic that never 'fixes', run while Claude Code is slow, before restarting or deleting: version, retention sweep, install bloat, hook and subagent fan-out, and a Windows kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues."
+description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues. Stale files: /claude-ops:audit-install-state."
 argument-hint: "[unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
