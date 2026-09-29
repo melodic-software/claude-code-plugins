@@ -5,7 +5,11 @@
 # Exit 1 from that resolver is the unresolved-home fallback: this script
 # names the five topics and infers nothing. Exit 3 is forwarded. A resolved
 # home runs a closed probe set and cites the convention line plus the
-# component line when a probe disagrees.
+# component line when a probe disagrees. invocation-mode, untrusted-content and
+# windows-path-emit report `finding`. seam-phrasing grades prose (the gate
+# belongs where an invocation is instructed, not where one is described), so
+# it reports `candidate` leads that do not change the exit; the auditor reads
+# each against the convention before recording a finding.
 #
 # Exit: 0 no disagreement (including unresolved-home), 1 one or more
 # findings or a missing citation basis, 2 usage, 3 the resolver FAILed.
@@ -151,6 +155,26 @@ else
 fi
 
 # --- seam-phrasing ---------------------------------------------------------
+# Only an optional cross-plugin reference needs the gate; a sibling skill in
+# the owning plugin or a declared dependency does not.
+exempt_plugins() {
+  local dir
+  dir="$(cd "$(dirname "$COMPONENT")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/.claude-plugin/plugin.json" ]]; then
+      awk '
+        function str(s) { if (match(s, /:[[:space:]]*"[^"]+"/)) { s = substr(s, RSTART, RLENGTH); gsub(/^:[[:space:]]*"|"$/, "", s); return s } }
+        !own && /"name"[[:space:]]*:/ { own = 1; print str($0); next }
+        /"dependencies"[[:space:]]*:/ { dep = 1 }
+        dep && /"name"[[:space:]]*:/ { print str($0) }
+        dep && /^[[:space:]]*"[^"]+",?[[:space:]]*$/ { v = $0; gsub(/^[[:space:]]*"|",?[[:space:]]*$/, "", v); print v }
+        dep && /]/ { dep = 0 }
+      ' "$dir/.claude-plugin/plugin.json"
+      return
+    fi
+    dir="$(dirname "$dir")"
+  done
+}
 seam_file="$(topic_file seam-phrasing)"
 seam_cite="$(cite "$seam_file" "explicit installed-ness")"
 if [[ ! -f "$seam_file" ]]; then
@@ -158,56 +182,74 @@ if [[ ! -f "$seam_file" ]]; then
 elif [[ -z "$seam_cite" ]]; then
   emit_probe seam-phrasing basis-missing "$home_out/seam-phrasing/README.md" - "citation sentence absent"
 else
-  seam_hits="$(
-    awk -v comp="$COMPONENT" -v conv="$home_out/seam-phrasing/README.md:$seam_cite" '
-      {
-        line[NR] = $0
+  # Exempt: the owning plugin and any manifest `dependencies` entry, one name
+  # per line from the nearest plugin.json above the component.
+  exempt="|$(exempt_plugins | paste -sd'|' -)|"
+  # shellcheck disable=SC2016 # the backticks are the invocation token, not an expansion
+  seam_out="$(
+    awk -v comp="$COMPONENT" -v conv="$home_out/seam-phrasing/README.md:$seam_cite" -v exempt="$exempt" '
+      { line[NR] = $0 }
+      # An invocation token is `/ns:skill` with optional arguments, or bare `ns:skill`.
+      function cross_plugin(s,    tok, ns) {
+        while (match(s, /`(\/[A-Za-z0-9][A-Za-z0-9-]*:[A-Za-z0-9][A-Za-z0-9-]*([ ][^`]*)?|[A-Za-z0-9][A-Za-z0-9-]*:[A-Za-z0-9][A-Za-z0-9-]*)`/)) {
+          tok = substr(s, RSTART + 1, RLENGTH - 2)
+          sub(/^\//, "", tok)
+          ns = tok
+          sub(/:.*/, "", ns)
+          if (index(exempt, "|" ns "|") == 0) return 1
+          s = substr(s, RSTART + RLENGTH)
+        }
+        return 0
       }
       END {
-        hits = 0
+        seen = 0
         for (i = 1; i <= NR; i++) {
           if (line[i] ~ /plugin install/ || line[i] ~ /marketplace add/) continue
-          if (line[i] ~ /`\/?[A-Za-z0-9][A-Za-z0-9-]*:[A-Za-z0-9][A-Za-z0-9-]*`/) {
-            window = line[i]
-            if (i + 1 <= NR) window = window "\n" line[i + 1]
-            if (i + 2 <= NR) window = window "\n" line[i + 2]
-            if (window ~ /installed/ || window ~ /Absent:/ || window ~ /fallback/) continue
-            hits++
-            printf "probe: seam-phrasing status=finding convention=%s component=%s:%d note=invocation without installed-ness gate or adjacent fallback\n", conv, comp, i
-          }
+          if (!cross_plugin(line[i])) continue
+          seen++
+          window = line[i]
+          if (i + 1 <= NR) window = window "\n" line[i + 1]
+          if (i + 2 <= NR) window = window "\n" line[i + 2]
+          if (window ~ /installed/ || window ~ /Absent:/ || window ~ /fallback/) continue
+          printf "probe: seam-phrasing status=candidate convention=%s component=%s:%d note=no gate or fallback within three lines; confirm the line instructs the invocation\n", conv, comp, i
         }
-        if (hits == 0) print "seam-clear"
+        print "seam-invocations=" seen
       }
     ' "$COMPONENT"
   )"
-  if [[ "$seam_hits" == "seam-clear" ]]; then
-    # Distinguish "no invocations" from "all gated" by a second scan.
-    # shellcheck disable=SC2016 # the backticks are the invocation token, not an expansion
-    if grep -E -q '`/?[A-Za-z0-9][A-Za-z0-9-]*:[A-Za-z0-9][A-Za-z0-9-]*`' "$COMPONENT"; then
-      emit_probe seam-phrasing aligned "$home_out/seam-phrasing/README.md:$seam_cite" - "every invocation is gated or an install recipe"
-    else
-      emit_probe seam-phrasing not-applicable "$home_out/seam-phrasing/README.md:$seam_cite" - "no cross-plugin invocation"
-    fi
-  else
+  seam_count="${seam_out##*seam-invocations=}"
+  seam_hits="$(printf '%s\n' "$seam_out" | grep 'status=candidate' || true)"
+  if [[ -n "$seam_hits" ]]; then
     printf '%s\n' "$seam_hits"
-    findings=$((findings + $(printf '%s\n' "$seam_hits" | grep -c 'status=finding' || true)))
+  elif [[ "$seam_count" -gt 0 ]]; then
+    emit_probe seam-phrasing aligned "$home_out/seam-phrasing/README.md:$seam_cite" - "every cross-plugin invocation is gated or an install recipe"
+  else
+    emit_probe seam-phrasing not-applicable "$home_out/seam-phrasing/README.md:$seam_cite" - "no optional cross-plugin invocation"
   fi
 fi
 
 # --- untrusted-content -----------------------------------------------------
+# The convention grades file for file on `never instructions to you`. An ingest
+# signal in the frontmatter (a `tools:` list) declares a capability, not a read.
 unc_file="$(topic_file untrusted-content)"
 unc_cite="$(cite "$unc_file" "DATA, never instructions")"
 if [[ ! -f "$unc_file" ]]; then
   emit_probe untrusted-content topic-absent - - "convention file absent"
 elif [[ -z "$unc_cite" ]]; then
   emit_probe untrusted-content basis-missing "$home_out/untrusted-content/README.md" - "citation sentence absent"
-elif ! grep -E -q 'WebFetch|curl |gh issue|gh pr|gh api' "$COMPONENT"; then
-  emit_probe untrusted-content not-applicable "$home_out/untrusted-content/README.md:$unc_cite" - "no ingest signal"
-elif grep -F -q 'DATA, never instructions' "$COMPONENT"; then
-  emit_probe untrusted-content aligned "$home_out/untrusted-content/README.md:$unc_cite" - "framing spine present"
 else
-  ingest_line="$(grep -n -E 'WebFetch|curl |gh issue|gh pr|gh api' "$COMPONENT" | head -n 1 | cut -d: -f1)"
-  emit_probe untrusted-content finding "$home_out/untrusted-content/README.md:$unc_cite" "$COMPONENT:$ingest_line" "ingest without the framing spine"
+  ingest_line="$(awk '
+    NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
+    fm && /^---[[:space:]]*$/ { fm = 0; next }
+    !fm && /WebFetch|curl |gh issue|gh pr|gh api/ { print NR; exit }
+  ' "$COMPONENT")"
+  if [[ -z "$ingest_line" ]]; then
+    emit_probe untrusted-content not-applicable "$home_out/untrusted-content/README.md:$unc_cite" - "no ingest signal"
+  elif grep -F -q 'never instructions to you' "$COMPONENT"; then
+    emit_probe untrusted-content aligned "$home_out/untrusted-content/README.md:$unc_cite" - "framing spine present"
+  else
+    emit_probe untrusted-content finding "$home_out/untrusted-content/README.md:$unc_cite" "$COMPONENT:$ingest_line" "ingest without the framing spine"
+  fi
 fi
 
 # --- windows-path-emit -----------------------------------------------------

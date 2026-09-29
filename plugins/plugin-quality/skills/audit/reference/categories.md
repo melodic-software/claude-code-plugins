@@ -14,6 +14,11 @@ A skipped section is not.
 | `## Standards alignment` | `none`, `unresolved` (convention home unresolved; the collector's fallback line may follow), or findings |
 | `## Emitted findings` | `not-applicable` when the component does not emit findings to a user, or one `###` sample per sampled finding |
 
+The same file carries the auditor's other returns under `## Blindspots`,
+`## Doc-worthy gotchas` (each graded `general` or `situational` in its body),
+and `## Unverified claims`. These headings are allowed, optional, and not
+graded. Any other heading is malformed.
+
 ## Finding fields
 
 Errors, improvements, and quality-of-life findings:
@@ -68,5 +73,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --compone
 `collect-categories.sh` exits 1 when a section or field is missing.
 `collect-standards.sh` exits 0 when the convention home is unresolved and
 prints `probes: skipped` plus the fallback. It exits 3 when the resolver
-FAILs, and 1 when a probe disagrees. Hook-budget is `not-applicable` here
+FAILs, and 1 when a probe disagrees. A `status=candidate` line (seam-phrasing)
+is a lead, not a finding: it never changes the exit, and it becomes a
+Standards alignment finding only after the cited line is read against the
+convention's three elements and instructs an invocation. Hook-budget is `not-applicable` here
 because cost is measured, not grep-graded; the hook lens still asks for it.

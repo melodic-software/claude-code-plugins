@@ -227,6 +227,89 @@ EOF
 run 1 "a false emitted finding without a basis is incomplete" --notes "$FALSE_BARE"
 has "emitted-false-without-basis" "the missing basis is named"
 
+EMPTY_FIELDS="$(
+  notes empty-fields.md <<'EOF'
+## Errors
+### hollow
+evidence:
+remediation:
+research: tier-0
+primary: x
+corroborators: 2
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+none
+
+## Emitted findings
+not-applicable
+EOF
+)"
+run 1 "empty evidence and remediation values do not satisfy the grader" --notes "$EMPTY_FIELDS"
+has "finding-missing-evidence section=Errors title=hollow" "an empty evidence field is named"
+has "remediation-empty section=Errors title=hollow" "an empty remediation field is named"
+
+EXTRAS="$(
+  notes extras.md <<'EOF'
+## Errors
+none
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+none
+
+## Emitted findings
+not-applicable
+
+## Blindspots
+### adjacent hooks share the failure mode
+The sibling hook was not exercised.
+
+## Doc-worthy gotchas
+none
+
+## Unverified claims
+### the page was truncated
+No channel produced the bytes.
+EOF
+)"
+run 0 "blindspots, gotchas and unverified claims ride in the ledger" --notes "$EXTRAS"
+has "status: complete" "the ungraded headings do not make the ledger malformed"
+
+STRAY="$(
+  notes stray.md <<'EOF'
+## Errors
+none
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+none
+
+## Emitted findings
+not-applicable
+
+## Notes
+anything
+EOF
+)"
+run 1 "a heading outside the closed set is malformed" --notes "$STRAY"
+has "unknown-section name=Notes" "the stray heading is named"
+
 # CRLF notes parse the same headings.
 CRLF="$WORK/crlf.md"
 printf '## Errors\r\nnone\r\n\r\n## Improvements\r\nnone\r\n\r\n## Quality of life\r\nnone\r\n\r\n## Standards alignment\r\nnone\r\n\r\n## Emitted findings\r\nnot-applicable\r\n' >"$CRLF"

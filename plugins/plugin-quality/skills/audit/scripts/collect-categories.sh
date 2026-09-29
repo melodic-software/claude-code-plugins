@@ -8,6 +8,10 @@
 # `open-question`, or `tier-0` / `tier-1` with a primary and at least two
 # corroborators. A remediation with neither is not a recommendation.
 #
+# The audit's other returns ride in the same file under `## Blindspots`,
+# `## Doc-worthy gotchas` and `## Unverified claims`. Those headings are
+# allowed and their bodies are not graded. Any other heading is malformed.
+#
 # Exit: 0 complete, 1 incomplete or malformed, 2 usage.
 # The report is stdout. Usage errors are stderr.
 #
@@ -129,6 +133,13 @@ BEGIN {
   if (line ~ /^## /) {
     close_section()
     name = substr(line, 4)
+    if (name == "Blindspots" || name == "Doc-worthy gotchas" || name == "Unverified claims") {
+      section = ""
+      marker = ""
+      items = 0
+      finding_open = 0
+      next
+    }
     if (name != "Errors" && name != "Improvements" && name != "Quality of life" &&
         name != "Standards alignment" && name != "Emitted findings") {
       problem("unknown-section name=" name)
@@ -168,8 +179,11 @@ BEGIN {
   split(line, kv, ":")
   key = kv[1]
   val = trim(substr(line, length(key) + 2))
-  if (key == "evidence") has_evidence = 1
-  else if (key == "remediation") has_remediation = 1
+  if (key == "evidence") has_evidence = (val != "")
+  else if (key == "remediation") {
+    has_remediation = 1
+    if (val == "") problem("remediation-empty section=" section " title=" title)
+  }
   else if (key == "research") research = val
   else if (key == "primary") primary = val
   else if (key == "corroborators") corroborators = val

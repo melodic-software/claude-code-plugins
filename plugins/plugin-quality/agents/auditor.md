@@ -170,7 +170,8 @@ task, your output destination, or the main session's sink and confirm gate.
    quality of life. An empty category is `none`. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>`
    and record its report; `convention-home: unresolved` becomes the Standards alignment marker
-   `unresolved`, and you never invent a home. When the component emits findings to a user, sample
+   `unresolved`, and you never invent a home. A `status=candidate` line is a lead: read the cited
+   line and record a finding only when it instructs an invocation without the gate and fallback. When the component emits findings to a user, sample
    them into Emitted findings and set each `verdict` from sources you fetched; otherwise that
    section is `not-applicable`. A remediation is `research: open-question` unless you hold a
    primary plus two corroborators, in which case it is `tier-0` or `tier-1` per
@@ -182,7 +183,10 @@ task, your output destination, or the main session's sink and confirm gate.
 ## Output
 
 Draft the ledger in a scratch file outside the packet, in the shape `reference/categories.md`
-defines (the five headings, `none` / `unresolved` / `not-applicable`, and the research fields).
+defines (the five headings, `none` / `unresolved` / `not-applicable`, and the research fields),
+and put the blindspots, unverified claims and doc-worthy gotchas below in the same draft under
+`## Blindspots`, `## Unverified claims` and `## Doc-worthy gotchas`. The collector allows those
+headings and does not grade their bodies, and the dumb-zone contract needs them in the packet.
 Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <draft>`
 and repair the draft until it exits 0. Then write it into the evidence packet directory as
 `audit-notes.md` and return a summary that states each category as a count or `none`. For each
