@@ -153,6 +153,13 @@ class CaptureTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 capture.parse_at(bad)
 
+    def test_mux_without_ffmpeg_stays_video_only_and_ffmpeg_failure_raises(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value=None):
+            self.assertIsNone(capture._mux_audio(b"v", b"a", 1, pathlib.Path(tmp)))
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value="ffmpeg"):
+            with self.assertRaisesRegex(RuntimeError, "ffmpeg could not mux"):
+                capture._mux_audio(b"not a webm", b"not a wav", 1, pathlib.Path(tmp))
+
     def test_non_finite_record_is_rejected_before_any_capture(self):
         with tempfile.TemporaryDirectory() as tmp:
             scene, out = self.scene_and_out(tmp)
@@ -185,6 +192,7 @@ class CaptureTest(unittest.TestCase):
                 self.assertEqual(capture.main([str(scene), "--at", "0", "--out", str(out)]), 0)
             manifest = json.loads((out / "manifest.json").read_text())
             self.assertIsNone(manifest["video"])
+            self.assertFalse(manifest["audio"])
             self.assertEqual([s["file"] for s in manifest["shots"]], ["shot-0.png"])
             self.assertFalse((out / "scene.webm").exists())
 
@@ -254,6 +262,12 @@ class CaptureTest(unittest.TestCase):
             self.assertGreater(webm.stat().st_size, 1000)
             if not (shutil.which("ffprobe") and shutil.which("ffmpeg")):
                 self.skipTest("shots checked; ffprobe/ffmpeg absent, so video timing is unchecked")
+            kinds = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(webm)],
+                check=True, capture_output=True, text=True,
+            ).stdout.split()
+            self.assertIn("audio", kinds)
+            self.assertTrue(json.loads((out / "manifest.json").read_text())["audio"])
             probe = subprocess.run(
                 [
                     "ffprobe", "-v", "error", "-select_streams", "v:0",
