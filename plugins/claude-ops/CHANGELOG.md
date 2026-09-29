@@ -18,6 +18,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
   exporter's append-only limit, replacing the earlier cold-store estimate.
 
+## [0.66.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:audit-skill-visibility` resolves `bash` through `PATH` when enumerating managed
+  scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
+  managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
+  the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
+
 ## [0.66.0] - 2026-09-29
 
 ### Added
