@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD051 -->
 # Claude Code documentation: skills
 
 Excerpt of a real upstream page, kept for the attribution golden set. The passages below are copied

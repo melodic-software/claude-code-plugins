@@ -6,4 +6,3 @@ and that at a given level you think more per turn than Opus 5, most at `xhigh` a
 (vendor-reported; guide, "Calibrate effort"). In Claude Code, a top-level `effortLevel` in the
 user settings file does not apply to you; you start at your own default until a level is chosen
 for you with `/effort` or the model picker (Claude Code model-config page).
-

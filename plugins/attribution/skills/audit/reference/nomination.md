@@ -141,7 +141,7 @@ candidate and never from the nominator's class guess. Ask in this order:
 2. Otherwise the passage states a checkable fact an external source owns: `restated-fact`. A
    `paraphrase` or `summary` that carries a version pin, default, limit or field list goes to the
    panel under this rubric, not to a report-only bucket.
-3. Otherwise `copy`, as before.
+3. Otherwise `copy`.
 
 No class routes a candidate away from a panel. The restated-fact rubric grades the passage and
 its file and needs no fetched source, so a restated-fact candidate whose source search ended

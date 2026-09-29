@@ -6,6 +6,12 @@ and what a minimal producer may omit. This file adds only what an attribution ru
 itself and cites the contract for the rest. Where the two disagree, the contract wins and this
 file is the defect.
 
+Contents: [where the file goes](#where-the-file-goes),
+[compose by script](#compose-by-script-not-by-hand),
+[relay boundary](#the-relay-boundary-and-why-the-script-enforces-it),
+[cells](#what-each-cell-says),
+[surfaces](#surfaces-and-when-the-file-is-written-at-all), [re-running](#re-running).
+
 Resolve it in this order:
 
 1. **The `review` plugin's bundled copy, when that plugin is installed.** It ships

@@ -9,4 +9,3 @@ thinking depth").
 **Correction:** treat effort as the depth dial and prose as the frequency dial, in that order. When
 depth is the problem, raise effort; reach for a prompt-level steer only when effort is pinned by
 something you do not control, and measure the effect rather than assuming it. `[CC: direct]`
-

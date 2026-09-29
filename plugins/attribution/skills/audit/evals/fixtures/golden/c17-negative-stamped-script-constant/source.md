@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD004 MD051 -->
 # Claude Code documentation: settings reference
 
 Excerpt of a real upstream page, kept for the attribution golden set. The passages below are copied
