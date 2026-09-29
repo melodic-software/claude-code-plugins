@@ -389,6 +389,113 @@ for needle in PASS6 MAPS6 JSON6; do
   assert_not_contains "sidecar: $needle is redacted in the markdown" "$(cat "$TEST_TMPDIR/sidecar-out/deployment.md")" "$needle"
 done
 
+# Structural Helm detection: a double-brace marker alone is not Helm.
+tmpl='{{.State.Health.Status}}'
+gha="$(printf '%s{{ secrets.TOKEN }}' '$')"
+repo7="$TEST_TMPDIR/tmpl"
+init_repo "$repo7"
+mkdir -p "$repo7/deploy" "$repo7/.github/workflows"
+cat >"$repo7/deploy/compose.yaml" <<EOF
+services:
+  api:
+    image: ghcr.io/acme/api:1
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test \"${tmpl}\" = healthy"]
+EOF
+printf 'jobs:\n  b:\n    steps:\n      - run: echo %s\n' "$gha" >"$repo7/.github/workflows/ci.yml"
+commit_all "$repo7"
+bash "$COLLECT" --repo "$repo7" --out "$TEST_TMPDIR/tmpl.json" --generated-on 2026-09-28
+tmplrec="$(cat "$TEST_TMPDIR/tmpl.json")"
+assert_contains "compose beside a workflow with a template expression draws" "$tmplrec" '"status": "drawn"'
+assert_not_contains "a template expression alone is not helm" "$tmplrec" '"name":"helm"'
+assert_contains "compose with a Go-template healthcheck places the service" "$tmplrec" '"container":"api"'
+
+repo8="$TEST_TMPDIR/helm"
+init_repo "$repo8"
+mkdir -p "$repo8/chart/templates"
+printf 'apiVersion: v2\nname: web\nversion: 0.1.0\n' >"$repo8/chart/Chart.yaml"
+printf 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: {{ .Release.Name }}\n' >"$repo8/chart/templates/deploy.yaml"
+commit_all "$repo8"
+bash "$COLLECT" --repo "$repo8" --out "$TEST_TMPDIR/helm.json" --generated-on 2026-09-28
+helmrec="$(cat "$TEST_TMPDIR/helm.json")"
+assert_contains "a real helm chart declines" "$helmrec" '"reason": "adapter-not-shipped"'
+assert_contains "a real helm chart names helm" "$helmrec" '"name":"helm"'
+
+repo9="$TEST_TMPDIR/tmpl-name"
+init_repo "$repo9"
+mkdir -p "$repo9/deploy"
+printf 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: {{ .Release.Name }}\n' >"$repo9/deploy/web.yaml"
+commit_all "$repo9"
+bash "$COLLECT" --repo "$repo9" --out "$TEST_TMPDIR/tmpl-name.json" --generated-on 2026-09-28
+assert_contains "a templated manifest name is refused, not half-read" "$(cat "$TEST_TMPDIR/tmpl-name.json")" '"reason": "kubernetes-unreadable"'
+
+# Layered Compose is refused, never read as environments.
+for layered in "compose.yaml compose.override.yaml" "docker-compose.yml docker-compose.prod.yml" "compose.yaml compose.prod.yaml" "compose.override.yaml"; do
+  repoL="$TEST_TMPDIR/layered"
+  rm -rf "$repoL"
+  init_repo "$repoL"
+  for f in $layered; do
+    printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoL/$f"
+  done
+  commit_all "$repoL"
+  bash "$COLLECT" --repo "$repoL" --out "$TEST_TMPDIR/layered.json" --generated-on 2026-09-28
+  layerrec="$(cat "$TEST_TMPDIR/layered.json")"
+  assert_contains "layered compose [$layered] is refused" "$layerrec" '"reason": "layered-compose"'
+  assert_not_contains "layered compose [$layered] draws no environment" "$layerrec" '"environment":"'
+done
+repoV="$TEST_TMPDIR/variants"
+init_repo "$repoV"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoV/compose.staging.yaml"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:2\n' >"$repoV/compose.prod.yaml"
+commit_all "$repoV"
+bash "$COLLECT" --repo "$repoV" --out "$TEST_TMPDIR/variants.json" --generated-on 2026-09-28
+assert_contains "standalone variants without a base are environments" "$(cat "$TEST_TMPDIR/variants.json")" '"environment":"prod"'
+
+# Declining tools: each shape is recognized, so a two-tool repository is never half-read.
+arm_schema='https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
+declining_fixture() {
+  local dir="$1" file="$2" content="$3"
+  rm -rf "$dir"
+  init_repo "$dir"
+  mkdir -p "$dir/$(dirname "$file")"
+  printf '%s\n' "$content" >"$dir/$file"
+  commit_all "$dir"
+}
+check_declines() {
+  local label="$1" tool="$2" file="$3" content="$4" dir="$TEST_TMPDIR/decl" rec
+  declining_fixture "$dir" "$file" "$content"
+  bash "$COLLECT" --repo "$dir" --out "$TEST_TMPDIR/decl.json" --generated-on 2026-09-28
+  rec="$(cat "$TEST_TMPDIR/decl.json")"
+  assert_contains "$label declines" "$rec" '"reason": "adapter-not-shipped"'
+  assert_contains "$label names $tool" "$rec" "\"name\":\"$tool\""
+  declining_fixture "$dir" "$file" "$content"
+  printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$dir/compose.yaml"
+  git -C "$dir" add -A && git -C "$dir" commit -q -m compose
+  bash "$COLLECT" --repo "$dir" --out "$TEST_TMPDIR/decl.json" --generated-on 2026-09-28
+  assert_contains "$label beside compose is a partial read" "$(cat "$TEST_TMPDIR/decl.json")" '"reason": "partial-read"'
+}
+check_declines "an ARM template" arm infra/main.json "{\"\$schema\": \"$arm_schema\", \"resources\": []}"
+check_declines "a tfvars file" terraform infra/prod.tfvars 'region = "westeurope"'
+check_declines "a tf.json file" terraform infra/main.tf.json '{"resource": {}}'
+check_declines "a module-only main.tf" terraform main.tf 'module "net" { source = "./net" }'
+declining_fixture "$TEST_TMPDIR/notarm" package.json "$(printf '{"%sschema": "https://json.schemastore.org/package.json"}' '$')"
+bash "$COLLECT" --repo "$TEST_TMPDIR/notarm" --out "$TEST_TMPDIR/notarm.json" --generated-on 2026-09-28
+assert_contains "an unrelated json schema is not ARM" "$(cat "$TEST_TMPDIR/notarm.json")" '"reason": "no-declared-iac"'
+
+declining_fixture "$TEST_TMPDIR/cfn-word" tool.sh "grep -q AWSTemplateFormatVersion \"\$1\""
+bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-word" --out "$TEST_TMPDIR/cfn-word.json" --generated-on 2026-09-28
+assert_contains "a script that names the CloudFormation key is not a template" "$(cat "$TEST_TMPDIR/cfn-word.json")" '"reason": "no-declared-iac"'
+declining_fixture "$TEST_TMPDIR/cfn" stack.yaml "AWSTemplateFormatVersion: '2010-09-09'"
+bash "$COLLECT" --repo "$TEST_TMPDIR/cfn" --out "$TEST_TMPDIR/cfn.json" --generated-on 2026-09-28
+assert_contains "a CloudFormation template declines" "$(cat "$TEST_TMPDIR/cfn.json")" '"name":"cloudformation"'
+
+# --diff names are validated like --env.
+bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-bad-diff" --diff staging prdo >/dev/null
+assert_equals "--diff with an unknown environment exits 3" "$?" "3"
+assert_contains "--diff refusal lists the environments" "$(cat "$TEST_TMPDIR/dep-bad-diff/deployment.md")" "- prod"
+bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-good-diff" --diff staging prod >/dev/null
+assert_equals "--diff with known environments exits 0" "$?" "0"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
   exit 0

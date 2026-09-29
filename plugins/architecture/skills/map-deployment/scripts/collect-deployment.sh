@@ -10,10 +10,14 @@
 #       [--live] [--containers <file>]
 #   collect-deployment.sh --help
 #
-# Tracked files only (`git ls-files`). Shipped readers: Compose and Kubernetes
-# manifests. Terraform, Pulumi, Bicep, CloudFormation, Helm, and Kustomize are
-# recognized and then the record is refused, including when a shipped reader
-# also matches, so the diagram is never a partial read.
+# Tracked files only (`git ls-files`), CI directories (.github and the like)
+# excluded. Shipped readers: Compose and Kubernetes manifests. Terraform (any
+# .tf, .tfvars, .tf.json), ARM templates, Pulumi, Bicep, CloudFormation, Helm
+# (a Chart.yaml), and Kustomize are recognized and then the record is refused,
+# including when a shipped reader also matches, so the diagram is never a
+# partial read. A compose base file beside a compose.<x>.yaml override in one
+# directory is refused as layered-compose: the layers merge into one
+# environment and this reader does not merge them.
 #
 # Output: deployment.json, schema_version 1, one object per line. Every value
 # written passes through plugins/architecture/lib/redact-connection.awk; a
@@ -232,6 +236,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   deployment.json | deployment.md | deployment.dsl) continue ;;
   *) ;;
   esac
+  case "$rel" in
+  .github/* | */.github/* | .gitlab/* | */.gitlab/* | .circleci/* | */.circleci/* | .azuredevops/* | .buildkite/* | .forgejo/* | .gitea/*) continue ;;
+  *) ;;
+  esac
   if is_compose "$rel"; then
     printf '%s\n' "$rel" >>"$TMP/compose.txt"
     add_tool compose yes "$rel"
@@ -259,25 +267,31 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     unshipped=1
     continue
     ;;
-  *.tf)
-    if grep -q 'resource "' "$repo/$rel"; then
-      add_tool terraform no "$rel"
-      unshipped=1
-    fi
+  *.tf | *.tfvars | *.tf.json)
+    add_tool terraform no "$rel"
+    unshipped=1
     continue
+    ;;
+  *.json)
+    if grep -E -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
+      add_tool arm no "$rel"
+      unshipped=1
+      continue
+    fi
     ;;
   *) ;;
   esac
-  if grep -q 'AWSTemplateFormatVersion' "$repo/$rel"; then
+  if [[ "$base" == *.yml || "$base" == *.yaml || "$base" == *.json || "$base" == *.template ]] &&
+    grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$repo/$rel"; then
     add_tool cloudformation no "$rel"
     unshipped=1
     continue
   fi
   case "$rel" in
   *.yml | *.yaml)
-    if grep -q '{{' "$repo/$rel"; then
-      add_tool helm no "$rel"
-      unshipped=1
+    # A template inside a chart belongs to Helm, which the Chart.yaml already declared.
+    chart="$(dirname "$(dirname "$rel")")"
+    if [[ "$(basename "$(dirname "$rel")")" == templates && (-f "$repo/$chart/Chart.yaml" || -f "$repo/$chart/Chart.yml") ]]; then
       continue
     fi
     if grep -E -q '^kind:[[:space:]]*(Deployment|StatefulSet|DaemonSet|Service|Ingress)[[:space:]]*$' "$repo/$rel" &&
@@ -297,6 +311,25 @@ if [[ "$unshipped" -eq 1 ]]; then
   fi
   refuse "adapter-not-shipped"
 fi
+
+# A base file plus any variant in one directory is a merged stack, and a bare
+# override is one half of it. Environment-per-directory layouts never match.
+is_compose_base() {
+  case "$(basename "$1")" in
+  compose.yml | compose.yaml | docker-compose.yml | docker-compose.yaml) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+: >"$TMP/compose-base-dirs.txt"
+while IFS= read -r rel || [[ -n "$rel" ]]; do
+  is_compose_base "$rel" && dirname "$rel" >>"$TMP/compose-base-dirs.txt"
+done <"$TMP/compose.txt"
+while IFS= read -r rel || [[ -n "$rel" ]]; do
+  is_compose_base "$rel" && continue
+  if [[ "$(basename "$rel")" == *override* ]] || grep -q -x -F "$(dirname "$rel")" "$TMP/compose-base-dirs.txt"; then
+    refuse "layered-compose"
+  fi
+done <"$TMP/compose.txt"
 if [[ "$shipped" -eq 0 ]]; then
   refuse "no-declared-iac"
 fi
@@ -365,7 +398,7 @@ if [[ -s "$TMP/compose.txt" ]]; then
         key = ""
         next
       }
-      if (raw ~ /\t/ || index(raw, "{{") > 0) { bad = 1; next }
+      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
       if (raw ~ /^[ ]*#/) next
       line = raw
       sub(/[ ]+#.*$/, "", line)
@@ -598,7 +631,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         next
       }
       if (raw ~ /^---[[:space:]]*$/) { flush(); reset_resource(); next }
-      if (raw ~ /\t/ || index(raw, "{{") > 0) { bad = 1; next }
+      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
       if (raw ~ /^kind:[[:space:]]*/) { kind = trim(substr(raw, 6)); next }
       if (raw ~ /^metadata:[[:space:]]*$/) { in_meta = 1; next }
       if (raw ~ /^spec:[[:space:]]*$/) { in_meta = 0; next }

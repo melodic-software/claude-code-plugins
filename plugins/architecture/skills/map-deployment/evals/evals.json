@@ -82,6 +82,42 @@
         "deployment.json is written and deployment.md has no fenced diagram block",
         "Reports diagram_dialect.system as unset (no C4 view emitted) and names the unrecognized value"
       ]
+    },
+    {
+      "id": 7,
+      "name": "layered-compose-refuses",
+      "prompt": "/architecture:map-deployment\n\nTracked files are compose.yaml and compose.override.yaml at the repository root. Nothing else declares infrastructure.",
+      "expected_output": "The record reason is layered-compose. No environment named override is drawn, and no diagram is written.",
+      "narration": true,
+      "expectations": [
+        "The artifact states layered-compose",
+        "Does not present override as an environment",
+        "No deployment diagram is written"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "workflow-and-go-template-still-draw",
+      "prompt": "/architecture:map-deployment\n\nTracked files are deploy/compose.yaml, whose api service has a healthcheck test containing a Go template such as {{.State.Health.Status}}, and .github/workflows/ci.yml, whose steps use ${{ secrets.TOKEN }}. There is no Chart.yaml.",
+      "expected_output": "The record status is drawn from Compose only. Helm is not named as a tool, and the workflow is not read as IaC.",
+      "narration": true,
+      "expectations": [
+        "The record status is drawn, not refused",
+        "Does not name helm as a recognized tool",
+        "The api service is placed in the diagram"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "arm-template-refuses",
+      "prompt": "/architecture:map-deployment\n\nTracked files are deploy/compose.yaml and infra/main.json, an ARM template whose $schema is https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json.",
+      "expected_output": "The record reason is partial-read and names compose and arm. No diagram is drawn.",
+      "narration": true,
+      "expectations": [
+        "Names both compose and arm",
+        "The artifact states partial-read",
+        "Does not draw the Compose services and ignore the ARM template"
+      ]
     }
   ]
 }

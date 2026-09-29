@@ -124,9 +124,10 @@ summary="$(
       if (r == "adapter-not-shipped") return "The only IaC tools in this repository have no shipped adapter. No diagram was drawn."
       if (r == "no-declared-iac") return "No Compose file or Kubernetes manifest was found in tracked files. No diagram was drawn."
       if (r == "not-a-git-repository") return "The subject is not a git repository, so tracked IaC cannot be separated from untracked files. No diagram was drawn."
-      if (r == "compose-unreadable" || r == "kubernetes-unreadable") return "A shipped manifest used a construct this adapter does not read (a tab, or a template marker). No diagram was drawn."
+      if (r == "compose-unreadable" || r == "kubernetes-unreadable") return "A shipped manifest used a construct this adapter does not read (a tab, or a template marker in a name, image, namespace, replicas, or kind field). No diagram was drawn."
       if (r == "containers-unreadable") return "containers.json was present and is not a schema_version 1 catalog. It was not half-read. No diagram was drawn."
-      if (r == "unknown-environment") return "The requested environment is not in the record. No diagram was drawn."
+      if (r == "layered-compose") return "A Compose base file sits beside an override or variant file in one directory. The layers merge into one environment and this adapter does not merge them. No diagram was drawn."
+      if (r == "unknown-environment") return "A requested environment (--env or --diff) is not in the record. No diagram was drawn."
       return "The record refused to draw a diagram."
     }
     BEGIN {
@@ -154,10 +155,14 @@ summary="$(
       ne = count["environments"] + 0
       for (i = 1; i <= ne; i++) env_name[i] = jget(held["environments", i], "environment")
       exit_code = 0
-      if (status == "drawn" && env_filter != "") {
-        found = 0
-        for (i = 1; i <= ne; i++) if (env_name[i] == env_filter) found = 1
-        if (!found) { status = "refused"; reason = "unknown-environment"; exit_code = 3 }
+      if (status == "drawn") {
+        nreq = split(env_filter "\n" diff_a "\n" diff_b, req, "\n")
+        for (r = 1; r <= nreq; r++) {
+          if (req[r] == "") continue
+          found = 0
+          for (i = 1; i <= ne; i++) if (env_name[i] == req[r]) found = 1
+          if (!found) { status = "refused"; reason = "unknown-environment"; exit_code = 3; break }
+        }
       }
       reason = safe(reason)
       print "# Deployment" > md
