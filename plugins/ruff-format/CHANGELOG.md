@@ -3,6 +3,12 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` resolves bash from `PATH` and names the hook that did not run.** The launcher finds bash on `PATH` again (before `/bin/bash` on Linux and macOS, after the Git roots on Windows) and skips relative `PATH` entries and WSL relay hits. A hook that cannot launch (no bash, spawn error, bad arguments) or dies on a signal prints one stderr line naming the script and what that means for the hook.
+
 ## [0.7.5] - 2026-09-28
 
 ### Changed
