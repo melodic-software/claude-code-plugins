@@ -19,6 +19,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 |---|---|---|---|---|
 | Built-in CLI commands | 5 | 5 | route 1, suggest 4 | complementary 5 |
 | Bundled skills | 13 | 12 | route 8, suggest 3, wrap 2 | complementary 12, defer 1 |
+| Bundled workflows | 0 | 0 | none | none |
 | Plugin-backed built-ins | 1 | 1 | route 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
@@ -334,6 +335,10 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-09-11)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+## Bundled workflows
+
+No rows recorded in this lane.
 
 ## Plugin-backed built-ins
 

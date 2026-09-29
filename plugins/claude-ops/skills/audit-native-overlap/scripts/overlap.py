@@ -55,6 +55,8 @@ if str(_LIB_DIR) not in sys.path:
 # shape, so a consumer can never read it by a rule of its own.
 from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
 
+import discover  # noqa: E402  (sibling module; the script's own directory is on sys.path)
+
 MIN_PYTHON = (3, 11)
 
 STORE_SCHEMA = 1
@@ -71,6 +73,7 @@ VERDICTS = ("prefer-native", "prefer-ours", "complementary", "superseded", "defe
 NATIVE_CLASSES = (
     "builtin-command",
     "bundled-skill",
+    "bundled-workflow",
     "plugin-backed-builtin",
     "session-skill",
     "marketplace-plugin",
@@ -115,12 +118,21 @@ BAKED_FLAGS = (
 # Extraction lanes the sibling extractor reports integrity for, and the
 # native class each one carries. Session-provided and marketplace classes have
 # no lane: nothing about them is derivable from the binary.
-LANE_ORDER = ("builtin_commands", "bundled_skills", "plugin_backed")
+# `bundled_workflows` is optional: an extraction that predates the lane lacks
+# the key, and the lane is then not reported rather than read as broken.
+LANE_ORDER = (
+    "builtin_commands",
+    "bundled_skills",
+    "bundled_workflows",
+    "plugin_backed",
+)
 LANE_OF_CLASS = {
     "builtin-command": "builtin_commands",
     "bundled-skill": "bundled_skills",
+    "bundled-workflow": "bundled_workflows",
     "plugin-backed-builtin": "plugin_backed",
 }
+CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
 
 
 # Lane order in the generated view: (class, section heading, singular noun used
@@ -129,6 +141,7 @@ LANE_OF_CLASS = {
 LANES: tuple[tuple[str, str, str], ...] = (
     ("builtin-command", "Built-in CLI commands", "built-in command"),
     ("bundled-skill", "Bundled skills", "bundled skill"),
+    ("bundled-workflow", "Bundled workflows", "bundled workflow"),
     ("plugin-backed-builtin", "Plugin-backed built-ins", "plugin-backed built-in"),
     (
         "session-skill",
@@ -357,6 +370,111 @@ def scan_components(repo: Path) -> dict[str, list[str]]:
     return found
 
 
+def load_components(repo: Path) -> list[discover.Component]:
+    """The target side with its routing text, for discovery scoring."""
+    found = scan_components(repo)
+    corpus: list[discover.Component] = []
+    for kind, ids in (("skill", found["skills"]), ("agent", found["agents"])):
+        for ident in ids:
+            plugin, name = ident.split(":", 1)
+            path = component_path(repo, plugin, name, kind)
+            try:
+                frontmatter, _body = split_frontmatter(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError):
+                frontmatter = ""
+            corpus.append(
+                discover.Component.build(
+                    plugin, name, kind, frontmatter_description(frontmatter)
+                )
+            )
+    return corpus
+
+
+def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
+    """Every scorable native surface. An `internal` registration is skipped:
+    it is plumbing the product never offers anyone to type or call."""
+    plugin_backed = lane_payloads.get("plugin_backed") or {}
+    surfaces: list[discover.Surface] = []
+    seen: set[str] = set()
+    for lane, payload in lane_payloads.items():
+        if lane == "plugin_backed":
+            continue
+        for name, entry in payload.items():
+            seen.add(name)
+            registrations = registrations_of(entry)
+            if not registrations or any(r.get("internal") for r in registrations):
+                continue
+            # A plugin-backed name the extractor enriched in this lane is one
+            # surface, scored once, under the plugin-backed class.
+            klass, source = (
+                (CLASS_OF_LANE["plugin_backed"], "plugin_backed")
+                if name in plugin_backed
+                else (CLASS_OF_LANE[lane], lane)
+            )
+            surfaces.append(discover.Surface.build(name, klass, source, registrations))
+    for name, plugin in plugin_backed.items():
+        if name not in seen:
+            registrations = [{"name": name, "plugin_name": plugin}]
+            surfaces.append(
+                discover.Surface.build(
+                    name, CLASS_OF_LANE["plugin_backed"], "plugin_backed", registrations
+                )
+            )
+    return surfaces
+
+
+def registration_evidence(registrations: list[dict[str, Any]]) -> list[str]:
+    """Per-registration evidence lines: markers, aliases, description, invocability."""
+    evidence: list[str] = []
+    if len(registrations) > 1:
+        evidence.append(
+            f"name collision: {len(registrations)} distinct registrations share "
+            "this name in the extraction; a per-registration property (model "
+            "invocability, gating) is read from the registration the row's "
+            "evidence names, never from the bare name"
+        )
+    for position, entry in enumerate(registrations, start=1):
+        tag = f"[{position}] " if len(registrations) > 1 else ""
+        markers = [m for m in NATIVE_MARKERS if entry.get(m)]
+        if markers:
+            evidence.append(f"{tag}markers: {', '.join(markers)}")
+        if entry.get("aliases"):
+            evidence.append(f"{tag}aliases: {', '.join(entry['aliases'])}")
+        if entry.get("description"):
+            evidence.append(f"{tag}native description: {entry['description']}")
+        model = discover.invocability([entry])["model_invocable"]
+        if model is not None:
+            flagged = {"disable_model_invocation", "model_invocable"} & set(
+                entry.get("flag_driven") or []
+            )
+            evidence.append(
+                f"{tag}model invocation: {'enabled' if model else 'disabled'}"
+                + (" (flag-driven at runtime)" if flagged else "")
+            )
+    return evidence
+
+
+def _store_verdicts(store_path: Path) -> dict[tuple[str, str, str, str], Any]:
+    """Store identity -> verdict. An absent or unreadable store yields none:
+    detect then reports every pair as NEW, and self-check owns store health."""
+    store, _error = load_json(store_path)
+    rows = store.get("rows") if isinstance(store, dict) else None
+    verdicts: dict[tuple[str, str, str, str], Any] = {}
+    for row in rows if isinstance(rows, list) else []:
+        try:
+            component = row["component"]
+            key = (
+                str(row["native"]["name"]),
+                str(component["plugin"]),
+                str(component["skill"]),
+                str(component.get("kind", "skill")),
+            )
+        except (KeyError, TypeError):
+            continue
+        verdicts[key] = row.get("verdict")
+    return verdicts
+
+
 def current_cli_version() -> tuple[str | None, str]:
     """Best-effort current CLI version from a cheap `claude --version` call.
 
@@ -523,10 +641,7 @@ def validate_row(row: Any, index: int) -> list[str]:
     if not isinstance(baked, dict) or not all(
         isinstance(baked.get(key), bool) for key in BAKED_FLAGS
     ):
-        problems.append(
-            f"{label}: `baked` must carry boolean "
-            f"{', '.join(BAKED_FLAGS)}"
-        )
+        problems.append(f"{label}: `baked` must carry boolean {', '.join(BAKED_FLAGS)}")
     if not isinstance(row.get("budget_caveat"), bool):
         problems.append(f"{label}: `budget_caveat` must be a boolean")
 
@@ -555,9 +670,7 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
     """
     integration = row.get("integration")
     if integration not in INTEGRATIONS:
-        return [
-            f"{label}: `integration` must be one of {', '.join(INTEGRATIONS)}"
-        ]
+        return [f"{label}: `integration` must be one of {', '.join(INTEGRATIONS)}"]
     problems: list[str] = []
     native = row.get("native") if isinstance(row.get("native"), dict) else {}
     klass = native.get("class")
@@ -575,15 +688,12 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
             problems.append(
                 f"{label}: a `session-skill` row takes `integration` `route`"
             )
-    elif klass == "builtin-command":
+    elif klass in ("builtin-command", "bundled-workflow"):
         if integration not in ("route", "suggest"):
             problems.append(
-                f"{label}: a `builtin-command` row takes `route` or `suggest`, "
-                "never `wrap`"
+                f"{label}: a `{klass}` row takes `route` or `suggest`, never `wrap`"
             )
-    elif (
-        klass == "bundled-skill" and "model-invocation-disabled" in markers
-    ):
+    elif klass == "bundled-skill" and "model-invocation-disabled" in markers:
         if integration != "suggest":
             problems.append(
                 f"{label}: a bundled skill marked `model-invocation-disabled` "
@@ -600,9 +710,7 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
             )
     elif klass in ROUTE_OR_WRAP_CLASSES:
         if integration not in ("route", "wrap"):
-            problems.append(
-                f"{label}: a `{klass}` row takes `route` or `wrap`"
-            )
+            problems.append(f"{label}: a `{klass}` row takes `route` or `wrap`")
     if integration in ("wrap", "suggest"):
         evidence = row.get("evidence") if isinstance(row.get("evidence"), list) else []
         if not any(
@@ -995,10 +1103,14 @@ def _presence_descriptions(plugins_dir: Path) -> list[tuple[str, str]]:
             continue
         description = frontmatter_description(frontmatter)
         if description:
-            found.append((f"{skill_md.parents[2].name}:{skill_md.parent.name}", description))
+            found.append(
+                (f"{skill_md.parents[2].name}:{skill_md.parent.name}", description)
+            )
     for manifest in sorted(plugins_dir.glob("*/.claude-plugin/plugin.json")):
         try:
-            description = json.loads(manifest.read_text(encoding="utf-8")).get("description")
+            description = json.loads(manifest.read_text(encoding="utf-8")).get(
+                "description"
+            )
         except (OSError, ValueError, AttributeError):
             continue
         if isinstance(description, str) and description:
@@ -1104,16 +1216,98 @@ def cmd_detect(args: argparse.Namespace) -> int:
     known_skills = set(components["skills"])
     known_agents = set(components["agents"])
 
+    # The workflow lane is optional: an extraction that predates it simply
+    # has no such lane, which is not a missing consumed key.
+    lane_payloads = {
+        lane: inventory.get(lane)
+        for lane in LANE_ORDER
+        if isinstance(inventory.get(lane), dict)
+    }
     native_index: dict[str, dict[str, Any]] = {}
-    for name, entry in (inventory.get("bundled_skills") or {}).items():
-        native_index[name] = {"class": "bundled-skill", "entry": entry}
-    for name, entry in (inventory.get("builtin_commands") or {}).items():
-        native_index.setdefault(name, {"class": "builtin-command", "entry": entry})
+    for lane in ("bundled_workflows", "bundled_skills", "builtin_commands"):
+        for name, entry in (lane_payloads.get(lane) or {}).items():
+            native_index.setdefault(
+                name, {"class": CLASS_OF_LANE[lane], "entry": entry}
+            )
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
+        # The extractor enriches a same-named command or skill with the plugin;
+        # reclassify that registration rather than replace it with a bare one.
+        enriched = native_index.get(name)
         native_index[name] = {
             "class": "plugin-backed-builtin",
-            "entry": {"name": name, "plugin_name": plugin},
+            "entry": enriched["entry"]
+            if enriched
+            else {"name": name, "plugin_name": plugin},
         }
+
+    store_verdicts = _store_verdicts(Path(args.store))
+
+    def broken_lane_evidence(lanes_in_play: set[str]) -> tuple[bool | None, list[str]]:
+        if not lanes_in_play:
+            return None, []  # session-provided and marketplace rows have no lane
+        notes: list[str] = []
+        broken = [
+            lane
+            for lane in sorted(lanes_in_play)
+            if (lane_state(lane) or {}).get("status") == "broken"
+        ]
+        for lane in broken:
+            problems = (lane_state(lane) or {}).get("problems") or []
+            notes.append(
+                f"the `{lane}` lane of this extraction is broken"
+                + (f" ({'; '.join(problems)})" if problems else "")
+                + " - presence or absence in that lane is not re-derivable from "
+                "this run"
+            )
+        return not broken, notes
+
+    def native_block(
+        name: str, klass: str, seen: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        registrations = registrations_of(seen["entry"]) if seen else []
+        who = discover.invocability(registrations)
+        markers = [m for m in NATIVE_MARKERS if any(r.get(m) for r in registrations)]
+        if who["model_invocable"] is False:
+            markers.append("model-invocation-disabled")
+        return {
+            "name": name,
+            "class": klass,
+            "observed": seen is not None,
+            "markers": sorted(set(markers), key=NATIVE_MARKERS.index),
+            "model_invocable": who["model_invocable"],
+            "user_invocable": who["user_invocable"],
+            "argument_hint": who["argument_hint"],
+            "invocable_by": who["invocable_by"],
+        }
+
+    def key_of(name: Any, component: dict[str, Any]) -> tuple[str, str, str, str]:
+        return (
+            str(name),
+            str(component.get("plugin")),
+            str(component.get("skill")),
+            str(component.get("kind", "skill")),
+        )
+
+    corpus = load_components(repo)
+    surfaces = native_surfaces(lane_payloads)
+
+    def keyed(scored: list[discover.Scored]) -> dict[tuple[str, str, str, str], Any]:
+        return {
+            key_of(s.name, {"plugin": c.plugin, "skill": c.name, "kind": c.kind}): (
+                s,
+                score,
+                matched,
+            )
+            for s, c, score, matched in scored
+        }
+
+    # Seeds read their score from every scored pair, so a seed below the
+    # discovery cut still shows how far lexical evidence alone would carry it.
+    all_scored = discover.score_all(surfaces, corpus)
+    seed_scores = keyed(all_scored)
+    scores = keyed(
+        discover.select(all_scored, threshold=args.threshold, top_k=args.top_k)
+    )
 
     candidates: list[dict[str, Any]] = []
     for pair in pairs_data["pairs"]:  # shape guaranteed by validate_pairs above
@@ -1131,59 +1325,17 @@ def cmd_detect(args: argparse.Namespace) -> int:
             evidence.append(
                 f"`{native.get('name')}` present in the extraction as {seen['class']}"
             )
-            registrations = registrations_of(seen["entry"])
-            if len(registrations) > 1:
-                evidence.append(
-                    f"name collision: {len(registrations)} distinct registrations share "
-                    "this name in the extraction; a per-registration property (model "
-                    "invocability, gating) is read from the registration the row's "
-                    "evidence names, never from the bare name"
-                )
-            for position, entry in enumerate(registrations, start=1):
-                tag = f"[{position}] " if len(registrations) > 1 else ""
-                markers = [m for m in NATIVE_MARKERS if entry.get(m)]
-                if markers:
-                    evidence.append(f"{tag}markers: {', '.join(markers)}")
-                if entry.get("aliases"):
-                    evidence.append(f"{tag}aliases: {', '.join(entry['aliases'])}")
-                if entry.get("description"):
-                    evidence.append(f"{tag}native description: {entry['description']}")
-                if "disable_model_invocation" in entry:
-                    mode = (
-                        "disabled" if entry["disable_model_invocation"] else "enabled"
-                    )
-                    flagged = "disable_model_invocation" in (
-                        entry.get("flag_driven") or []
-                    )
-                    evidence.append(
-                        f"{tag}model invocation: {mode}"
-                        + (" (flag-driven at runtime)" if flagged else "")
-                    )
+            evidence.extend(registration_evidence(registrations_of(seen["entry"])))
         # The lane a candidate's re-derivability depends on: the seeded class
         # when the name is absent from the extraction, the observed class when
         # present, and both when the two disagree (a class collision), so a
         # broken lane on either side marks the candidate.
         seeded_lane = LANE_OF_CLASS.get(native.get("class"))
         observed_lane = LANE_OF_CLASS.get(seen["class"]) if seen else None
-        relevant_lanes = {lane for lane in (seeded_lane, observed_lane) if lane}
-        re_derivable: bool | None
-        if not relevant_lanes:
-            re_derivable = None  # session-provided and marketplace rows have no lane
-        else:
-            broken = [
-                lane
-                for lane in sorted(relevant_lanes)
-                if (lane_state(lane) or {}).get("status") == "broken"
-            ]
-            re_derivable = not broken
-            for lane in broken:
-                problems = (lane_state(lane) or {}).get("problems") or []
-                evidence.append(
-                    f"the `{lane}` lane of this extraction is broken"
-                    + (f" ({'; '.join(problems)})" if problems else "")
-                    + " - presence or absence in that lane is not re-derivable from "
-                    "this run"
-                )
+        re_derivable, notes = broken_lane_evidence(
+            {lane for lane in (seeded_lane, observed_lane) if lane}
+        )
+        evidence.extend(notes)
         kind = component.get("kind", "skill")
         pool = known_agents if kind == "agent" else known_skills
         target_present = target in pool
@@ -1191,17 +1343,69 @@ def cmd_detect(args: argparse.Namespace) -> int:
             evidence.append(f"target `{target}` not found in the repo tree at {repo}")
         if pair.get("why"):
             evidence.append(f"seeded rationale: {pair['why']}")
+        key = key_of(native.get("name"), component)
+        scores.pop(key, None)
+        _surface, score, matched = seed_scores.get(key, (None, None, None))
+        klass = (seen or {}).get("class", native.get("class"))
+        block = native_block(native.get("name"), klass, seen)
+        block["seeded_class"] = native.get("class")
         candidates.append(
             {
-                "native": {
-                    "name": native.get("name"),
-                    "class": (seen or {}).get("class", native.get("class")),
-                    "seeded_class": native.get("class"),
-                    "observed": seen is not None,
-                },
+                "origin": "seeded",
+                "native": block,
                 "component": component,
                 "component_present": target_present,
                 "re_derivable": re_derivable,
+                "score": score,
+                "matched_tokens": matched,
+                "recommended_integration": discover.recommended_integration(
+                    klass, block["invocable_by"]
+                ),
+                "store_verdict": store_verdicts.get(key),
+                "verdict": None,
+                "evidence": evidence,
+            }
+        )
+
+    existing: list[dict[str, Any]] = []
+    for key, (surface, score, matched) in sorted(
+        scores.items(), key=lambda item: (item[0][0], -item[1][1], item[0][1:])
+    ):
+        name, plugin, skill, kind = key
+        component = {"plugin": plugin, "skill": skill, "kind": kind}
+        if key in store_verdicts:
+            existing.append(
+                {
+                    "native": name,
+                    "class": surface.klass,
+                    "component": component,
+                    "score": score,
+                    "store_verdict": store_verdicts[key],
+                }
+            )
+            continue
+        seen = {"class": surface.klass, "entry": surface.registrations}
+        block = native_block(name, surface.klass, seen)
+        re_derivable, notes = broken_lane_evidence({surface.lane})
+        evidence = [
+            f"`{name}` present in the extraction as {surface.klass}",
+            *registration_evidence(surface.registrations),
+            f"discovered: score {score} from shared tokens {', '.join(matched[:8])}",
+            *notes,
+        ]
+        candidates.append(
+            {
+                "origin": "discovered",
+                "native": block,
+                "component": component,
+                "component_present": True,
+                "re_derivable": re_derivable,
+                "score": score,
+                "matched_tokens": matched,
+                "recommended_integration": discover.recommended_integration(
+                    surface.klass, block["invocable_by"]
+                ),
+                "store_verdict": None,
                 "verdict": None,
                 "evidence": evidence,
             }
@@ -1249,6 +1453,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
         "target_scan": {
             "skills": len(components["skills"]),
             "agents": len(components["agents"]),
+        },
+        "discovery": {
+            "threshold": args.threshold,
+            "top_k": args.top_k,
+            "lanes_scored": sorted(lane_payloads),
+            "surfaces_scored": len(surfaces),
+            "components_scored": len(corpus),
+            "seeded": sum(1 for c in candidates if c["origin"] == "seeded"),
+            "discovered": sum(1 for c in candidates if c["origin"] == "discovered"),
+            "existing": existing,
         },
         "candidates": candidates,
         "note": (
@@ -1528,6 +1742,24 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
     )
     detect.add_argument(
         "--out", help="write the candidate report here instead of stdout"
+    )
+    detect.add_argument(
+        "--threshold",
+        type=float,
+        default=discover.DEFAULT_THRESHOLD,
+        help=(
+            "lowest similarity score a discovered pair needs, 0-1 "
+            f"(default: {discover.DEFAULT_THRESHOLD})"
+        ),
+    )
+    detect.add_argument(
+        "--top-k",
+        type=int,
+        default=discover.DEFAULT_TOP_K,
+        help=(
+            "most discovered components kept per native surface; 0 turns "
+            f"discovery off (default: {discover.DEFAULT_TOP_K})"
+        ),
     )
     add_paths(detect)
 
