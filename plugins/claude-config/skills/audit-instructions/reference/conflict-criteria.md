@@ -30,7 +30,7 @@ the pre-scan and the lane each drop.
 **Shared-surface ownership is out of scope for I15.** This pass detects conflicting instruction
 *pairs*; it does not assign *ownership* when multiple contributors' preferences meet on one
 surface. That governance question is recorded as rejected for this repository in
-[`docs/out-of-scope/shared-surface-instruction-governance.md`](../../../../../../docs/out-of-scope/shared-surface-instruction-governance.md)
+`docs/out-of-scope/shared-surface-instruction-governance.md`
 (#3568). `instruction-exception-register` governs deletions only, not ownership.
 **Claim:** I15 does not assign shared-surface ownership. **Basis:** this file's pair-detection
 charter; the rejected-concept ledger entry for #3568. **As of:** 2026-09-28. **Recheck:** when
