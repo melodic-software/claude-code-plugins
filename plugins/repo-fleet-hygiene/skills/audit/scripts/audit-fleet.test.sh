@@ -924,7 +924,7 @@ assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+# #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -938,17 +938,35 @@ else
   printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+assert_not_contains_file "all-fail withholds per-repo merged-remote-branch rows" \
   "Finding: merged-remote-branch" "$all_fail_out"
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out")" == 1 ]]; then
+  printf 'PASS: all-fail emits the fleet finding exactly once\n'
+else
+  printf 'FAIL: all-fail emits the fleet finding exactly once\n' >&2
+  failures=$((failures + 1))
+fi
+all_fail_medium_rows="$(grep -c -F 'Confidence: MEDIUM' "$all_fail_out")"
+assert_contains_file "all-fail tally drops the withheld MEDIUM rows" \
+  " medium=$all_fail_medium_rows " "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+# at another repository cannot stand in for the pinned remote, so every probe counts as a failure
+# and only the fleet finding remains.
 instead_of_out="$TMP/instead-of.txt"
-for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|withheld'; do
   FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
     HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
     bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
-  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+  if [[ "${rewrite#*|}" == withheld ]]; then
+    if ! grep -Fq "Finding: merged-remote-branch" "$instead_of_out" &&
+      grep -Fq "Finding: ls-remote-fleet-unavailable" "$instead_of_out"; then
+      printf 'PASS: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}"
+    else
+      printf 'FAIL: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}" >&2
+      failures=$((failures + 1))
+    fi
+  elif grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
     grep -Fq "Confidence: ${rewrite#*|}"; then
     printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
   else
