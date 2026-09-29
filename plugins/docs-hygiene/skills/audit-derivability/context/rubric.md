@@ -158,8 +158,14 @@ this context's judgment of derivability: having read the document, it knows the
 answers and will overestimate how re-derivable they were. That is a self-grade,
 and the fix is a fresh set of eyes: a context that never saw the document.
 
-1. Spawn a **fresh-context, non-fork subagent** (e.g. an `Explore` agent). It
-   must NOT be shown the document and must NOT be spawned as the Agent tool's
+1. Spawn a **fresh-context, non-fork subagent**. When the audited file loads at
+   launch (root `CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file), it
+   MUST be an `Explore` or `Plan` agent: every other subagent type starts with
+   those files already loaded, so its "fresh" run would be graded by an agent
+   that has read the answer. A custom subagent with `omitClaudeMd` still loads
+   managed policy files, so it is not a substitute. The dated record is in
+   SKILL.md "Sources". Any other audited file may use any non-fork subagent.
+   The subagent must NOT be shown the document and must NOT be spawned as the Agent tool's
    `fork` subagent type, which inherits the parent conversation and would carry
    this context's answers into the test. A skill's own `context: fork`
    frontmatter is a different mechanism and starts blank, with no access to the

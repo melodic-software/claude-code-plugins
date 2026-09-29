@@ -162,6 +162,51 @@
         "Does not ship a pointer verdict citing a nonexistent anchor",
         "Records the verification (or the corrected anchor) in the verdict rationale"
       ]
+    },
+    {
+      "id": 14,
+      "name": "routing-only-root-claude-md-is-already-a-pointer",
+      "prompt": "Run a sweep whose only document is evals/fixtures/root-claude-md-routing.md relative to the skill directory. Treat it as the repository's root CLAUDE.md, which loads at session start. Its git log shows only ordinary edits, no commit that records a decision about it. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
+      "expected_output": "Grades the file on the routing row of Factor 1, not as derivable-from-code: it holds pointers only ('fact X lives at Y'), and because it loads at launch it is what tells the agent where to look. Verdict `convert-to-pointer (already satisfied)`: no new pointer to write, not actionable, never `delete`. Checks git log first and finds no recorded decision. The aggregate line counts the file (1 convert-to-pointer) and the confirmed-actionable subset is empty. A spot-test, if run, uses an Explore or Plan agent (the file is launch-loaded) and asks for the substantive conclusions the pointer targets own, not the trigger question 'what does this file tell you to read?'.",
+      "files": ["evals/fixtures/root-claude-md-routing.md"],
+      "expectations": [
+        "The verdict is `convert-to-pointer (already satisfied)`, not `delete` and not `keep-owns-facts`",
+        "The file is excluded from the confirmed-actionable subset, and no work-item routing is offered for it",
+        "The aggregate line counts the file as 1 convert-to-pointer, so the routing doc is visible in the total rather than dropped",
+        "The rationale says the file loads at launch and routes the agent to where facts live (the Factor 1 routing row), not that an agent could just look",
+        "Consults git log before finalizing the verdict",
+        "Any spot-test named uses an Explore or Plan agent and does not ask the fresh agent what the file tells it to read"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "converged-keep-sample-goes-back-through-the-factors",
+      "prompt": "In a sweep, docs/why-retries.md was graded `keep-owns-facts` (it states that the retry count is 3 and gives two reasons: a rate limit and a circuit-breaker threshold). It was drawn as the keep-sample for its batch ledger. A fresh, non-fork Explore subagent that never saw the doc reproduced all three conclusions from a code comment in retry.ts and a test in retry.test.ts. What happens to the verdict, and what does the sweep's aggregate line report?",
+      "expected_output": "Treats the converged keep-sample as evidence, not as a confirmation: the doc goes back through the four factors. With the rationale and threshold recoverable from code and tests, the re-grade is derivable, cheap, no owned fact, so `delete` or `convert-to-pointer`. That result ships provisional (`keep-sample converged, verdict overturned`), is never confirmed-actionable, and is reported separately from the actionable subset. The aggregate line reports `keep-sample: 1 sampled, 1 overturned`. The sampled file list is recorded beside the batch ledger when drawn, not reconstructed later.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not confirm the `keep-owns-facts` verdict, and does not flip straight to a confirmed `delete`",
+        "Sends the doc back through the four factors with the converged result as evidence",
+        "The re-graded `delete` or `convert-to-pointer` ships provisional, labelled `keep-sample converged, verdict overturned`, and stays out of the confirmed-actionable subset",
+        "The aggregate line reports `keep-sample: 1 sampled, 1 overturned`",
+        "States that the sampled file list is recorded beside the batch ledger when drawn, not reconstructed later"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "deliberately-created-doc-ships-provisional",
+      "prompt": "Audit derivability of docs/deploy-notes.md, a 15-line page that restates the values in config/deploy.yaml (region, replica count, health path). Nothing in it explains why. Its git log shows the creating commit, whose message says the platform team asked for a written copy of the deploy values to be kept on purpose, for audit review.",
+      "expected_output": "Checks git log before the verdict and finds a commit that records a decision about the doc. The content is derivable, cheap to re-derive, and owns no fact of its own, so the base grade is `delete` or `convert-to-pointer`. Because a recorded decision created it, that verdict ships provisional with the text `reverses a recorded decision`, is excluded from the confirmed-actionable subset, and the author decides. The verdict is not `keep-owns-facts`, since the file's state is not itself the decision (contrast the deliberately emptied file), and not a confident `delete`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Consults git log for the file before finalizing the verdict",
+        "Recognizes the creating commit's message as a recorded decision about the doc (Factor 4 decisions class)",
+        "The verdict is `delete` or `convert-to-pointer` shipped provisional with the text `reverses a recorded decision`",
+        "The verdict is excluded from the confirmed-actionable subset and is not offered for routing as actionable; the author decides",
+        "Does not grade the file `keep-owns-facts` merely because the file was created on purpose"
+      ]
     }
   ]
 }
