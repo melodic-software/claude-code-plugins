@@ -107,21 +107,6 @@ Selection itself is host-neutral: on Windows, use the listing forms above to see
 what your change affects and run individual suites by hand. CI's Linux lanes are
 the gate that decides.
 
-The wall-clock cut of this corpus is not one dispatch. **Claim:** further work
-lands as bounded measured slices, not as this umbrella; two named slices already
-shipped (`affected-tests.sh` merge-in-progress base as
-[#4607](https://github.com/melodic-software/claude-code-plugins/issues/4607),
-changelog-parity fan-out as
-[#4608](https://github.com/melodic-software/claude-code-plugins/issues/4608)).
-The remaining program (per-suite baseline table, 60 s gate ceiling, 2 min
-typical `--run`, 10 min full corpus, path-qualified reverse lookup, budget lane)
-stays parked until the next slice is briefed. **Basis:** operator decision
-2026-09-27 on
-[#3716](https://github.com/melodic-software/claude-code-plugins/issues/3716)
-("split"; umbrella stays parked). **As of:** 2026-09-28. **Recheck:** an operator
-unpark of #3716, or a new bounded slice with a measured Windows Git Bash
-before/after.
-
 It maps a changed file to its co-located suite, to any suite that names it, and
 to its dependents transitively, and it fans a shared-lib change out to every
 carrying plugin by reading the `copies=(...)` array out of that lib's
@@ -167,8 +152,8 @@ local command**. The gap is discoverability, not a missing runner, except one ge
 | `typos` | `typos --config _typos.toml` | Same config CI passes to the composite. |
 | `markdown` | `markdownlint-cli2` | Config: `.markdownlint-cli2.jsonc`. |
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
-| `changelog-parity` | `scripts/check-changelog-parity.sh` | In-repo; see also `--check-bump`. |
-| `shell-portability` | `scripts/check-shell-portability.sh` | In-repo. |
+| `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
+| `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
 | `machine-specific-paths` | none in this repo | Composite in `melodic-software/ci-workflows`. Parked: there is no local runner. |
 
 There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
