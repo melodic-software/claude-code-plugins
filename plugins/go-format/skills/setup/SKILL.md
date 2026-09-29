@@ -62,7 +62,9 @@ restores the FAIL semantics. A missing `node` stays FAIL in either state: Claude
 4. **`goimports` binary.** The pre-computed `goimports` row (the hook resolves PATH only, no
    `.venv`-style per-repo convention). Report the resolved path and `goimports -h`'s first line
    when found (goimports has no `--version` flag; the help header is the closest signal). FAIL
-   when absent. The hook then emits a visible once-per-session skip notice instead of running.
+   when absent. The hook then emits a visible once-per-session skip notice instead of running,
+   and the `SessionStart` probe reports the same absence in every repository where the plugin is
+   enabled, with or without `.go` files.
 5. **Hook toggle.** Report the effective `go_format_enabled` value:
    `${user_config.go_format_enabled}` (unexpanded or empty means default `true`).
 6. **Gitignored files.** Report the effective `go_format_lint_gitignored` value:
