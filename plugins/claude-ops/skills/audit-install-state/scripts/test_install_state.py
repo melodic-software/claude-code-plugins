@@ -1154,13 +1154,10 @@ class TestUnreferencedVersions(unittest.TestCase):
                 by_version["1.0.0"]["path"], "plugins/cache/mkt/plug/1.0.0"
             )
 
-    def test_the_prune_helper_names_only_unreferenced_versions_past_the_window(
-        self,
-    ) -> None:
+    def test_only_unreferenced_versions_past_the_window_are_flagged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            real_now = datetime.now(timezone.utc).timestamp()
-            old, recent = (int((real_now - d * 86400) * 1000) for d in (20, 3))
+            old, recent = self._ms(20), self._ms(3)
             self._cache(
                 root,
                 ("1.0.0", old, 10),
@@ -1171,8 +1168,12 @@ class TestUnreferencedVersions(unittest.TestCase):
             self._registry(
                 root, str(root / "plugins" / "cache" / "mkt" / "plug" / "1.3.0")
             )
+            found, _note = self._run(root)
             self.assertEqual(
-                engine.prunable_version_paths(root), ["plugins/cache/mkt/plug/1.0.0"]
+                [v["version"] for v in found if v["past_sweep_window"]], ["1.0.0"]
+            )
+            self.assertEqual(
+                sorted(v["version"] for v in found), ["1.0.0", "1.1.0", "1.2.0"]
             )
 
     def test_an_unmarked_version_has_no_age_and_is_never_past_the_window(self) -> None:
@@ -1224,7 +1225,6 @@ class TestUnreferencedVersions(unittest.TestCase):
             self._cache(root, ("1.0.0", self._ms(30), 10))
             self._registry(root)
             before = sorted(p.relative_to(root) for p in root.rglob("*"))
-            engine.prunable_version_paths(root)
             _scan(root)
             self.assertEqual(
                 before, sorted(p.relative_to(root) for p in root.rglob("*"))

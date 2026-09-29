@@ -1717,13 +1717,6 @@ def unreferenced_versions(
     return found, None
 
 
-def prunable_version_paths(root: Path) -> list[str]:
-    """Report entry paths a prune action may remove: unreferenced and past the sweep window."""
-    rows, _errors = walk_tree(root, [])
-    found, _note = unreferenced_versions(root, rows)
-    return [v["path"] for v in found if v["past_sweep_window"]]
-
-
 def engine_version() -> str:
     """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
     try:
