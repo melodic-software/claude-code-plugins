@@ -163,6 +163,23 @@ class KeyTests(unittest.TestCase):
         )
 
 
+class HasKeyTests(unittest.TestCase):
+    KEY = "native-drift:candidate:p:s"
+
+    def test_exact_line_matches(self):
+        body = f"facts\n  Drift key: {self.KEY}  \r\nFiled by x\n"
+        self.assertTrue(native_drift.has_key(body, self.KEY))
+
+    def test_prefix_siblings_do_not_collide(self):
+        for sibling in ("p:s-x", "p:s2", "p:s@agent"):
+            body = f"Drift key: native-drift:candidate:{sibling}\n"
+            self.assertFalse(native_drift.has_key(body, self.KEY), sibling)
+
+    def test_key_mentioned_mid_line_does_not_match(self):
+        body = f"see Drift key: {self.KEY} elsewhere\n{self.KEY}\n"
+        self.assertFalse(native_drift.has_key(body, self.KEY))
+
+
 class SurfaceDiffTests(unittest.TestCase):
     def summary(self, **surfaces) -> dict:
         return {"surfaces": surfaces}
@@ -354,7 +371,9 @@ class InventoryVerdictTests(unittest.TestCase):
 class DiffItemsTests(unittest.TestCase):
     def setUp(self):
         self.cur = native_drift.summarize(inventory(), None)
-        self.prev = dict(self.cur, candidates=["native-drift:candidate:loop:old:seen"])
+        self.prev = native_drift.summarize(
+            inventory(), detect(candidate("loop", "old", "seen"))
+        )
 
     def kinds(self, report: dict) -> list:
         return [(i["kind"], i["key"]) for i in report["items"]]
@@ -372,6 +391,36 @@ class DiffItemsTests(unittest.TestCase):
             self.kinds(report), [("candidate", "native-drift:candidate:loop:new:fresh")]
         )
         self.assertEqual(len(report["new_candidates"]), 4)
+
+    def test_detectless_previous_summary_files_no_candidates(self):
+        prev = native_drift.summarize(inventory(), None)
+        self.assertIsNone(prev["detect"])
+        self.assertIsNone(prev["candidates"])
+        report = native_drift.diff(
+            self.cur, prev, None, detect(candidate("loop", "new", "fresh")), 0
+        )
+        self.assertEqual(report["items"], [])
+        self.assertIsNone(report["new_candidates"])
+
+    def test_batch_over_the_cap_adds_one_overflow_item(self):
+        det = detect(*(candidate("loop", "p", f"s{n}") for n in range(3)))
+        within = native_drift.diff(self.cur, self.prev, None, det, 0, max_items=3)
+        self.assertIsNone(within["overflow"])
+        over = native_drift.diff(self.cur, self.prev, None, det, 0, max_items=2)
+        self.assertEqual(len(over["items"]), 3)
+        self.assertEqual(
+            over["overflow"]["key"], "native-drift:batch-overflow:2.1.285:inventory"
+        )
+        self.assertIn("exceed the batch cap of 2", over["overflow"]["facts"][0])
+        self.assertEqual(len(over["overflow"]["facts"]), 4)
+        self.assertEqual(native_drift.MAX_ITEMS, 10)
+
+    def test_facts_are_clipped(self):
+        det = detect(candidate("loop", "new", "fresh", evidence=["x" * 5000]))
+        report = native_drift.diff(self.cur, self.prev, None, det, 0)
+        facts = report["items"][0]["facts"]
+        self.assertEqual(len(facts[1]), native_drift.FACT_CHARS)
+        self.assertTrue(facts[1].endswith("..."))
 
     def test_baseline_files_no_candidates_and_flags_unknown_changes(self):
         report = native_drift.diff(
@@ -443,6 +492,38 @@ class CliTests(unittest.TestCase):
             report = json.loads(Path(out).read_text(encoding="utf-8"))
             self.assertFalse(report["store_present"])
             self.assertEqual(report["inventory"]["verdict"], "revalidate")
+
+    def test_optional_path_that_is_not_a_file_warns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inv, summary = (str(Path(tmp) / n) for n in ("inv.json", "s.json"))
+            Path(inv).write_text(json.dumps(inventory()), encoding="utf-8")
+            absent = str(Path(tmp) / "absent.json")
+            err = io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(err),
+            ):
+                code = native_drift.main(
+                    ["summarize", "--inventory", inv, "--detect", absent]
+                    + ["--out", summary]
+                )
+            self.assertEqual(code, 0)
+            self.assertIn(f"warning: {absent} is not a file", err.getvalue())
+
+    def test_has_key_exit_codes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            body = Path(tmp) / "body.txt"
+            body.write_text("Drift key: native-drift:recheck:a:b\n", encoding="utf-8")
+            key = "native-drift:recheck:a:b"
+            self.assertEqual(
+                self.run_main("has-key", "--key", key, "--body", str(body)), 0
+            )
+            self.assertEqual(
+                self.run_main("has-key", "--key", key[:-1], "--body", str(body)), 1
+            )
+            self.assertEqual(
+                self.run_main("has-key", "--key", key, "--body", f"{tmp}/none"), 2
+            )
 
     def test_missing_current_is_a_usage_error(self):
         self.assertEqual(

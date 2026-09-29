@@ -17,6 +17,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   self-check; a self-check degraded only by a newer CLI proposes revalidation. Each item carries a
   `native-drift:<kind>:<surface>:<component>` key that dedupes against open items. Unattended runs
   file without asking; interactive runs list the items and file on one confirmation.
+- **Native-drift filing is bounded.** A summary written without a `detect` report records
+  `detect: null` and never becomes the candidate baseline, so it cannot make every candidate look
+  new. More than 10 items (`--max-items`) needs a person's confirmation; unattended runs file one
+  `batch-overflow` item instead. Dedupe matches the exact `Drift key: <key>` line (`has-key`), so a
+  key never matches its prefix siblings. Each fact is clipped to 300 characters and treated as
+  quoted data, and an optional input path that is not a file warns on stderr.
 
 ## [0.66.0] - 2026-09-29
 

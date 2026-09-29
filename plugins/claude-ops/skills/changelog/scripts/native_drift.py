@@ -7,20 +7,30 @@ Subcommands (standard library only; every input is a file the caller produced):
 
   summarize --inventory <inventory.json> [--detect <detect.json>] --out <summary.json>
       Reduce an `inventory.py --binary-only --docs` extraction and an
-      `overlap.py detect` report to the fields the diff reads.
+      `overlap.py detect` report to the fields the diff reads. Without
+      `--detect`, `detect` and `candidates` are null: the summary does not know
+      the candidates, so it never serves as the candidate baseline.
 
   diff --current <summary.json> [--previous <summary.json>] [--store <records.json>]
-       [--detect <detect.json>] --self-check-exit <0|1|3> [--out <drift.json>]
+       [--detect <detect.json>] --self-check-exit <0|1|3> [--max-items <n>]
+       [--out <drift.json>]
       Compare two summaries, evaluate each extraction-evidence store row against
       the current summary, and emit the drift report with its `items`: one per
       work item to file, each carrying a stable dedupe `key`
       (native-drift:<kind>:<surface>:<component>). A candidate is an item only
-      when it is new since the previous summary, at or over detect's threshold,
-      re-derivable, and without a store row. A missing previous summary is a
-      baseline run: no surface diff, no new candidates, triggers on state still
-      evaluated.
+      when the previous summary recorded a detect report without its key, it is
+      at or over detect's threshold, re-derivable, and without a store row. A
+      missing previous summary is a baseline run: no surface diff, no new
+      candidates, triggers on state still evaluated. More than --max-items
+      items (default 10) adds an `overflow` item that stands for the batch.
+      Every fact is clipped to FACT_CHARS.
 
-Exit: 0 report written; 2 usage error or an unreadable or malformed input.
+  has-key --key <key> --body <body.txt>
+      Whether a filed item's body holds the dedupe line for <key>: a line that,
+      stripped of surrounding whitespace, is exactly `Drift key: <key>`.
+
+Exit: 0 report written, or has-key matched; 1 has-key found no match; 2 usage
+error or an unreadable or malformed input.
 Nothing here files, fetches, or edits: the skill body owns the filing.
 """
 
@@ -46,6 +56,9 @@ MARKERS = ("hidden", "gated", "model-invocation-disabled")
 VERSION_DRIFT = re.compile(r"^cli (\S+) differs from the last validated build (\S+)")
 RENAME_MIN_SIMILARITY = 0.6
 DESCRIPTION_CHARS = 300
+FACT_CHARS = 300
+MAX_ITEMS = 10
+KEY_LINE = "Drift key: "
 
 
 class InputError(Exception):
@@ -56,6 +69,8 @@ def load(path: str | None, *, required: bool = True) -> Any:
     if path is None or not Path(path).is_file():
         if required:
             raise InputError(f"missing input: {path}")
+        if path is not None:
+            print(f"warning: {path} is not a file; read as absent", file=sys.stderr)
         return None
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -163,9 +178,10 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
                 n: v.get("status") for n, v in names.items() if isinstance(v, dict)
             },
         }
-    candidates = []
+    candidates: list[str] | None = None
     detect_block = None
     if isinstance(detect, dict):
+        candidates = []
         threshold = (detect.get("discovery") or {}).get("threshold")
         detect_block = {
             "status": (detect.get("integrity") or {}).get("status"),
@@ -189,7 +205,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         "surfaces": surfaces,
         "docs": docs_block,
         "detect": detect_block,
-        "candidates": sorted(set(candidates)),
+        "candidates": None if candidates is None else sorted(set(candidates)),
     }
 
 
@@ -211,6 +227,15 @@ def candidate_key(candidate: dict[str, Any]) -> str:
     return drift_key(
         "candidate", native.get("name"), component_id(candidate.get("component") or {})
     )
+
+
+def clip(text: Any) -> str:
+    text = str(text)
+    return text if len(text) <= FACT_CHARS else text[: FACT_CHARS - 3] + "..."
+
+
+def has_key(body: str, key: str) -> bool:
+    return any(line.strip() == KEY_LINE + key for line in body.splitlines())
 
 
 def version_tuple(version: Any) -> tuple[int, ...] | None:
@@ -418,17 +443,24 @@ def diff(
     store: Any,
     detect: Any,
     self_check_exit: int,
+    max_items: int = MAX_ITEMS,
 ) -> dict[str, Any]:
     surface = diff_surfaces(prev, cur) if prev else None
     renames = {r["from"]: r["to"] for r in (surface or {}).get("renamed", [])}
     items: list[dict[str, Any]] = []
 
     threshold = ((detect or {}).get("discovery") or {}).get("threshold")
-    prev_candidates = set((prev or {}).get("candidates") or [])
+    # A previous summary written without a detect report does not know the
+    # candidates; reading its absence as "none" would file every candidate.
+    known = (prev or {}).get("candidates")
+    knows_candidates = isinstance((prev or {}).get("detect"), dict) and isinstance(
+        known, list
+    )
+    prev_candidates = set(known) if knows_candidates else set()
     new_candidates = []
     for c in (detect or {}).get("candidates") or []:
         key = candidate_key(c)
-        new = prev is not None and key not in prev_candidates
+        new = knows_candidates and key not in prev_candidates
         if new:
             new_candidates.append(key)
         score = c.get("score")
@@ -519,6 +551,25 @@ def diff(
             }
         )
 
+    for item in items:
+        item["facts"] = [clip(f) for f in item["facts"]]
+    overflow = None
+    if len(items) > max_items:
+        overflow = {
+            "kind": "batch-overflow",
+            "key": drift_key(
+                "batch-overflow", cur.get("cli_version") or "unknown", "inventory"
+            ),
+            "native": None,
+            "class": None,
+            "component": "inventory",
+            "facts": [
+                f"{len(items)} drift items exceed the batch cap of {max_items}; "
+                "none was filed individually"
+            ]
+            + [clip(f"{i['kind']}: {i['key']}") for i in items],
+        }
+
     return {
         "schema": SCHEMA,
         "baseline": prev is None,
@@ -528,12 +579,14 @@ def diff(
         },
         "surface_changes": surface,
         "docs_changes": diff_docs(prev, cur) if prev else None,
-        "new_candidates": new_candidates if prev is not None else None,
+        "new_candidates": new_candidates if knows_candidates else None,
         "fired_triggers": fired,
         "rows_not_evaluable": not_evaluable,
         "store_present": isinstance(rows, list),
         "inventory": inventory,
         "items": items,
+        "max_items": max_items,
+        "overflow": overflow,
     }
 
 
@@ -561,9 +614,19 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--store")
     d.add_argument("--detect")
     d.add_argument("--self-check-exit", type=int, required=True, choices=(0, 1, 3))
+    d.add_argument("--max-items", type=int, default=MAX_ITEMS)
     d.add_argument("--out")
+    k = sub.add_parser("has-key")
+    k.add_argument("--key", required=True)
+    k.add_argument("--body", required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "has-key":
+            try:
+                body = Path(args.body).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise InputError(f"unreadable input {args.body}: {exc}") from exc
+            return 0 if has_key(body, args.key) else 1
         if args.command == "summarize":
             write(
                 summarize(load(args.inventory), load(args.detect, required=False)),
@@ -577,6 +640,7 @@ def main(argv: list[str] | None = None) -> int:
                     load(args.store, required=False),
                     load(args.detect, required=False),
                     args.self_check_exit,
+                    args.max_items,
                 ),
                 args.out,
             )
