@@ -13,11 +13,12 @@ is.
    **Bootstrap check (once per lane, report-only).** Skipped at `human-only`. When the resolved
    rung is merge-capable, read the options `promotion_evidence_binding`,
    `promotion_evidence_root`, and `promotion_evidence_source` from the substituted block in
-   [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; a surviving literal
-   placeholder or an empty value is unset, and the `CLAUDE_PLUGIN_OPTION_*` mirror is never read)
-   ([contract](promotion-evidence-bootstrap.md)) and record, by option name, each one that is unset,
-   holds a relative path, or resolves (after symlinks) inside the target checkout or a lane
-   worktree, with the compliant fix the contract gives. Whether the lane can write a surface is a
+   [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; the `CLAUDE_PLUGIN_OPTION_*`
+   mirror is never read) and record, by option name, each one that is unset, holds a relative path,
+   or resolves (after symlinks) inside the target checkout or beneath a worktree root
+   (`babysit_worktree_root`, `worktree_root`, the plugin data directory's `worktrees/`), whether or
+   not a worktree exists there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
+   gives. Whether the lane can write a surface is a
    host property this check cannot see, so it never reports one compliant on that ground. The
    check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke
    `check-security-binding.mjs`: every promotable cell stays effective-unpromoted whatever it

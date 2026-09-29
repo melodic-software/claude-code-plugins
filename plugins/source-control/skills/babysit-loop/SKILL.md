@@ -193,15 +193,13 @@ before resolving the first cell of a run.
 
 ## Promotion-evidence bootstrap options (substituted at load)
 
-The values below substitute from this plugin's stored configuration when this skill loads. A
-surviving literal `${user_config.…}` placeholder, or an empty value, means that option is unset.
-This block is the only channel the lane reads them from: never the `CLAUDE_PLUGIN_OPTION_*`
-environment mirror, which a repository's `.claude/settings.json` `env` block can populate for an
-unset option, and never `.claude/source-control.md` or any other repository file
-([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
-facts 4, 5, and 7). The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block; what each surface must
-be is in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md).
+The option values below substitute when this skill loads. Treat an empty value, or one still
+written as a `${user_config.…}` placeholder, as unset. The lane reads these options from this block
+only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/source-control.md`
+or any other repository file. The reasons and their verification record are in
+[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
+which also says what each surface must be. The lane-start preflight in
+[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block.
 
 | Option | Value |
 | --- | --- |

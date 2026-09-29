@@ -38,6 +38,11 @@ Never a source, for a location or for a surface itself:
   can populate for an unset option (same document, fact 4).
 - Anything the lane or an agent working the queue can write.
 
+Each option holds a location, not a credential, so none is declared `sensitive`: the plugin
+options page substitutes only non-sensitive values into skill content, which puts the paths in
+the lane's context. What protects a surface is that the lane cannot write it, not that its path
+stays unknown. Never put a secret in one of these options.
+
 The options say where a surface is; they do not make it unwritable. A user settings file is
 writable by any agent running as that user, so a location kept there is only as protected as that
 file. Managed settings, or a `--settings` file the executor owns, keep the location out of the
@@ -131,10 +136,13 @@ absent. A set value is compliant only when it is:
   resolves every cell effective-unpromoted. Plugin options are read only from user settings,
   `--settings`, and managed settings, a repository's `env` block can populate the
   `CLAUDE_PLUGIN_OPTION_*` variable of an unset option, and a skill body's option placeholders
-  substitute into model-visible content.
+  substitute into model-visible content, non-sensitive values only.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
   `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
-  `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7.
+  `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7; the
+  [plugins reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)
+  `${user_config.KEY}` entry ("In skill and agent content, only non-sensitive values are
+  substituted"), fetched 2026-09-29.
 - **As of:** 2026-09-29.
 - **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
   plugin-option read scopes.
