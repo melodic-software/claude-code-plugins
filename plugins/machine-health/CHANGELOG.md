@@ -3,6 +3,26 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.7] - 2026-09-29
+
+### Fixed
+
+- **audit:** the discovery probes use the catalog check ids (`container-disk-usage`), so a probe
+  and its check share one id.
+- **audit:** `TODO.md` proposals are written under the state directory instead of the skill root,
+  a first-run winget proposal is queued there, and the report's open questions list the queued
+  proposals.
+- **audit:** the environment check summary reports persisted PATH and process PATH shadowing in
+  separate clauses, and the trend table fills the Trend column instead of a constant `-`.
+- **audit:** the elevated re-run banner captures its output to a transcript under the state root's
+  `logs` folder.
+
+### Changed
+
+- **audit:** the Windows check catalog documents checks 9 through 16 with the thresholds each
+  `Test-*.ps1` applies, and the skill body lists the audit's known gotchas.
+- **audit:** the README states that the test runner caps Pester at 5.x.
+
 ## [0.14.6] - 2026-09-29
 
 ### Fixed
