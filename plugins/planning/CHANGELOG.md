@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.1] - 2026-09-29
+## [0.47.2] - 2026-09-29
 
 ### Fixed
 
 - **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
+
+## [0.47.1] - 2026-09-29
+
+### Fixed
+
+- **`goal-condition-length.sh` exits 2 with a usage hint when stdin is a terminal** and no `--file` is given, instead of blocking on input. Piped and `--file` use are unchanged ([#5291](https://github.com/melodic-software/claude-code-plugins/issues/5291)).
 
 ## [0.47.0] - 2026-09-29
 
