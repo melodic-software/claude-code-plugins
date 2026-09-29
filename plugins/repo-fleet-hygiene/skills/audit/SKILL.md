@@ -157,6 +157,33 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
    accruing) and is **not** a substitute for this fleet visibility.
+   When the merged PR's `headRefOid` differs from the remote-tracking tip, the tip is still merged
+   content if it is an ancestor of `headRefOid` and that commit is in the clone
+   (`git merge-base --is-ancestor <tip> <headRefOid>` exits 0). That case is `MEDIUM`
+   `merged-remote-branch` with the reason `tip is an ancestor of the merged head`. It runs no
+   ls-remote probe, so it is never `HIGH`. A head commit absent from the clone, or a tip that is not
+   an ancestor, emits nothing.
+   **Remote branch families:** each remote-tracking branch under the selected remote whose name
+   belongs to a family below, and that no `merged-remote-branch` finding covers, gets one `LOW`
+   `remote-branch-family` row: the family, the tip, its age in days from the committer date, and
+   whether the tip is an ancestor of `<remote>/<default>` (`yes`, `no`, or `unknown`). The row reads
+   the last-fetched `refs/remotes/<remote>/` inventory and adds no remote probe. It is report-only:
+   no handoff, no deletion, no deletion preview. Whether and when such branches are deleted is the
+   owner's decision.
+
+   | Family | Branch name | Source |
+   |---|---|---|
+   | `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees |
+   | `claude` | `claude/*` | Claude Code on the web |
+   | `plan` | `plan/*` | named by hand |
+   | `stranded` | `stranded/*` | named by hand |
+   | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
+
+   | Claim | Basis | As of | Recheck |
+   |---|---|---|---|
+   | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
+   | `claude/*` branches come from Claude Code on the web. | Observed on fleet remotes; <https://code.claude.com/docs/en/claude-code-on-the-web> names no branch prefix. | 2026-09-29 | That page names a branch prefix, or a `claude/*` branch turns up with another origin. |
+
 5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
@@ -299,6 +326,7 @@ Related fleet contracts that remain separate:
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
 | `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation. This audit does not change it |
+| `remote-branch-family` | None. Report only: no deletion and no deletion preview. Read the family, age and on-default fields and decide by hand |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |

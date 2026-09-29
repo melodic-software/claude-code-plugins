@@ -19,6 +19,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 |---|---|---|---|---|
 | Built-in CLI commands | 5 | 5 | route 1, suggest 4 | complementary 5 |
 | Bundled skills | 13 | 12 | route 8, suggest 3, wrap 2 | complementary 12, defer 1 |
+| Bundled workflows | 0 | 0 | none | none |
 | Plugin-backed built-ins | 1 | 1 | route 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
@@ -245,16 +246,14 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - aliases: checkup
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree
-  - shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
 - **Observation:** extraction: extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch) (2026-09-29)
 - **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-09-29)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `doctor` → `claude-ops:audit-performance`
 
-- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing line for the shared surface description still lives on audit-install-state.
+- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing sentence for the shared surface lives in audit-install-state.
 - **Integration:** `suggest`
 - **Native surface:** `doctor` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `claude-ops:audit-performance` (skill)
@@ -264,11 +263,9 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
-  - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
 - **Observation:** extraction: extracted from the installed native binary v2.1.284 (integrity: degraded, counts are floors; the builtin_commands lane is broken at this build; the bundled_skills lane read `doctor` as a bundled skill with alias `checkup`, gated, model invocation disabled, surviving the kill switch) (2026-09-29)
 - **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule stops covering transcripts (the engine gains a transcript read) (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-skill-visibility`
 
@@ -285,11 +282,9 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces
   - this row's routing survives the split: the /doctor row of https://code.claude.com/docs/en/commands.md still credits the bundled doctor skill with finding 'unused skills, MCP servers, and plugins versus their context cost' inside its setup checkup, so the deferral recorded here is to a surface that still does the job (read 2026-09-07)
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
-  - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
 - **Observation:** extraction: targeted string search of the installed binary v2.1.284 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.284 extraction, not a re-extraction) (2026-09-29)
 - **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-29)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `run` → `testing:run-e2e`
 
@@ -340,6 +335,10 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-09-11)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+## Bundled workflows
+
+No rows recorded in this lane.
 
 ## Plugin-backed built-ins
 

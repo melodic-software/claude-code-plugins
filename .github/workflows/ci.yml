@@ -833,6 +833,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run spoke-plugin-root tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-spoke-plugin-root.test.sh
+      - name: Check skill spokes do not name paths through the plugin-root token
+        id: spoke_plugin_root
+        continue-on-error: true
+        run: scripts/check-spoke-plugin-root.sh --check
+
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
@@ -1551,6 +1560,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            spoke-plugin-root=${{ steps.spoke_plugin_root.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}

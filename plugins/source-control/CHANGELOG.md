@@ -9,6 +9,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
 
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
 ## [0.62.26] - 2026-09-29
 
 ### Fixed
