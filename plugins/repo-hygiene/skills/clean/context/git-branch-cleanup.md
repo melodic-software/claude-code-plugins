@@ -10,7 +10,7 @@ Run the branch-audit script. Do not reimplement collection inline:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 ```
 
-**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>` or `TipCaptureError: <why>`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
+**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then the main-checkout block, `MainCheckout:`, `MainCheckoutDirty:`, any `MainCheckoutOperation:` and `OperationInProgress:` lines (see 4.6); then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:` (a landed branch adds `Landed: <proof>`; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>` or `TipCaptureError: <why>`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
 
 **Across repos.** `--repo DIR...`, `--repos-from FILE|-`, `--skip ENTRY` and `--skip-from FILE` (the selection `clean-batch.sh` takes) audit several repositories in one run, sequentially and read-only. Each audited repo is a `Repo: <path>` block holding the output above, ended by `---`, with its own `TipCapture:` under its own common git dir. A repo that shares a git common dir with one already audited (a linked worktree, whose branches the first audit already lists) is a `Repo:` / `Outcome: skipped` block, so each repository is audited once, from the first-named worktree. A skip-listed repo, an unresolvable input (`Outcome: blocked`), or an audit that exits nonzero (`Outcome: failed`) is reported without stopping the rest, and `FleetSummary: repos=N audited=A skipped=S duplicate=D blocked=B failed=F` closes the run with exit 0. `--capture-file PATH` names one file, so with more than one repo it is a usage error (exit 2); each repo gets its default capture. With none of these flags the script audits the current repository and its output is unchanged.
 
@@ -42,10 +42,14 @@ The script applies rules in priority order (first match wins), then refines a RE
 | 6 | Branch in git `--merged` ancestry | SAFE | merged (non-squash) |
 | 7 | `PR` = CLOSED | REVIEW | PR closed without merge |
 | 8 | Upstream gone (`: gone]` in `branch -vv`) | LIKELY-SAFE | upstream deleted |
+| 8b | A REVIEW fallback below would apply, PR is not MERGED, CLOSED or OPEN, and `git cherry origin/<default> <branch>` prints only `-` lines | LIKELY-SAFE | landed by patch-id (git cherry) |
+| 8c | As 8b, and the branch's whole diff from its merge-base, re-committed as one unreferenced commit, has its patch-id on origin/default | LIKELY-SAFE | landed as a squash (tree patch-id) |
 | 9 | No upstream, M commits not on origin/default | REVIEW | no upstream, M commits not on origin/<default> |
 | 10 | Age > 90 days | REVIEW | stale |
 | 11 | No PR, no tracking, not merged | REVIEW | orphaned |
 <!-- ai-slop-ignore-end -->
+
+**Landed proof (rows 8b and 8c).** Both run only when `origin/<default>` and the branch tip resolve, the branch has a net diff from its merge-base, and the PR map does not say MERGED, CLOSED or OPEN (a CLOSED or OPEN PR is a claim a patch-id match does not answer). They are pure git and need no PR data. A proof makes the branch LIKELY-SAFE, never SAFE, and adds a `Landed:` line naming it; any failed or missing signal keeps the REVIEW fallback. Because a landed branch leaves REVIEW, the LOSSY refinement never sees it.
 
 Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Branch can match multiple REVIEW reasons. List all in report.
 
@@ -69,9 +73,11 @@ Every missing or failed signal therefore lands in REVIEW, never in LOSSY and nev
 
 **Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion, namely `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
-**Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When the PR map is unavailable or truncated, the affected squash-merged branches land in REVIEW tier, which is safe-conservative handling only because the audit says so out loud: that is what the `PRDataUnavailable:` and `PRDataTruncated:` lines are for. A silently short map produces the same REVIEW verdicts with nothing to distinguish them from a genuine one.
+**Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) detects these via PR state. Without a PR map (unavailable or truncated), the cherry step proves landing instead: a rebase or cherry-pick merge shows as `git cherry` finding every commit's patch-id on origin/<default> (row 8b), and a squash merge shows as the branch's combined diff finding its patch-id there (row 8c). Both yield LIKELY-SAFE with a `Landed:` line. A squash whose combined diff differs from the branch's (conflict resolution, edits on the base, a merge-from-base folded in) matches neither and stays in REVIEW, so the `PRDataUnavailable:` and `PRDataTruncated:` lines still matter: surface them, because under either line the REVIEW split can hold landed branches the proof could not match.
 
 ## 4.6 Present report
+
+**Main checkout block.** `MainCheckout:` names what the audit runs from (a branch, or `detached at <short sha>`) and `MainCheckoutDirty:` is the `git status --porcelain` line count; state both in the report header. Detached and dirty state are reported and change no verdict. Each merge, rebase, cherry-pick, revert or bisect in progress (`MERGE_HEAD`, `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`, resolved with `git rev-parse --git-path` so a linked worktree reads its own state) prints `MainCheckoutOperation: <name> <path>`, then `OperationInProgress: <path>`. While one is in progress the checkout is mid-change, so SAFE, LIKELY-SAFE and LOSSY branches are all reported as REVIEW with the reason `operation in progress: <path>`, and `git-branch-delete.sh` refuses the whole batch with the same text. Tell the user to finish or abort the operation and re-run the audit; offer no deletion meanwhile.
 
 Map script output to a table:
 
@@ -84,6 +90,7 @@ Map script output to a table:
 | feat/parked | WORKTREE | 3d | none | 0 ahead of origin/feat/parked | not assessed | checked out in worktree, clean up the worktree first |
 | feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | not assessed | PR merged |
 | refactor/x | LIKELY-SAFE | 12d | none | no upstream (no origin/<default> to compare) | not assessed | upstream gone |
+| feat/rebased | LIKELY-SAFE | 20d | none | no upstream, 3 commits not on origin/<default> | not assessed | landed by patch-id (git cherry) |
 | draft/local | LOSSY | 4d | none | no upstream, 5 commits not on origin/<default> | 5 commits only on this branch | no upstream, 5 commits not on origin/<default> |
 | experiment | REVIEW | 120d | none | 0 ahead of origin/experiment | none | stale (120d), orphaned |
 
