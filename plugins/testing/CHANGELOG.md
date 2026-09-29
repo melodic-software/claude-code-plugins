@@ -10,7 +10,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - **audit:** `rule-zero-assertion` follows same-file helpers to any depth: a helper that calls an
   asserting helper asserts too, so a test awaiting `waitForAll()`, which returns `pollUntil(...)`,
   which throws, is no longer a finding. A C# overload that calls its own name counts when another
-  overload of it asserts. A bats test whose last line is `! cmd` asserts through that line. A
+  overload of it asserts. A bats test whose last line is a standalone `! cmd` (no `||`, `&&` or `;`) asserts through that line. A
   base-versus-head re-scan of this repository, `medley` and `ci-runner` under gawk and mawk
   cleared exactly medley's two known false positives and moved nothing else.
 

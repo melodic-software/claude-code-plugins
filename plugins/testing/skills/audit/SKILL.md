@@ -71,7 +71,7 @@ states the fired condition in the run's own values.
   `self`/`this`/`cls`, whose own body asserts, throws or rejects is not a zero-assertion finding
   (a method call resolves to the test's own class when it defines the name),
   nor is one whose helper calls such a function, to any depth. A bats test whose last line is
-  `! cmd` asserts through it. A missed defect costs one finding; a false positive costs the
+  a standalone `! cmd` asserts through it. A missed defect costs one finding; a false positive costs the
   detector its audience.
 
 ## Running the detector

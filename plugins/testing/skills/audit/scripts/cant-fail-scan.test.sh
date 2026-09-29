@@ -1006,6 +1006,7 @@ corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
   bash-bats/bad/bats-greet-run-unchecked.bats.fixture
+  bash-bats/bad/bats-last-bang-or-true.bats.fixture
   bash-bats/bad/bats-page-source-text.bats.fixture
   bash-bats/bad/bats-retry-limit-restated.bats.fixture
   bash-bats/good/bats-config-removed-last-bang.bats.fixture
@@ -1068,6 +1069,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture

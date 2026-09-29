@@ -912,7 +912,7 @@ function sh_inert(s, r) {
     RUN_PEND = 0
   }
   if (RUN_PEND && r ~ /\$\{?(status|output|lines|stderr|stderr_lines)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])(assert|refute)[A-Za-z_]*/) RUN_PEND = 0
-  if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r) }
+  if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r); BANG_SOLO = s !~ /\|\||&&|;/ }
 }
 
 # Flushed as the block closes: a pending run or harness [ ] is decided there.
@@ -920,8 +920,9 @@ function inert_close(    n, recs, i, f) {
   if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
   if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
   if (PS_PEND) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
-  # A ! command on the test's last line is its assertion.
-  BANG_LAST = BANG_PEND
+  # A standalone ! command on the test's last line is its assertion; after
+  # || , && or ; the list's status is no longer the negation's.
+  BANG_LAST = BANG_PEND && BANG_SOLO
   RUN_PEND = BANG_PEND = PS_PEND = 0
   if (!SET_E && !SOURCED && BRK_OUT != "") {
     n = split(BRK_OUT, recs, "\n")
@@ -1480,6 +1481,9 @@ function def_name(m,    s) {
   } else if (LEXER == "go") {
     if (match(m, /^func[[:space:]]+(\([^)]*\)[[:space:]]*)?[A-Za-z_][A-Za-z0-9_]*/)) s = substr(m, RSTART, RLENGTH)
   }
+  # Where the matched header ends, past the defined name: every pattern is
+  # anchored at the line start, and sub leaves RSTART and RLENGTH alone.
+  DEF_END = s == "" ? 0 : RSTART + RLENGTH
   sub(/^.*[^A-Za-z0-9_$]/, "", s)
   return s
 }
@@ -1500,7 +1504,7 @@ function helper_scan(m,    name, ind, k, calls) {
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
     for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
   # A definition line is read from after the name it defines.
-  if (name != "") m = substr(m, index(m, name) + length(name))
+  if (name != "") m = substr(m, DEF_END)
   if (HK > 0 && (calls = called_names(m)) != "")
     for (k = 1; k <= HK; k++) DEF_CALLS[HD[k]] = DEF_CALLS[HD[k]] calls
 }
@@ -1569,13 +1573,18 @@ function delegates_to_overload(i,    key) {
 
 # A helper that calls an asserting helper asserts too, to any depth: repeat
 # until no definition changes.
-function helper_verdicts(    i, changed) {
+function helper_verdicts(    i, changed, hit) {
   for (i = 1; i <= DEF_N; i++) SCOPE_DEFS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
   for (i = 1; i <= DEF_N; i++) if (i in DEF_ASSERTS) helper_mark(i)
   do {
     changed = 0
-    for (i = 1; i <= DEF_N; i++)
-      if (!(i in DEF_ASSERTS) && (calls_helper(DEF_CALLS[i], DEF_CLS[i]) || delegates_to_overload(i))) { DEF_ASSERTS[i] = 1; helper_mark(i); changed = 1 }
+    for (i = 1; i <= DEF_N; i++) {
+      if (i in DEF_ASSERTS) continue
+      # Two statements: gawk 5.2.1 double-frees on the two calls joined by ||.
+      hit = calls_helper(DEF_CALLS[i], DEF_CLS[i])
+      if (!hit) hit = delegates_to_overload(i)
+      if (hit) { DEF_ASSERTS[i] = 1; helper_mark(i); changed = 1 }
+    }
   } while (changed)
 }
 
