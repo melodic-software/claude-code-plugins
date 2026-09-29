@@ -69,6 +69,8 @@ Parse `$ARGUMENTS` to determine the action:
 
 These hold after a compaction re-attach. Later steps say how to carry them out.
 
+**Verification.** Claim: after auto-compaction Claude Code re-attaches each skill's most recent invocation keeping its first 5,000 tokens, within a shared 25,000-token budget. Basis: https://code.claude.com/docs/en/skills (auto-compaction paragraph); `tests/reattach-slice.test.sh` stands in for the 5,000 tokens with the first 20,000 bytes. As-of: 2026-09-29. Recheck when that paragraph changes either figure, or when the page stops describing a per-skill re-attach.
+
 - **Reviewer.** Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent. The producing thread does not self-attack the plan inline.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
 - **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory.
@@ -217,13 +219,12 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 Apply the reviewer rule under Planning Process before blast radius or presentation. The producing main thread MUST NOT self-attack the plan inline. Fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
-2. **Surface the cost.** Tell the user a fresh-context plan review runs now: one bounded sub-agent
-   (default `effort: medium`, capped turns) versus blocking the orchestrator for a long serial review
-   at session effort. One sentence is enough; the user picks consciously.
+2. **Surface the cost.** Tell the user a fresh-context plan review runs now, whatever they answer:
+   one bounded sub-agent (default `effort: medium`, capped turns). One sentence is enough.
 3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
    sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
-   lower per invocation (per Claude Code sub-agent docs).
+   lower per invocation (the verification record in `agents/plan-reviewer.md`).
 4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
 5. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 
@@ -250,7 +251,7 @@ This step runs only when the blast-radius assessment triggers it. Note: Step 3 (
 
 1. **Surface the cost.** Tell the user a formal `/planning:devils-advocate` run is starting in fresh
    context (another serial sub-agent, typically higher turn budget than Step 3) before dispatching.
-2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
+2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Keep the brief short: findings table, not a narrative. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
 
    **Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against
    the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's
