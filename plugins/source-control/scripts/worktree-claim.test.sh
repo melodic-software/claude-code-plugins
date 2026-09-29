@@ -278,6 +278,61 @@ assert_exit "release of the main worktree is usage (exit 2)" 2 "$?"
 run_claim release "$UNRELATED" --repo-dir "$REPO" --session-id rel-own
 assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
 
+# --- stale: read-only stale-lock detector -------------------------------------
+
+CFG="$TEST_TMPDIR/claude-config"
+mkdir -p "$CFG/projects/-proj"
+STALE_HOST=stalehost
+stale_lock() { # <name> <reason>
+  git -C "$REPO" worktree add -q "$EXT/$1" -b "feat/$1"
+  git -C "$REPO" worktree lock --reason "$2" "$EXT/$1"
+}
+run_stale() { # <name> [args]
+  local name="$1"
+  shift
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/$name" --repo-dir "$REPO" "$@"
+}
+stale_reason() { HOSTNAME="${2:-$STALE_HOST}" bash -c 'source "$1"; worktree_lock_reason worktree-claim.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" "$1"; }
+
+stale_lock wt-st-fresh "$(stale_reason st-fresh)"
+touch "$CFG/projects/-proj/st-fresh.jsonl"
+run_stale wt-st-fresh
+assert_exit "stale: a fresh transcript is not provable (exit 1)" 1 "$?"
+assert_contains "stale: the refusal names the transcript" "$OUT" "st-fresh.jsonl"
+
+stale_lock wt-st-old "$(stale_reason st-old)"
+touch -d '3 hours ago' "$CFG/projects/-proj/st-old.jsonl"
+run_stale wt-st-old
+assert_exit "stale: an old transcript is provably stale (exit 0)" 0 "$?"
+assert_contains "stale: the evidence line names the session" "$OUT" "session st-old"
+run_stale wt-st-old --idle-minutes 240
+assert_exit "stale: a wider idle window makes it not provable (exit 1)" 1 "$?"
+assert_contains "stale: the lock survives the check" "$(stanza_for wt-st-old)" "locked"
+
+stale_lock wt-st-none "$(stale_reason st-none)"
+run_stale wt-st-none
+assert_exit "stale: no transcript on this host counts as idle (exit 0)" 0 "$?"
+
+stale_lock wt-st-foreign "$(stale_reason st-foreign otherhost)"
+run_stale wt-st-foreign
+assert_exit "stale: a lock from another host is not provable (exit 1)" 1 "$?"
+assert_contains "stale: the refusal names the other host" "$OUT" "otherhost"
+
+stale_lock wt-st-nosess "$(HOSTNAME=$STALE_HOST bash -c 'source "$1"; worktree_lock_reason worktree-create.sh' _ "$SCRIPT_DIR/lib/worktree-facts.sh")"
+run_stale wt-st-nosess
+assert_exit "stale: a reason without a session id is not provable (exit 1)" 1 "$?"
+
+git -C "$REPO" worktree add -q "$EXT/wt-st-bare" -b feat/st-bare
+run_stale wt-st-bare
+assert_exit "stale: an unlocked tree is not provable (exit 1)" 1 "$?"
+
+CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$REPO" --repo-dir "$REPO"
+assert_exit "stale: the main worktree is not provable (exit 1)" 1 "$?"
+run_stale wt-st-old --idle-minutes soon
+assert_exit "stale: a non-numeric idle window is usage (exit 2)" 2 "$?"
+CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$UNRELATED" --repo-dir "$REPO"
+assert_exit "stale: a non-worktree path is environment (exit 5)" 5 "$?"
+
 # --- usage / environment ------------------------------------------------------
 
 run_claim

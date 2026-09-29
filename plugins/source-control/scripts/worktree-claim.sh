@@ -30,16 +30,25 @@
 #     Inverse of claim: unlock a linked worktree whose reason names this
 #     session. An unlocked tree is a no-op; a foreign or reasonless lock is
 #     never removed (reason printed).
+#   stale <path> [--repo-dir DIR] [--idle-minutes N]
+#     Read-only. Exit 0 only when the lock is provably stale: a linked worktree
+#     whose reason reads `lane active on <host> session <sid> since`, <host> is
+#     this host, and no ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/<sid>.jsonl
+#     changed within N minutes (default 120; a missing transcript is idle). It
+#     does not look at PR or landed state; the caller requires that separately.
 #
 # Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
 # closed with exit 5 and a message naming the floor and the installed version.
 #
 # Exit codes:
 #   0  report: no unclaimed linked worktrees
+#      stale: provably stale (one evidence line printed)
 #      claim: locked, or already claimed by this session
 #      check-enter: our claim, or path is not a linked worktree
 #      release: unlocked this session's lock, or the tree was already unlocked
 #   1  report: one or more linked worktrees have no lock reason
+#      stale: not provably stale (unlocked, reasonless, no session, another
+#      host, or a transcript changed within the idle window)
 #   2  usage (release: main worktree, or no session id to prove ownership)
 #   3  check-enter: the worktree is unclaimed (no lock reason)
 #   4  check-enter: foreign live claim (reason printed)
@@ -82,6 +91,7 @@ Usage:
   $PROG claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
   $PROG release <path> [--repo-dir DIR] [--session-id ID]
+  $PROG stale <path> [--repo-dir DIR] [--idle-minutes N]
 EOF
   exit "$EX_USAGE"
 }
@@ -232,6 +242,7 @@ repo_dir=""
 session_id=""
 path=""
 all_unclaimed=0
+idle_minutes=120
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -243,6 +254,11 @@ while [[ $# -gt 0 ]]; do
   --session-id)
     [[ $# -ge 2 ]] || usage
     session_id="$2"
+    shift 2
+    ;;
+  --idle-minutes)
+    [[ $# -ge 2 ]] || usage
+    idle_minutes="$2"
     shift 2
     ;;
   --all-unclaimed)
@@ -278,7 +294,7 @@ if [[ -n "$session_id" ]] && ! valid_session_id "$session_id"; then
 fi
 
 case "$cmd" in
-report | claim | check-enter | release) ;;
+report | claim | check-enter | release | stale) ;;
 *)
   printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
   usage
@@ -305,6 +321,14 @@ if [[ "$cmd" == "release" && -z "$path" ]]; then
 fi
 if [[ "$cmd" == "release" && -z "$session_id" ]]; then
   printf '%s: release needs --session-id or CLAUDE_SESSION_ID to prove ownership\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ "$cmd" == "stale" && -z "$path" ]]; then
+  printf '%s: stale requires a path\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ ! "$idle_minutes" =~ ^[0-9]{1,9}$ ]]; then
+  printf '%s: --idle-minutes must be a non-negative integer\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
 if [[ "$cmd" == "report" && -n "$path" ]]; then
@@ -480,7 +504,43 @@ do_release() {
   printf 'released %s\n' "$wt"
 }
 
+# ponytail: liveness is provable only from this host's transcripts; a lock from
+# another host, or without a session id, stays "not provable".
+do_stale() {
+  local idx wt reason lane host sid projects hit
+  if ! idx="$(find_worktree_index "$path")"; then
+    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
+    return "$EX_ENV"
+  fi
+  wt="${WT_PATHS[idx]}"
+  reason="${WT_REASONS[idx]}"
+  if ((WT_IS_LINKED[idx] == 0)) || [[ -z "$reason" ]]; then
+    printf 'not provable: %s is not a linked worktree with a lock reason\n' "$wt"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
+  if ! lane="$(worktree_reason_lane "$reason")"; then
+    printf 'not provable: the lock reason names no session: %s\n' "$reason"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
+  read -r host sid <<<"$lane"
+  if [[ "$host" != "$(worktree_host_name)" ]]; then
+    printf 'not provable: the lock is from host %s, not this host\n' "$host"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
+  projects="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  hit="$(find "$projects" -mindepth 2 -maxdepth 2 -name "$sid.jsonl" -mmin "-$idle_minutes" -print -quit 2>/dev/null)"
+  if [[ -n "$hit" ]]; then
+    printf 'not provable: transcript %s changed within %s minutes\n' "$hit" "$idle_minutes"
+    return "$EX_UNCLAIMED_REPORT"
+  fi
+  printf 'stale: session %s on %s has no transcript change in %s minutes\n' "$sid" "$host" "$idle_minutes"
+}
+
 case "$cmd" in
+stale)
+  do_stale
+  exit $?
+  ;;
 report)
   do_report
   exit $?
