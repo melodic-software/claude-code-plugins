@@ -18,7 +18,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 17 | 16 | route 3, suggest 14 | complementary 16, defer 1 |
-| Bundled skills | 24 | 21 | route 16, suggest 6, wrap 2 | complementary 21, defer 3 |
+| Bundled skills | 25 | 22 | route 16, suggest 7, wrap 2 | complementary 22, defer 3 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 1 | 1 | route 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
@@ -38,7 +38,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Teach auto mode about your environment, plus optional rule tweaks
   - argument hint: [--request-id <uuid>] (--wizard posture=… scope=… depth=… --propose | --expect-sha256 <64-hex> --apply-file <path>)
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)
-  - detect: origin discovered, score 0.6585, shared tokens auto, mode, rule, file, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.6585, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/auto-mode-setup`, changes its argument contract or what it writes, un-hides it, or makes it model-invocable (verified 2026-09-29)
@@ -56,7 +56,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: hidden, gated, model-invocation-disabled
   - native description: Monitor and autofix any issues with the current PR
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin discovered, score 0.4125, shared tokens pr, pull, request, monitor, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.4125, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/autofix-pr`, un-hides it, changes its gating, or makes it model-invocable (verified 2026-09-29)
@@ -76,7 +76,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Send this session to the background and free the terminal
   - argument hint: [prompt]
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin discovered, score 0.7755, shared tokens background, bg, prompt, session, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.7755, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/background` or its `bg` alias, changes its gating, or makes it model-invocable (verified 2026-09-29)
@@ -93,7 +93,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - `commit-push-pr` present in the extraction as builtin-command
   - native description: Commit, push, and open a PR
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable (command type `prompt`)
-  - detect: origin discovered, score 0.4092, shared tokens pr, pull, request, commit, invocable_by model+user, recommended integration route
+  - detect: origin discovered, score 0.4092, invocable_by model+user, recommended integration route
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/commit-push-pr`, changes its command type or invocability, or the commands reference starts documenting it (verified 2026-09-29)
@@ -104,7 +104,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: No component duplicates /export and none may invoke it: /export is a non-prompt command type the Skill tool never lists, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
 - **Integration:** `suggest`
-- **Native surface:** `export` (built-in command; markers: none)
+- **Native surface:** `export` (built-in command; markers: model-invocation-disabled)
 - **Our component:** `session-flow:clean-stop` (skill)
 - **Evidence:**
   - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
@@ -120,7 +120,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: No component duplicates /export and none may invoke it: /export is a non-prompt command type the Skill tool never lists, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
 - **Integration:** `suggest`
-- **Native surface:** `export` (built-in command; markers: none)
+- **Native surface:** `export` (built-in command; markers: model-invocation-disabled)
 - **Our component:** `session-flow:handoff` (skill)
 - **Evidence:**
   - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
@@ -137,7 +137,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: No component duplicates /export and none may invoke it: /export is a non-prompt command type the Skill tool never lists, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
 - **Integration:** `suggest`
-- **Native surface:** `export` (built-in command; markers: none)
+- **Native surface:** `export` (built-in command; markers: model-invocation-disabled)
 - **Our component:** `session-flow:retro` (skill)
 - **Evidence:**
   - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
@@ -162,7 +162,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Spawn a background agent that inherits the full conversation
   - argument hint: <directive>
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin seeded, score 0.0611, shared tokens background, agent, invocable_by user-only, recommended integration suggest
+  - detect: origin seeded, score 0.0611, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/fork` (the changelog records a 2.1.77 rename to `/branch` that the 2.1.284 registration does not show), changes its gating, or makes it model-invocable (verified 2026-09-29)
@@ -181,7 +181,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Set a goal Claude checks before stopping
   - argument hint: [<condition> | clear]
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin discovered, score 0.8063, shared tokens goal, condition, check, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.8063, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/goal`, changes its condition contract or length limit, or makes it model-invocable (verified 2026-09-29)
@@ -199,7 +199,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: model-invocation-disabled
   - native description: Generate a report analyzing your Claude Code sessions
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `prompt`)
-  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0105, shared tokens session)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0105)
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable (verified 2026-09-29)
@@ -218,7 +218,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - aliases: memory-pause, toggle-memory
   - native description: Pause automemory for this session
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)
-  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1724, shared tokens memor)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1724)
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release un-hides or ungates `/pause-memory` (aliases `memory-pause`, `toggle-memory`), or the commands reference documents it (verified 2026-09-29)
@@ -236,7 +236,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - aliases: allowed-tools
   - native description: Manage allow and deny tool permission rules
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin discovered, score 0.8253, shared tokens permission, allow, rule, den, manag, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.8253, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/permissions` or its `allowed-tools` alias, changes its tabs, or makes it model-invocable (verified 2026-09-29)
@@ -255,7 +255,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Enable plan mode or view the current session plan
   - argument hint: [open|<description>]
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin discovered, score 0.6733, shared tokens plan, session, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.6733, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/plan`, changes what it persists, or makes it model-invocable (verified 2026-09-29)
@@ -293,7 +293,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: model-invocation-disabled
   - native description: Generate a one-line session recap now
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local`)
-  - detect: origin seeded, score 0.1948, shared tokens recap, session, invocable_by user-only, recommended integration suggest
+  - detect: origin seeded, score 0.1948, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/recap`, widens it beyond the current session, or makes it model-invocable (verified 2026-09-29)
@@ -304,7 +304,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: The sibling doctor row's split, narrowed to the surface that now owns the question. Built-in /skill-doctor is a one-shot report of what each loaded skill costs in context and how often it is used, so unused ones can be turned off. audit-skill-visibility answers why a skill is unseen: it reconciles three usage sources (native ~/.claude.json counters, its own JSONL store, OTEL) under a max-across-sources rule, computes an observed horizon and withholds every verdict the span cannot support, diagnoses reachability causes, and analyses listing-budget starvation. It disables nothing by contract. This row is separate from the doctor row rather than folded into it because the two surfaces carry different gates: /doctor answers to DISABLE_DOCTOR_COMMAND, /skill-doctor to a minimum version and to feature-flag fetching, so a session can resolve either, both, or neither, and each routing line needs its own presence gate.
 - **Integration:** `suggest`
-- **Native surface:** `skill-doctor` (built-in command; markers: gated)
+- **Native surface:** `skill-doctor` (built-in command; markers: gated, model-invocation-disabled)
 - **Our component:** `claude-ops:audit-skill-visibility` (skill)
 - **Evidence:**
   - upstream commit d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b in anthropics/claude-code (2026-09-04) added the `## 2.1.261` CHANGELOG heading and, under it, `Added /skill-doctor to show which loaded skills go unused and what they cost in context, so you can prune them`; read from the commit diff, not from the rendered changelog page
@@ -331,7 +331,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Send a subagent off with your full context; its result comes back here
   - argument hint: <task>
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (command type `local-jsx`)
-  - detect: origin seeded, score 0.0771, shared tokens task, agent, invocable_by user-only, recommended integration suggest
+  - detect: origin seeded, score 0.0771, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/subtask`, changes its gating, or makes it model-invocable (verified 2026-09-29)
@@ -352,7 +352,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Create a PR review artifact - a structured review briefing for a GitHub pull request (synthesis title and bottom line, a recommendation, reviewer judgment calls, a visual explainer, signals, and blind spots), published as a shareable page. Use when the user asks to review a PR as an artifact, publish a PR review page, or share a review briefing. NOT a narrative walkthrough. Only for CREATING a new artifact; edits to an existing artifact modify its HTML directly.
   - argument hint: [pr number or url]
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin discovered, score 0.5363, shared tokens pull, pr, request, explain, review, html, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin discovered, score 0.5363, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release ungates the bundled `artifact-pr-review` skill, the commands reference documents it, or a live roster capture protocol exists for Artifact-gated skills (verified 2026-09-29)
@@ -370,7 +370,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.
   - argument hint: <instruction>
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled
-  - detect: origin seeded, score 0.0782, shared tokens execut, plan, parallel, agent, invocable_by user-only, recommended integration suggest
+  - detect: origin seeded, score 0.0782, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `batch` skill, changes its worker range or PR behavior, or makes it model-invocable (verified 2026-09-29)
@@ -381,7 +381,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. The bundled skill's prompt-audit subcommand is the vendor's apply-sweep over the working directory's whole prompt surface, application code included; audit-instructions is a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).
 - **Integration:** `route`
-- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `claude-config:audit-instructions` (skill)
 - **Evidence:**
   - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
@@ -398,7 +398,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.
 - **Integration:** `route`
-- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `evals:methodology` (skill)
 - **Evidence:**
   - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
@@ -414,7 +414,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `complementary`: The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.
 - **Integration:** `route`
-- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `playbooks:fable-5` (skill)
 - **Evidence:**
   - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
@@ -455,10 +455,29 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Create a git commit. Use whenever you are about to create a commit, whether the user asked for one or it is a step in your current task - it gathers git context and applies the required commit workflow (message style, staging rules, attribution).
   - argument hint: [guidance]
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin discovered, score 0.734, shared tokens commit, git, messag, stag, creat, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin discovered, score 0.734, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `commit` skill, changes its invocability or gating, or the commands reference starts documenting it (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `debug` → `debugging:debug`
+
+- **Verdict:** `complementary`: The bundled skill debugs Claude Code itself (it turns on session debug logging and reads that log) and is user-invocable only; ours debugs the user's application through a reproduction loop. Ours offers `/debug` to the person when the problem is Claude Code, not their app. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `suggest`
+- **Native surface:** `debug` (bundled skill; markers: model-invocation-disabled)
+- **Our component:** `debugging:debug` (skill)
+- **Evidence:**
+  - `debug` present in the extraction as bundled-skill
+  - markers: model-invocation-disabled
+  - native description: Enable debug logging for this session and help diagnose issues
+  - argument hint: [issue description]
+  - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled
+  - detect: origin discovered, score 0.6786, invocable_by user-only, recommended integration suggest
+  - docs cross-check (commands reference, 2026-09-29): documented
+- **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the bundled `debug` skill, widens it beyond Claude Code's own session log, or makes it model-invocable (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -503,7 +522,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 - **Verdict:** `defer`: Deliberately undetermined. The design-sync family (design-sync skill with disableModelInvocation, hidden design-consent/design-revoke commands managing a durable agent-access grant, design-login credential flow, DesignSync tool) is registered in the binary but documented nowhere through v2.1.251, and no operator of this marketplace uses claude.ai/design design-system projects. Real enough to record next to the canvas integration it ships beside; too thin to rule on, and design-system sync is publishing, not visualization, so no integration text ships anywhere.
 - **Integration:** `route`
-- **Native surface:** `design-sync` (bundled skill; markers: hidden, gated, model-invocation-disabled)
+- **Native surface:** `design-sync` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `visualization:visualize` (skill)
 - **Evidence:**
   - binary extraction v2.1.251 (2026-08-31): design-sync registered with disableModelInvocation true; design-consent/design-revoke registered as hidden commands ('Grant/Revoke Claude agent access to your Design projects'); design-login flow strings present
@@ -523,10 +542,10 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - `doctor` present in the extraction as bundled-skill
   - markers: gated, model-invocation-disabled
   - aliases: checkup
-  - native description: Health-check the user's Claude Code setup and fix issues: diagnose installation health - what the `claude doctor` terminal diagnostics cover - from local data (duplicate or leftover installs, PATH, unparseable settings files, broken or colliding agent definitions, skills whose frontmatter fails to parse); find unused skills, MCP servers, and plugins versus their context cost and disable dead weight; deduplicate local CLAUDE.md files against checked-in ones; trim checked-in CLAUDE.md files by cutting content a session could derive from the codebase (directory layouts, tech-stack lists, architecture overviews) while keeping gotchas, rationale, and non-standard conventions; migrate always-loaded CLAUDE.md guidance into lazy skills and nested CLAUDE.md files; flag slow hooks and context-heavy extensions; check the installed version is current; make auto mode the default permission mode; and pre-approve frequently denied read-only commands. Use when the user asks for a doctor run, checkup, audit, tune-up, or cleanup of their Claude Code setup or configuration.
+  - native description: Health-check the user's Claude Code setup and fix issues: diagnose installation health - what the `claude doctor` terminal diagnostics cover - from local data (duplicate or leftover installs, PATH, unparsable settings files, broken or colliding agent definitions, skills whose frontmatter fails to parse); find unused skills, MCP servers, and plugins versus their context cost and disable dead weight; deduplicate local CLAUDE.md files against checked-in ones; trim checked-in CLAUDE.md files by cutting content a session could derive from the codebase (directory layouts, tech-stack lists, architecture overviews) while keeping gotchas, rationale, and non-standard conventions; migrate always-loaded CLAUDE.md guidance into lazy skills and nested CLAUDE.md files; flag slow hooks and context-heavy extensions; check the installed version is current; make auto mode the default permission mode; and pre-approve frequently denied read-only commands. Use when the user asks for a doctor run, checkup, audit, tune-up, or cleanup of their Claude Code setup or configuration.
   - argument hint: [prompt-audit [<path>]]
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled
-  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0565, shared tokens md, audit, local, path, load, agent)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0565)
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it (verified 2026-09-29)
@@ -602,7 +621,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: gated
   - native description: Explain where this session's tokens went, with one simple chart in plain language. Use when: explain usage, explain my usage, where did my tokens go, token usage breakdown, what used the most tokens.
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin seeded, score 0.0951, shared tokens token, breakdown, did, session, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin seeded, score 0.0951, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `explain-usage` skill, widens it beyond the current session, or changes its gating (verified 2026-09-29)
@@ -620,7 +639,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: gated
   - native description: Explain where this session's tokens went, with one simple chart in plain language. Use when: explain usage, explain my usage, where did my tokens go, token usage breakdown, what used the most tokens.
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin seeded, score 0.0698, shared tokens token, did, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin seeded, score 0.0698, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `explain-usage` skill, adds startup or per-tool attribution to it, or changes its gating (verified 2026-09-29)
@@ -637,7 +656,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - `fewer-permission-prompts` present in the extraction as bundled-skill
   - native description: Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin seeded, score 0.2718, shared tokens permission, sett, read, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin seeded, score 0.2718, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `fewer-permission-prompts` skill, changes what it writes, or changes its invocability (verified 2026-09-29)
@@ -656,7 +675,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Create a GitHub pull request. Use whenever you are about to open a PR, whether the user asked for one or it is a step in your current task - it gathers branch context and applies the required PR workflow (gh CLI, title/body format, attribution).
   - argument hint: [guidance]
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin discovered, score 0.5095, shared tokens pull, pr, request, creat, branch, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin discovered, score 0.5095, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `pr` skill, changes its invocability or gating, or the commands reference starts documenting it (verified 2026-09-29)
@@ -674,7 +693,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: gated
   - native description: Turn an idea into a working proof of concept and publish it as an Artifact - a single self-contained page the user can open, click through, and react to. Run a short intake, state your assumptions, build, then iterate on feedback in the same artifact. Use when the user asks to prototype an idea, mock up a concept, build a proof of concept, or wants to see something working before committing to a real build - including, on an explicit ask, a new feature shown in place on an app they already have.
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin discovered, score 0.3625, shared tokens prototyp, real, mock, page, build, contain, invocable_by model+user, recommended integration route-or-wrap
+  - detect: origin discovered, score 0.3625, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release ungates the bundled `prototype` skill, the commands reference documents it, or a live roster capture protocol exists for gated skills (verified 2026-09-29)
@@ -740,7 +759,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - `update-config` present in the extraction as bundled-skill
   - native description: Use this skill to configure the Claude Code harness via settings.json. Automated behaviors ("from now on when X", "each time X", "whenever X", "before/after X") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions ("allow X", "add permission", "move permission to"), env vars ("set X=Y"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: "allow npm commands", "add bq permission to global settings", "move permission to user settings", "set DEBUG=true", "when claude stops show X". For simple settings like theme/model, suggest the /config command.
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.2957, shared tokens permission, sett, json, config, updat, hook)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.2957)
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `update-config` skill, changes what it writes, or changes its invocability (verified 2026-09-29)
@@ -758,7 +777,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: model-invocation-disabled
   - native description: Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior - drive the affected flow, not just tests or typecheck. Run before committing nontrivial changes; bootstraps this repo's project verify skill if none exists yet. Don't invoke it on a diff that only touches tests, docs, or other code with no runtime surface to drive (a change to product source always has one) - there's nothing to observe.
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (`model_invocable` undetermined at this build, `disable_model_invocation: true` read instead)
-  - detect: origin discovered, score 0.3204, shared tokens verif, chang, test, actuall, change, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.3204, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `verify` skill, changes what it bootstraps, or makes it model-invocable (verified 2026-09-29)
@@ -778,7 +797,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - markers: model-invocation-disabled
   - native description: Deep research harness - fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.
   - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled (`model_invocable` undetermined at this build, `disable_model_invocation: true` read instead)
-  - detect: origin discovered, score 0.7023, shared tokens research, deep, invocable_by user-only, recommended integration suggest
+  - detect: origin discovered, score 0.7023, invocable_by user-only, recommended integration suggest
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `deep-research` workflow, changes its phases, or makes it model-invocable (verified 2026-09-29)
