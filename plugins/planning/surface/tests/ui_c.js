@@ -234,6 +234,18 @@ async page => {
       return {built: !!document.getElementById("scriptmark"), parentDom: probe(() => parent.document.title), storage: probe(() => localStorage.length), cookie: probe(() => document.cookie)};
     });
     ok("an html visual's script runs, in an opaque origin that cannot reach the page", hs.built && hs.parentDom === "blocked" && hs.storage === "blocked" && hs.cookie === "blocked", JSON.stringify(hs));
+    // Open in new tab: a one-time link that never carries the token, served as an opaque origin
+    const newTab = async sel => { const [p] = await Promise.all([page.context().waitForEvent("page", {timeout: 5000}), page.click(sel)]); await p.waitForURL(/\/api\/visual-open\?/, {timeout: 5000}).catch(() => {}); return p; };
+    const pop = await newTab('#fbody [data-vopen="vh"]'), pu = pop.url(), tok = await token();
+    await pop.waitForSelector("#scriptmark", {state: "attached", timeout: 3000}).catch(() => {});
+    const pv = await pop.evaluate(() => { const probe = f => { try { f(); return "reached"; } catch (e) { return "blocked"; } }; return {built: !!document.getElementById("scriptmark"), origin: self.origin, storage: probe(() => localStorage.length), opener: window.opener}; }).catch(e => ({err: e.message}));
+    ok("Open in new tab opens the html visual in a new page whose scripts run in an opaque origin", /\/api\/visual-open\?id=vh&t=/.test(pu) && !pu.includes(tok) && pv.built && pv.origin === "null" && pv.storage === "blocked" && pv.opener === null, pu.replace(/t=.*/, "t=...") + " " + JSON.stringify(pv));
+    ok("a used new-tab link is refused", (await page.request.get(pu)).status() === 403);
+    await pop.close();
+    await page.click("#fbody [data-full]"); await page.waitForTimeout(200);
+    const fpop = await newTab("#fsTab");
+    ok("full screen opens its visual in a new tab too", /\/api\/visual-open\?id=vh&t=/.test(fpop.url()), fpop.url().replace(/t=.*/, "t=..."));
+    await fpop.close(); await page.bringToFront(); await page.click("#fsClose");
     await page.click('[data-vtab="v:vm"]'); await page.waitForTimeout(150);
     const mm = await page.evaluate(() => ({code: (document.querySelector("#fbody pre code") || {}).textContent, text: document.getElementById("fbody").innerText, frame: !!document.querySelector("#fbody iframe")}));
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));

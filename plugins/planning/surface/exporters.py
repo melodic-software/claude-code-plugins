@@ -57,7 +57,13 @@ import json
 import re
 from pathlib import Path
 
-from server import EMPTY_RESPONSES, MAX_VISUAL_FILE, load_json, read_visual_file
+from server import (
+    EMPTY_RESPONSES,
+    IMAGE_TYPES,
+    MAX_VISUAL_FILE,
+    load_json,
+    read_visual_file,
+)
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
@@ -91,14 +97,6 @@ CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
 TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 WAS_MARK = re.compile(r"w(?=as:)", re.IGNORECASE)
-IMAGE_TYPES = {
-    ".png": "png",
-    ".jpg": "jpeg",
-    ".jpeg": "jpeg",
-    ".gif": "gif",
-    ".webp": "webp",
-    ".svg": "svg+xml",
-}
 
 
 def clean(s):

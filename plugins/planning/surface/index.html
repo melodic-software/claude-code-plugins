@@ -418,6 +418,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     <button class="tbtn small" data-z="in" title="Zoom in (+)" aria-keyshortcuts="+">+</button>
     <button class="tbtn small" data-z="fit" title="Fit (0)" aria-keyshortcuts="0">Fit</button>
     <button class="tbtn small" id="fsCmp" data-gcompare="1" hidden>Compare</button>
+    <button class="tbtn small" id="fsTab" data-vopen="">Open in new tab</button>
     <button class="tbtn small" id="fsClose" title="Close (Esc)" aria-keyshortcuts="Escape">Close</button></div>
   <div class="fsview" id="fsView"><div class="fsstage" id="fsStage"></div></div>
 </div>
@@ -872,7 +873,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       '<div class="arow"><button class="tbtn small" data-gflip="-1" aria-keyshortcuts="ArrowLeft">Previous</button><button class="tbtn small" data-gflip="1" aria-keyshortcuts="ArrowRight">Next</button>' +
       '<button class="tbtn small" data-gcompare="1" aria-pressed="' + on + '">Compare</button>' +
       (on ? '<label class="kbd">with <select data-gcmp="1">' + imgs.filter(v => v.id !== a.id).map(v => '<option value="' + esc(v.id) + '"' + (v.id === b.id ? " selected" : "") + ">" + esc(v.title || v.id) + "</option>").join("") + "</select></label>" : "") +
-      '<button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button><span class="kbd">Left and Right flip</span></div>';
+      '<button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button><button class="tbtn small" data-vopen="' + esc(a.id) + '">Open in new tab</button><span class="kbd">Left and Right flip</span></div>';
   }
   function galRefresh(){ // the panel body is rebuilt, so focus goes back to the current thumbnail when it was inside the panel
     const inFly = $("fly").contains(document.activeElement);
@@ -1215,7 +1216,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.imgs) { body.innerHTML = h + galBody(t.imgs); return; }
     const vb = visualBody(t.v);
     h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.v.title || t.v.id)) +
-      '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
+      '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button><button class="tbtn small" data-vopen="' + esc(t.v.id) + '">Open in new tab</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
     body.innerHTML = h;
     const fr = body.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame);
   }
@@ -1278,6 +1279,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function fsOpen(){
     const q = Q[S.sel], g = curGallery(), t = g || visualsFor(q).find(v => "v:" + v.id === S.vtab); if (!t) return;
     $("fsCmp").hidden = !g; $("fsCmp").setAttribute("aria-pressed", String(S.gal.on));
+    $("fsTab").dataset.vopen = g ? galPick(g.imgs)[0].id : t.id;
     if (g) {
       $("fsTitle").textContent = g.title + (q ? " (" + q.id + ")" : "");
       $("fsStage").innerHTML = galFigs(g.imgs); FS.z = 1; FS.x = 0; FS.y = 0; fsApply();
@@ -1385,6 +1387,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       throw Object.assign(new Error("restarted"), {quiet: true});
     }
     return {res, data};
+  }
+  // A new tab gets a one-time link, so the token never enters a URL, and the server sends it with a
+  // sandbox CSP, so it is an opaque origin. Never a blob: URL: a blob inherits this page's origin.
+  // The tab opens blank inside the click, so no popup blocker sees an open after the await.
+  async function openTab(id){
+    const w = window.open("", "_blank");
+    if (!w) { toast("The browser blocked the new tab.", true); return; }
+    w.opener = null;
+    try {
+      const res = await fetch("/api/visual-open", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-Interview-Token": TOKEN}, body: JSON.stringify({id})});
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || "HTTP " + res.status);
+      w.location.href = new URL(b.url, location.href).href;
+    } catch (e) { w.close(); toast("Could not open it in a new tab: " + e.message, true); }
   }
   function toast(msg, bad, undo){ S.toast = msg; S.toastBad = !!bad; if (!undo) S.undo = null; renderToast(); }
   let undoTimer = null;
@@ -1664,7 +1680,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const gf = t.closest("[data-gflip]"); if (gf) { galFlip(+gf.dataset.gflip); return; }
     if (t.closest("[data-gcompare]")) { S.gal.on = !S.gal.on; galRefresh(); return; }
     if (t.closest("[data-full]")) { fsOpen(); return; }
-    const z = t.closest("[data-z]"); if (z) { if (z.dataset.z === "fit") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); } else fsZoom(z.dataset.z === "in" ? 1.25 : 0.8); return; }
+    const vo = t.closest("[data-vopen]"); if (vo) { openTab(vo.dataset.vopen); return; }
+    const z =t.closest("[data-z]"); if (z) { if (z.dataset.z === "fit") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); } else fsZoom(z.dataset.z === "in" ? 1.25 : 0.8); return; }
     if (t.closest("#fsClose")) { fsClose(); return; }
     const rs = t.closest("[data-reset]"); if (rs) { setLocal(rs.dataset.reset, undefined); renderFly(); renderAll(); return; }
     const cp = t.closest("[data-cpdismiss]"); if (cp) { lsSet("cpDismissed", +cp.dataset.cpdismiss); renderDetail(); return; }
