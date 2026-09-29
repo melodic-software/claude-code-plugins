@@ -59,6 +59,11 @@ dc_is_excluded_path() {
 # .claude/ecosystems/<eco>.yaml has richer globs; this table is the common path
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
+#
+# `nolane` is a source file this roster has no detector for (Rust, .NET, and the
+# other extensions below). Coverage accounting lists those files; it does not
+# invent a lane. `other` is not source (docs, manifests, markup) and is outside
+# the coverage total.
 dc_lang_of_path() {
   case "${1,,}" in
   *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) printf 'ts' ;;
@@ -66,6 +71,10 @@ dc_lang_of_path() {
   *.go) printf 'go' ;;
   *.sh | *.bash) printf 'shell' ;;
   *.ps1 | *.psm1) printf 'pwsh' ;;
+  *.rs | *.cs | *.fs | *.fsx | *.vb | *.java | *.kt | *.kts | *.scala | *.rb | *.php | \
+    *.c | *.h | *.cc | *.cpp | *.cxx | *.hpp | *.hh | *.hxx | *.swift | *.lua | *.ex | *.exs | \
+    *.erl | *.hs | *.ml | *.mli | *.dart | *.pl | *.pm | *.zig | *.nim | *.clj | *.cljs | \
+    *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r | *.tf | *.proto | *.m | *.mm) printf 'nolane' ;;
   *) printf 'other' ;;
   esac
 }
