@@ -33,8 +33,9 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
    --json state -q .state`. `CLOSED` means the skill no longer needs its override: add
    `override removable: #<n> closed` to the reason and list it at the end of the report.
 4. Resolve arguments in angle brackets (`<human-facing markdown files>`, `<eval suite paths>`,
-   `<instruction roots>`, `<lane>`) to concrete values for this repository and show them. `next`
-   resolves them again when the step runs.
+   `<instruction roots>`, `<lane>` as one lane, a comma list, or `all` expanded to lane names) to
+   concrete values for this repository and show them. `next` resolves them again when the step
+   runs.
 
 ## 3. Show and select
 
