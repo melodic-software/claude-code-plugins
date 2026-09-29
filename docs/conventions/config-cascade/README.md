@@ -328,9 +328,11 @@ surface, or amend this contract) is a separate human-gated decision.
 
 ## Semantics at a glance
 
-Who wins and which merge form each surface uses, so an operator does not have to re-learn the
-Implementers row from scratch. The engines stay separate (#3575): this table is an index, not a
-unification. The Implementers row remains the contract for path, layers, and conformance.
+Who wins and which merge form each surface uses. The table is generated from the `Who wins` and
+`Merge form` columns of the Implementers rows, which own the values; edit those rows, then run
+`scripts/sync-config-cascade-semantics.py`. The engines stay separate (#3575): the table is an
+index, not a unification, and the Implementers row remains the contract for path, layers, and
+conformance.
 
 <!-- BEGIN GENERATED: config-cascade semantics. Edit the Implementers table, then run scripts/sync-config-cascade-semantics.py -->
 
@@ -363,18 +365,9 @@ unification. The Implementers row remains the contract for path, layers, and con
 
 <!-- END GENERATED: config-cascade semantics -->
 
-A generated table off the Implementers rows, and a one-line "who wins" in each setup `check`, stay
-out of this change. Either would unify presentation without unifying engines; file that as its own
-slice if an operator still cannot find the row.
-
-- **Claim:** per-surface cascade semantics stay; this index is the
-  operator-facing summary; engines are not unified.
-- **Basis:** #3575. The Implementers table already declared each variant. Standard later-wins,
-  policy-floor inversion, `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
-  whole-file ladder are the four classes the issue named.
-- **As of:** 2026-09-28.
-- **Recheck:** a new surface lands without a glance row, or a maintainer funds a generated table
-  or a per-setup `check` line.
+- **Claim:** the glance table is generated from the Implementers rows; engines are not unified.
+- **Basis:** #3575 and `scripts/sync-config-cascade-semantics.py`.
+- **Recheck:** operators still miss the row, then add the per-setup check line.
 
 ## Implementers
 

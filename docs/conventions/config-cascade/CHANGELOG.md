@@ -7,6 +7,13 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Semantics table generated, 2026-09-29
+
+- **The glance table is generated from the Implementers rows (#3575).** The Implementers table
+  gains `Who wins` and `Merge form` columns; `scripts/sync-config-cascade-semantics.py` writes the
+  glance table from them and `--check` fails on drift. No `contract_version` bump: a derived view
+  and documentation columns, not a rule change.
+
 ## Consumer gotchas forms narrowed, 2026-09-29
 
 - **`consumer-gotchas.md` permits one local form (#3547).** Consumer gotchas live in the `## Gotchas`
