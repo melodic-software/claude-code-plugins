@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.4] - 2026-09-28
+## [0.25.6] - 2026-09-28
 
 ### Added
 
@@ -18,6 +18,29 @@
 
   `explore`, `research` and `trace-intent` point at the section, and `contract.test.sh` holds the
   heading and the value shape to one owner.
+
+## [0.25.5] - 2026-09-28
+
+### Added
+
+- **`/discovery:research breadth=low|medium` narrows a small question below caller effort.** The
+  only depth lever was session effort, so at `effortLevel: high` a one-folder question ran the
+  full Phase 0-3 workflow and hit the researcher's 40-turn limit. The token selects a lower Effort
+  row; source breadth is the lower of the token and `${CLAUDE_EFFORT}`, so it never raises a run
+  and never widens `maxTurns: 40`. The parent strips it from the topic and writes the resolved row
+  to `Source breadth:`. The `argument-hint` shows it, and the inline "Cost" hatch now says inline
+  moves the cost rather than reducing it (#4230).
+- **`Budget:` has a defined vocabulary.** The parent contract's new "`Budget:` vocabulary" table
+  is the one place the values live: `low`, `medium`, and `full`, each mapped to a research Effort
+  row. A research worker runs the lower of `Budget:` and `Source breadth:`, and the narrowing-only
+  rule now appears in the parent contract and research SKILL.md, not only in research-deep. All
+  three agents read the word. `contract.test.sh` pins the token, the rule, and the table (#4230).
+
+## [0.25.4] - 2026-09-28
+
+### Changed
+
+- **Explore and research hubs keep their gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The worker procedure moved behind a load-when pointer (`explore/reference/workflow.md`, `research/context/phases.md`). The outcome gates stay in the first 20,000 bytes of each `SKILL.md`, the stand-in for the skills page's first 5,000 tokens (re-fetched 2026-09-28). Explore's `## Scope` block stays in `SKILL.md`, where `$ARGUMENTS` is substituted at invocation; a Read of the spoke would leave it literal. The `explorer` agent's preload check looks for the outcome gate, the token, and the workflow pointer, and reads `reference/workflow.md` before the first dimension.
 
 ## [0.25.3] - 2026-09-28
 

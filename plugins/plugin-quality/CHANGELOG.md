@@ -5,6 +5,16 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.32] - 2026-09-28
+
+### Changed
+
+- **A sealed evidence packet asserts bytes at last `record`, not current world state
+  ([#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867)).**
+  `skills/audit/reference/evidence-packet.md` lists what `packet-seal.sh verify` proves, how a
+  later nonce or `evidence-<n>.md` is a newer snapshot, and that the producing session has no
+  obligation to re-seal when the audited world moves.
+
 ## [0.7.31] - 2026-09-28
 
 ### Changed

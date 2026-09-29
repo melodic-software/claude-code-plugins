@@ -53,6 +53,10 @@ A worked example is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/scene.html` (title 
 parallax, fire particles, walking character, typed dialogue); copy the folder into the working
 directory before adapting it.
 
+Expose `window.__pixelScene` as [`scene-canvas.md`](${CLAUDE_PLUGIN_ROOT}/reference/scene-canvas.md)
+describes under Review capture (`seek`, `frameDataURL`, `play`, `duration`) so the review command
+can land on a timeline point.
+
 Then inline the embeds into one file:
 
 ```bash
@@ -62,22 +66,35 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <out-dir>
 
 ## 3. Review loop
 
-With a browser automation tool present (a Playwright CLI or MCP, the built-in browser tools),
-serve the output directory (`python3 -m http.server <port> --bind 127.0.0.1 --directory <out-dir>`,
-run in the background) and open the scene over `http://127.0.0.1:<port>/`, capture screenshots at several timeline points, read them, and critique. Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and check silhouettes
-against the background, palette contrast, beat timing, text legibility, stray non-integer or
-smoothed pixels. Fix, rebuild, re-capture. Stop when every done criterion passes, or after the
-round budget (typically 2 to 4) with the failing criteria named. Without a browser tool, say that the scene
-is unreviewed visually, check the script parses (`node --check` on the extracted script when Node
-is present), grade whatever criteria the script can speak to, mark the rest fail with the reason
+Run one command. It serves a copy of the self-contained scene (nothing beside it) and, when a browser is on `PATH`, seeks the
+timeline and writes shots (and a WebM when `--record` is set):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/capture.py" <out-dir>/<name>.html --at 0,1.5,6 --record 4 --out <out-dir>/capture
+```
+
+Exit 0: read each `shot-<n>.png` and, when present, treat `scene.webm` as the shareable recording.
+Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and
+check silhouettes against the background, palette contrast, beat timing, text legibility, stray
+non-integer or smoothed pixels. Fix, rebuild, re-run the same command. Stop when every done
+criterion passes, or after the round budget (typically 2 to 4) with the failing criteria named.
+
+Exit 3 means no Chrome or Chromium on `PATH` (set `CAPTURE_BROWSER` to a browser binary, such as
+Playwright's Chromium, to point it at one). When a browser automation tool is present instead (a
+Playwright CLI or MCP, the built-in browser tools), serve the output directory over
+`http://127.0.0.1:<port>/`, call `window.__pixelScene.seek(t)` at the same timeline points, take
+the screenshots with that tool, and review them as above. With neither, exit 3's
+`visually unreviewed` stands. Say that the scene is visually unreviewed. Do not claim it
+looks right. Check the script parses (`node --check` on the extracted script when Node is
+present), grade whatever criteria the script can speak to, mark the rest fail with the reason
 "not seen", and ask the user to open it and describe what they see.
 
 ## 4. Deliver
 
-Report the HTML path and the gallery `index.html` as full, clickable links: the localhost URL while
-the server runs, and the file path, converted to a host path when the session runs in WSL
-(`wslpath -w`). A GIF export of a scene is not produced here: GIF carries no audio and the
-scene is code; offer screen recording in the browser when the user needs a video.
+Report the HTML path, the gallery `index.html`, and when capture wrote one, `scene.webm`, as full
+paths, converted to a host path when the session runs in WSL (`wslpath -w`). A GIF export of a
+scene is not produced here: GIF carries no audio and the scene is code. The WebM from `--record`
+is the video.
 
 ## Next
 

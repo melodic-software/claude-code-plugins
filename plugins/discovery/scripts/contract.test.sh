@@ -197,6 +197,21 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# A breadth token narrows a small question below caller effort, and Budget: has
+# one vocabulary mapped to Effort rows.
+assert_present 'research argument-hint shows the breadth token' \
+  'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
+assert_present 'research SKILL.md states breadth narrows and never widens' \
+  'skills/research/SKILL.md' '^\*\*`breadth=` narrows, never widens\.\*\*'
+assert_present 'the parent contract defines the Budget: vocabulary once' \
+  'reference/parent-contract.md' '^### `Budget:` vocabulary$'
+for word in low medium full; do
+  assert_present "the Budget: vocabulary maps $word to an Effort row" \
+    'reference/parent-contract.md' "^\| \`$word\` \| \`(low|medium|high)\`"
+done
+assert_present 'the parent contract envelope opens Budget: with the vocabulary' \
+  'reference/parent-contract.md' '^Budget: <low\|medium\|full>'
+
 # One topic with many gaps fans out inside Phase 2 when nesting is available;
 # the principle alone never fired (#4151).
 assert_present 'the discipline file carries the per-gap fan-out recipe' \
@@ -296,6 +311,47 @@ if [[ "$hub_words" -lt "$spoke_words" ]]; then
   pass "research/SKILL.md ($hub_words words) is smaller than context/discipline.md ($spoke_words words)"
 else
   fail "research/SKILL.md ($hub_words words) is NOT smaller than context/discipline.md ($spoke_words words)"
+fi
+
+# 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
+# 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
+# the same phrase is not waiting in the tail. The worker procedure is the spoke.
+assert_in_slice() {
+  local label="$1" file="$2" phrase="$3" bytes slice tail
+  bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
+  slice="$(head -c 20000 "$PLUGIN_ROOT/$file")"
+  if [[ "$bytes" -gt 20000 ]]; then
+    tail="$(tail -c +20001 "$PLUGIN_ROOT/$file")"
+  else
+    tail=""
+  fi
+  if [[ "$slice" == *"$phrase"* && "$tail" != *"$phrase"* ]]; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+}
+assert_in_slice 'explore outcome gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' '## Outcome gate (before EXPLORE.md handoff)'
+assert_in_slice 'explore acceptance gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' 'Post-dispatch acceptance gate'
+assert_in_slice 'research outcome gate is inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
+assert_in_slice 'research owner column is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Owner column governs'
+if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
+  && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore and research worker procedures live in the spokes'
+else
+  fail 'explore and research worker procedures live in the spokes'
+fi
+# $ARGUMENTS is substituted only in the rendered SKILL.md, never in a spoke read from disk.
+# shellcheck disable=SC2016  # literal $ARGUMENTS
+if grep -qF 'Explore the following: $ARGUMENTS' "$PLUGIN_ROOT/skills/explore/SKILL.md" \
+  && ! grep -qF '$ARGUMENTS' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore scope substitution stays in SKILL.md'
+else
+  fail 'explore scope substitution stays in SKILL.md'
 fi
 
 # ---------------------------------------------------------------------------
