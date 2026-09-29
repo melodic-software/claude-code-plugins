@@ -39,14 +39,15 @@ pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL
 table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
+INFO. The hook and the `SessionStart` probe both exit through the enabled gate before
+probing anything, so a deliberately disabled plugin is not broken. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent *and* the repository opted in per item 4: the
-   hook then skips with a visible once-per-session notice instead of formatting. Without
+   hook then skips with a visible notice, once per session and agent and renewed every
+   eighth skip, instead of formatting. Without
    that opt-in the hook decides the opt-in first and emits nothing at all, so report jq's
    absence as INFO there. The missing config, not jq, is why nothing happens.
 3. **`markdownlint-cli2`.** Resolve it exactly the way the hook's resolution code does
@@ -60,8 +61,9 @@ restores the FAIL semantics.
    style detail. Mirror its walk: from an edited file's directory up to the repo root, so
    nested configs apply to nested files and the opt-in is per-path (a root config covers
    the tree; a `docs/` config covers only `docs/`). Where that walk finds nothing the hook
-   exits silently: no `--fix`, no findings, and no notice of any kind, not even a missing
-   prerequisite. Search the whole tree (skip `node_modules`), report the root config the
+   exits silently: no `--fix`, no findings, and no per-edit notice, not even a missing
+   prerequisite. The `SessionStart` probe does not check for a config, so it can still report
+   a missing `markdownlint-cli2` in a repository that never opted in. Search the whole tree (skip `node_modules`), report the root config the
    cascade discovers, list nested configs with their directory scope, and surface the
    README's configuration trust boundary for every config the hook's own risk collection
    (`collect_risky_configs`) would flag. For a path no config governs, report the hook as
@@ -113,14 +115,11 @@ install command's exit code alone. For everything else `apply` only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
   any time, or headless
-  `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`
+  `claude plugin install markdown-format@<marketplace> -s user --config markdown_format_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; the value itself always
-  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  manifest default. Pass `-s user`; do not copy a scope from `claude plugin list`. A rejected value prints a warning yet exits 0, so read the output.
   This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
