@@ -3,7 +3,7 @@ description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-
 argument-hint: "[audit|fix] [target | user-scope [memory]]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -91,8 +91,10 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    orders the step 2 list, packs it into batches of about 50,000 words and writes the
    corpus cue counts every batch receives, `extract` writes
    the rubric text to one file, one fresh-context subagent per batch gets that file's path and
-   its batch list and writes its result file into the findings home (the scratchpad for a
-   non-repository target) before it reports, `status` names the batches that still need a run,
+   its batch list and writes its result file into the rubric working directory before it
+   reports (resolved before this step, with no remote fetch; see
+   [`context/rubric-fanout.md`](context/rubric-fanout.md) "Rubric working directory"),
+   `status` names the batches that still need a run,
    and `merge` joins the results once every batch is complete and flags cross-batch
    verdict splits. A batch whose result file is
    bound to its current list and the listed files' current contents is skipped on a re-run,
@@ -104,8 +106,12 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    from the detector's `Summary` rows. State what was scanned and what the rubric did not cover.
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
-   write when unreachable (report-only is then the outcome, and say so). Script findings only.
-   A run with any non-repository target writes no findings file.
+   write when unreachable, or when the findings home cannot be resolved without asking. The
+   outcome is then report-only, and the report says `report-only` and why; it never skips
+   silently. When the home resolves, the file is mandatory even with zero findings, as the
+   coverage record. Script findings only. A run with any non-repository target writes no
+   findings file. The rubric files never depend on this step: they live in the rubric working
+   directory.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
    `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
@@ -188,8 +194,9 @@ is outside a repository, the whole run follows these rules:
   `H/.claude/skills/a/SKILL.md` backs up to `R/C/H/.claude/skills/a/SKILL.md`, and `H/.claude/skills/b/SKILL.md` to
   `R/C/H/.claude/skills/b/SKILL.md`, with `H` spelled out in full. The two never collide, and each `.source` file
   names its own original, so a restore meant for `a` can never write `b`'s content.
-- Rubric batch lists and result files go under the session scratchpad, else the system temp
-  directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
+- The rubric working directory is under the session scratchpad, else the system temp
+  directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md) "Rubric working
+  directory".
 - `rule-style-shift` is not evaluable, because there is no history to compare against. Report
   it under what the rubric did not cover.
 
@@ -244,10 +251,12 @@ Per file, worst-first:
    reverted-with-reason. Report per file as you go on long runs.
 
 After the last file: build the fixed set's list with `detect.sh --list-targets`, run the
-detector over it with `--paths-file`, redirecting both outputs to files in the run directory,
-and re-emit the findings file per [`context/persist-findings.md`](context/persist-findings.md)
-"Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
-non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
+detector over it with `--paths-file`, redirecting both outputs to files in the run directory.
+Then, per [`context/persist-findings.md`](context/persist-findings.md) "Re-running", retire the
+findings file this run consumed with a `fix-pass-record` (`scripts/emit-fix-record.sh`), and
+re-emit a fresh findings file for what remains, in that order: `review:fanout fix` skips a
+file only when a record names it by name and digest, so the fresh file is then the only
+candidate left. Skip both for a non-repository target, which never wrote a file. Then run `cross-check.sh --targets <list>
 --detector <detector output>`: it finds em-dash lines with its own parse, so an em dash the
 detector's parse missed still shows up. A `Disagree:` row names the lines only one side
 counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ; a row
