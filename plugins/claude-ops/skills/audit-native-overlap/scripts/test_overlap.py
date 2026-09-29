@@ -1874,5 +1874,27 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertEqual(candidate["recommended_integration"], "route-or-wrap")
 
 
+class PluginBackedSurfaceTests(unittest.TestCase):
+    def test_an_enriched_command_is_one_plugin_backed_surface(self) -> None:
+        payloads = {
+            "builtin_commands": {
+                "scan": {
+                    "name": "scan",
+                    "description": "Scan the branch for vulnerabilities",
+                    "plugin_name": "scanner",
+                }
+            },
+            "plugin_backed": {"scan": "scanner"},
+        }
+        surfaces = overlap.native_surfaces(payloads)
+        self.assertEqual([s.name for s in surfaces], ["scan"])
+        self.assertEqual(surfaces[0].klass, overlap.CLASS_OF_LANE["plugin_backed"])
+        self.assertTrue(surfaces[0].described)
+
+    def test_a_bare_plugin_backed_name_still_scores(self) -> None:
+        surfaces = overlap.native_surfaces({"plugin_backed": {"scan": "scanner"}})
+        self.assertEqual([s.name for s in surfaces], ["scan"])
+
+
 if __name__ == "__main__":
     unittest.main()
