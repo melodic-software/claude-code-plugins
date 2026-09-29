@@ -36,7 +36,7 @@ Read when running the update action. The update model, preservation invariants, 
 6. [Gate 2]        integrate upstream SKILL.md changes into ours
                    — small delta: inline-edit preserving the Preservation rules
                    — non-trivial delta: drive the rewrite with the skill-creator helper named
-                     in SKILL.md, if installed (passing the Preservation rules), otherwise
+                     in ../SKILL.md, if installed (passing the Preservation rules), otherwise
                      inline-edit
                    show proposed SKILL.md diff, prompt to apply
 7. Finalize        update UPSTREAM.md (date, SHA, version, previous-version for rollback)
