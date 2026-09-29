@@ -177,6 +177,8 @@ work item per new candidate, fired trigger, and degraded or broken self-check th
 `/work-items:track`, deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
 degraded only by a CLI version past the validated build proposes revalidation instead. Commands,
 the summary's location, items, dedupe and approval: [context/native-drift.md](context/native-drift.md).
+Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
+path in place of the placeholder before running one.
 
 ### Phase 8. Close issues (optional)
 

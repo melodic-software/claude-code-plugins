@@ -14,12 +14,12 @@ the overlap store, default `docs/native-surfaces/records.json`. One command per 
 each exit code.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --self-check
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --binary-only --docs --out <ws>/inventory.json
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" detect --inventory <ws>/inventory.json --store <store> --out <ws>/detect.json
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" self-check --store <store>
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/changelog/scripts/native_drift.py" summarize --inventory <ws>/inventory.json --detect <ws>/detect.json --out <ws>/summary.json
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/changelog/scripts/native_drift.py" diff --current <ws>/summary.json --previous <prev> --store <store> --detect <ws>/detect.json --self-check-exit <inventory self-check exit> --out <ws>/drift.json
+python3 "<skill-dir>/../inventory/scripts/inventory.py" --self-check
+python3 "<skill-dir>/../inventory/scripts/inventory.py" --binary-only --docs --out <ws>/inventory.json
+python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" detect --inventory <ws>/inventory.json --store <store> --out <ws>/detect.json
+python3 "<skill-dir>/../audit-native-overlap/scripts/overlap.py" self-check --store <store>
+python3 "<skill-dir>/scripts/native_drift.py" summarize --inventory <ws>/inventory.json --detect <ws>/detect.json --out <ws>/summary.json
+python3 "<skill-dir>/scripts/native_drift.py" diff --current <ws>/summary.json --previous <prev> --store <store> --detect <ws>/detect.json --self-check-exit <inventory self-check exit> --out <ws>/drift.json
 ```
 
 The self-check and `detect` exit `0` ok, `1` broken, `3` degraded; `3` is a passing run. When
