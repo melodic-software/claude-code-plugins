@@ -110,15 +110,22 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
      its current pin, as in `status`.
 2. `refused`: the directory is under `WindowsApps`. Stop and say why
    (`reference/launchers.md`). Nothing clears this.
-3. `not-a-candidate`: report each of `refusals`, then stop, before any anti-cheat review. There
-   is no flag that skips this verdict.
+3. `not-a-candidate`: report each of `refusals`, then stop. No anti-cheat review or acknowledgement
+   clears this verdict, and no flag skips it. The JSON still carries `antiCheat`: read its `status`
+   before naming anything in the bullets below.
    - No upscaler: the game ships no DLSS, FSR 2+ or XeSS, so the **in-process OptiScaler route**
-     has nothing to hook. Tell the user plainly. Name whether `bitness` blocks in-process NR
-     (32-bit). For 64-bit no-upscaler titles, point to the manual **DLSS5-Feeder** path documented
-     in [`reference/feeder-route.md`](reference/feeder-route.md); `apply` does not install Feeder
-     today (#4592). Wiki-listed upscaler mods remain another path (`reference/candidate-selection.md`).
-   - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so the mod cannot load in the
-     game at all. Tell the user plainly; an upscaler mod does not change this.
+     has nothing to hook. Tell the user plainly. Wiki-listed upscaler mods remain another path
+     (`reference/candidate-selection.md`). Name **DLSS5-Feeder** only when `antiCheat.status` is
+     `none-disclosed`: point to the manual path in
+     [`reference/feeder-route.md`](reference/feeder-route.md) as unverified, say `apply` does not
+     install it (#4592), repeat the `note`, and tell the user to play modded only solo or offline.
+     When the status is `signals` or `unknown`, do not point to it: say the Feeder route does not
+     lower anti-cheat risk (ReShade's add-on build is unsigned, and ReShade disables depth in
+     multiplayer), and never suggest bypassing or disabling an anti-cheat.
+   - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so in-process OptiScaler NR cannot
+     load in the game process. Tell the user plainly; an upscaler mod does not change this. That
+     dead end covers the in-process route only: `feeder-route.md` lists a separate unverified
+     manual 32-bit path, which `assess` names only under the same `none-disclosed` condition.
 4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
 5. `eligible`: report the launcher, the game name and the anti-cheat status with every signal and
    every `unchecked` line. `none-disclosed` carries its `note`: say it means no kernel anti-cheat
