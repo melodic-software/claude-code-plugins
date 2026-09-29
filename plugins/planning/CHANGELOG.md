@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-09-29
+
+### Changed
+
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so any row combination round-trips through export and import. The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+
 ## [0.46.1] - 2026-09-29
 
 ### Changed

@@ -319,7 +319,7 @@ def readable(status, fields, marked):
         parts.append(f"aside: {fields['aside']}")
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
-        # A decision's note is labelled; any other note is the row's own seeded text.
+        # A decision's note is labeled; any other note is the row's own seeded text.
         noted = decided.startswith("accepted: ") or ALT.match(decided)
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
