@@ -64,7 +64,7 @@ permission layer independently of that guard, so a confirmed apply can still be 
   discards by default, and it denied hand-rolled bulk removals and batched worktree scripts on the
   audited machine ([why](../context/clean-batch.md#why-this-exists)).
 - An allow rule such as `Bash(<script>:*)` does not match a command that starts with
-  `CLEAN_GUARD_ACK=1 `. The prefix assigns a variable outside the built-in known-safe set, and allow
+  `CLEAN_GUARD_ACK=1` and a space. The prefix assigns a variable outside the built-in known-safe set, and allow
   rules do not match past such an assignment. Deny and ask rules do match past it. The skill's own
   `allowed-tools` grants cover only the read-only scripts, which never take the prefix.
 

@@ -61,8 +61,8 @@ Install nothing, and run no mutating tier.
 3. **A POSIX shell for the bundled scripts**. Every tier script and the destructive guard are
    `bash`. On Windows that means Git Bash must be present. The guard is exec form: `command` is
    `node`, and `hooks/exec-bash.mjs` finds bash (on Windows `CLAUDE_CODE_GIT_BASH_PATH`, then
-   `Git\bin\bash.exe`, then `PATH`; elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`) and never
-   `System32\bash.exe`. <!-- portability-ok: Windows path, not a shell regex -->
+   `Git\bin\bash.exe`, then `PATH`, never `System32\bash.exe`; <!-- portability-ok: Windows path, not a shell regex -->
+   elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`).
    Claim: exec form spawns `command` with `args` and no shell. `shell` is ignored when `args` is set.
    Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form".
    As of: 2026-09-28.
