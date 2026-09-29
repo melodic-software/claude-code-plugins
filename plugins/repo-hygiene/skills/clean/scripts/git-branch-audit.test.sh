@@ -722,6 +722,109 @@ assert_contains "count failure: SAFE and PROTECTED are untouched, everything els
 assert_contains "count failure: empty loss block" "$broken_out" "LossBlock: 0 branches lose work if deleted
 LossBlockEnd: 0"
 
+# --- fleet form: --repo / --repos-from / --skip / --skip-from -------------------
+# Two repositories plus a linked worktree of the first. The audit of the worktree
+# would repeat the first repository's branches, so it is reported skipped.
+FL="$TEST_TMPDIR/fleet"
+mkdir -p "$FL"
+for r in one two; do
+  git init -q -b main "$FL/$r"
+  git -C "$FL/$r" config user.email "t@example.com"
+  git -C "$FL/$r" config user.name "Test"
+  git -C "$FL/$r" commit -q --allow-empty -m init
+done
+git -C "$FL/one" worktree add -q -b feat/linked "$FL/one-linked"
+FL_BIN="$TEST_TMPDIR/fleet-bin"
+mkdir -p "$FL_BIN"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$FL_BIN/gh"
+chmod +x "$FL_BIN/gh"
+fleet_audit() { PATH="$FL_BIN:$PATH" bash "$AUDIT" "$@" 2>/dev/null; }
+
+plain_out="$(PATH="$FL_BIN:$PATH" bash -c "cd '$FL/one' && bash '$AUDIT'")"
+assert_not_contains "no selection flag: no Repo block" "$plain_out" "Repo: "
+assert_not_contains "no selection flag: no fleet summary" "$plain_out" "FleetSummary:"
+
+fleet_out="$(fleet_audit --repo "$FL/one" "$FL/one-linked" "$FL/two")"
+assert_contains "fleet: first repo is a block" "$fleet_out" "Repo: $FL/one
+"
+assert_contains "fleet: second repo is a block" "$fleet_out" "Repo: $FL/two
+"
+assert_contains "fleet: a linked worktree of an audited repo is skipped once" "$fleet_out" "Repo: $FL/one-linked
+Outcome: skipped
+Reason: shares a git common dir with an audited repo"
+assert_contains "fleet: summary counts" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=1 blocked=0 failed=0"
+assert_exit "fleet: exit 0" 0 "$(fleet_audit --repo "$FL/one" "$FL/two" >/dev/null && echo 0 || echo $?)"
+tip_lines="$(grep -c '^TipCapture: ' <<<"$fleet_out")"
+if [[ "$tip_lines" == 2 ]]; then pass "fleet: each audited repo prints its own TipCapture"; else fail "fleet: each audited repo prints its own TipCapture" 2 "$tip_lines"; fi
+assert_contains "fleet: first capture lives in the first repo" "$fleet_out" "TipCapture: $FL/one/.git/repo-hygiene/branch-tips/"
+assert_contains "fleet: second capture lives in the second repo" "$fleet_out" "TipCapture: $FL/two/.git/repo-hygiene/branch-tips/"
+
+# A repo's block is its single-repo output, unchanged (the capture path carries a
+# per-run stamp and pid, so that one line is set aside).
+block_one="$(awk -v r="Repo: $FL/one" '$0 == r { on = 1; next } on && $0 == "---" { exit } on' <<<"$fleet_out" | grep -v '^TipCapture: ')"
+plain_nc="$(grep -v '^TipCapture: ' <<<"$plain_out")"
+if [[ "$block_one" == "$plain_nc" ]]; then pass "fleet: a repo's block equals its single-repo output"; else fail "fleet: a repo's block equals its single-repo output" "$plain_nc" "$block_one"; fi
+
+# Selection: --repos-from (file and stdin), --skip, --skip-from.
+printf '%s\r\n%s\n\n' "$FL/one" "$FL/two" >"$FL/list.txt"
+from_file_out="$(fleet_audit --repos-from "$FL/list.txt")"
+assert_contains "repos-from FILE audits both" "$from_file_out" "audited=2"
+from_stdin_out="$(printf '%s\n' "$FL/two" | fleet_audit --repos-from -)"
+assert_contains "repos-from - audits stdin" "$from_stdin_out" "audited=1"
+
+skip_out="$(fleet_audit --repo "$FL/one" "$FL/two" --skip two --skip nowhere)"
+assert_contains "skip list reports the skipped repo" "$skip_out" "Repo: $FL/two
+Outcome: skipped
+Reason: skip-list (two)"
+assert_contains "skip list leaves the other repo audited" "$skip_out" "Repo: $FL/one
+"
+assert_contains "an entry that matched nothing is reported" "$skip_out" "UnmatchedSkip: nowhere"
+assert_contains "skip summary" "$skip_out" "audited=1 skipped=1"
+printf '%s\n' "$FL/one" >"$FL/skips.txt"
+skip_from_out="$(fleet_audit --repo "$FL/one" "$FL/two" --skip-from "$FL/skips.txt")"
+assert_contains "skip-from FILE skips the listed repo" "$skip_from_out" "Reason: skip-list ($FL/one)"
+# A skipped worktree does not hide its sibling: the second one is audited instead.
+sib_out="$(fleet_audit --repo "$FL/one" "$FL/one-linked" --skip one)"
+assert_contains "skipping one worktree audits the other" "$sib_out" "Branch: feat/linked
+Tip: "
+assert_contains "the audited sibling is its own block" "$sib_out" "Repo: $FL/one-linked
+"
+
+# An unusable input and a missing path are reported; the rest of the fleet runs.
+mkdir -p "$FL/plain-dir"
+bad_out="$(fleet_audit --repo "$FL/missing" "$FL/plain-dir" "$FL/two")"
+assert_contains "missing path is blocked" "$bad_out" "Repo: $FL/missing
+Outcome: blocked
+Reason: not-a-directory"
+assert_contains "non-repo directory is blocked" "$bad_out" "Reason: not-a-git-repo"
+assert_contains "the fleet continues past blocked repos" "$bad_out" "Repo: $FL/two
+"
+assert_contains "blocked summary" "$bad_out" "audited=1 skipped=0 duplicate=0 blocked=2 failed=0"
+
+# --capture-file names one file: fine for one repo, a usage error for several.
+rc=0
+cap_err="$(PATH="$FL_BIN:$PATH" bash "$AUDIT" --repo "$FL/one" "$FL/two" --capture-file "$FL/shared.tsv" 2>&1 >/dev/null)" || rc=$?
+assert_exit "--capture-file with two repos exits 2" 2 "$rc"
+assert_contains "--capture-file rejection says why" "$cap_err" "cannot serve 2 repos"
+if [[ ! -e "$FL/shared.tsv" && ! -e "$FL/shared.tsv.part" ]]; then pass "--capture-file rejection writes nothing"; else fail "--capture-file rejection writes nothing" absent present; fi
+one_cap_out="$(fleet_audit --repo "$FL/one" --capture-file "$FL/one.tsv")"
+assert_contains "--capture-file with one repo is honored" "$one_cap_out" "TipCapture: $FL/one.tsv"
+
+# Usage errors.
+for bad in "--repo" "--repos-from" "--skip two" "--repos-from $FL/no-such-list.txt"; do
+  rc=0
+  # shellcheck disable=SC2086
+  PATH="$FL_BIN:$PATH" bash "$AUDIT" $bad >/dev/null 2>&1 || rc=$?
+  assert_exit "usage error exits 2: $bad" 2 "$rc"
+done
+: >"$FL/empty.txt"
+rc=0
+PATH="$FL_BIN:$PATH" bash "$AUDIT" --repos-from "$FL/empty.txt" >/dev/null 2>&1 || rc=$?
+assert_exit "an empty repo list exits 2" 2 "$rc"
+help_out="$(bash "$AUDIT" --help)"
+assert_contains "--help documents --repo" "$help_out" "--repo DIR..."
+assert_contains "--help documents the capture rule" "$help_out" "--capture-file with more than one repo"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

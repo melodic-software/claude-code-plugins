@@ -24,9 +24,11 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
 
 - **`tree`**: the destructive tier has its own batch form (`tree-batch`) with a
   dirty guard; it is never folded into `all` and not handled here.
-- **Branch audit / deletion**: the single-repo `git` tier also audits branches
-  for interactive per-branch deletion, which cannot sit behind one fleet-wide
-  gate. Batch `git` is prune / gc / remote-prune only; run branch cleanup per repo.
+- **Branch deletion**: interactive per-branch deletion cannot sit behind one
+  fleet-wide gate. Batch `git` is prune / gc / remote-prune only. The read-only
+  audits do take this repo selection: `git-branch-audit.sh` and
+  `git-stash-audit.sh` accept `--repo`, `--repos-from`, `--skip`, `--skip-from`
+  and print a `Repo: <path>` block per repo; delete from inside the audited repo.
 - The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 

@@ -44,6 +44,20 @@ ad-hoc loop. A skip entry that matches nothing is reported, never silently ignor
 ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
 ```
 
+### Multi-repo audits (read-only)
+
+The branch and stash audits take the same repo selection as the batch tiers
+(`--repo`, `--repos-from`, `--skip`, `--skip-from`) and print one `Repo: <path>`
+block per repository. Linked worktrees of one repository are audited once, a
+failing repo is reported without stopping the rest, and each repo writes its own
+branch-tip capture (`--capture-file` is refused with more than one repo).
+Deletion is not batched: run the delete from inside the audited repo, with that
+repo's `TipCapture:` path.
+
+```shell
+ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from -
+```
+
 ## Safety model
 
 - **Dry-run-first, always.** No tier applies on the first invocation; the agent

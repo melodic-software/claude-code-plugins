@@ -13,6 +13,14 @@
 # Omit -e/-o pipefail: script always exits 0 on a successful run; sub-commands
 # are best-effort (gh may be absent).
 #
+# FLEET FORM. --repo / --repos-from select repositories and --skip / --skip-from
+# exclude some (the surface clean-batch.sh has, resolved by lib/batch-common.sh).
+# Each audited repo is this same script run from inside it, one after another,
+# printed as `Repo: <path>` then its unchanged output. A repo whose git common
+# dir was already audited (a linked worktree) is reported skipped, and a repo
+# that fails is reported without stopping the rest. Read-only throughout:
+# git-branch-delete.sh is never batched.
+#
 # LOSSY TIER. A branch is LOSSY when it is deletable and deleting it loses work:
 # it would otherwise be REVIEW, origin/<default> is present so "landed" can be
 # evaluated, and `git rev-list <branch> --not --remotes --tags` counts at least
@@ -50,6 +58,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/batch-common.sh
+source "$SCRIPT_DIR/lib/batch-common.sh"
 
 usage() {
   cat <<'EOF'
@@ -57,10 +67,28 @@ git-branch-audit.sh - emit branch audit facts for the clean git tier.
 
 Usage:
   git-branch-audit.sh [--capture-file PATH]
+  git-branch-audit.sh [--repo DIR...]... [--repos-from FILE|-]...
+                      [--skip ENTRY]... [--skip-from FILE]... [--capture-file PATH]
   git-branch-audit.sh --help
 
   --capture-file PATH  write the branch-tip capture to PATH instead of the
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
+  --repo DIR...        audit these repositories instead of the current one
+                       (repeatable; takes every consecutive non-flag path, so a
+                       shell glob works)
+  --repos-from FILE    newline-delimited repo paths (FILE, or - for stdin)
+  --skip ENTRY         skip a repo: absolute path, owner/repo, or repo (repeatable)
+  --skip-from FILE     newline-delimited skip entries
+
+With --repo / --repos-from the repositories are audited one after another. Each
+block is `Repo: <path>`, the output described below, then `---`. A repo sharing a
+git common dir with an audited one (a linked worktree) is reported `Outcome:
+skipped`; a skip-listed, unresolvable, or failing repo is reported without
+stopping the rest; `FleetSummary: repos=N audited=A skipped=S duplicate=D
+blocked=B failed=F` closes the run (exit 0). Each repo writes its own default
+capture and prints its own `TipCapture:`; --capture-file with more than one repo
+is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
+from inside the audited repo with that repo's capture.
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
 Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a WORKTREE
@@ -83,6 +111,7 @@ EOF
 }
 
 CAPTURE_ARG=""
+FLEET=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
@@ -97,6 +126,14 @@ while [[ $# -gt 0 ]]; do
     CAPTURE_ARG="$2"
     shift 2
     ;;
+  --repo | --repos-from | --skip | --skip-from)
+    if ! batch_take_selection_arg "$@"; then
+      echo "git-branch-audit.sh: $BATCH_ARG_ERROR" >&2
+      exit 2
+    fi
+    [[ "$1" == --skip* ]] || FLEET=1
+    shift "$BATCH_ARG_SHIFT"
+    ;;
   *)
     echo "git-branch-audit.sh: unknown arg '$1'" >&2
     usage >&2
@@ -104,6 +141,26 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+if [[ $FLEET -eq 0 && ${#BATCH_SKIP_INPUTS[@]} -gt 0 ]]; then
+  echo "git-branch-audit.sh: --skip / --skip-from need --repo or --repos-from" >&2
+  exit 2
+fi
+if [[ $FLEET -eq 1 ]]; then
+  if [[ ${#BATCH_REPO_INPUTS[@]} -eq 0 ]]; then
+    echo "git-branch-audit.sh: no repos given (use --repo and/or --repos-from)" >&2
+    exit 2
+  fi
+  batch_resolve_repos "${BATCH_REPO_INPUTS[@]}"
+  if [[ -n "$CAPTURE_ARG" && ${#BATCH_TOPS[@]} -gt 1 ]]; then
+    echo "git-branch-audit.sh: --capture-file names one file and cannot serve ${#BATCH_TOPS[@]} repos; omit it so each repo writes its own default capture" >&2
+    exit 2
+  fi
+  child_args=()
+  [[ -n "$CAPTURE_ARG" ]] && child_args=(--capture-file "$CAPTURE_ARG")
+  batch_run_fleet "$SCRIPT_DIR/git-branch-audit.sh" ${child_args[@]+"${child_args[@]}"}
+  exit 0
+fi
 
 REPO_ROOT="$(clean_repo_root)"
 if [[ -z "$REPO_ROOT" ]]; then
