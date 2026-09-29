@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "goimports",
+      "check": "/go-format:check",
+      "install": "go install golang.org/x/tools/cmd/goimports@latest"
+    }
+  ]
+}

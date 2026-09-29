@@ -611,4 +611,8 @@ assert_eq "fixture sanity: the unpushed commit is landed" "yes" "$(col "$R" $C_L
 assert_eq "fixture sanity: a merge is mid-flight" "merge" "$(col "$R" $C_INPROGRESS)"
 assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
 
+# Bare-name invocation from the scripts directory still loads the library.
+BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
+assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"
+
 [[ $FAILED -eq 0 ]] || exit 1

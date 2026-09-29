@@ -304,13 +304,64 @@
       "id": 25,
       "name": "execution-model-and-report-identity-contract",
       "prompt": "/claude-config:audit-instructions all --unattended --persist-findings over a marketplace repository.",
-      "expected_output": "Reads context/execution-and-report.md as the standing record of the execution model and the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29; I30 to I33 stay in the human report and are declined no-severity-crosswalk-row until the persist unit admits them. Does not edit audited surfaces.",
+      "expected_output": "Reads context/execution-and-report.md as the standing record of the execution model and the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29 and the I30 to I33 lane findings. Does not edit audited surfaces.",
       "files": [],
       "expectations": [
         "Follows context/execution-and-report.md for lane sizing, --unattended disclosure, and resume/lease shape rather than inventing a second run model",
         "Presents each finding's identity as (check, claim, sites); an I15 conflict is one finding with two sites",
-        "Persists only families the current emit path admits; I30 to I33 are declined and counted, never silently dropped",
+        "Persists I28, I29, and I30 to I33; rows the emit path refuses are declined and counted, never silently dropped",
         "Does not edit audited instruction files"
+      ]
+    }
+,
+    {
+      "id": 26,
+      "name": "persist-findings-emits-lane-rules-with-identity",
+      "prompt": "/claude-config:audit-instructions skills --persist-findings. One skill's SKILL.md names `/fleet:reachx` (a skill that does not exist) both in its frontmatter description and in a body sentence, and one of its reference/ spokes opens with \"This file is loaded by the hub when the release names a breaking change.\" Phase C keeps both findings.",
+      "expected_output": "Writes the human report with a Finding ID column holding each row's finding_id/v1 from scripts/finding-ids.sh. Persists a review-findings file by running emit-findings.sh with the lane findings on --from-lane as <path>:<line>:<check-id> rows: the body I32 row is emitted at CRITICAL with target=\"/fleet:reachx\" and a finding_id, the I33 row is emitted at SUGGESTION with an Action naming the hub SKILL.md as the target for the loading condition, and both leave Confidence empty. The frontmatter I32 row is not emitted: it is declined as reason=frontmatter and counted in ## Surfaces, and it stays in the human report. Says plainly that nothing has been applied.",
+      "files": [],
+      "expectations": [
+        "Gives every human-report finding a Finding ID derived by scripts/finding-ids.sh rather than composed by hand",
+        "Passes the I32 and I33 lane findings to emit-findings.sh through --from-lane, not --from",
+        "Emits the body I32 row at CRITICAL and the I33 row at SUGGESTION, each with a finding_id and an empty Confidence cell",
+        "Declines the frontmatter I32 row as reason=frontmatter and reports that count rather than dropping it silently",
+        "States that the findings file is a proposal and nothing has been applied"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "i33-fenced-spokes-yield-no-finding",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, and evals/fixtures/i33-index-pointer-spoke.md relative to the skill directory, treated as one plugin's skill: the hub is its SKILL.md and the two spokes sit in its reference/ directory.",
+      "expected_output": "Reports zero I33 findings. The scope-note spoke opens with the one-line scope note \"Windows only.\", which bounds the file's subject, and the index-pointer spoke opens with a one-line pointer back to the hub's index table, where loading conditions belong; both sit inside I33's Must NOT flag fences, which the lane brief restates. The hub's own index table is not a spoke opener and is never an I33 candidate.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md"
+      ],
+      "expectations": [
+        "Reports no I33 finding for the one-line scope note \"Windows only.\"",
+        "Reports no I33 finding for the \"Full index:\" pointer line",
+        "Reports no I33 finding against the hub's index table",
+        "Does not present either spoke's opener as a Withheld or demoted I33 finding either; the fences exempt them before any finding exists"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "i33-per-spoke-finding-rolls-up-per-plugin",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory.",
+      "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
+      "files": [
+        "evals/fixtures/i33-hub.md",
+        "evals/fixtures/i33-scope-note-spoke.md",
+        "evals/fixtures/i33-index-pointer-spoke.md",
+        "evals/fixtures/i33-self-describing-spoke.md"
+      ],
+      "expectations": [
+        "Reports exactly one I33 finding, on i33-self-describing-spoke.md",
+        "Anchors that finding on the opener sentence (an excerpt anchor), not on the whole surface",
+        "Places the I33 finding in a collapsed per-plugin section for release-notes rather than the main findings table",
+        "Keeps Surface:Line and a fenced diff on the I33 row inside the collapsed section",
+        "Judges the I33 class with one class-batched verifier in Phase C"
       ]
     }
   ]

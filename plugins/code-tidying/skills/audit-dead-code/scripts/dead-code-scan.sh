@@ -2,9 +2,9 @@
 # Dead-code CANDIDATES for /code-tidying:audit-dead-code. Read-only.
 #
 # Output: Lane / Note run-health lines, then File + Finding tier/shape/line/
-# excerpt records separated by `---`, then Summary file / lanes / candidates /
-# total lines. The script never writes a file into the repository and never
-# edits source.
+# excerpt records separated by `---`, then Summary file / lanes / coverage /
+# candidates / total lines, then one Note per uncovered source file. The script
+# never writes a file into the repository and never edits source.
 #
 # Exit:
 #   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
@@ -163,6 +163,64 @@ note() {
   printf 'Note: %s\n' "$1" >>"$NOTES"
 }
 
+# Coverage ledger. A source file is covered when a lane took it as input and
+# reached `ran` or `degraded` (the lane line names a degradation; the file is
+# not missing). `skipped` is "tool not installed". `no-manifest` is "no manifest
+# root". Anything still unmarked at the end is either `nolane` or a lane this
+# invocation did not select.
+declare -A DC_COVERED=()
+declare -A DC_UNCOVERED=()
+
+dc_mark_covered() {
+  local f
+  for f in "$@"; do
+    [[ -n "$f" ]] || continue
+    DC_COVERED["$f"]=1
+    unset "DC_UNCOVERED[$f]"
+  done
+}
+
+dc_mark_uncovered() {
+  local reason="$1"
+  shift
+  local f
+  for f in "$@"; do
+    [[ -n "$f" ]] || continue
+    [[ -n "${DC_COVERED[$f]:-}" ]] && continue
+    [[ -z "${DC_UNCOVERED[$f]:-}" ]] || continue
+    DC_UNCOVERED["$f"]="$reason"
+  done
+}
+
+# `ran` and `degraded` cover the file. `skipped` and `no-manifest` name why it
+# was not scanned. `scanned-zero-files` has nothing to account for.
+dc_account_lane_files() {
+  local state="$1"
+  shift
+  case "$state" in
+  ran | degraded) dc_mark_covered "$@" ;;
+  skipped) dc_mark_uncovered 'tool not installed' "$@" ;;
+  no-manifest) dc_mark_uncovered 'no manifest root' "$@" ;;
+  *) ;;
+  esac
+}
+
+# Owned-file lists are root-relative. Coverage keys are repo-relative, the same
+# form git ls-files handed the classifier.
+dc_repo_owned() {
+  local root="$1"
+  shift
+  local f
+  for f in "$@"; do
+    [[ -n "$f" ]] || continue
+    if [[ "$root" == "." || "$f" == /* ]]; then
+      printf '%s\n' "$f"
+    else
+      printf '%s\n' "$root/$f"
+    fi
+  done
+}
+
 # The lanes disagree about what a path is: knip reports project-relative,
 # vulture relativizes to cwd (which is the repo root here), and gopls reports
 # ABSOLUTE paths with no flag to change that. Every Location this script emits
@@ -212,6 +270,12 @@ TS_FILES=()
 PY_FILES=()
 GO_FILES=()
 SYM_FILES=()
+NOLANE_FILES=()
+SOURCE_FILES=()
+# Filled by the grep lane. Declared here so `set -u` can see the array before
+# that lane runs.
+FILE_REF_FILES=()
+FILE_REF_EMITTED=0
 
 while IFS= read -r scope_line; do
   scope_line="${scope_line//$'\r'/}"
@@ -219,10 +283,11 @@ while IFS= read -r scope_line; do
   dc_is_excluded_path "$scope_line" && continue
   [[ -f "$scope_line" ]] || continue
   case "$(dc_lang_of_path "$scope_line")" in
-  ts) TS_FILES+=("$scope_line") ;;
-  py) PY_FILES+=("$scope_line") ;;
-  go) GO_FILES+=("$scope_line") ;;
-  shell | pwsh) SYM_FILES+=("$scope_line") ;;
+  ts) TS_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  py) PY_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  go) GO_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  shell | pwsh) SYM_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  nolane) NOLANE_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   *) ;;
   esac
 done < <(list_scope_files | LC_ALL=C sort -u)
@@ -347,10 +412,18 @@ lane_knip() {
   # root_nested is read through a nameref by nested_roots/owns_path/files_owned,
   # which shellcheck cannot see (SC2034).
   # shellcheck disable=SC2034
-  local -a roots=() root_nested=() owned_ts=()
+  local -a roots=() root_nested=() owned_ts=() repo_owned=()
+  # KNIP_SEEN is the set of TS/JS files some root owned. Files never entered
+  # here have no manifest root of their own (a standalone .mjs beside a nested
+  # package.json). shellcheck cannot see the nameref uses of root_nested.
+  # shellcheck disable=SC2034
+  local -A KNIP_SEEN=()
+  local owned_rel ts_left
   mapfile -t roots < <(project_roots package.json)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    lane_line knip '-' skipped 0 'no package.json project root in this repository'
+    dc_account_lane_files no-manifest ${TS_FILES[@]+"${TS_FILES[@]}"}
+    lane_line knip '-' no-manifest "${#TS_FILES[@]}" \
+      'no package.json project root in this repository'
     return 0
   fi
   for root_rel in "${roots[@]}"; do
@@ -358,7 +431,13 @@ lane_knip() {
     # this root is scanning FOR and what it is allowed to report.
     nested_roots "$root_rel" roots root_nested
     files_owned "$root_rel" root_nested TS_FILES owned_ts
-    nfiles="${#owned_ts[@]}"
+    repo_owned=()
+    while IFS= read -r owned_rel; do
+      [[ -n "$owned_rel" ]] || continue
+      repo_owned+=("$owned_rel")
+      KNIP_SEEN["$owned_rel"]=1
+    done < <(dc_repo_owned "$root_rel" ${owned_ts[@]+"${owned_ts[@]}"})
+    nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line knip "$root_rel" scanned-zero-files 0 \
         'no TS/JS file owned by this root in candidate scope (files under a NESTED project root belong to that root) — a scan of nothing, not a clean bill'
@@ -366,16 +445,19 @@ lane_knip() {
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! dc_find_nonempty_node_modules "$root_abs" "$REPO_ROOT" >/dev/null; then
+      dc_account_lane_files degraded "${repo_owned[@]}"
       lane_line knip "$root_rel" degraded "$nfiles" \
         'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records'
       continue
     fi
     if ! bin="$(dc_locate_binary knip "$root_abs" "$REPO_ROOT")"; then
+      dc_account_lane_files skipped "${repo_owned[@]}"
       lane_line knip "$root_rel" skipped "$nfiles" \
         'knip not resolvable in a repo-local node_modules/.bin nor on PATH — no package runner is invoked, so nothing was fetched'
       continue
     fi
     if ! dc_binary_invocable "$bin" --version; then
+      dc_account_lane_files skipped "${repo_owned[@]}"
       lane_line knip "$root_rel" skipped "$nfiles" \
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
       continue
@@ -385,11 +467,13 @@ lane_knip() {
     fi
     (cd "$root_abs" && "$bin" --reporter json --no-progress) >"$WORK/knip.out" 2>"$WORK/knip.err" || true
     if dc_knip_stderr_is_degraded "$WORK/knip.err"; then
+      dc_account_lane_files degraded "${repo_owned[@]}"
       lane_line knip "$root_rel" degraded "$nfiles" \
         'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures FALSE POSITIVES, so this root emits no records'
       continue
     fi
     if [[ ! -s "$WORK/knip.out" ]]; then
+      dc_account_lane_files ran "${repo_owned[@]}"
       lane_line knip "$root_rel" ran "$nfiles" 'no unused file, export, type, or enum member reported'
       continue
     fi
@@ -422,12 +506,18 @@ lane_knip() {
       if [[ "$foreign" -gt 0 ]]; then
         detail="$detail; $foreign finding(s) this root does not own dropped (a NESTED project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
       fi
+      dc_account_lane_files ran "${repo_owned[@]}"
       lane_line knip "$root_rel" ran "$nfiles" "$detail"
     else
       add_candidate "$root_rel" 0 detector-drift \
         'knip produced output no parser recognized — its JSON shape may have changed'
+      dc_account_lane_files ran "${repo_owned[@]}"
       lane_line knip "$root_rel" ran "$nfiles" 'output not recognized — recorded as T3 drift, never as clean'
     fi
+  done
+  for ts_left in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
+    [[ -n "${KNIP_SEEN[$ts_left]:-}" ]] && continue
+    dc_mark_uncovered 'no manifest root' "$ts_left"
   done
 }
 
@@ -448,11 +538,13 @@ lane_vulture() {
     return 0
   fi
   if ! bin="$(dc_locate_binary vulture "$REPO_ROOT" "$REPO_ROOT")"; then
+    dc_account_lane_files skipped ${PY_FILES[@]+"${PY_FILES[@]}"}
     lane_line vulture '.' skipped "${#PY_FILES[@]}" \
       'vulture not resolvable in a repo-local .venv/bin nor on PATH — no package runner is invoked, so nothing was fetched'
     return 0
   fi
   if ! dc_binary_invocable "$bin" --version; then
+    dc_account_lane_files skipped ${PY_FILES[@]+"${PY_FILES[@]}"}
     lane_line vulture '.' skipped "${#PY_FILES[@]}" \
       "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
     return 0
@@ -468,6 +560,7 @@ lane_vulture() {
   # vulture exits 1 for a lone unparsable input and 3 when findings coexist, so
   # the code cannot separate "one bad input file" from "the run is unsound".
   if dc_vulture_stderr_is_degraded "$WORK/vulture.err"; then
+    dc_account_lane_files degraded ${PY_FILES[@]+"${PY_FILES[@]}"}
     lane_line vulture '.' degraded "${#PY_FILES[@]}" \
       "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld"
     return 0
@@ -475,11 +568,21 @@ lane_vulture() {
   # An input-parse-error line is an INPUT note, not a degraded run: every other
   # file was still analyzed, and treating it as degradation would let one stray
   # non-Python file suppress the whole lane.
+  local -A unparsed_path=()
+  local -a parsed_files=()
   while IFS= read -r v_line; do
     [[ -n "$v_line" ]] || continue
     unparsed=$((unparsed + 1))
+    unparsed_path["${v_line%%:*}"]=1
     note "vulture could not parse one input and skipped it (an input note, not a degraded run): $v_line"
   done < <(dc_vulture_unparsed_inputs "$WORK/vulture.err")
+  for v_line in "${PY_FILES[@]}"; do
+    if [[ -n "${unparsed_path[$v_line]:-}" ]]; then
+      dc_mark_uncovered 'tool could not parse it' "$v_line"
+    else
+      parsed_files+=("$v_line")
+    fi
+  done
   while IFS= read -r v_line || [[ -n "$v_line" ]]; do
     v_line="${v_line//$'\r'/}"
     [[ -n "$v_line" ]] || continue
@@ -492,6 +595,7 @@ lane_vulture() {
       add_candidate '-' 0 detector-drift "vulture line not in the finding grammar: $v_line"
     fi
   done <"$WORK/vulture.out"
+  dc_account_lane_files ran ${parsed_files[@]+"${parsed_files[@]}"}
   lane_line vulture '.' ran "${#PY_FILES[@]}" \
     "$parsed candidate(s), $drift unrecognized stdout line(s), $unparsed input file(s) skipped as unparsable"
 }
@@ -508,10 +612,17 @@ lane_gopls() {
   local p_file p_line p_shape p_excerpt
   # root_nested is read through a nameref (SC2034); mod_files is expanded below.
   # shellcheck disable=SC2034
-  local -a roots=() mod_files=() root_nested=()
+  local -a roots=() mod_files=() root_nested=() repo_owned=()
+  # GOPLS_SEEN is the set of .go files some module owned. A .go file outside
+  # every go.mod is uncovered (no manifest root), same rule as a standalone .mjs.
+  # shellcheck disable=SC2034
+  local -A GOPLS_SEEN=()
+  local owned_rel go_left
   mapfile -t roots < <(project_roots go.mod)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    lane_line gopls '-' skipped 0 'no go.mod module root in this repository'
+    dc_account_lane_files no-manifest ${GO_FILES[@]+"${GO_FILES[@]}"}
+    lane_line gopls '-' no-manifest "${#GO_FILES[@]}" \
+      'no go.mod module root in this repository'
     return 0
   fi
   for root_rel in "${roots[@]}"; do
@@ -523,7 +634,13 @@ lane_gopls() {
     # Only the files this module OWNS are handed to gopls; a nested go.mod's
     # files belong to that module's own run.
     files_owned "$root_rel" root_nested GO_FILES mod_files
-    nfiles="${#mod_files[@]}"
+    repo_owned=()
+    while IFS= read -r owned_rel; do
+      [[ -n "$owned_rel" ]] || continue
+      repo_owned+=("$owned_rel")
+      GOPLS_SEEN["$owned_rel"]=1
+    done < <(dc_repo_owned "$root_rel" ${mod_files[@]+"${mod_files[@]}"})
+    nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line gopls "$root_rel" scanned-zero-files 0 \
         'no .go file owned by this module in candidate scope (files under a NESTED go.mod belong to that module) — a scan of nothing, not a clean bill'
@@ -531,10 +648,12 @@ lane_gopls() {
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! bin="$(dc_locate_binary gopls "$root_abs" "$REPO_ROOT")"; then
+      dc_account_lane_files skipped "${repo_owned[@]}"
       lane_line gopls "$root_rel" skipped "$nfiles" 'gopls not resolvable on PATH'
       continue
     fi
     if ! dc_binary_invocable "$bin" version; then
+      dc_account_lane_files skipped "${repo_owned[@]}"
       lane_line gopls "$root_rel" skipped "$nfiles" \
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
       continue
@@ -558,6 +677,7 @@ lane_gopls() {
       done <"$WORK/gopls.out"
     fi
     if [[ "$degraded" == '1' ]]; then
+      dc_account_lane_files degraded "${repo_owned[@]}"
       lane_line gopls "$root_rel" degraded "$nfiles" \
         'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records'
       continue
@@ -591,7 +711,12 @@ lane_gopls() {
     if [[ "$foreign" -gt 0 ]]; then
       detail="$detail; $foreign diagnostic(s) this module does not own dropped (a NESTED module's file, or a path excluded from candidate scope)"
     fi
+    dc_account_lane_files ran "${repo_owned[@]}"
     lane_line gopls "$root_rel" ran "$nfiles" "$detail"
+  done
+  for go_left in ${GO_FILES[@]+"${GO_FILES[@]}"}; do
+    [[ -n "${GOPLS_SEEN[$go_left]:-}" ]] && continue
+    dc_mark_uncovered 'no manifest root' "$go_left"
   done
 }
 
@@ -602,23 +727,155 @@ lane_gopls() {
 # it `core.ts` matches `coreXts`.
 # ---------------------------------------------------------------------------
 
+# 0 when a package.json root owns the repo-relative path. JS/TS inside a root
+# is knip's unused-file finding; unreferenced-file does not repeat it.
+# The caller names its package-root array; nested/owns_path read it through a nameref.
+dc_path_owned_by_package() {
+  local path="$1" roots_name="$2" r
+  local -n _dc_pkg_roots="$roots_name"
+  # shellcheck disable=SC2034
+  local -a nested=()
+  [[ ${#_dc_pkg_roots[@]} -eq 0 ]] && return 1
+  for r in ${_dc_pkg_roots[@]+"${_dc_pkg_roots[@]}"}; do
+    nested_roots "$r" "$roots_name" nested
+    owns_path "$r" nested "$path" && return 0
+  done
+  return 1
+}
+
+# Shell, PowerShell, Python entry points, JS/TS no package.json root owns, and
+# source files with no lane. Go stays with gopls: a module compiles files the
+# path never names.
+collect_file_ref_files() {
+  local f
+  local -a PKG_ROOTS=()
+  FILE_REF_FILES=()
+  # shellcheck disable=SC2034  # read by dc_path_owned_by_package through a nameref
+  mapfile -t PKG_ROOTS < <(project_roots package.json)
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${PY_FILES[@]+"${PY_FILES[@]}"}; do
+    dc_is_py_entry "$f" || continue
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
+    dc_path_owned_by_package "$f" PKG_ROOTS && continue
+    FILE_REF_FILES+=("$f")
+  done
+  for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
+    FILE_REF_FILES+=("$f")
+  done
+}
+
+# Repo-wide literal search on each file's basename and repo-relative path.
+# A hit in any other tracked file saves it, including CI workflows, settings,
+# manifests, and docs. A hit inside the file itself does not. A computed path
+# or a glob never spells those keys, so a miss is an uncertain candidate.
+emit_unreferenced_files() {
+  local f base stem key pair
+  local -A KEY_SEEN=()
+  local -A PAIR_SEEN=()
+  FILE_REF_EMITTED=0
+  : >"$WORK/owners.tsv"
+  : >"$WORK/filekeys.txt"
+  for f in ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
+    [[ -n "$f" ]] || continue
+    base="${f##*/}"
+    # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
+    # `#include "util.h"` spells the name), so a no-lane file is also keyed on
+    # its stem. That saves more, never less: a stem match is a weaker miss.
+    stem=''
+    [[ "$(dc_lang_of_path "$f")" == 'nolane' ]] && stem="${base%.*}"
+    for key in "$base" "$f" ${stem:+"$stem"}; do
+      dc_ref_key_ok "$key" || continue
+      pair="${key}"$'\x1f'"${f}"
+      [[ -n "${PAIR_SEEN[$pair]:-}" ]] && continue
+      PAIR_SEEN["$pair"]=1
+      printf '%s\t%s\n' "$key" "$f" >>"$WORK/owners.tsv"
+      if [[ -z "${KEY_SEEN[$key]:-}" ]]; then
+        KEY_SEEN["$key"]=1
+        printf '%s\n' "$key" >>"$WORK/filekeys.txt"
+      fi
+    done
+  done
+  [[ -s "$WORK/filekeys.txt" ]] || return 0
+  : >"$WORK/refhits.txt"
+  # -I skips binary files. -H -o attribute each match to the file that held it
+  # so a mention inside the candidate itself can be dropped.
+  if [[ "$GIT_OK" == '1' ]]; then
+    git ls-files -z 2>/dev/null |
+      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
+  else
+    find . -type f -print0 2>/dev/null |
+      xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
+  fi
+  awk -F '\t' '
+    NR == FNR {
+      key = $1
+      path = $2
+      if (key == "" || path == "") next
+      owners[key, ++nowners[key]] = path
+      want[path] = 1
+      next
+    }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      best = ""
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        if (substr(line, i, 1) != ":") continue
+        cand = substr(line, i + 1)
+        if ((cand in nowners) && length(cand) > length(best)) best = cand
+      }
+      if (best == "") next
+      file = substr(line, 1, length(line) - length(best) - 1)
+      sub(/^\.\//, "", file)
+      for (j = 1; j <= nowners[best]; j++) {
+        path = owners[best, j]
+        if (path != file) saved[path] = 1
+      }
+    }
+    END {
+      for (path in want) if (!(path in saved)) print path
+    }
+  ' "$WORK/owners.tsv" "$WORK/refhits.txt" | LC_ALL=C sort -u >"$WORK/unreferenced.txt"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    add_candidate "$f" 1 'unreferenced-file' \
+      'no literal basename or path reference; a computed path or glob can still load it (uncertain)'
+    FILE_REF_EMITTED=$((FILE_REF_EMITTED + 1))
+  done <"$WORK/unreferenced.txt"
+}
+
 lane_grep() {
   local f lang d_line d_name d_text cnt nm defs hits
+  local inspected_n=0 emitted=0 sym_detail names_n
+  local -A INSPECTED=()
   declare -A DEFS=()
   declare -A HITS=()
-  if [[ ${#SYM_FILES[@]} -eq 0 ]]; then
+  collect_file_ref_files
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"} ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
+    [[ -n "$f" ]] || continue
+    [[ -n "${INSPECTED[$f]:-}" ]] && continue
+    INSPECTED["$f"]=1
+    inspected_n=$((inspected_n + 1))
+  done
+  if [[ "$inspected_n" -eq 0 ]]; then
     lane_line grep '.' scanned-zero-files 0 \
-      'no shell or PowerShell file in candidate scope — a scan of nothing, not a clean bill'
+      'no shell, PowerShell, or other unreferenced-file input in candidate scope — a scan of nothing, not a clean bill'
     return 0
   fi
   printf 'dc_probe_symbol\n' >"$WORK/probe.txt"
-  if ! grep -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
-    lane_line grep '.' skipped "${#SYM_FILES[@]}" \
+  if ! grep -H -o -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
+    dc_account_lane_files skipped ${SYM_FILES[@]+"${SYM_FILES[@]}"}
+    lane_line grep '.' skipped "$inspected_n" \
       'grep -w -F did not run here — presence is proven by invocation, never by command -v'
     return 0
   fi
   : >"$WORK/defs.tsv"
-  for f in "${SYM_FILES[@]}"; do
+  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
     lang="$(dc_lang_of_path "$f")"
     while IFS="$TAB" read -r d_line d_name d_text; do
       [[ -n "$d_name" ]] || continue
@@ -626,39 +883,44 @@ lane_grep() {
       DEFS["$d_name"]=$((${DEFS["$d_name"]:-0} + 1))
     done < <(dc_symbol_defs "$f" "$lang")
   done
-  if [[ ! -s "$WORK/defs.tsv" ]]; then
-    lane_line grep '.' ran "${#SYM_FILES[@]}" 'no symbol definition matched the extractor set'
-    return 0
-  fi
-  printf '%s\n' "${!DEFS[@]}" | LC_ALL=C sort -u >"$WORK/names.txt"
-  # Reference search is REPOSITORY-WIDE and deliberately separate from candidate
-  # scope: a reference from anywhere saves a symbol. -h drops filenames so the
-  # counted token is the match itself; xargs splits the file list for us.
-  : >"$WORK/hits.txt"
-  if [[ "$GIT_OK" == '1' ]]; then
-    git ls-files -z 2>/dev/null |
-      xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-  else
-    find . -type f -print0 2>/dev/null |
-      xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
-  fi
-  while read -r cnt nm; do
-    [[ -n "$nm" ]] || continue
-    HITS["$nm"]="$cnt"
-  done < <(LC_ALL=C sort "$WORK/hits.txt" | uniq -c)
-  local emitted=0
-  while IFS="$TAB" read -r f d_line d_name d_text; do
-    [[ -n "$d_name" ]] || continue
-    defs="${DEFS["$d_name"]:-1}"
-    hits="${HITS["$d_name"]:-0}"
-    # Only the definition sites themselves matched anywhere in the repository.
-    if [[ "$hits" -le "$defs" ]]; then
-      add_candidate "$f" "$d_line" 'unreferenced-symbol' "$d_text"
-      emitted=$((emitted + 1))
+  if [[ -s "$WORK/defs.tsv" ]]; then
+    printf '%s\n' "${!DEFS[@]}" | LC_ALL=C sort -u >"$WORK/names.txt"
+    # Reference search is REPOSITORY-WIDE and deliberately separate from candidate
+    # scope: a reference from anywhere saves a symbol. -h drops filenames so the
+    # counted token is the match itself; xargs splits the file list for us.
+    : >"$WORK/hits.txt"
+    if [[ "$GIT_OK" == '1' ]]; then
+      git ls-files -z 2>/dev/null |
+        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
+    else
+      find . -type f -print0 2>/dev/null |
+        xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
     fi
-  done <"$WORK/defs.tsv"
-  lane_line grep '.' ran "${#SYM_FILES[@]}" \
-    "$emitted candidate(s) from $(wc -l <"$WORK/names.txt" | tr -d ' ') distinct definition name(s)"
+    while read -r cnt nm; do
+      [[ -n "$nm" ]] || continue
+      HITS["$nm"]="$cnt"
+    done < <(LC_ALL=C sort "$WORK/hits.txt" | uniq -c)
+    while IFS="$TAB" read -r f d_line d_name d_text; do
+      [[ -n "$d_name" ]] || continue
+      defs="${DEFS["$d_name"]:-1}"
+      hits="${HITS["$d_name"]:-0}"
+      # Only the definition sites themselves matched anywhere in the repository.
+      if [[ "$hits" -le "$defs" ]]; then
+        add_candidate "$f" "$d_line" 'unreferenced-symbol' "$d_text"
+        emitted=$((emitted + 1))
+      fi
+    done <"$WORK/defs.tsv"
+    names_n="$(wc -l <"$WORK/names.txt" | tr -d ' ')"
+    sym_detail="$emitted symbol candidate(s) from $names_n distinct definition name(s)"
+  elif [[ ${#SYM_FILES[@]} -eq 0 ]]; then
+    sym_detail='no shell or PowerShell file in candidate scope'
+  else
+    sym_detail='no symbol definition matched the extractor set'
+  fi
+  emit_unreferenced_files
+  dc_account_lane_files ran ${SYM_FILES[@]+"${SYM_FILES[@]}"}
+  lane_line grep '.' ran "$inspected_n" \
+    "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
 }
 
 # ---------------------------------------------------------------------------
@@ -719,12 +981,14 @@ lanes_ran=0
 lanes_skipped=0
 lanes_degraded=0
 lanes_zero=0
+lanes_nomanifest=0
 while IFS= read -r l_line; do
   case "$l_line" in
   *'state=ran '*) lanes_ran=$((lanes_ran + 1)) ;;
   *'state=skipped '*) lanes_skipped=$((lanes_skipped + 1)) ;;
   *'state=degraded '*) lanes_degraded=$((lanes_degraded + 1)) ;;
   *'state=scanned-zero-files '*) lanes_zero=$((lanes_zero + 1)) ;;
+  *'state=no-manifest '*) lanes_nomanifest=$((lanes_nomanifest + 1)) ;;
   *) ;;
   esac
 done <"$LANES"
@@ -768,14 +1032,46 @@ while IFS="$TAB" read -r e_file e_line e_shape e_excerpt; do
 done <"$WORK/emitted.tsv"
 flush_file
 
-printf 'Summary lanes: ran=%s skipped=%s degraded=%s scanned-zero-files=%s\n' \
-  "$lanes_ran" "$lanes_skipped" "$lanes_degraded" "$lanes_zero"
+# Every in-scope source file is covered or listed. A file a selected lane never
+# marked is `nolane` (no detector) or `lane not selected` (this invocation did
+# not run that file's lane). `files-with-findings` is the finding count; `files=`
+# on a Lane line is the input count. They are different numbers.
+covered_n=0
+uncovered_n=0
+: >"$WORK/uncovered.tsv"
+for cov_file in ${SOURCE_FILES[@]+"${SOURCE_FILES[@]}"}; do
+  if [[ -n "${DC_COVERED[$cov_file]:-}" ]]; then
+    covered_n=$((covered_n + 1))
+    continue
+  fi
+  cov_reason="${DC_UNCOVERED[$cov_file]:-}"
+  if [[ -z "$cov_reason" ]]; then
+    case "$(dc_lang_of_path "$cov_file")" in
+    nolane) cov_reason='no lane for the language' ;;
+    *) cov_reason='lane not selected' ;;
+    esac
+  fi
+  printf '%s\t%s\n' "$cov_file" "$cov_reason" >>"$WORK/uncovered.tsv"
+  uncovered_n=$((uncovered_n + 1))
+done
+if [[ -s "$WORK/uncovered.tsv" ]]; then
+  LC_ALL=C sort -o "$WORK/uncovered.tsv" "$WORK/uncovered.tsv"
+fi
+
+printf 'Summary lanes: ran=%s skipped=%s degraded=%s scanned-zero-files=%s no-manifest=%s\n' \
+  "$lanes_ran" "$lanes_skipped" "$lanes_degraded" "$lanes_zero" "$lanes_nomanifest"
+printf 'Summary coverage: covered=%s uncovered=%s\n' "$covered_n" "$uncovered_n"
 printf 'Summary candidates: total=%s emitted=%s dropped-by-cap=%s cap=%s\n' \
   "$TOTAL_CAND" "$EMITTED" "$DROPPED" "$MAX"
-printf 'Summary total: files=%s T1=%s T2=%s T3=%s\n' \
+printf 'Summary total: files-with-findings=%s T1=%s T2=%s T3=%s\n' \
   "$files_audited" "$total_t1" "$total_t2" "$total_t3"
 
-if [[ "$TOTAL_CAND" -eq 0 ]]; then
+if [[ "$uncovered_n" -gt 0 ]]; then
+  while IFS="$TAB" read -r u_file u_reason; do
+    [[ -n "$u_file" ]] || continue
+    printf 'Note: uncovered %s — %s\n' "$u_file" "$u_reason"
+  done <"$WORK/uncovered.tsv"
+elif [[ "$TOTAL_CAND" -eq 0 ]]; then
   if [[ "$lanes_ran" -eq 0 ]]; then
     echo "Note: no lane ran — this is a scan of nothing, not a clean bill. Read the Lane lines above before reporting anything as clean."
   else

@@ -29,8 +29,11 @@ have checked a judgment row is misreporting.
 | Every `reference/`, `references/`, `context/` directory is referenced from the hub | mechanical (check 15) |
 | A reference file over 300 lines opens with a `## Contents` block | mechanical (check 26) |
 | `disable-model-invocation` is written explicitly | mechanical (check 24) |
+| `context: fork` only when the invocation-context rubric says it pays; anti-candidate classes stay inline | judgment |
+| A forked skill writes `background: false` unless a skill-specific confirmation chooses async | judgment |
 | A gotchas surface exists (`## Gotchas` inline or a gotchas spoke) | mechanical (check 11) |
 | `## Next` is present and names the successor in mention-only form | judgment |
+| Arguments follow the skill argument shape: one action first, earned `--flag` modifiers, at most one subject last, `argument-hint` in the same order ([`authoring-guidance.md`](authoring-guidance.md#argument-surface)) | judgment |
 | No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; a restated number carries the four-part record | judgment |
 | One term per concept throughout | judgment |
 | Examples are concrete, not abstract | judgment |

@@ -5,6 +5,25 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.87] - 2026-09-28
+
+### Changed
+
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+
+## [0.7.86] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+
+## [0.7.85] - 2026-09-28
+
+### Changed
+
+- **`zone-crossing-inject` does not source `hook-utils.sh` on the no-crossing path** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The session id and the event name are taken from the leading scalar strings. A backslash, a shape the scan cannot prove, a band crossing, and any emit still load the library. On this host (`spawn_probe` measurable, `bash -c :` p50 0.77 ms, n=22) the same-zone rewrite fell from 10.4 S to 2.88 S, and the script starts no child process. Crossing text is unchanged. The goal is `reference/zone-crossing/PLAN.md`.
+- **A snapshot rewrite that cannot cross reuses the last zone** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). When only `captured_at` moved (still fresh), or `used_percentage` moved inside the same shipped band with every other byte unchanged and no `zones.json`, the hook reuses the word recorded in `state/<session>.inputs` and does not start the resolver. The census row `context-guard-posttoolbatch-same-zone-rewrite-spawns` fell from 7 to 3 spawns.
+
 ## [0.7.84] - 2026-09-28
 
 ### Changed

@@ -40,7 +40,16 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/architecture:map-components`](../plugins/architecture/skills/map-components/SKILL.md) | `architecture` | Chart the modules inside one deployable as a C4 component view |
+| [`/architecture:map-containers`](../plugins/architecture/skills/map-containers/SKILL.md) | `architecture` | Chart deployables, the stores they bind, and contained modules |
+| [`/architecture:map-context`](../plugins/architecture/skills/map-context/SKILL.md) | `architecture` | Chart one software system's C4 system context from tracked configuration |
+| [`/architecture:map-data`](../plugins/architecture/skills/map-data/SKILL.md) | `architecture` | Draw an ERD from a committed schema, offline |
+| [`/architecture:map-dependencies`](../plugins/architecture/skills/map-dependencies/SKILL.md) | `architecture` | Cite project and package edges from build manifests |
+| [`/architecture:map-deployment`](../plugins/architecture/skills/map-deployment/SKILL.md) | `architecture` | Chart IaC deployment topology per environment, with a diff |
+| [`/architecture:map-events`](../plugins/architecture/skills/map-events/SKILL.md) | `architecture` | Chart publishers, consumers, and orphan messages |
+| [`/architecture:map-flow`](../plugins/architecture/skills/map-flow/SKILL.md) | `architecture` | Trace one C# entry point into a sequence diagram with a citation on every hop |
 | [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
+| [`/architecture:map-states`](../plugins/architecture/skills/map-states/SKILL.md) | `architecture` | Draw a cited state diagram, or refuse when the table is not explicit |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
@@ -80,6 +89,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/animation:learn-style`](../plugins/animation/skills/learn-style/SKILL.md) | `animation` | Measure a traced clip into a style pack and check new scenes against it |
+| [`/animation:produce`](../plugins/animation/skills/produce/SKILL.md) | `animation` | Brief, boards, approval gate, shots, render, and pack review |
 | [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
@@ -93,6 +103,8 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/pixel-art:tileset`](../plugins/pixel-art/skills/tileset/SKILL.md) | `pixel-art` | Author, render, and review an engine tileset or parallax |
 | [`/pixel-art:ui`](../plugins/pixel-art/skills/ui/SKILL.md) | `pixel-art` | Author, render, and review pixel-art UI skins, icons, and fonts |
 | [`/pixel-art:vfx`](../plugins/pixel-art/skills/vfx/SKILL.md) | `pixel-art` | Author, render, and review pixel-art effects and animation cells |
+| [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |
+| [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test
@@ -166,6 +178,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown prose |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
+| [`/biome-format:check`](../plugins/biome-format/skills/check/SKILL.md) | `biome-format` | Report whether the biome binary is installed. Never installs. |
 | [`/claude-config:audit`](../plugins/claude-config/skills/audit/SKILL.md) | `claude-config` | Audit settings, hooks, permissions, and MCP config for drift against current official docs |
 | [`/claude-config:audit-automation-gaps`](../plugins/claude-config/skills/audit-automation-gaps/SKILL.md) | `claude-config` | Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding |
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies |
@@ -227,10 +240,12 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Run a Claude Code agent turn on another fleet machine over SSH |
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
+| [`/go-format:check`](../plugins/go-format/skills/check/SKILL.md) | `go-format` | Report whether goimports is installed. Never installs. |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
+| [`/markdown-format:check`](../plugins/markdown-format/skills/check/SKILL.md) | `markdown-format` | Report whether markdownlint-cli2 is installed. Never installs. |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact you point at justify its own existence, on evidence |
@@ -281,8 +296,10 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
 | [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
+| [`/claude-ops:prerequisites`](../plugins/claude-ops/skills/prerequisites/SKILL.md) | `claude-ops` | weekly | Report external tools the enabled fleet declares missing. Never installs. |
 | [`/repo-fleet-hygiene:apply`](../plugins/repo-fleet-hygiene/skills/apply/SKILL.md) | `repo-fleet-hygiene` | weekly | Execute a fleet action plan behind one confirmation gate |
 | [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Discover a repository fleet and coordinate read-only evidence handoffs |
+| [`/repo-fleet-hygiene:sync`](../plugins/repo-fleet-hygiene/skills/sync/SKILL.md) | `repo-fleet-hygiene` | weekly | Fast-forward canonical checkouts to the remote default branch |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
 | [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated and untriaged items to resolution in one view |

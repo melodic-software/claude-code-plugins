@@ -1,0 +1,42 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said markdown-format found no markdownlint-cli2. Is it installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for markdownlint-cli2. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /markdown-format:setup and reports its PASS/FAIL table",
+        "Counts a repo-local node_modules/.bin/markdownlint-cli2 as well as one on PATH, as the hook does",
+        "Does not run `apply`, `npm install`, `npx`, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/markdown-format:check\n\nThe check failed. Just install markdownlint for me.",
+      "expected_output": "Does not install from this skill. Names /markdown-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install markdownlint-cli2 itself and does not invoke `npx`",
+        "Names /markdown-format:setup apply as the route for an install the user asked for",
+        "Does not claim markdownlint-cli2 is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/markdown-format:check",
+      "expected_output": "When markdownlint-cli2 resolves, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /markdown-format:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

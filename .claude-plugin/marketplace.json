@@ -144,7 +144,7 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "portfolio", "adr", "decision-record", "skill"]
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "states", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",
@@ -333,8 +333,15 @@
     {
       "name": "songwriting",
       "source": "./plugins/songwriting",
-      "category": "music",
+      "category": "audio",
       "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "retro-audio",
+      "source": "./plugins/retro-audio",
+      "category": "audio",
+      "tags": ["chiptune", "sfx", "mml", "wav", "gameboy", "nes", "audio", "skill"],
       "defaultEnabled": false
     },
     {
@@ -518,7 +525,14 @@
       "name": "dometrain",
       "source": "./plugins/dometrain",
       "category": "discovery",
-      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning", "grounding"],
+      "tags": ["dometrain", "courses", "dotnet", "csharp", "learning", "grounding", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "dometrain-mcp",
+      "source": "./plugins/dometrain-mcp",
+      "category": "discovery",
+      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning"],
       "defaultEnabled": false
     },
     {

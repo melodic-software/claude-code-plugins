@@ -33,16 +33,22 @@ import { createAdapter } from "./adapters/adapter-contract.js";
 import { createRunStats, runLessonExtraction } from "./extract-course-run.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
+import { invokedAsCli } from "./lib/cli-main.js";
 import { courseBaseUrl, loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
-const args = parseCliArgs({
-  "extract-frames": { type: "boolean", default: false },
-  "metadata-only": { type: "boolean", default: false },
-  "skip-transcripts": { type: "boolean", default: false },
-  headless: { type: "boolean", default: true },
-  "show-browser": { type: "boolean", default: false },
-});
-const log = createLogger(resolveLogLevel(args));
+let args;
+let log;
+
+function bindCli() {
+  args = parseCliArgs({
+    "extract-frames": { type: "boolean", default: false },
+    "metadata-only": { type: "boolean", default: false },
+    "skip-transcripts": { type: "boolean", default: false },
+    headless: { type: "boolean", default: true },
+    "show-browser": { type: "boolean", default: false },
+  });
+  log = createLogger(resolveLogLevel(args));
+}
 
 async function navigateWithFallback(page, url) {
   try {
@@ -141,6 +147,7 @@ async function runMetadataPhase({
 }
 
 async function main() {
+  bindCli();
   const { courseDir, courseJsonPath: courseJson, course } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
   const platformCfg = course.platformConfig ?? {};
@@ -303,7 +310,9 @@ async function main() {
   log.info(`  Run report: ${join(courseDir, "run-report.json")}`);
 }
 
-main().catch((e) => {
-  log.error("Fatal error:", e);
-  process.exit(1);
-});
+if (invokedAsCli(import.meta.url)) {
+  main().catch((e) => {
+    log.error("Fatal error:", e);
+    process.exit(1);
+  });
+}

@@ -4,6 +4,64 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.30] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` points at the invocation-context rubric** for when a skill may set
+  `context: fork`, the anti-candidate classes, and this fleet's `background: false` default
+  (#3545). The hub, the runtime-model section, the pre-share checklist, and one eval case all
+  point; they do not restate the rubric.
+
+## [0.13.29] - 2026-09-28
+
+### Added
+
+- **`skill-authoring`**: the guidance spoke gains an "Argument surface" section, and the pre-share
+  checklist gains a judgment row, both pointing at the new skill argument shape convention
+  (`docs/conventions/skill-argument-shape/`). It sets the order of a skill's arguments (one action
+  word, then `--flag` modifiers that pass the earned-flag test, then at most one subject), binds
+  `argument-hint` to that order, declines the `arguments:` frontmatter field, and defers a
+  `skill-quality` lint for the shape. The
+  degrees-of-freedom table and the SKILL.md Arguments section no longer recommend named
+  `arguments` (#4001).
+
+## [0.13.28] - 2026-09-28
+
+### Changed
+
+- **`skill-authoring` names the consumer-gotchas cascade tier** ([#3547](https://github.com/melodic-software/claude-code-plugins/issues/3547)). Bundled gotchas stay failure-driven in the skill; repo-specific lines go in the plugin's config-cascade surface and concatenate at load. Generalizable lines still ship via an issue to this marketplace.
+
+## [0.13.27] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `fable-5` routing line, its orchestration context, and the prompt-caching reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.13.26] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` procedures match worktree-isolated Bash and git harness rules** ([#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537)).
+  Script calls use direct executable paths (`S/state.sh`, not `bash S/state.sh`). Each git command
+  is its own invocation. `review` files issue bodies from a path under `.work/repo-sweep/` instead
+  of stdin. `SKILL.md` carries the verification record for these command shapes.
+
+## [0.13.25] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` hygiene `tidy` entry supports multiple lanes per step**
+  ([#4535](https://github.com/melodic-software/claude-code-plugins/issues/4535)). Catalog `args`
+  accepts a comma-separated lane list or `all`; `applies-when` matches any lane-covered repo;
+  notes and `next` run tidy once per lane inside one step commit.
+
+## [0.13.24] - 2026-09-28
+
+### Changed
+
+- **Fable 5.1 recheck, not a doctrine rewrite ([#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346)).** The adaptation chapter keeps the guide's "without changes" claim, drops the unconfirmed "keep instructed checks" section, confirms forced `tool_choice` and thinking-block readability against the thinking page, and adds the guide's quoting-retrieved-sources default. The calibration pointer, the context-economy `keep:all` record, and the prompt-caching header are restated with a 2026-09-28 status instead of being left past their recheck triggers, and the prompt-caching chapter records that cache diagnostics is generally available. The context-economy `keep:all` record is re-derived against Claude Code 2.1.283, the version this repository pins.
+
 ## [0.13.23] - 2026-09-28
 
 ### Changed

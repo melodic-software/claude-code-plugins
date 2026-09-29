@@ -3,6 +3,100 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.29] - 2026-09-28
+
+### Changed
+
+- `audit-pass` reference spokes `determinism-tiers.md` and `run-state-and-resumability.md`, and
+  the `audit` spoke `validation-categories.md`, open with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on them.
+
+## [0.51.28] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions`: the I6 pre-scan adopts the measured gate set of
+  `docs-hygiene`'s `rule-negation-without-positive`.** A row is now a sentence that opens with the
+  prohibition (after list, blockquote, checkbox, and emphasis markers) and carries neither a paired
+  positive (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) nor a rationale
+  marker. Soft-wrapped paragraph lines join into one sentence before the split, and frontmatter,
+  fenced code, table rows, headings, and HTML comment lines are never read. A fence, blockquoted
+  or not, closes only on its opener's character at the opener's length or longer with nothing
+  after it. audit-noise's hard-guardrail carve-out (secrets, credentials, production, …) is not
+  adopted: a guardrail "never" still owes I6's fallback rationale (I7), so it stays a candidate. On
+  this repository at `2dfaaa40`, over the 990 `*.md` files under `plugins/*/skills/`,
+  `plugins/*/agents/`, and `.claude/`, plus every `CLAUDE.md` and `AGENTS.md`, the seed falls from
+  6,608 raw rows to 913. New `--i6-counts` prints `I6 raw=<n> surviving=<n>`, which the Phase D
+  cost line now states. `criteria.md` 1.24.0 rewrites the I6 Detect sentence to say the exclusions
+  are structural, not the row's fences, and adds I33's Reporting line (#4115).
+- **`audit-instructions`: I33 is reported one finding per spoke and rolled up per plugin.** Each
+  finding is anchored by an excerpt over the spoke's opener sentence with its heading path as the
+  discriminator, never a whole-surface anchor. The lane brief restates the row's Must NOT flag
+  fences (one-line scope note, hub index table, frontmatter). Phase C judges the class with one
+  class-batched verifier, and Phase D moves I33 rows into a collapsed per-plugin section that keeps
+  each row's `Surface:Line` and fenced diff. The row's tier, authority, Detect, and Remediate are
+  unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
+  (#4115).
+
+## [0.51.27] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: findings carry an identity that survives a re-run.** Every finding adopts
+  `audit-pass`'s `(check, claim, sites)` identity: `check` is
+  `claude-config/audit-instructions/<id>`, each catalog check gains a claim template in the new
+  `reference/finding-identity.md`, anchors are `anchor/v1` excerpt anchors with the heading-path
+  discriminator, and an I15 conflict is one finding with two sites. New `scripts/finding-ids.sh`
+  derives the anchors, `finding_id/v1`, and `group/v1` through `audit-pass`'s
+  `finding-identity.sh`, and its records pass that script's emitter guard. The Phase D table gains
+  a Finding ID column (#4116).
+- **`audit-instructions`: `--persist-findings` emits I30, I31, I32, and I33 from lane findings.**
+  `emit-findings.sh` gains a second intake, `--from-lane`, beside the scanner-fed `--from`. The four
+  rules take new detector-findings crosswalk rows (convention 3.2.0): I30 and I31 at IMPORTANT, I32
+  at CRITICAL, I33 at SUGGESTION, none auto-applicable, I31 and I33 naming their off-site target in
+  `Action`. Lane rows omit `Confidence`. A frontmatter-located I32 row is declined as
+  `reason=frontmatter` and counted, I31 and I33 rows outside a spoke are declined as
+  `reason=outside-rule-surfaces`, and a row on the wrong intake is declined naming the intake it
+  belongs to. Every emitted row carries `finding_id=` in its `Finding` cell, and rank order is tier,
+  then `high` above omitted `Confidence` (#4116).
+
+## [0.51.26] - 2026-09-28
+
+### Changed
+
+- **`unhobble` watch clears a consequential deletion with the re-add grammar** ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)). The re-add gate stays the only evidence grammar: ledger rows, same-cause aggregation, and a commit that cites the rows. `watch` records a per-rule window before removal. A protected class never enters a watch. An editorial cut does not need one. A consequential deletion is applicable only when the watch closes with its qualifying-session count met and zero attributed rows, and the removing commit cites that watch. `audit-instructions` requires that citation before a consequential cut may proceed.
+
+## [0.51.25] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `audit-instructions` routing line and its `bundled-claude-api` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.51.24] - 2026-09-28
+
+### Changed
+
+- **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. A plugin without hooks is classified across every component type; an MCP or LSP server, executable, or monitor makes it non-derivable, and its skills, commands, and agents use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores each key to its prior project value (true, or absent). A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
+
+## [0.51.23] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-grants` criteria (#4583).** P2 cites `docs/plugin-philosophy.md` as the
+  doctrine owner for hardcoded consumer specifics; this skill keeps the permission-grant detector only.
+
+## [0.51.22] - 2026-09-28
+
+### Changed
+
+- **`unhobble` Phase 4 sends the deletions it keeps to a security pass**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The register
+  hold restores protected rules only. Before the experiment branch merges, the pull request
+  now runs `/review:security-review` when the `review` plugin is installed. That skill's
+  instruction-surface lens checks every rule left deleted for a guardrail nothing else
+  enforces. Without the plugin, the pull request body records that the retired rules got no
+  security pass.
+
 ## [0.51.21] - 2026-09-28
 
 ### Changed
