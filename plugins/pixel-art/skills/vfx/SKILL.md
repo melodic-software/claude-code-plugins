@@ -14,28 +14,26 @@ Produce a pixel-art effect as a sprite sheet the target engine can play, and sho
 
 ## 1. Brief
 
-Pin down, from the request or by asking (ask only for what changes the output):
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
+does, including the `brief.md` file, the one-line defaults, and the presence-gated
+`/planning:interview` offer. The palette is a short ramp from bright to dark: the effect fades by
+stepping down that ramp, not by alpha. Then add:
 
 - **Effect**: spark, slash, explosion, spell, or a particle cycle, and whether it loops.
 - **Cells**: frame count and the engine cell. Read the animations row in
   [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md) and timing in
   [`craft-animation.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-animation.md). Do not restate their tables.
 - **Sheet**: MV-style `img/animations` or a plain strip.
-- **Palette**: a short ramp from bright to dark. The effect fades by stepping down that ramp, not by alpha.
-
-Vague request: pick defaults, state them in one line, proceed.
-
-Write `brief.md` beside the spec before the first render, with 2 to 6 done criteria, as
-[`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) describes. A later run that finds it there
-reads it and does not ask again. Every review round lists each done criterion as pass or fail.
 
 MZ's native Effekseer format (`.efkefc`) is not a pixel sheet. Say so and offer this skill's cell
 sheet instead. Do not write an `.efkefc` file.
 
 ## 2. Choose the backend
 
-Same rule as `/pixel-art:sprite`: [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native`
-is the default.
+Same rule as `/pixel-art:sprite`: read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md).
+`native` is the default and always available. Honor `${user_config.backend}` when it names another
+backend, and pass no `--confirm` until the user accepts a paid call. Generative backends fit effect
+cells poorly; use one only when the request names it.
 
 ## 3. Author
 
@@ -48,12 +46,15 @@ alpha. Hold the impact frame. A worked MV-style spark is
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 2
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 2
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
+`backends.py` writes the same files `render.py` does, one GIF per animation. Pass `--backend <name>`
+when this request names one; otherwise pass `--backend ${user_config.backend}` when that option is
+set, rather than relying on the environment to carry it.
+
 Output location resolves as in `/pixel-art:sprite`. Keep the spec and the generator beside the output.
-`render.py` writes one GIF per animation.
 
 ## 5. Review loop
 
