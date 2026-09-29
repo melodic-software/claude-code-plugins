@@ -281,7 +281,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
-   whose marker already stands, a still-unratified `ratify-c3`, an idempotent label re-convergence,
+   whose marker already stands while it still wears the human-gated label (a marker left after
+   the operator answered and returned the item to the frontier is not standing), a still-unratified `ratify-c3`, an idempotent label re-convergence,
    is not a new escalation, so the cycle files no second comment and writes no second record.
    **Record before marker is load-bearing, not incidental**: a stop between the two then loses the
    tracker comment, which the next cycle re-files (one duplicate notification), whereas the reverse
