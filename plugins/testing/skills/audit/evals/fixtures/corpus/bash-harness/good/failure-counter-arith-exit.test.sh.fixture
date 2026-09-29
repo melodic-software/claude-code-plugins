@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# check() counts failures and the script exits non-zero on any.
+set -uo pipefail
+FAIL=0
+check() {
+  if [[ "$2" == "$3" ]]; then
+    echo "ok: $1"
+  else
+    echo "not ok: $1" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+check "--ivory" "$(grep -o 'ivory: [^;]*' ref.css)" "$(grep -o 'ivory: [^;]*' build.mjs)"
+exit "$((FAIL > 0))"
