@@ -17,7 +17,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **The `clean` repository-context block prints "not a repository" from a non-repo cwd (#5234).**
+- **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
 
 ## [0.11.2] - 2026-09-29
 
