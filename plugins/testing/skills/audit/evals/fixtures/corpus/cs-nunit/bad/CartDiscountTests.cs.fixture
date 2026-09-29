@@ -1,0 +1,15 @@
+// expect: rule-recomputed-expectation
+// The expected side recomputes the discount with the code under test, so the
+// assertion passes whatever Pricing.Discount returns.
+using NUnit.Framework;
+using NUnit.Framework.Legacy;
+
+[TestFixture]
+public class CartDiscountTests
+{
+    [Test]
+    public void Discount_TakesTenPercentOff()
+    {
+        ClassicAssert.AreEqual(Pricing.Discount(200m, 0.1m), Pricing.Discount(200m, 0.1m));
+    }
+}

@@ -1,0 +1,8 @@
+# good-for: rule-source-text-read
+# reads: scripts/tool.py
+# The script is executed and its entry point called: the read feeds exec.
+def test_tool_main_exits_zero_on_no_arguments():
+    ns = {}
+    exec(open("scripts/tool.py").read(), ns)
+    assert "main" in ns
+    assert ns["main"]([]) == 0

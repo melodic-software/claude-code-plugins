@@ -1,0 +1,15 @@
+# good-for: rule-zero-assertion
+# A skip marker split over lines: a test that does not run is not judged.
+import sys
+
+import pytest
+
+from slugs import slugify
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="accent folding differs on Windows",
+)
+def test_slugify_folds_accents():
+    slugify("Creme Brulee")

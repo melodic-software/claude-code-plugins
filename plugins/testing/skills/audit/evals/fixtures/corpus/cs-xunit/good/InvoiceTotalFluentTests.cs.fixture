@@ -1,0 +1,18 @@
+// good-for: rule-zero-assertion
+// The repaired twin: a FluentAssertions chain checks the total.
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceTotalFluentTests
+{
+    [Fact]
+    public void Total_IncludesTax()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+        invoice.AddLine("widget", 100m);
+
+        var total = invoice.Total();
+
+        total.Should().Be(110m);
+    }
+}

@@ -1,0 +1,9 @@
+# good-for: rule-constant-restatement
+# $LASTEXITCODE is the exit status of the command the test ran, not a
+# constant; PowerShell has no uppercase constant convention.
+Describe 'deploy.ps1' {
+    It 'exits zero on a dry run' {
+        & ./deploy.ps1 -DryRun
+        $LASTEXITCODE | Should -Be 0
+    }
+}

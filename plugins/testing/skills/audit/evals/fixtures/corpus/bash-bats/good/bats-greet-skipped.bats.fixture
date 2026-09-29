@@ -1,0 +1,12 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# skip ends the test before the unchecked run, so it is not judged.
+
+setup() {
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet reads the name from GREET_NAME" {
+  skip "GREET_NAME support is not implemented yet"
+  run env GREET_NAME=world greet
+}

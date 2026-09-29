@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# good-for: rule-recomputed-expectation
+# The expected side is stated as a literal.
+set -uo pipefail
+
+FAILED=0
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() {
+  FAILED=1
+  printf 'FAIL: %s\n' "$1"
+}
+assert_eq() { if [[ "$1" == "$2" ]]; then pass "$3"; else fail "$3"; fi; }
+
+assert_eq "$(printf 'b\na\n' | sort)" $'a\nb' "sort orders lines"
+exit "$FAILED"
