@@ -7,7 +7,8 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 
 ### Changed
 
-- **`find`: listing description trimmed to 998 codepoints.** The entry was 1,212, over the 1,024 Agent Skills spec maximum. The evidence-source parenthetical and the reason phrases after each Skip-when route were shortened; every quoted trigger and Skip-when route is kept. The body, options, and evals are unchanged.
+- **`find`: listing description trimmed to 998 codepoints.** The entry was 1,212, over the 1,024 Agent Skills spec maximum. The evidence-source parenthetical and the reason phrases after each Skip-when route were shortened; every quoted trigger and Skip-when route is kept. The body and options are unchanged.
+- **`find` eval case 4 gains a fixture repo.** The case asked about a new admin export with `files: []`, so no dead import, dark flag, or unread table existed to find. `evals/fixtures/disconnected-admin-export/` now plants all three (an unused `exportRowsToCsv` import, the `adminBulkExport` flag set `false`, an `export_audit` table nothing reads), and the case's expectations name each ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
 
 ## [0.1.15] - 2026-09-28
 

@@ -45,13 +45,23 @@
     {
       "id": 4,
       "name": "already-built-disconnected-scan-d7-d11",
-      "prompt": "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead.",
-      "expected_output": "Before proposing net-new work, scans for already-built-but-disconnected surfaces — dead imports, dark feature flags, unread tables or endpoints — and surfaces any disconnected capability as a candidate ahead of greenfield build proposals.",
-      "files": [],
+      "prompt": "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead. Treat evals/fixtures/disconnected-admin-export/ as the repository root.",
+      "expected_output": "Before proposing net-new work, scans for already-built-but-disconnected surfaces and finds the three planted in the fixture: the dead import (`exportRowsToCsv` is imported in `src/admin/routes.js` but never called, so `src/reports/csv-exporter.js` is unused), the dark feature flag (`adminBulkExport` is `false` in `config/flags.json` and gates the `POST /admin/orders/export` route), and the unread table (`export_audit` is written by that route but no query reads it). Surfaces them as a ranked candidate ahead of any greenfield admin-export build, each with a file citation, and edits nothing.",
+      "files": [
+        "evals/fixtures/disconnected-admin-export/README.md",
+        "evals/fixtures/disconnected-admin-export/src/admin/routes.js",
+        "evals/fixtures/disconnected-admin-export/src/reports/csv-exporter.js",
+        "evals/fixtures/disconnected-admin-export/src/flags.js",
+        "evals/fixtures/disconnected-admin-export/src/db.js",
+        "evals/fixtures/disconnected-admin-export/config/flags.json",
+        "evals/fixtures/disconnected-admin-export/db/schema.sql"
+      ],
       "expectations": [
         "Output explicitly looks for dead imports, dark or off-by-default feature flags, and unread tables or routes before recommending new work",
-        "A disconnected existing capability, if found, appears as a ranked candidate with evidence citations rather than being skipped",
-        "Output does not jump straight to a greenfield build proposal without reporting what the disconnected scan found (including an explicit 'none found' line)"
+        "Names the dead import: `exportRowsToCsv` imported in `src/admin/routes.js` and never called, leaving `src/reports/csv-exporter.js` unused",
+        "Names the dark flag: `adminBulkExport` is `false` in `config/flags.json` and gates the `POST /admin/orders/export` route",
+        "Names the unread table: `export_audit` is inserted into by the export route and never queried",
+        "The disconnected export capability appears as a ranked candidate with evidence citations, ahead of any greenfield build proposal, rather than being skipped"
       ]
     }
   ]
