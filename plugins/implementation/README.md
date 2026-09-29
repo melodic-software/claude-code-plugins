@@ -18,7 +18,7 @@ orchestrator root's model:
 | Agent | What it does |
 |---|---|
 | `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
-| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Narrowing the phase-verifier's Bash), and it is bound never weaker than the implementer it checks. |
+| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries and for post-phase source commits with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Narrowing the phase-verifier's Bash), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
 

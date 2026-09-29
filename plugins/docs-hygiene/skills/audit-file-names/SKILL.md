@@ -61,7 +61,10 @@ they emit.
    **Stop there.** Report the pair and the reason, and propose nothing: on a
    case-insensitive checkout the second file overwrites the first, so this is a
    corrupted tree rather than a plan to review.
-   *Done when:* a `SCANNED` row is present and the `COLLISION` count is zero.
+   A `SCANNED 0` row, with its stderr warning, means nothing is tracked under
+   the roots. Report that and stop: it is an empty root, not a clean tree.
+   *Done when:* a `SCANNED` row with a nonzero count is present and the
+   `COLLISION` count is zero, or the run reported an empty root and stopped.
 
 2. **Sweep** for references, feeding it the offender pairs:
 
@@ -82,6 +85,8 @@ they emit.
      --inventory <inv.tsv> --sweep <sweep.tsv> --out <resolved>/file-names.md
    ```
 
+   A zero-offender run over a non-empty root still runs the sweep with an empty
+   pairs file and the emit, and leaves a `findings: 0` plan.
    *Done when:* the script reports the path it wrote and a finding count equal
    to the inventory's offender count.
 
@@ -140,6 +145,10 @@ surfaced to the operator rather than folded into a total.
 - **A collision refuses the plan, not just one finding.** Two paths differing
   only by case cannot coexist on macOS or Windows checkouts. The whole run stops
   so nobody applies half of it.
+- **`SCANNED 0` is an empty root, not a clean tree.** A `roots` entry that
+  matches no tracked file inventories nothing and finds nothing. The emitter
+  exits 3 rather than overwrite an existing plan that holds findings with an
+  empty one; pass `--replace` only when the plan is meant to be discarded.
 - **Existence is asked of the git index, never the filesystem.** On a
   case-insensitive checkout a filesystem test answers for the wrong spelling,
   which would refuse every case-only rename on exactly the platforms the rule
