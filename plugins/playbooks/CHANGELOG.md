@@ -11,7 +11,16 @@ only after that version increases.
 - **`repo-sweep` records a filed outcome** ([#5174](https://github.com/melodic-software/claude-code-plugins/issues/5174)).
   `tick.sh <id> filed <issue-url> <skill@version>...` ticks a step whose only findings were fixed in
   another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
-  `history.sh` adds no rerun path for it.
+  `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
+
+## [0.14.5] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep next` stops when the sweep PR conflicts with its base** ([#5206](https://github.com/melodic-software/claude-code-plugins/issues/5206)).
+  GitHub runs no `pull_request` workflows on a conflicting PR, so step commits pushed to it got no
+  CI. `state.sh` now prints `mergeable CONFLICTING`, and `next` stops before any step and asks the
+  user to merge the base branch into the sweep branch and push.
 
 ## [0.14.4] - 2026-09-29
 

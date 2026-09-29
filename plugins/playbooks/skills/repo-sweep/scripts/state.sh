@@ -12,6 +12,7 @@
 #   pr <number>
 #   branch <head-branch>
 #   pr-state OPEN|MERGED|CLOSED
+#   mergeable CONFLICTING  a warning: printed only when the open PR conflicts with its base
 #   playbook <name>
 #   dirty yes|no           any change, tracked or untracked, outside .work/
 #   untick-committed <id> <sha> <skill@version>...
@@ -35,7 +36,7 @@
 set -euo pipefail
 
 prefix=chore/repo-sweep-
-fields=number,state,headRefName,baseRefName,body,isCrossRepository
+fields=number,state,mergeable,headRefName,baseRefName,body,isCrossRepository
 # Branch names, playbook names, and step ids reach commands the agent builds, so all three are
 # restricted to safe characters, and fork PRs never count as a sweep.
 safe_branch='^chore/repo-sweep-[A-Za-z0-9._-]+$'
@@ -71,6 +72,7 @@ fi
 
 jq -r '"pr \(.number)\nbranch \(.headRefName)\npr-state \(.state)"' "$tmp/pr"
 [[ $(jq -r .state "$tmp/pr") == OPEN ]] || exit 11
+jq -r 'select(.mergeable == "CONFLICTING") | "mergeable CONFLICTING"' "$tmp/pr"
 jq -r .body "$tmp/pr" | tr -d '\r' | awk '
   /^<!-- repo-sweep:end -->/ { if (inb) exit; next }
   inb { print; next }
