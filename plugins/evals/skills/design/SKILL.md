@@ -82,6 +82,12 @@ skill against a no-plugin baseline instead, wrap it in a directory carrying a mi
 `.claude-plugin/plugin.json` and run `claude plugin eval init` there; the two suites coexist and
 neither is a migration of the other. Say which one the consumer is asking for before scaffolding.
 
+An `evals/evals.json` case grades the skill's output only and has no no-skill arm. That answers
+"does the output meet these expectations". A baseline arm is required when the claim is
+comparative: the skill improves on what the model does without it, it fires when it should, or the
+claim covers a whole plugin (its skills, agents and hooks together). Route those to
+`claude plugin eval` through `/evals:plugin-eval`; its with/without delta is the answer.
+
 ## Phase 3: grading hygiene gate
 
 Before finishing, confirm and record in the criteria doc:
