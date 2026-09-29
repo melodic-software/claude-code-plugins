@@ -1,0 +1,9 @@
+// adapter: cs-xunit
+// expect: rule-inert-assertion
+// Planted #11.
+public class PlantedShouldAloneTests {
+    [Fact]
+    public void ShouldAlone() {
+        Calc.Total(new[]{1}).Should();
+    }
+}
