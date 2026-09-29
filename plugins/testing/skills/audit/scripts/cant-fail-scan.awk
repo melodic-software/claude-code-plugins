@@ -28,6 +28,15 @@
 #   B <tab> <count>                                    test blocks parsed (emitted once, at END)
 #   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
 #
+# -v INVENTORY=<n> replaces all of the above with an inventory of the text,
+# counted per masked line whatever the block model sees, so a fragment with no
+# test start still counts (the test-weaken hook compares two of these):
+#   <n> <tab> test|assertion|skip <tab> <count> <tab> <line>   test_start, assertion
+#                                                      (calls, snapshot, mock.verify) and
+#                                                      test_skip/body_skip matches on a line
+#   <n> <tab> expect <tab> <actual> <tab> <literal>    an equality with one literal side
+#   <n> <tab> unjudged                                 the lexer ended inside a string or comment
+#
 # Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
 # inert-assertion | constant-restatement | conditional-assertion |
 # recomputed-derived | snapshot-only | weak-oracle (source-text-read comes
@@ -488,12 +497,31 @@ function in_scope(lo, hi,    i) {
 }
 
 function emit(kind, slug, line, detail,    rec) {
-  if (index(RULES_OFF, "|" slug "|")) return
+  if (INVENTORY || index(RULES_OFF, "|" slug "|")) return
   rec = sprintf("%s\t%s\t%d\t%s\n", kind, slug, line, clean_detail(detail))
   if (SCOPE == "") printf "%s", rec
   else if (closing) { if (in_scope(block_line, block_hi)) printf "%s", rec }
   else if (in_test) PEND = PEND rec
   else if (FNR == closed_at && MODEL != "indent" ? in_scope(closed_lo, block_hi) : in_scope(line, line)) printf "%s", rec
+}
+
+# Inventory records (-v INVENTORY). A pattern list the adapter leaves empty
+# counts nothing.
+function inv_count(s, re) { return re == "" ? 0 : count_matches(s, re) }
+
+function inv_line(    t, n) {
+  t = clean_detail(trim(raw))
+  if ((n = inv_count(masked, R_START)) > 0) printf "%s\ttest\t%d\t%s\n", INVENTORY, n, t
+  if ((n = inv_count(masked, R_ANY) + inv_count(masked, R_MOCKA)) > 0) printf "%s\tassertion\t%d\t%s\n", INVENTORY, n, t
+  if ((n = inv_count(masked, R_SKIP) + inv_count(masked, R_BODY_SKIP)) > 0) printf "%s\tskip\t%d\t%s\n", INVENTORY, n, t
+}
+
+# An equality whose one side is a literal: the other side, then the literal.
+function inv_eq(a, b) {
+  if (!INVENTORY) return
+  a = trim(a); b = trim(b)
+  if (is_lit(b) && !is_lit(a)) printf "%s\texpect\t%s\t%s\n", INVENTORY, norm(a), norm(b)
+  else if (is_lit(a) && !is_lit(b)) printf "%s\texpect\t%s\t%s\n", INVENTORY, norm(b), norm(a)
 }
 
 # ---------------------------------------------------------------------------
@@ -520,6 +548,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     p = index(rest, "(")
     if (p > 0 && extract_parens(rest, p)) {
       b = EXTRACT
+      inv_eq(a, b)
       expr = norm(a)
       if (expr != "" && expr == norm(b)) {
         emit(tkind, "recomputed-expectation", FNR, RW_NAME[i] "(" expr ") compared to itself")
@@ -538,6 +567,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     # Shell command form: fn A B, fn a whole word, A and B its first two words.
     if (SHELL_LEX && word_start(raw_line, p) && substr(raw_line, m, 1) ~ /[[:space:]]/) {
       if (!shell_words(raw_line, m)) continue
+      inv_eq(SW1, SW2)
       expr = norm(SW1)
       if (expr != "" && expr == norm(SW2)) {
         emit(tkind, "recomputed-expectation", FNR, fn " " expr " " expr)
@@ -551,6 +581,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     if (!split_top_comma(EXTRACT)) continue
     a = SPLIT1; b = SPLIT2
     if (split_top_comma(b)) b = SPLIT1  # drop trailing message/args
+    inv_eq(a, b)
     expr = norm(a)
     if (expr != "" && expr == norm(b)) {
       emit(tkind, "recomputed-expectation", FNR, fn "(" expr ", " expr ")")
@@ -571,6 +602,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     a = substr(raw_line, p + 1, length(rest) - p)
     shell_words(raw_line, m)
     b = SW1
+    inv_eq(a, b)
     expr = unparen(norm(a))
     if (expr != "" && expr == unparen(norm(b))) {
       emit(tkind, "recomputed-expectation", FNR, expr " | " PIPE[i] " " expr)
@@ -584,6 +616,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     sub(/^[[:space:]]*assert[[:space:]]+/, "", rest)
     if (split_top_comma(rest)) rest = SPLIT1  # drop ", msg"
     if (split_top_eq(rest)) {
+      inv_eq(EQL, EQR)
       expr = norm(EQL)
       if (expr != "" && expr == norm(EQR)) {
         emit(tkind, "recomputed-expectation", FNR, "assert " expr " == " expr)
@@ -1606,6 +1639,7 @@ function brace_decl() {
   else masked = mask_cs(raw)
 
   if (has(masked, R_MOCKC)) file_mock = 1
+  if (INVENTORY) inv_line()
   LINE_IN_TEST = 0
   if (SHELL_LEX) sh_assign(masked)
   if (LEXER == "bash") sh_file_facts()
@@ -1619,7 +1653,10 @@ function brace_decl() {
 
 END {
   if (FATAL) exit 2
-  if (mask_open()) print "L\t1"
+  # A fragment can also end inside a JS template, a block comment, a Python
+  # triple-quoted string or a C# verbatim string; the rules never ask.
+  if (INVENTORY && (mask_open() || S_bc || S_tpl || S_triple || S_verb)) print INVENTORY "\tunjudged"
+  else if (mask_open()) print "L\t1"
   else if (in_test) close_block()
-  printf "B\t%d\n", blocks
+  if (!INVENTORY) printf "B\t%d\n", blocks
 }

@@ -69,6 +69,17 @@ All notable changes to the `testing` plugin are documented here. Format follows
   an optional instruction line to paste, and a `.claude/settings.json` entry for each glob the
   shipped hook skips. `apply` writes only `.claude/testing.yaml`. The `test-scan` hook takes
   `--enabled` for that settings entry, since a settings hook receives no plugin option variables.
+- **hooks:** opt-in `test-weaken` PreToolUse hook, under the same `test_guards_enabled` option and
+  the same generated `if` rows as `test-scan`. Before Claude writes or edits a test file it
+  compares the old text with the new and names removed test blocks, removed assertions, added skip
+  markers and changed expected values, then asks Claude for its reason. It returns no permission
+  decision, so the user's own prompt still applies. With `rules: {test-weaken-block: error}` in
+  `.claude/testing.yaml`, an added skip or a removed test block is denied until the edit carries a
+  `test-change: <reason>` comment; removed assertions and changed expected values never deny. A
+  scanner error or timeout lets the edit through and logs a line.
+- **audit:** `cant-fail-scan.sh --file <path> --inventory <text>` counts test starts, assertion
+  tokens and skip markers per line of a text, and lists its equalities with a literal side, using
+  the adapter and config of `<path>`.
 
 ### Changed
 

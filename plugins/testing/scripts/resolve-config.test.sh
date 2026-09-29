@@ -84,6 +84,15 @@ printf 'rules:\n  rule-made-up: off\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "an unknown rule id exits 2" "2" "$rc"
 assert_contains "and names it" "$out" "unknown rule: rule-made-up"
+printf 'rules:\n  test-weaken-block: error\n' >"$REPO/.claude/testing.yaml"
+run
+assert_eq "the test-weaken hook's block switch is a rule key" "0:error" "$rc:$(records rules.test-weaken-block)"
+printf 'rules:\n  rule-test-weaken-block: warn\n' >"$REPO/.claude/testing.yaml"
+run
+assert_eq "also spelled rule-test-weaken-block, the form setup apply --rule writes" "0:warn" "$rc:$(records rules.test-weaken-block)"
+printf 'rules:\n  test-weaken-block: loud\n' >"$REPO/.claude/testing.yaml"
+run
+assert_eq "and takes only off, warn or error" 2 "$rc"
 printf 'rules:\n  rule-weak-oracle: loud\n' >"$REPO/.claude/testing.yaml"
 run
 assert_contains "a rule level other than off, warn or error is refused" "$rc $out" "2 "

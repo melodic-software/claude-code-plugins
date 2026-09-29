@@ -33,10 +33,19 @@ extend:
     files: ['*.it.ts']           # appended to that adapter's list field
 rules:
   rule-weak-oracle: off          # off drops, warn reports without gating, error gates --check
+  test-weaken-block: error       # test-weaken hook: deny an added skip or a removed test
 ```
 
+The opt-in `test-weaken` hook runs before a Write or Edit to a test file and names what it removes:
+test blocks, assertions, a changed expected value, or an added skip. By default it only asks the
+agent for its reason. With `test-weaken-block: error`, an added skip or a removed test block is
+denied until the edit carries a `test-change: <reason>` comment; removed assertions and changed
+expected values are never denied. The agent can write that marker itself: it makes the reason
+visible to reviewers, it does not prove the reason.
+
 Removals (`adapters.disable`, `paths.exclude`, `rules ... off`) apply inside the scanner, so the
-audit and the hook both go quiet with no plugin change. Additions reach the audit at once, and the
+audit and the `test-scan` hook go quiet with no plugin change; an excluded path or a disabled
+adapter silences `test-weaken` too. Additions reach the audit at once, and the
 hook only through the settings entry `check` prints.
 
 ## `check` (read-only)

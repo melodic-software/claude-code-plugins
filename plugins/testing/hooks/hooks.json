@@ -1,6 +1,533 @@
 {
-  "description": "Scans a test file for tests that cannot fail after Claude writes or edits it (opt-in: test_guards_enabled).",
+  "description": "Names what a Write or Edit to a test file removes, and scans the written file for tests that cannot fail (opt-in: test_guards_enabled).",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.Tests.ps1)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.Tests.ps1)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.bats)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.bats)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.cjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.cjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.js)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.js)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.jsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.jsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.mjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.mjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.ts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.ts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.tsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.tsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.cjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.cjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.js)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.js)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.jsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.jsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.mjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.mjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.sh)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.sh)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.ts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.ts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.test.tsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.tsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*Test.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*Test.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*Tests.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*Tests.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*_test.go)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*_test.go)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*_test.py)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*_test.py)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(test_*.py)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(test_*.py)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

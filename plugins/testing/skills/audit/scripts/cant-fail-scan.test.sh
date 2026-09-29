@@ -783,6 +783,31 @@ assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
 run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x
 assert_exit "--lines with a malformed list refuses (exit 2)" 2 "$rc"
 
+# --inventory: per-line counts of test starts, assertion tokens and skip
+# markers, and the literal side of each equality, for texts judged with the
+# adapter and config of the --file path (the test-weaken hook's two sides).
+printf '%s\n' "import { test, expect } from 'vitest';" "test('adds', () => {" "  expect(sum(1, 2)).toBe(3);" \
+  "  // expect(gone()).toBe(1);" "});" "test.skip('later', () => {});" >"$TMP_ROOT/inv.test.ts"
+printf '%s\n' "  expect(sum(1, 2)).toBe(3);" "  assert.equal(f(x), 'a b');" >"$TMP_ROOT/inv-frag.txt"
+run_file --file "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv-frag.txt"
+assert_exit "--inventory completes (exit 0)" 0 "$rc"
+assert_matches "--inventory counts a test start" "$out" $'^1\ttest\t1\ttest\\(.adds'
+assert_matches "--inventory counts an assertion token" "$out" $'^1\tassertion\t1\texpect\\(sum\\(1, 2\\)\\)\\.toBe\\(3\\);$'
+assert_not_contains "--inventory ignores a commented-out assertion" "$out" "gone()"
+assert_matches "--inventory counts a skip marker" "$out" $'^1\tskip\t1\ttest\\.skip'
+assert_matches "--inventory reads the second text under its own index" "$out" $'^2\tassertion\t1\texpect'
+assert_matches "--inventory gives an equality's actual and literal sides" "$out" $'^2\texpect\tsum\\(1,2\\)\t3$'
+assert_matches "--inventory reads a call2 equality" "$out" $'^2\texpect\tf\\(x\\)\t\'ab\'$'
+assert_not_contains "--inventory prints no finding or block record" "$out" $'B\t'
+printf '%s\n' "const s = \`abc" "  expect(a).toBe(1);" >"$TMP_ROOT/inv-open.txt"
+run_file --file "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv-open.txt"
+assert_matches "--inventory marks a text the lexer ends inside" "$out" $'^1\tunjudged$'
+run_file --inventory "$TMP_ROOT/inv.test.ts"
+assert_exit "--inventory without --file refuses (exit 2)" 2 "$rc"
+run_file --file "$SCRIPT_DIR/cant-fail-scan.sh" --inventory "$TMP_ROOT/inv.test.ts"
+assert_exit "--inventory on a file no adapter claims completes (exit 0)" 0 "$rc"
+assert_not_contains "--inventory on an unclaimed file prints no inventory" "$out" $'1\t'
+
 # --- adapter-load.awk: the YAML-subset adapter loader --------------------------
 # Driven through awk directly. Output is one `id<TAB>key<TAB>value` record per
 # scalar and per list item; anything outside the subset exits 2 naming the file
@@ -1625,6 +1650,14 @@ cfg_set 'paths:' "  include: ['build/**/*.test.ts']"
 cfg_scan
 assert_finding_count "paths.include reaches a pruned directory" 4
 assert_contains "the included file is reported" "$out" "build/t/built.test.ts"
+cfg_set 'rules:' '  test-weaken-block: error'
+cfg_scan --file "$CFG/src/bad.test.ts" --inventory "$CFG/src/bad.test.ts"
+assert_exit "rules.test-weaken-block is a valid key" 0 "$rc"
+assert_matches "--inventory prints the resolved test-weaken-block level" "$out" $'^rule\ttest-weaken-block\terror$'
+assert_matches "and the inventory beside it" "$out" $'^1\ttest\t1\t'
+cfg_set 'paths:' "  exclude: ['**/*.test.ts']"
+cfg_scan --file "$CFG/src/bad.test.ts" --inventory "$CFG/src/bad.test.ts"
+assert_not_contains "--inventory of an excluded path prints no inventory" "$out" $'1\ttest'
 cfg_set 'rules:' '  rule-no-such: off'
 cfg_scan
 assert_exit "an invalid config refuses the scan" 2 "$rc"

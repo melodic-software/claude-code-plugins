@@ -102,3 +102,20 @@ before on the round means. Idle before plus that delta is about 130-135 ms, insi
 budget, but that figure is an estimate: the host stayed above load 20 for the whole session, and
 every arm, before included, went over 150 ms under that load. Re-measure the config arm on an idle
 host.
+
+### Phase 6: `test-weaken` (WSL2, 2026-09-29)
+
+Three arms per round, one sample of each per iteration, 50 samples: test-scan at the Phase 5 head
+(`git archive`), test-scan with the Phase 6 scanner, and test-weaken on an Edit that drops one
+`expect` line (the full path: inventory of both sides, context emitted). No config layer.
+
+| Round | Load average | test-scan before p50/p95 | test-scan after p50/p95 | test-weaken p50/p95 |
+|---|---|---|---|---|
+| 1 | 33 | 213/253 ms | 213/237 ms | 172/196 ms |
+| 2 | 34 | 215/251 ms | 215/239 ms | 178/194 ms |
+| 3 | 36 | 215/272 ms | 214/259 ms | 179/219 ms |
+
+The scanner change leaves test-scan within noise of before. test-weaken runs about 35 ms under
+test-scan on every round, because `--inventory` skips the Playwright config walk and the rules. No
+arm meets the 150 ms p95 budget at load 33-36, before included; the idle measurement moves to
+Phase 8 with the Phase 5 config arm.

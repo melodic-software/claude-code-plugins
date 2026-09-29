@@ -108,6 +108,11 @@
 #                resolves the destination per the contract
 #   --count      integer finding count on stdout, coverage on stderr
 #   --strict     with --check: mock-only-oracle findings gate too
+#   --inventory <text>  (repeatable, needs --file) no rules: count test starts,
+#                assertion tokens and skip markers per line of each <text>, and
+#                list its equalities with a literal side, judged with the
+#                adapter and config of the --file path; the test-weaken hook
+#                compares the old and new side of an edit this way
 #   --help
 #
 # Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
@@ -133,6 +138,7 @@ usage() {
 cant-fail-scan.sh — detect tests that cannot fail.
 
 Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | --findings | --count | --help]
+       cant-fail-scan.sh --file <path> --inventory <text> [--inventory <text>...]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
   --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
@@ -146,6 +152,13 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | 
   --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
   --lines <l> with --file: report only findings whose test block overlaps these lines
               (a list like 12,20-24), for an edit hook scoped to what the edit changed
+  --inventory <text>
+              with --file, repeatable: no rules; for the n-th <text>, one record per line
+              `n<TAB>test|assertion|skip<TAB><count><TAB><line>`, one per equality with a
+              literal side `n<TAB>expect<TAB><actual><TAB><literal>`, and `n<TAB>unjudged`
+              when the text ends inside a string or comment, judged with the adapter and
+              config of the --file path. `rule<TAB><slug><TAB><level>` comes first per
+              configured rule level; an excluded or unclaimed path prints nothing else
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
 testing/audit/rule-mock-only-oracle, and over each Playwright config found,
@@ -164,6 +177,7 @@ mode="report"
 strict=0
 FILE=""
 LINES=""
+INV_TEXTS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
@@ -189,6 +203,15 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     LINES="$2"
+    shift
+    ;;
+  --inventory)
+    if [[ $# -lt 2 || ! -r "$2" ]]; then
+      printf 'ERROR: --inventory needs a readable file\n' >&2
+      exit 2
+    fi
+    mode="inventory"
+    INV_TEXTS+=("$2")
     shift
     ;;
   *)
@@ -220,8 +243,8 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
-if [[ -n "$LINES" && -z "$FILE" ]]; then
-  printf 'ERROR: --lines needs --file\n' >&2
+if [[ (-n "$LINES" || "$mode" == inventory) && -z "$FILE" ]]; then
+  printf 'ERROR: --lines and --inventory need --file\n' >&2
   exit 2
 fi
 ROOT_SOURCE=""
@@ -492,6 +515,22 @@ done < <(
   collect_files "${name_args[@]}"
   include_files
 )
+
+# --- Inventory ----------------------------------------------------------------
+# The texts are judged with the --file path's adapter; the path itself decided
+# exclusion and adapter choice above, so a fragment needs no git root or import.
+if [[ "$mode" == inventory ]]; then
+  for key in "${!rule_level[@]}"; do printf 'rule\t%s\t%s\n' "$key" "${rule_level[$key]}"; done
+  id="${file_adapter[$FILE]:-}"
+  [[ -n "$id" ]] || exit 0
+  n=0
+  for t in "${INV_TEXTS[@]}"; do
+    n=$((n + 1))
+    awk -v ADAPTER="$id" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v INVENTORY="$n" \
+      -f "$MASK_AWK" -f "$AWK_PROG" "$t" || exit 2
+  done
+  exit 0
+fi
 
 # Playwright runner configs: the same pruned walk, for the six filenames the
 # runner probes. Playwright never walks upward, so every directory holding any

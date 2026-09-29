@@ -17,7 +17,8 @@
 #   paths.exclude       glob relative to <root>, normalized; wins over include
 #   adapter_dirs        absolute directory of consumer adapters
 #   extend.<id>.<field> one item appended to that adapter's list field
-#   rules.<slug>        off | warn | error
+#   rules.<slug>        off | warn | error (test-weaken-block: the test-weaken
+#                       hook denies an added skip or a removed test at error)
 #   hook.uncovered      a consumer basename glob (paths.include, extend.*.files,
 #                       a consumer adapter's files:) no shipped hook row matches
 # No layer present prints nothing. Adapter ids and extend fields are checked

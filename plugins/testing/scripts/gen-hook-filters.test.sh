@@ -23,19 +23,25 @@ check() {
 
 check "shipped hooks.json is in sync (--check exits 0)" 'bash "$GEN" --check'
 
-rows="$(jq -r '.hooks.PostToolUse[].hooks[] | .if // "MISSING"' "$HOOKS")"
-check "every row has an if" '[[ -n "$rows" && "$rows" != *MISSING* ]]'
-check "no glob appears twice" '[[ "$(sort <<<"$rows" | uniq -d)" == "" ]]'
+check "PostToolUse runs test-scan, PreToolUse runs test-weaken" \
+  '[[ "$(jq -r "[.hooks.PostToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-scan.sh &&
+    "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
-matches_source=""
-while IFS= read -r row; do
-  glob="${row#*(}"
-  glob="${glob%)}"
-  # shellcheck disable=SC2053  # the glob is the pattern
-  [[ app.ts == $glob ]] && matches_source+="$row "
-done <<<"$rows"
-check "no row matches src/app.ts" '[[ -z "$matches_source" ]]'
-check "a real test name is covered for Write and Edit" 'grep -qF "Write(*.test.ts)" <<<"$rows" && grep -qF "Edit(*.test.ts)" <<<"$rows"'
+for event in PostToolUse PreToolUse; do
+  rows="$(jq -r --arg e "$event" '.hooks[$e][].hooks[] | .if // "MISSING"' "$HOOKS")"
+  check "$event: every row has an if" '[[ -n "$rows" && "$rows" != *MISSING* ]]'
+  check "$event: no glob appears twice" '[[ "$(sort <<<"$rows" | uniq -d)" == "" ]]'
+
+  matches_source=""
+  while IFS= read -r row; do
+    glob="${row#*(}"
+    glob="${glob%)}"
+    # shellcheck disable=SC2053  # the glob is the pattern
+    [[ app.ts == $glob ]] && matches_source+="$row "
+  done <<<"$rows"
+  check "$event: no row matches src/app.ts, so a non-test path spawns nothing" '[[ -z "$matches_source" ]]'
+  check "$event: a real test name is covered for Write and Edit" 'grep -qF "Write(*.test.ts)" <<<"$rows" && grep -qF "Edit(*.test.ts)" <<<"$rows"'
+done
 
 backup="$(mktemp)"
 cp "$HOOKS" "$backup"

@@ -56,8 +56,8 @@
 # adapters.disable, paths.include, paths.exclude, adapter_dirs (lists),
 # extend.<adapter>.<list field> (validated as the adapter field is), and
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
-# or rule-<slug> and prints as rules.<slug>. A glob starting with * must be
-# single-quoted.
+# or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
+# test-weaken hook's deny switch. A glob starting with * must be single-quoted.
 
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
@@ -159,7 +159,8 @@ function cfg_add(key, v,    r) {
   if (key ~ /^rules\./) {
     r = substr(key, 7)
     sub(/^testing\/audit\//, "", r)
-    if (r !~ /^rule-/ || substr(r, 6) !~ RULE_RE) die("unknown rule: " substr(key, 7))
+    if (r == "test-weaken-block" || r == "rule-test-weaken-block") r = "rule-test-weaken-block"
+    else if (r !~ /^rule-/ || substr(r, 6) !~ RULE_RE) die("unknown rule: " substr(key, 7))
     if (v !~ /^(off|warn|error)$/) die(key " is off, warn or error, got: " v)
     r = "rules." substr(r, 6)
     if (!(r in SCAL)) SC_KEY[++ns] = r
