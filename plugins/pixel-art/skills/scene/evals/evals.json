@@ -18,15 +18,16 @@
     {
       "id": 2,
       "name": "triggers-on-ambient-loop-with-audio",
-      "prompt": "animated pixel background, an ambient loop of rain on a city street, use ./audio/rain.wav for sound",
-      "expected_output": "Fires /pixel-art:scene. Puts a WAV token in the template so embed.py inlines a data URL, loads it with WebAudio, starts it on the first click because browsers block autoplay, rewinds the scene clock on that click, and loops the scene.",
+      "prompt": "animated pixel background, an ambient loop of rain on a city street, use ./audio/rain.wav for sound, and record a WebM preview",
+      "expected_output": "Fires /pixel-art:scene. Puts a WAV token in the template so embed.py inlines a data URL, loads it with WebAudio, starts it on the first click, rewinds the scene clock on that click, and loops the scene. Says the --record WebM is video only.",
       "files": [],
       "narration": true,
       "expectations": [
         "Invokes the scene skill for an animated background",
         "Loads audio from the path the user named with WebAudio",
         "Starts audio on the first click, not on page load",
-        "Makes the scene loop"
+        "Makes the scene loop",
+        "Says the --record WebM is video-only and does not promise audio in it"
       ]
     },
     {
