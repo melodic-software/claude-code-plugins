@@ -164,9 +164,9 @@ note() {
 }
 
 # Coverage ledger. A source file is covered when a lane took it as input and
-# reached `ran` or `degraded` (the lane line names a degradation; the file is
-# not missing). `skipped` is "tool not installed". `no-manifest` is "no manifest
-# root". Anything still unmarked at the end is either `nolane` or a lane this
+# reached `ran`. `degraded` is "lane degraded": the lane line names the
+# degradation and the file was not scanned. `skipped` is "tool not installed".
+# `no-manifest` is "no manifest root". Anything still unmarked at the end is either `nolane` or a lane this
 # invocation did not select.
 declare -A DC_COVERED=()
 declare -A DC_UNCOVERED=()
@@ -192,13 +192,14 @@ dc_mark_uncovered() {
   done
 }
 
-# `ran` and `degraded` cover the file. `skipped` and `no-manifest` name why it
+# `ran` covers the file. `degraded`, `skipped` and `no-manifest` name why it
 # was not scanned. `scanned-zero-files` has nothing to account for.
 dc_account_lane_files() {
   local state="$1"
   shift
   case "$state" in
-  ran | degraded) dc_mark_covered "$@" ;;
+  ran) dc_mark_covered "$@" ;;
+  degraded) dc_mark_uncovered 'lane degraded' "$@" ;;
   skipped) dc_mark_uncovered 'tool not installed' "$@" ;;
   no-manifest) dc_mark_uncovered 'no manifest root' "$@" ;;
   *) ;;
@@ -275,6 +276,8 @@ SOURCE_FILES=()
 # Filled by the grep lane. Declared here so `set -u` can see the array before
 # that lane runs.
 FILE_REF_FILES=()
+# The TS/JS files no package.json root owns; the grep lane's symbol pass takes them.
+STANDALONE_TS_FILES=()
 FILE_REF_EMITTED=0
 
 while IFS= read -r scope_line; do
@@ -750,6 +753,7 @@ collect_file_ref_files() {
   local f
   local -a PKG_ROOTS=()
   FILE_REF_FILES=()
+  STANDALONE_TS_FILES=()
   # shellcheck disable=SC2034  # read by dc_path_owned_by_package through a nameref
   mapfile -t PKG_ROOTS < <(project_roots package.json)
   for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
@@ -762,6 +766,7 @@ collect_file_ref_files() {
   for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
     dc_path_owned_by_package "$f" PKG_ROOTS && continue
     FILE_REF_FILES+=("$f")
+    STANDALONE_TS_FILES+=("$f")
   done
   for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
     FILE_REF_FILES+=("$f")
@@ -781,6 +786,8 @@ emit_unreferenced_files() {
   : >"$WORK/filekeys.txt"
   for f in ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
+    # A tab or newline in a path would split its owners.tsv row.
+    [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
     base="${f##*/}"
     # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
     # `#include "util.h"` spells the name), so a no-lane file is also keyed on
@@ -850,12 +857,14 @@ emit_unreferenced_files() {
 }
 
 lane_grep() {
-  local f lang d_line d_name d_text cnt nm defs hits
+  local f lang d_line d_name d_text cnt nm defs hits shape
   local inspected_n=0 emitted=0 sym_detail names_n
   local -A INSPECTED=()
   declare -A DEFS=()
   declare -A HITS=()
+  local -a DEF_FILES=()
   collect_file_ref_files
+  DEF_FILES=(${SYM_FILES[@]+"${SYM_FILES[@]}"} ${STANDALONE_TS_FILES[@]+"${STANDALONE_TS_FILES[@]}"})
   for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"} ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
     [[ -n "${INSPECTED[$f]:-}" ]] && continue
@@ -869,13 +878,13 @@ lane_grep() {
   fi
   printf 'dc_probe_symbol\n' >"$WORK/probe.txt"
   if ! grep -H -o -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
-    dc_account_lane_files skipped ${SYM_FILES[@]+"${SYM_FILES[@]}"}
+    dc_account_lane_files skipped ${DEF_FILES[@]+"${DEF_FILES[@]}"}
     lane_line grep '.' skipped "$inspected_n" \
       'grep -w -F did not run here — presence is proven by invocation, never by command -v'
     return 0
   fi
   : >"$WORK/defs.tsv"
-  for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"}; do
+  for f in ${DEF_FILES[@]+"${DEF_FILES[@]}"}; do
     lang="$(dc_lang_of_path "$f")"
     while IFS="$TAB" read -r d_line d_name d_text; do
       [[ -n "$d_name" ]] || continue
@@ -906,19 +915,21 @@ lane_grep() {
       hits="${HITS["$d_name"]:-0}"
       # Only the definition sites themselves matched anywhere in the repository.
       if [[ "$hits" -le "$defs" ]]; then
-        add_candidate "$f" "$d_line" 'unreferenced-symbol' "$d_text"
+        shape='unreferenced-symbol'
+        [[ "$(dc_lang_of_path "$f")" == 'ts' ]] && shape='ts-unreferenced-symbol'
+        add_candidate "$f" "$d_line" "$shape" "$d_text"
         emitted=$((emitted + 1))
       fi
     done <"$WORK/defs.tsv"
     names_n="$(wc -l <"$WORK/names.txt" | tr -d ' ')"
     sym_detail="$emitted symbol candidate(s) from $names_n distinct definition name(s)"
-  elif [[ ${#SYM_FILES[@]} -eq 0 ]]; then
-    sym_detail='no shell or PowerShell file in candidate scope'
+  elif [[ ${#DEF_FILES[@]} -eq 0 ]]; then
+    sym_detail='no shell, PowerShell, or standalone JS/TS file in candidate scope'
   else
     sym_detail='no symbol definition matched the extractor set'
   fi
   emit_unreferenced_files
-  dc_account_lane_files ran ${SYM_FILES[@]+"${SYM_FILES[@]}"}
+  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"}
   lane_line grep '.' ran "$inspected_n" \
     "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
 }
