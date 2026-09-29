@@ -197,6 +197,21 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# A breadth token narrows a small question below caller effort, and Budget: has
+# one vocabulary mapped to Effort rows.
+assert_present 'research argument-hint shows the breadth token' \
+  'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
+assert_present 'research SKILL.md states breadth narrows and never widens' \
+  'skills/research/SKILL.md' '^\*\*`breadth=` narrows, never widens\.\*\*'
+assert_present 'the parent contract defines the Budget: vocabulary once' \
+  'reference/parent-contract.md' '^### `Budget:` vocabulary$'
+for word in low medium full; do
+  assert_present "the Budget: vocabulary maps $word to an Effort row" \
+    'reference/parent-contract.md' "^\| \`$word\` \| \`(low|medium|high)\`"
+done
+assert_present 'the parent contract envelope opens Budget: with the vocabulary' \
+  'reference/parent-contract.md' '^Budget: <low\|medium\|full>'
+
 # One topic with many gaps fans out inside Phase 2 when nesting is available;
 # the principle alone never fired (#4151).
 assert_present 'the discipline file carries the per-gap fan-out recipe' \
@@ -296,6 +311,47 @@ if [[ "$hub_words" -lt "$spoke_words" ]]; then
   pass "research/SKILL.md ($hub_words words) is smaller than context/discipline.md ($spoke_words words)"
 else
   fail "research/SKILL.md ($hub_words words) is NOT smaller than context/discipline.md ($spoke_words words)"
+fi
+
+# 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
+# 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
+# the same phrase is not waiting in the tail. The worker procedure is the spoke.
+assert_in_slice() {
+  local label="$1" file="$2" phrase="$3" bytes slice tail
+  bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
+  slice="$(head -c 20000 "$PLUGIN_ROOT/$file")"
+  if [[ "$bytes" -gt 20000 ]]; then
+    tail="$(tail -c +20001 "$PLUGIN_ROOT/$file")"
+  else
+    tail=""
+  fi
+  if [[ "$slice" == *"$phrase"* && "$tail" != *"$phrase"* ]]; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+}
+assert_in_slice 'explore outcome gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' '## Outcome gate (before EXPLORE.md handoff)'
+assert_in_slice 'explore acceptance gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' 'Post-dispatch acceptance gate'
+assert_in_slice 'research outcome gate is inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
+assert_in_slice 'research owner column is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Owner column governs'
+if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
+  && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore and research worker procedures live in the spokes'
+else
+  fail 'explore and research worker procedures live in the spokes'
+fi
+# $ARGUMENTS is substituted only in the rendered SKILL.md, never in a spoke read from disk.
+# shellcheck disable=SC2016  # literal $ARGUMENTS
+if grep -qF 'Explore the following: $ARGUMENTS' "$PLUGIN_ROOT/skills/explore/SKILL.md" \
+  && ! grep -qF '$ARGUMENTS' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore scope substitution stays in SKILL.md'
+else
+  fail 'explore scope substitution stays in SKILL.md'
 fi
 
 # ---------------------------------------------------------------------------
@@ -666,6 +722,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# The credential read boundary is stated once and pointed at
+#
+# A researcher's capability probe ran `git credential fill` and captured a live
+# token. No frontmatter key can block one shell command, so the rule is
+# instruction held in one place, with every agent pointing at it.
+# ---------------------------------------------------------------------------
+cred_heading='^## Credentials stay unread, stated once$'
+assert_present 'the parent contract owns the credential read boundary' \
+  'reference/parent-contract.md' "$cred_heading"
+cred_owners="$(surface | xargs grep -lE -- "$cred_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$cred_owners" -eq 1 ]]; then
+  pass 'the credential read boundary has exactly one owner'
+else
+  fail "the credential read boundary has exactly one owner — $cred_owners files carry the heading"
+fi
+assert_present 'the credential boundary names git credential fill' \
+  'reference/parent-contract.md' '`git credential fill`'
+assert_present 'the credential boundary names the operator deny rules' \
+  'reference/parent-contract.md' '`Bash\(git credential \*\)`'
+for agent in explorer researcher intent-tracer; do
+  assert_present "agents/$agent.md points at the credential read boundary" \
+    "agents/$agent.md" '"Credentials stay unread, stated once"'
+  assert_absent_in "agents/$agent.md does not restate the credential command list" \
+    "agents/$agent.md" 'gh auth token'
+done
+
 # 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
 #
 # The post-dispatch gate's steps live in the research skill body. A parent that
@@ -709,6 +791,37 @@ assert_present 'the researcher writes verification: pending in its first write' 
   'agents/researcher.md' 'first write carries `verification: pending`'
 assert_present 'the artifact gate prints the verification value' \
   'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
+
+# ---------------------------------------------------------------------------
+# The sibling verifier is specified once and pointed at
+#
+# Every payload asks for a verifier, and no agent, prompt, write-back line or
+# no-verifier fallback was stated anywhere, so a verified index and one whose
+# verifier never ran read the same.
+# ---------------------------------------------------------------------------
+verifier_heading='^## The sibling verifier, stated once$'
+verifier_line='^verification: <pass\|fail\|unverified> \(<worker>, <YYYY-MM-DD>\)$'
+assert_present 'the parent contract owns the sibling verifier' \
+  'reference/parent-contract.md' "$verifier_heading"
+assert_present 'the parent contract states the literal write-back line' \
+  'reference/parent-contract.md' "$verifier_line"
+assert_present 'the parent contract names the verifier route' \
+  'reference/parent-contract.md' '^\*\*Route\.\*\* `explore` and `trace-intent` dispatch a `general-purpose` subagent'
+assert_present 'the parent contract states the no-verifier fallback' \
+  'reference/parent-contract.md' '`verification: unverified \(none, <YYYY-MM-DD>\)`'
+for pair in "heading:$verifier_heading" "write-back line:$verifier_line"; do
+  owners="$(surface | xargs grep -lE -- "${pair#*:}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$owners" -eq 1 ]]; then
+    pass "the sibling verifier's ${pair%%:*} is stated exactly once"
+  else
+    fail "the sibling verifier's ${pair%%:*} is stated exactly once — $owners files carry it"
+  fi
+done
+for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file points at the sibling verifier" \
+    "$file" '"The sibling verifier, stated once"'
+done
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

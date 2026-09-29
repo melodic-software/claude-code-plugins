@@ -217,6 +217,42 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     return summary
 
 
+def files_excluded_only(
+    measures: list[dict[str, Any]], excluded: list[dict[str, Any]]
+) -> int:
+    """Files that appear only inside sanctioned-replication exclusions.
+
+    ``summary.files`` counts surviving rows. A total exclusion therefore reports
+    zero files with clones while the scope header still counts every scanned
+    file. This count is the files in excluded groups that no surviving clone
+    row still names, so the summary states that population instead of dropping it.
+    """
+    surviving = {
+        instance.get("file")
+        for row in measures
+        for instance in row.get("instances") or []
+        if isinstance(instance, dict) and instance.get("file")
+    }
+    only = {
+        instance.get("file")
+        for group in excluded
+        for instance in group.get("instances") or []
+        if isinstance(instance, dict) and instance.get("file")
+    } - surviving
+    return len(only)
+
+
+def _with_excluded_files(
+    summary: dict[str, Any],
+    measures: list[dict[str, Any]],
+    excluded: list[dict[str, Any]],
+) -> dict[str, Any]:
+    count = files_excluded_only(measures, excluded)
+    if count:
+        summary["files_excluded_only"] = count
+    return summary
+
+
 def assemble(
     skill: str,
     scope: dict[str, Any],
@@ -268,7 +304,7 @@ def assemble(
         # documents needs to know which value the reference was applied to.
         "thresholds": list(threshold_entries),
         "measures": measures,
-        "summary": summarize(measures, root),
+        "summary": _with_excluded_files(summarize(measures, root), measures, excluded),
         "excluded": excluded,
         "unavailable": [
             _lane_measure(row) for row in run if row.get("status") == "unavailable"
@@ -729,10 +765,12 @@ def render(
             if instance.get("file")
         } - surviving
         if excluded_only:
+            counted = summary.get("files_excluded_only", len(excluded_only))
             excluded_line += (
                 f" Files with clones counts surviving groups only, so the "
-                f"{len(excluded_only)} file(s) holding nothing but excluded groups are "
-                "left out of it; the scope's file count is every file scanned."
+                f"{counted} file(s) holding nothing but excluded groups are "
+                "left out of it (summary.files_excluded_only); the scope's file "
+                "count is every file scanned."
             )
         lines.append(excluded_line)
     elif duplication:
@@ -838,7 +876,11 @@ def main(argv: list[str]) -> int:
         return 0
     doc = json.load(sys.stdin)
     if args.command == "resummarize":
-        doc["summary"] = summarize(doc.get("measures", []), args.root)
+        doc["summary"] = _with_excluded_files(
+            summarize(doc.get("measures", []), args.root),
+            doc.get("measures") or [],
+            doc.get("excluded") or [],
+        )
         print(json.dumps(doc, indent=2))
         return 0
     sys.stdout.write(render(doc, args.document, args.rollup_depth))

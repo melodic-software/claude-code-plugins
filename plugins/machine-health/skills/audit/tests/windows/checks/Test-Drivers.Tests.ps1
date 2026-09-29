@@ -44,7 +44,7 @@ BeforeAll {
     . $script:ScriptPath
 
     function Invoke-DriversAsObject {
-        return Invoke-DriversCheck
+        return Invoke-DriversCheck -PassThru
     }
 
     function New-DriverStoreRecord {

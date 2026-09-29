@@ -629,6 +629,224 @@ assert_contains "quoted-trigger restatement is declined, not emitted" \
 assert_not_contains "partial-overlap is not a finding" \
   "$I29_OUT" "partial.md"
 
+# --- Case 15: the lane-fed path admits I30-I33, fenced and identified --------
+# Lane findings arrive in the scanner row shape through --from-lane. Each rule
+# keeps the body-scope fence, I31 and I33 stay inside the spoke surfaces their
+# remedies are written for, and a frontmatter I32 is a counted decline.
+LANEREPO="$TEST_TMPDIR/lane-repo"
+LANESKILL="plugins/demo/skills/tool"
+mkdir -p "$LANEREPO/$LANESKILL/reference"
+git -C "$LANEREPO" init -q
+cat >"$LANEREPO/$LANESKILL/SKILL.md" <<'EOF'
+---
+name: tool
+description: Probes hosts; for an unreachable one use /fleet:reachx instead.
+---
+
+# Tool
+
+Use `/fleet:reachx` to probe a host that does not answer.
+
+## Stamps
+
+Verified 2026-07-13 against the harness.
+
+The retry now works differently than before.
+EOF
+cat >"$LANEREPO/$LANESKILL/reference/spoke.md" <<'EOF'
+# Spoke
+
+This file is loaded by the hub when the release names a breaking change.
+
+The retry no longer counts toward the budget.
+EOF
+LANE="$TEST_TMPDIR/lane.txt"
+printf '%s\n' \
+  "$LANESKILL/SKILL.md:3:I32" \
+  "$LANESKILL/SKILL.md:8:I32" \
+  "$LANESKILL/SKILL.md:12:I30" \
+  "$LANESKILL/SKILL.md:14:I31" \
+  "$LANESKILL/SKILL.md:8:I33" \
+  "$LANESKILL/reference/spoke.md:3:I33" \
+  "$LANESKILL/reference/spoke.md:5:I31" \
+  "$LANESKILL/reference/spoke.md:5:I28-a" \
+  "$LANESKILL/reference/spoke.md:5:I6" >"$LANE"
+lane_emit() { # lane_emit <out> [extra args...] -> stdout of the written file
+  local out="$1"
+  shift
+  (cd "$LANEREPO" && bash "$EMIT" --from-lane "$LANE" --out "$out" --branch testbranch "$@") >/dev/null 2>&1
+  cat "$out" 2>/dev/null
+}
+LOUT="$(lane_emit "$TEST_TMPDIR/lane1.md")"
+LROWS="$(printf '%s\n' "$LOUT" | grep '^| [0-9]')"
+assert_eq "the lane path alone writes a file with four emitted rows" "4" \
+  "$(printf '%s\n' "$LROWS" | grep -c .)"
+assert_contains "I30 reaches the findings file from a lane" "$LROWS" \
+  "claude-config/audit-instructions/rule-trigger-less-stamp"
+assert_contains "I31 in a spoke reaches the findings file" "$LROWS" \
+  "| $LANESKILL/reference/spoke.md:5 |"
+assert_contains "I32 in the body reaches it, carrying the target it named" "$LROWS" \
+  'rule-route-to-absent-skill target="/fleet:reachx"'
+assert_contains "I33 on a spoke opener reaches it" "$LROWS" \
+  "| $LANESKILL/reference/spoke.md:3 |"
+assert_contains "a frontmatter I32 is declined and counted" "$LOUT" \
+  "Declined candidates: I32 count=1 reason=frontmatter (body-scope fence)"
+assert_not_contains "and never emitted" "$LROWS" "| $LANESKILL/SKILL.md:3 |"
+assert_contains "I31 and I33 outside a spoke are declined and counted" "$LOUT" \
+  "count=1 reason=outside-rule-surfaces"
+assert_not_contains "I31 on SKILL.md is not emitted" "$LROWS" "| $LANESKILL/SKILL.md:14 |"
+assert_not_contains "I33 on SKILL.md is not emitted" "$LROWS" \
+  "| $LANESKILL/SKILL.md:8 | claude-config:audit-instructions | claude-config/audit-instructions/rule-spoke-self-description"
+assert_contains "a scanner-fed family on the lane path is declined with its path" "$LOUT" \
+  "Declined candidates: I28-a count=1 reason=scanner-fed-rule"
+assert_contains "a non-crosswalk family on the lane path is declined" "$LOUT" \
+  "Declined candidates: I6 count=1 reason=no-severity-crosswalk-row"
+assert_contains "the lane rows are counted as read" "$LOUT" "Lane rows read: 9. Emitted from lanes: 4."
+assert_contains "the lane rules are named in the Ran line" "$LOUT" "model lanes: I30, I31, I32, I33"
+assert_eq "a lane finding omits Confidence" "" \
+  "$(printf '%s\n' "$LROWS" | awk -F'|' '{print $4}' | tr -d ' ' | sort -u)"
+assert_contains "I32 is CRITICAL and ranks first" "$(printf '%s\n' "$LROWS" | head -n 1)" \
+  "| 1 | CRITICAL |  | $LANESKILL/SKILL.md:8 |"
+assert_eq "I33 is SUGGESTION and ranks last" "SUGGESTION" \
+  "$(printf '%s\n' "$LROWS" | tail -n 1 | awk -F'|' '{print $3}' | tr -d ' ')"
+assert_eq "I30 and I31 are IMPORTANT" "IMPORTANT" \
+  "$(printf '%s\n' "$LROWS" | grep -E 'rule-(trigger-less-stamp|migration-relative-phrasing)' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)"
+
+# Remedies, pinned positive and negative in the scope each fires in.
+I30_ROW="$(printf '%s\n' "$LROWS" | grep 'rule-trigger-less-stamp')"
+assert_contains "I30 Action adds the recheck trigger" "$I30_ROW" "Add the recheck trigger as an observable event"
+assert_contains "I30 Action keeps the stamp" "$I30_ROW" "the stamp stays"
+assert_not_contains "I30 Action never deletes the stamp" "$I30_ROW" "Delete the stamp"
+I31_ROW="$(printf '%s\n' "$LROWS" | grep 'rule-migration-relative-phrasing')"
+assert_contains "I31 Action restates the current rule in the present tense" "$I31_ROW" "present tense"
+assert_contains "I31 Action names the plugin CHANGELOG as the off-site target for history" "$I31_ROW" \
+  "Remediation target for any history worth keeping: plugins/demo/CHANGELOG.md or an ADR"
+assert_not_contains "I31 Action never deletes the rule" "$I31_ROW" "Delete the sentence"
+I32_ROW="$(printf '%s\n' "$LROWS" | grep 'rule-route-to-absent-skill')"
+assert_contains "I32 Action names the skill that exists" "$I32_ROW" "Name the skill that exists"
+assert_contains "I32 Action keeps the routing sentence" "$I32_ROW" "Keep the routing sentence"
+assert_not_contains "I32 Action never deletes the route" "$I32_ROW" "Delete the route"
+I33_ROW="$(printf '%s\n' "$LROWS" | grep 'rule-spoke-self-description')"
+assert_contains "I33 Action deletes the self-describing opener" "$I33_ROW" "Delete the opener"
+assert_contains "I33 Action keeps the spoke content" "$I33_ROW" "the content below it stays"
+assert_contains "I33 Action names the hub as the off-site remediation target" "$I33_ROW" \
+  "$LANESKILL/SKILL.md, where that condition is added"
+
+# Identity: every emitted row carries finding_id, stable across runs, and an
+# edit to the I33 opener changes that finding's id alone.
+assert_eq "every emitted lane row carries a finding_id" "4" \
+  "$(printf '%s\n' "$LROWS" | grep -c 'finding_id=[0-9a-f]\{16\} -- ')"
+LOUT2="$(lane_emit "$TEST_TMPDIR/lane2.md")"
+ids_of() { printf '%s\n' "$1" | grep '^| [0-9]' | grep -o 'finding_id=[0-9a-f]*' | sort; }
+assert_eq "two runs over an unchanged tree yield identical finding_id values" \
+  "$(ids_of "$LOUT")" "$(ids_of "$LOUT2")"
+I33_ID_BEFORE="$(printf '%s\n' "$I33_ROW" | grep -o 'finding_id=[0-9a-f]*')"
+I31_ID_BEFORE="$(printf '%s\n' "$I31_ROW" | grep -o 'finding_id=[0-9a-f]*')"
+sed -i.bak 's/names a breaking change/ships a breaking change/' "$LANEREPO/$LANESKILL/reference/spoke.md"
+LOUT3="$(lane_emit "$TEST_TMPDIR/lane3.md")"
+I33_ID_AFTER="$(printf '%s\n' "$LOUT3" | grep 'rule-spoke-self-description' | grep -o 'finding_id=[0-9a-f]*')"
+I31_ID_AFTER="$(printf '%s\n' "$LOUT3" | grep 'rule-migration-relative-phrasing' | grep -o 'finding_id=[0-9a-f]*')"
+if [[ -n "$I33_ID_AFTER" && "$I33_ID_AFTER" != "$I33_ID_BEFORE" ]]; then
+  pass "editing the I33 opener changes that finding's id"
+else
+  fail "editing the I33 opener changes that finding's id" "before=$I33_ID_BEFORE after=$I33_ID_AFTER"
+fi
+assert_eq "and leaves the sibling finding's id alone" "$I31_ID_BEFORE" "$I31_ID_AFTER"
+
+# Both paths together: scanner rows rank above lane rows, and a lane rule on
+# the scanner path is declined with the path it belongs to.
+SCANMIX="$TEST_TMPDIR/scanmix.txt"
+cp "$FIXTURES/quoted-trigger.md" "$LANEREPO/qt.md"
+printf '%s\n' "qt.md:8:I28-a" "$LANESKILL/reference/spoke.md:5:I31" >"$SCANMIX"
+BOTH="$(lane_emit "$TEST_TMPDIR/both.md" --from "$SCANMIX")"
+BOTHROWS="$(printf '%s\n' "$BOTH" | grep '^| [0-9]')"
+assert_contains "the scanner row ranks above a same-tier lane row, at high confidence" \
+  "$(printf '%s\n' "$BOTHROWS" | grep '| IMPORTANT |' | head -n 1)" "| 2 | IMPORTANT | high | qt.md:8 |"
+assert_contains "and a CRITICAL lane row still ranks above both" \
+  "$(printf '%s\n' "$BOTHROWS" | head -n 1)" "| 1 | CRITICAL |"
+assert_contains "a lane rule on the scanner path is declined with its path" "$BOTH" \
+  "Declined candidates: I31 count=1 reason=lane-fed-rule"
+assert_contains "both intake paths are named in the Ran line" "$BOTH" \
+  "(instruction-scan.sh --body-only; model lanes: I30, I31, I32, I33)"
+
+EMPTYLANE="$TEST_TMPDIR/empty-lane.txt"
+printf 'no rows here\n' >"$EMPTYLANE"
+rc=0
+bash "$EMIT" --from-lane "$EMPTYLANE" --out "$TEST_TMPDIR/el.md" --branch x >/dev/null 2>&1 || rc=$?
+assert_exit "a lane file with no rows exits 3" 3 "$rc"
+rc=0
+bash "$EMIT" --from "$LANE" --from-lane "$LANE" --out "$TEST_TMPDIR/same.md" --branch x >/dev/null 2>&1 || rc=$?
+assert_exit "one file named as both inputs exits 2" 2 "$rc"
+rc=0
+bash "$EMIT" --from-lane /nonexistent/lane --out "$TEST_TMPDIR/nl.md" --branch x >/dev/null 2>&1 || rc=$?
+assert_exit "a missing --from-lane file exits 2" 2 "$rc"
+
+# --- Case 16: identical sentences in one section collide; I32 target forms ---
+DUPREPO="$TEST_TMPDIR/dup-repo"
+mkdir -p "$DUPREPO/skills/dup"
+git -C "$DUPREPO" init -q
+cat >"$DUPREPO/skills/dup/SKILL.md" <<'EOF'
+---
+name: dup
+description: Dup fixture.
+---
+
+# Dup
+
+## Stamps
+
+Verified 2026-07-13 against the harness.
+
+Verified 2026-07-13 against the harness.
+
+Sync at 10:30 before routing an unreachable host elsewhere.
+
+Route an unreachable host to `fleet:reachx`.
+EOF
+DUPLANE="$TEST_TMPDIR/dup-lane.txt"
+printf '%s\n' "skills/dup/SKILL.md:10:I30" "skills/dup/SKILL.md:12:I30" \
+  "skills/dup/SKILL.md:14:I32" "skills/dup/SKILL.md:16:I32" >"$DUPLANE"
+DUPOUT="$( (cd "$DUPREPO" && bash "$EMIT" --from-lane "$DUPLANE" --out "$TEST_TMPDIR/collide.md" --branch x) >/dev/null 2>&1
+  cat "$TEST_TMPDIR/collide.md" 2>/dev/null)"
+DUPROWS="$(printf '%s\n' "$DUPOUT" | grep '^| [0-9]')"
+assert_eq "two identical sentences in one section are reported once" "1" \
+  "$(printf '%s\n' "$DUPROWS" | grep -c 'rule-trigger-less-stamp')"
+DUP_ID="$(printf '%s\n' "$DUPROWS" | grep 'rule-trigger-less-stamp' | grep -o 'finding_id=[0-9a-f]*')"
+assert_contains "the collision is named with its occurrence count" "$DUPOUT" \
+  "Identity collisions: $DUP_ID count=2"
+assert_contains "the collided row is not counted as emitted twice" "$DUPOUT" "Emitted from lanes: 3."
+assert_contains "a clock time is not an I32 target" "$DUPROWS" 'shape="route-to-absent-skill"'
+assert_not_contains "no target is read from 10:30" "$DUPROWS" 'target="10:30"'
+assert_contains "a backticked bare plugin:skill is an I32 target" "$DUPROWS" 'target="fleet:reachx"'
+
+# --- Case 17: I33 in a references/ spoke; I32 with two candidate targets -----
+REFREPO="$TEST_TMPDIR/ref-repo"
+mkdir -p "$REFREPO/skills/multi/references"
+git -C "$REFREPO" init -q
+cat >"$REFREPO/skills/multi/SKILL.md" <<'EOF'
+---
+name: multi
+description: Multi fixture.
+---
+
+# Multi
+
+Use /fleet:reach for a live host, or /fleet:reachx for a dead one.
+EOF
+cat >"$REFREPO/skills/multi/references/spoke.md" <<'EOF'
+# Spoke
+
+This file is loaded by the hub when the release names a breaking change.
+EOF
+REFLANE="$TEST_TMPDIR/ref-lane.txt"
+printf '%s\n' "skills/multi/SKILL.md:8:I32" "skills/multi/references/spoke.md:3:I33" >"$REFLANE"
+REFOUT="$( (cd "$REFREPO" && bash "$EMIT" --from-lane "$REFLANE" --out "$TEST_TMPDIR/refs.md" --branch x) >/dev/null 2>&1
+  cat "$TEST_TMPDIR/refs.md" 2>/dev/null)"
+assert_contains "I33 on a references/ spoke opener is emitted" "$REFOUT" \
+  "| skills/multi/references/spoke.md:3 |"
+assert_contains "an I32 line with two candidate targets names no target" \
+  "$(printf '%s\n' "$REFOUT" | grep 'skills/multi/SKILL.md:8')" 'shape="route-to-absent-skill"'
+
 # --- Summary -----------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then

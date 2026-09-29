@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.22] - 2026-09-28
+## [0.51.28] - 2026-09-28
 
 ### Changed
 
@@ -29,6 +29,65 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   each row's `Surface:Line` and fenced diff. The row's tier, authority, Detect, and Remediate are
   unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
   (#4115).
+
+## [0.51.27] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: findings carry an identity that survives a re-run.** Every finding adopts
+  `audit-pass`'s `(check, claim, sites)` identity: `check` is
+  `claude-config/audit-instructions/<id>`, each catalog check gains a claim template in the new
+  `reference/finding-identity.md`, anchors are `anchor/v1` excerpt anchors with the heading-path
+  discriminator, and an I15 conflict is one finding with two sites. New `scripts/finding-ids.sh`
+  derives the anchors, `finding_id/v1`, and `group/v1` through `audit-pass`'s
+  `finding-identity.sh`, and its records pass that script's emitter guard. The Phase D table gains
+  a Finding ID column (#4116).
+- **`audit-instructions`: `--persist-findings` emits I30, I31, I32, and I33 from lane findings.**
+  `emit-findings.sh` gains a second intake, `--from-lane`, beside the scanner-fed `--from`. The four
+  rules take new detector-findings crosswalk rows (convention 3.2.0): I30 and I31 at IMPORTANT, I32
+  at CRITICAL, I33 at SUGGESTION, none auto-applicable, I31 and I33 naming their off-site target in
+  `Action`. Lane rows omit `Confidence`. A frontmatter-located I32 row is declined as
+  `reason=frontmatter` and counted, I31 and I33 rows outside a spoke are declined as
+  `reason=outside-rule-surfaces`, and a row on the wrong intake is declined naming the intake it
+  belongs to. Every emitted row carries `finding_id=` in its `Finding` cell, and rank order is tier,
+  then `high` above omitted `Confidence` (#4116).
+
+## [0.51.26] - 2026-09-28
+
+### Changed
+
+- **`unhobble` watch clears a consequential deletion with the re-add grammar** ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)). The re-add gate stays the only evidence grammar: ledger rows, same-cause aggregation, and a commit that cites the rows. `watch` records a per-rule window before removal. A protected class never enters a watch. An editorial cut does not need one. A consequential deletion is applicable only when the watch closes with its qualifying-session count met and zero attributed rows, and the removing commit cites that watch. `audit-instructions` requires that citation before a consequential cut may proceed.
+
+## [0.51.25] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `audit-instructions` routing line and its `bundled-claude-api` reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.51.24] - 2026-09-28
+
+### Changed
+
+- **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. A plugin without hooks is classified across every component type; an MCP or LSP server, executable, or monitor makes it non-derivable, and its skills, commands, and agents use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores each key to its prior project value (true, or absent). A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
+
+## [0.51.23] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-grants` criteria (#4583).** P2 cites `docs/plugin-philosophy.md` as the
+  doctrine owner for hardcoded consumer specifics; this skill keeps the permission-grant detector only.
+
+## [0.51.22] - 2026-09-28
+
+### Changed
+
+- **`unhobble` Phase 4 sends the deletions it keeps to a security pass**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The register
+  hold restores protected rules only. Before the experiment branch merges, the pull request
+  now runs `/review:security-review` when the `review` plugin is installed. That skill's
+  instruction-surface lens checks every rule left deleted for a guardrail nothing else
+  enforces. Without the plugin, the pull request body records that the retired rules got no
+  security pass.
 
 ## [0.51.21] - 2026-09-28
 

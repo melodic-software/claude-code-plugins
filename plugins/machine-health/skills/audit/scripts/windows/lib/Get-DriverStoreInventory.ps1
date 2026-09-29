@@ -14,9 +14,11 @@ instead reports each driver's SignerName directly from the driver
 store -- an empty SignerName means the driver has no recorded signer,
 which is the real "unsigned" condition.
 
-This wrapper runs pnputil, parses the localized key: value output into
-PSCustomObjects, and returns them. Tests mock this function to
-exercise the drivers check without invoking the real pnputil.
+This wrapper runs pnputil through Invoke-NativeCommand, parses the localized
+key: value output into PSCustomObjects, and returns them. A missing tool or a
+non-zero exit returns an empty array, the same fallback as an invocation
+failure. Tests mock this function to exercise the drivers check without
+invoking the real pnputil.
 
 English-locale field names:
   PublishedName, OriginalName, ProviderName, ClassName, DriverVersion,
@@ -27,17 +29,21 @@ SignerName absence as "unknown signer" rather than "unsigned", and
 SignerName empty string as genuinely unsigned.
 #>
 
+. (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
+
 function Get-DriverStoreInventory {
     [CmdletBinding()]
     [OutputType([object[]])]
     param()
 
+    $invoked = Invoke-NativeCommand -Name 'pnputil' -ArgumentList @('/enum-drivers')
+    if ($invoked.status -ne 'Ok') {
+        Write-Verbose "Get-DriverStoreInventory: pnputil $($invoked.status) exit $($invoked.exit_code) $($invoked.error)"
+        return @()
+    }
+
     try {
-        $raw = & pnputil /enum-drivers 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0) {
-            Write-Verbose "Get-DriverStoreInventory: pnputil exit $LASTEXITCODE"
-            return @()
-        }
+        $raw = $invoked.output
 
         $records = $raw -split '(?m)^\s*$' | Where-Object { $_ -match '\S' }
         $result = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -57,7 +63,7 @@ function Get-DriverStoreInventory {
         }
         return $result.ToArray()
     } catch {
-        Write-Verbose "Get-DriverStoreInventory: pnputil invocation failed. $($_.Exception.Message)"
+        Write-Verbose "Get-DriverStoreInventory: pnputil output could not be parsed. $($_.Exception.Message)"
         return @()
     }
 }

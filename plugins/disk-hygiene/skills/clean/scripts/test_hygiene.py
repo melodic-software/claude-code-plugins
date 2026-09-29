@@ -26,7 +26,7 @@ from contextlib import (
     redirect_stderr,
     redirect_stdout,
 )
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from unittest import mock
 
@@ -286,6 +286,122 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
+        # Relative `tree/**` matches only when the scan target is the parent.
+        # An absolute glob matches the file under `tree` even when `tree` itself
+        # is the scan target.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            tree = root / "tree"
+            tree.mkdir(parents=True)
+            (tree / "a.tmp").write_text("hold", encoding="utf-8")
+            (tree / "other.txt").write_text("keep", encoding="utf-8")
+            abs_glob = tree.resolve().as_posix() + "/**"
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [
+                            {"glob": abs_glob, "reason": "counsel hold"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            policy = hygiene.load_policy(policy_path)
+            self.assertEqual(
+                [{"glob": abs_glob, "reason": "counsel hold"}],
+                policy["additional_protected_path_globs"],
+            )
+            snapshot = hygiene.scan_tree(tree.resolve(), policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "consumer-protected-path",
+                entries["a.tmp"]["protected_reasons"],
+            )
+            self.assertEqual(
+                [abs_glob],
+                hygiene.snapshot_protection_globs(snapshot),
+            )
+            self.assertEqual(
+                [{"glob": abs_glob, "reason": "counsel hold"}],
+                snapshot["policy"]["additional_protected_path_globs"],
+            )
+
+    def test_relative_protection_glob_still_matches_target_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            kept = root / "client-deliverables"
+            kept.mkdir(parents=True)
+            (kept / "brief.txt").write_text("hold", encoding="utf-8")
+            (root / "scratch.tmp").write_text("junk", encoding="utf-8")
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [
+                            "client-deliverables/**"
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(policy_path))
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn(
+                "consumer-protected-path",
+                entries["client-deliverables/brief.txt"]["protected_reasons"],
+            )
+            self.assertNotIn(
+                "consumer-protected-path",
+                entries["scratch.tmp"]["protected_reasons"],
+            )
+
+    def test_policy_rejects_malformed_protection_glob_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": [{"reason": "no glob"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "protection globs"):
+                hygiene.load_policy(policy_path)
+
+    def test_protection_glob_is_absolute_accepts_posix_and_drive_letter(self) -> None:
+        self.assertTrue(hygiene.protection_glob_is_absolute("/srv/shared/keep/**"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("C:/eSupport"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
+        self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))
+        self.assertFalse(hygiene.protection_glob_is_absolute("client-deliverables/**"))
+
+    def test_backslash_drive_letter_glob_covers_forward_slash_path(self) -> None:
+        path = PurePosixPath("C:/Legal/contract.docx")
+        target = PurePosixPath("C:/Legal")
+        self.assertTrue(
+            hygiene.consumer_path_protected(path, target, ["C:\\Legal\\**"])
+        )
+        self.assertTrue(
+            hygiene.consumer_path_protected(
+                path, target, [{"glob": "c:\\legal\\*", "reason": "hold"}]
+            )
+        )
+        self.assertFalse(
+            hygiene.consumer_path_protected(path, target, ["C:\\Other\\**"])
+        )
+
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
         managed["owner"] = "fixture-manager"
@@ -415,7 +531,7 @@ class HygieneTests(unittest.TestCase):
     def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
         # The OneDrive for Business sync root embeds the organization name, so
         # no exact name can cover it and a consumer overlay cannot either:
-        # additional_protected_path_globs match relative to the scan target.
+        # relative additional_protected_path_globs match the scan target.
         names = hygiene.baseline_protected_names()
         for spelling in ("OneDrive - Contoso", "onedrive - contoso"):
             self.assertTrue(hygiene.has_protected_name(Path(spelling), names))
@@ -881,15 +997,27 @@ class HygieneTests(unittest.TestCase):
             base = Path(temporary)
             data_root = base / "plugin-data"
             data_root.mkdir()
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-            ):
+            with mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", str(data_root)):
                 self.assertEqual(
                     (data_root / "run" / "snapshot.json").resolve(),
                     hygiene.state_output_path(data_root / "run" / "snapshot.json"),
                 )
                 with self.assertRaisesRegex(hygiene.HygieneError, "must stay inside"):
                     hygiene.state_output_path(base / "target" / "snapshot.json")
+
+    def test_generated_state_never_reads_the_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data_root = Path(temporary) / "plugin-data"
+            data_root.mkdir()
+            with (
+                mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", None),
+                mock.patch.dict(
+                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+                ),
+                self.assertRaisesRegex(hygiene.HygieneError, "pass --data-root"),
+            ):
+                hygiene.state_output_path(data_root / "run" / "snapshot.json")
+            self.assertEqual([], list(data_root.iterdir()))
 
     def test_protected_shell_folder_is_rejected_as_target(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -899,12 +1027,7 @@ class HygieneTests(unittest.TestCase):
             target.mkdir(parents=True)
             data_root.mkdir()
             output = io.StringIO()
-            with (
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
-                redirect_stdout(output),
-            ):
+            with redirect_stdout(output):
                 code = hygiene.main(
                     [
                         "scan",
@@ -912,6 +1035,8 @@ class HygieneTests(unittest.TestCase):
                         str(target),
                         "--output",
                         str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -926,12 +1051,7 @@ class HygieneTests(unittest.TestCase):
         extra_args: list[str] | None = None,
     ) -> tuple[int, dict[str, object]]:
         output = io.StringIO()
-        with (
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-            ),
-            redirect_stdout(output),
-        ):
+        with redirect_stdout(output):
             for patch in patches:
                 self.enterContext(patch)
             code = hygiene.main(
@@ -941,6 +1061,8 @@ class HygieneTests(unittest.TestCase):
                     str(target),
                     "--output",
                     str(data_root / "snapshot.json"),
+                    "--data-root",
+                    str(data_root),
                     *(extra_args or []),
                 ]
             )
@@ -2250,9 +2372,6 @@ class HygieneTests(unittest.TestCase):
             plan_path.write_text('{"tier": "high"}', encoding="utf-8")
             output = io.StringIO()
             with (
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
                 mock.patch.object(
                     hygiene,
                     "preview",
@@ -2278,6 +2397,8 @@ class HygieneTests(unittest.TestCase):
                         "a" * 24,
                         "--report",
                         str(base / "outside" / "report.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -2815,9 +2936,6 @@ class HygieneTests(unittest.TestCase):
             stdout_io = io.StringIO()
             with (
                 mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1),
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
                 redirect_stdout(stdout_io),
             ):
                 code = hygiene.main(
@@ -2827,6 +2945,8 @@ class HygieneTests(unittest.TestCase):
                         str(root),
                         "--output",
                         str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -3420,6 +3540,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "stdlib_shadowing",
                 "children_rollup",
                 "errors",
                 "policy_sources",
@@ -3710,6 +3831,162 @@ class StandingPolicyTests(unittest.TestCase):
         )
 
 
+class StdlibShadowingTests(unittest.TestCase):
+    @staticmethod
+    def home_fixture(home: Path) -> None:
+        cache = home / "__pycache__"
+        cache.mkdir(parents=True)
+        (home / "gettext.py").write_text("import urllib\n", encoding="utf-8")
+        (home / "notes.py").write_text("x = 1\n", encoding="utf-8")
+        (cache / "gettext.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (cache / "notes.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (home / "projects").mkdir()
+        (home / "projects" / "random.py").write_text("", encoding="utf-8")
+
+    def scan(self, target: Path, home: Path, max_depth: int | None = None):
+        with (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "user_home", return_value=home),
+        ):
+            policy = hygiene.load_policy(None)
+            snapshot = hygiene.scan_tree(target, policy, max_depth)
+        return snapshot, {entry["path"]: entry for entry in snapshot["entries"]}
+
+    def test_home_root_stdlib_name_is_flagged_and_tied_to_its_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home)
+        self.assertEqual(
+            [
+                {
+                    "path": "gettext.py",
+                    "module": "gettext",
+                    "bytecode_cache": "__pycache__",
+                }
+            ],
+            snapshot["stdlib_shadowing"],
+        )
+        advisories = by_path["gettext.py"]["advisories"]
+        self.assertEqual("stdlib-module-shadow", advisories[0]["id"])
+        self.assertIn("Rename or move", advisories[0]["reason"])
+        self.assertEqual([], by_path["gettext.py"]["hints"])
+        self.assertNotIn("advisories", by_path["notes.py"])
+        self.assertNotIn("advisories", by_path["projects/random.py"])
+        cache = by_path["__pycache__"]
+        self.assertIn("python-bytecode-cache", [hint["id"] for hint in cache["hints"]])
+        self.assertEqual(
+            [
+                {"module": "gettext", "source": "gettext.py", "shadows_stdlib": True},
+                {"module": "notes", "source": "notes.py", "shadows_stdlib": False},
+            ],
+            cache["bytecode_sources"],
+        )
+
+    def test_builtin_module_name_is_not_flagged_and_symlink_is(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "sys.py").write_text("", encoding="utf-8")
+            (home / "real.py").write_text("", encoding="utf-8")
+            try:
+                (home / "gettext.py").symlink_to(home / "real.py")
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            ["gettext.py"], [row["path"] for row in snapshot["stdlib_shadowing"]]
+        )
+
+    def test_windows_case_folding_links_source_and_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "__pycache__").mkdir()
+            (home / "__pycache__" / "random.cpython-314.pyc").write_bytes(b"\0")
+            entries = [
+                {"path": "Random.py", "kind": "file"},
+                {"path": "__pycache__", "kind": "directory"},
+            ]
+            with (
+                mock.patch.object(hygiene, "user_home", return_value=home),
+                mock.patch.object(hygiene.sys, "platform", "win32"),
+            ):
+                findings = hygiene.annotate_stdlib_shadowing(entries, home)
+        self.assertEqual(
+            [{"path": "Random.py", "module": "random", "bytecode_cache": "__pycache__"}],
+            findings,
+        )
+        self.assertEqual(
+            [{"module": "random", "source": "Random.py", "shadows_stdlib": True}],
+            entries[1]["bytecode_sources"],
+        )
+
+    def test_depth_cut_cache_still_names_its_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home, max_depth=1)
+        self.assertIn("__pycache__", snapshot["truncated_paths"])
+        self.assertEqual(
+            "__pycache__", snapshot["stdlib_shadowing"][0]["bytecode_cache"]
+        )
+        self.assertEqual(
+            ["gettext", "notes"],
+            [row["module"] for row in by_path["__pycache__"]["bytecode_sources"]],
+        )
+
+    def test_shadowing_file_without_bytecode_names_no_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "random.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            [{"path": "random.py", "module": "random", "bytecode_cache": None}],
+            snapshot["stdlib_shadowing"],
+        )
+
+    def test_home_below_the_target_is_found_by_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            home = base / "Users" / "someone"
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(base, home)
+        self.assertEqual(
+            ["Users/someone/gettext.py"],
+            [row["path"] for row in snapshot["stdlib_shadowing"]],
+        )
+        self.assertEqual(
+            "Users/someone/__pycache__",
+            snapshot["stdlib_shadowing"][0]["bytecode_cache"],
+        )
+        self.assertIn("bytecode_sources", by_path["Users/someone/__pycache__"])
+
+    def test_target_inside_home_reports_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            (home / "projects" / "email.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home / "projects", home)
+        self.assertEqual([], snapshot["stdlib_shadowing"])
+
+    def test_scan_stdout_carries_the_findings_in_quiet_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, _ = self.scan(home, home)
+        payload = hygiene.scan_stdout_payload(
+            hygiene.scan_complete_payload(
+                home,
+                home / "snapshot.json",
+                snapshot,
+                {"policy_sources": ["baseline"]},
+                None,
+                "note",
+            ),
+            True,
+        )
+        self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
+
+
 class OsAutocleanAdvisoryTests(unittest.TestCase):
     def test_zone_outside_temp_has_no_advisory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3740,6 +4017,207 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
         else:
             expected = "not-detected"
         self.assertEqual(expected, advisory["mechanism"])
+
+
+class StorageSenseTempThresholdTests(unittest.TestCase):
+    WEEKLY_ON = {"enabled": True, "temporary_files_cleanup": True, "cadence_days": 7}
+
+    def windows_advisory(
+        self,
+        temp_root: Path,
+        state: dict[str, object],
+        threshold: int,
+        target: Path | None = None,
+    ) -> dict[str, object]:
+        with (
+            mock.patch.object(hygiene.sys, "platform", "win32"),
+            mock.patch.object(
+                hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+            ),
+            mock.patch.object(
+                hygiene, "windows_storage_sense_state", return_value=dict(state)
+            ),
+        ):
+            advisory = hygiene.os_autoclean_advisory(
+                target or temp_root,
+                {"os_temp_recommendation_threshold_bytes": threshold},
+            )
+        assert advisory is not None
+        return advisory
+
+    @staticmethod
+    def temp_fixture(base: Path) -> Path:
+        temp_root = base / "Temp"
+        (temp_root / "nested").mkdir(parents=True)
+        (temp_root / "a.tmp").write_bytes(b"x" * 3000)
+        (temp_root / "nested" / "b.tmp").write_bytes(b"y" * 2000)
+        return temp_root
+
+    def test_baseline_policy_ships_the_threshold(self) -> None:
+        threshold = hygiene.baseline_policy()["os_temp_recommendation_threshold_bytes"]
+        self.assertIsInstance(threshold, int)
+        self.assertGreater(threshold, 0)
+
+    def test_above_threshold_with_storage_sense_on_recommends_running_it_now(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, self.WEEKLY_ON, 4096)
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertTrue(advisory["temp_zone"]["complete"])
+        self.assertEqual(4096, advisory["temp_zone"]["threshold_bytes"])
+        recommendation = advisory["recommendation"]
+        self.assertIsInstance(recommendation, str)
+        self.assertIn("Run Storage Sense now", recommendation)
+        self.assertIn("Settings > System > Storage", recommendation)
+        self.assertIn("runs every 7 days", recommendation)
+        self.assertIn("temporary-files cleanup on", recommendation)
+
+    def test_recommendation_reports_detected_non_weekly_schedule(self) -> None:
+        state = {**self.WEEKLY_ON, "cadence_days": 30}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("runs every 30 days", recommendation)
+        self.assertNotIn("every 7 days", recommendation)
+        self.assertIn("Run Storage Sense now", recommendation)
+
+    def test_above_threshold_with_storage_sense_off_recommends_enabling_and_manual_run(
+        self,
+    ) -> None:
+        state = {"enabled": False, "temporary_files_cleanup": False, "cadence_days": 0}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("Recommend enabling Storage Sense", recommendation)
+        self.assertIn("manual run is available either way", recommendation)
+        self.assertIn("Storage Sense detected: off", recommendation)
+        self.assertIn("temporary-files cleanup off", recommendation)
+
+    def test_above_threshold_with_temp_cleanup_off_recommends_turning_it_on(
+        self,
+    ) -> None:
+        state = {**self.WEEKLY_ON, "temporary_files_cleanup": False}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        self.assertIn("turning on temporary-files cleanup", advisory["recommendation"])
+
+    def test_below_threshold_stays_null_whatever_the_configuration(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            for state in (self.WEEKLY_ON, off):
+                advisory = self.windows_advisory(temp_root, state, 1024**3)
+                self.assertIsNone(advisory["recommendation"])
+                self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+
+    def test_home_target_measures_the_temp_directory_itself(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            temp_root = self.temp_fixture(home / "AppData" / "Local")
+            (home / "outside.bin").write_bytes(b"z" * 9000)
+            advisory = self.windows_advisory(
+                temp_root, self.WEEKLY_ON, 4096, target=home
+            )
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertIsNotNone(advisory["recommendation"])
+
+    def test_capped_measurement_is_a_floor(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            # Cap 2 counts both top-level entries in any scandir order, so
+            # a.tmp's bytes always land, and still stops before nested/b.tmp.
+            with mock.patch.object(hygiene, "TEMP_ZONE_ENTRY_CAP", 2):
+                over = self.windows_advisory(temp_root, self.WEEKLY_ON, 1)
+                under = self.windows_advisory(temp_root, off, 1024**3)
+        self.assertFalse(over["temp_zone"]["complete"])
+        self.assertIn("holds at least", over["recommendation"])
+        self.assertFalse(under["temp_zone"]["complete"])
+        self.assertIn("Recommend enabling", under["recommendation"])
+
+    def test_linked_directory_in_temp_is_not_followed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            elsewhere = base / "elsewhere"
+            elsewhere.mkdir()
+            (elsewhere / "big.bin").write_bytes(b"w" * 50_000)
+            try:
+                (temp_root / "link").symlink_to(elsewhere, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(5000, zone["logical_bytes"])
+
+    def test_cloud_placeholder_in_temp_is_not_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            with mock.patch.object(
+                hygiene, "is_cloud_placeholder_stat", return_value=True
+            ):
+                zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(0, zone["logical_bytes"])
+
+    def test_recommendation_leaves_scan_eligibility_unchanged(self) -> None:
+        real_advisory = hygiene.os_autoclean_advisory
+
+        def snapshot_entries(threshold: int) -> tuple[object, object]:
+            def windows_advisory(target, _policy=None):
+                with (
+                    mock.patch.object(hygiene.sys, "platform", "win32"),
+                    mock.patch.object(
+                        hygiene,
+                        "windows_storage_sense_state",
+                        return_value=dict(self.WEEKLY_ON),
+                    ),
+                ):
+                    return real_advisory(
+                        target, {"os_temp_recommendation_threshold_bytes": threshold}
+                    )
+
+            output = io.StringIO()
+            with (
+                mock.patch.object(
+                    hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+                ),
+                mock.patch.object(
+                    hygiene, "os_autoclean_advisory", side_effect=windows_advisory
+                ),
+                redirect_stdout(output),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(temp_root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            payload = json.loads(output.getvalue())
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            return payload["os_autoclean"]["recommendation"], snapshot["entries"]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            recommended, entries_over = snapshot_entries(1)
+            silent, entries_under = snapshot_entries(1024**3)
+        self.assertIsNotNone(recommended)
+        self.assertIsNone(silent)
+        self.assertEqual(entries_under, entries_over)
 
 
 class LeastObservableEnginePathTests(unittest.TestCase):
@@ -5671,6 +6149,7 @@ class GuardTests(unittest.TestCase):
         # litter the checkout, and an inherited CLAUDE_PLUGIN_DATA would write
         # into the developer's real plugin data directory.
         self._data_root = cfg / "plugin-data"
+        self._authorized_data_root: str | None = None
         # Hermetic watchdog deadline for the same reason. The guard's own deny
         # diagnostic tells operators to raise
         # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
@@ -5725,6 +6204,8 @@ class GuardTests(unittest.TestCase):
     ) -> dict[str, object] | None:
         self._set_kill_switch(enabled)
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        if self._authorized_data_root:
+            argv += ["--authorized-data-root", self._authorized_data_root]
         payload: dict[str, object] = {"tool_input": {"command": command}}
         if tool_name:
             payload["tool_name"] = tool_name
@@ -5766,7 +6247,7 @@ class GuardTests(unittest.TestCase):
         authorized ``--data-root``, so every case that expects one admitted
         appends these words.
         """
-        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self._data_root)
+        self._authorized_data_root = os.fspath(self._data_root)
         return f' --data-root "{self._data_root.resolve().as_posix()}"'
 
     def run_guard_tool(
@@ -7660,23 +8141,32 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             # resolve() yields the long-form path: the guard rejects the "~" in
             # Windows 8.3 short names as a shell-expansion character.
-            authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
+            env_root = str(Path(temporary).resolve() / "from-env")
             base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            authorized = self.authorize_data_root()
+            self.assertEqual(
+                "allow",
+                self.run_guard(f"{base}{authorized}")["hookSpecificOutput"][
+                    "permissionDecision"
+                ],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard(f'{base} --data-root "{other}"')["hookSpecificOutput"][
+                    "permissionDecision"
+                ],
+            )
+            self._authorized_data_root = None
             with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_DATA": env_root}, clear=False
             ):
                 self.assertEqual(
-                    "allow",
-                    self.run_guard(f'{base} --data-root "{authorized}"')[
-                        "hookSpecificOutput"
-                    ]["permissionDecision"],
-                )
-                self.assertEqual(
                     "deny",
-                    self.run_guard(f'{base} --data-root "{other}"')[
+                    self.run_guard(f'{base} --data-root "{env_root}"')[
                         "hookSpecificOutput"
                     ]["permissionDecision"],
+                    "CLAUDE_PLUGIN_DATA is never a data-root channel",
                 )
 
     def test_guard_denies_data_root_without_hook_authority(self) -> None:
@@ -7879,16 +8369,18 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual("/from-argv", guard.resolve_authorized_data_root())
             with mock.patch.object(guard.sys, "argv", [script]):
-                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+                self.assertIsNone(
+                    guard.resolve_authorized_data_root(),
+                    "CLAUDE_PLUGIN_DATA is never a data-root channel",
+                )
             with mock.patch.object(
                 guard.sys,
                 "argv",
                 [script, "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"],
             ):
-                self.assertEqual(
-                    "/from-env",
+                self.assertIsNone(
                     guard.resolve_authorized_data_root(),
-                    "an unsubstituted placeholder must fall back to the environment",
+                    "an unsubstituted placeholder is absent; env does not fill it",
                 )
             with mock.patch.object(
                 guard.sys,
@@ -7929,7 +8421,7 @@ class GuardTests(unittest.TestCase):
                 ],
             ):
                 self.assertEqual("/direct", guard.resolve_authorized_data_root())
-            # An unresolvable plugin-root layout yields no authority, then env.
+            # An unresolvable plugin-root layout yields no authority.
             with mock.patch.object(
                 guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
             ):
@@ -7940,7 +8432,10 @@ class GuardTests(unittest.TestCase):
             with mock.patch.object(
                 guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
             ):
-                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+                self.assertIsNone(
+                    guard.resolve_authorized_data_root(),
+                    "env never supplies a data root, even with no other channel",
+                )
 
     def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
         # Real marketplace install: the install root is the VERSION leaf under
@@ -8575,36 +9070,26 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        with tempfile.TemporaryDirectory() as temporary:
-            authorized = str(Path(temporary).resolve() / "plugin-data")
-            command = (
-                f'"{self.python_command()}" "{script}" preview --snapshot s --plan p '
-                f'--data-root "{authorized}"'
-            )
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
-            ):
-                self.assertEqual(
-                    "allow",
-                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
-                )
+        command = (
+            f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+            f"{self.authorize_data_root()}"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
 
     def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        with tempfile.TemporaryDirectory() as temporary:
-            authorized = str(Path(temporary).resolve() / "plugin-data")
-            command = (
-                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-                f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r "
-                f'--data-root "{authorized}"'
-            )
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
-            ):
-                self.assertEqual(
-                    "ask",
-                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
-                )
+        command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f"{self.authorize_data_root()}"
+        )
+        self.assertEqual(
+            "ask",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
 
     def test_powershell_engine_invocation_is_denied(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -10729,7 +11214,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         os.environ["CLAUDE_CONFIG_DIR"] = os.fspath(attacker / ".claude")
         self.assertEqual(os.fspath(self.expected), self.resolve())
 
-    def test_precedence_argv_then_cache_then_directory_then_env(self) -> None:
+    def test_precedence_argv_then_cache_then_directory_never_env(self) -> None:
         os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self.base / "from-env")
         self.assertEqual(os.fspath(self.expected), self.resolve())
         self.assertEqual(
@@ -10752,9 +11237,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 os.fspath(self.checkout / "plugins" / "data" / "disk-hygiene-mk"),
                 guard.resolve_authorized_data_root(),
             )
-        # Without any trusted channel, the environment is the last resort.
+        # Without any trusted channel, env is not a last resort.
         (self.config / "plugins" / "known_marketplaces.json").unlink()
-        self.assertEqual(os.fspath(self.base / "from-env"), self.resolve())
+        self.assertIsNone(self.resolve())
 
     def test_data_root_is_built_only_from_trusted_config_and_sanitized_id(
         self,
@@ -10794,11 +11279,10 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         # The decision log follows the derived root, never the env root.
         self.assertEqual([], list(env_root.iterdir()))
         self.assertNotEqual([], list(self.expected.iterdir()))
-        # Control: without the directory proof the env value is the authority,
-        # so the env-root scan is admitted and the log lands there.
+        # Control: without the directory proof, env is still not authority.
         (self.config / "plugins" / "known_marketplaces.json").unlink()
-        self.assertEqual("allow", self.scan_verdict(env_root, self.argv()))
-        self.assertNotEqual([], list(env_root.iterdir()))
+        self.assertEqual("deny", self.scan_verdict(env_root, self.argv()))
+        self.assertEqual([], list(env_root.iterdir()))
 
     def test_belt_ignores_a_conflicting_env_data_root_on_a_cache_install(
         self,
@@ -10812,11 +11296,11 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual("allow", self.scan_verdict(derived, argv))
         self.assertEqual([], list(env_root.iterdir()))
         # Control: a root with neither a cache layout nor a directory proof
-        # falls through to the env value.
+        # has no authority; env does not fill it.
         elsewhere = self.base / "elsewhere"
         elsewhere.mkdir()
         argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
-        self.assertEqual("allow", self.scan_verdict(env_root, argv))
+        self.assertEqual("deny", self.scan_verdict(env_root, argv))
 
     def test_changed_known_marketplaces_shape_yields_no_directory_authority(
         self,
@@ -10832,10 +11316,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.write_known(known)
                 self.assert_fails_closed()
                 self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
-                # With env set, an unreadable format falls through to the env
-                # channel; the env channel's authority does not widen.
-                env_root = self.set_env_data_root()
-                self.assertEqual(os.fspath(env_root), self.resolve())
+                # With env set, an unreadable format still yields no authority.
+                self.set_env_data_root()
+                self.assertIsNone(self.resolve())
 
     # --- an exact engine call must carry the authorized --data-root ----------
 
@@ -10851,8 +11334,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ]
 
     def test_engine_call_without_data_root_is_denied(self) -> None:
-        # Without --data-root the engine would fall back to the raw env value,
-        # which here differs from the proven root.
+        # Without --data-root the guard refuses, even when env is set.
         self.set_env_data_root()
         self.assertEqual(os.fspath(self.expected), self.resolve())
         for subcommand in self.ENGINE_TAILS:
@@ -10894,11 +11376,13 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
 
     # --- AC7: the no-authority denial names a recovery ----------------------
 
-    def test_no_authority_denial_names_the_launch_env_recovery(self) -> None:
+    def test_no_authority_denial_names_the_marketplace_recovery(self) -> None:
         belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
         self.assertIn("known_marketplaces.json", belt)
         self.assertIn("CLAUDE_PLUGIN_DATA", belt)
-        self.assertIn("<config>/plugins/data/<name>-<marketplace>", belt)
+        self.assertIn("never trusted", belt)
+        self.assertIn("claude plugin marketplace add", belt)
+        self.assertNotIn("start Claude Code from a shell", belt)
         self.assertIn("persists until the session ends", belt)
         self.assertIn("start a new session", belt)
 
@@ -11249,8 +11733,8 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertFalse(self.grammar.match_invocation(spec.name, words))
 
     def test_guard_refuses_an_invocation_without_data_root(self) -> None:
-        """The engine parses it; the guard does not, since the engine would fall
-        back to the raw ``CLAUDE_PLUGIN_DATA`` value."""
+        """The engine parses it; the guard does not, so a missing --data-root
+        never reaches the engine."""
         for spec in self.grammar.SUBCOMMANDS:
             head = self.head(spec)
             with self.subTest(subcommand=spec.name):
