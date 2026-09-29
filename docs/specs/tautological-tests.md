@@ -201,11 +201,14 @@ that names that lexer and a block model. A new lexer or block model needs a plug
     (literal matchers after a pipe, as in `A | Should -Be B`).
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
     file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
-    otherwise the first claimant with no `detect` list; otherwise the first claimant.
+    otherwise the first claimant in load order, whether or not it has a `detect` list.
 - `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
   each until engine code reads it, so a value is never dropped silently. `delegation` unreserves
   when Phase 3 merges; no phase unreserves `equality.pipeline` yet. The semantics above describe
   each field once it is unreserved.
+- `advisory` and `body_skip` are planned, not yet in the loader: `adapter-load.awk` rejects each as
+  an unknown key. The phase that first relies on one adds it to the loader schema in the same
+  change.
 - `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
