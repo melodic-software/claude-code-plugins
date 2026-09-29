@@ -77,7 +77,7 @@ section names. **Accept hits only from assistant text output**, in two stages:
   successful `claude --bg` launch (step 1's definition) delivered is not a lost handoff, wherever
   it was discovered.
 - **Prompt-only mode**, no file, no directive. Detect off the `─` rails and the instruction
-  line; the resume content is the block inline between the rails. `Prior session:` is
+  line; the resume content is the region inline between its rails. `Prior session:` is
   **optional corroboration, never a required key**, the producer's prompt-only checklist
   requires only a self-contained prompt between the rails plus the copy instruction, so
   requiring it would skip valid handoffs. **Apply the same placeholder filter as file mode:** a
@@ -102,12 +102,25 @@ section names. **Accept hits only from assistant text output**, in two stages:
   the first because the work is running, the second because it is already done, while a
   non-completion terminal state, or absence even from `--all`, keeps the block. Absent from the
   bare active list is never on its own a failed continuation.
+- **Capture the goal region, every mode, every discovery path.** A qualified candidate can hold
+  four rails, two regions, each headed by its own instruction line directly above its top rail:
+  the resume region by the `/clear`, then copy line, the goal region by the line beginning
+  ``Type `/goal ` `` (save-point.md "Goal region"). The goal region sits above or below the resume
+  region, so do not stop at the first bottom rail: after the resume region's bottom rail, look for
+  the goal instruction line, and before its top rail, look above it. Take the text between each
+  region's own rails verbatim, in the emitted order, and surface each region under its own
+  instruction line. The goal region is a capture, never a detection key: the resume region keys the
+  candidate, and a candidate with no goal region is the ordinary two-rail case, so nothing extra
+  is surfaced. A goal region with no resume region beside it is not a handoff; keep scanning. The
+  goal region's `Read @…` line repeats the resume region's, so it adds no second file to resolve,
+  and the template filter above covers it. Decode and redact it like the rest of the prompt.
 - **Capture the below-rail `/loop` re-arm entries, every mode, every discovery path, every
   loop.** Once a candidate qualifies on the signals above, also take the re-arm instructions the
-  producer emits below the bottom rail. **Read the `Re-arm <i> of <n> — <L> lines:` headers and
+  producer emits below the last bottom rail (with a goal region, whichever region ends the
+  prompt). **Read the `Re-arm <i> of <n> — <L> lines:` headers and
   take the next `<L>` lines verbatim** (save-point.md "Loop-aware re-arm"). The next header
   begins where the previous entry's `<L>` lines end; repeat until `n` entries are held. Anchor
-  the search to the bottom rail, never "the lines after the rail" unbounded, which would widen
+  the search to that bottom rail, never "the lines after the rail" unbounded, which would widen
   this skill into the raw-transcript dump it forbids. **A shape-2 block puts one fixed line
   directly below the bottom rail before any re-arm text:** a blank line, then the sentence
   `Or reopen the producing session in place:` followed by `claude --resume <UUID>` in a code

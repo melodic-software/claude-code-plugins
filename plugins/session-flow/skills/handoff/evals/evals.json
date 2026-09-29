@@ -106,12 +106,13 @@
       "id": 8,
       "name": "prompt-only-still-carries-the-goal",
       "prompt": "My goal, as I told you this morning: 'make every page of the user docs read consistently before the 1.0 release.' We armed a /goal for it at the start of this session and it's still running. /handoff prompt — just two lint fixes left on the docs branch.",
-      "expected_output": "Prompt-only writes no body sections, so the goal travels inline between the rails: the active /goal re-arm keeps the FIRST line, the verbatim goal quote comes directly below it, and the remaining-work bullets follow. A prompt-only save-point listing only the follow-ups is the exact shape that loses the goal.",
+      "expected_output": "Prompt-only writes no body sections, so the goal travels inline: the active /goal is detected from the conversation and the prompt holds two railed regions, each under its own instruction line. The user asked only for a handoff and the goal is merely carried over, so the resume region comes first, with the verbatim goal quote above the remaining-work bullets, and the goal region second. The goal region's condition text starts no line with /goal and carries the goal quote; it has no Read @ line because there is no file. A prompt-only save-point listing only the follow-ups is the exact shape that loses the goal.",
       "files": [],
       "expectations": [
-        "An active /goal is detected from the conversation, so a /goal re-arm occupies the FIRST line between the rails",
-        "The verbatim goal quote — 'make every page of the user docs read consistently before the 1.0 release', in the user's own words rather than a description of the remaining lint work — sits directly below the /goal line and above the inline remaining-work bullets",
-        "The goal quote does not displace the /goal re-arm from the first line, and the bullets do not come between them",
+        "An active /goal is detected from the conversation, so the prompt holds a goal region (its instruction line names typing `/goal ` and checking for the `◎ /goal active` indicator) in addition to the resume region",
+        "Because the user asked only for a handoff, the resume region comes first and the goal region second, each with its own instruction line and its own rail pair",
+        "The verbatim goal quote — 'make every page of the user docs read consistently before the 1.0 release', in the user's own words rather than a description of the remaining lint work — sits above the inline remaining-work bullets in the resume region and is the condition in the goal region",
+        "No line between any rails starts with /goal, and the goal region has no `Read @` line since prompt-only writes no file",
         "The reasoning recognizes that prompt-only points at no file, so the goal travels in the prompt or not at all"
       ]
     },
@@ -313,6 +314,21 @@
         "No durable handoff file is written (prompt-only path), and the topic is not 'unattended'",
         "The /export step records the suggestion in the output and does not ask the operator",
         "The self-contained resume prompt is emitted between two dashed U+2500 rails and the skill STOPS after emitting it"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "fresh-goal-request-puts-the-goal-region-first",
+      "prompt": "/handoff — I want to start the next session on a fresh /goal: 'get the billing migration merged with CI green before Friday.' Also give me the plain resume, in case I would rather not arm a goal.",
+      "expected_output": "The user asked for a fresh goal, so the `## Resume prompt` holds two railed regions, each with its own instruction line above its top rail, and the goal region comes FIRST because it is the payload the user asked for. The goal region's instruction line says to type `/goal ` with a trailing space, paste everything between the dashed lines, and confirm the `◎ /goal active` indicator appeared, redoing it if not. Between its rails are the condition text with no leading `/goal` line, then the same `Read @` directive line the resume region carries, all within the documented condition limit. The plain resume region follows second under the `/clear`, then copy instruction, unchanged. The file stores both regions through the fill slots, `save_point.py validate` exits 0, and the on-screen prompt equals `save_point.py emit`.",
+      "files": [],
+      "expectations": [
+        "The goal region is emitted FIRST and the plain resume region second, because the user asked for a fresh goal and the payload they asked for comes first",
+        "The goal region's instruction line tells the user to type `/goal ` (with a trailing space), paste everything between the dashed lines, and confirm the `◎ /goal active` indicator appears after sending it, redoing the step if it is missing",
+        "No line between any rails starts with `/goal`; a pasted `/goal ...` first line arms nothing, so the user types the command by hand and the region holds the condition only",
+        "The goal region ends with the resume region's `Read @` directive line, byte for byte, so the goal paste carries the resume pointer itself, and its condition text stays within the documented condition limit",
+        "The resume region carries its own `/clear`, then copy instruction, the `Read @` directive, `Prior session:`, `Handoff origin:` and `Next:` lines, unchanged from a no-goal handoff",
+        "The slot values put the goal region in `goal-first` and leave `goal-after` out, and `save_point.py validate` exits 0 before the prompt is printed"
       ]
     }
   ]

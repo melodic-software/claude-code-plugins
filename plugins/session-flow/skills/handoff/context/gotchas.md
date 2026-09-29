@@ -84,3 +84,9 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   `--continue` restores only unexpired recurring tasks and one-shots whose time has not passed.
   Recheck when that page stops carrying that statement, or when a release note names session-scoped
   scheduled tasks.
+- **A `/goal ...` first line inside the pasted block arms nothing.** A command is recognized only at
+  the start of a message, so a `/goal <condition>` line pasted from a rails prompt reaches the new
+  session as plain text and no goal is set, while the handoff looks complete. The goal region
+  therefore holds the condition alone, under an instruction that has the user type `/goal` and a
+  space by hand, paste the region, and check for the `◎ /goal active` indicator (engine doc, "Emit
+  the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails.
