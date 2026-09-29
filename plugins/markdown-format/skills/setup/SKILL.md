@@ -120,14 +120,12 @@ install command's exit code alone. For everything else `apply` only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
   any time, or headless
-  `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`
+  `claude plugin install markdown-format@<marketplace> -s user --config markdown_format_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Pass the scope `claude plugin list` reports for the plugin, and for a `project`
-  or `local` scope run from that project's directory, so the rerun matches the existing install
-  record; from the home directory the list can label one file as both `user` and `project`, so
-  pass `user`. A rejected value prints a warning yet exits 0, so read the output.
+  manifest default. Pass `-s user`; do not copy a scope from `claude plugin list`. A rejected
+  value prints a warning yet exits 0, so read the output.
   This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
