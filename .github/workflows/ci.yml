@@ -731,12 +731,7 @@ jobs:
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
-      # understands the syntax.
-      # Claim: keep the self-repository ignores; do not rewrite to `$/` until
-      # actionlint parses it. Basis: actionlint v1.7.12 (2026-03-30) is still
-      # latest; the pin is ci-workflows actionlint@4610c31e (v0.27.1). As of:
-      # 2026-09-28. Recheck: an actionlint release accepts `uses: $/...` and
-      # the ci-workflows action is repinned to a version that carries it.
+      # understands the syntax (#4130).
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -2557,9 +2552,8 @@ jobs:
           # tell a full-run re-run apart from a contract-only sibling, so a
           # body edit while a failed full run is being re-run can read the old
           # failure at once and go red. That wait-loop fix belongs in
-          # ci-workflows (the pin below), then every `uses:` SHA here moves
-          # together. Until then: when `ci-lanes` on this SHA is already
-          # success, re-run the red contract-only `ci` run; do not empty-commit.
-          # When `ci-lanes` is failure or missing, re-run the full workflow.
+          # ci-workflows (the pin below).
+          # Operator remedy: docs/ci-runner-routing.md, section Contract-only
+          # ci-status. #4670 tracks the upstream fix and the repin.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}
