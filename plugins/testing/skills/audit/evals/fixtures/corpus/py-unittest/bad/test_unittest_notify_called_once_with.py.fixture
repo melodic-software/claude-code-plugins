@@ -1,0 +1,15 @@
+# expect: rule-inert-assertion
+# called_once_with is not an assertion: without assert_ it is a child Mock,
+# so the line checks nothing about the call.
+import unittest
+from unittest.mock import MagicMock
+
+from app.notify import notify
+
+
+class NotifyTests(unittest.TestCase):
+    def test_notify_mails_the_owner(self):
+        mailer = MagicMock()
+        sent = notify(mailer, "owner@example.com")
+        mailer.send.called_once_with("owner@example.com")
+        self.assertTrue(sent)

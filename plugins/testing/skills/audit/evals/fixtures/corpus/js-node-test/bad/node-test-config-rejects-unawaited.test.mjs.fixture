@@ -1,0 +1,9 @@
+// expect: rule-inert-assertion
+// assert.rejects returns a promise; unawaited, its failure never reaches the test.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { loadConfig } from '../src/config.mjs';
+
+test('a missing config file rejects', async () => {
+  assert.rejects(loadConfig('missing.json'), /ENOENT/);
+});
