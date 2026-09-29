@@ -46,7 +46,7 @@ Highest-priority only, same format as session mode Phase 3 but capped.
 
 > **Session score: X/10** (one sentence justification)
 
-Append to the score history (`${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md`) using the session-
+Append to the score history (SKILL.md "Paths", `<project-slug>.md`) using the session-
 mode format.
 
 ### 6. Feedback regression spot-check

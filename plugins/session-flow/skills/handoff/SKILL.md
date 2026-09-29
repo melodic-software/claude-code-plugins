@@ -41,8 +41,11 @@ save-point engine, different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional:
+`$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
 
+- **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
+  changes only the `/export` step (record the suggestion in output, do not ask) and is never read as
+  the topic or a method; the Method rule below then applies to the next token.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -256,7 +259,8 @@ ticked. Emit the rails block before ending the turn, always.
   written from memory; a section with nothing to report says so explicitly rather than being omitted
 - [ ] Claim provenance applied. Inherited status marked `UNVERIFIED (<source>)`, not stated as
   plain fact. A fix still in CI, merge, or another unreturned check is `UNVERIFIED (<check>)`,
-  never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green)
+  never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green;
+  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
@@ -320,9 +324,10 @@ ticked. Emit the rails block before ending the turn, always.
   "Original goal, mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
-  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance")
+  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
+  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
-- [ ] If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
@@ -349,6 +354,13 @@ ticked. Emit the rails block before ending the turn, always.
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
+## Verification record: `/export`
+
+- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu.
+- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+
 ## What this skill does NOT do
 
 - **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code
@@ -359,9 +371,10 @@ ticked. Emit the rails block before ending the turn, always.
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   NOT relax this
-- **Does not offer a resident / no-stop mode.** `/implementation:implement-dispatch` resident
-  phase boundaries record plan marks and the commit; they do not invoke this skill. Dual-owner
-  split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
+- **Does not offer a resident / no-stop mode.** A resident
+  `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
+  written last, and only when a clear, model switch, run end, or user-only commit gate applies.
+  Dual-owner split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
 - **Does not orient from durable state**; the position panel restates what this turn already
