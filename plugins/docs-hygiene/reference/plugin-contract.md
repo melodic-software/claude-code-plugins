@@ -69,5 +69,6 @@ with the split.
   (2026-09-29); `check-listing-budget.sh plugins/docs-hygiene/skills` reads
   5,234 / 8,000.
 - **As of:** 2026-09-29.
-- **Recheck:** a listed-skill addition that fails `check-listing-budget.sh`
-  at 8,000, or the `docs-naming` extraction PR landing.
+- **Recheck:** a listed-skill addition that makes `check-listing-budget.sh`
+  report over budget at 8,000 (`WARN`; the script exits 0), or the `docs-naming`
+  extraction PR landing.
