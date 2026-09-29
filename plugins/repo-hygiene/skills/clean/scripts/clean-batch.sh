@@ -24,7 +24,7 @@
 #
 # Usage:
 #   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-#                  [--repo DIR...]... [--repos-from FILE|-]...
+#                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
 #                  [--skip ENTRY]... [--skip-from FILE]...
 #                  [--batch-plan FILE] [--help]
 # Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
@@ -48,7 +48,7 @@ clean-batch.sh — run the selective clean tiers across many repos behind one ga
 
 Usage:
   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-                 [--repo DIR...]... [--repos-from FILE|-]...
+                 [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
                  [--skip ENTRY]... [--skip-from FILE]...
                  [--batch-plan FILE] [--help]
 
@@ -65,13 +65,16 @@ git-tree-reset-batch.sh):
   git     prune/gc each unique shared object store once (git-prune.sh)
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
 
-Repo sources (combine freely; deduped by canonical toplevel):
+Repo sources (combine freely; deduped by canonical toplevel, then by origin URL:
+the first clone is kept, each other is `skipped duplicate of <path>`):
   --repo DIR...      one or more repositories (repeatable). Consumes every
                      consecutive non-flag path, so a shell glob (--repo
                      ~/repos/*) is ingested whole.
   --repos-from FILE  newline-delimited repo paths (FILE, or - for stdin; the way
                      `ghq list -p` output is ingested). Backslash paths are
                      normalized. Repeatable.
+  --fleet            every `ghq list -p` repo (when ghq resolves) plus the chezmoi
+                     source repo (when chezmoi resolves and its source is a git repo).
 
 Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
   --skip ENTRY       skip a repo (repeatable).
@@ -139,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     batch_read_lines_into REPO_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
+  --fleet) batch_discover_fleet REPO_INPUTS ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
     BATCH_SKIP_INPUTS+=("$2")
@@ -236,11 +240,12 @@ summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
 # SCAN: read-only inventory per repo; no plan, nothing to gate.
 # ---------------------------------------------------------------------------
 if [[ "$TIER" == scan ]]; then
-  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
+  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
   batch_resolve_repos "${REPO_INPUTS[@]}"
+  batch_dedupe_clones
   batch_reset_skip_hits
 
-  SKIPPED=0
+  SKIPPED=${#BATCH_DUPS[@]}
   BLOCKED=0
   SCAN_BYTES=0
   printf 'Fleet Clean (scan)\n'
@@ -270,6 +275,7 @@ if [[ "$TIER" == scan ]]; then
     SCAN_BYTES=$((SCAN_BYTES + bytes))
     batch_emit "$top" scanned "$paths path(s), $(clean_human_size "$bytes") reclaimable"
   done
+  batch_emit_dups
   for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
     batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
     BLOCKED=$((BLOCKED + 1))
@@ -442,9 +448,10 @@ fi
 # ---------------------------------------------------------------------------
 # DRY-RUN: enumerate, plan, write the gated plan.
 # ---------------------------------------------------------------------------
-[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
+[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
 
 batch_resolve_repos "${REPO_INPUTS[@]}"
+batch_dedupe_clones
 batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
@@ -483,7 +490,7 @@ batch_reset_skip_hits
 REPOS=${#BATCH_TOPS[@]}
 PLANNED=0
 PLAN_BYTES=0
-SKIPPED=0
+SKIPPED=${#BATCH_DUPS[@]}
 BLOCKED=0
 
 printf 'Fleet Clean (dry-run)\n'
@@ -579,6 +586,8 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   done
   batch_emit "$top" would-clean "$reason"
 done
+
+batch_emit_dups
 
 # Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do

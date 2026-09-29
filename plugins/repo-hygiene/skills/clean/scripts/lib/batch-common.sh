@@ -160,6 +160,84 @@ batch_resolve_repos() {
   done
 }
 
+# batch_remote_key <repo> — echo the repo's origin URL reduced to `host/path`: no
+# scheme, no user@, host lowercased, no trailing `/` or `.git`, scp form
+# (`git@host:o/r`) folded into the URL form. Empty when there is no origin.
+batch_remote_key() {
+  local u scp=1
+  u="$(git -C "$1" remote get-url origin 2>/dev/null | tr -d '\r')"
+  [[ -n "$u" ]] || return 0
+  [[ "$u" == *://* ]] && scp=0
+  u="${u#*://}"
+  u="${u#*@}"
+  [[ $scp -eq 1 && "$u" =~ ^[^/:]+: ]] && u="${u/:/\/}"
+  u="${u%/}"
+  u="${u%.git}"
+  printf '%s%s' "$(tr '[:upper:]' '[:lower:]' <<<"${u%%/*}")" "${u#"${u%%/*}"}"
+}
+
+# Duplicate-clone accumulators, populated by batch_dedupe_clones.
+BATCH_DUPS=()
+BATCH_DUP_OF=()
+
+# batch_dedupe_clones — drop from BATCH_TOPS / BATCH_KEYS every repo whose origin
+# (batch_remote_key) matches an earlier one, keeping the first; the dropped path
+# and the kept path go to BATCH_DUPS / BATCH_DUP_OF. Linked worktrees of one
+# repository share a git common dir and are not clones: they stay, and the
+# per-tier common-dir dedup handles them. A repo with no origin never dedupes.
+batch_dedupe_clones() {
+  local i top rk kept_top common kept_common
+  local -A first=()
+  local -a tops=() keys=()
+  BATCH_DUPS=()
+  BATCH_DUP_OF=()
+  for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
+    top="${BATCH_TOPS[$i]}"
+    rk="$(batch_remote_key "$top")"
+    if [[ -n "$rk" && -n "${first[$rk]:-}" ]]; then
+      kept_top="${first[$rk]}"
+      common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+      kept_common="$(git -C "$kept_top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+      if [[ -z "$common" || "$common" != "$kept_common" ]]; then
+        BATCH_DUPS+=("$top")
+        BATCH_DUP_OF+=("$kept_top")
+        continue
+      fi
+    fi
+    [[ -n "$rk" && -z "${first[$rk]:-}" ]] && first["$rk"]="$top"
+    tops+=("$top")
+    keys+=("${BATCH_KEYS[$i]}")
+  done
+  BATCH_TOPS=("${tops[@]}")
+  BATCH_KEYS=("${keys[@]}")
+}
+
+# batch_emit_dups — one skipped block per duplicate clone.
+batch_emit_dups() {
+  local i
+  for ((i = 0; i < ${#BATCH_DUPS[@]}; i++)); do
+    batch_emit "${BATCH_DUPS[$i]}" skipped "skipped duplicate of ${BATCH_DUP_OF[$i]}"
+  done
+  return 0
+}
+
+# batch_discover_fleet <array-name> — append the repos this machine knows about:
+# every `ghq list -p` entry (when ghq resolves) and the chezmoi source repo (when
+# chezmoi resolves and its source path is inside a git work tree).
+batch_discover_fleet() {
+  local -n _fleet="$1"
+  local src
+  if command -v ghq >/dev/null 2>&1; then
+    batch_read_lines_into _fleet - < <(ghq list -p 2>/dev/null)
+  fi
+  if command -v chezmoi >/dev/null 2>&1; then
+    src="$(chezmoi source-path 2>/dev/null | tr -d '\r')"
+    if [[ -n "$src" && -d "$src" ]] && git -C "$src" rev-parse --show-toplevel >/dev/null 2>&1; then
+      _fleet+=("$src")
+    fi
+  fi
+}
+
 # Unique shared-object-store accumulators, populated by batch_add_gitdir.
 BATCH_GITDIR_KEYS=()
 BATCH_GITDIR_TOPS=()

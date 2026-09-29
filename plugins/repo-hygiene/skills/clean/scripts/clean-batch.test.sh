@@ -476,5 +476,56 @@ git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
 
+# --- fleet discovery (--fleet) and clone dedupe, with ghq / chezmoi shimmed on PATH ---
+SHIM="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM"
+FL_A="$(mkrepo fleet-a)"
+FL_B="$(mkrepo fleet-b)"
+FL_CLONE="$(mkrepo fleet-clone)"
+FL_CZ="$(mkrepo fleet-chezmoi)"
+git -C "$FL_A" remote add origin git@GitHub.com:owner/repo.git
+git -C "$FL_CLONE" remote add origin https://user@github.com/owner/repo
+git -C "$FL_B" remote add origin https://github.com/owner/other.git
+git -C "$FL_CZ" remote add origin https://github.com/owner/dotfiles.git
+printf '#!/bin/sh\nprintf "%%s\\n" "%s" "%s" "%s"\n' "$FL_A" "$FL_B" "$FL_CLONE" >"$SHIM/ghq"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$FL_CZ" >"$SHIM/chezmoi"
+chmod +x "$SHIM/ghq" "$SHIM/chezmoi"
+
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)" || rc=$?
+assert_exit "--fleet dry-run exits 0" 0 "$rc"
+assert_contains "fleet includes the chezmoi source repo" "$out" "Repo: $FL_CZ"
+assert_contains "fleet includes a ghq repo" "$out" "Repo: $FL_B"
+assert_contains "two clones of one remote: the first is kept" "$out" "Repo: $FL_A"$'\n'"Outcome: would-clean"
+assert_contains "the other clone is reported as a duplicate" "$out" "skipped duplicate of $FL_A"
+assert_contains "repos counts the unique repos, the duplicate is skipped" "$out" "repos=3 "
+assert_contains "duplicate counted in skipped" "$out" "skipped=1 blocked=0"
+dup_hits="$(grep -c 'skipped duplicate of' <<<"$out" || true)"
+assert_exit "duplicate reported exactly once" 1 "$dup_hits"
+
+# Dedupe also covers --repo, and the scan tier.
+rc=0
+out="$(bash "$BATCH" --tier scan --repo "$FL_CLONE" "$FL_A" 2>/dev/null)" || rc=$?
+assert_exit "scan with two clones exits 0" 0 "$rc"
+assert_contains "scan keeps the first named clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
+assert_contains "scan reports the second as a duplicate" "$out" "skipped duplicate of $FL_CLONE"
+
+# A missing ghq/chezmoi contributes nothing; an empty fleet is the no-repos error.
+NOTOOLS="$TEST_TMPDIR/notools"
+mkdir -p "$NOTOOLS"
+for t in git bash sed awk grep tr head dirname mktemp mkdir cat rm find sort date uname basename wc du cut; do
+  p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$NOTOOLS/$t"
+done
+rc=0
+PATH="$NOTOOLS" bash "$BATCH" --tier caches --fleet >/dev/null 2>&1 || rc=$?
+assert_exit "--fleet with no ghq/chezmoi and no repos exits 2" 2 "$rc"
+
+# A chezmoi source that is not a git repo is ignored.
+NOGIT="$TEST_TMPDIR/cz-plain"
+mkdir -p "$NOGIT"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)"
+assert_not_contains "non-git chezmoi source is not a fleet entry" "$out" "$NOGIT"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"

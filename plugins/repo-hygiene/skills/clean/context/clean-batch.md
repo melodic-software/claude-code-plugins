@@ -38,7 +38,7 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   --tier <scan|caches|build|git|all> \
   [--dry-run|--apply] \
-  [--repo DIR]... [--repos-from FILE|-]... \
+  [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
   [--skip ENTRY]... [--skip-from FILE]... \
   [--batch-plan FILE]
 ```
@@ -64,12 +64,20 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 | explicit list | `--repo DIR` (repeatable) |
 | shell glob | the shell expands it into repeated `--repo DIR` |
 | `ghq list` | `ghq list -p \| … --repos-from -` (or `--repos-from FILE`) |
+| fleet discovery | `--fleet`: every `ghq list -p` repo when `ghq` resolves, plus `chezmoi source-path` when `chezmoi` resolves and that path is in a git repo. A missing tool adds nothing; no repos at all is a usage error. |
 
 Backslash paths from `ghq list -p` (`<drive>:\repos\...`) are normalized once to the
 git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical toplevel
 (`git rev-parse --show-toplevel`) and deduped, so the same repo named two ways is
 processed once. A non-directory or non-git input is reported as a `blocked`
 outcome, never silently dropped.
+
+Clones are deduped by origin remote, from every source including `--repo` and
+`--repos-from`. The URL is compared with the scheme, `user@` and a trailing `.git` or `/`
+removed, the host lowercased, and scp form (`git@host:o/r`) read as `host/o/r`. The first
+clone stays; each other is one `skipped duplicate of <path>` record, counted in `skipped=`
+and not in `repos=`. Linked worktrees of one repository are not clones and are left to the
+git tier's shared-object-store dedup. A repo with no `origin` is never deduped.
 
 ### Skip list (separator-agnostic)
 
