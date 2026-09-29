@@ -234,8 +234,12 @@ if ((${#shipped_changed[@]} > 0)); then
     fi
     # Process substitution, not a pipe into grep -q: under pipefail a matched
     # grep exits early and SIGPIPEs git (scripts/check-pipefail-grep-q.sh).
+    # The release workflow rebuilds a bundle in the working tree before this
+    # step and commits it after, so uncommitted and untracked files count too.
     if grep -qE 'dist/|bundle' < <(
       git diff --name-only "$merge_base..$head_commit" -- "plugins/$name"
+      git diff --name-only HEAD -- "plugins/$name"
+      git ls-files -o --exclude-standard -- "plugins/$name"
     ); then
       body_block+=$'\n'"  Committed bundle or dist artifact changed with this update."
     fi
