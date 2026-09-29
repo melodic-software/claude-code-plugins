@@ -99,7 +99,7 @@ fi
 # The deferral prints a SKIP line rather than counting an ok. scripts/
 # run-plugin-tests.sh reads `^SKIP:` and names the suite under "Suites with
 # skipped coverage (exit 0 here is NOT evidence those cases ran)", which is
-# what this is: five cases that did not run. An ok would make the aggregate
+# what this is: eight cases that did not run. An ok would make the aggregate
 # read as full coverage. --strict-skips therefore fails here, correctly — a
 # caller declaring a fully provisioned environment is asking for every case to
 # run, and BENCH_LANES=1 is how it gets them.
@@ -162,6 +162,43 @@ if [[ $RC -eq 0 && "$OUT" == *"=== pre-passthrough trace ==="* && "$OUT" == *"TR
   ok "trace-probe: emits the pre-passthrough trace against the repo tee"
 else
   fail "trace-probe: rc=$RC out=${OUT:0:400}"
+fi
+
+# --- trace-probe --count: the non-elected render spawns nothing --------------
+# This is the #2521 property as a number, so a regression fails here instead of
+# waiting for someone to read the trace.
+OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count 2>&1)"
+RC=$?
+if [[ $RC -eq 0 && "$(grep -c ': processes spawned: [0-9]*$' <<<"$OUT")" -eq 6 &&
+"$OUT" == *$'non-elected, unchanged input: processes spawned: 0\n'* &&
+"$OUT" == *$'non-elected, changed input: processes spawned: 0\n'* ]]; then
+  ok "trace-probe --count: six shapes reported, both non-elected renders spawn 0"
+else
+  fail "trace-probe --count: rc=$RC out=$OUT"
+fi
+
+# --- trace-probe --count: the counter sees a spawn --------------------------
+# A stand-in tee that runs one external before the passthrough marker; a counter
+# that reports 0 for it would make the case above vacuous.
+FAKE="$WORK/fake-tee.sh"
+# shellcheck disable=SC2016  # $HOME expands in the fake tee, not here
+printf '#!/usr/bin/env bash\nmkdir -p "$HOME/.claude/rate-limit-guard/spool"\nset +o pipefail\n' >"$FAKE"
+OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count "$FAKE" 2>&1)"
+RC=$?
+if [[ $RC -eq 0 && "$(grep -c ': processes spawned: 1$' <<<"$OUT")" -eq 6 ]]; then
+  ok "trace-probe --count: one external before the marker counts as 1 in every shape"
+else
+  fail "trace-probe --count: fake tee rc=$RC out=$OUT"
+fi
+
+# --- trace-probe --count: an external with no stub is a loud failure ---------
+printf '#!/usr/bin/env bash\nuname\nset +o pipefail\n' >"$FAKE"
+OUT="$(bash "$BENCH_DIR/trace-probe.sh" --count "$FAKE" 2>&1)"
+RC=$?
+if [[ $RC -ne 0 && "$OUT" == *"no stub"* ]]; then
+  ok "trace-probe --count: an unstubbed external aborts instead of going uncounted"
+else
+  fail "trace-probe --count: unstubbed rc=$RC out=$OUT"
 fi
 
 summary
