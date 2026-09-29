@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.10] - 2026-09-29
+
+### Fixed
+
+- **`video-digest` CLIs run under a symlinked plugin root.** The entrypoint check compared unresolved paths, so a CLI started through a symlink or junction printed nothing and exited 0. `video-digest` and `course-digest` now share one realpath-based `isMainModule` from `@melodic/video-digestion/shared/main-module`, and the two skill-local guards are gone.
+- **Vendor package docs and scripts match the code.** The `repo-analysis` README says `node:test` instead of vitest, the `video-digestion` README describes the package as plain ESM JavaScript, and both packages run `node --test` discovery instead of hardcoded test file names.
+
+### Changed
+
+- **`course-digest` CLI tests assert emitted artifacts.** `build-course-json`, `extract-course`, and `discover-resources` are driven through argv with a stubbed `playwright` and their output files are checked. The `build-course-json` test no longer reads or writes real saved auth state, and the `validate-extraction` exit-code assertion is no longer vacuous.
+
 ## [0.14.9] - 2026-09-28
 
 ### Changed
