@@ -2392,9 +2392,15 @@ ps::resolve_literal_call_targets_to() {
   done
   [[ -n "$__rl_inq" ]] && return 0
   ((__rl_depth == 0)) || return 0
+  # Each binding rescans the command, so many bindings could outrun the hook
+  # timeout, and a timed-out row blocks nothing. Past this cap the text is
+  # returned unchanged, so every call site keeps its unresolved verdict.
+  ((${#__rl_names[@]} <= 8)) || return 0
 
   __rl_out="$__rl_s"
-  for __rl_i in "${!__rl_names[@]}"; do
+  # Latest binding first: a rewrite lands after its own binding, so the
+  # offsets of earlier bindings stay valid.
+  for ((__rl_i = ${#__rl_names[@]} - 1; __rl_i >= 0; __rl_i--)); do
     __rl_name="${__rl_names[__rl_i]}"
     __rl_lit="${__rl_literals[__rl_i]}"
     __rl_end="${__rl_ends[__rl_i]}"

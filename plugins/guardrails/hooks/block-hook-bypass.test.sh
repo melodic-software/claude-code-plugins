@@ -1122,6 +1122,16 @@ run_pwsh "PS: & \$sh rebound by a multiple assignment (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; \$sh, \$y = ${Q}Set-Content${Q}, 1; & \$sh f.txt x" 2
 run_pwsh "PS: & \$sh rebound through a parenthesized target (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; (\$sh) = ${Q}Set-Content${Q}; & \$sh f.txt x" 2
+# A rewrite lengthens the text after its binding; a later binding still resolves.
+run_pwsh "PS: two literal bindings, a long first literal (allowed — #4234)" \
+  "\$a=${Q}xxxxxxxxxxxxxxxxxxxx${Q}; & \$a f x; \$b=${Q}b.exe${Q}; & \$b f x" 0
+# Past the binding cap nothing resolves, so the scan stays bounded well under
+# the hook timeout and the computed-positional call still blocks.
+PS_MANY_BINDINGS=""
+for i in $(seq 1 600); do PS_MANY_BINDINGS+="\$v$i=${Q}x${Q}; & \$v$i f x; "; done
+_t0=$SECONDS
+run_pwsh "PS: 600 literal bindings (blocked, bounded — #4234)" "$PS_MANY_BINDINGS" 2
+((SECONDS - _t0 < 30)) || bad "PS: 600 literal bindings took $((SECONDS - _t0))s"
 run_pwsh "PS: & \$sh rebound by -OutVariable (blocked — #4234)" \
   "\$sh=${Q}bash.exe${Q}; gci -ov sh; & \$sh f x" 2
 run_pwsh "PS: & \$sh after a dot-sourced script (blocked — #4234)" \
