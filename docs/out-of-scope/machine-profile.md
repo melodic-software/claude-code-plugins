@@ -40,11 +40,11 @@ invariant (a `true` skill cannot be invoked by any other skill). No
 `machine-profile` skill or plugin under `plugins/`. `machine-health` already
 owns a `config` category for declared-configuration drift.
 **As of:** 2026-09-29.
-**Recheck:** `scripts/validate-plugin-contracts.mjs` stops requiring
-`disable-model-invocation: true` on setup skills
+**Recheck:** a setup skill drops `disable-model-invocation: true`
 (`git grep -L 'disable-model-invocation: true' -- 'plugins/*/skills/setup/SKILL.md'`
-lists one), or a maintainer funds a `claude-ops` skill whose only job is a
-read-only host-fact document that `machine-health` consumes.
+lists a file; it lists none today), or a maintainer funds a `claude-ops` skill
+whose only job is a read-only host-fact document that `machine-health`
+consumes.
 
 ## Rationale
 
