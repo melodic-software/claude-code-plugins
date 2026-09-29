@@ -180,6 +180,8 @@ and the upstream-claim rule (raw markdown only; absence from a summary is not ev
 
 ### Person-invoked `/doctor` suggestion
 
+Relay the sentence below to the user and do not run `/doctor` yourself: it is reserved for the person to run.
+
 If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this read-only inventory does not perform.
 
 **`unattended`:** record this suggestion in the report's final section; do not ask.

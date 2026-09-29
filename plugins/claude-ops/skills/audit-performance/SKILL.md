@@ -28,7 +28,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Question | Owner |
 |---|---|
 | Why is Claude Code slow right now? | **this skill** |
-| The historical cost of these hooks over past sessions | `/doctor` if it resolves in this session (compose: run AFTER this capture. It reads transcripts, which this engine never does, and is not time-sensitive) |
+| The historical cost of these hooks over past sessions | Not this engine: its Never-read rule bars transcripts. A `/doctor` session can read them, so the person asks there (see Reading the report) |
 | What exactly is in the install tree, and is anything stale? | `/claude-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/claude-ops:plugins audit` |
 | Is this a known upstream bug? | `/claude-ops:known-issues` (compose: search the symptoms this report surfaces) |
@@ -48,15 +48,13 @@ conflated whenever a session feels slow:
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
-**Routing.** Capture first, `/doctor` second. This skill is capture-at-moment tooling: a report
-taken after the stall ends supports no conclusion about the incident, and prepending a
-prerequisite adds latency on a host that is already slow. `/doctor` reads transcripts, which
-this engine never does, and that half is not time-sensitive. When `doctor` resolves in your
-session, run it after this capture for the transcript-derived half and for anything the user
-wants fixed in place, and prefer `claude doctor` when a session will not start. Prefer this
-skill when the question is why it is slow right now: the timings, the fan-out layer, and the
-retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns the
-deep inventory of the tree against the same surface.
+**Routing.** Capture first. This skill is capture-at-moment tooling: a report taken after the
+stall ends supports no conclusion about the incident, and prepending a prerequisite adds latency
+on a host that is already slow. Transcript-derived history is covered under Reading the report,
+and the run-end suggestion offers `/doctor`. Prefer `claude doctor` when a session will not
+start. Prefer this skill when the question is why it is slow right now: the timings, the fan-out
+layer, and the retention-sweep state have no native counterpart. Its sibling `audit-install-state`
+owns the deep inventory of the tree against the same surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
 it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
@@ -135,9 +133,9 @@ Lead with `sweep_health.findings`, then work the suspects in order. For each, st
 evidence supports and what it cannot distinguish. This report is one sample, not a longitudinal
 study.
 
-When `doctor` resolves in this session, run it after this capture for the transcript-derived
-half of a slowness diagnosis. This engine never reads `history.jsonl` or transcript files; `/doctor`
-does. That pass is not time-sensitive. Do not prepend it.
+This engine never reads `history.jsonl` or transcript files, so it cannot report hook cost
+over past sessions. A `/doctor` session can read them, so a person who wants the transcript-derived
+history asks there. That is not time-sensitive: do not prepend it.
 
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of
@@ -276,7 +274,9 @@ subsystem).
 
 ## Run-end suggestion
 
-Shared `/doctor` surface facts live in [audit-install-state's Boundary section](../audit-install-state/SKILL.md#boundary-the-bundled-doctor-skill). If /doctor is available in your session (gate basis in that section), run it for the quick health-and-fix pass this timed capture does not perform.
+Relay the sentence below to the user and do not run `/doctor` yourself: it is reserved for the person to run.
+
+If /doctor is available in your session (claim: `/doctor` is reserved for the person to run, `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, both fetched 2026-09-29, and the 2.1.263 binary registering it as model-invocation-disabled on 2026-09-11; as of 2026-09-29; recheck: either page drops that gate, or a release lets the model invoke it), run it for the quick health-and-fix pass this timed capture does not perform.
 
 **`unattended`:** record the suggestion in the report's final section; do not ask.
 
