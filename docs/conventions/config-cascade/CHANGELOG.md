@@ -7,6 +7,12 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Consumer gotchas forms narrowed, 2026-09-29
+
+- **`consumer-gotchas.md` permits one local form (#3547).** Consumer gotchas live in the `## Gotchas`
+  section of the plugin's existing cascade file; the dedicated `.claude/<plugin>/gotchas.md` form is
+  removed and the plugin-cache rationale corrected. No `contract_version` bump: narrows a sibling doc.
+
 ## Consumer gotchas reader wiring, 2026-09-28
 
 - **`bugs` concatenates consumer `## Gotchas` at skill load (#3547).** `/bugs:scan` and
