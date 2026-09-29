@@ -274,11 +274,24 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .frow .ttl{flex:1;font:500 12px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .tabs{display:flex;flex-wrap:wrap;gap:4px}
 .tabs button{border:1px solid var(--line);background:var(--ground);border-radius:5px;padding:4px 8px;font:12.5px var(--sans);cursor:pointer}
+.tgroup{margin-bottom:6px}
+.tgh{font:600 11px var(--mono);color:var(--faint);margin-bottom:3px}
 .tabs button[aria-selected="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .fbody{overflow:auto;padding:12px 14px;display:grid;gap:10px;align-content:start;overflow-wrap:anywhere}
 .fbody .md,.fsstage .md{font-size:max(var(--min-text),14px)}
 .fbody iframe{width:100%;height:min(56vh,420px);border:1px solid var(--line);border-radius:6px;background:var(--panel)}
 .fscope{font:11.5px var(--mono);color:var(--faint)}
+.vimg{max-width:100%}
+.gstrip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.gstrip button{flex:none;border:2px solid var(--line);background:var(--ground);border-radius:5px;padding:2px;cursor:pointer;font:11px var(--mono);color:var(--muted)}
+.gstrip button[aria-current="true"]{border-color:var(--accent)}
+.gstrip button.b{border-style:dashed;border-color:var(--chg)}
+.gstrip img{display:block;height:52px;width:auto;max-width:120px;object-fit:cover}
+.gpair{display:flex;gap:10px;align-items:flex-start}
+.gfig{flex:1;min-width:0;margin:0;display:grid;gap:4px}
+.gfig figcaption{font:11.5px var(--mono);color:var(--muted)}
+.fsstage .gpair{height:100%;box-sizing:border-box;padding:16px;align-items:center}
+.fsstage .gfig img{max-height:calc(100vh - 120px)}
 .nthread{display:grid;gap:10px}
 .nmsg{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:grid;gap:4px;font-size:13.5px}
 .nmsg.claude{border-color:var(--accent);background:var(--accent-soft)}
@@ -404,6 +417,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     <button class="tbtn small" data-z="out" title="Zoom out (-)" aria-keyshortcuts="-">-</button><span class="kbd" id="fsZ">100%</span>
     <button class="tbtn small" data-z="in" title="Zoom in (+)" aria-keyshortcuts="+">+</button>
     <button class="tbtn small" data-z="fit" title="Fit (0)" aria-keyshortcuts="0">Fit</button>
+    <button class="tbtn small" id="fsCmp" data-gcompare="1" hidden>Compare</button>
+    <button class="tbtn small" id="fsTab" data-vopen="">Open in new tab</button>
     <button class="tbtn small" id="fsClose" title="Close (Esc)" aria-keyshortcuts="Escape">Close</button></div>
   <div class="fsview" id="fsView"><div class="fsstage" id="fsStage"></div></div>
 </div>
@@ -433,14 +448,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm choice N as numbered on screen"],
     ["a", "Arm Accept; on a stale question with a decision, Reconfirm it (choice 1)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["r", "Reopen"], ["i", "Focus the note"],
     ["Esc", "Leave the note and keep the draft; again to close the panel"], ["n / Shift+N", "Next / previous item needing you"], ["j / k, Alt+Down / Alt+Up", "Next / previous question"],
-    ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["w", "Summary and wrap-up"],
+    ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["Left / Right", "Previous / next image in a gallery, while the visuals panel or full screen has focus"], ["w", "Summary and wrap-up"],
     ["u", "Undo, during the undo window"], ["/", "Filter"], ["?", "This sheet"]];
   const LOADED_AT = Date.now();
 
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, vfiles: {}};
+    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -813,12 +828,64 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- detail ----------
   function visualsFor(q){
-    if (!q) return (S.doc.visuals || []).filter(v => v.scope === "all");
+    const live = (S.doc.visuals || []).filter(v => !v.archived), byOrder = (a, b) => (a.order || 0) - (b.order || 0);
+    if (!q) return live.filter(v => v.scope === "all").sort(byOrder);
     const scopes = ["all", "question:" + q.id, "group:" + q.group, "round:" + (q.stage || "") + ":" + (q.round || 1)];
-    const own = (q.visuals || []).map(v => typeof v === "string" ? (S.doc.visuals || []).find(x => x.id === v) : v).filter(Boolean);
+    const own = (q.visuals || []).map(v => typeof v === "string" ? live.find(x => x.id === v) : v).filter(v => v && !v.archived);
     return [...own.map(v => Object.assign({where: "this question"}, v)),
-      ...(S.doc.visuals || []).filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))];
+      ...live.filter(v => scopes.includes(v.scope) && !own.includes(v)).map(v => Object.assign({where: v.scope.startsWith("group:") ? "this group" : v.scope === "all" ? "all questions" : v.scope.startsWith("question:") ? "this question" : "this round"}, v))].sort(byOrder);
   }
+  const TAB_MAX = 28;
+  function vtabGroups(vis){ // grouped tabs in first-seen group order, ungrouped last; labels distinct within a group
+    const by = new Map(); vis.forEach(v => { const k = v.group || ""; by.set(k, (by.get(k) || []).concat(v)); });
+    const cut = s => s.length > TAB_MAX ? s.slice(0, TAB_MAX - 1).trimEnd() + "…" : s;
+    return [...by].sort((a, b) => !a[0] - !b[0]).map(([group, vs]) => {
+      const titles = vs.map(v => (v.title || v.id).trim());
+      let p = titles.length > 1 ? titles.reduce((a, t) => { let i = 0; while (i < a.length && a[i] === t[i]) i++; return a.slice(0, i); }) : "";
+      p = (p.match(/^.*\s/) || [""])[0];
+      const seen = new Map();
+      return {group, tabs: vs.map((v, i) => {
+        const label = v.label || cut(titles[i].slice(p.length)), n = seen.get(label) || 0;
+        seen.set(label, n + 1);
+        return {id: "v:" + v.id, v, title: n ? label + " (" + (n + 1) + ")" : label, tip: v.title || ""};
+      })};
+    });
+  }
+  const isImg = v => (v.format || v.kind) === "image";
+  function galleries(vis){ // a gallery of every image when there are two or more, and one per named group holding a smaller set
+    const im = vtabGroups(vis).flatMap(g => g.tabs.map(x => x.v)).filter(isImg);
+    if (im.length < 2) return [];
+    const out = [{id: "gallery:*", title: "Gallery", imgs: im}];
+    [...new Set(im.map(v => v.group).filter(Boolean))].forEach(g => { const gi = im.filter(v => v.group === g); if (gi.length > 1 && gi.length < im.length) out.push({id: "gallery:" + g, title: "Gallery: " + g, imgs: gi}); });
+    return out;
+  }
+  const curGallery = () => galleries(visualsFor(S.sel !== SUMMARY ? Q[S.sel] : null)).find(x => x.id === S.vtab);
+  function galPick(imgs){ // settle the two shown images against the current set: a is the flipped one, b the compared one
+    const g = S.gal, i = Math.max(0, imgs.findIndex(v => v.id === g.a));
+    g.a = imgs[i].id;
+    if (g.b === g.a || !imgs.some(v => v.id === g.b)) g.b = imgs[(i + 1) % imgs.length].id;
+    return [imgs[i], imgs.find(v => v.id === g.b)];
+  }
+  function galFigs(imgs){
+    const [a, b] = galPick(imgs), fig = v => { const vb = visualBody(v); return '<figure class="gfig"><figcaption>' + esc(v.title || v.id) + "</figcaption>" + (vb.html || vb.md) + "</figure>"; };
+    return '<div class="gpair">' + fig(a) + (S.gal.on ? fig(b) : "") + "</div>";
+  }
+  function galBody(imgs){
+    const [a, b] = galPick(imgs), on = S.gal.on;
+    const thumb = v => { const vb = visualBody(v), cur = v.id === a.id, cmp = on && v.id === b.id;
+      return '<button data-gthumb="' + esc(v.id) + '"' + (cur ? ' aria-current="true"' : "") + (cmp ? ' class="b"' : "") + ' title="' + esc(v.title || v.id) + '" aria-label="' + esc(v.title || v.id) + (cmp ? " (compared)" : "") + '">' + (vb.html || esc(trunc(v.title || v.id, 14))) + "</button>"; };
+    return '<div class="gstrip">' + imgs.map(thumb).join("") + "</div>" + galFigs(imgs) +
+      '<div class="arow"><button class="tbtn small" data-gflip="-1" aria-keyshortcuts="ArrowLeft">Previous</button><button class="tbtn small" data-gflip="1" aria-keyshortcuts="ArrowRight">Next</button>' +
+      '<button class="tbtn small" data-gcompare="1" aria-pressed="' + on + '">Compare</button>' +
+      (on ? '<label class="kbd">with <select data-gcmp="1">' + imgs.filter(v => v.id !== a.id).map(v => '<option value="' + esc(v.id) + '"' + (v.id === b.id ? " selected" : "") + ">" + esc(v.title || v.id) + "</option>").join("") + "</select></label>" : "") +
+      '<button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button><button class="tbtn small" data-vopen="' + esc(a.id) + '">Open in new tab</button><span class="kbd">Left and Right flip</span></div>';
+  }
+  function galRefresh(){ // the panel body is rebuilt, so focus goes back to the current thumbnail when it was inside the panel
+    const inFly = $("fly").contains(document.activeElement);
+    renderFly(); if (!$("fs").hidden) fsOpen();
+    if (inFly && $("fs").hidden) { const c = $("fbody").querySelector('[data-gthumb][aria-current="true"]'); if (c) c.focus(); }
+  }
+  function galFlip(d){ const g = curGallery(); if (!g) return; const i = g.imgs.findIndex(v => v.id === S.gal.a); S.gal.a = g.imgs[(Math.max(i, 0) + d + g.imgs.length) % g.imgs.length].id; galRefresh(); }
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer"].includes(k)) return null;
@@ -1106,7 +1173,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     c.at = Date.now();
     if ((S.vfiles[v.id] || {}).key !== key) return;
     S.vfiles[v.id] = c;
-    if (S.fly === "visuals" && S.vtab === "v:" + v.id) { renderFly(); if (!$("fs").hidden) fsOpen(); }
+    if (S.fly === "visuals" && (S.vtab === "v:" + v.id || /^gallery:/.test(S.vtab))) { renderFly(); if (!$("fs").hidden) fsOpen(); }
   }
   // html may run scripts; allow-same-origin stays off, so the frame is an opaque origin that cannot reach the token, cookies or the page DOM
   function frameTag(vb, title){ return '<iframe sandbox="' + (vb.scripts ? "allow-scripts" : "") + '" title="' + esc(title) + '"></iframe>'; }
@@ -1122,7 +1189,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (f === "markdown") return {md: md(v.content)};
     if (f === "image") { // only a data:image/ or http(s) URL renders; anything else shows as text
       const s = v.content;
-      if (typeof s === "string" && /^(data:image\/|https?:\/\/)/i.test(s)) return {html: '<img alt="' + esc(v.title || v.id) + '" src="' + esc(s) + '" style="max-width:100%">'};
+      if (typeof s === "string" && /^(data:image\/|https?:\/\/)/i.test(s)) return {html: '<img alt="' + esc(v.title || v.id) + '" src="' + esc(s) + '" class="vimg">'};
       return {md: '<div class="md"><pre><code>' + esc(typeof s === "string" ? s : JSON.stringify(s)) + "</code></pre></div>"};
     }
     if (f === "mermaid") return {md: '<div class="md"><p class="empty">Mermaid rendering is not available in this version. Source:</p><pre><code>' + esc(v.content) + "</code></pre></div>"};
@@ -1143,15 +1210,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.fly === "notes") { $("flyTitle").textContent = "Notes to Claude"; renderNotes(body); return; }
     if (S.fly === "activity") { $("flyTitle").textContent = "Activity"; renderActivity(body); return; }
     if (S.fly === "settings") { $("flyTitle").textContent = "Settings"; renderSettings(body); return; }
-    const vis = visualsFor(q), subs = vis.map(v => ({id: "v:" + v.id, title: v.title || v.id, v})).concat([{id: "map", title: "Map"}]);
-    if (!subs.some(t => t.id === S.vtab)) S.vtab = subs[0].id;
+    const vgs = vtabGroups(visualsFor(q)), flat = vgs.flatMap(g => g.tabs), tail = galleries(visualsFor(q)).concat([{id: "map", title: "Map"}]), subs = flat.concat(tail);
+    if (!subs.some(t => t.id === S.vtab)) S.vtab = (flat.find(x => x.v.primary) || subs[0]).id;
     $("flyTitle").textContent = q ? "Visuals for " + q.id : "Visuals";
     const t = subs.find(x => x.id === S.vtab);
-    let h = '<div class="tabs">' + subs.map(x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '">' + esc(x.title) + "</button>").join("") + "</div>";
+    const tabBtn = x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '"' + (x.tip ? ' title="' + esc(x.tip) + '"' : "") + ">" + esc(x.title) + "</button>";
+    let h = vgs.map(g => '<div class="tgroup"' + (g.group ? ' role="group" aria-label="' + esc(g.group) + '"' : "") + ">" + (g.group ? '<div class="tgh">' + esc(g.group) + "</div>" : "") + '<div class="tabs">' + g.tabs.map(tabBtn).join("") + "</div></div>").join("") +
+      '<div class="tgroup"><div class="tabs">' + tail.map(tabBtn).join("") + "</div></div>";
     if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true); return; }
+    if (t.imgs) { body.innerHTML = h + galBody(t.imgs); return; }
     const vb = visualBody(t.v);
     h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.v.title || t.v.id)) +
-      '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
+      '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button><button class="tbtn small" data-vopen="' + esc(t.v.id) + '">Open in new tab</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
     body.innerHTML = h;
     const fr = body.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame);
   }
@@ -1212,7 +1282,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     FS.x = cx - (cx - FS.x) * nz / FS.z; FS.y = cy - (cy - FS.y) * nz / FS.z; FS.z = nz; fsApply();
   }
   function fsOpen(){
-    const q = Q[S.sel], t = visualsFor(q).find(v => "v:" + v.id === S.vtab); if (!t) return;
+    const q = Q[S.sel], g = curGallery(), t = g || visualsFor(q).find(v => "v:" + v.id === S.vtab); if (!t) return;
+    $("fsCmp").hidden = !g; $("fsCmp").setAttribute("aria-pressed", String(S.gal.on));
+    $("fsTab").dataset.vopen = g ? galPick(g.imgs)[0].id : t.id;
+    if (g) {
+      $("fsTitle").textContent = g.title + (q ? " (" + q.id + ")" : "");
+      $("fsStage").innerHTML = galFigs(g.imgs); FS.z = 1; FS.x = 0; FS.y = 0; fsApply();
+      $("fs").hidden = false; $("fsClose").focus(); return;
+    }
     const vb = visualBody(t), st = $("fsStage");
     $("fsTitle").textContent = (t.title || t.id) + (q ? " (" + q.id + ")" : "");
     st.innerHTML = (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.title || t.id));
@@ -1315,6 +1392,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       throw Object.assign(new Error("restarted"), {quiet: true});
     }
     return {res, data};
+  }
+  // A new tab gets a one-time link, so the token never enters a URL, and the server sends it with a
+  // sandbox CSP, so it is an opaque origin. Never a blob: URL: a blob inherits this page's origin.
+  // The tab opens blank inside the click, so no popup blocker sees an open after the await.
+  async function openTab(id){
+    const w = window.open("", "_blank");
+    if (!w) { toast("The browser blocked the new tab.", true); return; }
+    w.opener = null;
+    try {
+      const res = await fetch("/api/visual-open", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-Interview-Token": TOKEN}, body: JSON.stringify({id})});
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || "HTTP " + res.status);
+      w.location.href = new URL(b.url, location.href).href;
+    } catch (e) { w.close(); toast("Could not open it in a new tab: " + e.message, true); }
   }
   function toast(msg, bad, undo){ S.toast = msg; S.toastBad = !!bad; if (!undo) S.undo = null; renderToast(); }
   let undoTimer = null;
@@ -1590,8 +1681,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("#pinBtn")) { S.pinned = !S.pinned; lsSet("pinned", S.pinned); renderFly(); return; }
     const vt = t.closest("[data-vtab]"); if (vt) { S.vtab = vt.dataset.vtab; renderFly(); return; }
     if (t.closest("[data-replay]")) { renderFly(); return; }
+    const gt = t.closest("[data-gthumb]"); if (gt) { S.gal.a = gt.dataset.gthumb; galRefresh(); return; }
+    const gf = t.closest("[data-gflip]"); if (gf) { galFlip(+gf.dataset.gflip); return; }
+    if (t.closest("[data-gcompare]")) { S.gal.on = !S.gal.on; galRefresh(); return; }
     if (t.closest("[data-full]")) { fsOpen(); return; }
-    const z = t.closest("[data-z]"); if (z) { if (z.dataset.z === "fit") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); } else fsZoom(z.dataset.z === "in" ? 1.25 : 0.8); return; }
+    const vo = t.closest("[data-vopen]"); if (vo) { openTab(vo.dataset.vopen); return; }
+    const z =t.closest("[data-z]"); if (z) { if (z.dataset.z === "fit") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); } else fsZoom(z.dataset.z === "in" ? 1.25 : 0.8); return; }
     if (t.closest("#fsClose")) { fsClose(); return; }
     const rs = t.closest("[data-reset]"); if (rs) { setLocal(rs.dataset.reset, undefined); renderFly(); renderAll(); return; }
     const cp = t.closest("[data-cpdismiss]"); if (cp) { lsSet("cpDismissed", +cp.dataset.cpdismiss); renderDetail(); return; }
@@ -1599,6 +1694,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("change", e => {
     const t = e.target;
     if (t.name === "choice") { arm(+t.value); return; }
+    if (t.dataset && t.dataset.gcmp) { S.gal.b = t.value; galRefresh(); return; }
     if (t.id === "filter") { S.filter = t.value; lsSet("filter", S.filter); renderRail(); return; }
     if (t.dataset && t.dataset.set) {
       const k = t.dataset.set; let v = t.value;
@@ -1633,6 +1729,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       return;
     }
     if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && e.target.closest && e.target.closest("[data-submit]")) { e.preventDefault(); return; } // dictation: plain Enter never submits
+    const flip = (e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey ? (e.key === "ArrowRight" ? 1 : -1) : 0;
+    if (flip && (fullScreen || (S.fly === "visuals" && $("fly").contains(document.activeElement))) && !(e.target.closest && e.target.closest("select")) && curGallery()) { e.preventDefault(); galFlip(flip); return; }
     if (fullScreen) {
       if (e.key === "+" || e.key === "=") fsZoom(1.25); else if (e.key === "-") fsZoom(0.8); else if (e.key === "0") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); }
       return;

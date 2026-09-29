@@ -47,14 +47,18 @@ seal_dir="$(mktemp -d)"
 probe_out="$seal_dir/probe.out"
 trap 'rm -rf "$seal_dir"' EXIT
 mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe"
+# The probe's working directory sits 4 levels below seal_dir, so the ancestor rung's 4
+# parents are all inside seal_dir and none holds a repository.
+probe_cwd="$seal_dir/a/b/c/d"
+mkdir -p "$probe_cwd"
 
 # Seal config/project env so probes never reach a maintainer fleet config or an
 # incidental project-scoped rung. No network, no gh, no discovery.
-# The probe also runs from a non-Git directory with no ghq, so the collector's
-# no-scope ladder (ghq root, then the working directory) finds nothing either.
+# The probe also runs from a non-Git directory with no ghq and no ancestor holding
+# repositories, so the collector's no-scope ladder finds nothing either.
 script_abs="$(cd "$(dirname "$SCRIPT")" && pwd)/$(basename "$SCRIPT")"
 run_sealed() {
-  (cd "$seal_dir/probe" && env -i \
+  (cd "$probe_cwd" && env -i \
     PATH="$PATH" \
     HOME="$seal_dir/home" \
     USERPROFILE="$seal_dir/home" \
