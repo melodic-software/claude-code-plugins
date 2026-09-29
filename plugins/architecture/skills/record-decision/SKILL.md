@@ -1,5 +1,5 @@
 ---
-description: "Record an architecture decision into the repository's existing ADR convention: discovers the ADR directory, numbering scheme, and record shape in use and writes one record that follows them; when no convention exists it names what it searched, offers common shapes, and writes nothing until the human chooses. Use when: 'record this decision', 'write an ADR', 'architecture decision record', 'capture this decision', 'document why we chose X', or after a design handoff or interview resolves a decision worth keeping. Skip when: the decision is easily reversed and unsurprising (no ADR earned), or the ask is supersession, an index, or status lifecycle beyond what the convention already defines."
+description: "Record an architecture decision as one record in the repository's existing ADR convention; with no convention, name what was searched, offer shapes, and write nothing until the human chooses. Use when: 'record this decision', 'write an ADR', 'architecture decision record', 'document why we chose X', or after a design handoff or interview resolves a decision worth keeping. Skip when: the decision is easily reversed and unsurprising, or the ask is supersession or an index."
 argument-hint: "[decision and its rationale, or a path to a file holding them]"
 user-invocable: true
 disable-model-invocation: false
