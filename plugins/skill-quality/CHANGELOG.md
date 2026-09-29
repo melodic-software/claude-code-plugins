@@ -19,7 +19,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   when empty, containing whitespace, or an unquoted flow collection or boolean/null literal;
   Bedrock ids with `:`, inference profile ARNs, and Vertex ids with `@` pass. The unquoted-colon
   check now covers every continuation line of a plain `description` and a line ending in `:`,
-  ignoring a trailing ` #` YAML comment.
+  ignoring a trailing YAML comment.
 - **`measure-invocation`: `score` exits 2 with guidance when no probe `skill_dir` resolves**
   ([#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526)). `validate`
   keeps its per-file WARN and adds an unresolved-count line. The `measure-invocation` action
