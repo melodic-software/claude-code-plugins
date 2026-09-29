@@ -17,19 +17,18 @@ brackets are resolved per repo by `plan` before the step runs.
 Authorize the candidate-count consent gate for the whole repo. Tag any `alive` notes it adds with
 `dissolve-comments-ignore` so the residue-dissolve step keeps them.
 
+Stays primed: the audit fans out fresh-context subagents when the candidate set is large.
+
 ### batch-simplify
 
 - skill: code-tidying:batch-simplify
-- args: repo docs
+- args: repo docs in-place
 - applies-when: repo has source code
 - checked: true
-- issue: #4503
 
-#### Override
+#### Notes
 
-Stay on the current branch. Do not create a branch or a pull request, and do not commit per
-group; leave all changes uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4503.
+Stays primed: it spawns agents for each wave.
 
 ### residue-dissolve
 
@@ -67,34 +66,33 @@ workflows, pass `dissolve-comments override <path>` for each workflow the operat
 Resolve or delete each marker in place. Do not file work items to a tracker; list any marker that
 needs tracked work in the step's `Scope decisions:` instead.
 
+Stays primed: the model decides per marker whether to resolve or delete it.
+
 ### tidy
 
 - skill: code-tidying:tidy
 - args: <lane> | <lane1>,<lane2>,... | all
 - applies-when: repo has source code or prose that at least one tidy lane covers
 - checked: false
-- issue: #4503
 
 #### Notes
 
 `code-tidying:tidy` runs one lane per invocation. When the sweep should tidy more than one lane,
 resolve `args` to a comma-separated lane list or `all` (every lane in the union of bundled and
 `.claude/tidy-lanes/*.md` names that applies to this repo, excluding the maintainer-only
-`self-update` lane). `next` invokes tidy once per lane in that list inside this single step. Present findings from every lane together for review; one step
-commit covers all lanes. Ad hoc globs with no lane file still need a project lane definition or a
-separate manual tidy outside repo-sweep.
+`self-update` lane). `next` invokes tidy once per lane in that list inside this single step.
+Present findings from every lane together for review; one step commit covers all lanes. Pass
+`in-place` on every tidy invocation: it stays on the current branch, opens no branch or PR, and
+leaves the changes staged for the step commit. Glob scope runs through tidy's `<glob>...` row.
+
+Stays primed: each lane hunt is a multi-phase workflow with self-review, not a script run.
 
 Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
-bundled lanes, and `self-update` is maintainer-only. Basis: `code-tidying` 0.23.11
-`skills/tidy/SKILL.md` (argument-hint, lane resolution, `self-update` row). As of: 2026-09-28.
-Recheck: tidy accepts several lanes in one call, or changes where it reads lanes from; prefer the
-lane list tidy's own `help` prints over this note when they differ.
-
-#### Override
-
-Stay on the current branch. Do not create a branch or a pull request, and do not commit per
-tidying; leave all changes uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4503.
+bundled lanes, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
+Basis: `code-tidying` 0.23.20 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
+`in-place`, and `self-update` rows). As of: 2026-09-29. Recheck: tidy accepts several lanes in one
+call, changes where it reads lanes from, or renames `in-place`; prefer the lane list tidy's own
+`help` prints over this note when they differ.
 
 ## Phase 2: existence and copies
 
@@ -104,6 +102,10 @@ melodic-software/claude-code-plugins#4503.
 - args: sweep .
 - applies-when: repo has tracked markdown
 - checked: true
+
+#### Notes
+
+Stays primed: `sweep` runs fresh read-only subagents over the corpus.
 
 ### provenance
 
@@ -119,6 +121,8 @@ Runs before every prose rewriter so fingerprints stay intact. `audit` is the rea
 approved findings with `attribution:audit fix <file>`, one file at a time when the per-file
 closure record is wanted.
 
+Stays primed: the audit dispatches nominating subagents and blind judges.
+
 ### codebase-health
 
 - skill: codebase-health:audit
@@ -131,6 +135,8 @@ closure record is wanted.
 The audit's `--fix` applies nothing: it suggests `/implementation:implement` and then
 `/verification:confirm`, and tells the model not to invoke either. The bare audit stops at the
 report, and the step applies the agreed fixes itself.
+
+Stays primed: the audit fans out parallel subagents to verify each claim.
 
 ### overengineering
 
@@ -153,6 +159,10 @@ them as delegated. Audit those four in a separate org- or machine-level pass.
 - applies-when: repo ships Claude Code skills or agents
 - checked: false
 
+#### Notes
+
+Stays primed: the script only emits candidate pairs, and each verdict row needs a reading.
+
 ### claude-config
 
 - skill: claude-config:audit
@@ -163,6 +173,9 @@ them as delegated. Audit those four in a separate org- or machine-level pass.
 #### Notes
 
 Project scope only. Drop findings on user-scope or managed settings.
+
+Stays primed: an engine script settles the deterministic rows, then the model judges the rest and
+applies `--fix`.
 
 ## Phase 3: instruction content
 
@@ -179,6 +192,8 @@ Audit agent-instruction files only (CLAUDE.md, AGENTS.md, rules, skill and agent
 strings in code), never human-facing docs. Ask it to apply the accepted edits. Apply deletes and
 rewrites only; moves belong to the instruction-placement step.
 
+Stays primed: the model reads each instruction file and applies the accepted edits.
+
 ### audit-instructions
 
 - skill: claude-config:audit-instructions
@@ -190,6 +205,8 @@ rewrites only; moves belong to the instruction-placement step.
 
 Apply repo-scope delete and rewrite findings only; moves belong to the instruction-placement step.
 Drop findings on `~/.claude`; the dotfiles sweep handles them.
+
+Stays primed: it fans out fresh-context subagents to judge each instruction.
 
 ### claude-memory
 
@@ -205,6 +222,8 @@ the instruction-placement step. C9 additions are in scope too: one line per miss
 command, verified against the repo's manifest or task runner. Drop findings on `~/.claude` and
 auto-memory; the dotfiles sweep handles them.
 
+Stays primed: a script spine covers a few checks, and the rest need model reading before `fix`.
+
 ### prompting-postures
 
 - skill: claude-config:audit-prompting-postures
@@ -216,12 +235,18 @@ auto-memory; the dotfiles sweep handles them.
 
 Project scope only.
 
+Stays primed: it dispatches a fresh-context verifier per surface batch.
+
 ### mcp-tools
 
 - skill: mcp-tools:audit
 - args:
 - applies-when: repo defines MCP servers
 - checked: false
+
+#### Notes
+
+Stays primed: phase 2 may fan out subagents when the repo defines five or more tools.
 
 ## Phase 4: structure
 
@@ -236,19 +261,21 @@ Project scope only.
 
 Accept its offered repo-wide tracked run rather than passing `.`.
 
+Stays primed: past a small file count it fans out subagents with a verification pass.
+
 ### extract-ssot
 
 - skill: docs-hygiene:extract-ssot
 - args: identify
 - applies-when: repo has tracked markdown
 - checked: true
-- issue: #4504
 
-#### Override
+#### Notes
 
-Apply with `batch` or `--fix` after `identify`. Do not commit per wave; leave all changes
-uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4504.
+Apply the identified clusters with `batch --commit-mode=none`, which makes no commits and leaves the
+migrations in the working tree for the step commit.
+
+Stays primed: `batch` orchestrates worker subagents in waves.
 
 ### instruction-placement
 
@@ -272,12 +299,18 @@ One step: audit, then realign the accepted findings, then check.
 
 Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), not `.`.
 
+Stays primed: `detect.sh` only emits facts, and the model judges the findings.
+
 ### encapsulation
 
 - skill: docs-hygiene:audit-encapsulation
 - args: sweep
 - applies-when: repo ships skills
 - checked: true
+
+#### Notes
+
+Stays primed: the model classifies each citation, optionally with concurrent workers.
 
 ### file-names
 
@@ -293,6 +326,10 @@ Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), 
 - applies-when: repo has several modules or cross-linked docs
 - checked: false
 
+#### Notes
+
+Stays primed: it fans out fresh-context scan subagents.
+
 ## Phase 5: prose
 
 ### be-concise
@@ -306,6 +343,8 @@ Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), 
 
 Name each human-facing file explicitly. Never pass agent-instruction files.
 
+Stays primed: the model rewrites each file, then a subagent checks the semantic diff.
+
 ### compress
 
 - skill: docs-hygiene:compress
@@ -317,12 +356,18 @@ Name each human-facing file explicitly. Never pass agent-instruction files.
 
 Run only on files the be-concise step did not edit.
 
+Stays primed: a semantic-diff subagent reverts any meaning loss.
+
 ### ai-slop
 
 - skill: ai-slop:audit
 - args: audit fix .
 - applies-when: repo has tracked markdown
 - checked: true
+
+#### Notes
+
+Stays primed: it runs subagents per batch and a semantic-diff subagent over each fix.
 
 ## Phase 6: checks
 
@@ -331,6 +376,7 @@ Run only on files the be-concise step did not edit.
 - skill: toolchain:lint
 - args: --fix
 - applies-when: always
+- prime: false
 - checked: true
 
 ### skill-quality
@@ -338,6 +384,7 @@ Run only on files the be-concise step did not edit.
 - skill: skill-quality:check
 - args: check
 - applies-when: repo has skills
+- prime: false
 - checked: true
 
 ### evals-validate
@@ -345,6 +392,7 @@ Run only on files the be-concise step did not edit.
 - skill: evals:validate
 - args: <eval suite paths>
 - applies-when: repo has plugin eval suites
+- prime: false
 - checked: true
 
 ### verify
@@ -353,3 +401,7 @@ Run only on files the be-concise step did not edit.
 - args:
 - applies-when: always
 - checked: true
+
+#### Notes
+
+Stays primed: it dispatches subagents and judges the outcome against the intent, not only a script.

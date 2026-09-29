@@ -149,9 +149,10 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
-- An override exists because the skill hardcodes its own branch, PR, or commit structure. State
-  it as your own instruction before invoking the skill; never append it to the skill's arguments.
-  `plan` flags an override whose tracking issue has closed so it can be removed from the catalog.
+- An override exists only while a skill hardcodes its own branch, PR, or commit structure and
+  offers no flag for the caller to set them. State it as your own instruction before invoking the
+  skill; never append it to the skill's arguments. `plan` flags an override whose tracking issue
+  has closed so it can be removed from the catalog.
 - A skill that commits anyway is squashed into the one step commit by `guard.sh` exit 11. A skill
   that switches branch or opens a PR stops the step (exit 10); run `review` to file it.
 - `review` never reuses the session that ran the step: dispatch a separate reviewer with procedure

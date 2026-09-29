@@ -70,8 +70,9 @@ never combined with `&&` or other commands in one call. The record for these sha
    entry's `args`. Skills in one entry share the session: the first one's findings feed the next.
    **Tidy multi-lane:** when the `tidy` entry's resolved `args` is a comma-separated list or
    `all`, invoke `/code-tidying:tidy` once per lane (strip whitespace; `all` expands to every lane
-   name that applies, except `self-update`). Carry findings forward across those invocations; do
-   not `/clear` between lanes.
+   name that applies, except `self-update`). Each invocation carries `in-place` as a whole-token
+   flag beside the lane. Carry findings forward across those invocations; do not `/clear` between
+   lanes.
 3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
    produced by running that procedure in full as the skill states it. A summary of them, or a
    skipped procedure step, does not complete the step. The user reviews them for accuracy before
