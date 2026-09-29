@@ -145,13 +145,13 @@ Bounded by design. Full evidence catalogue in
 
 ## When coverage is incomplete
 
-A `skipped` lane, a `scanned-zero-files` lane, or source files with no lane at all are gaps, not a
-clean bill. After presenting the lane roster:
+A `skipped` lane, a `no-manifest` lane, a `scanned-zero-files` lane, or source files with no lane at
+all are gaps, not a clean bill. After presenting the lane roster:
 
 1. **Name each gap** from `Summary coverage:` and each `Note: uncovered` line: the path and the
-   reason (`no lane for the language`, `no manifest root`, `tool not installed`, or `lane not
-   selected`). Rust and .NET stay a policy exclusion: they are `no lane for the language`, not a
-   detector this run forgot to invoke.
+   reason (`no lane for the language`, `no manifest root`, `tool not installed`, `tool could not
+   parse it`, or `lane not selected`). Rust and .NET stay a policy exclusion: they are `no lane
+   for the language`, not a detector this run forgot to invoke.
 2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
    the operator to edit and submit. Do nothing unless they agree.
 3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for the
@@ -183,7 +183,7 @@ Note: uncovered scripts/standalone.mjs — no manifest root
 Note: uncovered src/main.rs — no lane for the language
 ```
 
-`Summary total: files-with-findings=` counts files that emitted at least one candidate. `Summary coverage:` counts every in-scope source file: covered by a lane in `ran` or `degraded`, or uncovered. Uncovered reasons are `no lane for the language`, `no manifest root`, `tool not installed`, and `lane not selected`. Markdown, JSON, YAML, and other non-source files are not in that total. When `uncovered` is greater than zero the script lists each file and does not print the clean-result note or the scan-of-nothing note.
+`Summary total: files-with-findings=` counts files that emitted at least one candidate. `Summary coverage:` counts every in-scope source file: covered by a lane in `ran` or `degraded`, or uncovered. Uncovered reasons are `no lane for the language`, `no manifest root`, `tool not installed`, `tool could not parse it`, and `lane not selected`. Extensionless scripts are not classified yet. Markdown, JSON, YAML, and other non-source files are not in that total. When `uncovered` is greater than zero the script lists each file and does not print the clean-result note or the scan-of-nothing note.
 
 Present per file: verdict, shape, line, the evidence checked, and for `alive` what saved it.
 Close with the lane roster, the candidate count against the cap, and `n dropped by cap`.

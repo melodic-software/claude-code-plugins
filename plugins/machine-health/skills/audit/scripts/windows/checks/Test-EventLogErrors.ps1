@@ -12,7 +12,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'event-log-errors'
 $category = 'reliability'
 $commands = @(
@@ -43,7 +42,9 @@ function Test-IsNoiseEvent {
     return $false
 }
 
-try {
+$FailureSummary = 'Event log check failed.'
+$PassThru = $false
+$CheckBody = {
     $cutoff = (Get-Date).AddDays(-7)
 
     $events = @()
@@ -137,9 +138,5 @@ try {
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
         -NeedsAdmin $false -RanSuccessfully $true
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Event log check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

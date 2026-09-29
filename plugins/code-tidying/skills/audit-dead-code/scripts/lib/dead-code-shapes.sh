@@ -74,7 +74,7 @@ dc_lang_of_path() {
   *.rs | *.cs | *.fs | *.fsx | *.vb | *.java | *.kt | *.kts | *.scala | *.rb | *.php | \
     *.c | *.h | *.cc | *.cpp | *.cxx | *.hpp | *.hh | *.hxx | *.swift | *.lua | *.ex | *.exs | \
     *.erl | *.hs | *.ml | *.mli | *.dart | *.pl | *.pm | *.zig | *.nim | *.clj | *.cljs | \
-    *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r) printf 'nolane' ;;
+    *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r | *.tf | *.proto | *.m | *.mm) printf 'nolane' ;;
   *) printf 'other' ;;
   esac
 }

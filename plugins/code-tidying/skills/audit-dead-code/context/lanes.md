@@ -15,7 +15,7 @@ measurement, not an argument. Basis: the tool versions named per lane below, as 
 Every in-scope source file is either covered or named. Covered means a lane took the file as input
 and reached `ran` or `degraded`. Uncovered files are one `Note: uncovered <path> — <reason>` line
 each, after `Summary coverage: covered=N uncovered=M`. The reasons are `no lane for the language`,
-`no manifest root`, `tool not installed`, and `lane not selected`.
+`no manifest root`, `tool not installed`, `tool could not parse it`, and `lane not selected`.
 
 `files=` on a `Lane:` line is that input count, including `skipped` and `no-manifest`. `Summary
 total: files-with-findings=` is the number of files that emitted a candidate. A clean-result note

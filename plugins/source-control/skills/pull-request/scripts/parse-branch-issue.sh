@@ -24,7 +24,12 @@
 #      inside the fence. Headings inside fenced blocks are ignored. A leading
 #      UTF-8 BOM, trailing whitespace, and a closing `#` sequence on the heading
 #      are accepted. Repo root: CLAUDE_PROJECT_DIR, else
-#      `git rev-parse --show-toplevel`.
+#      `git rev-parse --show-toplevel`. When that root is the home directory
+#      (or an ancestor of it), team and overlay layers are not applicable: the
+#      team path would be the same file as user-global. Overlay is skipped the
+#      same way. A root outside any git working tree skips both layers too. A
+#      team or overlay path that physically equals the user-global
+#      file is skipped even when the root is not home.
 #   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
 #      literal `${user_config...}` placeholder), then
 #      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
@@ -59,6 +64,45 @@ fi
 # Notes name the source and the reason only, never the pattern text, so a
 # repo-controlled value is not echoed into the caller's context.
 note() { echo "parse-branch-issue: $*" >&2; }
+
+# True when two paths name the same file or directory. Existing directories
+# compare via `pwd -P` (case-folded) so a native `C:/Users/<user>` and an MSYS
+# `/c/Users/<user>` of the same home still match. Existing files compare by that
+# physical parent plus the leaf. Missing paths compare after slash-folding,
+# trailing-slash strip, and case-fold. Empty is never equal to anything.
+# Never `cd` a file: that prints "Not a directory" on stderr.
+paths_same() {
+  local a="$1" b="$2" ap bp ad bd al bl
+  [[ -n "$a" && -n "$b" ]] || return 1
+  if [[ -d "$a" && -d "$b" ]]; then
+    if ap=$(cd "$a" 2>/dev/null && pwd -P) && bp=$(cd "$b" 2>/dev/null && pwd -P); then
+      [[ "${ap,,}" == "${bp,,}" ]] && return 0
+    fi
+  elif [[ -f "$a" || -f "$b" ]]; then
+    ad=$(cd "$(dirname -- "$a")" 2>/dev/null && pwd -P) || ad=""
+    bd=$(cd "$(dirname -- "$b")" 2>/dev/null && pwd -P) || bd=""
+    al="${a##*/}"; al="${al,,}"
+    bl="${b##*/}"; bl="${bl,,}"
+    [[ -n "$ad" && -n "$bd" && "${ad,,}" == "${bd,,}" && "$al" == "$bl" ]] && return 0
+  fi
+  a="${a//\\//}"; a="${a%/}"; a="${a,,}"
+  b="${b//\\//}"; b="${b%/}"; b="${b,,}"
+  [[ "$a" == "$b" ]]
+}
+
+# True when ROOT is $HOME or an ancestor of $HOME. A session started in home
+# (machine maintenance, user-scope config) must not read ~/.claude/<surface>
+# as the team layer.
+root_is_home_or_ancestor() {
+  local root="$1" home="${HOME:-}" rp hp
+  [[ -n "$root" && -n "$home" ]] || return 1
+  paths_same "$root" "$home" && return 0
+  rp=$(cd "$root" 2>/dev/null && pwd -P) || rp="$root"
+  hp=$(cd "$home" 2>/dev/null && pwd -P) || hp="$home"
+  rp="${rp//\\//}"; rp="${rp%/}"; rp="${rp,,}"
+  hp="${hp//\\//}"; hp="${hp%/}"; hp="${hp,,}"
+  [[ "$hp" == "$rp"/* ]]
+}
 
 STOP="resolution stopped, no issue id emitted"
 
@@ -244,8 +288,20 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 [[ -n "$REPO_ROOT" ]] || REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
 LAYERS=()
-[[ -n "$REPO_ROOT" ]] && LAYERS+=("${REPO_ROOT}/.claude/source-control.local.md" "${REPO_ROOT}/.claude/source-control.md")
-LAYERS+=("${HOME:-}/.claude/source-control.md")
+USER_LAYER="${HOME:-}/.claude/source-control.md"
+if [[ -z "$REPO_ROOT" ]]; then
+  :
+elif root_is_home_or_ancestor "$REPO_ROOT"; then
+  note "team and overlay not applicable: project root is the home directory (or an ancestor of it)"
+elif [[ "$(git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]]; then
+  note "team and overlay not applicable: project root is not inside a git repository"
+else
+  overlay="${REPO_ROOT}/.claude/source-control.local.md"
+  team="${REPO_ROOT}/.claude/source-control.md"
+  paths_same "$overlay" "$USER_LAYER" || LAYERS+=("$overlay")
+  paths_same "$team" "$USER_LAYER" || LAYERS+=("$team")
+fi
+LAYERS+=("$USER_LAYER")
 
 PATTERN="" SOURCE=""
 for layer in "${LAYERS[@]}"; do

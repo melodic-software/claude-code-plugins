@@ -107,6 +107,10 @@ away. Don't touch the library above the marker.
    If it's a repeatable setup path, offer to commit it and link it from the
    README so the next person runs the script instead of asking an AI.
 
+## Next
+
+`/wizard:unattended` when the remaining work is fully scriptable and a human is only the privilege or policy boundary.
+
 ## Gotchas
 
 - **No back button.** A wrong answer means Ctrl-C and re-run. Cheap by design:

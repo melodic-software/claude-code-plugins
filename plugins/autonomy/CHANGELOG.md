@@ -3,6 +3,14 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.12] - 2026-09-28
+
+### Changed
+
+- **The README points at the agent-run artifact attestation decision (#4703).** A one-line
+  out-of-scope note links `docs/out-of-scope/agent-run-artifact-attestation.md`, where the
+  decision recorded in 0.24.5 lives.
+
 ## [0.24.11] - 2026-09-28
 
 ### Changed
