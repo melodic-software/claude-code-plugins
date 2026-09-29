@@ -146,6 +146,38 @@ assert_contains "paths.include globs print no hook entry" "$out" "none: every co
 assert_eq "and no Write(**) or Write(*.py) row" "" "$(grep -F -e 'Write(**)' -e 'Write(*.py)' <<<"$out")"
 cp "$T/kept.yaml" "$R/.claude/testing.yaml"
 
+# Interleaved --extend flags still write one mapping per adapter.
+run apply --extend js-vitest.files='*.it.ts' --extend py-pytest.files='check_*.py' \
+  --extend js-vitest.assertion.calls='verify'
+assert_eq "apply accepts --extend flags that interleave adapters" 0 "$rc"
+expected="extend:
+  js-vitest:
+    files: ['*.it.ts']
+    assertion.calls: ['verify']
+  py-pytest:
+    files: ['check_*.py']"
+assert_eq "and groups each adapter's fields under one key" "$expected" "$(sed -n '/^extend:/,$p' "$R/.claude/testing.yaml")"
+cp "$T/kept.yaml" "$R/.claude/testing.yaml"
+
+# A test file only an extend.*.files glob or a consumer adapter claims still
+# gets the lint check.
+L="$T/lintonly"
+mkdir -p "$L/.claude" "$L/adapters"
+git -C "$L" init -q
+printf '{ "devDependencies": { "vitest": "^3.0.0" } }\n' >"$L/package.json"
+printf "import { it } from 'vitest';\n" >"$L/a.it.ts"
+printf "extend:\n  js-vitest:\n    files: ['*.it.ts']\n" >"$L/.claude/testing.yaml"
+git -C "$L" add -A
+rc=0
+out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
+assert_line "an extend.*.files test file gets the Vitest lint check" "$out" '^js +vitest/valid-expect +FINDING'
+assert_eq "and check exits 1" 1 "$rc"
+printf "id: js-spec\nextends: js-vitest\nfiles: ['*.it.ts']\n" >"$L/adapters/js-spec.yaml"
+printf 'adapter_dirs: [adapters]\n' >"$L/.claude/testing.yaml"
+rc=0
+out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
+assert_line "an adapter_dirs adapter's files glob gets it too" "$out" '^js +vitest/valid-expect +FINDING'
+
 cp "$R/.claude/testing.yaml" "$T/kept.yaml"
 run apply --rule no-such-rule=off
 assert_eq "apply refuses answers that do not resolve" 2 "$rc"

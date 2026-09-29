@@ -96,12 +96,16 @@ apply() {
       [[ -n "${items[${e%%=*}]+x}" ]] || keys+=("${e%%=*}")
       items[${e%%=*}]+="$(q "${e#*=}"), "
     done
-    local last=""
+    # One mapping per <id>, in first-flag order, whatever order the flags take.
+    declare -A done_id=()
     for e in "${keys[@]}"; do
-      id="${e%%.*}" field="${e#*.}"
-      [[ "$id" == "$last" ]] || y+="  $id:"$'\n'
-      last="$id"
-      y+="    $field: [${items[$e]%, }]"$'\n'
+      id="${e%%.*}"
+      [[ -z "${done_id[$id]+x}" ]] || continue
+      done_id[$id]=1
+      y+="  $id:"$'\n'
+      for field in "${keys[@]}"; do
+        [[ "${field%%.*}" == "$id" ]] && y+="    ${field#*.}: [${items[$field]%, }]"$'\n'
+      done
     done
   fi
   if [[ ${#rules[@]} -gt 0 ]]; then
@@ -147,7 +151,19 @@ check() {
   fi
 
   # Languages: the lexer language of every adapter whose files: glob matches a
-  # tracked file.
+  # tracked file: the shipped adapters, the adapter_dirs ones and the
+  # extend.<id>.files globs.
+  local k v extra=() ext_files=""
+  while IFS=$'\t' read -r k v; do
+    case "$k" in
+    adapter_dirs) for f in "$v"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done ;;
+    extend.*.files)
+      k="${k#extend.}"
+      ext_files+="${k%.files}"$'\tfiles\t'"$v"$'\n'
+      ;;
+    *) ;;
+    esac
+  done <<<"$cfg"
   tracked="$(git -C "$ROOT" ls-files 2>/dev/null | tr -d '\r')"
   langs="$(awk -F'\t' '
     NR == FNR {
@@ -156,7 +172,7 @@ check() {
       next
     }
     { b = $0; sub(/.*\//, "", b); for (i = 1; i <= n; i++) if (b ~ re[i]) seen[lang[rid[i]]] = 1 }
-    END { for (l in seen) print l }' <(awk -f "$LOADER" "$PLUGIN"/skills/audit/adapters/*.yaml) - <<<"$tracked" | sort -u)"
+    END { for (l in seen) print l }' <(awk -f "$LOADER" "$PLUGIN"/skills/audit/adapters/*.yaml ${extra[@]+"${extra[@]}"}; printf '%s' "$ext_files") - <<<"$tracked" | sort -u)"
 
   printf '\n== lint ==\n'
   lint_files=()
@@ -182,7 +198,7 @@ check() {
     [[ "$3" == FINDING ]] && findings=$((findings + 1))
     return 0
   }
-  [[ -n "$langs" ]] || printf 'no tracked test file matches a shipped adapter glob\n'
+  [[ -n "$langs" ]] || printf 'no tracked test file matches any adapter files: glob\n'
 
   local pkg eslint cs cfgtxt
   pkg="$(lint_text package.json)"
