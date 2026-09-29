@@ -1,5 +1,5 @@
 ---
-description: "Chart the modules inside one deployable as a C4 component view: group them by directory, namespace, or a declared layering, and draw a directed arrow for every internal build reference, each citing the declaration it came from. Use when: 'map components', 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'C4 component view', 'layering of this deployable'. Skip when: the question is which repositories exist (map-landscape), which deployables exist (map-containers), or module-design friction (improve)."
+description: "Chart the modules inside one deployable as a C4 component view, one directed arrow per internal build reference, each citing its declaration. Use when: 'map components', 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'C4 component view', 'layering of this deployable'. Skip when: which repositories exist (map-landscape), which deployables exist (map-containers), or module-design friction (improve)."
 argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <list>] [--dialect likec4|c4-plantuml]"
 user-invocable: true
 disable-model-invocation: false

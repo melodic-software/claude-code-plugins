@@ -1,5 +1,5 @@
 ---
-description: "Chart one software system as a C4 container diagram: deployables identified by project output, host builder, Dockerfile, or process manifest, the stores and brokers they bind in tracked configuration, and dirty files flagged. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: the question is which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
+description: "Chart one software system as a C4 container diagram: deployables, and the stores and brokers they bind in tracked configuration. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
 argument-hint: "[system] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

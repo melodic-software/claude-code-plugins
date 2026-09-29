@@ -48,6 +48,10 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   The cycle search runs in linear time.
 - Argument hints: `--dialect` on the three C4 skills; `--live` removed from
   `map-data` and `map-deployment`, where it was always refused.
+- Descriptions of `map-landscape`, `improve`, `record-decision`, `map-context`,
+  `map-components`, and `map-containers` are trimmed to the use case, the
+  routing phrases, and the main sibling redirect. The plugin's shared listing
+  estimate drops from 6647 to 5364 characters.
 
 ### Removed
 
