@@ -202,8 +202,10 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
     file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
     otherwise the first claimant with no `detect` list; otherwise the first claimant.
-- `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
-  value is never dropped silently.
+- `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
+  each until engine code reads it, so a value is never dropped silently. `delegation` unreserves
+  when Phase 3 merges; no phase unreserves `equality.pipeline` yet. The semantics above describe
+  each field once it is unreserved.
 - `astgrep_rules` is reserved and not implemented. It is switch S1 in the research: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
@@ -448,7 +450,7 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 
 - Add the `bash`, `pwsh` and `go` lexers and the `file` block model to the awk engine
   ([Design contracts](#design-contracts) section 1).
-- `rule-recomputed-expectation` exists today for JS and Python only (`cant-fail-scan.awk:277,315`).
+- `rule-recomputed-expectation` exists today for JS and Python only (`cant-fail-scan.awk:306,325,337`).
   Extend it to C#, Bash, PowerShell and Go through the adapter `equality` lists. This is rule work,
   red first.
 - Add these adapters:
