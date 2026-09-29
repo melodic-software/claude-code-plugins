@@ -75,7 +75,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test uses public interface only
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test: one behavioral concept, not one `Assert` statement
-- [ ] Every expected value names its independent source, per `testing:test-value`
+- [ ] Every expected value names its independent source, per `testing:test-value`; a round trip or identity check (`decode(encode(x))` equals `x`) passes when both directions share a mistake, so pair it with a known encoded fixture
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 
@@ -90,29 +90,29 @@ Every test should score well on all four:
 
 ## Verify through the interface, not around it
 
-Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use (illustrative: .NET/xUnit; the principle is ecosystem-agnostic):
+A managed database (one only your application touches) is real: reading the row back after the act step is legitimate state verification, as long as the test asserts the fields rather than that a row exists. What couples a test to the implementation is reading internal tables the public contract never exposes when a public read path exists. `testing:test-value` §3 owns the rule. Illustrative: .NET/xUnit; the principle is ecosystem-agnostic:
 
 ```csharp
-// BAD: Bypasses interface — coupled to storage implementation
+// GOOD: state verification of a managed database, asserting the fields
 [Fact]
-public async Task CreateUser_SavesUserToDatabase()
-{
-    await _sut.CreateUser(new("Alice"));
-    var row = await _db.QuerySingleAsync("SELECT * FROM Users WHERE Name = @Name", new { Name = "Alice" });
-    Assert.NotNull(row);
-}
-
-// GOOD: Verifies through public interface — survives storage refactor
-[Fact]
-public async Task CreateUser_MakesUserRetrievable()
+public async Task CreateUser_StoresTheUser()
 {
     var user = await _sut.CreateUser(new("Alice"));
-    var retrieved = await _sut.GetUser(user.Id);
-    Assert.Equal("Alice", retrieved.Name);
+    var row = await _db.QuerySingleAsync<UserRow>("SELECT * FROM Users WHERE Id = @Id", new { user.Id });
+    Assert.Equal("Alice", row.Name);
+}
+
+// BAD: reads an internal index table the contract never exposes, while SearchUsers is the public read path
+[Fact]
+public async Task CreateUser_IndexesTheName()
+{
+    await _sut.CreateUser(new("Alice"));
+    var key = await _db.ExecuteScalarAsync<string>("SELECT NormalizedName FROM UserSearchIndex");
+    Assert.Equal("ALICE", key);
 }
 ```
 
-If the only way to verify is by reaching around the interface (querying DB directly, inspecting file system, checking internal state), that is a design signal. The interface is missing an observable output.
+When no public read path exists and the stored state is not the contract, reaching around the interface is a design signal: the interface is missing an observable output.
 
 ## Test Pyramid vs Testing Trophy
 

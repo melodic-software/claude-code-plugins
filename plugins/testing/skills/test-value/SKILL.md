@@ -75,6 +75,12 @@ checking". Basis: https://newsletter.kentbeck.com/p/canon-tdd (redirected from
 tidyfirst.substack.com; published 2023-12-11). As of 2026-09-29. Recheck when Beck publishes a
 revision of Canon TDD or a successor post that changes step 4.
 
+## Next
+
+/testing:audit
+
+Runs the deterministic detector for every rule in the taxonomy below over the suite.
+
 ## 5. Taxonomy, keyed to `/testing:audit` rule ids
 
 **Cannot fail** (green whatever the code does):
@@ -83,7 +89,6 @@ revision of Canon TDD or a successor post that changes step 4.
 |---|---|---|
 | `rule-zero-assertion` | a test body with no assertion | assert the behavior |
 | `rule-recomputed-expectation` | both sides the same expression: `expect(LIMIT).toBe(LIMIT)` | take the expected side from §1 |
-| `rule-recomputed-derived` | expected rebuilt from the inputs: `expect(add(a, b)).toBe(a + b)`, `items.reduce(...)` | a hand-computed literal |
 | `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();` | await it, fix the tuple, use `assert_called_once_with` |
 | `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result | assert unconditionally; check the length first |
 | `rule-flaky-passes-suite`, `rule-only-not-forbidden` | Playwright retries without `failOnFlakyTests`; no `forbidOnly` | set both in the config |
@@ -93,6 +98,7 @@ revision of Canon TDD or a successor post that changes step 4.
 | Rule | Shape | Fix |
 |---|---|---|
 | `rule-mock-only-oracle` | every assertion is a mock interaction | assert a result or state, unless §2 applies |
+| `rule-recomputed-derived` | expected rebuilt the way the code computes it: `expect(add(a, b)).toBe(a + b)`, `items.reduce(...)`; passes when test and code share a mistake, and proves no specified value | a hand-computed literal (§1) |
 | `rule-weak-oracle` | `toBeDefined`, `is not None`, `toThrow()` alone | assert the value or the exception type |
 | `rule-snapshot-only` | a snapshot is the only oracle | review it as code; it is fine once reviewed |
 
@@ -112,9 +118,3 @@ Matt Pocock's `tdd` skill and his 2026 talk supply most of these examples. This 
 him in five places: T1 and T2 are change detectors, not tests that cannot fail; call counts are
 right at unmanaged boundaries; a direct database read is state verification; a reviewed snapshot
 is a real oracle; and refactoring stays in the loop.
-
-## Next
-
-/testing:audit
-
-Runs the deterministic detector for every rule in the taxonomy above over the suite.

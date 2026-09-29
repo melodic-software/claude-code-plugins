@@ -1526,7 +1526,7 @@ for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/t
   assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
 done
 
-# The findings file carries the tiers: conditional and derived are can't-fail,
+# The findings file carries the tiers: conditional is can't-fail; derived,
 # snapshot-only and weak-oracle can fail.
 for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
 rc=0
@@ -1534,8 +1534,8 @@ out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" 
 assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
 assert_matches "a conditional-assertion row is IMPORTANT with Confidence omitted" "$out" \
   '^\| [0-9]+ \| IMPORTANT \|  \| test/vitest-rows-loop-unchecked.test.ts:10 \|'
-assert_matches "a recomputed-derived row is IMPORTANT with Confidence omitted" "$out" \
-  '^\| [0-9]+ \| IMPORTANT \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
+assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
 assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
