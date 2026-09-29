@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.39.1] - 2026-09-29
+
+### Changed
+
+- **running-retro tests:** the `_short_id` determinism check carries `cant-fail-ok: determinism contract`, so the can't-fail scanner counts it as a deliberate exemption instead of a finding. Test-only.
+
 ## [0.39.0] - 2026-09-29
 
 ### Added

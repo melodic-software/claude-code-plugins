@@ -155,8 +155,8 @@ means the adapter turns the rule off or has no vocabulary for it.
 
 | Rule | Before | After | True positives | False positives after | Unmeasured |
 |---|---|---|---|---|---|
-| `rule-zero-assertion` | 53 (ccp 10, medley 42, ci-runner 1) | 5 (ccp 2, medley 3) | 2 | 3 | none |
-| `rule-recomputed-expectation` | 2 (ccp 1, medley 1) | 2 | 0 | 0; both are determinism contracts, the annotate case | js-playwright |
+| `rule-zero-assertion` | 53 (ccp 10, medley 42, ci-runner 1) | 2 (ccp 1, medley 1), and ccp 1 exempt | 2 | 0 | none |
+| `rule-recomputed-expectation` | 2 (ccp 1, medley 1) | 1 (medley), and ccp 1 exempt | 0 | 0; both are determinism contracts, the annotate case | js-playwright |
 | `rule-mock-only-oracle` | 27 (ccp 13, medley 14) | 27 | 27, all benign | 0 | js-jest, js-node-test, js-playwright, py-pytest; bash-harness and go-testing n/a |
 | `rule-inert-assertion` | 0 | 0 | 0 | 0 | js-jest, js-playwright |
 | `rule-constant-restatement` | 8 (ccp 5, medley 3) | 8 | 8 | 0 | js-jest, js-node-test, js-playwright; C#, Go and Pester n/a |
@@ -173,17 +173,18 @@ Verdicts:
 - `rule-zero-assertion` true positives, both no-raise smoke tests: `test_hook_telemetry.py:54` calls
   `emit` and checks nothing; medley `test_config_validation.py:32` loads a TOML file and asserts
   nothing.
-- `rule-zero-assertion` false positives left: ccp `test_hygiene.py:10117`, whose oracle is the
-  probe `os.write(2, b"")` raising when fd 2 was left closed. No token separates a probe from a
-  no-raise smoke test, and adding `os.write(` or `os.fstat(` to the vocabulary would clear real
-  smoke tests, so it stays a known false positive for `cant-fail-ok:`. Medley
-  `broker-fanout.test.ts:305,318` await `waitForNotificationOnAll`, which returns `pollUntil(...)`,
-  and only `pollUntil` throws: two levels down, past the one level the helper rule follows.
+- `rule-zero-assertion` false positives, all resolved: ccp `test_hygiene.py:10117`, whose oracle is
+  the probe `os.write(2, b"")` raising when fd 2 was left closed, now carries `cant-fail-ok:`. No
+  token separates a probe from a no-raise smoke test, and adding `os.write(` or `os.fstat(` to the
+  vocabulary would clear real smoke tests. Medley `broker-fanout.test.ts:305,318` await
+  `waitForNotificationOnAll`, which returns `pollUntil(...)`, and only `pollUntil` throws; the
+  helper rule now follows helper-to-helper calls to any depth, and a base-versus-head re-scan of
+  all three repositories under gawk and mawk cleared exactly these two findings.
 - `rule-recomputed-expectation`: ccp `test_observer.py:659` and medley `test_lexical.py:94` assert
   `f(x) == f(x)` to pin determinism. The rule keeps firing on that shape, as NUnit2009, testifylint
   `useless-assert` and staticcheck SA4000 do, with no name-based exemption; a deliberate
   determinism contract carries `cant-fail-ok: determinism contract` and is counted as exempt.
-  Neither test carries the annotation yet.
+  `test_observer.py` carries it; medley's test, in another repository, does not yet.
 - The rest are the true positives the earlier sections and the classification record:
   `mock-only-oracle` findings are interaction-as-output tests (patched `os._exit`, spied
   `process.stdout.write`, Pester `Should -Invoke`, NSubstitute `Received`); `conditional-assertion`
@@ -205,6 +206,8 @@ False-positive shapes, each a good corpus fixture that fired before its fix:
 | `self.refused(...)`, `self.roundtrip(...)` on a method that asserts | `rule-zero-assertion` | ccp 6 | the same | `py-unittest/good/test_unittest_self_helper_asserts.py` |
 | Module helper calling `check_returncode()` | `rule-zero-assertion` | ccp 1 | the same | `py-pytest/good/test_pytest_helper_check_returncode.py` |
 | Awaited helper that rejects on timeout | `rule-zero-assertion` | none here: medley's helper throws one level further down | the same, with throw, raise and reject counting in a helper's body | `js-vitest/good/vitest-poll-helper-rejects.test.ts` |
+| Helper returning a second helper that throws | `rule-zero-assertion` | medley 2 | a helper that calls an asserting helper asserts, to any depth; a C# overload that calls its own name counts when another overload asserts | `js-vitest/good/vitest-helper-chain-throws.test.ts`, `cs-xunit/good/InvoiceOverloadDelegatesTests.cs` |
+| `! cmd` as a bats test's last line | `rule-zero-assertion` | none here: no bats file in the three | the last-line `!` counts as the assertion | `bash-bats/good/bats-config-removed-last-bang.bats` |
 | `node:test` helper calling `assert.*` | `rule-zero-assertion` | ci-runner 1 | the same | `js-node-test/good/node-test-helper-asserts.test.cjs` |
 | `exit "$((FAIL > 0))"` failure counter | `rule-zero-assertion` | ccp 1 | `bash-harness` idiom for the arithmetic exit | `bash-harness/good/failure-counter-arith-exit.test.sh` |
 | Loop over `await Promise.all(<literal array>.map(...))`, on one line or two | `rule-conditional-assertion` | medley 1 | a map over a nonempty array literal, or over a name the test bound to one, is a literal collection | `js-vitest/good/vitest-loop-over-literal-probes.test.ts` |

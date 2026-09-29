@@ -920,6 +920,8 @@ function inert_close(    n, recs, i, f) {
   if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
   if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
   if (PS_PEND) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
+  # A ! command on the test's last line is its assertion.
+  BANG_LAST = BANG_PEND
   RUN_PEND = BANG_PEND = PS_PEND = 0
   if (!SET_E && !SOURCED && BRK_OUT != "") {
     n = split(BRK_OUT, recs, "\n")
@@ -1452,12 +1454,12 @@ function derived_check(a, b, tkind) {
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Same-file helpers, one level deep. A function defined in the test file
-# outside any test asserts when its text, from its definition to the next
-# definition or test start, holds an assertion token, a mock verification, a
-# fail call, or a throw, raise or reject. A test with no assertion token of its
-# own that calls such a function by name is not a zero-assertion finding. The
-# helper's own calls are not followed. Bash and PowerShell are not tracked: a
+# Same-file helpers. A function defined in the test file outside any test
+# asserts when its text, from its definition to the next definition or test
+# start, holds an assertion token, a mock verification, a fail call, or a
+# throw, raise or reject, or when it calls such a function the same way a test
+# would. A test with no assertion token of its own that calls an asserting
+# function by name is not a zero-assertion finding. Bash and PowerShell are not tracked: a
 # harness file is one block, and a PowerShell call takes no parentheses.
 # ---------------------------------------------------------------------------
 
@@ -1488,7 +1490,7 @@ function def_name(m,    s) {
 # opening the body on a line of its own. A definition indented deeper than
 # the open one nests in it, so a line of the inner function is also a line
 # of the outer.
-function helper_scan(m,    name, ind, k) {
+function helper_scan(m,    name, ind, k, calls) {
   if (m ~ /^[[:space:]]*$/) return
   if (has(m, R_START)) { HK = 0; return }
   ind = indent_of(m)
@@ -1497,6 +1499,10 @@ function helper_scan(m,    name, ind, k) {
   if (name != "") { HK++; HI[HK] = ind; HD[HK] = ++DEF_N; DEF_NAME[DEF_N] = name; DEF_CLS[DEF_N] = CLS_K ? CLS_NAME[CLS_K] : "" }
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
     for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
+  # A definition line is read from after the name it defines.
+  if (name != "") m = substr(m, index(m, name) + length(name))
+  if (HK > 0 && (calls = called_names(m)) != "")
+    for (k = 1; k <= HK; k++) DEF_CALLS[HD[k]] = DEF_CALLS[HD[k]] calls
 }
 
 # The class a line sits in, by indentation as helper_scan tracks functions:
@@ -1549,12 +1555,28 @@ function calls_helper(calls, cls,    n, c, i, name, key) {
   return 0
 }
 
-function helper_verdicts(    i, key) {
-  for (i = 1; i <= DEF_N; i++) {
-    key = DEF_CLS[i] SUBSEP DEF_NAME[i]
-    SCOPE_DEFS[key]++
-    if (i in DEF_ASSERTS) { SCOPE_ASSERTS[key]++; NAME_ASSERTS[DEF_NAME[i]] = 1 }
-  }
+function helper_mark(i) {
+  SCOPE_ASSERTS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
+  NAME_ASSERTS[DEF_NAME[i]] = 1
+}
+
+# Whether definition i calls its own name while another definition of that
+# name in its scope asserts: an overload delegating to one that asserts.
+function delegates_to_overload(i,    key) {
+  key = DEF_CLS[i] SUBSEP DEF_NAME[i]
+  return SCOPE_ASSERTS[key] > 0 && (index(DEF_CALLS[i] " ", " " DEF_NAME[i] " ") || index(DEF_CALLS[i] " ", " ." DEF_NAME[i] " "))
+}
+
+# A helper that calls an asserting helper asserts too, to any depth: repeat
+# until no definition changes.
+function helper_verdicts(    i, changed) {
+  for (i = 1; i <= DEF_N; i++) SCOPE_DEFS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
+  for (i = 1; i <= DEF_N; i++) if (i in DEF_ASSERTS) helper_mark(i)
+  do {
+    changed = 0
+    for (i = 1; i <= DEF_N; i++)
+      if (!(i in DEF_ASSERTS) && (calls_helper(DEF_CALLS[i], DEF_CLS[i]) || delegates_to_overload(i))) { DEF_ASSERTS[i] = 1; helper_mark(i); changed = 1 }
+  } while (changed)
 }
 
 function eval_block(    blk, stripped, mocka_n, kind, calls) {
@@ -1566,7 +1588,7 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
   g8_eval()
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
-  if (!has(blk, R_ANY) && !has(blk, R_MOCKA)) {
+  if (!has(blk, R_ANY) && !has(blk, R_MOCKA) && !BANG_LAST) {
     # A call to a same-file function may be the assertion; the verdict waits
     # for END, when every function in the file has been read.
     if ((calls = called_names(blk)) == "") emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")

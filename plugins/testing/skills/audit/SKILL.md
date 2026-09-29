@@ -69,8 +69,9 @@ states the fired condition in the run's own values.
   helper named `assertValidSum` or `checkInvariant` counts), strings/comments are masked first,
   skipped tests are not judged. A test that calls a function defined in the same file, bare or on
   `self`/`this`/`cls`, whose own body asserts, throws or rejects is not a zero-assertion finding
-  (a method call resolves to the test's own class when it defines the name);
-  the helper's own calls are not followed (one level deep). A missed defect costs one finding; a false positive costs the
+  (a method call resolves to the test's own class when it defines the name),
+  nor is one whose helper calls such a function, to any depth. A bats test whose last line is
+  `! cmd` asserts through it. A missed defect costs one finding; a false positive costs the
   detector its audience.
 
 ## Running the detector

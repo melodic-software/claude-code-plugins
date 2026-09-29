@@ -3,6 +3,17 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-29
+
+### Fixed
+
+- **audit:** `rule-zero-assertion` follows same-file helpers to any depth: a helper that calls an
+  asserting helper asserts too, so a test awaiting `waitForAll()`, which returns `pollUntil(...)`,
+  which throws, is no longer a finding. A C# overload that calls its own name counts when another
+  overload of it asserts. A bats test whose last line is `! cmd` asserts through that line. A
+  base-versus-head re-scan of this repository, `medley` and `ci-runner` under gawk and mawk
+  cleared exactly medley's two known false positives and moved nothing else.
+
 ## [0.11.2] - 2026-09-29
 
 ### Changed
