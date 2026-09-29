@@ -99,7 +99,7 @@ fi
 # The deferral prints a SKIP line rather than counting an ok. scripts/
 # run-plugin-tests.sh reads `^SKIP:` and names the suite under "Suites with
 # skipped coverage (exit 0 here is NOT evidence those cases ran)", which is
-# what this is: eight cases that did not run. An ok would make the aggregate
+# what this is: nine cases that did not run. An ok would make the aggregate
 # read as full coverage. --strict-skips therefore fails here, correctly — a
 # caller declaring a fully provisioned environment is asking for every case to
 # run, and BENCH_LANES=1 is how it gets them.

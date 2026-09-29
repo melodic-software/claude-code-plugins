@@ -126,9 +126,9 @@ timing ever runs in CI. What does run is `bench.test.sh`, a contract smoke suite
 - **Every run** unit-tests the lib helpers: `median`, `pace_sleep_arg`, `now_ms` and the refusal
   on a bash without `EPOCHREALTIME`. No lane is spawned, so it costs milliseconds.
 - **`BENCH_LANES=1`** adds the lane cases: one tiny-parameter run of each lane against the repo
-  tee under an isolated `HOME`, the two failing-render aborts, and the three `--count` cases,
+  tee under an isolated `HOME`, the two failing-render aborts, and the four `--count` cases,
   asserting behavior and output shape, never timing. Spawning a lane is running a benchmark whatever the parameters, so
-  those eight cases are gated; without the variable the suite prints a `SKIP:` line and the
+  those nine cases are gated; without the variable the suite prints a `SKIP:` line and the
   runner's summary names the coverage that did not run.
 
 Run them locally with `BENCH_LANES=1 bash plugins/rate-limit-guard/bench/bench.test.sh`, or in CI
