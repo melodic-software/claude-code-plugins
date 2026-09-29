@@ -16,7 +16,10 @@ For each current check result:
  3. Apply the severity adjustments this engine makes, both WARN -> CRIT: the
     trend-relevant metric worsens by >= 5 (raw units or percentage points)
     against that baseline, or drivers repeats CodeIntegrity events across
-    consecutive runs (Get-CodeIntegrityRepeat).
+    consecutive runs (Get-CodeIntegrityRepeat). The one exception: a
+    winget-upgrades WARN that carries a KEV match (detail.kev_match_count > 0)
+    is never raised, because that match is name-only evidence and a count
+    trend must not turn it into CRIT.
  4. Record the adjustment reason in `notes` ("trend upgrade: <metric>: +N vs
     prior", or "trend upgrade: repeat: ...").
 
@@ -99,7 +102,9 @@ function Invoke-TrendAnalysis {
         # is exactly what those severities are meant to surface. adjusted_from
         # records the pre-adjustment severity when an upgrade fires.
         $adjustedFrom = $null
-        if ($r.severity -eq 'WARN' -and $null -ne $deltaText) {
+        $kevProp = $r.detail ? $r.detail.PSObject.Properties['kev_match_count'] : $null
+        $nameOnlyKev = $r.id -eq 'winget-upgrades' -and $kevProp -and $kevProp.Value -gt 0
+        if ($r.severity -eq 'WARN' -and $null -ne $deltaText -and -not $nameOnlyKev) {
             $upgrade = Test-WorseningTrend -CheckId $r.id -CurrentValue $currentValue -PriorValue $lastMetric
             if ($upgrade) {
                 $adjustedFrom = $r.severity
@@ -236,6 +241,8 @@ function Test-WorseningTrend {
     # drive-root-litter is likewise mapped (residue_count) but excluded:
     # root litter is tidiness, and its rubric caps at WARN -- a generic
     # upgrade would mint a CRIT from five new stray files.
+    # winget-upgrades stays here, but Invoke-TrendAnalysis skips it when the WARN
+    # carries a KEV match: the match is name-only, so a count trend cannot make it CRIT.
     $downwardWorsens = @('battery', 'reliability')
 
     $delta = $cur - $prev

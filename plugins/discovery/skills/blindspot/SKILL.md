@@ -48,7 +48,7 @@ understanding rather than the agent's.
    that disclosure. What they already know bounds which gaps are worth surfacing.
 2. **Scan**. Two lanes, chosen by what is unfamiliar:
    - **Codebase lane**. Read the target area (the codebase-reading, git-history, and project-structure
-     dimensions of [`${CLAUDE_PLUGIN_ROOT}/skills/explore/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/SKILL.md))
+     dimensions in [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/workflow.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/workflow.md))
      looking specifically for things the user's framing missed: existing patterns they'd duplicate,
      constraints they'd violate, historical decisions they'd re-litigate, adjacent code their change
      would break.
@@ -84,6 +84,11 @@ This skill does NOT write `EXPLORE.md`. Its deliverable is the user's understand
 prompt. When the scan's findings also serve as stage-1 codebase exploration, offer to hand off to
 `/discovery:explore` to persist the `EXPLORE.md` artifact rather than
 duplicating that responsibility here.
+
+## Next
+
+- The scan doubles as stage-1 codebase exploration: `/discovery:explore <area>`.
+- The prompt is sharpened and ready to scope: `/planning:interview`.
 
 ## Gotchas
 

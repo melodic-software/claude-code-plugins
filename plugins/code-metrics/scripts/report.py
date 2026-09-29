@@ -753,19 +753,8 @@ def render(
         # header counts every file scanned. A file whose every group was
         # excluded is in the second and not the first; name how many, so the
         # two counts read as the different populations they are.
-        surviving = {
-            instance.get("file")
-            for row in doc.get("measures", [])
-            for instance in row.get("instances") or []
-        }
-        excluded_only = {
-            instance.get("file")
-            for group in doc["excluded"]
-            for instance in group.get("instances") or []
-            if instance.get("file")
-        } - surviving
-        if excluded_only:
-            counted = summary.get("files_excluded_only", len(excluded_only))
+        counted = files_excluded_only(doc.get("measures", []), doc["excluded"])
+        if counted:
             excluded_line += (
                 f" Files with clones counts surviving groups only, so the "
                 f"{counted} file(s) holding nothing but excluded groups are "

@@ -3,6 +3,27 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.6] - 2026-09-29
+
+### Fixed
+
+- **audit:** the trend rule no longer raises a `winget-upgrades` WARN that carries a CISA KEV
+  name match (`kev_match_count` > 0) to CRIT when `upgrades_count` rises by 5 or more. The match
+  is name-only evidence, so a count trend cannot make it CRIT. A WARN from more than 10 apps behind
+  with no KEV match still follows the generic rule.
+
+### Changed
+
+- **audit:** the KEV feed schema and Defender platform folder claims in the check catalog carry a
+  basis, an as-of date, and a recheck trigger. The correlation rule for KEV plus old updates no
+  longer says `winget-upgrades` is already CRIT, and the envelope header says why each check sets
+  `$PassThru`. Pester now covers the KEV trend exception, the `winget` CLI fallback `Failed` and
+  `NonZero` branches, and that every check dot-sources the shared envelope.
+- **audit:** the guide for adding a check and the Windows check catalog name the envelope contract
+  (`Invoke-HealthCheckEnvelope.ps1`) instead of `Write-HealthResult.ps1`.
+- **setup:** the argument hint lists `disable=<check>`, `deprecate=<check>`,
+  `demote=<check>` and `approve=<remediation>`, the only forms the body accepts.
+
 ## [0.14.5] - 2026-09-28
 
 ### Changed
