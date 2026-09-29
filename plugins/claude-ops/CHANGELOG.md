@@ -18,7 +18,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   with no value instead of looping. `reference/hook-log-budget.md` keeps the Windows column
   `unmeasured` until a capture stamped `host: windows-git-bash` is pasted there; no Windows
   figure is claimed. The event log stays off by default. The README's event-log paragraph
-  now describes the node launcher rows instead of shell form.
+  now describes the node launcher rows instead of shell form. It exits 2 with a bash 5
+  requirement message when `EPOCHREALTIME` is unset (macOS `/bin/bash` 3.2).
 - **`audit-native-overlap` scans plugin manifest descriptions** for an ungated presence clause,
   as it does skill descriptions; the finding stays an advisory.
 
@@ -26,7 +27,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **The prerequisites check reads enablement from `claude plugin list --json`** when `claude`
   is on PATH, keeping user and managed rows and only the project and local rows for the current
-  project, with the most specific scope winning per plugin. The settings-merge fallback now skips
+  project, with the most specific scope winning per plugin; it calls `claude` directly when
+  `timeout` is not installed. The settings-merge fallback now skips
   a whole file whose `enabledPlugins` holds a non-Boolean value, as Claude Code does. The Next
   section drops its placeholder bullet and names the three model-invocable formatter checks; a
   check that a setup skill owns is human-only, so the person types it and the model relays it.

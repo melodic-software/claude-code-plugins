@@ -47,7 +47,11 @@ if [[ ${#ROOTS[@]} -eq 0 ]]; then
   project="${project%$'\r'}"
   listing=""
   if command -v claude >/dev/null 2>&1; then
-    listing="$(timeout 30 claude plugin list --json 2>/dev/null || true)"
+    if command -v timeout >/dev/null 2>&1; then
+      listing="$(timeout 30 claude plugin list --json 2>/dev/null || true)"
+    else
+      listing="$(claude plugin list --json 2>/dev/null || true)"
+    fi
   fi
   mapfile -t found < <(PREREQ_LIST="$listing" python3 - "$config" "$project" <<'PY'
 import json, os, sys

@@ -108,6 +108,10 @@ if [[ ! "$SAMPLES" =~ ^[1-9][0-9]*$ ]]; then
   echo "ERROR: --samples needs a positive integer" >&2
   exit 2
 fi
+if [[ -z "${EPOCHREALTIME:-}" ]]; then
+  echo "ERROR: bash 5 or newer is required (EPOCHREALTIME is unset; macOS /bin/bash is 3.2, run under a Homebrew bash)" >&2
+  exit 2
+fi
 if [[ ! -f "$HOOK" || ! -f "$LAUNCHER" ]]; then
   echo "ERROR: hook or launcher not found next to this script" >&2
   exit 2
