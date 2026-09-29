@@ -256,6 +256,7 @@ assert_eq "start failure exits nonzero" "1" "$rc"
 assert_contains "start failure is visible" "$out" "failed to restart Collector service"
 assert_eq "start failure occurs after the verified trim" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
 if [[ -d "$S/.prune-in-progress" ]]; then fail "start failure removes sentinel" "absent" "present"; else pass "start failure removes sentinel"; fi
+assert_eq "start failure writes no last-prune stamp" "absent" "$([[ -e "$S/.last-prune" ]] && echo present || echo absent)"
 
 # --- 5c. service-query error: fail closed before mutation, then recover + release lock ---
 S="$(new_store querystatusfail)"
@@ -760,6 +761,22 @@ hot_bytes="$(wc -c <"$S/cc-logs.json" | tr -d ' \r')"
 if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "hot file fits under the cap and is not emptied"; else fail "hot file fits under the cap and is not emptied" "0 < bytes <= $CAP_BYTES" "$hot_bytes"; fi
 assert_contains "newest line survives" "$(cat "$S/cc-logs.json")" "$BIG_NEWEST"
 assert_not_contains "oldest line dropped" "$(cat "$S/cc-logs.json")" "\"$BIG_OLDEST\""
+
+# Lines the Collector appends between the preflight and its stop still count toward the cap.
+S="$(new_store sizecap-late)"
+{
+  log_line "$OLD" "$OLD"
+  head -n 600 "$BIG_SRC"
+} >"$S/cc-logs.json"
+tail -n +601 "$BIG_SRC" >"$TMP/late-batches.json"
+LATE_STOP="$TMP/late-stop-stub.sh"
+printf '#!/usr/bin/env bash\ncat "%s" >>"%s/cc-logs.json"\ntouch "%s/stopped.marker"\n' "$TMP/late-batches.json" "$S" "$TMP" >"$LATE_STOP"
+chmod +x "$LATE_STOP"
+CC_OTEL_HOT_MAX_MB=1 CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$LATE_STOP" CC_OTEL_RUNNING_CMD=false \
+  CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" >/dev/null 2>&1
+hot_bytes="$(wc -c <"$S/cc-logs.json" | tr -d ' \r')"
+if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "cap holds for lines appended before the Collector stopped"; else fail "cap holds for lines appended before the Collector stopped" "0 < bytes <= $CAP_BYTES" "$hot_bytes"; fi
+rm -f "$TMP/stopped.marker"
 
 # Same fixture through the REAL compaction: the size-dropped lines land in cold Parquet.
 if [[ "$HAS_DUCKDB" == true ]]; then

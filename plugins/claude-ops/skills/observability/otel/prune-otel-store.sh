@@ -350,6 +350,8 @@ main() {
     temp="$src.prune.tmp"
     dropped="$src.dropped.tmp"
     surgery_tmp="$src.surgery.tmp"
+    # The preflight cutoff predates the Collector stop; batches it appended since count toward the cap.
+    file_cutoffs["$f"]="$(effective_cutoff "$src" "$cutoff_seconds" $((hot_max_mb * BYTES_PER_MB)))"
     counts="$(filter_file "$src" "$temp" "${file_cutoffs[$f]}" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
     # awk only opens dst when it prints a kept line, so a file with ZERO kept records (every
     # record older than the cutoff — the case retention exists for) leaves the temp absent.
@@ -397,7 +399,7 @@ main() {
       "$f" "$KEPT" "$DROPPED" "$TOTAL" "$surgery_kept" "$surgery_dropped"
   done
 
-  stamp_last_prune "$store_dir"
+  STAMP_DIR="$store_dir"
   printf 'action=pruned total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
   # cleanup (EXIT trap) removes the sentinel and starts the Collector service.
 }

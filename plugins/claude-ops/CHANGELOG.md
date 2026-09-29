@@ -18,6 +18,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
   exporter's append-only limit, replacing the earlier cold-store estimate.
 
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:setup` no longer quotes the config-cascade sentence "No plugin writes the consumer's `.gitignore`".** The convention now names its exceptions.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
