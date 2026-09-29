@@ -1,5 +1,5 @@
 ---
-description: "Author an unattended PowerShell script for work that is fully scriptable but not agent-launchable: the human is only the privilege or policy boundary (UAC, an elevated shell, or a run the repo reserves for the operator). The agent authors the script and never runs it. The human launches it once. The script writes cutover.result/1 JSON the agent reads back. Use when: 'run this elevated', 'I have to launch it', 'UAC', 'operator must apply', 'unattended cutover', 'scriptable but I cannot run it'. Don't use it for a dashboard click, a 2FA code, or anything the agent can already run itself."
+description: "Author an unattended PowerShell script for work that is fully scriptable but not agent-launchable: the human is only the privilege or policy boundary (UAC, an elevated shell, or a run the repo reserves for the operator). The agent authors the script and never launches the real run. The human launches it once. The script writes cutover.result/1 JSON the agent reads back. Use when: 'run this elevated', 'I have to launch it', 'UAC', 'operator must apply', 'unattended cutover', 'scriptable but I cannot run it'. Don't use it for a dashboard click, a 2FA code, or anything the agent can already run itself."
 argument-hint: "<scriptable procedure a human must launch>"
 user-invocable: true
 disable-model-invocation: false
