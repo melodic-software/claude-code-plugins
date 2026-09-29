@@ -272,12 +272,18 @@ classify_json_file() {
   # SYNTACTICALLY broken, which the `jq empty` above rejects on its own, so the
   # assertion passed with the stage gone. A structurally-valid malformed
   # fixture now covers it.
+  #
+  # Only the three rule lists are checked. A scalar key of the wrong type must
+  # not make the file invalid: `present` is what runs `emit_file_conf`, which
+  # feeds the C5-disableType lint a mistyped `disableAutoMode`. `jq -e` takes its exit status from the LAST output, so this filter emits
+  # exactly one verdict; a per-key verdict would make the answer depend on key
+  # order.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true
       elif $pt == "object" then
-        (.permissions | to_entries[] | .value | type) as $kt
-        | ($kt == "null" or $kt == "array")
+        [.permissions.allow, .permissions.ask, .permissions.deny]
+        | all(. == null or type == "array")
       else false end
   ' >/dev/null 2>&1 || {
     printf 'invalid-json\n'
