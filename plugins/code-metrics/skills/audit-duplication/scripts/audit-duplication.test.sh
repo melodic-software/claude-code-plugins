@@ -63,7 +63,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 mkdir -p "$out"
-cp "$CM_TEST_CAPTURE" "$out/jscpd-report.json"
+# The captures name files from the repository root. A run from a subdirectory
+# sets CM_TEST_SUBDIR (that directory, root-relative, with a trailing slash),
+# and the report names them from there, as jscpd run in that directory would.
+sed "s#\"name\": \"${CM_TEST_SUBDIR:-}#\"name\": \"#" "$CM_TEST_CAPTURE" >"$out/jscpd-report.json"
 exit 1
 STUB
 chmod +x "$STUBS/jscpd"
@@ -95,6 +98,29 @@ assert_doc "without a registry the same cluster reports duplicated lines" "$out"
   'd["summary"]["duplicated_lines"] > 0 and d["summary"]["clone_groups"] == 1 and d["excluded"] == []'
 assert_doc "a clone group replaces file and function with instances" "$out" \
   'any(r["file"] is None and r["function"] is None and len(r["instances"]) == 2 and r["values"]["tokens"] == 110 for r in d["measures"][:1])'
+
+# 2b. From a subdirectory the report names the same files, records the same
+# root, and only its scan root differs; the sanctioned exclusion still applies,
+# and its zero floor and the excluded instances are root-relative too.
+SUBDIR="$FIXTURES/sources"
+from_sub="$(cd "$REPO_ROOT/$SUBDIR" && CM_TEST_SUBDIR="$SUBDIR/" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all cluster)"
+assert_eq "the run from a subdirectory exits 0" 0 "$?"
+same="$(printf '%s\n\x1e%s' "$out" "$from_sub" | "$PY" -c '
+import json, sys
+a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
+files = lambda d: [[i["file"] for i in r["instances"]] for r in d["measures"]]
+ok = (files(a) == files(b) and files(a) and a["root"] == b["root"]
+      and a["scan_root"] == "." and b["scan_root"] == "'"$SUBDIR"'"
+      and a["summary"] == b["summary"])
+raise SystemExit(0 if ok else 1)
+' && echo same)"
+assert_eq "duplication from a subdirectory: same instance files, summary and root as from the root" "same" "$same"
+assert_doc "the instances are named from the repository root" "$from_sub" \
+  'all(i["file"].startswith("plugins/") for r in d["measures"] for i in r["instances"]) and d["root"]["kind"] == "repository"'
+from_sub_excl="$(cd "$REPO_ROOT/$SUBDIR" && CM_TEST_SUBDIR="$SUBDIR/" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all cluster --registry "$CLUSTER_REGISTRY")"
+assert_eq "the registry run from a subdirectory exits 0" 0 "$?"
+assert_doc "a sanctioned cluster from a subdirectory is excluded with root-relative instances and a zero floor" "$from_sub_excl" \
+  'd["summary"]["duplicated_lines"] == 0 and d["summary"]["clone_groups"] == 0 and len(d["excluded"]) >= 1 and all(i["file"].startswith("plugins/") for g in d["excluded"] for i in g["instances"]) and d["scan_root"] == "'"$SUBDIR"'"'
 
 # 3. The markdown rendering states both the debt and the exclusion.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
