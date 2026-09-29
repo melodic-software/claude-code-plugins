@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0] - 2026-09-29
+
+### Added
+
+- `audit` has a second, report-only lane for restated facts: prose that states a checkable
+  external fact (a default, a limit, a supported value) in its own words, with no copied span for
+  the fingerprint to match. It is a separate finding class, `restated-fact`, under rule id
+  `attribution/audit/rule-restated-upstream-fact`, and never fix-eligible.
+- `reference/rubric.md` carries a second rubric, restated-fact v1, beside the copy rubric, which
+  stays at v4. The dispatching run picks the rubric: copy when the fingerprint matched above the
+  separation rule, restated-fact when the passage states a checkable external fact, copy
+  otherwise; an unnamed dispatch defaults to copy.
+- Every restated-fact finding that a unanimous panel upholds goes through one refutation pass
+  that tries to show the passage is already a pointer, a stamped record, or owned content. An
+  open question counts as refuted.
+- The detector-findings relay has a row for a restated fact, and only for one whose panel was
+  unanimous, whose verdict is `STANDS` and whose refutation pass `SURVIVES`. It ranks last at
+  tier IMPORTANT with an empty confidence cell. A restated-fact finding under any other rule id is
+  withheld and counted, not reported as unparsed.
+- `reference/dispositions.md` lists three report-only dispositions for a restated fact.
+- Golden cases c11 to c24 and evals 11 to 13 cover the new class, with negatives for stamped
+  records, conforming pointers and distilling files. The restated-fact gate prints report-only
+  until it has enough cases.
+
 ## [0.6.2] - 2026-09-29
 
 ### Fixed
