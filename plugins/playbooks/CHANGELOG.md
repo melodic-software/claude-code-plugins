@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.28] - 2026-09-28
+
+### Changed
+
+- **`skill-authoring` names the consumer-gotchas cascade tier** ([#3547](https://github.com/melodic-software/claude-code-plugins/issues/3547)). Bundled gotchas stay failure-driven in the skill; repo-specific lines go in the plugin's config-cascade surface and concatenate at load. Generalizable lines still ship via an issue to this marketplace.
+
 ## [0.13.27] - 2026-09-28
 
 ### Changed

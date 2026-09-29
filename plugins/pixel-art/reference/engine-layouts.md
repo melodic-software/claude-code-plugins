@@ -135,14 +135,18 @@ recheck trigger: the store page showing a release date or U2U publishing its own
   relative / (fps x |speed|)). The editor slices a sheet by horizontal and vertical counts, so
   `sheet.columns` = horizontal count, rows = vertical count.
 - `TileSet`: `TileSetAtlasSource` over a texture with region size, margins, separation. Terrain
-  modes: Match Corners and Sides, Match Corners, Match Sides (the exact pairing with Godot 3's 2x2,
-  3x3, 3x3-minimal bitmasks is unverified). Animated tiles carry per-frame durations.
+  modes: Match Corners and Sides, Match Corners, Match Sides. Do not pair those names with Godot 3's
+  2x2, 3x3, or 3x3-minimal bitmasks (judgment: the 4.1 docs claimed a correspondence, and
+  [godot#64769](https://github.com/godotengine/godot/issues/64769) and
+  [godot#79411](https://github.com/godotengine/godot/issues/79411) disagree with that note and with
+  each other). Animated tiles carry per-frame durations.
 - Pixel fonts: BMFont `.fnt` or an Image Font on a glyph grid; Nearest filter, integer size.
 - Verification record: basis = [SpriteFrames](https://docs.godotengine.org/en/stable/classes/class_spriteframes.html),
   [Using TileSets](https://docs.godotengine.org/en/stable/tutorials/2d/using_tilesets.html),
-  [Using fonts](https://docs.godotengine.org/en/stable/tutorials/ui/gui_using_fonts.html) at 4.7.2;
-  as-of 2026-09-23; recheck trigger: a Godot 4.8 (or later) release whose notes touch SpriteFrames,
-  TileSet, or font import.
+  [Using fonts](https://docs.godotengine.org/en/stable/tutorials/ui/gui_using_fonts.html) at 4.7.2,
+  plus the two Godot issues named above for the refused bitmask pairing; as-of 2026-09-28;
+  recheck trigger: a Godot 4.8 (or later) release whose notes touch SpriteFrames, TileSet, or font
+  import, or the Using TileSets page stating a Godot 3 pairing that both issues accept.
 
 ## PICO-8
 
@@ -164,5 +168,5 @@ recheck trigger: the store page showing a release date or U2U publishing its own
 
 ## Unity
 
-Unverified; see [Unity Manual](https://docs.unity3d.com/Manual/index.html). Emit a uniform
-grid so cell-size slicing can consume it (judgment).
+No Unity sprite numbers are stated here (judgment). Emit a uniform grid so cell-size slicing can
+consume it (judgment).
