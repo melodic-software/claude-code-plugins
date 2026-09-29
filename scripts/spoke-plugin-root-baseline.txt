@@ -131,10 +131,7 @@ plugins/source-control/skills/pull-request/reference/create.md 6
 plugins/source-control/skills/pull-request/reference/monitor.md 3
 plugins/source-control/skills/pull-request/reference/ready-for-review.md 1
 plugins/source-control/skills/setup/reference/apply-convention.md 2
-plugins/source-control/skills/worktree/context/audit.md 4
-plugins/source-control/skills/worktree/context/cleanup.md 5
-plugins/source-control/skills/worktree/context/create.md 3
-plugins/source-control/skills/worktree/context/status.md 2
+plugins/source-control/skills/worktree/context/audit.md 1
 plugins/work-items/skills/attend-queue/reference/telemetry-upsert.md 1
 plugins/work-items/skills/decompose/context/container-lifecycle.md 6
 plugins/work-items/skills/onboard-adapter/reference/live-exploration.md 2
