@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.4] - 2026-09-29
+
+### Changed
+
+- **audit:** the git-on-PATH, work-tree and `ls-files` checks behind a bare invocation and a
+  directory target live in one helper in `scripts/lib/resolve-targets.sh`. The stderr lines and
+  fallbacks are unchanged. Explicit file paths do not use the git listing.
+- **audit:** resolver-level target cases (untracked-only directory, failing `ls-files`, bare
+  invocation from outside the checkout or outside a checkout) live in `resolve-targets.test.sh`;
+  `detect.test.sh` keeps one end-to-end case per entry form.
+
 ## [0.11.3] - 2026-09-28
 
 ### Changed
