@@ -16,7 +16,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **A UNC protection glob is absolute.** A glob spelled with a leading double backslash was
+- **A UNC protection glob is absolute** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). A glob spelled with a leading double backslash was
   classified as relative, so it matched nothing. The matcher now reads backslashes as separators on
   both glob and path, so a UNC glob covers a UNC path and not a sibling share.
 - **`--root-children` keeps the strict ladder on every volume root**
@@ -66,7 +66,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   that can no longer fire, and remove the unsourced settings write-path claim from the
   `extraKnownMarketplaces` record. The standing "ranking stays a model instruction" record for
   [#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858) is removed from
-  `SKILL.md` and the safety model; the ranking question is an open owner decision.
+  `SKILL.md` and the safety model; #3858 stays parked (owner decision).
 - **Released entries corrected in place.** 0.28.9: "Option A:" relabeled "The recorded decision:".
   0.28.2: version-serialization sentence removed. 0.28.1: added the `kind`, `logical_size`, `mtime`
   and `attributes` fields the entry omitted. 0.27.0: "Volume-root behavior is unchanged" replaced
@@ -217,8 +217,9 @@ This version was never released on its own: its change shipped in 0.28.6, togeth
   name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
   `root_children_skipped` by reason with counts; `empty_file_count` sits beside
   `empty_directory_count` on every scan. Each `root_children` listing row carries `kind`,
-  `logical_size`, `mtime` and `attributes`. When `Users`/`home` is withheld, the note names the
-  current user's home as a separate target.
+  `logical_size` and `mtime`, plus `attributes` on Windows; a row whose `lstat`
+  fails carries none of them. When `Users`/`home` is withheld, the note names the current user's
+  home as a separate target.
 
 ## [0.28.0] - 2026-09-28
 

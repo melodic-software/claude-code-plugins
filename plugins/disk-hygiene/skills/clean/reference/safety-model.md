@@ -149,8 +149,7 @@ affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a 
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
 near-miss recurrence is on the record in this checkout. #3855 closed 2026-09-28 with the
 no-emergency-lane decision, not a per-primitive design. **As of:** 2026-09-28. **Recheck:** a
-documented post-#1109 near-miss in the manual lane, or a new design issue that proposes
-per-primitive gating (#3857 is the open carrier).
+documented post-#1109 near-miss in the manual lane, or a macOS consumer.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
