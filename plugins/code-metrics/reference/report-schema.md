@@ -103,9 +103,9 @@ verbatim when coverage is what it lacks.
 
 Common fields: `file`, `function` (`null` for a per-file row), `lane`, `values` (measure name to
 number or `null`), `collector`, `labels` (strings such as `comment-agnostic`, `start-line-only`,
-`file-level`, `replicated`, `lane-total`, `partial`), `over_reference` (the measures whose reference the row is at or
-beyond), and `replicas` on a collapsed row only (see "Sanctioned replication"). Granularity by
-skill:
+`file-level`, `replicated`, `lane-total`, `partial`), `over_reference` (the measures whose
+reference the row is at or beyond), and `replicas` on a collapsed row only (see "Sanctioned
+replication"). Granularity by skill:
 
 | Skill | One row per | Extra fields |
 |---|---|---|

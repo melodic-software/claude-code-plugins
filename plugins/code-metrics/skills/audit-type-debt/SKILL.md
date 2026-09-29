@@ -133,10 +133,10 @@ the collectors.
   `other-pkg/mod.py`) derive one module name. The collector measures the first of them (scope
   order, the one mypy itself keeps) and every other file, holds the rest out, and the run row
   reads `partial` with each held-out file named in its reason; the lane row is labeled `partial`
-  too, and no percentage is given for a file it held out. mypy accepts the flag only while namespace packages are on (its default), so a
-  consumer config that turns them off makes the run repeat without it, in mypy's own naming
-  (packages from `__init__.py` files), and the run row's reason says so; a file that collides in
-  that mode is held out the same way. Any other blocking mypy error (a usage or config error)
-  still reads `unavailable` with mypy's message.
+  too, and no percentage is given for a file it held out. mypy accepts the flag only while
+  namespace packages are on (its default), so a consumer config that turns them off makes the run
+  repeat without it, in mypy's own naming (packages from `__init__.py` files), and the run row's
+  reason says so; a file that collides in that mode is held out the same way. Any other blocking
+  mypy error (a usage or config error) still reads `unavailable` with mypy's message.
 - mypy runs with its cache disabled (`--cache-dir` set to the platform's null device), so no
   `.mypy_cache/` is written into the working tree. A one-shot report gains nothing from the cache.

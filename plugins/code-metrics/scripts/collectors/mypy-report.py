@@ -67,10 +67,11 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   groups the scope by derived name, the first file of each group (scope order,
   the one mypy itself keeps) is measured, and the rest are named in the
   partial reason, which makes the run row `partial` rather than
-  `unavailable` and adds `partial` to the lane row's labels. A duplicate the derivation did not predict (mypy's
-  `__init__.py` naming mode below) is held out from mypy's own message and the
-  run repeats, once per held-out file at most. mypy accepts the flag only while namespace
-  packages are on (its default), so when the consumer's config turns them off
+  `unavailable` and adds `partial` to the lane row's labels. A duplicate the
+  derivation did not predict (mypy's `__init__.py` naming mode below) is held
+  out from mypy's own message and the run repeats, once per held-out file at
+  most. mypy accepts the flag only while namespace packages are on (its
+  default), so when the consumer's config turns them off
   mypy refuses the pairing with a usage error (exit 2); the run then repeats
   without the flag, in mypy's own naming mode (packages from `__init__.py`
   files), and a stderr note says so. The shorter names that mode gives are
