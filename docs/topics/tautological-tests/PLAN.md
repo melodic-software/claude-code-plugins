@@ -238,7 +238,7 @@ change in findings.
 - `grep -cE '_ERE *=' plugins/testing/skills/audit/scripts/cant-fail-scan.awk` returns 0.
 - `bash plugins/testing/skills/audit/scripts/parity-check.sh` exits 0 and prints `examined>0` for every run.
 
-### Phase 2: `test-scan` hook, end to end on existing rules [TODO]
+### Phase 2: `test-scan` hook, end to end on existing rules [DONE]
 
 The integration slice: an opt-in PostToolUse hook runs `cant-fail-scan.sh --file` on the written
 test file and feeds findings back.
@@ -275,13 +275,13 @@ test file and feeds findings back.
 
 | File | Action |
 |---|---|
-| [ ] `plugins/testing/.claude-plugin/plugin.json` | MODIFY |
-| [ ] `plugins/testing/hooks/hooks.json` | CREATE |
-| [ ] `plugins/testing/hooks/exec-bash.mjs` | CREATE (synced copy) |
-| [ ] `scripts/sync-exec-bash.sh` | MODIFY (add testing) |
-| [ ] `plugins/testing/hooks/test-scan.sh` + `test-scan.test.sh` | CREATE |
-| [ ] `plugins/testing/scripts/gen-hook-filters.sh` + `gen-hook-filters.test.sh` | CREATE |
-| [ ] `docs/topics/tautological-tests/probes.md` | CREATE |
+| [x] `plugins/testing/.claude-plugin/plugin.json` | MODIFY |
+| [x] `plugins/testing/hooks/hooks.json` | CREATE |
+| [x] `plugins/testing/hooks/exec-bash.mjs` | CREATE (synced copy) |
+| [x] `scripts/sync-exec-bash.sh` | no change: it finds copies by glob |
+| [x] `plugins/testing/hooks/test-scan.sh` + `test-scan.test.sh` | CREATE |
+| [x] `plugins/testing/scripts/gen-hook-filters.sh` + `gen-hook-filters.test.sh` | CREATE |
+| [x] `docs/topics/tautological-tests/probes.md` | CREATE |
 
 **Sanity Check:**
 
