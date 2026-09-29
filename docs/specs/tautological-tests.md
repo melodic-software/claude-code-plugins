@@ -1,9 +1,10 @@
 # Test-value guards: stop tautological AI-written tests
 
-Status: APPROVED by Kyle Sexton 2026-09-28. Phase 1 is on main (#5205). Phases 2 and 3 are
-implemented on branch `feat/testing-test-scan-hook`, which has no PR yet. Phases 4 to 8 and
-Releases 2 and 3 have not started; this document is their approved plan, and its user gates still
-hold. It graduated here from the task branch's `docs/topics/tautological-tests/` contract slice
+Status: APPROVED by Kyle Sexton 2026-09-28; amendment A1-A14 approved 2026-09-28 and re-approved
+2026-09-29 ([Approval](#approval)). Phase 1 is on main (#5205). Phases 2 and 3 are implemented on
+branch `feat/testing-test-scan-hook`, rebased onto `origin/main` (`32163c726`), which has no PR
+yet. Phases 4a to 8 and Releases 2 and 3 have not started; this document is their approved plan,
+and its user gates still hold. It graduated here from the task branch's `docs/topics/tautological-tests/` contract slice
 (`PLAN.md` and `design/design-resolution.md`). Paths below under `docs/topics/tautological-tests/`
 name working files on an implementing branch; their outcomes graduate into this spec before that
 branch merges. Plugin versions are stated relative to main: "one patch above main at merge" means
@@ -52,8 +53,14 @@ cleaned up safely.
   Guidance lives in skills too. Split mode is opt-in: a spec-only test-writer subagent writes the
   tests, a validity check runs before they are frozen, and the implementer cannot edit them.
 - Q4: Only deterministic, high-precision signals may block: deleted or skipped tests,
-  assertion-free tests, and self-identical assertions. Everything else stays advisory until
-  measured. The LLM judge never blocks until a calibration set exists.
+  assertion-free tests, self-identical assertions and inert assertions. Everything else stays
+  advisory until measured. The LLM judge never blocks until a calibration set exists.
+  - Amended 2026-09-28 at plan amendment (A1, A13): inert assertions join the blocking tier. They
+    stay advisory for all of Release 1, and become eligible to gate `--check` in a later minor
+    version once the Phase 8 precision run shows 0 false positives on the three repos, as the rest
+    of Q12 requires (D4). A separate advisory "change-detector" category holds tests that can fail
+    but pin structure (constant restatement, source-text reads); it sits outside the can't-fail
+    gate.
 - Q5: Wave 1 is C#/.NET (xUnit, NUnit, MSTest), JS/TS (Vitest, Jest, Playwright), Python (pytest)
   and Bash (bats, `*.test.sh`). Wave 2 is Go, Rust and Java/Kotlin.
   - Amended 2026-09-28 during planning. User: "we need to make sure Bash is covered. I mean, all
@@ -103,11 +110,14 @@ cleaned up safely.
 
 ### Acceptance criteria
 
-- Pocock's examples are required bad fixtures and must be flagged:
-  - constant restatement (the 280-character limit);
-  - a test reading source text to check order;
-  - the AudioContext mock that cannot fail;
-  - the anti-patterns in his tdd skill (`tests.md`).
+- Pocock's examples (ids from `.work/tautological-tests/phase4-pocock-examples.md`) must be
+  flagged. An example counts as flagged when a deterministic rule catches it, or, when no text
+  signal exists, when it is recorded as a Release 2 judge calibration candidate (amended at A8):
+  - rule-flagged: constant restatement (T1, the 280-character limit), a test reading source text to
+    check order (T2), and the `tests.md` and SKILL anti-patterns with a text signal (M1, M4, M7's
+    sole `toBeDefined()` oracle, M8, S2, S4);
+  - judge cases: M5, M6, S3 and S5, and the candidates T3 (the AudioContext mock), M2, M3 and M7's
+    database side channel.
 - The wave-1 fixture corpus holds at least one bad and one good fixture for each deterministic
   variant (the taxonomy in `.work/tautological-tests/taxonomy/`) in each wave-1 language.
   - Every bad fixture is flagged, and every good fixture produces zero findings.
@@ -129,7 +139,8 @@ cleaned up safely.
 ### Captured assumptions
 
 - The Pocock examples come from his AI Engineer Paris 2026 talk (~7:16-7:40) and his tdd
-  skill's `tests.md`; the implementation fetches both before writing fixtures.
+  skill's `tests.md`, both fetched into `.work/tautological-tests/phase4-pocock-examples.md`. The
+  talk code was on slides, so T1-T3 are reconstructed from captions.
 - Hook `if` filters skip the spawn when they do not match (hooks docs, medium confidence). The plan
   re-verifies this against the current Claude Code version.
 - Files written through Bash scripts or MCP tools bypass the hooks. Guardrails covers shell writes;
@@ -147,6 +158,13 @@ cleaned up safely.
 - Wave 2 languages, cleanup and split mode in the first release.
 - Separate maintenance found during research: `mutation-testing` `tooling.md` staleness and the
   `testing:audit` coverage-counter discrepancy.
+- Pseudo-tested code (G11): no static signal. Candidate follow-up, not filed: an extreme-mutation
+  mode for `mutation-testing:audit`; filing it needs the user's OK (A12).
+- `plugins/architecture/skills/improve/research/deepening/dependencies.md:15` recommends SQLite and
+  PGLite stand-ins, which contradicts the `tdd` Khorikov reference. A separate follow-up work item,
+  not filed (A7).
+- A retro-catalog pointer (adoption ledger row 17): `review:audit-enforceability` does not route to
+  scanner rules today (A9).
 
 ## Design contracts
 
@@ -242,13 +260,17 @@ Java/Kotlin and Go testify.
 Rule IDs follow `testing/audit/rule-<name>` (detector-findings contract). Every new rule needs a
 severity-crosswalk row and eval coverage.
 
-| Rule | Detects | Posture in release 1 |
+Release 1 adds seven rules in three categories (A1). All seven are report-only in Release 1: their
+findings print, and they gate neither `--check` nor `--check --strict`. Scope, tier and rung per
+rule are in the Phase 4a table.
+
+| Rule | Detects | Category |
 |---|---|---|
-| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited async matcher, `expect` only inside `catch` | advisory |
-| `rule-constant-restatement` | expected value equals a literal defined in the production module the test imports | advisory |
-| `rule-source-text-read` | test reads a production source file as text (`readFileSync`, `open(...).read()`, `File.ReadAllText`, `Get-Content`, `cat`) | advisory |
-| `rule-snapshot-only` | snapshot or `Verify` is the only assertion in the block | advisory |
-| existing `rule-zero-assertion`, `rule-recomputed-expectation` | as today, now driven by adapters | eligible to block after the precision run (D4) |
+| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited or never-evaluated async matcher, `expect` only inside `catch`, bats `run` with no status check, Python mock attributes that are not assertions | blocking tier: eligible to gate `--check` in a later minor version after 0 false positives in Phase 8 (D4, A13) |
+| `rule-constant-restatement` | expected value equals a literal defined in the production module the test imports, or a local literal tested with no call | change-detector |
+| `rule-source-text-read` | test reads a tracked, non-test production source file as text (`readFileSync`, `open(...).read()`, `File.ReadAllText`, `Get-Content`, `cat`) | change-detector |
+| `rule-conditional-assertion`, `rule-weak-oracle`, `rule-snapshot-only`, `rule-recomputed-derived` | Phase 4b | advisory |
+| existing `rule-zero-assertion`, `rule-recomputed-expectation` | as today, now driven by adapters | gate `--check` as today; `rule-recomputed-expectation` is the blocking tier's existing rule (A1); any further blocking waits for the precision run (D4) |
 
 ### 5. Hooks
 
@@ -286,16 +308,20 @@ the hook note. Other skills carry a one-line pointer.
 ### Goal
 
 **What**: Release 1 of the Brief (prevention plus proof). The scanner is rebuilt on declarative
-language adapters and covers every language the fleet uses. It gains four new advisory rules,
-alongside a lint-presence check in `/testing:setup`. Two opt-in hook guards run on test files, and
+language adapters and covers every language the fleet uses. It gains seven new rules in three
+categories (one blocking-tier rule, eligible to gate in a later minor version once Phase 8 shows 0
+false positives; two change-detector; four advisory). All seven are report-only in Release 1. A
+lint-presence check lands in `/testing:setup`. Two opt-in hook guards run on test files, and
 one rules skill is preloaded where tests get written and reviewed. A committed fixture corpus
 proves the rules flag bad tests and stay silent on good ones. Releases 2 and 3 are outlined and get
 their own plans later.
 **Why**: Agents write tests whose expected values come from the code under test. The current audit
 flags 0 of 10 planted variants beyond its core rules, and nothing runs while a test is being written.
 **Done when**: every Release 1 acceptance criterion in the Brief has a passing mechanical check in
-CI, except the false-positive-becomes-a-fixture rule, which is enforced by process (Phase 8). The
-changed plugins are version-bumped with CHANGELOG entries, and the precision-run report is committed.
+CI, except the false-positive-becomes-a-fixture rule, which is enforced by process (Phase 8).
+Acceptance criterion 1's judge half is satisfied by the `GRID.md` record; flagging those cases is
+deferred to Release 2. The changed plugins are version-bumped with CHANGELOG entries, and the
+precision-run report is committed.
 
 - Evidence: `.work/tautological-tests/RESEARCH-synthesis.md` and
   `.work/tautological-tests/extensibility/RESEARCH.md`.
@@ -337,7 +363,7 @@ changed plugins are version-bumped with CHANGELOG entries, and the precision-run
 
 ### Phase 1: Adapter engine, behavior-preserving [DONE]
 
-On main: #5205.
+On main: #5205 (squash `d6e040a4c`).
 
 Move the JS/TS, Python and C# knowledge out of `cant-fail-scan.awk` into adapter files, with no
 change in findings.
@@ -388,7 +414,8 @@ change in findings.
 
 ### Phase 2: `test-scan` hook, end to end on existing rules [IMPLEMENTED, not on main]
 
-Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
+Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet. The branch is rebased onto
+`origin/main` (`32163c726`), without the three pre-squash Phase 1 commits.
 
 The integration slice: an opt-in PostToolUse hook runs `cant-fail-scan.sh --file` on the written
 test file and feeds findings back.
@@ -412,8 +439,9 @@ test file and feeds findings back.
   - for Write, reports all blocks on create and only changed blocks on update (`tool_response.type`);
   - injects the rules-skill note once per `session_id` + `agent_id` + path, using a `noclobber`
     (`O_EXCL`) marker file under `${CLAUDE_PLUGIN_DATA}`, and prunes markers older than 7 days;
-  - on a doubtful hit (`rule-recomputed-expectation`, and `rule-constant-restatement` from Phase 4),
-    asks the agent to state where the expected value comes from, in the same turn (Q7 tier 2);
+  - on a doubtful hit (`rule-recomputed-expectation`; `rule-constant-restatement` from Phase 4a and
+    `rule-recomputed-derived` from Phase 4b), asks the agent to state where the expected value
+    comes from, in the same turn (Q7 tier 2);
   - runs the scanner under its own timeout, set below the hooks.json `timeout`. A timeout or error
     logs a line and exits 0;
   - caps `additionalContext` below 10,000 characters.
@@ -485,30 +513,149 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 - `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-zero-assertion.*\.test\.sh'` equals the true-positive count recorded in `docs/topics/tautological-tests/precision-run.md` "This repo, Bash".
 - `bash plugins/testing/scripts/gen-hook-filters.sh --check` exits 0.
 
-### Phase 4: New rules, Pocock fixtures, planted variants [TODO]
+### Phase 4a: Pocock mapping, planted split, first three rules [TODO]
 
-- First item: fetch Pocock's AI Engineer Paris 2026 talk (~7:16-7:40) and his tdd skill's
-  `tests.md`. Map each example to a named rule in `GRID.md`:
-  - the 280-character constant: `rule-constant-restatement`;
-  - the source-text order check: `rule-source-text-read`;
-  - the AudioContext mock: `rule-mock-only-oracle`, re-checked against the example;
-  - each `tests.md` anti-pattern: a rule.
-- If an example needs reasoning and no deterministic rule can catch it, stop and put the conflict
-  with acceptance criterion 1 to the user. Do not drop it.
+Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping),
+`.work/tautological-tests/pocock-critique/RESEARCH.md` with its `RESEARCH-gaps.md` (G1-G11) and
+`RESEARCH-matrix.md` (bad and good forms per framework).
+
+- First item: add a `GRID.md` row per Pocock example naming its rule or `judge`, as acceptance
+  criterion 1 lists them. M7 gets two rows: `M7-weak` (rule) and `M7-side-channel` (judge). Judge
+  cases live only as `GRID.md` rows, not corpus files, so the corpus loop and
+  `check-orphaned-fixtures.sh` never see them. Each is recorded as a Release 2 judge calibration
+  candidate; Release 2 builds its calibration set from them. An example that fits neither a rule
+  nor the judge list goes to the user.
+- Fixtures:
+  - M1 is kept verbatim as a lexing fixture (it is invalid Jest: `jest.mock` takes a module path),
+    beside a corrected runnable version. Each file's header says which one it is.
+  - T1-T3 are re-authored. `tests.md` and SKILL snippets are copied verbatim, with no credit file;
+    provenance lives only in `docs/upstream/mattpocock-skills.md`. Each Pocock bad fixture carries a
+    `source: pocock <id>` tag, which traces test data to acceptance criterion 1 and is not a credit.
+    Pocock fixtures for Phase 4b rules land in Phase 4b.
+  - Every wave-1 framework gets a bad and a good fixture for each `RESEARCH-matrix.md` cell marked
+    signal yes, for the rules each phase adds.
 - Split the 12 planted tests from `.work/tautological-tests-verify/taxonomy/fx/` into one test per
   file under `corpus/planted/`, and commit them. Mark the variants the taxonomy says need reasoning.
-- Red, then implement `rule-inert-assertion`, `rule-constant-restatement`, `rule-source-text-read` and
-  `rule-snapshot-only`, all advisory. For each rule:
-  - a crosswalk row and eval coverage;
+- Rule categories (A1). All seven new rules are report-only in Release 1: their findings print, and
+  they gate neither `--check` nor `--check --strict`, because Q4 keeps them advisory until measured.
+  `--strict` keeps its current meaning (`rule-mock-only-oracle`,
+  `plugins/testing/skills/audit/SKILL.md:42-44`).
+  - Blocking tier: v1 self-identical `rule-recomputed-expectation` (existing, gates `--check`) and
+    new `rule-inert-assertion`, covering unawaited or never-evaluated assertions (G3), bats `run`
+    with no status check and a `!` not on the last line (G4), and Python mock attributes that are
+    not assertions, such as `m.called_once_with` (G5). `rule-inert-assertion` is advisory for all
+    of Release 1, and eligible to gate `--check` in a later minor version once the Phase 8
+    precision run shows 0 false positives on the three repos (Q12, A13, D4).
+  - Change-detector: these tests can fail, so they sit outside the can't-fail gate.
+    - `rule-constant-restatement`, which also covers testing the fixture: a local literal as the
+      subject, with no call (G8). A contract constant is exempted with the scanner's existing
+      `cant-fail-ok:` annotation (`suppress_marker`, `cant-fail-scan.awk:97`).
+    - `rule-source-text-read`, which fires only when the path read is a tracked, non-test source
+      file, and never when the test reads through a glob or directory walk (a policy test;
+      `RESEARCH-matrix.md:151-153`). Without that gate, 107 grep lines in this repo's Bash tests
+      are false positives.
+  - Advisory: the four Phase 4b rules.
+  - Not scanner rules: G7 (stub pass-through) and G10 (mocking types you don't own) go to the
+    Release 2 judge. G11 is out of scope.
+- Crosswalk tier and enforcement rung per rule (A14). Every "keep the detector" row uses rung
+  `analyzer-pack-rule`, as the existing `ai-slop:audit` rows do.
+
+| Rule | Tier (detector-findings crosswalk) | Rung and owner (`audit-enforceability` crosswalk) | Phase |
+|---|---|---|---|
+| `rule-inert-assertion` | IMPORTANT (can't fail) | `analyzer-pack-rule`, owner the test-framework analyzer pack already in the project: it mirrors xUnit2021, `valid-expect` and SC2314, as `rule-zero-assertion` does (`crosswalk.md:42`) | 4a |
+| `rule-constant-restatement` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
+| `rule-source-text-read` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
+| `rule-conditional-assertion` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-recomputed-derived` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-snapshot-only` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-weak-oracle` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-flaky-passes-suite` (existing) | unchanged | already deterministic: keep the `testing:audit` detector; no analyzer pack reads Playwright `retries` against `failOnFlakyTests` (judgment) | 4b |
+| `rule-only-not-forbidden` (existing) | unchanged | `analyzer-pack-rule`, owner the project's ESLint config: eslint-plugin-playwright `no-focused-test` flags a committed `test.only` (judgment; confirm the rule id when the row is written) | 4b |
+
+- Red, then implement each rule. For each rule:
+  - a detector-findings README crosswalk row at the tier above, and eval coverage;
   - positive and negative `Action` remedy assertions in every scope it fires in (detector-findings);
   - the README crosswalk counts, updated;
   - `evals.json` expectations, updated.
+- Eval coverage for `rule-*` ids: `scripts/check-detector-eval-coverage.sh` registers only the
+  `claude-config` pair (`PAIRS_DEFAULT`, `:238`) and discovers only `[A-Z]…[0-9]` ids, so it cannot
+  see these rules. `cant-fail-scan.test.sh` asserts that every rule id the scanner can emit,
+  extracted from the scanner and adapter sources, appears in a positive `evals.json` expectation.
+- `test-scan.sh` wiring (Q7 tier 2): the doubtful-hit prompt at `test-scan.sh:101` matches only
+  `rule-recomputed-expectation`. Extend it to `rule-constant-restatement`, with a
+  `test-scan.test.sh` case. Phase 4b adds `rule-recomputed-derived` the same way.
+- Source-text precision: scan this repo and record the `rule-source-text-read` true positives in a
+  "This repo, source-text read" section of `docs/topics/tautological-tests/precision-run.md`.
+- Commit 4a on its own.
 
 **Sanity Check:**
 
-- `bash plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` exits 0.
-- `grep -rl 'source: pocock' plugins/testing/skills/audit/evals/fixtures/corpus/*/bad | wc -l` is at least 4, and every Pocock row in `GRID.md` names a rule.
-- `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh` and `bash scripts/check-detector-eval-coverage.sh` exit 0.
+- `bash plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` exits 0. It asserts that:
+  - (a) for each 4a rule, `--check` and `--check --strict` both exit 0 on its bad fixture, and the
+    finding prints;
+  - (b) `rule-source-text-read` gives 0 findings on a test that reads a file it wrote itself, and on
+    a test that reads through a glob or directory walk;
+  - (c) a whole-tree run over a temp git repo holding the bad T2 fixture beside the tracked source
+    it reads reports `rule-source-text-read`;
+  - (d) a `rule-constant-restatement` bad form under a `cant-fail-ok:` line is reported as exempt;
+  - (e) every rule id the scanner can emit appears in a positive `evals.json` expectation.
+- `bash plugins/testing/hooks/test-scan.test.sh` exits 0, including a case where a
+  `rule-constant-restatement` hit carries the doubtful-hit prompt.
+- Every Pocock row in `GRID.md` names a rule or `judge`, and
+  `for id in M5 M6 S3 S5 T3 M2 M3 M7-side-channel; do grep -qE "^\| $id \|.*judge" plugins/testing/skills/audit/evals/fixtures/corpus/GRID.md || echo "$id"; done`
+  prints nothing.
+- `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-source-text-read'` equals the count recorded in `precision-run.md` "This repo, source-text read".
+- `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
+
+### Phase 4b: Remaining rules, crosswalk rows, audit docs [TODO]
+
+- Advisory rules, report-only in Release 1 (A2, A4, A5):
+  - `rule-conditional-assertion`: assertions only inside `if`, `catch` or a loop, with no length
+    check (G1, G2);
+  - `rule-weak-oracle`: a weak matcher as the sole oracle, or an over-broad exception check (G6,
+    G9);
+  - `rule-snapshot-only`, whose finding reads "snapshot is the only oracle: review it as code".
+    It never fires on image forms (`toHaveScreenshot`), where visual comparison is the primary e2e
+    oracle;
+  - `rule-recomputed-derived`, with its own crosswalk row: an expected value derived from the same
+    inputs as the call under test (`reduce`, `sum`, `a + b`). It exempts property-based tests
+    (Hypothesis `@given`, fast-check `fc.assert`/`fc.property`, FsCheck, CsCheck, Go
+    `testing/quick`) and the `js-playwright` adapter, where the expected value comes from seed
+    data. The exemption is judgment, not research-proven.
+- Each rule gets the Phase 4a per-rule items (tier from the Phase 4a table), its matrix fixtures,
+  and the Pocock bad fixtures whose rule lands here (`M7-weak` among them).
+  `rule-conditional-assertion` and `rule-weak-oracle` have no matrix section; their `GRID.md` cells
+  are set red first, `pair` or `n/a: <reason>`.
+- `test-scan.sh`: add `rule-recomputed-derived` to the doubtful-hit prompt, with a
+  `test-scan.test.sh` case.
+- `plugins/review/skills/audit-enforceability/context/crosswalk.md` (A11, A14): a row for every new
+  rule, plus `rule-flaky-passes-suite` and `rule-only-not-forbidden`, which lack rows, each at the
+  rung in the Phase 4a table. `review` gets a patch bump and CHANGELOG entry in PR B.
+- `plugins/testing/skills/audit/SKILL.md`: update the description and add a rule table with tier and
+  gating columns (the seven new rules: report-only in Release 1). Update the scanner `--help` text.
+- Commit 4b on its own.
+
+**Sanity Check:**
+
+- `bash plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` exits 0. It asserts that:
+  - (a) for each 4b rule, `--check` and `--check --strict` both exit 0 on its bad fixture, and the
+    finding prints;
+  - (b) the snapshot-only finding contains `snapshot is the only oracle: review it as code`, and a
+    `toHaveScreenshot` test gives 0 findings;
+  - (c) a `rule-recomputed-derived` bad form inside a `@given`, `fc.property` or `testing/quick`
+    test, or in a `js-playwright` file, gives 0 findings;
+  - (d) an assertion inside a loop with a length check gives 0 findings
+    (`rule-conditional-assertion`);
+  - (e) `toBeDefined()` beside a value assertion gives 0 findings (`rule-weak-oracle`);
+  - (f) the Phase 4a eval-coverage assertion holds for all seven rules.
+- `bash plugins/testing/hooks/test-scan.test.sh` exits 0, including a case where a
+  `rule-recomputed-derived` hit carries the doubtful-hit prompt.
+- Acceptance criterion 1, per id:
+  `for id in T1 T2 M1 M4 M7-weak M8 S2 S4; do grep -rlw "source: pocock $id" plugins/testing/skills/audit/evals/fixtures/corpus/*/bad | xargs -r grep -l 'expect: rule-' | grep -q . || echo "$id"; done`
+  prints nothing, and each file found names in `expect:` the rule its `GRID.md` row names.
+- `` grep -c 'keep the `testing:audit` detector' plugins/review/skills/audit-enforceability/context/crosswalk.md `` returns 7 (six new rules plus `rule-flaky-passes-suite`), and the `rule-inert-assertion` and `rule-only-not-forbidden` rows name `analyzer-pack-rule`.
+- `for r in inert-assertion constant-restatement source-text-read conditional-assertion recomputed-derived snapshot-only weak-oracle; do bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --help | grep -q "rule-$r" || echo "$r"; done` prints nothing, and so does the same loop over `plugins/testing/skills/audit/SKILL.md`.
+- `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
 ### Phase 5: Config cascade and `/testing:setup` [TODO]
 
@@ -527,7 +674,9 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
   prints:
   - the resolved config;
   - lint-rule presence per language: eslint-plugin-jest/vitest/playwright, xUnit2021, NUnit2009,
-    ruff PLR0124. Bash, Pester and Go are marked "no maintained rule";
+    ruff PLR0124. Bash, Pester and Go are marked "no maintained rule". A missing test-lint rule
+    (eslint-plugin-jest/vitest `valid-expect`, xUnit2021, ruff PT and F631) is reported as a
+    finding, not a neutral absence (adoption ledger row 18, A13);
   - the optional instruction line to paste (Q2);
   - a consumer hook entry for any added glob that no hook filter covers (Q6).
 - The audit report lists consumer globs that no hook filter covers.
@@ -561,27 +710,54 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
   - (c) a forced script error gives exit 0 with no decision;
   - (d) a hang hits the internal timeout and gives exit 0.
 
-### Phase 7: Rules skill and pointers (parallel-safe) [TODO]
+### Phase 7: Rules skill and pointers [TODO]
+
+Starts after PR B merges ([Execution shape](#execution-shape)).
 
 - New model-invoked `plugins/testing/skills/test-value/SKILL.md`, kept to at most 120 lines because
-  every preload carries it (the figure is judgment). It covers where expected values must come from,
-  the taxonomy, Pocock's examples, and when a mock is acceptable (the EF Core carve-out). It ends
-  with `## Next`.
+  every preload carries it (the figure is judgment). It ends with `## Next`. It covers (A6):
+  - the expected value names its independent source (literal, worked example, spec, bug report,
+    hand-computed value); no independent source means no unit test;
+  - call-count or interaction checks are legitimate at unmanaged, state-changing boundaries
+    (Khorikov);
+  - a managed database uses a real instance, and a direct DB read after the act step is
+    legitimate state verification. The named exception is the EF Core carve-out: mocking
+    `DbContext` is acceptable for non-query writes;
+  - refactoring stays in the TDD loop (Beck, Canon TDD step 4), not outside it as Pocock's skill
+    says;
+  - the taxonomy, with examples keyed to rule ids.
+
+  The Khorikov, Beck step 4 and EF Core carve-out claims each carry the skill-bodies four-part
+  verification record (claim, basis, as-of date, recheck trigger), within the 120-line cap.
+- Existing copies: `plugins/testing/skills/write/context/write.md:78` becomes a pointer to
+  `testing:test-value`. `plugins/review/agents/code-reviewer.md:56` keeps its scan-deference logic
+  and drops its list of sources. The `tdd` reference stays as is.
 - Add `testing:test-value` to the `skills:` list of `plugins/implementation/agents/implementer.md`,
   `plugins/implementation/agents/phase-verifier.md` and `plugins/review/agents/code-reviewer.md`. Add
-  one `phase-verifier` line saying new tests are checked against it.
-- One "(if installed)" pointer line each in `testing:write`, `testing:plan` and `testing:diagnose`.
-- `debugging:debug` Phase 5: the regression test's expected value comes from the bug report.
-- Version bumps and CHANGELOG entries for `testing` (the new skill and the three pointer lines),
-  `implementation`, `review` and `debugging`, each one patch above main at merge.
+  one `phase-verifier` line: when the diff adds or changes tests, a new expected value with no named
+  source is reported as a finding outside the brief, not as a PASS/FAIL verdict.
+- One "(if installed)" pointer line each in `testing:write`, `testing:plan` and `testing:diagnose`,
+  and a `## Next` section in each, which none has today. Successors: `testing:write` names
+  `testing:audit`; `testing:plan` and `testing:diagnose` name `testing:write`. None names
+  `testing:test-value`, so each file keeps exactly one `testing:test-value` line.
+- `debugging:debug` Phase 5 body (`SKILL.md` lines 140-160): the regression test's expected value
+  comes from the bug report.
+- `plugins/testing/README.md`: line 43 still says the plugin declares no userConfig, and the skill
+  count must match the skills on disk.
+- Version bumps and CHANGELOG entries for `testing` (the new skill, the pointer lines and the
+  README), `implementation`, `review` and `debugging`, each one patch above main at merge.
 
 **Sanity Check:**
 
 - `grep -l 'testing:test-value' plugins/implementation/agents/implementer.md plugins/implementation/agents/phase-verifier.md plugins/review/agents/code-reviewer.md | wc -l` returns 3.
-- `grep -c 'testing:test-value' plugins/testing/skills/write/SKILL.md plugins/testing/skills/plan/SKILL.md plugins/testing/skills/diagnose/SKILL.md` returns 1 for each file.
+- `grep -c 'testing:test-value' plugins/testing/skills/write/SKILL.md plugins/testing/skills/plan/SKILL.md plugins/testing/skills/diagnose/SKILL.md` returns 1 for each file, and so does `grep -c '^## Next'` on the same files.
+- `grep -c 'testing:test-value' plugins/testing/skills/write/context/write.md` is at least 1, and `grep -c 'no userConfig' plugins/testing/README.md` returns 0.
+- `grep -c 'outside the brief' plugins/implementation/agents/phase-verifier.md` is at least 1.
 - `awk '/^## Phase 5/,/^## Phase 6/' plugins/debugging/skills/debug/SKILL.md | grep -c 'bug report'` is at least 1.
-- `wc -l < plugins/testing/skills/test-value/SKILL.md` is at most 120.
+- `wc -l < plugins/testing/skills/test-value/SKILL.md` is at most 120, and `grep -ci 'recheck' plugins/testing/skills/test-value/SKILL.md` is at least 3 (one record each for Khorikov, Beck step 4 and the EF Core carve-out).
+- `grep -A3 '^## Next' plugins/testing/skills/write/SKILL.md | grep -c 'testing:audit'` is at least 1, and so is `grep -A3 '^## Next' <file> | grep -c 'testing:write'` for the `plan` and `diagnose` SKILL.md files.
 - `bash scripts/check-changed-skills.sh origin/main`, `bash scripts/check-skill-count-claims.sh --check`, `bash scripts/check-changelog-parity.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
+- `git diff origin/main -- plugins/testing/.claude-plugin/plugin.json | grep -c '^+.*"version"'` returns 1.
 
 ### Phase 8: Precision run and release [TODO]
 
@@ -590,16 +766,21 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
   `melodic-software/claude-code-plugins`, `melodic-software/medley` and `melodic-software/ci-runner`,
   read-only, together covering every wave-1 language in real use.
 - Classify every finding as true or false positive in `docs/topics/tautological-tests/precision-run.md`.
+  The report shows examined-file counts per adapter. A rule with 0 findings in a language where its
+  forms never occur is marked "unmeasured" there, not "qualifies".
 - Each false positive becomes a good corpus fixture before it is fixed. The PR checklist enforces
   this by process (acceptance criterion 5).
 - Blocking stays off. The report names which deterministic rules qualify to block, excluding
-  `bash-harness` zero-assertion. That switch ships in a later minor version (D4).
+  `bash-harness` zero-assertion. That switch ships in a later minor version (D4). It includes
+  `rule-inert-assertion` gating `--check`, once the report shows it at 0 false positives on the
+  three repos (A13).
 - Bump `testing` one patch above main at merge, with a CHANGELOG entry, and update its README and
   plugin description.
 
 **Sanity Check:**
 
 - `grep -cE '^\| (claude-code-plugins|medley|ci-runner) \|' docs/topics/tautological-tests/precision-run.md` returns 3.
+- `grep -c 'examined' docs/topics/tautological-tests/precision-run.md` is at least 1, and no rule is marked "qualifies" for a language where the report marks it "unmeasured".
 - `bash scripts/run-plugin-tests.sh` exits 0.
 - `bash scripts/check-changelog-parity.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
@@ -608,9 +789,11 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 
 - A Stop or SubagentStop judge on a different model reviews tests still in doubt. It judges
-  provenance only, answers FLAG, PASS or UNKNOWN with quoted evidence, and stays advisory. First
-  item: probe whether the `prompt` or `agent` hook types fit (Brief open question).
-- A labeled calibration set, reviewed by two people.
+  provenance only, answers FLAG, PASS or UNKNOWN with quoted evidence, and stays advisory. It
+  proposes test fixes and waits for approval; it never commits them (Q9, A10). First item: probe
+  whether the `prompt` or `agent` hook types fit (Brief open question).
+- A labeled calibration set, reviewed by two people. It starts from the Phase 4a `judge` rows, plus
+  G7 (stub pass-through) and G10 (mocking types you don't own).
 - `mutation-testing:audit` gains a scope that mutates the production code the changed tests exercise,
   and classifies each survivor.
 - Resolve which ImpossibleBench variant the ">79%" figure belongs to (arXiv 2510.20270, Section 5)
@@ -651,7 +834,7 @@ Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 |---|---|---|---|
 | The engine refactor changes existing findings | Med | High | Phase 1 parity run per subdirectory and over a real tree, under gawk and mawk |
 | The hook driver is slow on Windows Git Bash (about 46 ms per call on WSL; S about 80 ms on Windows) | Med | Med | Phase 2 p95 budget (150 ms WSL, 1 s Windows), measured before later phases build on it |
-| Lexical rules false-fire on real suites | High | Med | All new rules advisory; Bash ceiling in Phase 3; precision run; false-positive-to-fixture rule |
+| Lexical rules false-fire on real suites | High | Med | All new rules ship report-only; `rule-inert-assertion`, which mirrors shipped analyzers (xUnit2021, `valid-expect`, SC2314), becomes eligible to gate `--check` in a later minor version only after 0 false positives in Phase 8; Bash ceiling in Phase 3; precision run; false-positive-to-fixture rule |
 | Bash and MCP writes bypass the hooks | Known | Med | Guardrails `block-hook-bypass` covers shell writes; the audit and the Release 2 judge cover the rest |
 | Adapter globs drift from hook filters, or overlap | Med | Med | `gen-hook-filters.sh --check` with dedup and overlap tests |
 | The consumer hook entry gets no plugin variables | Med | Low | Phase 5 probe and `[FALLBACK]` shim |
@@ -667,27 +850,34 @@ HIGH.
 
 ## Execution shape
 
-- Phases 1-6 and 8 run in order on the `testing` plugin: each changes the scanner or its hooks, and
-  they share `cant-fail-scan.{sh,awk}`, `hooks.json` and the corpus.
-- Phase 7 touches only `plugins/testing/skills/test-value/`, three agent files, three skill pointer
-  lines and `debugging:debug`. It can run in parallel from Phase 1 onward.
+- Phases 1-6 (4a and 4b in order) run in order on the `testing` plugin: each changes the scanner or
+  its hooks, and they share `cant-fail-scan.{sh,awk}`, `hooks.json` and the corpus.
+- Phase 7 (PR C) starts after PR B merges; it does not run in parallel with Phases 1-6. It shares
+  the testing `plugin.json`, CHANGELOG and README with PR B, and the test-value body keys its
+  examples to rule ids that land in PR B.
+- Phase 8 follows Phase 7.
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 1 | main session | engine refactor, parity judgment |
 | 2 | main session | hook contract and live probes |
 | 3 | sub-agent worker per adapter group (bash+pwsh, go+node-test, C#, Python) after the shell lexers land | mechanical adapter data plus fixtures; file-disjoint by `adapters/<id>.yaml` and `corpus/<id>/` |
-| 4 | main session | Pocock mapping may need a user decision |
+| 4a | main session | rule categories and the Pocock rule-or-judge mapping |
+| 4b | main session | remaining rules follow the 4a pattern; crosswalk rungs follow A14 |
 | 5 | main session | config contract |
 | 6 | sub-agent worker | follows the Phase 2 pattern |
-| 7 | sub-agent worker, parallel | file-disjoint from 1-6 |
+| 7 | sub-agent worker, after PR B merges | shares testing `plugin.json`, CHANGELOG and README with PR B; keyed to PR B rule ids |
 | 8 | main session | outside-checkout approval |
 
 PR slicing, each opened as a draft. Every version is one patch or minor above main at merge:
 
-- PR A: Phase 1, a `testing` patch bump (merged as #5205).
-- PR B: Phases 2-6, a `testing` minor bump, committed per phase.
-- PR C: Phase 7, bumps for `testing`, `implementation`, `review` and `debugging`.
+- PR A: Phase 1, a `testing` patch bump, merged as #5205 (squash `d6e040a4c`).
+- PR B: Phases 2-6, a `testing` minor bump and a `review` patch bump for the Phase 4b crosswalk
+  rows, committed per phase. Its branch `feat/testing-test-scan-hook` is already rebased onto
+  `origin/main` (`32163c726`), without the three pre-squash Phase 1 commits (`cb8969646`,
+  `3476b39f4`, `6c913d831`).
+- PR C: Phase 7, opened after PR B merges, bumps for `testing`, `implementation`, `review` and
+  `debugging`.
 - PR D: Phase 8, a `testing` patch bump.
 
 ## Approval
@@ -697,9 +887,36 @@ reword acceptance criterion 10; X2, lint presence moves to `/testing:setup check
 amendment is confirmed; X4, the fleet-host and other-repo steps are approved, with each run gated
 again when it happens.
 
+Amendment: attended. Approved by Kyle Sexton on 2026-09-28, from
+`.work/tautological-tests/pocock-critique/RESEARCH.md` and
+`.work/tautological-tests/test-guidance-map/EXPLORE.md`. Each item was decided separately:
+
+- A1, rule categories: blocking, change-detector, advisory (Brief Q4, Phase 4a).
+- A2, `rule-conditional-assertion` and `rule-weak-oracle`; G7 and G10 go to the judge; G11 is out.
+- A3, the `rule-source-text-read` tracked-source path gate.
+- A4, `rule-snapshot-only` stays advisory, with its finding wording.
+- A5, the derived-expectation rule starts advisory, with the property-test exemption.
+- A6, the Phase 7 test-value content and the fate of the existing copies.
+- A7, the `dependencies.md:15` contradiction is recorded, not filed.
+- A8, Pocock fixture handling and the acceptance criterion 1 judge-case wording.
+- A9, no retro pointer: adoption ledger row 17 is dropped.
+- A10, the judge proposes test fixes and never commits them.
+- A11, `audit-enforceability` crosswalk rows in Phase 4b.
+- A12, the extreme-mutation mode is a candidate follow-up, not filed.
+- A13, conflict reconciliation: Q12 activation, own id for the derived variant, testing bump in
+  PR C, precision exemptions, setup lint finding.
+- A14, the crosswalk tier and enforcement rung per rule (Phase 4a table): IMPORTANT for the
+  can't-fail rules, SUGGESTION for the change-detector rules, `rule-snapshot-only` and
+  `rule-weak-oracle`; `analyzer-pack-rule` for `rule-inert-assertion`; argued rungs for the two
+  Playwright rows.
+
+Re-approved by Kyle Sexton on 2026-09-29 after a fresh plan review (16 findings fixed). The formal
+devils-advocate pass was skipped: the base plan was stress-tested twice and no new rule blocks in
+Release 1.
+
 User-approval gates that still hold:
 
 - Phase 2 and Phase 8: running on a Windows fleet machine through `/fleet:reach`.
 - Phase 8: scanning `medley` and `ci-runner`, read-only.
-- Phase 4: any Pocock example that no deterministic rule can catch.
+- Phase 4a: any Pocock example that fits neither a rule nor the acceptance criterion 1 judge list.
 - Phase 5 `[FALLBACK]`: the consumer-entry shim, if the probe shows plugin variables are missing.
