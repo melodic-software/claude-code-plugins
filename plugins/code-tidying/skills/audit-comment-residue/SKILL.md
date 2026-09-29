@@ -50,7 +50,8 @@ something the code cannot (a non-obvious why, a constraint, an interface/design-
 | `history-narration` | The comment narrates the code's past: "used to…", "no longer…", "previously", "renamed from X", "we switched from…", "now returns…" | 1 | Delete. Version control owns history. Keep only if the *reason* for the change is a load-bearing constraint, rewritten as present-tense rationale ("must stay ordered because…") |
 | `plan-reference` | References a work plan, session, or changeset rather than the code: `"Task 2 replaces the old…"`, `"as planned"`, `"in this PR/commit/refactor"` | 1 | Delete, the plan is not part of the code's meaning. Fold any surviving intent into a present-tense why-comment |
 | `conversational-antecedent` | Addresses the requester or the producing conversation: `"per your request"`, `"as you asked"`, `"like you said"`, `"per our discussion"` | 1 | Delete, the conversation is invisible to every future reader |
-| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review. Delete a bare back-reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
+| `history-narration-weak` | Weak cues that usually narrate the past: `"exactly as before"`, `"as before"`, `"has always used"`, `"always used"`, `"the old <word>"` (`"the old shared group"`; `"replaces the old"` stays `plan-reference`), and a bare phase number (`"(ci-perf Phase 6b)"`, `"cleanup for Phase 6"`) | 2 | Review. Each cue also opens ordinary prose (`"as before the loop starts"`, `"the old value is compared against the new"`), so a person decides: delete the narration, or keep a rewrite as present-tense rationale. A phase number followed by more words (`"phase 2 of the build"`) is not a finding |
+| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"dotfiles#647"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review. Delete a bare back-reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
 | `origin-note` | The comment names where the block came from or when it was added: `"ported from the dotfiles profile"`, `"Merged 2026-07-24 from dot_bashrc"`, `"Added 2026-08-10 while wiring telemetry"` | 1 | Delete. Git history owns origin. Boundaries: a dated freshness stamp (`"verified 2026-09-03 against v2.1.259"`, and the same with `checked`, `confirmed` or `as of`) is not this shape and stays, a bare date matches nothing, and the verb-from cue has to open the comment or a clause inside it, so `"bytes copied from the source buffer"` is not a finding (the dated cue takes every anchor but the parenthesis). Two comment classes are exempt whatever verb they open with, because Tier 1 reads "remove": a marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work, and a license or attribution header, whose text the reader may be legally required to keep. The license exemption is BLOCK-scoped: a run of contiguous comment lines in which ANY line carries `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` next to a year or a `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE header is covered even though the cue sits on a different line. The run ends at the first blank line or line of code, and a trailing comment on a code line starts no run, so the same sentence elsewhere in the file is an ordinary finding |
 
 Consumers with their own comment conventions can refine these defaults in their repo's `CLAUDE.md` /
@@ -74,11 +75,13 @@ rules; the classifier's shapes and tiers above are the skill's built-in baseline
 ## Hard rules
 
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops. The author owns every deletion.
-- **Tier semantics.** Tier 1 = residue to remove; Tier 2 = review needed (a ticket reference may be a legitimate `TODO`).
+- **Tier semantics.** Tier 1 = residue to remove; Tier 2 = review needed (a ticket reference may be a legitimate `TODO`, and a weak history cue may be ordinary prose).
+- **Wrapped comments.** A comment line that continues a comment on the line above is also read joined to it, so a phrase wrapped across the break is found. It is reported once, at the first line's number.
 - **Code files only.** Markdown is `/docs-hygiene:audit-noise`'s territory and is skipped; a `.md` target yields no findings here.
 - **Comment-scoped detection.** Only the comment portion of a line is classified. Residue-shaped words in code (identifiers, string literals) are not flagged.
-- **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` marker tracking real work is never flagged as ticket residue.
+- **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` / `HACK` / `XXX` marker tracking real work is never flagged as ticket residue. The marker must be a whole word opening the comment or a clause and followed by `(` or `:`.
 - **Opt-out markers respected.** `comment-residue-ignore` on a line (or the line before it) skips it.
+- **Synced and generated files.** A finding in a file whose first 10 lines say `sync-managed`, `do not edit` or `@generated` belongs upstream, where the file is produced. The script labels it with a `Note: upstream (sync-managed or generated file) <path>` line before that file's summary, and the finding still counts in the tiers; nothing is silently hidden. To leave files out of a run on purpose, pass `--exclude-from <file>`: one root-relative glob per line, blank lines and `#` lines ignored, a missing file exits 2, and the run reports `Note: excluded N file(s) by --exclude-from`. That list is separate from `.claude/code-tidying/exclusion-overrides.md`, which lifts `/code-tidying:tidy`'s hard exclusions and has the inverse meaning.
 - **Output deterministic.** Filenames sort lexically; findings sort by line number; no timestamps.
 
 ## Output schema
@@ -93,6 +96,7 @@ Per target file:
 | 1    | history-narration | 42 | "// used to buffer; now flushes" | Delete — version control owns history |
 | 1    | conversational-antecedent | 12 | "# as you asked, retry three times" | Delete — invisible to future readers |
 | 1    | origin-note | 5 | "# ported from the dotfiles profile" | Delete. Git history owns origin |
+| 2    | history-narration-weak | 61 | "// grouped as before" | Review. Keep only a present-tense why |
 | 2    | ticket-pr-residue | 88 | "// see PR #45 for rationale" | Review. Delete a bare back-reference; keep TODO(#issue) |
 ```
 
@@ -102,7 +106,7 @@ Batch aggregate at end:
 Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 ```
 
-`shape` values: `history-narration`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`, `origin-note`.
+`shape` values: `history-narration`, `history-narration-weak`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`, `origin-note`.
 
 ## What this skill is NOT
 

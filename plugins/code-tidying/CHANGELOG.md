@@ -3,6 +3,41 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-29
+
+### Added
+
+- **`audit-dead-code` scans standalone JS/TS for unreferenced symbols.** The grep lane extracts
+  `function`, `class`, `const`, `let` and `var` declarations from JS/TS files that no `package.json`
+  root owns and reports a name nothing else references as `ts-unreferenced-symbol` (tier 2). The
+  SKILL.md lane table records the measured precision and recall (2 of 3 each). Knip still covers
+  files inside a root ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
+- **`audit-comment-residue` catches weak history cues and comments wrapped across lines.** A tier 2
+  `history-narration-weak` shape covers `as before`, `always used`, `the old <word>` and a bare phase number, and a comment
+  that continues over several lines is joined before matching. A bare `repo#N` reference is a cue
+  ([#4530](https://github.com/melodic-software/claude-code-plugins/issues/4530)).
+- **`audit-comment-residue` labels findings in sync-managed and generated files.** A file that has
+  findings and marks itself sync-managed or generated in its first lines gets an `upstream` note, and
+  `--exclude-from <file>` skips the paths it lists.
+
+### Fixed
+
+- **`audit-dead-code` no longer prints a clean result over a degraded lane.** A `degraded` lane's
+  files are listed uncovered (`lane degraded`), so the clean-result note cannot print
+  ([#4521](https://github.com/melodic-software/claude-code-plugins/issues/4521)).
+- **`audit-dead-code` skips paths containing a tab or newline** in the unreferenced-file scan, and its
+  description no longer claims orphan detection for every source language.
+- **Hard rules match the consent path.** The read-only and never-fetch rules name the one exception,
+  a detector install after an explicit yes, and an eval case covers the gap offer
+  ([#4524](https://github.com/melodic-software/claude-code-plugins/issues/4524)).
+- **Word boundaries on every `audit-comment-residue` cue.** Plain prose such as `in this committed`
+  or `replaces the older` no longer matches, and a TODO or FIXME marker exempts a comment only when
+  anchored at its start.
+- **`batch-simplify` `in-place` stops when the index already holds staged changes**, so the staged or
+  committed set is the run's edits alone ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)).
+  The README lists the `tidy` and `batch-simplify` modes, and `code-simplifier` carries its
+  verification record ([#4529](https://github.com/melodic-software/claude-code-plugins/issues/4529)).
+
 ## [0.23.20] - 2026-09-28
 
 ### Fixed
@@ -47,7 +82,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Added
 
-- **`in-place` mode for `tidy` and `batch-simplify` repo mode.** Runs on the current branch with
+- **`in-place` mode for `tidy` and `batch-simplify` repo mode** ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)). Runs on the current branch with
   no new branch or PR; changes are left staged (`in-place`) or as one commit (`in-place=commit`),
   and the report prints to the user.
 
@@ -122,7 +157,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **Deferred standalone JS/TS dead-code scan** ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
   Grep-lane fallback and knip-without-manifest remain parked; #4525 documents the no-`package.json`
-  gap. Version 0.23.7 serializes with other open code-tidying parks on the same base.
+  gap.
 
 ## [0.23.7] - 2026-09-28
 

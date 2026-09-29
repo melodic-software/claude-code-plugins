@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8] - 2026-09-29
+
+### Fixed
+
+- **`teach` `**Arguments.**` line leads with the argument hint,** so the hint and the line list the same actions.
+
 ## [0.11.7] - 2026-09-29
 
 ### Fixed

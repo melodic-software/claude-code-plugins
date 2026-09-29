@@ -26,6 +26,10 @@ open, and it is worked once the admission gate passes it and a cap slot is free.
 Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
 escalated to a human first, then items closed and PR'd), apply the post-snapshot intake report below, and stop cleanly.
 
+When the drain stays open because a retained id is covered only by a draft closing PR or by the
+in-flight exclusion, the cycle report names those ids with the same PR number, draft state, and age
+as `SKILL.md`'s in-flight line, from the adapter's reporting reduction.
+
 ## Drain-terminal state
 
 When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight,
