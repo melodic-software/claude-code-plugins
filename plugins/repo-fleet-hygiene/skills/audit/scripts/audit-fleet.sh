@@ -2337,7 +2337,10 @@ repo_verdict() {
     kind="${F_KIND[$i]}"
     target="${F_TARGET[$i]}"
     if [[ "$conf" == "UNKNOWN" ]]; then
-      unknown=$((unknown + 1))
+      case "$kind" in
+      discovery-skip | discovery-symlink-skip) ;;
+      *) unknown=$((unknown + 1)) ;;
+      esac
     elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
       array_contains "$target" "${cand_targets[@]:-}" || cand_targets+=("$target")
     fi
@@ -3185,8 +3188,9 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
 done
 
 # Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
-# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
-# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
+# get their own rollup row. Their evidence gaps (all UNKNOWN kinds except the disclosed
+# discovery skips) must also move the overall Fleet verdict off CLEAN — repo_verdict -1
+# already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))

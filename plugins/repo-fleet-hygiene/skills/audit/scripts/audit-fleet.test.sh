@@ -1248,7 +1248,8 @@ cat >"$TMP/stale-only.conf" <<'STALEONLY'
 STALEONLY
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" --detail >"$ladder_out" 2>&1 &&
   grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
-  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out"; then
+  grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out" &&
+  grep -Fq "Fleet verdict: BLOCKED" "$ladder_out"; then
   printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
 else
   printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
@@ -1389,6 +1390,12 @@ if [[ "$husk_status" -ne 2 ]] &&
 else
   printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
   sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+if grep -Fq "Fleet verdict: CLEAN" "$husk_out"; then
+  printf 'PASS: a discovery-skip alone does not block the fleet\n'
+else
+  printf 'FAIL: a discovery-skip alone does not block the fleet\n%s\n' "$(cat "$husk_out")" >&2
   failures=$((failures + 1))
 fi
 # The operator named this path directly, so the typo-stops-the-run rule still holds.
@@ -2474,7 +2481,7 @@ else
       grep -Fq "Windows directory junctions" "$sym_mid_out" &&
       grep -Fq "/repo-fleet-hygiene:setup apply --extend-skip via-link" "$sym_mid_out" &&
       grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
-      grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
+      ! grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
       ! grep -Fq "buried-repo" "$sym_mid_out"; then
       printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
     else
@@ -2483,6 +2490,31 @@ else
     fi
   else
     printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+
+  # A disclosed skip alone does not BLOCK the fleet next to a clean repo; a genuine evidence gap
+  # still does.
+  mkdir -p "$sym_mid_root/repo-b/.git"
+  sym_gap_out="$TMP/sym-gap-out.txt"
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1
+  if grep -Fq "Repo: $TMP/repo-b" "$sym_mid_out" &&
+    grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+    grep -Fq "Fleet verdict: CLEAN" "$sym_mid_out"; then
+    printf 'PASS: a symlink skip beside a clean repository does not block the fleet\n'
+  else
+    printf 'FAIL: a symlink skip beside a clean repository does not block the fleet\n%s\n' "$(cat "$sym_mid_out")" >&2
+    failures=$((failures + 1))
+  fi
+  FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --root "$sym_mid_root" --repo "$TMP/canonical-a" --detail >"$sym_gap_out" 2>&1 || true
+  if grep -Fq "Finding: discovery-symlink-skip" "$sym_gap_out" &&
+    grep -Fq "Finding: ls-remote-fleet-unavailable" "$sym_gap_out" &&
+    grep -Fq "Fleet verdict: BLOCKED" "$sym_gap_out"; then
+    printf 'PASS: a genuine evidence gap still blocks the fleet beside a symlink skip\n'
+  else
+    printf 'FAIL: a genuine evidence gap still blocks the fleet beside a symlink skip\n%s\n' "$(cat "$sym_gap_out")" >&2
     failures=$((failures + 1))
   fi
 fi

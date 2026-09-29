@@ -10,7 +10,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
+**Arguments.** `[worker|autopilot|help] [owner/repo | #n | owner/repo#n]`. Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
 
 ## Pre-computed context
 
