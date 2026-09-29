@@ -145,7 +145,15 @@ operator's `declined` decision must survive a re-audit.
 
 Before ranking, resolve the tracked suppression surface `.claude/instruction-placement.md` across
 its three layers ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md))
-and suppress every candidate whose `finding_id` it carries. That file is how a decline reaches a
+and suppress every candidate whose `finding_id` it carries. Derive a candidate's `anchor/v1` and
+`finding_id` by running `detect.sh identity`, never by hand:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> \
+  --lane demote|promote --destination <rung>
+```
+
+That file is how a decline reaches a
 checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
 operator already made somewhere else.
 
