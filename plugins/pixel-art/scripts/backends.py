@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,11 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
         return _native(spec, out_dir, scale, spec_path, NOTICES["aseprite-missing"])
     prepared = palette_mod.prepare_spec(spec, spec_path)
     plan = aseprite_backend.export_plan(prepared)
+    if plan["noncontiguous"]:
+        return _native(
+            spec, out_dir, scale, spec_path,
+            f"Aseprite tags need contiguous frames ({', '.join(plan['noncontiguous'])} are split in the "
+            "sheet order); rendered with the native backend")
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         work = pathlib.Path(tmp)
@@ -138,6 +144,19 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
         except (RuntimeError, ValueError, OSError) as exc:
             return _native(spec, out_dir, scale, spec_path, f"Aseprite sheet rejected ({exc}); rendered with the native backend")
         gif_dir = work / "gif"
+        # The native render into out_dir drops GIFs of removed animations using the previous
+        # sheet.json; do the same here, since this path only copies the new GIFs.
+        previous = out_dir / "sheet.json"
+        if previous.is_file():
+            try:
+                old_tags = json.loads(previous.read_text()).get("meta", {}).get("frameTags", [])
+            except (ValueError, OSError):
+                old_tags = []
+            live = set(prepared.get("animations") or {"all": None})
+            for tag in old_tags:
+                name = tag.get("name", "") if isinstance(tag, dict) else ""
+                if name not in live and re.fullmatch(r"[\w-]+", name):
+                    (out_dir / f"{name}.gif").unlink(missing_ok=True)
         render.render(prepared, gif_dir, scale, spec_path)
         for name in ("sheet.png", "sheet.json"):
             shutil.copyfile(work / name, out_dir / name)
@@ -171,7 +190,14 @@ def _generate_frames(spec, rows_for_prompt, spec_path):
         order.append(name)
     built = dict(prepared)
     built["frames"] = frames
-    built["sheet"] = {"columns": len(order), "order": order}
+    # Keep a declared engine layout when it names exactly the generated frames.
+    declared = prepared.get("sheet") or {}
+    declared_order = declared.get("order") or []
+    same = {n for n in declared_order if n} == set(order)
+    built["sheet"] = {
+        "columns": declared.get("columns") or len(order),
+        "order": declared_order if same else order,
+    }
     names = set(frames)
     animations = built.get("animations") or {}
     covers = animations and all(
@@ -191,7 +217,7 @@ def _run_pixellab(spec, out_dir, scale, spec_path, env, confirm):
     token = env.get("PIXELLAB_API_TOKEN")
     if not token:
         return _native(spec, out_dir, scale, spec_path, NOTICES["pixellab-missing"])
-    if not isinstance(spec.get("generate"), dict):
+    if not isinstance(spec.get("generate"), dict) or not spec["generate"].get("prompt"):
         return _native(spec, out_dir, scale, spec_path, "PixelLab needs spec.generate.prompt; rendered with the native backend")
     if not confirm:
         return _native(spec, out_dir, scale, spec_path, NOTICES["pixellab-confirm"])
@@ -217,7 +243,7 @@ def _run_retro(spec, out_dir, scale, spec_path, env, confirm):
     token = env.get("RD_API_KEY")
     if not token:
         return _native(spec, out_dir, scale, spec_path, NOTICES["retro-missing"])
-    if not isinstance(spec.get("generate"), dict):
+    if not isinstance(spec.get("generate"), dict) or not spec["generate"].get("prompt"):
         return _native(spec, out_dir, scale, spec_path, "Retro Diffusion needs spec.generate.prompt; rendered with the native backend")
     if not confirm:
         return _native(spec, out_dir, scale, spec_path, NOTICES["retro-confirm"])

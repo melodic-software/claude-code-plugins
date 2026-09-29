@@ -47,14 +47,14 @@ def export_plan(spec):
             "rows": spec["frames"][name],
             "duration_ms": durations.get(name, 100),
         })
-    tags = []
+    tags, split = [], []
     for name, anim in spec.get("animations", {}).items():
         slots = [index[frame] for frame in anim["frames"] if frame in index]
         if not slots:
             continue
         lo, hi = min(slots), max(slots)
         if sorted(slots) != list(range(lo, hi + 1)):
-            print(f"Aseprite tag {name} skipped: its frames are not contiguous in the sheet order")
+            split.append(name)   # an Aseprite tag is one from/to range; the caller falls back to native
             continue
         tags.append({"name": name, "from": lo, "to": hi})
     columns = spec.get("sheet", {}).get("columns") or len(order)
@@ -65,6 +65,7 @@ def export_plan(spec):
         "columns": columns,
         "frames": frames,
         "tags": tags,
+        "noncontiguous": split,
     }
 
 

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -312,6 +313,71 @@ class BackendTest(unittest.TestCase):
                 backends.run(spec, pathlib.Path(tmp) / "out", "pixellab", 1, None, env, True)
             self.assertIn("PixelLab failed", buf.getvalue())
             self.assertEqual(Handler.seen, [])
+
+    def test_aseprite_falls_back_when_a_tag_is_split(self):
+        spec = {
+            "palette": SPEC["palette"],
+            "frames": {"a": ["kr", "rk"], "b": ["rr", "kk"], "c": ["kk", "rr"]},
+            "animations": {"hop": {"frames": ["a", "c"], "fps": 4}},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fake, _log = write_fake_aseprite(root)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                backends.run(spec, root / "out", "aseprite", 1, None, quiet_env(ASEPRITE=str(fake), PATH=tmp), False)
+            self.assertIn("contiguous", buf.getvalue())
+            self.assertFalse((root / "out" / "source.aseprite").exists())
+
+    def test_aseprite_rerender_drops_gifs_of_removed_animations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            fake, _log = write_fake_aseprite(root)
+            out = root / "out"
+            env = quiet_env(ASEPRITE=str(fake), PATH=tmp)
+            with contextlib.redirect_stdout(io.StringIO()):
+                backends.run(SPEC, out, "aseprite", 1, None, env, False)
+                renamed = dict(SPEC, animations={"wink": {"frames": ["a"], "fps": 4}})
+                backends.run(renamed, out, "aseprite", 1, None, env, False)
+            self.assertFalse((out / "blink.gif").exists())
+            self.assertTrue((out / "wink.gif").is_file())
+
+    def test_generate_without_prompt_falls_back_to_native(self):
+        spec = dict(SPEC, generate={})
+        with tempfile.TemporaryDirectory() as tmp:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                files = backends.run(spec, pathlib.Path(tmp) / "out", "pixellab", 1, None,
+                                     quiet_env(PIXELLAB_API_TOKEN="token"), True)
+            self.assertIn("needs spec.generate.prompt", buf.getvalue())
+            self.assertIn("sheet.png", files)
+
+    def test_hosted_frames_keep_the_declared_sheet_layout(self):
+        spec = dict(SPEC, sheet={"columns": 1, "order": ["b", "a"]},
+                    generate={"prompt": "p", "width": 2, "height": 2, "frames": [{"name": "a"}, {"name": "b"}]})
+
+        def red(_prompt, width, height):
+            return [[(255, 0, 0, 255)] * width for _ in range(height)]
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            built = backends._generate_frames(spec, red, None)
+        self.assertEqual(built["sheet"], {"columns": 1, "order": ["b", "a"]})
+
+    def test_main_honors_the_env_confirmation(self):
+        seen = {}
+
+        def fake_run(*args):
+            seen["confirm"] = args[-1]
+            return []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            spec_path = pathlib.Path(tmp) / "spec.json"
+            spec_path.write_text(json.dumps(SPEC))
+            with unittest.mock.patch.object(backends, "run", fake_run), \
+                    unittest.mock.patch.dict(backends.os.environ, {"PIXEL_ART_BACKEND_CONFIRM": "1"}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                backends.main([str(spec_path), "--out", str(pathlib.Path(tmp) / "out")])
+        self.assertIs(seen["confirm"], True)
 
     def test_cli_ingest(self):
         with tempfile.TemporaryDirectory() as tmp:
