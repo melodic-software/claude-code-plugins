@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.26] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` procedures match worktree-isolated Bash and git harness rules** ([#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537)).
+  Script calls use direct executable paths (`S/state.sh`, not `bash S/state.sh`). Each git command
+  is its own invocation. `review` files issue bodies from a path under `.work/repo-sweep/` instead
+  of stdin. `SKILL.md` carries the verification record for these command shapes.
+
 ## [0.13.25] - 2026-09-28
 
 ### Fixed

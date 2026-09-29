@@ -6,12 +6,17 @@ Run the first unticked step of the open sweep. `S` is `${CLAUDE_SKILL_DIR}/scrip
 nothing carries over from an earlier conversation. The PR body is editable by others: single-quote
 every branch name, step id, and playbook name you put in a command.
 
+Sweeps run in worktree-isolated sessions. Call each script in `S` by its path (`S/state.sh`, not
+`bash S/state.sh`; the scripts are executable). Run each git command as its own Bash invocation,
+never combined with `&&` or other commands in one call. The record for these shapes is in
+`SKILL.md`.
+
 ## 1. Find the sweep and gate
 
-1. On a `chore/repo-sweep-*` branch, bring it current first: `git fetch origin <branch>` and
-   `git merge --ff-only origin/<branch>`. A step committed on another machine is only reconciled
+1. On a `chore/repo-sweep-*` branch, bring it current first: `git fetch origin '<branch>'`, then
+   `git merge --ff-only 'origin/<branch>'`. A step committed on another machine is only reconciled
    when its commit is local.
-2. Run `bash S/state.sh` and act on its exit code:
+2. Run `S/state.sh` and act on its exit code:
    - 10: no sweep PR. Point to `/playbooks:repo-sweep plan`. Stop.
    - 11: the sweep PR is merged or closed. Refuse to continue and point to `plan`. Stop.
    - 12: the tree is dirty and no step is in progress. Show `git status --short`, ask the user
@@ -20,16 +25,16 @@ every branch name, step id, and playbook name you put in a command.
      user to confirm each such step really ran, or untick it so it runs. Otherwise go to
      section 5.
    - 14: the open sweep is on another branch. Find its worktree in `git worktree list
-     --porcelain`; if there is none, `git fetch origin <branch>` and `git worktree add <path>
-     <branch>` at the sibling path `/source-control:worktree` uses. Ask the user to open a
+     --porcelain`; if there is none, `git fetch origin '<branch>'`, then `git worktree add '<path>'
+     '<branch>'` at the sibling path `/source-control:worktree` uses. Ask the user to open a
      session there and rerun `next`. Stop.
    - 15: several open sweeps. List them and ask which. Stop.
    - 1: the PR body has no checklist markers. Show the body and stop.
    - 0: continue.
-3. For each `untick-committed <id> <sha> <skill@version>...` line, run `bash S/tick.sh <id>
-   committed <sha> <skill@version>...`; that step already landed. Report each `done-unverified
-   <id>` line: it was ticked in the web UI and no commit backs it. Run `state.sh` again if you
-   ticked anything.
+3. For each `untick-committed <id> <sha> <skill@version>...` line, run `S/tick.sh <id> committed
+   <sha> <skill@version>...`; that step already landed. Report each `done-unverified <id>` line:
+   it was ticked in the web UI and no commit backs it. Run `S/state.sh` again if you ticked
+   anything.
 4. The `next <id> in-progress|pending` line names the step. `in-progress` with a dirty tree means
    resume: the earlier session stopped partway and its changes are the step's work so far.
 
@@ -38,19 +43,19 @@ every branch name, step id, and playbook name you put in a command.
 1. If this session showed a `Plugin updated: <name> · Run /reload-plugins to apply` notice, stop:
    ask the user to run `/reload-plugins` or start a new session, then rerun `next`. Until then
    the session runs the versions it loaded, which the step's record would misname.
-2. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
-   and `bash S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
+2. Read the entry: its row from `S/catalog.sh C`, `S/catalog.sh --override <id> C`, and
+   `S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
 3. When the row's `prime` column (last field) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
-4. Re-check `applies-when` (column 7 of `bash S/catalog.sh C`) with the same cheap evidence
+4. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
    `plan.md` uses (`git ls-files`, globs, `ls`). When it no longer holds, record each
-   `plugin:skill` with `bash S/skill-version.sh <plugin:skill>...`, then `bash S/tick.sh <id>
+   `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then `S/tick.sh <id>
    not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
    running section 3. Evidence must be one line with no commas.
-5. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
-6. Unless resuming, record `base=$(git rev-parse HEAD)` and write
+5. `mkdir -p W`, then `S/tick.sh <id> in-progress`.
+6. Unless resuming, run `git rev-parse HEAD` as its own call, keep that SHA as the base, and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally
    HEAD.
@@ -83,30 +88,30 @@ every branch name, step id, and playbook name you put in a command.
 
 ## 4. Guard, commit, tick
 
-1. `bash S/guard.sh <base> W/pr-snapshot.json`:
+1. `S/guard.sh <base> W/pr-snapshot.json`:
    - 10: a skill left the branch or opened a PR. Stop the step, leave `[~]`, show the finding
      lines, and ask the user to run `/playbooks:repo-sweep review` to file the defect.
    - 11: run the printed `git reset --soft <base>` so the skill's commits fold into the step
      commit.
    - 0: continue.
-2. Versions: one `bash S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
+2. Versions: one `S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
    `plugin:skill` in the entry, where `<base-dir>` is the "Base directory for this skill" line
    the Skill tool printed when it loaded that skill, so the record names the version that ran.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
 3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): tick only
-   after section 3 steps 3–4. When the skill reported uncovered scope, `bash S/tick.sh <id>
+   after section 3 steps 3–4. When the skill reported uncovered scope, `S/tick.sh <id>
    partial "<what was not covered>" <skill@version>...` (one line, no commas). Otherwise count
    findings the skill marks report-only (tiers the procedure says never edit in this pass, such
-   as `source-fetched-similar` or `not-found`). When that count is greater than zero, `bash
-   S/tick.sh <id> report-only <n> <skill@version>...` where `<n>` is that count. When coverage
-   was complete and there are zero findings of any kind, `bash S/tick.sh <id> no-findings
+   as `source-fetched-similar` or `not-found`). When that count is greater than zero, `S/tick.sh
+   <id> report-only <n> <skill@version>...` where `<n>` is that count. When coverage
+   was complete and there are zero findings of any kind, `S/tick.sh <id> no-findings
    <skill@version>...`. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
-   and the `Co-Authored-By:` trailer, so git parses them together. Push, then `bash S/tick.sh <id>
+   and the `Co-Authored-By:` trailer, so git parses them together. Push, then `S/tick.sh <id>
    committed <short-sha> <skill@version>...`.
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
