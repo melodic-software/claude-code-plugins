@@ -5,6 +5,73 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.52.0] - 2026-09-29
+
+### Added
+
+- **`unhobble`: a `decide` argument.** `decide` lists an experiment's open decisions and, when the
+  `discovery` plugin is installed, researches each one and gives the memo to two blind decision
+  agents. Agreement is presented for confirmation and disagreement returns to the operator as a
+  question. It never mutates ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)).
+- **`unhobble`: `status` prints phase, elapsed days, ledger row count, register holds, confounds,
+  and the pull request URL.** The manifest gains `phase`, `branch_deviation`, and an optional
+  `pr_url`. `readd` refuses to run while the phase is `bare` or `observe` and reports the ledger
+  grouped by suspected missing instruction against the two-row gate (#4094).
+
+### Changed
+
+- **`unhobble`: a convention unit's default follows an oracle test.** A gating oracle strips the
+  prose and keeps the gate, an advisory oracle or none keeps the unit, and a register class is kept
+  whatever the test says. A unit under `plugins/<name>/` is recorded as
+  `unstripped-product-surface` and never stripped, and a session pinned to a branch uses it as the
+  experiment branch (#4094).
+- **`unhobble`: silence is no longer a deletion warrant.** An empty ledger licenses deleting an
+  editorial candidate only. A consequential rule the ledger did not defend goes to a Deletion watch
+  or is restored, and only a closed watch makes its removal permanent. The watch counts qualifying
+  sessions as fresh sessions on the experiment branch
+  ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)).
+- **`audit-instructions`: the findings relay follows `criteria.md` surfaces and tiers.** I31 and I33
+  admit any file inside a skill directory (I33 excludes `SKILL.md`), I33 names the nearest ancestor
+  `SKILL.md` as its hub, and I32 is CRITICAL under `plugins/` and IMPORTANT on a user or project
+  surface ([#4116](https://github.com/melodic-software/claude-code-plugins/issues/4116),
+  [#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)).
+- **`audit-instructions`: the subagent-window claim carries a verification record, the read-only
+  contract covers lane reports and run-state writes, and I33 rows count as one dispatch outside the
+  per-lane verifier batches.** `context/execution-and-report.md` is deleted; `SKILL.md`, the
+  finding-identity reference, and `context/persist-findings.md` own what it restated
+  ([#4113](https://github.com/melodic-software/claude-code-plugins/issues/4113),
+  [#4114](https://github.com/melodic-software/claude-code-plugins/issues/4114),
+  [#4115](https://github.com/melodic-software/claude-code-plugins/issues/4115)).
+- **`README.md`** describes the `audit-instructions` flags and the `unhobble` state fields.
+
+### Fixed
+
+- **`audit-instructions`: `finding-ids.sh` no longer hashes a non-instruction file under `$HOME`.**
+  A row naming `~/.ssh/config` or `~/.claude/.credentials.json` is refused as
+  `surface-not-an-instruction-file`. The user surface stays home-wide for instruction-file shapes
+  (any markdown file, and `settings.json`, `settings.local.json`, `hooks.json` inside a `.claude`
+  tree or the resolved `CLAUDE_CONFIG_DIR`, plus any file beneath a `skills/` directory in those
+  trees) (#4116).
+- **`audit-instructions`: the I15 ledger link in `conflict-criteria.md` no longer points outside the
+  repository.** It names the path in code font
+  ([#3568](https://github.com/melodic-software/claude-code-plugins/issues/3568)).
+- **`audit`: the row for a live `PreToolUse` hook that already blocks a pattern carries the
+  unattended-lane note** like the other ask-rule rows
+  ([#4600](https://github.com/melodic-software/claude-code-plugins/issues/4600)).
+- **`audit-permission-state`: a settings file whose last `permissions` key is a string is no longer
+  rejected as invalid JSON.** `{"permissions":{"defaultMode":"bypassPermissions"}}` is now scanned,
+  so `C2-defaultMode` and `C5-disableType` fire on real files. Both `C2-defaultMode` findings say to
+  remove the value from the named file and state the masking claim only where no higher-ranked
+  settings file or `--permission-mode` sets a mode. The unsourced auto version boundary is removed
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+
+In-place changelog corrections:
+
+- 0.51.18: body replaced by a pointer; it repeated the 0.51.16 Fixed entry (released by #5159) and the 0.51.10 Changed entry (released by #5161).
+- 0.51.17: body replaced by a pointer; it repeated the 0.51.15 entry (released by #5156).
+- 0.51.7: states it shipped through #5154 (commit 9c2db71f6), not #5059 (closed unmerged).
+- File header: notes that 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
+
 ## [0.51.30] - 2026-09-28
 
 ### Changed
