@@ -1,12 +1,14 @@
 ---
 description: "Re-derive a performance result in a fresh context that does not inherit the implementer's numbers, then report the target as met or not met without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase after /performance:snapshot post. Skip when no baseline exists, or when reviewing a diff for general quality rather than a measured claim."
 user-invocable: true
-argument-hint: "[<claim or target>] (e.g. /performance:verify the 4-to-1 spawn reduction)"
+argument-hint: "[<claim or target>]"
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
   summary: Re-derive the result in fresh context and report it honestly
 ---
+
+**Arguments.** `[<claim or target>]`. e.g. /performance:verify the 4-to-1 spawn reduction
 
 ## Purpose
 

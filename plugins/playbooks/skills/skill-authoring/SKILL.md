@@ -240,6 +240,11 @@ which owns the model-invoked default, the three exception classes a `true` may c
 when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
 invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
 
+Write `argument-hint` against the
+[argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/argument-hint/README.md),
+which owns the length budget, punctuation, and the rule that a skill with no arguments omits the
+key. The repository's fleet contract validator enforces it. Do not restate those rules here.
+
 A skill's **execution context** is a separate choice: inline (omit `context`) versus
 `context: fork`, and whether a fork blocks. It is owned by the
 [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).

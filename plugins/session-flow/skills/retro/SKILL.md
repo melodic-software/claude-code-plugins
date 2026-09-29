@@ -1,12 +1,14 @@
 ---
 description: "Run a structured session retrospective: extract transcript metrics, assess quality across five dimensions, check feedback-memory regressions, and codify learnings durably. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[unattended] [mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
+argument-hint: "[unattended] [mode]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: retro
   summary: Structured session retrospective with codified learnings
 ---
+
+**Arguments.** `[unattended] [mode]`. e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick
 
 ## Context. Gather first
 

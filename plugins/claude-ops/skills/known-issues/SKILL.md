@@ -1,6 +1,6 @@
 ---
 description: "Looks up and tracks known Claude product issues. Searches known GitHub bugs, checks service health and model quality, and maintains a persistent registry of tracked issues. Use when: 'is this broken', 'known CC bugs', 'troubleshoot Claude Code', 'any workarounds', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug'. Actions: status (default), search <feature>, check-all, scan, list, quality, create."
-argument-hint: "<action> [args]. Actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug \"title\"'"
+argument-hint: "<status|search|check-all|scan|list|quality|create> [args]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: anytime
   summary: Look up and track known Claude product issues, health, and workarounds
 ---
+
+**Arguments.** `<status|search|check-all|scan|list|quality|create> [args]`. Full form: <action> [args]. Actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug "title"'
 
 ## Pre-computed context
 

@@ -1,12 +1,14 @@
 ---
 description: "Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
-argument-hint: "[--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)"
+argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Measure the startup context payload per item and ledger every lever's real delta
 ---
+
+**Arguments.** `[--full-sweep | --tools T1,T2 | --ledger | fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
 
 ## Purpose
 

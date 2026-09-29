@@ -1,12 +1,14 @@
 ---
 description: "Analyze code changes and produce a test plan. Classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use when: 'test plan', 'what needs testing', 'where are the coverage gaps', 'what should I test here', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:check."
-argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module)"
+argument-hint: "[range or scope]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Classify changes by required test type and coverage gaps
 ---
+
+**Arguments.** `[range or scope]`. e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module
 
 ## Repository context. Gather first
 

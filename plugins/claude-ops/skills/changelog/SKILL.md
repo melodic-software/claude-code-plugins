@@ -1,6 +1,6 @@
 ---
 description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
-argument-hint: "<action> [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)"
+argument-hint: "<fetch|diff|status|apply> [vA..vB|vX|text]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: anytime
   summary: Ingest a Claude Code release changelog and integrate its changes into the repo
 ---
+
+**Arguments.** `<fetch|diff|status|apply> [vA..vB|vX|text]`. Full form: <action> [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)
 
 ## Pre-computed context
 

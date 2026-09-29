@@ -1,6 +1,6 @@
 ---
 description: "Audit a repo's Claude Code automation (hooks, MCP servers, skills, subagents, scheduled tasks) against the enforcement hierarchy, with evidence-backed PASS/REJECT/CONDITIONAL verdicts, REJECT by default. Use when: 'audit automations', 'what automations should we add', 'are we missing any hooks', 'hook gap analysis', 'should I add an MCP server for X'; pass --implement to apply approved items, or filter by category (hooks|mcp|skills|subagents|scheduled)."
-argument-hint: "[--recommend-only] [--implement] [category]: hooks|mcp|skills|subagents|scheduled|all (default: all)"
+argument-hint: "[--recommend-only] [--implement] [hooks|mcp|skills|subagents|scheduled|all]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: anytime
   summary: Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding
 ---
+
+**Arguments.** `[--recommend-only] [--implement] [hooks|mcp|skills|subagents|scheduled|all]`. default: all
 
 ## Pre-computed context
 

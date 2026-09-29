@@ -1,12 +1,14 @@
 ---
 description: "Write a Product Requirements Document that locks product intent (problem, users, success metrics) before any engineering plan, in three tiers with a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or a user-facing change needs written alignment. Engineering-internal work: /planning:interview or /planning:plan."
-argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
+argument-hint: "[tier] [task description]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: contract
   summary: Lock product intent. Problem, users, success metrics. Before planning
 ---
+
+**Arguments.** `[tier] [task description]`. e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review
 
 ## Repository context. Gather first
 

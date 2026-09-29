@@ -1,12 +1,14 @@
 ---
 description: "Identify and rank optimization targets by evidence quality, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts session pain, a named path, telemetry, or open-ended 'what is slow here'. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Hands off to /performance:goal. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
 user-invocable: true
-argument-hint: "[<path|component|'session'|'telemetry'>] (e.g. /performance:target plugins/disk-hygiene/hooks)"
+argument-hint: "[<path|component|'session'|'telemetry'>]"
 disable-model-invocation: false
 metadata:
   workflow-stage: explore
   summary: Rank optimization candidates by evidence quality, not suspicion
 ---
+
+**Arguments.** `[<path|component|'session'|'telemetry'>]`. e.g. /performance:target plugins/disk-hygiene/hooks
 
 ## Purpose
 

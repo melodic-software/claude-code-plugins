@@ -1,6 +1,6 @@
 ---
 description: "Prints the operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness. Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Never mutates issues, PRs, labels, or comments."
-argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--pr-limit N]. Read-only; omit to view the current repo"
+argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,6 +9,8 @@ metadata:
   summary: Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions
   cadence: daily
 ---
+
+**Arguments.** `[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--pr-limit N]. Read-only; omit to view the current repo
 
 ## Pre-computed context
 
