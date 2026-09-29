@@ -801,6 +801,7 @@ elif [[ "$norm31_kind" == "normalizing" ]]; then
   done
   assert_eq "case 31: the refused run left nothing under the root" "0" "$norm31_left"
 else
+  skip_case "case 31: no normalization-folding volume on this runner, so the exit-3 refusal arm (probe -> VOLUME_NORMALIZES=1 -> NFC -> may_be_within) is not executed here"
   bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
     --out "$NORM31/$NFD_NAME/feat-x" --scan-dir "$NORM31/$NFC_NAME/feat-x" \
     --memory-root "$NORM31" >/dev/null 2>&1
@@ -828,6 +829,20 @@ else
     skip_case "case 31: this filesystem does not keep an NFC directory and an NFD directory as distinct siblings"
   fi
 fi
+skip_case "case 31: the stat/diskutil fstype fallback that sends apfs and hfs to the NFC step when the probe directory is unwritable is not executed here; it needs a read-only ancestor on a real APFS or HFS Plus volume"
+
+# The seam: EMIT_STUBS_ASSUME_NORMALIZING=1 replaces the probe verdict, so the
+# NFC fold and the fence refusal run on any runner. This proves the fold and
+# may_be_within honour a normalizing verdict for an absent NFC versus NFD pair.
+# It does not prove what a real APFS or HFS Plus volume reports.
+NORM31C="$TEST_TMPDIR/norm31-forced"
+mkdir -p "$NORM31C"
+env EMIT_STUBS_ASSUME_NORMALIZING=1 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+  --out "$NORM31C/$NFD_NAME/feat-x" --scan-dir "$NORM31C/$NFC_NAME/feat-x" \
+  --memory-root "$NORM31C" >/dev/null 2>&1
+assert_eq "case 31: a forced normalizing verdict refuses an absent NFC versus NFD pair" "3" "$?"
+assert_eq "case 31: the forced refusal created neither spelling" "0" \
+  "$(path_exists "$NORM31C/$NFD_NAME" "$NORM31C/$NFC_NAME")"
 
 # --- Dry run ------------------------------------------------------------------
 
@@ -836,6 +851,25 @@ dry_out="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUTD
 assert_eq "dry run: exits 0" "0" "$?"
 assert_eq "dry run: wrote nothing" "0" "$(path_exists "$OUTDRY")"
 assert_contains "dry run: printed a planned filename" "$dry_out" "01-editorconfig-severity-"
+
+# A non-ASCII home makes the fence run the normalization probe inside the
+# deepest existing ancestor. The probe directory must be gone afterwards, and a
+# dry run must still write nothing.
+DRYU="$TEST_TMPDIR/dry-unicode"
+if mkdir -p "$DRYU/probe-réviews" 2>/dev/null && [[ -d "$DRYU/probe-réviews" ]]; then
+  rmdir -- "$DRYU/probe-réviews"
+  dryu_out="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+    --out "$DRYU/stubs-é/feat-x" --scan-dir "$DRYU/réviews/feat-x" --dry-run 2>&1)"
+  assert_eq "dry run: a non-ASCII home exits 0" "0" "$?"
+  assert_contains "dry run: a non-ASCII home plans a filename" "$dryu_out" "01-editorconfig-severity-"
+  dryu_left=0
+  for f in "$DRYU"/* "$DRYU"/.[!.]*; do
+    [[ -e "$f" ]] && dryu_left=$((dryu_left + 1))
+  done
+  assert_eq "dry run: a non-ASCII home leaves no probe directory and writes nothing" "0" "$dryu_left"
+else
+  skip_case "dry run: this filesystem does not accept a non-ASCII path segment"
+fi
 
 # --- Final report --------------------------------------------------------------
 
