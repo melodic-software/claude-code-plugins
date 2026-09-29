@@ -126,21 +126,24 @@ for skill in "${SKILLS[@]}"; do
   done
 
   # The frontmatter must not promise guard coverage the guard does not provide.
-  # The destructive guard matches destructive command SHAPES and matches none of
-  # the six mutating scripts (nor `git branch -D`, nor `git push --delete`), so a
-  # comment here saying they "stay behind the PreToolUse destructive guard" is a
-  # safety claim the code does not honor. Two assertions rather than one: the
-  # first bans the specific overstatement, the second requires any mention of the
-  # guard to state its real scope, so a reworded overstatement cannot slip past.
+  # `--apply` on the mutating scripts and a forced `git worktree remove` are in
+  # the net. `git branch -D` and `git push --delete` are not (#3852). A comment
+  # that says the scripts "stay behind the PreToolUse destructive guard" without
+  # naming `--apply` overstates a dry-run. The mention has to state both halves.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
-    fail "$skill: allowed-tools claims the mutating scripts sit behind the destructive guard, which matches none of them"
+    fail "$skill: allowed-tools uses the overstated 'behind the destructive guard' claim"
   else
     pass "$skill: allowed-tools makes no unbacked destructive-guard coverage claim"
   fi
-  if grep -qi 'destructive guard' <<<"$at" && ! grep -qiE 'matches none of these|does not match' <<<"$at"; then
-    fail "$skill: allowed-tools names the destructive guard without stating that it does not match these scripts"
+  if grep -qi 'destructive guard' <<<"$at" && ! grep -qiE 'does not match' <<<"$at"; then
+    fail "$skill: allowed-tools names the destructive guard without stating what it does not match"
   else
-    pass "$skill: any destructive-guard mention in allowed-tools states the guard's real scope"
+    pass "$skill: any destructive-guard mention in allowed-tools states a non-match"
+  fi
+  if grep -qi 'destructive guard' <<<"$at" && ! grep -q -- '--apply' <<<"$at"; then
+    fail "$skill: allowed-tools names the destructive guard without the --apply script scope"
+  else
+    pass "$skill: destructive-guard mention names the --apply script scope"
   fi
 
   # An unguarded repository-root resolution, on a path the skill documents as

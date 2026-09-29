@@ -154,8 +154,55 @@ run 0 "record before the laundering attempt" record "$packet"
 printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
 run 1 "record refuses to reseal over an already-divergent file" record "$packet"
 has "CHANGED audit-notes.md" "the divergent file is named at reseal time"
+has "permanently unsealable" "the refusal states that later notes stay unsealed"
 run 1 "verify still reports the divergence after the refused reseal" verify "$packet"
 has "CHANGED audit-notes.md" "the rewrite was not laundered into a fresh digest"
+
+# --- acknowledge writes a generation and keeps the original manifest ---------
+
+packet="$(fresh_packet)"
+run 0 "record before acknowledging" record "$packet"
+original="$(cat "$packet/packet.sha256")"
+cp "$packet/audit-notes.md" "$WORK/audit-notes.orig"
+printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
+printf 'a later note\n' >"$packet/audit-notes-2.md"
+run 0 "acknowledge records a generation without replacing the original" record --acknowledge-divergence "$packet"
+has "generation=2" "the first generation is packet.sha256.2"
+has "original-preserved=" "the original manifest is named as preserved"
+if [[ "$(cat "$packet/packet.sha256")" == "$original" ]]; then
+  pass "packet.sha256 bytes are unchanged"
+else
+  fail "acknowledge overwrote packet.sha256"
+fi
+if grep -qF 'audit-notes-2.md' "$packet/packet.sha256.2"; then
+  pass "the generation seals the later note"
+else
+  fail "the generation manifest does not name the later note"
+fi
+if ! grep -qF 'packet.sha256' "$packet/packet.sha256.2"; then
+  pass "the generation does not seal manifest names"
+else
+  fail "the generation sealed a manifest name"
+fi
+run 1 "verify still reports the original divergence after acknowledge" verify "$packet"
+has "CHANGED audit-notes.md" "acknowledge did not launder the original seal"
+cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
+run 1 "record refuses once a generation exists, even with the bytes restored" record "$packet"
+has "acknowledged divergence" "the refusal names the acknowledged divergence"
+if [[ "$(cat "$packet/packet.sha256")" == "$original" ]]; then
+  pass "packet.sha256 survives a restore-then-record attempt"
+else
+  fail "a restore-then-record laundered packet.sha256"
+fi
+clean="$(fresh_packet)"
+run 0 "record a clean packet" record "$clean"
+run 2 "acknowledge refuses a packet that still matches" record --acknowledge-divergence "$clean"
+has "no divergence to acknowledge" "a matching manifest is not an incident"
+
+empty="$WORK/empty-packet"
+mkdir -p "$empty"
+run 2 "acknowledge without a manifest is a usage error" record --acknowledge-divergence "$empty"
+has "needs an existing packet.sha256" "acknowledge requires the original seal"
 
 # --- symlinks are visible, and escaping ones are refused --------------------
 #

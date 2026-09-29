@@ -79,5 +79,9 @@ to I33 stay in the human report and are declined `no-severity-crosswalk-row` rat
 silently dropped.
 
 Phase C verifies every proposal. No sampling, and no finding class that carries a diff is
-exempted from verification. I33's per-plugin roll-up is presentation only: each spoke remains
-its own finding with its own excerpt anchor.
+exempted from verification.
+
+I33 findings leave the main table for an **I33 by plugin** section, one collapsed
+`<details><summary><plugin>: <n> spokes</summary>` block per plugin holding the same table columns,
+so every row keeps its `Surface:Line` and its fenced diff. The roll-up is presentation only: each
+spoke remains its own finding with its own excerpt anchor.

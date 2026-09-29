@@ -3,11 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.34] - 2026-09-28
+## [0.8.35] - 2026-09-28
 
 ### Fixed
 
 - The statusline tee's writer lock (`.rate-limits.json.lock`) and drain lock (`spool/.drain.lock`) are now files created with bash `noclobber` (an `O_EXCL` open) instead of `mkdir` directories. uutils `mkdir` (Ubuntu 25.10+) is not atomic, so two racing writers could both take the lock. Stale-lock steal keeps its one- and two-minute age floors and also clears a lock directory left by an older version. Taking a lock no longer spawns a process; releasing one still runs `rm`.
+
+## [0.8.34] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
 
 ## [0.8.33] - 2026-09-28
 

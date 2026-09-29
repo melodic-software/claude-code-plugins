@@ -517,11 +517,61 @@ segment_downloader_output_operand() {
   printf '%s' "$dest"
 }
 
+# Basename of a command-position word that is path-qualified or ends in .exe,
+# without the .exe, lowercased. Bare `mkdir` stays on the regexes below so a
+# mention (`echo /usr/bin/mkdir /tmp/x`) is unchanged. A quoted word may contain
+# spaces, which is how Git for Windows spells `C:/Program Files/Git/usr/bin/mkdir.exe`
+# (#4527). Returns 1 when the segment does not start with such a word.
+segment_leading_exe_verb_to() {
+  local __dt_dest="$1" __dt_s="$2" __dt_word __dt_verb
+  __dt_s="${__dt_s#"${__dt_s%%[![:space:]]*}"}"
+  if [[ "$__dt_s" =~ ^sudo[[:space:]]+(.*) ]]; then
+    __dt_s="${BASH_REMATCH[1]}"
+    __dt_s="${__dt_s#"${__dt_s%%[![:space:]]*}"}"
+  fi
+  if [[ "$__dt_s" == \"* ]]; then
+    __dt_word="${__dt_s#\"}"
+    __dt_word="${__dt_word%%\"*}"
+  elif [[ "$__dt_s" == \'* ]]; then
+    __dt_word="${__dt_s#\'}"
+    __dt_word="${__dt_word%%\'*}"
+  else
+    __dt_word="${__dt_s%%[[:space:]]*}"
+  fi
+  [[ "$__dt_word" == */* || "$__dt_word" == *.exe ]] || return 1
+  __dt_verb="${__dt_word##*/}"
+  __dt_verb="${__dt_verb,,}"
+  __dt_verb="${__dt_verb%.exe}"
+  case "$__dt_verb" in
+  tee | mktemp | mkdir | touch | dd | cp | mv | install) ;;
+  *) return 1 ;;
+  esac
+  printf -v "$__dt_dest" '%s' "$__dt_verb"
+}
+
 # True when a segment's destination-shaped operand is a drive-root tmp path.
 # Creators (mkdir/touch/…) treat any drive-root path argument as a write;
 # copy/move utilities bind only the destination operand.
 segment_writes_drive_root_tmp() {
-  local subject="$1" dest
+  local subject="$1" dest lead=""
+  # Path-qualified and *.exe writers. The regexes below require the verb to end
+  # at a space, so `mkdir.exe` never matches `mkdir`, and a space in
+  # `Program Files` splits the path before the verb.
+  if segment_leading_exe_verb_to lead "$subject"; then
+    case "$lead" in
+    tee | mktemp | mkdir | touch | dd)
+      has_drive_root_tmp "$subject" && return 0
+      return 1
+      ;;
+    cp | mv | install)
+      dest=$(segment_destination_operand "$subject")
+      [[ -n "$dest" ]] || return 1
+      has_drive_root_tmp "$dest" && return 0
+      return 1
+      ;;
+    *) ;; # unreachable: segment_leading_exe_verb_to only returns those verbs
+    esac
+  fi
   # Path-qualified verbs only in command position: start of the segment, or
   # after `sudo`. After any other space the verb must be bare, or
   # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false

@@ -24,8 +24,10 @@ usage() {
 preflight.sh — emit runtime-safety facts for the clean deletion tiers.
 
 Usage:
-  preflight.sh
+  preflight.sh [ROOT...]
   preflight.sh --help
+
+RECENT_BUILD scans each ROOT; with none, the invoking repository.
 
 Exit: always 0.
 EOF
@@ -39,8 +41,14 @@ case "${1:-}" in
 *) ;;
 esac
 
-REPO_ROOT="$(clean_repo_root)"
-REPO_ROOT="${REPO_ROOT:-$(pwd)}"
+# RECENT_BUILD scans the given roots (clean-batch passes its target repos), else
+# the invoking repository.
+if (($# > 0)); then
+  ROOTS=("$@")
+else
+  REPO_ROOT="$(clean_repo_root)"
+  ROOTS=("${REPO_ROOT:-$(pwd)}")
+fi
 
 RUNTIME_PROCS=""
 if command -v pgrep >/dev/null 2>&1; then
@@ -50,7 +58,7 @@ if [[ -z "$RUNTIME_PROCS" ]] && command -v tasklist >/dev/null 2>&1; then
   RUNTIME_PROCS="$(tasklist 2>/dev/null | grep -iE '^(dotnet|aspire|node|devenv|rider64?|fleet)\.exe' | head -5 || true)"
 fi
 
-RECENT_BUILD="$(find "$REPO_ROOT" -name project.assets.json -mmin "-${RECENT_BUILD_MINUTES}" \
+RECENT_BUILD="$(find "${ROOTS[@]}" -name project.assets.json -mmin "-${RECENT_BUILD_MINUTES}" \
   ! -path "$CLEAN_FIND_EXCLUDE_GIT" 2>/dev/null | head -3 | tr '\n' '; ')"
 
 IDE_OPEN=""

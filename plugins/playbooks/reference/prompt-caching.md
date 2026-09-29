@@ -5,12 +5,14 @@ cost levers around them. Claude Code sessions get most of this from the harness;
 when your code builds the request itself (an Agent SDK fleet, a service calling the Messages API,
 an eval harness). Session-side counterparts are cross-referenced at the end.
 
-Every claim below was verified against the named live page on 2026-09-09. Shared recheck trigger:
-a re-fetch of the named page diverging from the row, or an API release note touching prompt
-caching, effort, batching, or the Admin API. Beta rows name their beta explicitly; a beta header
-is part of the request contract, not decoration. Current prices and model lists resolve through
-the pricing page or the bundled `claude-api` skill at the moment of use; this chapter carries
-mechanisms, not numbers.
+Every claim below was re-read against the named live page on 2026-09-28. Two fetches of each
+page returned identical bytes. **Claim:** the rows below match those pages as of that read,
+including the one drift called out under Diagnosing misses. **Basis:** the named URL on each
+row. **As of:** 2026-09-28. **Recheck trigger:** a re-fetch of the named page diverging from the
+row, or an API release note touching prompt caching, effort, batching, or the Admin API. Beta
+rows name their beta explicitly; a beta header is part of the request contract, not decoration.
+Current prices and model lists resolve through the pricing page or the bundled `claude-api`
+skill at the moment of use; this chapter carries mechanisms, not numbers.
 
 ## Prefix stability
 
@@ -18,7 +20,9 @@ Cache reads require byte-identical prefix segments, and the cache is per-model. 
 in the prefix (a timestamp or request ID in the system prompt, tool definitions that reorder
 themselves) breaks every request's cache behind it. Tool definitions render at the top of the
 assembled prompt, so a tool-definition change invalidates everything.
-(Basis: `platform.claude.com/docs/en/build-with-claude/prompt-caching#structuring-your-prompt`.)
+(Basis: `platform.claude.com/docs/en/build-with-claude/prompt-caching#structuring-your-prompt`
+for the prefix order, and `docs/en/build-with-claude/cache-diagnostics` for "the cache is
+per-model" under `model_changed`, re-read 2026-09-28.)
 
 Lay the request out stable-first: tool definitions and system prompt ahead, the growing
 conversation behind. Keep volatile values out of the prefix or move them into the newest message.
@@ -33,22 +37,21 @@ is preserved.
 ## Mid-conversation system messages
 
 Certain models accept a system instruction as a message mid-conversation instead of an edit to
-the system prompt, which preserves the cached prefix. GA on seven models (Fable 5.1, Mythos 5.1,
-Fable 5, Mythos 5, Opus 5.5, Opus 4.8, Opus 5); not available on Sonnet 5. Turn-scoped system
-messages are a separate beta.
-(Basis: `docs/en/build-with-claude/mid-conversation-system-messages`, re-read 2026-09-23 for the
-Opus 5.5 addition.)
+the system prompt, which preserves the cached prefix. GA on eight models (Fable 5.1, Mythos 5.1,
+Fable 5, Mythos 5, Opus 5.5, Opus 4.8, Opus 5, Sonnet 5.5); not available on Sonnet 5.
+Turn-scoped system messages are a separate beta.
+(Basis: `docs/en/build-with-claude/mid-conversation-system-messages`, re-read 2026-09-28. The
+page now lists Sonnet 5.5 and still excludes Sonnet 5.)
 
 ## Effort and the cache
 
 Top-level effort renders into the prompt ahead of content, so it is part of the cached prefix and
 changing it recomputes the request. Per-message effort changes preserve the cache, as a beta on
-Fable 5.1, Mythos 5.1, Opus 5.5, and Opus 5 only; other models, Fable 5 included, return a 400
+Fable 5.1, Mythos 5.1, Opus 5.5, Opus 5, and Sonnet 5.5 only; other models, Fable 5 included, return a 400
 for the per-message form. Batch model or effort changes into moments the cache is already broken,
 such as compaction, since those rewrite most of the conversation anyway.
-(Basis: `docs/en/build-with-claude/effort#change-effort-mid-conversation-beta`, re-read 2026-09-23
-for the Opus 5.5 addition; the
-compaction-moment practice is corroborated by Cognition's devin-fusion post, 2026-06-29.)
+(Basis: `docs/en/build-with-claude/effort#change-effort-mid-conversation-beta`, re-read 2026-09-28;
+the compaction-moment practice is corroborated by Cognition's devin-fusion post, 2026-06-29.)
 
 ## Breakpoints and pre-warming
 
@@ -72,10 +75,14 @@ Current TTL values and write multipliers resolve from the pricing and prompt-cac
 
 ## Diagnosing misses
 
-The cache diagnostics API (beta) reports why requests missed: `messages_changed`,
-`system_changed`, `tools_changed`, `model_changed`, and where two requests diverged. Monitor the
-hit rate; a miss reason names the layer of the request to stabilize.
-(Basis: `docs/en/build-with-claude/cache-diagnostics`.)
+The cache diagnostics API reports why requests missed: `messages_changed`,
+`system_changed`, `tools_changed`, `model_changed`, and where two requests diverged. It is
+generally available on the Claude API. The `cache-diagnosis-2026-04-07` beta header is no longer
+required, and requests that still send it work as before. It is not available on Amazon Bedrock
+or Google Cloud. Monitor the hit rate; a miss reason names the layer of the request to stabilize.
+(Basis: `docs/en/build-with-claude/cache-diagnostics`, re-read 2026-09-28. The page's
+`featureMetadata` status is `ga`, and the basic-usage section says that beta header is no longer
+required.)
 
 The vendor also describes a Claude Console request-comparison view for the same data; that half
 is unverified here (no fetched doc describes it). Treat it as unconfirmed until a Console-side
@@ -94,7 +101,7 @@ check or a docs page settles it.
   output ceiling written into a skill body is an anti-pattern the prompt-audit discipline
   removes, and nothing here licenses one. The lever lives in request configuration and
   task-shaped output constraints, not in standing instruction text.
-- **Automation.** When the bundled `claude-api` skill resolves in your session, its
+- **Automation.** When the bundled `claude-api` skill resolves in this session, its
   `cost-optimize` subcommand profiles spend and proposes these levers against an application,
   measuring against an eval when one exists. Wrap or point to it rather than rebuilding the audit;
   it proposes rather than silently applies. The routing between that surface and this playbook is

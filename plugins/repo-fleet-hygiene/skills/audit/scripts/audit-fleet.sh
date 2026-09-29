@@ -47,9 +47,12 @@ than read from the environment, which does not carry it. An empty value means
 
 --skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
 discovery skip list rather than appending to it. With neither supplied, discovery
-skips node_modules, vendor, and .venv. Supplying any --skip or fleet.skip entry
-replaces that set entirely — to extend, pass those three defaults plus your names;
-to shrink (e.g. reach a repo under vendor/), omit the names you want walked. CLI
+skips node_modules, vendor, .venv, and the package-manager cache trees .pnpm-store,
+.yarn, .npm, .cargo, .rustup, .gradle, .m2, .nuget, __pycache__, and .tox.
+Supplying any --skip or fleet.skip entry replaces that set entirely; to shrink
+(e.g. reach a repo under vendor/), omit the names you want walked.
+--extend-skip NAME (repeatable) and config fleet.skipAppend (repeatable) ADD to
+whichever list is in effect, so extending the defaults needs no restating. CLI
 and config entries compose additively with each other the same way other scope
 inputs do. Values must be bare directory names (no empty value, no path separator).
 . , .. , and .git stay skipped unconditionally even when an explicit list omits
@@ -237,7 +240,7 @@ git_probe_allowed() {
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
       [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ||
-        "$6" == "fleet.skip" ]]
+        "$6" == "fleet.skip" || "$6" == "fleet.skipAppend" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -1158,6 +1161,9 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   return 0
 fi
 
+# shellcheck source=../../../scripts/scope-resolve.sh
+source "${BASH_SOURCE[0]%/*}/../../../scripts/scope-resolve.sh"
+
 # Data mode: answers before argument parsing, config resolution, and discovery, so a gate reads
 # the registry without running an audit and without requiring git.
 if [[ "${1:-}" == "--print-finding-registry" ]]; then
@@ -1169,9 +1175,11 @@ command -v git >/dev/null 2>&1 || fail "git is required"
 
 ROOT_ARGS=()
 REPO_ARGS=()
+NAMED_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
 SKIP_NAMES=()
+SKIP_APPEND_NAMES=()
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
@@ -1208,6 +1216,11 @@ while [[ $# -gt 0 ]]; do
     REPO_ARGS+=("$2")
     shift 2
     ;;
+  --named)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--named requires a directory"
+    NAMED_ARGS+=("$2")
+    shift 2
+    ;;
   --config)
     [[ $# -ge 2 && -n "$2" ]] || fail "--config requires a file"
     [[ -z "$CONFIG_FILE" ]] || fail "--config may be supplied only once"
@@ -1231,6 +1244,12 @@ while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || fail "--skip requires a bare directory name"
     validate_skip_name "$2" "--skip"
     SKIP_NAMES+=("$2")
+    shift 2
+    ;;
+  --extend-skip)
+    [[ $# -ge 2 ]] || fail "--extend-skip requires a bare directory name"
+    validate_skip_name "$2" "--extend-skip"
+    SKIP_APPEND_NAMES+=("$2")
     shift 2
     ;;
   --max-depth)
@@ -1282,8 +1301,9 @@ done
 # --apply-plan is a standalone read-only mode: render an ordered dry-run approval
 # artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
-  if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
-    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || -n "$MAX_DEPTH" ||
+  if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || ${#NAMED_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
+    ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || ${#SKIP_APPEND_NAMES[@]} -gt 0 ||
+    -n "$MAX_DEPTH" ||
     -n "$PROJECT_DIR_ARG" || "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
     fail "--apply-plan cannot be combined with audit discovery flags"
   fi
@@ -1467,21 +1487,30 @@ fi
 
 # Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
 # appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
-# config compose additively with each other like other scope inputs; with neither supplied, keep
-# today's three-name default. . , .. , and .git stay skipped unconditionally even when an explicit
-# list omits them (#2826).
+# config compose additively with each other like other scope inputs; with neither supplied, use
+# vendor plus the package-cache names. --extend-skip / fleet.skipAppend add to whichever list is in
+# effect (#4220). . , .. , and .git stay skipped unconditionally even when an explicit list omits
+# them (#2826).
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
     # `skip =` line that git-config returns as an empty string. Do not silently drop them:
-    # an empty-only list would otherwise restore the three defaults and quietly omit vendor/.
+    # an empty-only list would otherwise restore the defaults and quietly omit vendor/.
     validate_skip_name "$value" "fleet.skip"
     SKIP_NAMES+=("$value")
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
+  while IFS= read -r -d '' value; do
+    validate_skip_name "$value" "fleet.skipAppend"
+    SKIP_APPEND_NAMES+=("$value")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skipAppend 2>/dev/null || true)
 fi
 if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  SKIP_NAMES=(node_modules vendor .venv)
+  # Package-manager cache trees never hold an operator's repository, and pnpm and uv lay junctions
+  # and bare .git markers inside them (#4220).
+  SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget
+    __pycache__ .tox)
 fi
+[[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
 
 should_skip_dir_name() {
   local name="$1" skip
@@ -1510,12 +1539,30 @@ is_acked() {
 }
 
 UNRESOLVED_SCOPE=false
+FALLBACK_PROVENANCE=""
 SCOPE_FALLBACK_NOTE="so no repository scope resolved"
+# Count config scope before the no-scope ladder appends repos. Otherwise a cwd
+# or ghq hit is reported as a config entry.
+PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
+PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
-  # No CLI and no config-supplied fleet.root/fleet.repo. A fleet tool's no-argument form is
-  # machine-wide config scope when present; without it, refuse the old project-directory-as-exact
-  # --repo default rather than auditing an unintended tree (#2599).
-  UNRESOLVED_SCOPE=true
+  # Explicit args and fleet config produced nothing. The shared ladder tries
+  # named paths, ghq roots, then the working directory. The project directory
+  # is still not an implicit repo (#2599).
+  fallback_file="$(mktemp)"
+  if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
+    while IFS=$'\t' read -r kind value || [[ -n "$kind" ]]; do
+      case "$kind" in
+      repo) REPO_ARGS+=("$value") ;;
+      root) ROOT_ARGS+=("$(normalize_discovery_root "$value")") ;;
+      provenance) FALLBACK_PROVENANCE="$value" ;;
+      *) ;;
+      esac
+    done <"$fallback_file"
+  else
+    UNRESOLVED_SCOPE=true
+  fi
+  rm -f "$fallback_file"
 fi
 
 # Scope provenance: which rung actually supplied the audited roots/repos. This is a different
@@ -1523,7 +1570,7 @@ fi
 # CLI-supplied scope, so both contributions are named rather than one masking the other. Bare
 # positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the command-line
 # segment attributes them as --root/bare-path rather than conflating with --repo.
-config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+config_scope_count=$((PRE_FALLBACK_ROOTS - CLI_ROOT_COUNT + PRE_FALLBACK_REPOS - CLI_REPO_COUNT))
 cli_scope_label=""
 [[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
 if [[ "$CLI_ROOT_COUNT" -gt 0 ]]; then
@@ -1535,6 +1582,9 @@ SCOPE_PROVENANCE=""
 if [[ "$config_scope_count" -gt 0 ]]; then
   [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
+fi
+if [[ -n "$FALLBACK_PROVENANCE" && -z "$SCOPE_PROVENANCE" ]]; then
+  SCOPE_PROVENANCE="$FALLBACK_PROVENANCE"
 fi
 
 # Last --show-origin record for one worktree-root key. Prints the origin
@@ -1844,8 +1894,11 @@ No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give 
   --config <file>  a Git-format fleet config listing fleet.root / fleet.repo entries
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
+
+Also tried, and none resolved: --named paths, ghq root when ghq is installed, and the current working directory when it is a Git checkout. The project directory is not a scope.
 EOF
     fi
+    exit 3
   fi
   exit 2
 }

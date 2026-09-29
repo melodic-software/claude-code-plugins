@@ -9,6 +9,9 @@
 # is indistinguishable from an unset key. This doctor makes those failure
 # classes loud, and names WHICH rule supplied the repository's root.
 #
+# Worktree enumeration and lock reasons live in scripts/lib/worktree-facts.sh.
+# This doctor reports path resolution and does not parse porcelain.
+#
 # Convention owner doc: reference/worktree-root-convention.md. The resolution
 # this doctor reports on is the one scripts/worktree-create.sh performs.
 #
