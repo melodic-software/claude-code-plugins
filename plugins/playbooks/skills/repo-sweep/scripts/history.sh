@@ -8,6 +8,7 @@
 #      ("- [x] <id>: <skill@version, ...>, ...") between the repo-sweep markers. Survives
 #      squash merges.
 #   2. Playbook-Step trailers on the default branch (origin/HEAD, else HEAD), newest first.
+# Partial coverage counts only from the newest merged sweep PR that ran the step.
 # gh absent, unauthenticated, or failing: trailers only, with a warning on stderr.
 # Current versions come from skill-version.sh (same env overrides).
 #
@@ -44,7 +45,7 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
       rest = substr($0, 7); i = index(rest, ": ")
       if (i) {
         eid = substr(rest, 1, i - 1)
-        if ($0 ~ /partial coverage:/) print eid > partialf
+        if (!(eid in seen)) { seen[eid] = 1; if ($0 ~ /partial coverage:/) print eid > partialf }
       }
       n = split(substr($0, index($0, ": ") + 2), t, /, */)
       for (i = 1; i <= n; i++) if (t[i] ~ /^[^ @]+@[^ @]+$/) print t[i]
