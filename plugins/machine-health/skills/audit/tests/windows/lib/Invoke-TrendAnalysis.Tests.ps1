@@ -371,7 +371,9 @@ Describe 'Format-TrendCell' -Tag 'lib' {
         Format-TrendCell -Result (New-TrendResult -Id 'reliability' -Delta 'stability_min_7d: -1.5 vs prior') | Should -Be '↑ -1.5'
     }
 
-    It 'renders a raise with no numeric delta as worsening' {
+    It 'renders a raised row as worsening even when its delta is missing, flat, or improving' {
         Format-TrendCell -Result (New-TrendResult -Id 'drivers' -AdjustedFrom 'WARN') | Should -Be '↑'
+        Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: +0 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
+        Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: -1 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
     }
 }

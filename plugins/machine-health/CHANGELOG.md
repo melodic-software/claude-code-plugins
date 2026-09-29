@@ -30,7 +30,7 @@ All notable changes to the `machine-health` plugin are documented here. Format f
 - **audit:** the Windows check catalog documents checks 9 through 16 with the thresholds each
   `Test-*.ps1` applies.
 - **audit:** the skill body records that `CLAUDE_PLUGIN_DATA` is present in Bash-tool commands, with
-  its basis, as-of date, and recheck trigger. Two other gotchas moved to references:
+  its basis, as-of date, and recheck trigger. Two other gotchas are recorded in references:
   `elevation-matrix.md` (reading an elevated run back through a transcript) and
   `discovery-guide.md` (`chezmoi status` marks always-run scripts on every run).
 - **audit:** the egress-allowlist guardrail in the skill body and the README's network posture say

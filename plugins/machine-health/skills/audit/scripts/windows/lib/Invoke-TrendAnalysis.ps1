@@ -44,9 +44,11 @@ function Format-TrendCell {
     '↓' (improved), '→' (steady) and '·' (no prior value to compare).
 
     .DESCRIPTION
-    A moving metric carries its signed delta after the arrow. A severity raised
-    by the trend rule with no numeric delta (the drivers repeat) is '↑' alone.
-    Direction follows Get-TrendWorseningSign, not the raw sign of the delta.
+    A moving metric carries its signed delta after the arrow. A row the trend
+    rule raised is always '↑', with the delta only when the delta itself is
+    worsening: the drivers repeat raises on CodeIntegrity events, whatever the
+    unsigned-in-store count did. Direction follows Get-TrendWorseningSign, not
+    the raw sign of the delta.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -54,13 +56,15 @@ function Format-TrendCell {
 
     $trend = $Result.PSObject.Properties['trend'] ? $Result.trend : $null
     if (-not $trend -or -not $trend.last_run) { return '·' }
-    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') {
-        $delta = [double]$Matches[1]
-        if ($delta -eq 0) { return '→' }
-        $arrow = $delta * (Get-TrendWorseningSign -CheckId $Result.id) -gt 0 ? '↑' : '↓'
-        return "$arrow $($Matches[1])"
-    }
-    return $trend.adjusted_from ? '↑' : '·'
+
+    $value = $null
+    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') { $value = $Matches[1] }
+    $worse = $null -ne $value -and ([double]$value * (Get-TrendWorseningSign -CheckId $Result.id)) -gt 0
+
+    if ($trend.adjusted_from) { return $worse ? "↑ $value" : '↑' }
+    if ($null -eq $value) { return '·' }
+    if ([double]$value -eq 0) { return '→' }
+    return ($worse ? '↑' : '↓') + " $value"
 }
 
 function Get-TrendWorseningSign {

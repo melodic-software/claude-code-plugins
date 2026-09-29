@@ -82,7 +82,7 @@ Placeholder tokens use `{{double-braces}}`. The orchestrator performs simple tex
 
 ## At-a-glance table format
 
-One row per check. Trend arrow uses `↑` (worsening), `↓` (improving), `→` (steady), `·` (no prior value to compare: first run, or a check with no trend metric). A moving metric carries its signed delta after the arrow; `↑` alone means the trend rule raised the severity with no numeric delta.
+One row per check. Trend arrow uses `↑` (worsening), `↓` (improving), `→` (steady), `·` (no prior value to compare: first run, or a check with no trend metric). A moving metric carries its signed delta after the arrow. A row the trend rule raised is always `↑`; `↑` alone means it was raised on a signal other than the metric's delta (the drivers CodeIntegrity repeat).
 
 ```markdown
 | Category | Check | Severity | Summary | Trend |
