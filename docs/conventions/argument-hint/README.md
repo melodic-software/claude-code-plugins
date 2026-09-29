@@ -28,6 +28,11 @@ A hint is grammar, short enough to scan in an autocomplete menu.
   "what happens if you omit this" sentences move into the skill body.
 - **`[optional]`** for a slot the caller may skip. **`<required>`** for a slot the caller must
   give. A closed set of words may sit in either without angles or brackets (`check | apply`).
+- **`...`** after a slot marks it repeatable: one or more occurrences, or zero or more when the slot
+  is inside `[]` (`[path ...]`). Basis: POSIX.1-2024 (Issue 8) XBD 12.1, "Ellipses ("...") are used
+  to denote that one or more occurrences of an operand are allowed",
+  <https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap12.html>. Verified 2026-09-29.
+  Recheck: a later POSIX issue or a technical corrigendum amends 12.1.
 - **Spaced ` | `** between top-level alternatives. An unspaced `a|b` is only for a closed enum
   inside `[]` or `<>`.
 - **No em dash.** No parenthetical example (`(e.g., ...)` or `(for example ...)`). No
@@ -50,8 +55,12 @@ is additional; it does not replace that contract.
   conforms, and `scripts/validate-plugin-contracts.test.sh` asserts zero warnings on that tree. An
   edit that drifts warns here and fails that test until the hint is grammar again, with the
   displaced prose moved into the skill body rather than deleted.
+- **WARN** when the skill body has a line that starts with `**Arguments.**` (a line inside a fenced
+  code block does not count) and the first inline code span on that line is not equal to the
+  unquoted hint. The body's argument line leads with the hint and may add the full form after it.
+  The warning names the skill and this doc.
 
-A skill that omits the key is silent under this check.
+A skill that omits the key, or has no `**Arguments.**` line, is silent under these checks.
 
 ## What this convention is not
 

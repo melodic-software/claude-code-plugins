@@ -1,0 +1,10 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected fields are stated as a literal.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseRow } from '../src/csv.mjs';
+
+test('splits a quoted row', () => {
+  const row = 'a,"b,c",d';
+  assert.deepStrictEqual(parseRow(row), ['a', 'b,c', 'd']);
+});

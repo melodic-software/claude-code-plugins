@@ -1,0 +1,22 @@
+// good-for: rule-recomputed-derived
+// An expected value built only from the inputs' lengths states an invariant
+// (every element kept, a fixed price per item), and a spread copies an input
+// whole: neither rebuilds the value the way the code does.
+import { expect, it } from 'vitest';
+import { merge, total, withId } from './lib';
+
+it('prices every item', () => {
+  const items = ['a', 'b', 'c'];
+  expect(total(items)).toBe(items.length * 5);
+});
+
+it('keeps every element', () => {
+  const a = [1, 3];
+  const b = [2, 4];
+  expect(merge(a, b).length).toBe(a.length + b.length);
+});
+
+it('adds an id', () => {
+  const input = { name: 'ann' };
+  expect(withId(input)).toEqual({ ...input, id: 1 });
+});

@@ -1,0 +1,10 @@
+// expect: rule-zero-assertion
+// Drives the login form and never checks where it lands.
+import { test } from '@playwright/test';
+
+test('user can sign in', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('ada@example.com');
+  await page.getByLabel('Password').fill('correct horse');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+});

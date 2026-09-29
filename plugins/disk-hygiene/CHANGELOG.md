@@ -62,6 +62,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   with the non-volume scope statement. 0.26.3: version-serialization and operator-park sentences
   removed.
 
+## [0.28.18] - 2026-09-29
+
+### Fixed
+
+- **`clean` argument hint covers every flag.** The hint keeps `[--execute]`, `[--max-depth <N>]`, `[--sizes-only]`, and `[--policy <file>]`, and an `[options]` placeholder stands for `--confirmed-large-scan`, `--quiet`, and `--root-children` with `--root-child <name>`. The `**Arguments.**` line leads with the hint and keeps the complete flag list after it.
+
+## [0.28.17] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.28.16] - 2026-09-28
 
 ### Fixed

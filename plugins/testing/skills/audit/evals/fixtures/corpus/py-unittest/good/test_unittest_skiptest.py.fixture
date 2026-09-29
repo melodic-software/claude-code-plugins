@@ -1,0 +1,11 @@
+# good-for: rule-zero-assertion
+# self.skipTest in the body: a test that does not run is not judged.
+import unittest
+
+from slugs import slugify
+
+
+class SlugifyUnicodeTests(unittest.TestCase):
+    def test_slugify_folds_accents(self):
+        self.skipTest("accent folding lands with the v2 slug rules")
+        slugify("Creme Brulee")

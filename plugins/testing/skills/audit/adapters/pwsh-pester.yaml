@@ -1,0 +1,57 @@
+# Pester v5, with the v6 Should-* assertions. PowerShell is case-insensitive,
+# so command names bracket their first letter.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: pwsh-pester
+language: pwsh
+block_model: brace
+files: ['*.Tests.ps1']
+# spellchecker:off
+# The script block must open on the It line; an It whose -ForEach table spans
+# lines before its { is not judged.
+test_start:
+  - '^[[:space:]]*[Ii]t[[:space:]].*\{'
+test_skip:
+  - '[[:space:]]-([Ss]kip|[Pp]ending)([[:space:]:]|$)'
+suite_skip:
+  - '^[[:space:]]*([Dd]escribe|[Cc]ontext)[[:space:]].*[[:space:]]-[Ss]kip([[:space:]:]|$)'
+body_skip:
+  - '[Ss]et-[Ii]t[Rr]esult[^\n;|]*-([Ss]kipped|[Pp]ending|[Ii]nconclusive)'
+assertion:
+  # Any Should counts, custom Add-ShouldOperator operators included; mock.strip
+  # removes the Should -Invoke forms before the mock-only check.
+  calls:
+    - '(^|[^A-Za-z0-9_$.-])[Ss]hould([[:space:]]|-|$)'
+    - '(^|[^A-Za-z0-9_$.-])[Tt]hrow([[:space:]]|$)'
+  # A bare comparison as a statement: Pester discards the bool it returns. A
+  # trailing backtick continues it, and the engine drops one whose next line
+  # opens with a pipe (the PowerShell 7 leading-pipe form).
+  inert:
+    - '\$[A-Za-z][A-Za-z0-9_.]*[[:space:]]+-[CcIi]?([Ee][Qq]|[Nn][Ee]|[Gg][Tt]|[Gg][Ee]|[Ll][Tt]|[Ll][Ee])[[:space:]][^|;`]*$'
+  # Not null or empty, and a -Throw that names no exception type or message.
+  weak:
+    - '[Ss]hould[[:space:]]+-[Nn]ot[[:space:]]+-[Bb]e[Nn]ull[Oo]r[Ee]mpty[[:space:]]*$'
+    - '[Ss]hould[[:space:]]+-[Tt]hrow[[:space:]]*$'
+  count:
+    - '\.[[:space:]]*([Cc]ount|[Ll]ength)([^A-Za-z0-9_]|$)'
+    - '-[Hh]ave[Cc]ount'
+  # A throw in an if or catch is that branch's assertion.
+  fail:
+    - '(^|[^A-Za-z0-9_$.-])[Tt]hrow([[:space:]]|$)'
+mock:
+  create:
+    - '(^|[^A-Za-z0-9_$.-])[Mm]ock[[:space:]]'
+    - '[Nn]ew-[Mm]ock[Oo]bject'
+  verify:
+    - '[Ss]hould([[:space:]]+-[Nn]ot)?([[:space:]]+-|-|-[Nn]ot)[Ii]nvoke'
+    - '[Aa]ssert-[Mm]ock[Cc]alled'
+    - '[Aa]ssert-[Vv]erifiable[Mm]ock'
+  strip:
+    - '[Ss]hould([[:space:]]+-[Nn]ot)?([[:space:]]+-|-|-[Nn]ot)[Ii]nvoke'
+# spellchecker:on
+equality:
+  # Self-comparison with -BeLike, -Match, -Contain or -BeIn can still fail, so
+  # only the equality matchers and their aliases are listed.
+  pipeline: [Should -Be, Should -BeExactly, Should -EQ, Should -CEQ, Should-Be, Should-Be -Expected]
+# PowerShell has no uppercase constant convention ($LASTEXITCODE is a result).
+rules_off: [constant-restatement]
+suppress_marker: 'cant-fail-ok:'

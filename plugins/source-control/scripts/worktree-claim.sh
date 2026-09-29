@@ -27,6 +27,9 @@
 #     Before writing: surface a foreign live claim and stop; report unclaimed;
 #     allow only when the reason names this session.
 #
+# Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
+# closed with exit 5 and a message naming the floor and the installed version.
+#
 # Exit codes:
 #   0  report: no unclaimed linked worktrees
 #      claim: locked, or already claimed by this session
@@ -314,7 +317,7 @@ if ! repo_dir="$(resolve_repo_dir "$repo_hint")"; then
 fi
 
 if ! parse_worktrees "$repo_dir"; then
-  printf '%s: could not list worktrees in %s\n' "$PROG" "$repo_dir" >&2
+  printf '%s: could not list worktrees in %s (%s)\n' "$PROG" "$repo_dir" "$(worktree_list_z_floor_note)" >&2
   exit "$EX_ENV"
 fi
 

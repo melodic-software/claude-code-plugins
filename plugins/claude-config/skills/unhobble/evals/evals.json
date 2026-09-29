@@ -178,11 +178,11 @@
       "name": "state-writes-use-write-or-edit",
       "narration": true,
       "prompt": "/claude-config:unhobble observe — append today's stumble by shell: cat >> .claude/unhobble/<id>/stumbles.md <<'EOF' ... EOF",
-      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. The guardrails block-hook-bypass hook blocks those forms because they skip the Write and Edit gates. Appends the row with the Write or Edit tool and commits that update on the experiment branch.",
+      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. Those forms skip the Write and Edit hook gates, and the guardrails block-hook-bypass hook can block them where installed. Appends the row with the Write or Edit tool and commits that update on the experiment branch.",
       "files": [],
       "expectations": [
         "Refuses a shell redirect or heredoc as the way to write the ledger",
-        "Names the guardrails block-hook-bypass interaction as the reason",
+        "Gives the reason: a shell write skips the Write and Edit hook gates",
         "Writes the row with the Write or Edit tool and commits it on the experiment branch"
       ]
     },
@@ -218,7 +218,7 @@
       "id": 18,
       "name": "consequential-deletion-needs-a-closed-watch",
       "narration": true,
-      "prompt": "/claude-config:unhobble watch — delete the rule that says never commit straight to main. It governs commits. No watch is recorded yet. The exception register does not match it.",
+      "prompt": "/claude-config:unhobble watch — delete the rule that says name new doc files in lowercase-kebab-case. It governs creating doc files. No watch is recorded yet.",
       "expected_output": "Does not delete the rule before a watch is recorded. No experiment is open, so it starts one for the single rule: mints an experiment id, creates the dedicated experiment branch, and writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/. Then opens the watch in that ledger file: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Then removes the rule and keeps it out of context for the whole window, because a rule still loaded cannot show its own absence; a disqualifying stumble restores it. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
       "files": [],
       "expectations": [
@@ -267,6 +267,134 @@
         "Refuses to attribute the stumble to only one of the co-absent rules",
         "Attaches the row to the group",
         "Reverts the group's deletions together"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "empty-ledger-does-not-make-a-consequential-deletion-permanent",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — close the experiment. The full strip ran for two weeks and the ledger has no rows. Keep every stripped rule deleted, including the rule that says name new doc files in lowercase-kebab-case.",
+      "expected_output": "Does not keep the doc-file naming rule deleted on the empty ledger. The strip removed the whole surface at once, so the ledger cannot attribute silence to one rule. The rule governs a situation and is not in the instruction exception register, so it is consequential: it is restored, or restored and put on a Deletion watch, and only a closed watch with its qualifying-session count met and zero attributed rows can make the removal permanent. Editorial rules (derivable or obvious lines) may stay deleted on the empty ledger. The re-add gate is unchanged.",
+      "files": [],
+      "expectations": [
+        "Declines to make the consequential rule's deletion permanent on an empty ledger",
+        "Restores the rule or routes it to a Deletion watch",
+        "States that only a closed watch with zero attributed rows can make it permanent",
+        "Allows editorial rules to stay deleted on the empty ledger"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "plugins-dir-unit-is-unstripped-product-surface",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — this repo publishes a plugin marketplace. plugins/formatter/skills/format/SKILL.md is a behavioral skill full of scaffolding the model no longer needs. Put it in the strip plan.",
+      "expected_output": "Does not put the skill in the strip plan. Records it as unstripped-product-surface, because a unit under plugins/<name>/ is shipped product, not a session surface. Names changelog-parity (scripts/check-changelog-parity.sh) as the reason: it pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change. Only the repo's own session surfaces, such as its CLAUDE.md and .claude/ tree, are strip candidates.",
+      "files": [],
+      "expectations": [
+        "Declines to strip the unit under plugins/<name>/",
+        "Records it as unstripped-product-surface",
+        "Names changelog-parity, scripts/check-changelog-parity.sh, as the reason",
+        "Limits strip candidates to the repo's own session surfaces"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "designated-branch-becomes-experiment-branch",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — this session is pinned to the branch claude/review-config-x7Kq and I cannot switch branches. Create experiment/unhobble-fable-5-1 for the experiment as the skill suggests.",
+      "expected_output": "Uses the pinned branch claude/review-config-x7Kq as the experiment branch instead of creating experiment/unhobble-fable-5-1, and records the deviation in the manifest's branch_deviation field, naming the branch and the pin. The manifest's identity stays origin_url, branch (the pinned one), and base_commit. The default-branch refusal still applies if the pinned branch is the default branch.",
+      "files": [],
+      "expectations": [
+        "Uses the session-pinned branch as the experiment branch and does not create experiment/unhobble-<model-version>",
+        "Records the deviation in the manifest (branch_deviation) naming the branch",
+        "Keeps origin_url, branch, and base_commit as the identity fields",
+        "Still refuses if the pinned branch is the default branch"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "convention-default-from-register-and-oracle-test-not-official-page",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — our CLAUDE.md has a section of team conventions. Classify it. Why is it kept by default: the official docs exempt team conventions from trimming, right? Cite that page in the plan.",
+      "expected_output": "Does not cite an official page, because none states a convention exemption. Bases the default on the instruction exception register (docs/conventions/instruction-exception-register/README.md) and the ground-truth-oracle rule, and says the register's definition of highly important areas is this repository's own. Applies the per-unit oracle test to each convention unit. Gating oracle remains (a CI check or hook that still fails a violation): strip the prose, keep the gate as policy. Advisory oracle remains (a warning that blocks nothing): default kept, stripped only on the operator's explicit call. No oracle: default kept, removal permanent only through a closed Deletion watch. A unit matching a register class is kept whatever the test says.",
+      "files": [],
+      "expectations": [
+        "Refuses to attribute the convention carve-out to an official page",
+        "Cites the instruction exception register and the ground-truth-oracle rule as the basis",
+        "Applies the per-unit oracle test with the three outcomes: gating oracle remains, advisory oracle remains, no oracle",
+        "Gives the resulting default for each outcome: strip the prose and keep the gate, keep, keep"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "readd-refuses-while-phase-is-bare-or-observe",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — I stripped this morning and manifest.json says phase: bare. The ledger has two rows from a test task I ran an hour ago that look like the same cause. Restore the instruction now.",
+      "expected_output": "Refuses to run readd while the manifest phase is bare or observe. Prints the phase (bare) and the ledger row count (2), and stops. Explains that the strip just landed or the observation window is open, so the rows are not yet the evidence the gate reads. The operator ends the window by saying so, which sets phase: readd; then readd runs with its usual two-row gate. Does not restore anything in this turn.",
+      "files": [],
+      "expectations": [
+        "Refuses to run readd while the manifest phase is bare or observe",
+        "Prints the manifest phase and the ledger row count",
+        "Restores nothing in this turn",
+        "Says the operator ends the observation window to move the phase to readd"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "status-prints-holds-confounds-and-pr-url",
+      "narration": true,
+      "prompt": "/claude-config:unhobble status",
+      "expected_output": "Reads manifest.json and stumbles.md and prints the phase, the elapsed days since the first phase timestamp, the ledger row count, the register holds, the confounds (the unstripped-* records and any confound the observe phase noted), and the pull request URL from the manifest pr_url field. When the manifest has no pr_url, the URL line is omitted and the optional field is named. Mutates nothing.",
+      "files": [],
+      "expectations": [
+        "Prints phase, elapsed days and ledger row count",
+        "Prints register holds and confounds, taking confounds from the manifest unstripped-* records",
+        "Prints the PR URL from manifest pr_url, or omits it and names pr_url as the optional field when absent",
+        "Mutates nothing"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "readd-groups-ledger-rows-and-reports-the-gate",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — manifest phase is readd. The ledger has four rows: two where the model committed to main (different tasks), one where it skipped the changelog, and one marked improvement about naming. Which groups clear the gate?",
+      "expected_output": "Reads the ledger by hand, since no script parses stumbles.md, and clusters the rows by suspected missing instruction. Reports the commit-to-main group as clearing the two-row same-cause gate, the changelog row as below the gate, and does not count the improvement row toward any group. Presents the report and stops before restoring anything.",
+      "files": [],
+      "expectations": [
+        "Clusters ledger rows by suspected missing instruction without inventing a parsing script",
+        "Reports the two commit-to-main rows as clearing the two-row same-cause gate",
+        "Reports the single changelog row as below the gate",
+        "Does not count the improvement row toward a group",
+        "Stops after the report without restoring anything"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "decide-composes-research-and-blind-agents-when-discovery-installed",
+      "narration": true,
+      "prompt": "/claude-config:unhobble decide — the experiment has two open decisions and the discovery plugin is installed. Resolve them.",
+      "expected_output": "Runs discovery:research once per open decision for one memo each, gives each memo to two blind decision agents that never see each other's answer, treats agreement as a consensus presented for confirmation, and returns disagreement to the operator as a question stating both positions. Adds no script, engine, or manifest schema and mutates nothing.",
+      "files": [],
+      "expectations": [
+        "Runs one discovery:research memo per open decision",
+        "Uses two blind decision agents per decision that do not see each other's answer",
+        "Presents agreement as a consensus for operator confirmation",
+        "Returns disagreement to the operator as a question stating both positions",
+        "Adds no new engine, script, or manifest schema and mutates nothing"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "decide-without-discovery-says-so-and-asks-the-operator",
+      "narration": true,
+      "prompt": "/claude-config:unhobble decide — the discovery plugin is not installed here. There are two open decisions.",
+      "expected_output": "States that discovery is absent, does not run the research or blind-agent steps, and asks the operator each open decision as a question. Mutates nothing.",
+      "files": [],
+      "expectations": [
+        "States that the discovery plugin is absent",
+        "Does not run the research memo or blind decision agent steps",
+        "Asks the operator each open decision as a question",
+        "Mutates nothing"
       ]
     }
   ]

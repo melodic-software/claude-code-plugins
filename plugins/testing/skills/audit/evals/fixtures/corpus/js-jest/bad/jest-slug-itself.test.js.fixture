@@ -1,0 +1,10 @@
+// expect: rule-recomputed-expectation
+// The expected side calls the function under test with the same input.
+const { describe, expect, it } = require('@jest/globals');
+const { toSlug } = require('../src/slug');
+
+describe('toSlug', () => {
+  it('lowercases and hyphenates a title', () => {
+    expect(toSlug('Hello World')).toEqual(toSlug('Hello World'));
+  });
+});

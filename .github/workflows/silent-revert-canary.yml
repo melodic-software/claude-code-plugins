@@ -89,12 +89,14 @@ jobs:
           EVENT_AFTER: ${{ github.event.after }}
         run: |
           set -uo pipefail
+          # shellcheck source=scripts/lib/changed-files.sh
+          source scripts/lib/changed-files.sh
           zero='0000000000000000000000000000000000000000'
           before="${EVENT_BEFORE:-}"
           after="${EVENT_AFTER:-$(git rev-parse HEAD)}"
 
           if [ -z "$before" ] || [ "$before" = "$zero" ] ||
-            ! git rev-parse --verify --quiet "${before}^{commit}" >/dev/null; then
+            ! changed_files::verify_base "$before"; then
             echo "::warning::No usable push range (before='${before:-<unset>}');" \
               "scanning only the head commit ${after}. Any earlier commit in" \
               "this push was NOT scanned."

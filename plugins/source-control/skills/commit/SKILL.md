@@ -30,6 +30,8 @@ only the summary line") bounds nothing; `head` and `tail` truncate before the re
 are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies to the
 `## Pre-computed context` block does not apply here.
 
+Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
+
 Then resolve the two repo-scoped config layers as separate calls. Each uses git's repo-root-relative
 magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
 any subdirectory and never need the repository root substituted into them. **Quote the pathspec**,

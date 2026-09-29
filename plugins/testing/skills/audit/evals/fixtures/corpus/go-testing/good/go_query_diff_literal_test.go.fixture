@@ -1,0 +1,17 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected value is stated, not recomputed.
+package query
+
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
+
+func TestParseQuery(t *testing.T) {
+	raw := "page=2&sort=name"
+	want := Query{Page: 2, Sort: "name"}
+	if diff := cmp.Diff(want, ParseQuery(raw)); diff != "" {
+		t.Errorf("ParseQuery() mismatch (-want +got):\n%s", diff)
+	}
+}

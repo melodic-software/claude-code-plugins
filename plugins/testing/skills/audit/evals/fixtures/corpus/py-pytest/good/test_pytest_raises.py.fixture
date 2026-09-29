@@ -1,0 +1,10 @@
+# good-for: rule-zero-assertion
+# The pytest.raises context manager is the assertion.
+import pytest
+
+from prices import parse_price
+
+
+def test_parse_price_rejects_words():
+    with pytest.raises(ValueError, match="not a price"):
+        parse_price("four dollars")
