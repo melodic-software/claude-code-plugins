@@ -66,9 +66,11 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves: in full on the first skip for each session and subagent, then
-  as a shorter renewal on the eighth skip and every eighth after that
-  (`HOOK_NOTICE_RENEW_EVERY`), silent in between. To tell the cases apart, wire a
+  themselves, by class. A missing `markdownlint-cli2` is a prerequisite notice:
+  once per session (a subagent does not repeat it), renewed with the install
+  route every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). The missing-`jq` notice and
+  the trust-gate notice are once per session and agent, renewed every eighth
+  skip. Silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -140,8 +142,13 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a notice to both Claude (`additionalContext`)
-and you (`systemMessage`): in full on the first skip for each session and
-subagent, then renewed on every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). Only the notice latches.
+and you (`systemMessage`). A missing-`markdownlint-cli2` notice is shown once
+per session, not per subagent, and renewed with the install route every eighth
+skip (`HOOK_NOTICE_RENEW_EVERY`). The `SessionStart` probe below uses the same
+notice key, so its notice counts as skip number one, the first per-edit skip is
+number two and stays silent, and the next per-edit notice appears at the eighth
+skip. The missing-`jq` notice and the trust-gate notice are once per session and
+agent, renewed every eighth skip. Only the notice latches.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
 `PATH probed:` line naming the plausible directories the hook process actually
@@ -150,6 +157,18 @@ the edited file is outside a repository the notice names a durable user-scope
 directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or
 performs a network request during a hook run.
+
+`hooks/hooks.json` also registers a `SessionStart` probe. It reads
+`prerequisites.json` and reports a missing `markdownlint-cli2` at session start,
+and it honors `markdown_format_enabled`. `/markdown-format:check` is the
+read-only check that notice names. The probe does not look for a markdownlint
+config, so it can report in a repository that has none.
+
+`jq` is deliberately absent from `prerequisites.json`. That manifest drives the
+session-start probe, which does not consult the per-repo config opt-in, while the
+missing-`jq` notice comes only from the per-edit hook after its opt-in pre-check
+(`markdown-format.sh`, `hook::require_jq` after the config walk). Listing `jq`
+would announce it in repositories that never opted in.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
