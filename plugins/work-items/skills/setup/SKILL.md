@@ -76,7 +76,7 @@ when this pass must stop instead of guessing.
      **never** a coordination surface. Needs `config.storage_dir`.
    - **`jira`**. Read/resolve-only against a Jira Cloud project set. Consume-only, so it does not
      enable `/work-items:work` or `track start`.
-   - **`linear`**. Full verb parity with `github`, so it **is** a coordination surface. Personal
+   - **`linear`**. Verb parity with `github` except `release`, so it **is** a coordination surface. Personal
      API key (the headless-appropriate credential); issue numbering lives outside the repo.
    - **`gitea`**. Gitea / Forgejo, self-hostable and free. Issues and dependency edges, but **no
      leases and no sub-items**, so `/work-items:work` cannot claim on it.

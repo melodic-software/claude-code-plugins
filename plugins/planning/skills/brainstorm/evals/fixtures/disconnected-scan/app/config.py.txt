@@ -1,0 +1,5 @@
+SMTP_HOST = "smtp.internal.example"
+
+FEATURES = {
+    "weekly_digest": False,
+}

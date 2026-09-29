@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-09-29
+
+### Added
+
+- **`check-plan-outcome.sh --approval-only`** checks that the plan's `Approval:` line exists with a non-empty, non-placeholder value. The line is written after approval, so the Step 4.7 default run does not require it; `plan` runs the new mode in its final persist step ([#4278](https://github.com/melodic-software/claude-code-plugins/issues/4278)).
+- **Eval cases:** `brainstorm` case 7 plants a disconnected scan fixture (an unused import, a flag that defaults off and is never read, a table with no reader) so a run that skips the scan cannot name the items ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)). `interview` case 26 grades `scope` returning resolved and unresolved rows.
+- **`--approval-only` ignores an `Approval:` line inside a code fence**, and the `/Users` and `/home` path check flags any such path not preceded by a path character (letter, digit, `_`, `.`, `/`, `-`), so a path right after a colon, pipe or comma fails while a repo folder such as `Domain/Users/` passes.
+- **`plan-reviewer` keeps an explicit `Do not edit files.`** in its always-loaded body, since its Bash grant does not enforce it.
+- **`## Next`** sections on `brainstorm`, `interview`, `design`, `design-handoff` and `plan` name each skill's successor.
+
+### Changed
+
+- **`interview` `scope` returns `deferred` and `blocked` rows** as `Deferred:` and `Blocked:` lines with their arbiter, so they no longer vanish for the caller. A `Blocked:` or `USER-RESERVED` line tells the caller to stop and ask ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)).
+- **The prune caveat applies to the branch tier only.** Under `contract_tier: local` the contract sits in the memory slice, which never reaches git ([#4286](https://github.com/melodic-software/claude-code-plugins/issues/4286)).
+- **`plan` states the fresh-context review as a notice, not a choice**, and points at the `plan-reviewer` verification record. `plan-reviewer` carries a dated four-part record for its effort override and defers axes and report format to the dispatch prompt ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+- **`prd` and `design` keep their hub gates inside the re-attach slice**, and `reattach-slice.test.sh` asserts a per-hub gate list for `plan`, `prd` and `design` ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).
+- **Plan eval case 11** is keyed to the Step 4.6 invariant (a decision the brief left open is tagged and tabled, never folded into a mechanical section) instead of a collapse self-check the body never instructs ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+- Recommendation-basis links point at the plugin-shipped `context/recommendation-basis.md`, and the wayfind spoke names `/work-items:track` instead of a bare `/work-items` ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
+- **Surface docs:** R-K sits after R-J, both record-terminal uses are named, and the README states that CI skips the browser checks ([#5009](https://github.com/melodic-software/claude-code-plugins/issues/5009), [#4652](https://github.com/melodic-software/claude-code-plugins/issues/4652)).
+- **0.45.10 reverses the `arguments:` field 0.45.3 added to `prd`**, so the 0.45.3 entry no longer describes the shipped skill.
+- **The 0.45.9 eval cases are eval-only checks** for behaviors the skill bodies do not yet instruct: the `brainstorm` observed-fact evidence bar and the `plan` collapse self-check. The 0.45.9 entry reads as if those rules exist in the skills; the `plan` case is now keyed to the Step 4.6 invariant instead.
+
+### Fixed
+
+- **`check-plan-outcome.sh`** no longer fails a plan that names a repo folder such as `Domain/Users/`: the `/Users` and `/home` match now requires the segment to begin a path. A code fence closes only on the same character, at least the opening length, with no info string, so quoted phase headings inside a four-backtick block are not graded ([#4271](https://github.com/melodic-software/claude-code-plugins/issues/4271)).
+
 ## [0.45.13] - 2026-09-29
 
 ### Fixed

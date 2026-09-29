@@ -1,0 +1,9 @@
+from app.config import SMTP_HOST
+from app.digest import build_digest
+from app.store import list_pending, mark_sent
+
+
+def send_pending(smtp):
+    for row in list_pending():
+        smtp.send(SMTP_HOST, row["user_email"], row["body"])
+        mark_sent(row["id"])
