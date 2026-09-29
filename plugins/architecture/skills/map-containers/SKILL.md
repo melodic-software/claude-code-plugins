@@ -222,6 +222,8 @@ End every run with this block, in this order, filled from the record and the scr
 - **Redaction keeps the shape.** Host, service kind, and a sql database name are the fact. Userinfo,
   passwords, account keys, and secret-only values produce no field. The raw value is not stored.
   `package.json` is not scanned. `containers.json` is not scanned again.
+- **A URL that names several hosts is not read.** `mongodb://a:27017,b:27017/db` yields no store.
+  Report it as a gap when the repository uses that form.
 - **`unknown` is a technology value.** A Dockerfile with no `FROM`, a `FROM` that names a build
   variable (`$BASE`), a compose service with no image, or a SQL connection string with no URL scheme
   is technology `unknown`. Do not invent a runtime from the service name. The image is the last
