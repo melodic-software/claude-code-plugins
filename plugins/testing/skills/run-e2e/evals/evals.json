@@ -32,11 +32,11 @@
       "id": 4,
       "name": "native-step-skip-when-bundled-run-disabled",
       "prompt": "/testing:run-e2e the login flow. disableBundledSkills is set in settings and the project has no orchestrator configuration.",
-      "expected_output": "The bundled run skill does not resolve in this session, so the Native step is skipped and the result block records the state. The evidence output opens with the result block, names the axis line and the enable path, and the launch falls back to this skill's own launch playbook without retrying run.",
+      "expected_output": "The bundled run skill is disabled for model invocation, so the Native step is skipped and the result block records the refusal. The evidence output opens with the result block, names the axis line and the enable path, and the launch falls back to this skill's own launch playbook without retrying run.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Opens the result block with 'did not resolve in this session'",
+        "Opens the result block with 'invocation refused (disableBundledSkills)'",
         "Names the axis line (settings or environment)",
         "Names the enable path (disableBundledSkills, skillOverrides)",
         "Falls back to this skill's own launch playbook, the project's documented start command",
@@ -52,7 +52,7 @@
       "narration": true,
       "expectations": [
         "Invokes run through the Skill tool to launch the app and report how to reach it",
-        "Fingerprints the tracked tree (git diff HEAD | sha256sum) immediately before and after the invocation",
+        "Saves git diff HEAD to a scratch file immediately before and after the invocation and compares the two",
         "Layers evidence (screenshots, responses, logs) on top of run's result",
         "Records 'State: ran' in the result block",
         "Launches the app once, through run only"

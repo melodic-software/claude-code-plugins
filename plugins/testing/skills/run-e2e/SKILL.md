@@ -16,7 +16,8 @@ process). The driving stays with this skill: screenshots, responses, and logs ar
 `run`'s result under the evidence contract in [context/e2e.md](context/e2e.md). Prerequisites, run
 config, evidence, and handoff stay with this skill too. The step runs only under the
 one-launch-path rule in the Boundary section: it is skipped when the project's orchestrator governs
-the start, and on the non-UI route, where there is no app to launch.
+the start, when the app is already running, and on the non-UI route, where there is no app to
+launch.
 
 **Identity check.** The name is in the skill listing; the description is advisory. A listed `run`
 that reads as a project skill is not a skip: the bundled skill itself defers to a project skill of
@@ -25,10 +26,16 @@ unrelated surface is an identity mismatch: skip with a warning and use this skil
 playbook. A name with no description (`name-only`, listing-budget overflow) is invoked with the
 warning "identity confirmed by name alone".
 
-**Mutation.** `run` starts processes rather than editing files. The drive subagent fingerprints the
-tracked tree (`git diff HEAD | sha256sum`) immediately before and after the invocation, as
-individual Bash calls. Any difference is **mutation detected after a scoped invocation**: the run
-exits degraded and the report names the paths whose diff changed.
+**Mutation.** `run` starts processes rather than editing files. The drive subagent saves
+`git diff HEAD` to a scratch file outside the tree immediately before and after the invocation, as
+individual Bash calls, and compares the two files with `cmp`. Any difference is **mutation detected
+after a scoped invocation**: the run exits degraded and the report names the paths whose
+`diff --git` section differs between the files. A path that was already dirty and is unchanged is
+not named.
+
+**Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
+launch meets that requirement, so Step 1 does not stop on a missing app. When a healthy instance
+is already reachable, the step is skipped, so `run` never starts a second one.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
@@ -48,7 +55,7 @@ in:
 
 ```text
 Native step: run
-State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (unattended | orchestrator governs the start | non-UI route) | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (unattended | orchestrator governs the start | non-UI route | app already running) | mutation detected after a scoped invocation
 Outside-scope changes: none | <paths>
 ```
 
