@@ -9,7 +9,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - The `audit-performance` spoke `known-performance-issues.md` and the `observability` spoke
   `data-sources.md` open with a Contents block of section anchors, so skill-quality check 26
-  (long spoke files carry a table of contents) passes on them.
+  (long spoke files carry a table of contents) passes on them. Two prose mentions of `stat` in
+  `known-performance-issues.md` carry `portability-ok` comments so the shell-portability gate
+  reads them as prose.
 
 ## [0.63.29] - 2026-09-28
 
