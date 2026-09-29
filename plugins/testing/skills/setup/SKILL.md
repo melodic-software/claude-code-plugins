@@ -83,7 +83,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
 3. **instruction**: the optional line. Offer it; do not paste it anywhere.
 4. **hook-entry**: `none`, or a `.claude/settings.json` snippet for each consumer glob no shipped
    hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
-   (probed on Claude Code 2.1.284, 2026-09-29, `docs/topics/tautological-tests/probes.md` in the
+   (probed on Claude Code 2.1.284, 2026-09-29, `docs/specs/tautological-tests/probes.md` in the
    marketplace repository; recheck when a Claude Code release note says settings hooks receive
    plugin variables), so the entry runs the highest installed version under
    `~/.claude/plugins/cache/<marketplace>/testing` and passes `--enabled`: adding the entry is the
