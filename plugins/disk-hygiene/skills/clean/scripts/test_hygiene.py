@@ -3781,6 +3781,29 @@ class StdlibShadowingTests(unittest.TestCase):
             ["gettext.py"], [row["path"] for row in snapshot["stdlib_shadowing"]]
         )
 
+    def test_windows_case_folding_links_source_and_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "__pycache__").mkdir()
+            (home / "__pycache__" / "random.cpython-314.pyc").write_bytes(b"\0")
+            entries = [
+                {"path": "Random.py", "kind": "file"},
+                {"path": "__pycache__", "kind": "directory"},
+            ]
+            with (
+                mock.patch.object(hygiene, "user_home", return_value=home),
+                mock.patch.object(hygiene.sys, "platform", "win32"),
+            ):
+                findings = hygiene.annotate_stdlib_shadowing(entries, home)
+        self.assertEqual(
+            [{"path": "Random.py", "module": "random", "bytecode_cache": "__pycache__"}],
+            findings,
+        )
+        self.assertEqual(
+            [{"module": "random", "source": "Random.py", "shadows_stdlib": True}],
+            entries[1]["bytecode_sources"],
+        )
+
     def test_depth_cut_cache_still_names_its_sources(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)

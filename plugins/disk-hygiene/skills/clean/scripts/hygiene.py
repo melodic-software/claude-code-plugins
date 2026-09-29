@@ -2092,20 +2092,25 @@ def annotate_stdlib_shadowing(
             shadows[stem] = entry
     cache = children.get("__pycache__")
     compiled: list[str] | None = None
+    # Compare folded names: shadows is keyed by the folded stem.
+    folded_children = {fold(name): entry for name, entry in children.items()}
     if cache is not None and cache.get("kind") == "directory":
         compiled = bytecode_module_names(target / cache["path"])
         if compiled is not None:
             cache["bytecode_sources"] = [
                 {
                     "module": module,
-                    "source": children.get(f"{module}.py", {}).get("path"),
-                    "shadows_stdlib": module in shadows,
+                    "source": folded_children.get(fold(f"{module}.py"), {}).get(
+                        "path"
+                    ),
+                    "shadows_stdlib": fold(module) in shadows,
                 }
                 for module in compiled
             ]
+    folded_compiled = {fold(module) for module in compiled or []}
     findings = []
     for module, entry in sorted(shadows.items()):
-        has_bytecode = compiled is not None and module in compiled
+        has_bytecode = module in folded_compiled
         entry["advisories"] = [
             {
                 "id": "stdlib-module-shadow",
