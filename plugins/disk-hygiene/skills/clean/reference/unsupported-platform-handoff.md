@@ -131,9 +131,10 @@ engine plan:
    `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the scan's opaque `.git` truncation.
    Every other protected name, mount/link/reparse check, identity/descendant check, handle check, and
    consumer protection remains categorical. The emitted `vcs_evidence.gates` object records all four
-   required gates: empty porcelain status; all local heads present on the configured remote; all
+   gates: empty porcelain status; all local heads present on the configured remote; all
    stashes duplicated elsewhere (or none); and the exact approved path supplied by the existing
-   operator-confirmation lane.
+   operator-confirmation lane. Under `accept_unpublished`, the first two report
+   `accepted-unpublished` instead of passing; the stash gate and the exact-path gate still apply.
 
    **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
    path's check ages while every later path is still being walked and probed, so its `clear`

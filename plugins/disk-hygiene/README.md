@@ -27,7 +27,10 @@ unvalidated tree.
   evidence mode for an entire standalone Git checkout: it requires empty porcelain status, every
   local head SHA confirmed through the checkout's GitHub remote, every stash SHA present in an
   independent checkout (or no stashes), and the existing exact-path operator approval. Without all
-  four, categorical protection remains.
+  four, categorical protection remains, except that an `accept_unpublished` acknowledgement on the
+  evidence entry (one exact approved path, with a reason) waives the first two, the empty status and
+  the heads confirmed on the remote, and the verdict reports them as accepted-unpublished. The stash
+  gate and the exact-path operator approval still apply.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
@@ -103,8 +106,10 @@ unconditionally, and fail closed to enabled.
 Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
 of the belt has been observed on at least one Claude Code build (producer-reported; see
 issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
-that issue. PreToolUse hooks also fire inside subagents, so fanned-out workers run under the same
-guards.
+that issue. The plugin-level engine gate fires inside subagents. The skill-frontmatter belt was
+observed not to reach a subagent, and #4228 records that its reach was inconsistent within one
+session, so a fanned-out worker's Bash lane is not reliably belt-guarded and "evidence only" is an
+instruction to the worker, not an enforced denial. `skills/clean/SKILL.md` holds the detail.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
@@ -130,10 +135,9 @@ Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApp
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
 skill-scoped belt included. A PreToolUse hook blocks a tool call only with exit code 2 or a `deny`
 decision, and one that exits 0 with nothing to say reads as approval
-([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run used to look exactly
-like one that ran and allowed. Since 0.26.0 (#3861) the launcher answers for the guard when the
-ladder is exhausted, on the call itself, the same way the guard's watchdog answers "could not
-decide":
+([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run would read as one
+that ran and allowed. The launcher therefore answers for the guard when the ladder is exhausted, on
+the call itself, the same way the guard's watchdog answers "could not decide":
 
 | Surface | No interpreter resolves |
 |---|---|
@@ -298,8 +302,12 @@ files are never inventoried): regular files now use the same admission ladder as
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |
 | Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
 
-User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, but
-`C:\vc_redist.x64.exe` is not) can be selected with `--root-child NAME` and inventoried as a file.
+User residue that clears that ladder can be selected with `--root-child NAME` and inventoried as
+a file. A Windows root file such as `C:\vc_redist.x64.exe` clears it; `/opt` and other OS-owned names
+do not. On any other target, files stay withheld as `not-a-directory` and only directories are
+selectable.
+
+## Relationship to other tools
 
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
@@ -307,8 +315,9 @@ User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, bu
   `.worktrees/` tree, run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
   metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
-  handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
-  [safety model](skills/clean/reference/safety-model.md) pass.
+  handoff's optional VCS evidence mode can return `clear` only after the proof gates in the
+  [safety model](skills/clean/reference/safety-model.md) pass, or an `accept_unpublished`
+  acknowledgement waives the first two for that one approved path.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -455,8 +464,8 @@ measurements below carry the conditions they were taken under.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this did **not** change was the guard's no-interpreter behavior, which 0.26.0 (#3861)
-  later made fail-closed for the belt: it now denies every call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  path. The conversion does not change the guard's no-interpreter behavior: the belt denies every
+  call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout

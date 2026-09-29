@@ -200,7 +200,8 @@ and every path approved in the same handoff, and must resolve a `--git-common-di
 candidate shares stash refs and is not an independent backup. Only GitHub.com is implemented:
 unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
-categorical reasons.
+categorical reasons, except that the `accept_unpublished` acknowledgement below waives the dirty-tree
+and unconfirmed-head reasons for one exact approved path.
 
 An operator who wants a throwaway checkout gone even though it fails gates 1 or 2 records that on
 the evidence entry: `"accept_unpublished": true` with a non-empty `"reason"`. The engine accepts it
