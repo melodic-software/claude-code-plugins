@@ -1,0 +1,14 @@
+# exempt: rule-recomputed-expectation
+# The contract is determinism: the same input must map to the same id. The
+# rule still fires on f(x) == f(x); the annotation records the contract and
+# the scan counts it as exempt.
+import unittest
+
+from ids import short_id
+
+
+class ShortId(unittest.TestCase):
+    def test_deterministic_for_correlation(self):
+        full = "toolu_01AbCdEfGhIjKlMn"
+        # cant-fail-ok: determinism contract
+        self.assertEqual(short_id(full), short_id(full))
