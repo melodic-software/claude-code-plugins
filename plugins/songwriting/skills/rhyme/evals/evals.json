@@ -32,7 +32,7 @@
     {
       "id": 3,
       "name": "identity-rhyme-is-rejected-before-datamuse",
-      "prompt": "/songwriting:rhyme rhymes for 'night', starting with 'knight' and 'nite'",
+      "prompt": "/songwriting:rhyme rhymes for 'night' \u2014 start with 'knight' and 'nite'",
       "expected_output": "Loads rhyme-generation.md first. Rejects knight/nite as identity or spelling variants where the pre-vowel consonant does not differ, and does not lead with Datamuse for this common word.",
       "files": [],
       "narration": true,
