@@ -1,5 +1,24 @@
 # Changelog: discovery plugin
 
+## [0.25.6] - 2026-09-28
+
+### Added
+
+- **The `explore` and `trace-intent` sibling verifier is specified once.** Both return
+  `verification: pending` and ask for a fresh-context verifier, but no agent, prompt, write-back
+  format or no-verifier fallback was stated, so a verified `EXPLORE.md` and one whose verifier
+  never ran read the same. `reference/parent-contract.md` now owns:
+  - the route: a `general-purpose` subagent, not built-in Explore or a producing `discovery:*`
+    worker (research keeps `discovery:research-verifier`);
+  - a five-line labeled prompt, `Target:`, `Criterion:`, `Evidence:`, `Posture:` and `Return:`;
+  - the frontmatter value `verification: <pass|fail|unverified> (<worker>, <YYYY-MM-DD>)`, the
+    shape research's `verification_line` already uses;
+  - `verification: unverified (none, <YYYY-MM-DD>)` plus a numbered gap when no verifier can be
+    dispatched, for all three families.
+
+  `explore`, `research` and `trace-intent` point at the section, and `contract.test.sh` holds the
+  heading and the value shape to one owner.
+
 ## [0.25.5] - 2026-09-28
 
 ### Added

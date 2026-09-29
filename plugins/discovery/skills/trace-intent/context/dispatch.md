@@ -148,4 +148,8 @@ The gate passing is not the end of the parent's work:
   whole reason the producer may not grade it.
 - **Write the verdict back into the index.** `verification: pending` says the producer may not grade
   its own tiers, not that they are permanently ungraded. An index left at `pending` hands the next
-  reader an artifact whose central claim, that these tiers are honest, nobody ever checked.
+  reader an artifact whose central claim, that these tiers are honest, nobody ever checked. The
+  verifier's route and prompt, the literal `verification:` line, and what to write when no verifier
+  can be dispatched are stated once in
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+  ("The sibling verifier, stated once").
