@@ -873,6 +873,7 @@ printf '%s\n' '# Act' '' 'The retry no longer counts toward the budget.' >"$SURF
 printf '%s\n' '# Formats' '' 'This file is loaded by the hub when the skill writes output.' >"$SURFREPO/$SURFSKILL/formats.md"
 printf '%s\n' '# Slice' '' 'This file is loaded by the hub for the slice.' >"$SURFREPO/$SURFSKILL/slice/README.md"
 printf '%s\n' '# Notes' '' 'The retry no longer counts toward the budget.' >"$SURFREPO/docs/notes.md"
+# shellcheck disable=SC2016 # the backticks are fixture text, not a command substitution
 printf '%s\n' '# Rule' '' 'Use `/fleet:reachx` to probe a host that does not answer.' >"$SURFREPO/.claude/rules/route.md"
 SURFLANE="$TEST_TMPDIR/surf-lane.txt"
 printf '%s\n' \
