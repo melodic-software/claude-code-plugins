@@ -1,0 +1,9 @@
+# expect: rule-recomputed-derived
+# The expected total is summed from the same prices the code sums.
+from app.cart import total
+
+
+def test_total_adds_the_prices():
+    prices = [10, 5]
+    expected = sum(prices)
+    assert total(prices) == expected

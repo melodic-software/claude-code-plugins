@@ -1,0 +1,9 @@
+# expect: rule-source-text-read
+# reads: app/views.py
+# Asserts the order of two names in the source text of the module.
+from pathlib import Path
+
+
+def test_login_is_checked_before_render():
+    src = Path("app/views.py").read_text()
+    assert src.index("require_login") < src.index("render(")

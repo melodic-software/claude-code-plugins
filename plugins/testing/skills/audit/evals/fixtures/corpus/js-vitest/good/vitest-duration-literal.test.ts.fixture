@@ -1,0 +1,10 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected text is stated as a literal.
+import { describe, expect, it } from 'vitest';
+import { formatDuration } from '../src/time';
+
+describe('formatDuration', () => {
+  it('formats minutes and seconds', () => {
+    expect(formatDuration(125)).toBe('2:05');
+  });
+});
