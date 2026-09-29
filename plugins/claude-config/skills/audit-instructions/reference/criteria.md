@@ -1870,12 +1870,14 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
 - **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
   three sections changing, or any model guide stating that a current model undertriggers and needs
   emphasis restored, which would re-open the scoping question.
-- **Routes to the findings relay.** I28 and I29 are the only checks in this catalog whose findings
-  reach `review:fanout`'s apply relay, behind `--persist-findings`. I28's two arms carry one
+- **Routes to the findings relay.** I28 and I29 (scanner-fed) and I30 to I33 (lane-fed, admitted
+  through `--from-lane`) are the checks in this catalog whose findings reach `review:fanout`'s apply
+  relay, behind `--persist-findings`. I28's two arms carry one
   crosswalk rule id each, `claude-config/audit-instructions/rule-coercive-emphasis` (arm 1) and
   `claude-config/audit-instructions/rule-blanket-tool-default` (arm 2), both `IMPORTANT`, argued in
   [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md).
-  Every other check here stays report-only: no crosswalk row, no relay. The persist mechanics,
+  Every other check here stays report-only: no crosswalk row, no relay. I32 relays as `error`
+  (`CRITICAL`) on the marketplace arm and `warning` (`IMPORTANT`) on the user and project arm. The persist mechanics,
   including the body-scope fence, are [context/persist-findings.md](../context/persist-findings.md).
 - **The remediation is a downgrade, never a deletion.** The directive survives verbatim and only
   its volume changes. A proposal that removes the instruction rather than its shouting has misread
