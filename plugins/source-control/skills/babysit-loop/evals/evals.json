@@ -169,6 +169,21 @@
         "Never reads bound promotion_state alone as sufficient for merge eligibility",
         "Notes that a contrary demotion event in qualified telemetry would exclude the affected class on the next cycle without config change"
       ]
+    },
+    {
+      "id": 11,
+      "name": "babysit-loop-paused-lane-relatches-or-drops-on-account-switch",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nThe lane is paused after a 92% seven-day trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. On a wake, ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a different .oauthAccount.emailAddress. The tee file's only snapshot is 25 minutes old and attributes the old account.",
+      "expected_output": "The lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser and compares fingerprints, never printing the address. The fingerprint differs, but no fresh tee snapshot attributes the new account, so the new account's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, resumes on the normal schedule in reactive-only mode, and adds an account-switch: unknown line to the cycle report without the address or fingerprint. It does not reuse the old account's stale resets_at as the new account's pause end.",
+      "files": [],
+      "expectations": [
+        "Reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, not from the tee file",
+        "Never prints, logs, or interpolates the address; compares fingerprints against latched_account",
+        "Treats the windows as unknown when no fresh tee snapshot attributes the new account, and falls back to reactive-only",
+        "Clears rate_limit_latch, paused_until, and latched_account together on resume rather than leaving a future paused_until behind",
+        "Does not carry the old account's resets_at over as the new account's pause end",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint"
+      ]
     }
   ]
 }

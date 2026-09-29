@@ -271,7 +271,7 @@ block, re-read at every cycle start:
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive","lane_instance":"melo-lap-001",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
 ```
@@ -282,6 +282,10 @@ budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cy
 is **per-instance**, the marker partitions the block, so each measures *this* instance's experience
 rather than an average of two lanes'. The four instance fields carry the collision check that
 partition depends on; it and the `instance:` cycle-report line are the reference's.
+
+`latched_account` is the account fingerprint recorded with `paused_until` at pause entry (never the
+address; this comment is public). It is `null` or absent when the lane is not paused or could not
+attribute the account. [reference/paused-wait.md](reference/paused-wait.md) owns the format.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the tee, not
@@ -351,7 +355,13 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
 
 A trip additionally latches `rate_limit_latch` in durable state: while it is set the lane schedules
 at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
-pause end.
+pause end, or on an account switch that resumes the lane.
+
+While paused, apply the floor's **Account switch** bullet on every wake and Monitor tick. The steps,
+the `latched_account` fingerprint written at pause entry, and the telemetry event are owned by
+[reference/paused-wait.md](reference/paused-wait.md). A resume clears `rate_limit_latch`,
+`paused_until`, and `latched_account` together; a future `paused_until` left behind is misread as a
+live pause.
 
 ## Subagents
 

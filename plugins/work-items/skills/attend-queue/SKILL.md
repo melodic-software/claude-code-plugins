@@ -276,7 +276,9 @@ For this attended lane, "stop claiming new work" means: finish the row in hand (
 flip-while-claimed and assignee clear when disposition is complete), then stop pulling further rows
 and report the pause
 to the operator, who may explicitly choose to continue (the operator's presence is the "explicit
-user request" the hard-stop rule anticipates).
+user request" the hard-stop rule anticipates). This lane keeps no durable state, so the latched
+account is held in the session only: apply the **Account switch** bullet on each Monitor tick and
+when the operator returns, and report a resume or a re-latch in the next reply.
 
 ## Next
 

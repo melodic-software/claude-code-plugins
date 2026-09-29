@@ -95,7 +95,7 @@ the source of truth for these counters):
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
- "paused_until":null,
+ "paused_until":null,"latched_account":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -108,6 +108,10 @@ telemetry comment; they are not re-derived from prose in the launch prompt.
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
 
+`latched_account` is the account fingerprint recorded with `paused_until` at pause entry (never the
+address; this comment is public). It is `null` or absent when the lane is not paused or could not
+attribute the account. [reference/paused-wait.md](reference/paused-wait.md) owns the format.
+
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,
 and `first_drain_complete` is set only by its own drain. Earn-trust is re-earned per instance: a
@@ -115,30 +119,12 @@ newly named instance runs its first drain under the C3 ratification gate rather 
 another lane's trust period. Only the blanket period-end flag resets. Item-level ratifications
 travel with the item.
 
-**Instance-collision check (cycle start, before any write).** `writer_nonce` is generated once per
-session; `heartbeat_at` is rewritten every cycle. After re-reading the block:
-
-- No block at all → unclaimed. **Claim before any work**: upsert a cycle-0 block with my nonce and
-  heartbeat, re-read, and run the creation-race reconcile; if the canonical (lowest-id) comment
-  carries a different nonce, another session claimed first. Take the live-collision branch below.
-  Claiming first means two same-id sessions starting together stop before either overwrites the
-  other's first durable state.
-- Nonce matches mine → ordinary continuation.
-- Nonce differs **and** `restart_request` is non-null → **clean handoff**: recording the request
-  is a stopping lane's last write, so a fresh `heartbeat_at` beneath one is a stopped predecessor,
-  not a live writer. Adopt, clear `restart_request`, write my nonce, continue, a replacement
-  after a budget or expiry stop starts immediately instead of waiting out the staleness window.
-- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
-  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
-- Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
-  holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
-  stop the loop cleanly.
-
-`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
-work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
-pause so a paused lane is never adopted as a dead one.
+**Instance-collision check (cycle start, before any write).** After the re-read, compare
+`writer_nonce` and `heartbeat_at` and adopt, hand off, or stop per
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md) ("Instance-collision check"): a fresh
+block under a different nonce with no `restart_request` means another live lane holds my instance
+id, so write nothing, escalate, and stop. Write `paused_until` before entering a rate-limit pause so
+a paused lane is never adopted as a dead one.
 
 Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`,
 the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
@@ -210,7 +196,14 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
 A trip additionally latches `rate_limit_latch` in durable state: the adaptive cap never ramps up
-while the latch is set (clear it on a fresh healthy snapshot after the pause end).
+while the latch is set (clear it on a fresh healthy snapshot after the pause end, or on an account
+switch that resumes the lane).
+
+While paused, apply the floor's **Account switch** bullet on every wake and Monitor tick. The steps,
+the `latched_account` fingerprint written at pause entry, and the telemetry event are owned by
+[reference/paused-wait.md](reference/paused-wait.md). A resume clears `rate_limit_latch`,
+`paused_until`, and `latched_account` together; a future `paused_until` left behind is misread as a
+live pause.
 
 ## Cycle shape
 
