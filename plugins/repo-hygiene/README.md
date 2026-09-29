@@ -13,7 +13,7 @@ guard.
 `/repo-hygiene:clean <action>` routes every action below. Bare invocation infers
 intent from the conversation, or presents a menu and falls back to the safe `scan`.
 `/repo-hygiene:setup` is the separate, read-only prerequisite check. It verifies
-`git`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
+`git`, `node`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
 nothing.
 
 | Action | What it does | Risk |
@@ -95,6 +95,15 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
   assumes a specific repo's directory structure.
 - Conservative by default: the protected-path and preserve lists err toward
   keeping a consumer's dependencies, credentials, and IDE state.
+
+## Requirements
+
+- `git` on PATH.
+- Node.js on PATH. Every hook row runs `node hooks/exec-bash.mjs`, and Claude Code's native binary
+  neither ships nor uses Node, so without it the destructive guard does not launch and is not
+  enforced.
+- `bash`: found on PATH, then `/bin/bash` and `/usr/bin/bash`; on Windows, Git Bash.
+- `ghq` (optional) for the fleet batch actions' repository enumeration.
 
 ## Install
 

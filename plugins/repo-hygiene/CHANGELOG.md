@@ -44,6 +44,10 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `git push --delete` a settled gap or make unsourced claims about them. Guard behavior and its
   assertions are unchanged.
 - **The clean skill documents the host permission layer that sits above the ack prefix (#3346).**
+- **`setup check` and the README declare `node` (#3708).** Every hook row runs
+  `node hooks/exec-bash.mjs`, and Claude Code's native binary does not ship Node, so without it
+  the guard does not launch. `setup check` gains a `node` row probed through Bash, and its bash
+  lookup names the `PATH` step.
 - **Reflowed the 0.10.55 bullet** on the `clean-batch.sh` preflight (whitespace only).
 
 ## [0.10.57] - 2026-09-28
