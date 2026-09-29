@@ -559,6 +559,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     redis)
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "cache" "$rel: image ${image:-unknown}" >>"$extras"
       ;;
+    elasticsearch | opensearch)
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "search" "$rel: image ${image:-unknown}" >>"$extras"
+      ;;
     rabbitmq | nats | kafka)
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "broker" "$rel: image ${image:-unknown}" >>"$extras"
       ;;
@@ -605,14 +608,23 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   ASSIGN_MODE="$mode" awk -f "$REDACT_AWK" -f "$ASSIGN_AWK" "$abs" |
     awk -F'\t' -v rel="$rel" '
       $1 != "" && $2 != "" && $4 != "" {
-        if ($1 !~ /^(sql|storage|broker|cache)$/) next
+        kind = $1
+        if (kind == "http") {
+          leaf = tolower($4)
+          n = split(leaf, seg, /[.:]/)
+          leaf = seg[n]
+          gsub(/[^a-z0-9]/, "", leaf)
+          if ($2 ~ /\.search\.windows\.net$|\.es\.amazonaws\.com$|\.aoss\.amazonaws\.com$|\.elastic-cloud\.com$|\.found\.io$/ ||
+              leaf ~ /elasticsearch|opensearch|searchendpoint|searchservice/) kind = "search"
+        }
+        if (kind !~ /^(sql|storage|broker|cache|search)$/) next
         if ($2 ~ /[^a-z0-9.-]/ || index($2, ".") == 0 || index($2, "..") > 0) next
         if ($3 != "" && $3 !~ /^[0-9]+$/) next
         db = $5
         scheme = $6
-        if ($1 != "sql" || db !~ /^[a-z0-9_.-]+$/) db = ""
-        if ($1 != "sql" || scheme !~ /^[a-z][a-z0-9]*$/) scheme = ""
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, rel, $4, db, scheme
+        if (kind != "sql" || db !~ /^[a-z0-9_.-]+$/) db = ""
+        if (kind != "sql" || scheme !~ /^[a-z][a-z0-9]*$/) scheme = ""
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", kind, $2, $3, rel, $4, db, scheme
       }
     ' >>"$hits"
 done <"$files_list"
@@ -663,6 +675,14 @@ store_technology() {
     esac
     ;;
   storage) printf 'Azure Blob Storage' ;;
+  search)
+    case "$host" in
+    *.search.windows.net) printf 'Azure AI Search' ;;
+    *.es.amazonaws.com | *.aoss.amazonaws.com) printf 'OpenSearch' ;;
+    *.elastic-cloud.com | *.found.io) printf 'Elasticsearch' ;;
+    *) printf 'unknown' ;;
+    esac
+    ;;
   *) printf 'unknown' ;;
   esac
 }

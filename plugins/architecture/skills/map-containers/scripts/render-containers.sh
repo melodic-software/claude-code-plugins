@@ -157,7 +157,7 @@ function uniq(a,    c, cand) {
   return cand
 }
 function element(kind, store_kind) {
-  if (kind == "store" && (store_kind == "sql" || store_kind == "storage")) return "ContainerDb"
+  if (kind == "store" && (store_kind == "sql" || store_kind == "storage" || store_kind == "search")) return "ContainerDb"
   if (kind == "store" && store_kind == "broker") return "ContainerQueue"
   return "Container"
 }

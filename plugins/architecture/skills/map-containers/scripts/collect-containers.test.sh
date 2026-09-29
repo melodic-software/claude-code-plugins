@@ -601,9 +601,38 @@ assert_equals "technology: a connection string on a plain host is unknown" "$(fi
 assert_equals "technology: an Azure SQL host is Azure SQL" "$(field "$(node_line "$XREC" 'store:sql:az.database.windows.net:1433:x')" technology)" "Azure SQL"
 assert_equals "technology: every one of those stays kind sql" "$(grep -c '"store_kind":"sql"' "$XREC" || true)" "5"
 assert_not_contains "technology: nothing is labeled SQL" "$xtext" '"technology":"SQL"'
-assert_not_contains "technology: a search index is not a store kind that is read" "$xtext" "acct.search.windows.net"
+assert_equals "technology: an Azure AI Search host is Azure AI Search" "$(field "$(node_line "$XREC" 'store:search:acct.search.windows.net:')" technology)" "Azure AI Search"
 assert_not_contains "technology: a SQLite Data Source file is not a store" "$xtext" "embedded-app.db"
 assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"
+
+# A search endpoint is a search store, and its api key never reaches an output.
+leak_search="searchAdminKey0123456789"
+SRCH="$TEST_TMPDIR/search-repo"
+web_project "$SRCH/src/Api" Api
+cat >"$SRCH/src/Api/appsettings.json" <<EOF
+{
+  "Search": { "Endpoint": "https://acct.search.windows.net", "ApiKey": "${leak_search}" },
+  "Indexing": { "ElasticsearchUrl": "https://user:${leak_search}@es.internal.example.com:9200" },
+  "Aws": { "Domain": "https://vpc-logs.us-east-1.es.amazonaws.com" }
+}
+EOF
+mkdir -p "$SRCH/deploy"
+printf 'services:\n  index:\n    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0\n' >"$SRCH/deploy/compose.yml"
+commit_repo "$SRCH"
+collect_render "$SRCH" "$TEST_TMPDIR/search-out"
+SREC2="$TEST_TMPDIR/search-out/containers.json"
+az_line="$(node_line "$SREC2" 'store:search:acct.search.windows.net:')"
+assert_equals "search: an Azure AI Search endpoint is a search store" "$(field "$az_line" store_kind)" "search"
+assert_equals "search: its technology is Azure AI Search" "$(field "$az_line" technology)" "Azure AI Search"
+assert_contains "search: it cites the file and key" "$(field "$az_line" evidence)" "src/Api/appsettings.json: Search.Endpoint"
+assert_equals "search: a key named for elasticsearch is a search store" "$(field "$(node_line "$SREC2" 'store:search:es.internal.example.com:9200')" technology)" "unknown"
+assert_equals "search: an es.amazonaws.com host is OpenSearch" "$(field "$(node_line "$SREC2" 'store:search:vpc-logs.us-east-1.es.amazonaws.com:')" technology)" "OpenSearch"
+assert_equals "search: a compose elasticsearch image is a search store" "$(field "$(node_line "$SREC2" 'store:image:deploy/compose.yml:index')" store_kind)" "search"
+assert_equals "search: three config stores and one image store" "$(grep -c '"store_kind":"search"' "$SREC2" || true)" "4"
+assert_not_contains "search: the api key is in no record" "$(cat "$SREC2")" "$leak_search"
+assert_not_contains "search: the api key is in no table" "$(cat "$TEST_TMPDIR/search-out/containers.md")" "$leak_search"
+assert_not_contains "search: the api key is not on stdout or stderr" "$(cat "$TEST_TMPDIR/search-out"/*.out "$TEST_TMPDIR/search-out"/*.err)" "$leak_search"
+assert_contains "search: the diagram draws it as a database" "$(cat "$TEST_TMPDIR/search-out/containers.md")" "ContainerDb"
 
 # A store with three owners is one shared row per owner pair.
 THREE="$TEST_TMPDIR/three-repo"
