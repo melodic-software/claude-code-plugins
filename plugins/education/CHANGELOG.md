@@ -8,6 +8,8 @@ All notable changes to the `education` plugin are documented here. Format follow
 ### Fixed
 
 - **`teach` argument hint** lists the closed action set (`topic`, `codebase`, `mission`, `glossary`, `resources`, `explain`, `primer`, `exercise`, `assess`, `resume`, `status`) instead of `<action>`, still inside the 100-character house style.
+- **Eval `quiz-me` case 9** is self-contained: it lists a small auth-middleware diff fixture (public-path guard, rate-limit-before-auth ordering, invalid-token failure path) in `files`, so the sandbox has a change to quiz on ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+- **Eval `setup` case 3** prompt no longer carries an escaped em dash.
 - In-place corrections to released entries: `[0.11.6]` reworded to say only that the examples moved into the skill body; `[0.11.3]` issue reference linked.
 
 ## [0.11.6] - 2026-09-28

@@ -103,11 +103,13 @@
     {
       "id": 9,
       "name": "non-obvious-behavior-keying-d17b",
-      "prompt": "/education:quiz-me on the auth middleware change we just merged — I read the diff but want to be sure I caught the subtle behavior shifts.",
+      "prompt": "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged. I read the diff but want to be sure I caught the subtle behavior shifts.",
       "expected_output": "Authors quiz questions against non-obvious behaviors a reader would skim past in the diff (ordering, failure modes, edge guards), not only against rephrased headings or obvious renames.",
-      "files": [],
+      "files": [
+        "evals/fixtures/auth-middleware-change/auth-middleware.diff"
+      ],
       "expectations": [
-        "At least one quiz question targets a non-obvious behavior (guard, ordering, failure path) that is easy to skim past in the diff",
+        "At least one quiz question targets a non-obvious behavior in the fixture diff that is easy to skim past: the public-path guard, the rate-limit-before-auth ordering, or the invalid-token failure path returning 401 instead of throwing",
         "Questions are not limited to obvious renames or section titles visible at a glance in the report",
         "Each question remains anchored to a specific section of the generated report for remediation routing"
       ]
