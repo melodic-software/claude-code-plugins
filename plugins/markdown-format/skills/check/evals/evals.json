@@ -34,8 +34,21 @@
       "files": [],
       "expectations": [
         "Reports the PASS/FAIL table from the check section",
+        "When jq resolves, the table includes a jq PASS row",
         "On a PASS, does not suggest /markdown-format:setup apply",
         "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "jq-probe-runs-under-check",
+      "prompt": "/markdown-format:check\n\nThis repository has a markdownlint config (it opted in) and jq is not installed.",
+      "expected_output": "Runs the jq probe itself via Bash, reports a jq FAIL row with a remediation line, and installs nothing.",
+      "files": [],
+      "expectations": [
+        "Runs a jq probe itself via Bash (such as `command -v jq`) instead of reading a pre-computed row from the setup skill",
+        "Reports a jq FAIL row with a remediation line",
+        "Does not install jq, does not run `apply`, and modifies no file"
       ]
     }
   ]
