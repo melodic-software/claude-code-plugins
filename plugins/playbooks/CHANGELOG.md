@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.2] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` records a not-applicable step without a skill version** ([#5181](https://github.com/melodic-software/claude-code-plugins/issues/5181)).
+  A step whose `applies-when` no longer holds invokes no skill, yet `tick.sh` required
+  `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
+  takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
+  `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
 ## [0.14.1] - 2026-09-29
 
 ### Fixed

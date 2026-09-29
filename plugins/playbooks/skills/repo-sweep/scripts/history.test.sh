@@ -64,7 +64,7 @@ jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run
     '- [x] e-still: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-bare-x: b:x')" \
   --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" \
   --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings, partial coverage: docs only' \
-    '- [x] e-cleared: b:x@1.0, no findings' '- [x] e-na: n:x@1.0, not applicable: no tracked tests')" '[
+    '- [x] e-cleared: b:x@1.0, no findings' '- [x] e-na: not applicable: no tracked tests 1.0')" '[
   {headRefName: "chore/repo-sweep-fixture-20260101", mergedAt: "2026-01-01T00:00:00Z", body: $old},
   {headRefName: "chore/repo-sweep-fixture-20260201", mergedAt: "2026-02-01T00:00:00Z", body: $new},
   {headRefName: "fix/chore/repo-sweep-x", mergedAt: "2026-03-01T00:00:00Z", body: $decoy},

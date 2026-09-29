@@ -49,9 +49,10 @@ never combined with `&&` or other commands in one call. The record for these sha
 3. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
    `plan.md` uses (`git ls-files`, globs, `ls`). Skip it when resuming: `state.sh` reported
    `in-progress` with a dirty tree, so an earlier session already ran the skill. When it no longer
-   holds, record each `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then
-   `S/tick.sh <id> not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the
-   step without priming or running section 3. Evidence must be one line with no commas.
+   holds, run `S/tick.sh <id> not-applicable "<one-line evidence>"`, report, and stop the
+   step without priming or running section 3. The step invokes no skill, so the line records no
+   skill version and no `Playbook-Step` trailer is written. Evidence must be one line with no
+   commas.
 4. When the `prime` column (column 8, the last field of `S/catalog.sh C`) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
