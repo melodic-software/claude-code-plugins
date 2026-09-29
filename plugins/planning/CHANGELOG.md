@@ -9,6 +9,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`check-plan-outcome.sh --approval-only`** checks that the plan's `Approval:` line exists with a non-empty, non-placeholder value. The line is written after approval, so the Step 4.7 default run does not require it; `plan` runs the new mode in its final persist step ([#4278](https://github.com/melodic-software/claude-code-plugins/issues/4278)).
 - **Eval cases:** `brainstorm` case 7 plants a disconnected scan fixture (an unused import, a flag that defaults off and is never read, a table with no reader) so a run that skips the scan cannot name the items ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)). `interview` case 26 grades `scope` returning resolved and unresolved rows.
+- **`--approval-only` ignores an `Approval:` line inside a code fence**, and the `/Users` and `/home` path check flags any such path not preceded by a path character (letter, digit, `_`, `.`, `/`, `-`), so `ROOT:/Users/x` and `|/Users/x|` fail while `Domain/Users/` passes.
+- **`plan-reviewer` keeps an explicit `Do not edit files.`** in its always-loaded body, since its Bash grant does not enforce it.
 - **`## Next`** sections on `brainstorm`, `interview`, `design`, `design-handoff` and `plan` name each skill's successor.
 
 ### Changed

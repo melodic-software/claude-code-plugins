@@ -14,9 +14,9 @@
 #   blast-radius    a Blast radius heading or line names LOW, MEDIUM, HIGH or CRITICAL
 #   portable-paths  no drive-letter path (C:\ or C:/) and no /Users/<name> or
 #                   /home/<name> path, unless the line carries <!-- path-example -->.
-#                   /Users and /home count only where they begin a path: at the start
-#                   of a line or right after whitespace, a quote, a backtick, ( or =,
-#                   so a repo folder such as Domain/Users/ or src/home/ passes
+#                   /Users and /home count only where they begin a path: not right
+#                   after a letter, digit, _, . / or -, so a repo folder such as
+#                   Domain/Users/ or src/home/ passes but ROOT:/Users/x and |/Users/x| fail
 #
 # "Every brief scope-item maps to a phase" is judgment and stays in the skill's
 # prose; this gate does not claim it.
@@ -34,6 +34,7 @@
 #   approval        an `Approval:` line exists and its value is non-empty and is
 #                   neither the template placeholder (angle-bracket text) nor TBD.
 #                   Presence only: whether the recorded mandate is adequate is judgment.
+#                   An `Approval:` line inside a code fence does not count.
 #
 # Exit 0 = every criterion passes
 # Exit 1 = at least one criterion fails
@@ -90,6 +91,17 @@ done
 if [[ "$approval_only" -eq 1 ]]; then
   value="$(
     tr -d '\r' <"$plan" |
+      awk '
+        match($0, /^[ \t]*(```+|~~~+)/) {
+          fence = substr($0, RSTART, RLENGTH)
+          sub(/^[ \t]*/, "", fence)
+          bare = (substr($0, RSTART + RLENGTH) ~ /^[ \t]*$/)
+          if (!in_fence) { in_fence = 1; fence_ch = substr(fence, 1, 1); fence_len = length(fence); next }
+          if (substr(fence, 1, 1) == fence_ch && length(fence) >= fence_len && bare) in_fence = 0
+          next
+        }
+        !in_fence { print }
+      ' |
       sed -nE 's/^[[:space:]]*(\*\*)?Approval:(\*\*)?[[:space:]]*(.*[^[:space:]])?[[:space:]]*$/\3/p' |
       grep -vE '^(<.*>|[Tt][Bb][Dd]\.?)?$' | head -n 1
   )"
@@ -219,11 +231,10 @@ else
   report blast-radius fail "level=missing (no Blast radius line naming LOW, MEDIUM, HIGH or CRITICAL)"
 fi
 
-# /Users and /home must begin a path: line start, or whitespace, quote, backtick, ( or =.
-sq="'"
+# /Users and /home must begin a path: not preceded by a path-continuation character.
 path_hits="$(
   tr -d '\r' <"$plan" |
-    grep -nE "(^|[^A-Za-z])[A-Za-z]:[\\\\/]|(^|[[:space:]\"${sq}\`(=])/(Users|home)/[A-Za-z0-9_]" |
+    grep -nE '(^|[^A-Za-z])[A-Za-z]:[\\/]|(^|[^A-Za-z0-9_./-])/(Users|home)/[A-Za-z0-9_]' |
     grep -v '<!-- path-example -->'
 )"
 if [[ -z "$path_hits" ]]; then

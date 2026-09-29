@@ -172,8 +172,11 @@ U_ROOT="/Us""ers/alice/x"
   printf 'in quotes "%s" here\n' "$HOME_PATH"
   printf 'in parens (%s) here\n' "$HOME_PATH"
   printf 'assigned ROOT=%s here\n' "$U_ROOT"
+  printf 'colon ROOT:%s here\n' "$U_ROOT"
+  printf 'cell |%s| here\n' "$U_ROOT"
+  printf 'list a,%s here\n' "$U_ROOT"
 } >"$TMP/rooted.md"
-run "a /home or /Users path at line start, in ticks, quotes, parens or after = fails" 1 "$TMP/rooted.md" 'criterion=portable-paths status=fail hits=5'
+run "a /home or /Users path at line start or after any non-path character fails" 1 "$TMP/rooted.md" 'criterion=portable-paths status=fail hits=8'
 
 # A three-backtick block quoted inside a four-backtick block must not count as
 # real structure: its Phase heading and Sanity Check line are text.
@@ -227,6 +230,9 @@ approval_run "the template placeholder fails" 1 "$TMP/ap-template.md" '^criterio
 
 with_approval 'TBD' >"$TMP/ap-tbd.md"
 approval_run "a TBD value fails" 1 "$TMP/ap-tbd.md" '^criterion=approval status=fail'
+
+{ good_plan; printf '\n```\nApproval: approved by Kyle on 2026-09-29\n```\n'; } >"$TMP/ap-fenced.md"
+approval_run "an Approval line inside a code fence does not count" 1 "$TMP/ap-fenced.md" '^criterion=approval status=fail'
 
 run "the default run does not require an Approval line" 0 "$TMP/good.md" '^phases=3 status=ok$'
 run "the default run ignores an unapproved placeholder line" 0 "$TMP/ap-template.md" '^phases=3 status=ok$'
