@@ -19,6 +19,10 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   longer says `winget-upgrades` is already CRIT, and the envelope header says why each check sets
   `$PassThru`. Pester now covers the KEV trend exception, the `winget` CLI fallback `Failed` and
   `NonZero` branches, and that every check dot-sources the shared envelope.
+- **audit:** the guide for adding a check and the Windows check catalog name the envelope contract
+  (`Invoke-HealthCheckEnvelope.ps1`) instead of `Write-HealthResult.ps1`.
+- **setup:** the argument hint lists `disable=<check-id>`, `deprecate=<check-id>`,
+  `demote=<check-id>` and `approve=<remediation-id>`, the only forms the body accepts.
 
 ## [0.14.5] - 2026-09-28
 

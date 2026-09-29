@@ -28,7 +28,7 @@ Each section documents:
 - **Severity rubric:** per-level thresholds.
 - **Notes:** gotchas and degradation behavior.
 
-All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/windows/lib/Write-HealthResult.ps1`, and fall back to `UNKNOWN` with a reason rather than throw.
+All checks emit the schema in `reference/shared/output-schema.md`, and dot-source `scripts/windows/lib/Invoke-HealthCheckEnvelope.ps1`, which writes the result and falls back to `UNKNOWN` with a reason rather than throw. A check sets `$id`, `$category`, `$commands`, `$FailureSummary` and `$CheckBody` first; the script header states the contract.
 
 ---
 
