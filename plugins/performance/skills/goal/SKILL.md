@@ -68,36 +68,18 @@ network split each falls on. Name the start state too (cold start, fresh load, w
 different measurement. End at the moment the user or caller can act, not when loading finishes.
 See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
 
-**Parallel units on one event.** When several units run **in parallel** for a single user-visible
-event (Claude Code hooks on one hook event, parallel CI jobs surfaced as one wait, concurrent
-requests behind one wall-clock barrier), the user waits for the **slowest** unit, not the sum. Record:
+**Parallel units on one event.** When several units run in parallel behind one user-visible event,
+the user waits for the slowest unit, not the sum. Record the event's wall-clock time (`Event:`) and
+the unit's marginal cost over the next-slowest peer (`Unit:`), and hold an event-level target beside
+the unit-level ones. Summed CPU or syscall totals are secondary and never replace the event target.
+Procedure and the hooks example: [parallel units](../../reference/techniques.md#parallel-units-on-one-event).
 
-- **Event metric:** wall-clock time for the whole event (for hooks, the event's `total_duration_ms`
-  or equivalent; not the sum of per-hook CPU).
-- **Unit metric:** the unit under study, plus its **marginal cost**: how much slower the event is
-  with this unit than it would be if only the next-slowest peer remained (excess over the
-  next-slowest unit on that event). A Stop hook at 300 ms matters only when it is 300 ms **above**
-  the next-slowest Stop hook, not when read in isolation.
-- **Event-level target:** the realistic/ideal targets for the user-visible wait, held beside the
-  unit-level targets.
-- **Summed CPU or syscall totals:** optional secondary figures; never substitute them for the event
-  wall-clock target.
-
-On MSYS/Cygwin, when the counter is a process count, state which accounting the goal uses (Job
-Object +2 per external command vs PATH-shim `spawns=`); see
-[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash).
-
-**Scaling arm when state grows with use.** When the subject **reads state whose size grows with
-real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
-entries, databases, queues), a single-size measurement can pass while realistic use fails. The
-metric MUST be measured at **two or more sizes** spanning realistic use (for example 50 KB and
-10 MB on the same transcript shape, not two sizes that exercise different code paths). Record each
-arm's size and result. **Done when** carries a stated bound: cost stays flat as size grows, or
-grows only within a named bound (for example "p50 does not grow faster than linear in the new
-bytes per Stop", or cost per new unit of content). When the bound is unknown, the scaling arms
-establish it and the goal is not locked until the human states one. Stop and say what is blocked;
-do not pick the bound for them. `/performance:target` should flag such candidates when ranking; if
-it did not, name the growing-state read here anyway.
+**Scaling arm when state grows with use.** When the subject reads state whose size grows with real
+use (transcripts, logs, queues, caches, databases), measure the metric at two or more sizes spanning
+realistic use, on the same input shape, and record each arm's size and result (`Scaling:`). **Done
+when** carries a stated bound on growth. When the human has not stated one, the goal is not locked:
+stop and say what is blocked; do not pick the bound for them. Procedure:
+[scaling arm](../../reference/techniques.md#scaling-arm-when-state-grows-with-use).
 
 **Code path under test, required.** Name the code path(s) the metric is meant to exercise and the
 **observable** that identifies each one: a marker file, an exit code, the set of processes spawned.
