@@ -106,6 +106,11 @@ EOF
     "$(<"$STUB/calls.log")" "labels[]=type:"
   assert_contains "create-item --type without the repo label notes the drop" \
     "$(<"$TYPED_ERR")" "dropped the type"
+
+  GH_STUB_VERSION=2.45.0 GH_STUB_LABELS='Type: Task\n' \
+    run_create --title t --type Task --repo o/r >/dev/null 2>"$TYPED_ERR"
+  assert_contains "create-item --type matches the repo label case-insensitively" \
+    "$(<"$STUB/calls.log")" "labels[]=type: task"
   rm -f "$TYPED_ERR"
 
   GH_STUB_VERSION=2.45.0 run_create --title t --parent github:o/r#1 --repo o/r >/dev/null 2>&1

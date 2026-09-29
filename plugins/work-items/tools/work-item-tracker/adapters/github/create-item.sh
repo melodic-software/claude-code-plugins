@@ -68,7 +68,7 @@ if [[ -n "$type" ]] && ((!native)); then
   esac
   # A label the repo lacks makes the REST create fail or file the issue unlabeled.
   wit_run_gh read api --paginate "repos/$target_repo/labels?per_page=100" --jq '.[].name'
-  if grep -qxF -- "$type_label" <<<"$WIT_GH_OUT"; then
+  if grep -qixF -- "$type_label" <<<"$WIT_GH_OUT"; then
     printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
       "$type_label" >&2
     if [[ ",${labels}," != *",${type_label},"* ]]; then
