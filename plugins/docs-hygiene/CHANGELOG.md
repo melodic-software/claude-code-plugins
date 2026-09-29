@@ -1,10 +1,12 @@
 # Changelog: docs-hygiene plugin
 
-## [0.23.17] - 2026-09-29
+## [0.23.18] - 2026-09-29
 
 ### Changed
 
 - The `extract-ssot` orchestrated-mode context carries the guard floor's new `Account switch` bullet, byte-for-byte with the reader contract.
+
+## [0.23.17] - 2026-09-29
 
 ### Fixed
 
