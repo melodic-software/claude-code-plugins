@@ -80,14 +80,23 @@ if [[ -z "$WT_CREATE" ]]; then
   fi
 fi
 
+[[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
+
+# Relative fleet.root and fleet.repo entries resolve against the config file's
+# directory, as audit resolves them, never against the caller's cwd.
 load_config_scope() {
   [[ -n "$CONFIG" && -f "$CONFIG" ]] || return 0
-  local path
+  local path base
+  base="$(cd "$(dirname "$CONFIG")" && pwd)"
   while IFS= read -r path; do
-    [[ -n "$path" ]] && ROOTS+=("$path")
+    [[ -z "$path" ]] && continue
+    [[ "$path" == /* ]] || path="$base/$path"
+    ROOTS+=("$path")
   done < <(git config --file "$CONFIG" --get-all fleet.root 2>/dev/null || true)
   while IFS= read -r path; do
-    [[ -n "$path" ]] && REPOS+=("$path")
+    [[ -z "$path" ]] && continue
+    [[ "$path" == /* ]] || path="$base/$path"
+    REPOS+=("$path")
   done < <(git config --file "$CONFIG" --get-all fleet.repo 2>/dev/null || true)
 }
 
@@ -185,7 +194,11 @@ for repo in "${REPOS[@]}"; do
   fi
   current="$(git -C "$canonical" branch --show-current 2>/dev/null || true)"
   dirty="$(git -C "$canonical" status --porcelain 2>/dev/null || true)"
-  if [[ -n "$dirty" && "$current" != "$branch" ]]; then
+  if [[ -n "$dirty" && -z "$current" ]]; then
+    add_plan "$canonical" skip "" "detached-dirty"
+  elif [[ -n "$dirty" && ( -z "$WT_CREATE" || -z "$WT_ROOT" ) ]]; then
+    add_plan "$canonical" skip "" "worktree-create-missing"
+  elif [[ -n "$dirty" && "$current" != "$branch" ]]; then
     add_plan "$canonical" park-existing "$branch" "$current"
   elif [[ -n "$dirty" ]]; then
     add_plan "$canonical" park-dirty-default "$branch" ""
@@ -224,6 +237,21 @@ switch_default() {
   git -C "$repo" switch -c "$branch" --track "origin/$branch" >/dev/null 2>&1
 }
 
+# unpark <repo> <branch-holding-work> [<branch-to-return-to>]: undo a park that
+# failed before the worktree held the work. Prints restored, or stash-kept
+# when the stash could not be popped back, so a lost restore is never silent.
+unpark() {
+  local repo="$1" held="$2" back="${3:-}"
+  if ! { git -C "$repo" switch "$held" >/dev/null 2>&1 && git -C "$repo" stash pop --index >/dev/null 2>&1; }; then
+    printf 'stash-kept'
+    return
+  fi
+  if [[ -n "$back" ]]; then
+    git -C "$repo" switch "$back" >/dev/null 2>&1 && git -C "$repo" branch -d "$held" >/dev/null 2>&1
+  fi
+  printf 'restored'
+}
+
 ff_pull() {
   local repo="$1" branch="$2"
   git -C "$repo" pull --ff-only origin "$branch" >/dev/null 2>&1
@@ -256,18 +284,14 @@ for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
       continue
     fi
     if ! switch_default "$repo" "$branch"; then
-      printf 'skipped\t%s\tfetch-or-switch\n' "$repo"
-      continue
-    fi
-    if [[ -z "$WT_CREATE" || -z "$WT_ROOT" ]]; then
-      printf 'skipped\t%s\tworktree-create-missing\n' "$repo"
+      printf 'skipped\t%s\tfetch-or-switch\t%s\n' "$repo" "$(unpark "$repo" "$old")"
       continue
     fi
     if ! wt="$(bash "$WT_CREATE" --name "$old" --existing-branch --root "$WT_ROOT" --repo-dir "$repo")"; then
-      printf 'skipped\t%s\tworktree\n' "$repo"
+      printf 'skipped\t%s\tworktree\t%s\n' "$repo" "$(unpark "$repo" "$old")"
       continue
     fi
-    if ! git -C "$wt" stash apply >/dev/null 2>&1; then
+    if ! git -C "$wt" stash apply --index >/dev/null 2>&1; then
       printf 'skipped\t%s\tpartial-stash\n' "$wt"
       continue
     fi
@@ -286,22 +310,19 @@ for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
       continue
     fi
     if ! git -C "$repo" stash push -u -m "fleet-sync $park" >/dev/null 2>&1; then
+      git -C "$repo" switch "$branch" >/dev/null 2>&1 && git -C "$repo" branch -d "$park" >/dev/null 2>&1
       printf 'skipped\t%s\tstash\n' "$repo"
       continue
     fi
     if ! switch_default "$repo" "$branch"; then
-      printf 'skipped\t%s\tfetch-or-switch\n' "$repo"
-      continue
-    fi
-    if [[ -z "$WT_CREATE" || -z "$WT_ROOT" ]]; then
-      printf 'skipped\t%s\tworktree-create-missing\n' "$repo"
+      printf 'skipped\t%s\tfetch-or-switch\t%s\n' "$repo" "$(unpark "$repo" "$park" "$branch")"
       continue
     fi
     if ! wt="$(bash "$WT_CREATE" --name "$park" --existing-branch --root "$WT_ROOT" --repo-dir "$repo")"; then
-      printf 'skipped\t%s\tworktree\n' "$repo"
+      printf 'skipped\t%s\tworktree\t%s\n' "$repo" "$(unpark "$repo" "$park" "$branch")"
       continue
     fi
-    if ! git -C "$wt" stash apply >/dev/null 2>&1; then
+    if ! git -C "$wt" stash apply --index >/dev/null 2>&1; then
       printf 'skipped\t%s\tpartial-stash\n' "$wt"
       continue
     fi
