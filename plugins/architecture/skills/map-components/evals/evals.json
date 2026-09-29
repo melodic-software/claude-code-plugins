@@ -8,7 +8,7 @@
       "expected_output": "Renders docs/architecture/components.md from the existing graph with render-components.sh. Does not recollect. Groups by directory. The arrows match the ProjectReference edges and each evidence cell cites the declaration. Closes with the fixed report.",
       "narration": true,
       "expectations": [
-        "Uses the existing dependency-graph.json and does not run component-graph.sh over it",
+        "Uses the existing dependency-graph.json and does not re-collect it",
         "Runs scripts/render-components.sh rather than composing the diagram by hand",
         "Groups by directory, the default",
         "Billing.Api, Billing.Application, and Billing.Domain are components, and the arrows follow the declared ProjectReference edges",
@@ -60,11 +60,11 @@
     {
       "id": 5,
       "name": "missing-graph-collects-dotnet-or-reports-unknown",
-      "prompt": "/architecture:map-components\n\nNo dependency-graph.json exists. map-dependencies is not installed. The repository has no .NET project and does have a package.json.",
-      "expected_output": "Runs component-graph.sh, which records ecosystem unknown with a reason and empty arrays. The render writes that reason and no diagram.",
+      "prompt": "/architecture:map-components\n\nNo dependency-graph.json exists. The repository has no .NET project and does have a package.json.",
+      "expected_output": "Runs map-dependencies' dependency-graph.sh with --out, which records result unknown with a message naming package.json and empty arrays. The render writes that message and no diagram.",
       "narration": true,
       "expectations": [
-        "Runs component-graph.sh because the graph is absent and dependency-graph.sh is not on disk",
+        "Runs dependency-graph.sh with --out <architecture_dir>/dependency-graph.json because the graph is absent",
         "Does not hand-build nodes from the package.json name",
         "The artifact says the ecosystem is unknown and does not draw an empty diagram",
         "Writes the collected record to the architecture directory so the next run can read it"
