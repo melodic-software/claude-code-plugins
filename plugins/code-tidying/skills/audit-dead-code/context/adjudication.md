@@ -20,6 +20,7 @@ analyzer in the roster can follow. Check each one before condemning a candidate.
 | Public API surface | an exported symbol of a published package, or a Go exported identifier. Not decidable from inside the repository | TS, Go, C# |
 | Generated / templated code | a symbol emitted by a generator, or one a template writes by name | all |
 | Shell dynamic invocation | `"$fn"`, `eval`, `trap ... name`, a dispatch `case` matching a command word to a function | shell |
+| Computed path or glob | a loader that builds the path (`"$dir/$name.sh"`, `scripts/*.sh`, `import(variable)`) and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` | all |
 
 Cheap checks first, in this order: a repo-wide literal search for the bare name (including inside
 strings), then the config surfaces, then the framework-registration patterns for the candidate's
@@ -34,7 +35,8 @@ counts as a reference, so a re-export still reads alive.
 - **`dead`**: no static reference and no dynamic-usage pattern applies. Emitted at Tier 1.
 - **`uncertain`**: a pattern *might* apply and the evidence does not settle it. Emitted at Tier 2.
   This is the honest verdict for most vulture candidates; do not promote one to `dead` to make the
-  report tidier.
+  report tidier. An `unreferenced-file` candidate that a computed path or a glob could load stays
+  `uncertain`, not `dead`.
 - **`alive`**: a specific reference or registration was found. **Never emitted as a record**, and
   every one **cites the evidence that saved it** in the prose report. An unevidenced `alive` is a
   guess wearing a verdict's clothes.

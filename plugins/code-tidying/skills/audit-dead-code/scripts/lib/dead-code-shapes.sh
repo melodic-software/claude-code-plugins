@@ -37,7 +37,7 @@ dc_trim_excerpt() {
 dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
-  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol) printf '2' ;;
+  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | unreferenced-file) printf '2' ;;
   *) printf '3' ;;
   esac
 }
@@ -60,10 +60,10 @@ dc_is_excluded_path() {
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
 #
-# `nolane` is a source file this roster has no detector for (Rust, .NET, and the
-# other extensions below). Coverage accounting lists those files; it does not
-# invent a lane. `other` is not source (docs, manifests, markup) and is outside
-# the coverage total.
+# `nolane` is a source file this roster has no symbol detector for (Rust, .NET,
+# and the other extensions below). The grep lane can still report it as
+# `unreferenced-file`. `other` is not source (docs, manifests, markup) and is
+# outside the coverage total.
 dc_lang_of_path() {
   case "${1,,}" in
   *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) printf 'ts' ;;
@@ -77,6 +77,38 @@ dc_lang_of_path() {
     *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r | *.tf | *.proto | *.m | *.mm) printf 'nolane' ;;
   *) printf 'other' ;;
   esac
+}
+
+# A Python entry point is a script the file's path is how you run it. A module
+# imported as `import pkg.mod` never spells `mod.py`, so ordinary modules are
+# not `unreferenced-file` input. `__main__.py`, a line-1 shebang, and a
+# `__name__ == "__main__"` guard are.
+dc_is_py_entry() {
+  local file="$1" base line first=1
+  base="${file##*/}"
+  [[ "$base" == "__main__.py" ]] && return 0
+  [[ -f "$file" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    if [[ "$first" == 1 ]]; then
+      first=0
+      [[ "$line" == '#!'* ]] && return 0
+    fi
+    case "$line" in
+    *'__name__'*'__main__'*) return 0 ;;
+    *) ;;
+    esac
+  done <"$file"
+  return 1
+}
+
+# Basename / path keys shorter than three characters are noise, matching the
+# symbol extractor's floor. A tab or newline would break the owner record.
+dc_ref_key_ok() {
+  local k="$1"
+  ((${#k} >= 3)) || return 1
+  [[ "$k" != *$'\n'* && "$k" != *$'\t'* ]] || return 1
+  return 0
 }
 
 dc_dir_nonempty() {
