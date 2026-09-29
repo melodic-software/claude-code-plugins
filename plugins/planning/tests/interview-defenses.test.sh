@@ -521,11 +521,13 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
 # and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
 # never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
+# The Brief cross-check now also passes `--procedure`, which only adds a check on the Brief's
+# template headings; it retires no row and relaxes no rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "402e1ba5e8f1fda8446446a70e8cd11a30a18814998563155c278943b834a1ce"
+  "f45ec77fa90bbebae4dc80252e0009c790dadfa80abef8cb5b2775960d8e91b5"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -556,11 +558,14 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
   "0fbfcb797f606a548d8f46e1c97be4f63fdbeb33f8bfee1dd369f5d71a7ea17c"
+# Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
+# requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
+# names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "2d102b7a9f56349e6f105d5eab1e31581d577b06fd39834ad1a01a899784e4c3"
+  "6a1d61e1fd2a557b78129e022efbdb109d51442a4baaaba82fe51e2048be18af"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -845,6 +850,21 @@ pin "SKILL.md sweeps for assumptions before Step 3" "$SKILL" \
   "**Sweep for assumptions before Step 3.**"
 pin "SKILL.md: a sweep that adds an open row returns the run to Step 2" "$SKILL" \
   "Step 3 is reached when a sweep adds no \`open\` row"
+pin "SKILL.md: the confirmation restatement carries a recap generated from the register on disk" "$SKILL" \
+  "generated from the register on disk, never from the transcript, so it survives a compaction"
+pin "SKILL.md: the procedure check is cited by exit code, not by the model's account" "$SKILL" \
+  "cite its exit code and \`procedure=\` field as the evidence that the procedure ran, never your own account of it"
+pin "SKILL.md: a non-zero procedure exit halts the confirmation request" "$SKILL" \
+  "A non-zero exit HALTS the confirmation request"
+pin "SKILL.md: Step 3 names the model-judgment items the procedure check does not verify" "$SKILL" \
+  "whether the Step 1 survey grounded the questions, whether the domain was classified, whether register rows were written at ask-time rather than answer-time, and whether the frontier was recomputed between rounds"
+pin "SKILL.md: the recap and audit-answers neither compose nor duplicate each other" "$SKILL" \
+  "neither composes nor duplicates it"
+pin "audit-answers: states its relationship to the interview's recap and procedure check" "$AUDIT" \
+  "neither composes nor duplicates the other"
+pin "surface.md: the restate op carries the same register-sourced recap" \
+  "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "The restatement carries the same register-sourced recap as Step 3"
 pin "loop.md defines the constraint ledger row shape" "$LOOP" \
   "\`- C<N> | confirmed|inherited | <constraint> | <source>\`"
 pin "loop.md defines a process change" "$LOOP" \

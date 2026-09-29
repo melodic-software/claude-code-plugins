@@ -367,6 +367,15 @@ Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both H
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 
+**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register` with its status and resolution, generated from the register on disk, never from the transcript, so it survives a compaction. Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure
+```
+
+A non-zero exit HALTS the confirmation request; stderr names each defect (a round missing from the register, a retired row with no resolution). Fix the ledger and re-run. It checks only what a file can show. Not checked, and not implied by a green exit or by the recap: whether the Step 1 survey grounded the questions, whether the domain was classified, whether register rows were written at ask-time rather than answer-time, and whether the frontier was recomputed between rounds. `/planning:audit-answers` adversarially re-validates the answers; the recap shows the user the Q&A and the check shows the procedure ran, and neither composes nor duplicates it. A run with no register skips both.
+
 **`me` mode tightening:** "captured as named assumption" is NOT a valid stop for a *consequential* branch. Drive it to a decision (a decision MAY be "defer to post-V1", but it must be explicit and surfaced, never silent). The stop condition is an **empty decision-tree ledger** plus the confirmation gate. Not a question count.
 
 ### Step 4. Persist the contract
@@ -396,7 +405,7 @@ land (for example a repo-sweep step commit). Skip the Step 4 `--brief` cross-che
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
-**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--brief <contract_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, which the Step 3 run could not check because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <contract_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, which the Step 3 run could not check because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite, and let the commit message carry the pivot rationale.
 
@@ -456,7 +465,7 @@ the recommendation from this summary.
 | A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if installed) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
-| Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions |
+| Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |
 | Record a decision that earns an ADR | `/architecture:record-decision` (if installed) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
 | Pause and resume later | `/session-flow:handoff` (if installed) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
 

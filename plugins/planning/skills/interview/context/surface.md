@@ -148,7 +148,7 @@ The event stream sends a `ping` every 15 seconds while idle. The page re-fetches
 
 On the page surface, SKILL.md Step 3's confirmation gate runs through the page:
 
-1. Restate the shared understanding with a `restate` op: `goal`, `constraints`, `decisions`, `acceptance`, `deferred`, and `planningOwned` (the decisions the interview hands to `/planning:plan` to make). The page's summary screen shows it with Confirm and Something's off.
+1. Restate the shared understanding with a `restate` op: `goal`, `constraints`, `decisions`, `acceptance`, `deferred`, and `planningOwned` (the decisions the interview hands to `/planning:plan` to make). The page's summary screen shows it with Confirm and Something's off. The restatement carries the same register-sourced recap as Step 3: one line per `Q<N>` with its status and resolution, in `decisions`, generated from `round.sh export-ledger --out '<data_dir>/ledger-export.md'`, never from the transcript. The ledger's register lags the page until wrap-up writes the export into it, so replace its rows with the export first, as Wrap-up step 1 does, then run the Step 3 procedure check and cite its exit code.
 2. Wait for a `confirm-understanding` event. `alt: confirm` whose `contentRev` equals the current restatement `rev` passes the gate: `handle` it. The server refuses a Confirm on an older `rev` as stale, so a passing event always names the current restatement.
 3. `alt: off` means the gate has not passed. `note-reply` to its `text` with its `seq`, fix the understanding (re-ask or revise questions as needed), and post a new `restate`; the page shows the new one unconfirmed.
 
