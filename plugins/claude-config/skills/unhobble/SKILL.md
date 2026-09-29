@@ -324,7 +324,8 @@ and the surface it lives on; the governed situation, stated as where its absence
 window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
 duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
 
-Then remove the rule and keep it removed for the whole window. A watched rule is never kept
+Present the rule, its surface, and the watch record, and wait for confirmation. Then remove the
+rule and keep it removed for the whole window. A watched rule is never kept
 loaded: a rule still in context prevents the stumble it exists to prevent, so zero attributed rows
 would say nothing about whether it can go. A disqualifying stumble ends the watch and restores the
 rule.
