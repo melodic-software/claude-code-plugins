@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-29
+
+### Fixed
+
+- **`clean` preflight `RUNTIME_PROCS` lists only processes in the repositories being cleaned (#5217).** A `dotnet`, `aspire`, or MCP-server process counts when its working directory or command line is under a passed ROOT (the invoking repository when none), and each line is tagged `[repo: <ROOT>]`. Matches elsewhere on the machine are counted in the new `RUNTIME_PROCS_UNATTRIBUTED` line instead of being reported as risks. On Windows `RUNTIME_PROCS` and `IDE_OPEN` stay machine-wide and are marked `(unscoped)`.
+
 ## [0.11.2] - 2026-09-29
 
 ### Fixed
