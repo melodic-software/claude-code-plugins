@@ -40,7 +40,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=262
+EXPECTED_CASES=238
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -55,22 +55,6 @@ skip() {
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 
-# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
-# it. The git-absent case builds a minimal PATH out of links to the real
-# binaries; a copied bash.exe cannot find msys-2.0.dll beside it, so the shell
-# under test never starts and detect.sh emits nothing. Probe the round trip
-# rather than the OS name.
-host_makes_symlinks() {
-  local d rc=1
-  d="$(mktemp -d)"
-  printf 'x\n' >"$d/target"
-  if ln -s target "$d/link" 2>/dev/null &&
-    [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
-    rc=0
-  fi
-  rm -rf "$d"
-  return "$rc"
-}
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   FAILED=$((FAILED + 1))
@@ -509,8 +493,8 @@ out="$(bash "$DETECT" "$BAREFIX" 2>&1)"
 assert_contains "model phrases: bare bigrams do not fire (anchored roster only)" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
 
 # phrase_add / phrase_remove cascade. The "kiss of death" line discriminates a
-# word-split regression: a cfg_array-style reader would split the added fragment
-# into three word alternates and "kiss" alone would match that line too.
+# word-split regression: a reader that split on spaces would break the added
+# fragment into three word alternates and "kiss" alone would match that line too.
 PREPO="$TEST_TMPDIR/phrase-repo"
 mkdir -p "$PREPO/.claude"
 cat >"$PREPO/.claude/ai-slop.json" <<'EOF'
@@ -578,7 +562,7 @@ out="$(CLAUDE_PROJECT_DIR="$CLRREPO" bash "$DETECT" "$CLRREPO/doc.md" 2>&1)"
 assert_contains "phrase config: explicit empty array clears the inherited add list" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
 
 # A layer caught mid-write (valid object, then truncated bytes) is refused
-# whole for the phrase keys, the cfg_scalar posture: jq's exit status guards
+# whole for the phrase keys, as cascade::list does: jq's exit status guards
 # the read, so the partially parsed values never become the effective roster.
 TRUNCPHRASE="$TEST_TMPDIR/phrase-trunc"
 mkdir -p "$TRUNCPHRASE/.claude"
@@ -735,29 +719,22 @@ assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-
 
 # --- Config parsing against a CRLF-emitting jq (#3343) ---------------------------
 
-# The Windows build of jq terminates output lines with CRLF, and all three
-# config readers took it. `cfg_array` piped jq through `tr '\n' ' '`, which
-# converts only the line feed, so every array element arrived carrying a
-# trailing carriage return and matched nothing: `excluded_paths`,
-# `em_dash_allowed_paths` and `disabled_rules` silently stopped applying on a
-# Windows workstation while CI, which runs on Linux and sees LF, agreed with the
-# config. `rule_allowed_paths` reads jq through `read`, which splits on the line
-# feed, so the CR landed on the last glob of every entry. `cfg_scalar` carries
-# the CR into the emitted threshold text — `--show-config` and the density
-# finding's label — but not into the comparison: gawk and mawk both read a
-# CR-suffixed threshold as a strnum and compare numerically, so only BusyBox awk
-# would diverge there. CI cannot observe any of the three, so the condition is
-# forced here: a shim ahead of the real jq on PATH appends a CR to every output
-# line. The array and `rule_allowed_paths` cases reproduce on both platforms;
-# the scalar case at the end discriminates on Linux only, for the reason
-# recorded there.
+# The Windows build of jq terminates output lines with CRLF (#3343). CI runs on
+# Linux and sees LF, so the condition is forced here: a shim ahead of the real
+# jq on PATH appends a CR to every output line. Each case below proves one
+# config key shape still applies under it: `excluded_paths`,
+# `em_dash_allowed_paths` and `disabled_rules` (cascade::list),
+# `rule_allowed_paths` (cascade::slug_map), the phrase keys (cascade::list) and
+# the threshold scalar (cascade::scalar). The list, slug-map and phrase cases
+# reproduce on both platforms; the scalar case at the end discriminates on Linux
+# only, for the reason recorded there.
 CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
 mkdir -p "$CRLF_BIN"
 REAL_JQ="$(command -v jq)"
 cat >"$CRLF_BIN/jq" <<EOF
 #!/usr/bin/env bash
 # pipefail so a jq failure stays a failure: awk's exit status would otherwise
-# mask it and change the meaning of cfg_scalar's \`v="\$(jq ...)" &&\` guard.
+# mask it, and the readers skip a refused layer only on jq's nonzero status.
 set -o pipefail
 "$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
 EOF
@@ -795,35 +772,32 @@ assert_not_contains "crlf jq: em_dash_allowed_paths still exempts the document" 
 assert_contains "crlf jq: the em-dash exemption is a decline, not a dropped file" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1 disabled=0"
 assert_contains "crlf jq: disabled_rules still applies" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1"
 
-# rule_allowed_paths reads jq through `read`, not through cfg_array, so the CR
-# lands on the LAST glob of each entry rather than on every element. Its own
-# fixture is reused under the shim.
+# rule_allowed_paths under the shim, reusing its own fixture.
 out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/plain.md" 2>&1)"
 assert_not_contains "crlf jq: rule_allowed_paths still declines the listed path" "$out" "file=quirks/doc.md"
 assert_contains "crlf jq: rule_allowed_paths decline still counted" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
 
-# The phrase readers are line-per-element (mapfile), so a CRLF jq would leave a
-# CR on EVERY fragment and each one would silently match nothing — the #3343
-# class, on the reader class this suite's earlier cases do not cover. The
-# phrase-repo fixture is reused under the shim.
+# phrase_add and phrase_remove under the shim: every fragment must still match.
+# The phrase-repo fixture is reused.
 out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$PREPO" bash "$DETECT" "$PREPO/doc.md" 2>&1)"
 assert_contains "crlf jq: phrase_add and phrase_remove still apply" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=2 declined=0"
 
 # Anchored on the text that FOLLOWS the value: a bare `=999` substring match
 # passes against `999\r` and would not discriminate.
 #
-# This case discriminates on Linux ONLY. Under Git Bash the unfixed reader never
-# emitted the CR to begin with — MSYS command substitution strips one trailing
-# CRLF pair, and cfg_scalar reads a single line — so the case is green either way
-# on a Windows workstation. It is the array cases above that carry the Windows
-# reproduction; this one is here for the runner.
+# This case discriminates on Linux ONLY. Under Git Bash a one-line scalar read
+# never carried the CR: MSYS command substitution strips one trailing CRLF pair,
+# so the case is green either way on a Windows workstation. The list and
+# slug-map cases above carry the Windows reproduction; this one is here for the
+# runner.
 out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/crlf-repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "crlf jq: scalar threshold parses without the carriage return" "$out" "threshold_ai_vocabulary=999 (rule"
 
 # The CR strip must not swallow jq's verdict on the layer. jq emits the values it
-# parsed before it meets malformed bytes and then exits nonzero; cfg_scalar's guard
+# parsed before it meets malformed bytes and then exits nonzero; cascade::scalar
 # reads that status, so a `| tr -d` inside the substitution would replace it with
-# tr's unconditional success and let a half-read layer set the threshold. The
+# tr's unconditional success and let a half-read layer set the threshold;
+# cascade-read.sh strips the CR after the substitution and skips the layer. The
 # fixture is a valid object followed by a truncated one, which is what a config
 # file caught mid-write looks like.
 truncdir="$TEST_TMPDIR/trunc-repo/.claude"
@@ -1052,97 +1026,23 @@ assert_contains "dir target with a trailing slash: the emitted path is not doubl
 assert_not_contains "dir target with a trailing slash: no doubled separator" "$out" "file=$GITDIR/docs//tracked.md"
 assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
 
-# Drive-root slash preservation is a string contract, not a host contract: the
-# suite does not need Windows. Source the production helper so this case cannot
-# drift from the function expand_dir_target actually calls.
-# shellcheck source=lib/resolve-targets.sh
-source "$SCRIPT_DIR/lib/resolve-targets.sh"
-assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
-assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/tmp/")" "C:/tmp"
-assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
-assert_eq "windows drive root keeps its slash" "$(normalize_dir_target "C:/")" "C:/"
-assert_eq "lowercase windows drive root keeps its slash" "$(normalize_dir_target "d:/")" "d:/"
-assert_eq "windows drive-root backslash is unchanged" "$(normalize_dir_target "C:\\")" "C:\\"
-assert_eq "already-drive-relative spelling is left alone" "$(normalize_dir_target "C:")" "C:"
-assert_eq "ordinary path without a slash is unchanged" "$(normalize_dir_target "docs")" "docs"
-
-# The walk is reserved for a directory genuinely outside a checkout. A directory
-# INSIDE one that holds only untracked markdown expands to nothing rather than
-# falling through to a filesystem walk, which is what the documented
-# tracked-files-only contract means.
-mkdir -p "$GITDIR/untrackedonly"
-cat >"$GITDIR/untrackedonly/loose.md" <<EOF
-A loose em dash ${EM} here.
-EOF
-out="$(bash "$DETECT" "$GITDIR/untrackedonly" 2>&1)"
-assert_contains "dir target in git repo, no tracked markdown: expands to nothing" "$out" "0 files scanned"
-
-# git C-quotes non-ASCII path bytes unless core.quotePath=false. A tracked
-# filename holding an em dash would then fail the scan loop's existence test
-# and vanish from the report. The listing must emit the raw filename.
-mkdir -p "$GITDIR/unicode"
-printf 'A tracked em dash %s here.\n' "$EM" >"$GITDIR/unicode/dash${EM}name.md"
-git -C "$GITDIR" add "unicode/dash${EM}name.md"
-out="$(bash "$DETECT" "$GITDIR/unicode" 2>&1)"
-assert_contains "dir target, non-ASCII filename: the raw path is scanned" "$out" "file=$GITDIR/unicode/dash${EM}name.md"
-assert_contains "dir target, non-ASCII filename: the file is not dropped" "$out" "1 files scanned"
-
-# git absent: tracked-files-only is not achievable, so the walk still runs,
-# but the fallback must be reported rather than silent.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if host_makes_symlinks; then
-  NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
-  mkdir -p "$NOGIT_BIN"
-  for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
-    src="$(command -v "$name" 2>/dev/null)" || continue
-    ln -s "$src" "$NOGIT_BIN/$name"
-  done
-  out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
-  assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
-  assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
-else
-  skip "dir target, git absent: reports the walk" \
-    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
-  skip "dir target, git absent: walk scans tracked and untracked markdown" \
-    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
-fi
-
 # --- Bare invocation (no paths) ---------------------------------------------------
 
-# The no-paths path lists the whole repository, so it carries the same two
-# hazards the dir-target cases above pin, reached through a different listing.
-# git-config core.quotePath: commands that output paths quote bytes above 0x80
-# unless it is false, so a tracked file whose name holds a non-ASCII byte
-# arrives as a C-quoted escape, fails the scan loop's existence test, and shows
-# up as neither a finding nor a declined row. A bare invocation is the sweep the
-# audit skill runs over a repository, so that drop is silently partial coverage.
+# Listing rules (quotePath, prefix, git failures) are asserted in
+# resolve-targets.test.sh; these two cases pin only that a bare invocation
+# reaches the report and the summary through detect.sh.
 BAREREPO="$TEST_TMPDIR/barerepo"
 mkdir -p "$BAREREPO/unicode"
 git -C "$BAREREPO" init -q
 printf 'A tracked em dash %s here.\n' "$EM" >"$BAREREPO/unicode/notes${EM}name.md"
 printf 'A tracked em dash %s here too.\n' "$EM" >"$BAREREPO/ascii.md"
-printf 'An untracked em dash %s here.\n' "$EM" >"$BAREREPO/loose.md"
 git -C "$BAREREPO" add "unicode/notes${EM}name.md" ascii.md
 
 out="$(cd "$BAREREPO" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation: tracked non-ASCII filename is scanned" "$out" "file=unicode/notes${EM}name.md"
-assert_not_contains "bare invocation: no C-quoted escape reaches the report" "$out" 'notes\342'
+assert_contains "bare invocation: the non-ASCII tracked file is in the report" "$out" "file=unicode/notes${EM}name.md"
 assert_contains "bare invocation: both tracked files count" "$out" "2 files scanned"
-assert_not_contains "bare invocation: untracked markdown is not scanned" "$out" "loose.md"
 
-# Findings report repo-relative paths, so the case above would also pass if the
-# listing's relative paths were used unprefixed and resolved against the CWD.
-# Running from outside the checkout is what pins the REPO_ROOT prefix they are
-# joined onto: a wrong prefix leaves nothing for the scan loop to open.
-out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation from outside the repo: the non-ASCII path is scanned" "$out" "file=unicode/notes${EM}name.md"
-assert_contains "bare invocation from outside the repo: both tracked files count" "$out" "2 files scanned"
-
-# A listing that fails must say so. Swallowed under 2>/dev/null it produces an
-# empty target list, which is indistinguishable from a repository holding no
-# tracked markdown, and both render as a clean audit. The stub fails only
-# ls-files so the branch under test is the listing itself, not work-tree
-# detection.
+# A listing failure reaches the summary as an empty audit.
 BADLS_BIN="$TEST_TMPDIR/bin-badls"
 mkdir -p "$BADLS_BIN"
 REAL_GIT="$(command -v git)"
@@ -1157,35 +1057,8 @@ done
 exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$BADLS_BIN/git"
-
 out="$(cd "$BAREREPO" && PATH="$BADLS_BIN:$PATH" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation, listing fails: reports the failure" "$out" "git ls-files failed in $BAREREPO"
-assert_contains "bare invocation, listing fails: names the exit status" "$out" "(exit 128)"
-assert_contains "bare invocation, listing fails: git's own stderr is not swallowed" "$out" "fatal: stubbed ls-files failure"
-assert_contains "bare invocation, listing fails: scans nothing" "$out" "0 files scanned"
-
-# Outside a checkout there is nothing tracked to list, which is a reportable
-# state rather than a clean audit of an empty set.
-BARENOREPO="$TEST_TMPDIR/barenorepo"
-mkdir -p "$BARENOREPO"
-printf 'An em dash %s here.\n' "$EM" >"$BARENOREPO/loose.md"
-out="$(cd "$BARENOREPO" && CLAUDE_PROJECT_DIR="$BARENOREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation outside a checkout: says so" "$out" "could not confirm a work tree at $BARENOREPO"
-assert_contains "bare invocation outside a checkout: scans nothing" "$out" "0 files scanned"
-
-# Same git-less PATH, so the same host constraint: where `ln -s` copies, the
-# shell under test never starts and there is nothing to assert about.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if [[ -n "${NOGIT_BIN:-}" ]]; then
-  out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-  assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
-  assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
-else
-  skip "bare invocation, git absent: reports it" \
-    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
-  skip "bare invocation, git absent: scans nothing" \
-    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
-fi
+assert_contains "bare invocation, listing fails: the summary reports 0 files scanned" "$out" "0 files scanned"
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
