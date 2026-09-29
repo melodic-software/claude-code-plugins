@@ -158,13 +158,17 @@ function method_after(rel, attr_line,    i, line) {
   return attr_line
 }
 
-# Whether the handler takes the verb. An Http* attribute in its attribute
-# block, or the Map* call, names the verbs it takes; none named takes any.
+# Whether the handler takes the verb. The Map* call on the route line, or an
+# Http* attribute in the handler's attribute block, names the verbs it takes;
+# none named takes any.
 function verb_ok(rel, i, ml, verb,    lo, hi, j, s, vs) {
   if (verb == "") return 1
   lo = i
-  while (lo > 1 && lines[rel, lo - 1] ~ /^[[:space:]]*\[/) lo--
-  hi = (ml > i ? ml : i)
+  hi = i
+  if (lines[rel, i] !~ /Map(Get|Post|Put|Delete|Patch)/) {
+    while (lo > 1 && lines[rel, lo - 1] ~ /^[[:space:]]*\[/) lo--
+    if (ml > i) hi = ml
+  }
   vs = ""
   for (j = lo; j <= hi; j++) {
     s = lines[rel, j]
@@ -175,6 +179,41 @@ function verb_ok(rel, i, ml, verb,    lo, hi, j, s, vs) {
   }
   gsub(/HTTP|MAP/, "", vs)
   return (vs == "" || index(vs " ", " " verb " ") > 0)
+}
+
+# The one declaration a Map* call names as its handler, MapGet("/x", Handle) or
+# MapGet("/x", Type.Handle): a member of a class holding the call, or of Type.
+# Sets mh_rel and mh_line and returns 1. A lambda, or a name that is not exactly
+# one declaration, returns 0.
+function map_handler(rel, at,    s, n, hp, j, p, i, k, hits) {
+  s = lines[rel, at]
+  if (!match(s, /Map(Get|Post|Put|Delete|Patch)[[:space:]]*\([[:space:]]*"[^"]*"[[:space:]]*,[[:space:]]*[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*[,)]/)) return 0
+  s = substr(s, RSTART, RLENGTH)
+  sub(/^[^"]*"[^"]*"[[:space:]]*,[[:space:]]*/, "", s)
+  sub(/[[:space:]]*[,)]$/, "", s)
+  n = split(s, hp, ".")
+  hits = 0
+  if (n > 1) {
+    for (j = 1; j <= nparts[hp[n - 1]]; j++) hits += count_decl(part[hp[n - 1], j], hp[n])
+  } else {
+    for (j = 1; j <= nfcls[rel]; j++) {
+      k = fcls[rel, j]
+      if (at >= c_line[k] && at <= c_hi[k]) hits += count_decl(k, hp[n])
+    }
+  }
+  return (hits == 1)
+}
+
+# Counts the members of class record p declared as `name` and remembers the last in mh_rel and mh_line.
+function count_decl(p, name,    i, hits) {
+  hits = 0
+  for (i = c_lo[p] + 1; i <= c_hi[p]; i++)
+    if (d0[c_rel[p], i] == c_inner[p] && is_decl(lines[c_rel[p], i], name)) {
+      hits++
+      mh_rel = c_rel[p]
+      mh_line = i
+    }
+  return hits
 }
 
 function add_entry(rel, decl, cite,    j) {
@@ -596,7 +635,15 @@ END {
         line = lines[rel, i]
         if (route_entry) {
           r = route_of(line)
-          if (r != "" && r == spec) {
+          if (r == "" || r != spec) {
+            continue
+          } else if (line ~ /Map(Get|Post|Put|Delete|Patch)[[:space:]]*\(/) {
+            if (!map_handler(rel, i)) {
+              if (verb_ok(rel, i, i, verb)) unbound = rel ":" i
+            } else if (verb_ok(rel, i, mh_line, verb)) {
+              add_entry(mh_rel, mh_line, i)
+            }
+          } else {
             ml = method_after(rel, i)
             if (ml && verb_ok(rel, i, ml, verb)) add_entry(rel, ml, i)
           }
@@ -605,6 +652,10 @@ END {
         }
       }
     }
+  }
+  if (nentries == 0 && unbound != "") {
+    refuse("refused: the route's handler is a lambda or not exactly one method declaration in the tree; this adapter cannot bind it. Name the handler as Type.Method: " unbound)
+    exit 3
   }
   if (nentries == 0) {
     refuse("refused: entry point not found in tracked C# source: " entry)

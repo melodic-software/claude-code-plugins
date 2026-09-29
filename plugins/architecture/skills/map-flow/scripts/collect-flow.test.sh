@@ -455,6 +455,32 @@ public class Pricing {
     }
 }
 CS
+cat >"$entry_repo/src/Transport/OrderEndpoints.cs" <<'CS'
+namespace Shop.Transport;
+public static class OrderEndpoints {
+    public static void Map(WebApplication app) {
+        app.MapGet("/minimal/{id}", Get).WithName("get");
+        app.MapPut("/minimal/{id}", Put);
+        app.MapPost("/inline", (Pricing p) => { p.Quote("x"); });
+    }
+    private static IResult Get(string id) {
+        Pricing.Quote(id);
+    }
+    private static IResult Put(string id) {
+        Pricing.Adjust(id);
+    }
+}
+public static class Nested {
+    public static class Registration {
+        public static void Map(WebApplication app) {
+            app.MapGet("/nested", Handle);
+        }
+    }
+    private static IResult Handle(string id) {
+        Pricing.Quote(id);
+    }
+}
+CS
 git -C "$entry_repo" add src
 git -C "$entry_repo" commit --quiet -m "entry"
 entry_json="$TEST_TMPDIR/entry.json"
@@ -484,6 +510,27 @@ run_entry "/legacy" >/dev/null
 assert_equals "Route and HttpGet on one method are one site" "$?" "0"
 run_entry "DELETE /any" >/dev/null
 assert_equals "a handler that names no verb takes any" "$?" "0"
+two_maps="$(run_entry "/minimal/{id}")"
+assert_equals "one Map route on two handlers is a refusal" "$?" "3"
+assert_contains "the Map refusal names both Map lines" "$two_maps" "OrderEndpoints.cs:4 src/Transport/OrderEndpoints.cs:5"
+run_entry "GET /minimal/{id}" >/dev/null
+assert_equals "a verb selects the MapGet call" "$?" "0"
+assert_contains "the MapGet entry cites the Map line and traces the handler it names" "$(cat "$entry_json")" '"entry": {"name":"GET /minimal/{id}","file":"src/Transport/OrderEndpoints.cs","line":"4"}'
+assert_contains "the MapGet handler is Get" "$(cat "$entry_json")" '"call":"Quote"'
+assert_not_contains "the MapGet trace does not enter Put" "$(cat "$entry_json")" '"call":"Adjust"'
+run_entry "PUT /minimal/{id}" >/dev/null
+assert_equals "a verb selects the MapPut call" "$?" "0"
+assert_contains "the MapPut entry cites its own Map line" "$(cat "$entry_json")" '"entry": {"name":"PUT /minimal/{id}","file":"src/Transport/OrderEndpoints.cs","line":"5"}'
+assert_contains "the MapPut handler is Put" "$(cat "$entry_json")" '"call":"Adjust"'
+assert_not_contains "the MapPut trace does not enter Get" "$(cat "$entry_json")" '"call":"Quote"'
+run_entry "/nested" >/dev/null
+assert_equals "a Map handler declared in the enclosing outer class is bound" "$?" "0"
+assert_contains "the outer-class handler is traced" "$(cat "$entry_json")" '"call":"Quote"'
+lambda="$(run_entry "POST /inline")"
+assert_equals "a lambda handler is a refusal" "$?" "3"
+assert_contains "the lambda refusal points at Type.Method" "$lambda" "Name the handler as Type.Method"
+lambda_verb="$(run_entry "DELETE /inline")"
+assert_contains "a verb the lambda route does not take is not found" "$lambda_verb" "refused: entry point not found"
 class_route="$(run_entry "api/orders")"
 assert_equals "a class-level route is not bound to the first action" "$?" "3"
 assert_contains "a class-level route is not found" "$class_route" "refused: entry point not found"

@@ -67,10 +67,15 @@ The shipped adapter reads tracked `*.cs` only. The entry is one of:
 
 | Entry | Selects |
 | --- | --- |
-| `/orders/{id}` | the handler whose `[Route]`, `[HttpGet]`-family attribute, or `MapGet`-family call carries that exact string |
+| `/orders/{id}` | the handler whose `[Route]`, `[HttpGet]`-family attribute, or `MapGet`-family call carries that exact string; a route entry contains `/`, so a template without one (`[HttpGet("{id}")]`) is reached through `Type.Method` |
 | `GET /orders/{id}` | the same route, where the handler takes that verb: GET, POST, PUT, DELETE or PATCH in any case, read from an `Http*` attribute beside the route or from the `Map*` name; a handler that names no verb takes any |
 | `OrdersService.Handle` | the method `Handle` declared in the class `OrdersService` (the last two names of a dotted entry) |
 | `Handle` | every declaration named `Handle` |
+
+A `Map*` call is traced through the method it names as its handler, `MapGet("/x", Handle)` or
+`MapGet("/x", Type.Handle)`, declared in the class that holds the call, an enclosing class, or
+`Type`. A lambda, or a name that is not exactly one declaration in the tree, is a refusal that
+points at `Type.Method`.
 
 More than one match is a refusal that names every site and lists these forms. Nothing else
 narrows a match: overloads and same-named types in different namespaces stay ambiguous. A

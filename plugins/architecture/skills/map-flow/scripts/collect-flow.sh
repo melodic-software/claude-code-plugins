@@ -16,7 +16,9 @@
 # <entry> is a route (/orders/{id}), an HTTP verb and a route
 # (GET /orders/{id}), Type.Method (OrdersService.Handle), or a method name
 # (Handle). A route is matched against Http* and Route attributes and Map*
-# calls; a class-level [Route] is not composed with a method route.
+# calls; a Map* call is traced through the method it names as its handler
+# (a lambda is refused). A class-level [Route] is not composed with a method
+# route.
 #
 # Tracked *.cs files only (`git ls-files`). The first adapter is C#. A tree
 # with no C# source is refused. Configuration and project files are not
