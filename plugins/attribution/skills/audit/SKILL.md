@@ -124,7 +124,7 @@ texts, file composition); every judgment about whether a passage is a copy is mo
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
    unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
-   snapshot, reached because every live fetch failed, takes the report-only `vendored-snapshot`
+   snapshot, reached because every live fetch failed, caps at the report-only `vendored-snapshot`
    tier and is never fix-eligible; the full rule is in
    [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
    over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
