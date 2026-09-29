@@ -1,8 +1,8 @@
 #Requires -Version 7.4
 <#
 .SYNOPSIS
-Check: persisted environment-variable and PATH health. Emits a CheckResult JSON
-on stdout.
+Check: persisted environment-variable and PATH health, plus executable
+shadowing on the process PATH. Emits a CheckResult JSON on stdout.
 
 See reference/windows/check-catalog.md#18-environment-and-path-health for rubric.
 
@@ -13,9 +13,11 @@ writes a registry value, never calls SetEnvironmentVariable, never rewrites
 PATH. Credential-pattern variable values are never read.
 
 Findings are mechanical shapes: DISABLE_AUTOUPDATER presence, missing PATH
-directories, duplicate PATH entries, shadowed executables, User Path stored
-as REG_SZ, User Path length against the 2047-character legacy-editor
-ceiling, and credential-pattern variable names (name + scope only).
+directories, duplicate PATH entries, User Path stored as REG_SZ, User Path
+length against the 2047-character legacy-editor ceiling, and
+credential-pattern variable names (name + scope only). The shadowed-executable
+pass walks the process PATH (the running session's PATH; the persisted
+entries only when it is empty), and the summary reports it in its own clause.
 #>
 [CmdletBinding()]
 param([switch]$Human)

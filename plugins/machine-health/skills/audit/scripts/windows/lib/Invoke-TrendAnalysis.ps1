@@ -39,21 +39,41 @@ Neutrally named: cross-OS algorithm.
 function Format-TrendCell {
     <#
     .SYNOPSIS
-    The glance-table Trend cell for one check result: '-' when no trend was
-    attached, '·' when the check has no baseline run, otherwise the signed
-    numeric delta, prefixed with the worsening arrow when the trend rule
-    raised the severity.
+    The glance-table Trend cell for one check result, in the glyphs
+    reference/shared/report-template.md defines: '↑' (the metric worsened),
+    '↓' (improved), '→' (steady) and '·' (no prior value to compare).
+
+    .DESCRIPTION
+    A moving metric carries its signed delta after the arrow. A severity raised
+    by the trend rule with no numeric delta (the drivers repeat) is '↑' alone.
+    Direction follows Get-TrendWorseningSign, not the raw sign of the delta.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] $Result)
 
     $trend = $Result.PSObject.Properties['trend'] ? $Result.trend : $null
-    if (-not $trend) { return '-' }
-    if (-not $trend.last_run) { return '·' }
-    $arrow = $trend.adjusted_from ? '↑ ' : ''
-    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') { return "$arrow$($Matches[1])" }
-    return $trend.adjusted_from ? '↑' : '-'
+    if (-not $trend -or -not $trend.last_run) { return '·' }
+    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') {
+        $delta = [double]$Matches[1]
+        if ($delta -eq 0) { return '→' }
+        $arrow = $delta * (Get-TrendWorseningSign -CheckId $Result.id) -gt 0 ? '↑' : '↓'
+        return "$arrow $($Matches[1])"
+    }
+    return $trend.adjusted_from ? '↑' : '·'
+}
+
+function Get-TrendWorseningSign {
+    <#
+    .SYNOPSIS
+    -1 for a check whose trend metric worsens as it falls (battery capacity,
+    reliability stability), +1 for every other check.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param([string] $CheckId)
+
+    return @('battery', 'reliability') -contains $CheckId ? -1 : 1
 }
 
 function Invoke-TrendAnalysis {
@@ -263,15 +283,13 @@ function Test-WorseningTrend {
     # upgrade would mint a CRIT from five new stray files.
     # winget-upgrades stays here, but Invoke-TrendAnalysis skips it when the WARN
     # carries a KEV match: the match is name-only, so a count trend cannot make it CRIT.
-    $downwardWorsens = @('battery', 'reliability')
-
     $delta = $cur - $prev
 
     if ($upwardWorsens -contains $CheckId) {
         # Threshold: >= +5 (raw units or percentage points) counts as worsening.
         return $delta -ge 5
     }
-    if ($downwardWorsens -contains $CheckId) {
+    if ((Get-TrendWorseningSign -CheckId $CheckId) -lt 0) {
         return $delta -le -5
     }
     return $false

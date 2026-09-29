@@ -41,8 +41,10 @@ demote cadence, custom checks) lives in the overlay, written by `/machine-health
 ## Network posture
 
 Egress is allowlisted: Microsoft Update endpoints, winget sources, and the CISA KEV feed
-(`www.cisa.gov`) are the only permitted outbound URLs, and every outbound call is logged to the
-run log. No telemetry, no other network calls, no `Invoke-Expression` on external data.
+(`www.cisa.gov`) are the only permitted outbound URLs. Calls routed through
+`scripts/windows/lib/Invoke-AllowlistedWeb.ps1` are enforced against that list and logged to the
+run log; a call that bypasses the wrapper is neither. No telemetry, no other network calls, no
+`Invoke-Expression` on external data.
 
 ## Prerequisites
 

@@ -93,10 +93,10 @@ function Write-ElevationBanner {
     $transcript = "$($logBase.TrimEnd('\'))\logs\elevated-run-$(Get-Date -Format 'yyyy-MM-dd').log"
     $rerunArgs = "-OutputBase '$OutputBase'"
     if ($StateBase) { $rerunArgs += " -StateBase '$StateBase'" }
-    $lines.Add(' To run elevated (the transcript is the only copy of the output the calling session can read):')
+    $lines.Add(' To run elevated (the calling session cannot read an elevated console, so the run writes a transcript):')
     $lines.Add('   Open Windows Terminal as Administrator, then:')
     $lines.Add("     pwsh -NoProfile -Command ""Start-Transcript -Path '$transcript' -Force | Out-Null; & '$invokeScript' $rerunArgs; Stop-Transcript | Out-Null""")
-    $lines.Add("   Output is captured to: $transcript")
+    $lines.Add("   Transcript of the run's output stream, without its stderr banners: $transcript")
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
     $lines.Add($sep)
@@ -141,7 +141,7 @@ function Get-ElevationCoverageMarkdown {
         $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
     }
     $body.Add('')
-    $body.Add('To populate these: re-run the skill from an elevated Windows Terminal. The run banner prints the command; it writes a transcript to `<StateBase>/logs/elevated-run-<date>.log`, the only copy of the output the calling session can read.')
+    $body.Add('To populate these: re-run the skill from an elevated Windows Terminal. The run banner prints the command; it writes a transcript of the run''s output stream (the summary lines, not the stderr banners) to `<StateBase>/logs/elevated-run-<date>.log`, which the calling session can read.')
     $body.Add('</details>')
     return ($body -join "`n")
 }
