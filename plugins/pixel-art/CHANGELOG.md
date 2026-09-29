@@ -66,9 +66,9 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
   including MV-style `img/animations`. Effekseer (`.efkefc`) stays out of scope.
 - Worked generators under `examples/tileset`, `examples/ui`, and `examples/vfx`, rendered by
   `scripts/render.py`. Tests check an MZ A2 sheet, a `Window.png` skin, and a five-column animation
-  sheet against the grids in `engine-layouts.md`.
+  sheet against the grids in `engine-layouts.md` (#4400).
 
-## [0.3.0]
+## [0.3.0] - 2026-09-28
 
 ### Added
 
@@ -79,7 +79,7 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 - `render.py --snap` maps an 8-bit RGB or RGBA PNG onto a palette (nearest sRGB color, alpha below
   128 transparent). `--dither` adds 4x4 Bayer ordered dither. `--emit-frames` writes spec rows.
 
-## [0.2.0]
+## [0.2.0] - 2026-09-28
 
 ### Added
 
