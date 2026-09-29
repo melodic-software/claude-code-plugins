@@ -407,7 +407,7 @@ const seen = (r) => Object.fromEntries((r.stdout || "").split(/\r?\n/).filter((l
 
 const run = launch({ ...process.env, CLAUDE_PLUGIN_ROOT: root }, [token, rootArg, exitCode], payload);
 const got = seen(run);
-need(got.token === token, `the argv token did not reach the script (${ctx(run)})`);
+need(got.token === token, `the argv token did not reach the script (${ctx(run)}); exit 0 with no output means the launcher's main never ran`);
 need(got.stdin === String(Buffer.byteLength(payload)), `the script read ${got.stdin} stdin bytes, expected ${Buffer.byteLength(payload)}`);
 need(run.status === 2, `the script's own exit 2 came back as exit ${run.status}, so a blocking guard would stop blocking`);
 need(got.rootenv === root, `CLAUDE_PLUGIN_ROOT reached the script as ${JSON.stringify(got.rootenv)}, expected ${JSON.stringify(root)}`);
@@ -433,8 +433,7 @@ JS
 
 run_launcher() {
   local node_exe="$1" tmp script launcher empty driver gitbin="" exit_code=2 token out rc=0
-  # Physical path: the launcher runs only when its argv path equals its realpath.
-  launcher="$(pwd -P)/lib/exec-bash.mjs"
+  launcher="$PWD/lib/exec-bash.mjs"
   if [[ ! -f "$launcher" ]]; then
     echo "LAUNCHER-PROBE: lib/exec-bash.mjs not found, so the launcher every hook row runs was not exercised and cannot clear a fleet sweep." >&2
     return 1
