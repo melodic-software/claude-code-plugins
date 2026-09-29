@@ -3,6 +3,20 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5] - 2026-09-29
+
+### Changed
+
+- **`audit-posture` marks `provided_by` as informational.** Phase 1 now says the column only lets
+  the operator tell organization-provided servers (which `claude mcp remove` refuses) from
+  user-configured ones; no P1-P5 criterion reads it.
+
+### Fixed
+
+- In-place correction of the released 0.5.2 entry: its `### Added` bullet repeated the 0.5.1
+  `provided_by` entry although 0.5.2 changed no files under the plugin. The body now states there
+  is no consumer-visible change.
+
 ## [0.5.4] - 2026-09-28
 
 ### Changed
