@@ -112,9 +112,11 @@ sibling divergences it owns.
 - **Ownership check.** Before proposing any treatment, grep the repo for the target path near
   `synced|sync-managed|vendored|generated|upstream`, and check `docs/adr/` and `docs/decisions/`
   for a decision recording the file's tier or owner. Search beyond the targets: the ownership
-  statement usually lives in a README inventory, a tool-config comment, or a sync manifest. On a
-  hit, keep the finding, set Treatment to `file with the owner, citing the decision`, and mark
-  disposition `upstream`. Never propose a local move or edit for an upstream-owned file.
+  statement usually lives in a README inventory, a tool-config comment, or a sync manifest. When
+  the hit names an upstream owner, keep the finding, set Treatment to `file with the owner, citing
+  the decision`, and mark disposition `upstream`. Never propose a local move or edit for an
+  upstream-owned file. When the hit is a decision recording only the tier of a locally owned file,
+  cite it as the recorded reason to stay at that tier; no owner exists, so do not use `upstream`.
 - **Output deterministic.** Files sort lexically; per-file rows sort by line; no timestamps.
 - **Default action is the audit action**. `/docs-hygiene:audit-progressive-disclosure <file>` ==
   `… audit <file>`.

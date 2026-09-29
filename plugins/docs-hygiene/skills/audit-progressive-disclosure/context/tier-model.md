@@ -30,8 +30,8 @@ color only.
 **Grading rule per tier**: always-loaded content must apply broadly, in every session. The
 per-line test: "Would removing this cause Claude to make a mistake?" Invocation-loaded content carries the
 same conciseness bar as CLAUDE.md once triggered. On-demand content is free until pulled, so
-depth belongs there. A recorded reason to stay always-loaded, or upstream ownership, overrides
-the test: see [Boundaries this audit honors](#boundaries-this-audit-honors).
+depth belongs there. A recorded reason to stay always-loaded overrides the test, and upstream
+ownership overrides the local treatment (the finding stays): see [Boundaries this audit honors](#boundaries-this-audit-honors).
 
 ## Size guidance (all advisory: targets and tips, not validation errors)
 
