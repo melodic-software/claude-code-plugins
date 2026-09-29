@@ -599,7 +599,7 @@ acquire_page() {
   else
     rec="$(jq -c --arg s "$slug" '(first(.pages[] | select(.slug == $s)) // {}) as $p
       | {slug:$s,url_or_path:($p.url // ""),source:($p.source // ""),bytes:($p.bytes // 0),state:($p.state // "unread"),
-         reason:($p.reason // "fetch-failed"),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$DOCS_MANIFEST")"
+         reason:($p.reason // ""),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$DOCS_MANIFEST")"
     [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then

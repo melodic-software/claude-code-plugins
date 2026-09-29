@@ -874,6 +874,7 @@ assert_eq "case 31: a fetched page records its content type" "text/markdown; cha
 assert_eq "case 31: a fetched page records its line count" "$(awk 'END { print NR }' "$m/served/settings-reference.md")" "$(jq -r '.lines' <<<"$page_json")"
 assert_eq "case 31: a fetched page records its byte count" "$(wc -c <"$m/served/settings-reference.md" | tr -d ' ')" "$(jq -r '.bytes' <<<"$page_json")"
 assert_eq "case 31: a fetched page records when it was read" "1" "$(jq -r '.retrieved | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$") | if . then 1 else 0 end' <<<"$page_json")"
+assert_eq "case 31: a fetched page carries no failure reason" "" "$(jq -r '.reason' <<<"$page_json")"
 assert_eq "case 31: the index records its sha256 too" "$(sha256sum <"$m/served/llms.txt" | cut -d" " -f1)" "$(jq -r '.docs.index.sha256' <<<"$out")"
 
 # A 404 or a text/html body is unread, and every row resting on the page stays
