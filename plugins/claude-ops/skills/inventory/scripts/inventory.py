@@ -41,6 +41,10 @@ if str(_LIB_DIR) not in sys.path:
 # extractor writes and the consumer reads has exactly one home.
 from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from docs_crosscheck import build_crosscheck  # noqa: E402  (sibling module)
+
 MIN_PYTHON = (3, 11)
 
 # The CLI release this extractor was last verified against by a human running
@@ -115,6 +119,18 @@ SHORT_IDENT_LOCALITY_BYTES = 65_536
 # Extraction lanes, in the order the self-check prints them. Each lane carries
 # its own status so one broken lane never silently voids the others' counts.
 LANES = ("builtin_commands", "bundled_skills", "plugin_backed")
+# Evaluated whenever the binary is read; optional in `check_integrity` so a
+# caller that extracts no workflows is not reported as a broken lane.
+WORKFLOW_LANE = "bundled_workflows"
+
+# A bundled workflow that has shipped in every build since workflows gained a
+# bundled roster. Absence means the workflow scan broke.
+WORKFLOW_CANARY = ("deep-research",)
+
+# A description or argument hint held in a single-character identifier is
+# trusted only when its binding lies this close to the registration: such names
+# are function-local, and a farther binding belongs to another function.
+SHORT_VALUE_LOCALITY_BYTES = 4_096
 
 # Component types a plugin may ship, from the plugin manifest schema and the
 # standard plugin layout. Directory is the default location; the manifest may
@@ -545,6 +561,573 @@ def _unescape(raw: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# Static values: descriptions and argument hints
+# --------------------------------------------------------------------------
+
+_QUOTES = "\"'`"
+_ELLIPSIS = "\u2026"
+_ID_START = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$")
+_NON_STRING_WORDS = frozenset(
+    {"void", "null", "undefined", "true", "false", "typeof", "new", "await", "this"}
+)
+_JS_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v"}
+_ESCAPE_RE = re.compile(r"\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])")
+_MAX_HOPS = 4
+_NONSTRING = object()
+
+
+def _js_unescape(raw: str) -> str:
+    def sub(m: re.Match[str]) -> str:
+        e = m.group(1)
+        if e.startswith("u{"):
+            return chr(int(e[2:-1], 16))
+        if e[0] in "ux" and len(e) > 1:
+            return chr(int(e[1:], 16))
+        if e == "\n":
+            return ""
+        return _JS_ESCAPES.get(e, e)
+
+    text = _ESCAPE_RE.sub(sub, raw)
+    return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+
+
+def _read_literal(src: str, i: int, n: int) -> tuple[str, int, bool]:
+    """A string or template literal at `i`: (text, index past it, has substitution).
+
+    A template substitution renders as an ellipsis: its value exists only at
+    runtime. Raises ValueError on an unterminated literal.
+    """
+    q = src[i]
+    j = i + 1
+    if q != "`":
+        while j < n:
+            ch = src[j]
+            if ch == "\\":
+                j += 2
+                continue
+            if ch == q:
+                return _js_unescape(src[i + 1 : j]), j + 1, False
+            if ch == "\n":
+                break
+            j += 1
+        raise ValueError("unterminated string")
+    parts: list[str] = []
+    seg, subst = j, False
+    while j < n:
+        ch = src[j]
+        if ch == "\\":
+            j += 2
+            continue
+        if ch == "`":
+            parts.append(_js_unescape(src[seg:j]))
+            return "".join(parts), j + 1, subst
+        if ch == "$" and src.startswith("{", j + 1):
+            parts.append(_js_unescape(src[seg:j]) + _ELLIPSIS)
+            subst = True
+            j = _skip_substitution(src, j + 2, n)
+            seg = j
+            continue
+        j += 1
+    raise ValueError("unterminated template")
+
+
+def _skip_substitution(src: str, i: int, n: int) -> int:
+    depth = 1
+    while i < n:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, n)[1]
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    raise ValueError("unterminated substitution")
+
+
+def _skip_ws(src: str, i: int, n: int) -> int:
+    while i < n and src[i] in " \t\r\n":
+        i += 1
+    return i
+
+
+def _ident_end(src: str, i: int) -> int:
+    n = len(src)
+    while i < n and src[i] in _ID_CHARS:
+        i += 1
+    return i
+
+
+def _match_close(src: str, braces: BraceMap, i: int, n: int) -> int:
+    """Index past the `(` or `[` group opening at `i`."""
+    depth = 0
+    while i < n:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, n)[1]
+            continue
+        if ch == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            i = close + 1
+            continue
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    raise ValueError("unterminated group")
+
+
+@dataclass
+class _Values:
+    """String values an expression can take, collected in source order."""
+
+    variants: list[str] = field(default_factory=list)
+    unresolved: int = 0
+    via: set[str] = field(default_factory=set)
+
+    def add(self, value: str) -> None:
+        if value in self.variants:
+            self.variants.remove(value)
+        self.variants.append(value)
+
+
+def _object_fields(
+    src: str, braces: BraceMap, open_i: int
+) -> dict[str, tuple[str, int]]:
+    """Top-level fields of the object literal at `open_i`.
+
+    Maps each key to ("value", offset of its value) or ("getter", offset of
+    the getter body's `{`). Nested objects, strings, and groups are skipped,
+    so a nested object's field never answers for the outer one.
+    """
+    close = braces.pairs.get(open_i)
+    if close is None:
+        return {}
+    fields: dict[str, tuple[str, int]] = {}
+    head = re.compile(r"(?:(get|set|async)\s+)?(" + _IDENT + r")\s*(:|\()")
+    i, expect_key = open_i + 1, True
+    while i < close:
+        ch = src[i]
+        if ch in " \t\r\n":
+            i += 1
+            continue
+        if ch == ",":
+            expect_key = True
+            i += 1
+            continue
+        if expect_key and ch in _ID_START:
+            m = head.match(src, i, close)
+            if m:
+                key = m.group(2)
+                if m.group(3) == ":" and not m.group(1):
+                    fields.setdefault(key, ("value", m.end()))
+                    i, expect_key = m.end(), False
+                    continue
+                j = _skip_ws(src, _match_close(src, braces, m.end() - 1, close), close)
+                if m.group(1) == "get" and src.startswith("{", j):
+                    fields.setdefault(key, ("getter", j))
+                i, expect_key = j, False
+                continue
+        expect_key = False
+        if ch in _QUOTES:
+            i = _read_literal(src, i, close)[1]
+        elif ch == "{":
+            end = braces.pairs.get(i)
+            if end is None:
+                break
+            i = end + 1
+        elif ch in "([":
+            i = _match_close(src, braces, i, close)
+        else:
+            i += 1
+    return fields
+
+
+def _scan(
+    src: str,
+    braces: BraceMap,
+    i: int,
+    end: int,
+    acc: _Values,
+    *,
+    block: bool,
+    hops: int,
+    anchor: int | None,
+) -> int:
+    """Collect the string values an expression (or a function body) yields.
+
+    Expression mode reads one expression from `i`, stopping at a top-level
+    `,`, `;`, or closing bracket. Block mode reads a function body and
+    collects what each `return` yields. Within a yielded expression, the
+    operands in value position (the start, and after a ternary `?` or `:`)
+    are the candidates; an operand followed by `?` is a condition, not a
+    value.
+    """
+    active = at_value = not block
+    depth = 0
+    prev, prev_word = "", ""
+    n = min(end, len(src))
+    while i < n:
+        c = src[i]
+        if c in " \t\r\n":
+            i += 1
+            continue
+        if (
+            active
+            and at_value
+            and depth == 0
+            and (c in _QUOTES or c in _ID_START or c == "(")
+        ):
+            i = _operand(src, braces, i, n, acc, hops=hops, anchor=anchor)
+            at_value, prev, prev_word = False, "x", ""
+            continue
+        if c in _QUOTES:
+            i = _read_literal(src, i, n)[1]
+            at_value, prev = False, c
+            continue
+        if c == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            if (
+                block
+                and depth == 0
+                and (prev == ")" or prev_word in ("else", "try", "finally"))
+            ):
+                _scan(
+                    src, braces, i + 1, close, acc, block=True, hops=hops, anchor=anchor
+                )
+            i, at_value, prev, prev_word = close + 1, False, "}", ""
+            continue
+        if c == "}":
+            break
+        if c in "([":
+            depth += 1
+        elif c in ")]":
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0 and c in ",;":
+            if not block:
+                break
+            if c == ";":
+                active = False
+        elif depth == 0 and c == "?":
+            if src.startswith(("??", "?."), i):
+                i += 2
+                at_value, prev = False, "?"
+                continue
+            at_value = active
+            i, prev = i + 1, c
+            continue
+        elif depth == 0 and c == ":":
+            at_value = active
+            i, prev = i + 1, c
+            continue
+        elif c in _ID_START:
+            j = _ident_end(src, i)
+            word = src[i:j]
+            if block and depth == 0 and word == "return":
+                active = at_value = True
+            else:
+                at_value = False
+            i, prev, prev_word = j, "x", word
+            continue
+        at_value, prev, prev_word = False, c, ""
+        i += 1
+    return i
+
+
+def _operand(
+    src: str,
+    braces: BraceMap,
+    i: int,
+    n: int,
+    acc: _Values,
+    *,
+    hops: int,
+    anchor: int | None,
+) -> int:
+    """Read one operand in value position; record it when it is a string value."""
+    if src[i] == "(":
+        close = _match_close(src, braces, i, n)
+        k = _skip_ws(src, close, n)
+        if not src.startswith("=>", k):
+            return close
+        return _arrow_body(src, braces, k + 2, n, acc, hops=hops, anchor=anchor)
+    parts: list[Any] = []
+    while True:
+        i = _skip_ws(src, i, n)
+        if i >= n:
+            break
+        c = src[i]
+        if c in _QUOTES:
+            text, i, subst = _read_literal(src, i, n)
+            parts.append(text)
+            acc.via.add("template" if subst else "literal")
+        elif c in _ID_START:
+            j = _ident_end(src, i)
+            word = src[i:j]
+            k = _skip_ws(src, j, n)
+            if src.startswith("=>", k):
+                return _arrow_body(src, braces, k + 2, n, acc, hops=hops, anchor=anchor)
+            if word in _NON_STRING_WORDS:
+                i = _skip_ws(src, j, n)
+                if (
+                    word in ("void", "typeof", "new", "await")
+                    and i < n
+                    and src[i] in _ID_CHARS
+                ):
+                    i = _ident_end(src, i)
+                parts.append(_NONSTRING)
+            else:
+                chain, i = _read_chain(src, braces, i, n)
+                parts.append(
+                    _resolve_chain(src, braces, chain, i, acc, hops=hops, anchor=anchor)
+                )
+        elif c == "!" or c.isdigit():
+            i = _ident_end(src, i + 1)
+            parts.append(_NONSTRING)
+        else:
+            break
+        k = _skip_ws(src, i, n)
+        if src.startswith("+", k) and not src.startswith(("++", "+="), k):
+            i = k + 1
+            continue
+        i = k
+        break
+    t = src[i] if i < n else ""
+    if t == "?" and not src.startswith(("??", "?."), i):
+        return i
+    if t and t not in ":,;})]":
+        return i
+    if len(parts) == 1:
+        p = parts[0]
+        if p is None:
+            acc.unresolved += 1
+        elif isinstance(p, list):
+            for v in p:
+                acc.add(v)
+        elif isinstance(p, str):
+            acc.add(p)
+    elif len(parts) > 1 and any(isinstance(p, str) for p in parts):
+        acc.add(
+            "".join(
+                p
+                if isinstance(p, str)
+                else (p[-1] if isinstance(p, list) and p else _ELLIPSIS)
+                for p in parts
+            )
+        )
+    return i
+
+
+def _arrow_body(
+    src: str,
+    braces: BraceMap,
+    k: int,
+    n: int,
+    acc: _Values,
+    *,
+    hops: int,
+    anchor: int | None,
+) -> int:
+    acc.via.add("arrow")
+    k = _skip_ws(src, k, n)
+    if src.startswith("{", k):
+        close = braces.pairs.get(k)
+        if close is None:
+            raise ValueError("unmatched brace")
+        _scan(src, braces, k + 1, close, acc, block=True, hops=hops, anchor=anchor)
+        return close + 1
+    return _scan(src, braces, k, n, acc, block=False, hops=hops, anchor=anchor)
+
+
+def _read_chain(
+    src: str, braces: BraceMap, i: int, n: int
+) -> tuple[list[tuple[str, str]], int]:
+    """An identifier with its member reads and calls: `a`, `f()`, `a.b`, `a.b()`."""
+    j = _ident_end(src, i)
+    chain = [("id", src[i:j])]
+    i = j
+    while i < n:
+        if src.startswith("?.", i):
+            i += 1
+        if src.startswith(".", i) and i + 1 < n and src[i + 1] in _ID_START:
+            j = _ident_end(src, i + 1)
+            chain.append(("prop", src[i + 1 : j]))
+            i = j
+        elif src.startswith("(", i):
+            j = _match_close(src, braces, i, n)
+            chain.append(("call", src[i + 1 : j - 1].strip()))
+            i = j
+        elif src.startswith("[", i):
+            j = _match_close(src, braces, i, n)
+            chain.append(("index", ""))
+            i = j
+        else:
+            break
+    return chain, i
+
+
+def _binding_value(src: str, ident: str, at: int) -> int | None:
+    """Offset of the nearest `ident=` value before `at`, under the locality rule."""
+    v = _nearest_binding(src, ident, at)
+    if v is None or (len(ident) == 1 and at - v > SHORT_VALUE_LOCALITY_BYTES):
+        return None
+    return v
+
+
+def _function_body(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
+    """The `{` of `function ident(){...}`: nearest before `at`, else first after."""
+    if len(ident) == 1:
+        return None
+    pattern = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(\s*\)\s*\{")
+    last = None
+    for m in pattern.finditer(src, 0, at):
+        last = m
+    if last is None:
+        last = pattern.search(src, at)
+    return None if last is None else last.end() - 1
+
+
+def _resolve_chain(
+    src: str,
+    braces: BraceMap,
+    chain: list[tuple[str, str]],
+    pos: int,
+    acc: _Values,
+    *,
+    hops: int,
+    anchor: int | None,
+) -> list[str] | None:
+    """The string values a constant, a no-argument call, or a member read yields."""
+    if hops <= 0:
+        return None
+    at = anchor if anchor is not None else pos
+    ident = chain[0][1]
+    sub = _Values()
+    # A bare identifier naming a function declaration is a function-valued
+    # field, which the registrars read through a getter: resolve it as a call
+    # when the declaration is nearer than any `ident=` binding.
+    v = _binding_value(src, ident, at) if len(chain) == 1 else None
+    fn_body = _function_body(src, braces, ident, at) if len(chain) == 1 else None
+    if fn_body is not None and v is not None and (fn_body > at or fn_body < v):
+        fn_body = None
+    if len(chain) == 1 and fn_body is None:
+        if v is None:
+            return None
+        _scan(src, braces, v, len(src), sub, block=False, hops=hops - 1, anchor=None)
+        acc.via.add("constant")
+    elif chain[1:] == [("call", "")] or fn_body is not None:
+        body = (
+            fn_body if fn_body is not None else _function_body(src, braces, ident, at)
+        )
+        close = None if body is None else braces.pairs.get(body)
+        if close is None:
+            return None
+        _scan(src, braces, body + 1, close, sub, block=True, hops=hops - 1, anchor=None)
+        acc.via.add("call")
+    elif len(chain) == 2 and chain[1][0] == "prop":
+        if len(ident) == 1:
+            return None
+        obj = _resolve_object(src, braces, ident, at)
+        if obj is None:
+            return None
+        found = _eval_field(
+            src, braces, obj[0], chain[1][1], sub, hops=hops - 1, anchor=None
+        )
+        if found is None:
+            return None
+        acc.via.add("constant")
+    else:
+        return None
+    acc.via |= sub.via
+    return sub.variants or None
+
+
+def _eval_field(
+    src: str,
+    braces: BraceMap,
+    open_i: int,
+    key: str,
+    acc: _Values,
+    *,
+    hops: int = _MAX_HOPS,
+    anchor: int | None = None,
+) -> str | None:
+    """Evaluate one top-level field into `acc`; returns its form, or None when absent."""
+    entry = _object_fields(src, braces, open_i).get(key)
+    if entry is None:
+        return None
+    kind, pos = entry
+    if kind == "getter":
+        close = braces.pairs.get(pos)
+        if close is None:
+            return "getter"
+        _scan(src, braces, pos + 1, close, acc, block=True, hops=hops, anchor=anchor)
+        return "getter"
+    close = braces.pairs.get(open_i, len(src))
+    _scan(src, braces, pos, close, acc, block=False, hops=hops, anchor=anchor)
+    return "value"
+
+
+def resolve_field(
+    src: str, braces: BraceMap, open_i: int, key: str, anchor: int | None = None
+) -> dict[str, Any] | None:
+    """Statically resolve one string field of an object literal.
+
+    Returns None when the object has no such field. Otherwise `value` is the
+    fallthrough variant (the else branch of a ternary, the last `return` of a
+    getter), which is what a default session shows; `variants` lists every
+    alternative when there is more than one; `source` names the form:
+    literal, template (a runtime substitution rendered as an ellipsis),
+    constant, call, getter, arrow, or unresolved.
+    """
+    acc = _Values()
+    try:
+        form = _eval_field(src, braces, open_i, key, acc, anchor=anchor)
+    except (ValueError, IndexError, RecursionError):
+        form, acc = "value", _Values()
+    if form is None:
+        return None
+    if not acc.variants:
+        source = "unresolved"
+    elif form == "getter":
+        source = "getter"
+    else:
+        source = next(
+            (s for s in ("arrow", "call", "constant", "template") if s in acc.via),
+            "literal",
+        )
+    out: dict[str, Any] = {
+        "value": acc.variants[-1] if acc.variants else None,
+        "source": source,
+    }
+    if len(acc.variants) > 1:
+        out["variants"] = acc.variants
+    return out
+
+
+def _apply_field(
+    rec: dict[str, Any], key: str, resolved: dict[str, Any] | None
+) -> None:
+    """Write a resolved field as `<key>`, `<key>_source`, and `<key>_variants`."""
+    rec[key] = resolved["value"] if resolved else None
+    rec[f"{key}_source"] = resolved["source"] if resolved else "absent"
+    if resolved and "variants" in resolved:
+        rec[f"{key}_variants"] = resolved["variants"]
+
+
+# --------------------------------------------------------------------------
 # Extracting the registries
 # --------------------------------------------------------------------------
 
@@ -552,8 +1135,6 @@ _TYPE_RE = re.compile(r'type:"(local|local-jsx|prompt)"')
 _NAME_RE = re.compile(r"(?:^|[,{])name:" + _STR)
 _NAME_IDENT_RE = re.compile(r"(?:^\{|,)name:([A-Za-z_$][A-Za-z0-9_$]*)(?=[,}])")
 _UFN_RE = re.compile(r"userFacingName\(\)\{return" + _STR)
-_DESC_RE = re.compile(r"(?:^|[,{])description:" + _STR)
-_MENUDESC_RE = re.compile(r"(?:menuDescription|description):" + _STR)
 _ALIAS_RE = re.compile(r"aliases:\[([^\]]*)\]")
 _NAME_OK = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9:_-]{0,40}")
 
@@ -611,18 +1192,26 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
             name = resolve_name_ident(c.group(1), open_i, index)
         if not name or not _NAME_OK.fullmatch(name):
             continue
-        desc = _DESC_RE.search(body)
         aliases = _read_aliases(body)
         rec = {
             "name": name,
             "source": "builtin",
             "type": m.group(1),
-            "description": _unescape(desc.group(1)) if desc else "",
             "aliases": aliases,
             "hidden": "isHidden" in body,
             "gated": "isEnabled" in body,
             "internal": name in INTERNAL_NAMES,
         }
+        _apply_field(
+            rec, "description", resolve_field(src, braces, open_i, "description")
+        )
+        rec["description"] = rec["description"] or ""
+        _apply_field(
+            rec, "argument_hint", resolve_field(src, braces, open_i, "argumentHint")
+        )
+        rec.update(read_invocation_fields(body))
+        origin = resolve_field(src, braces, open_i, "source")
+        rec.update(command_invocability(rec, origin["value"] if origin else None))
         prev = out.get(name)
         if prev is None or (not prev["description"] and rec["description"]):
             if prev is not None:
@@ -631,6 +1220,47 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
         elif aliases:
             prev["aliases"] = sorted(set(prev["aliases"]) | set(aliases))
     return out
+
+
+def command_invocability(rec: dict[str, Any], origin: str | None) -> dict[str, Any]:
+    """Who can invoke a built-in command, as far as the bundle decides it.
+
+    The Skill tool admits a command only when it is `type:"prompt"`, not
+    `disableModelInvocation`, and (for a built-in) declares `source:"builtin"`;
+    `local` and `local-jsx` commands never reach it. A function-valued field
+    is decided at runtime, so it reads null rather than a guess. A per-machine
+    skill override in settings can still turn a command off; that is config,
+    not the bundle, and is not read here.
+    """
+    flag_driven = set(rec.get("flag_driven") or [])
+    if "user_invocable" in flag_driven:
+        user: bool | None = None
+    else:
+        user = rec.get("user_invocable", True)
+    if rec["type"] != "prompt":
+        model: bool | None = False
+    elif "disable_model_invocation" in flag_driven:
+        model = None
+    elif rec.get("disable_model_invocation"):
+        model = False
+    elif origin == "builtin":
+        model = True
+    else:
+        model = None
+    return {"user_invocable": user, "model_invocable": model}
+
+
+def skill_invocability(rec: dict[str, Any]) -> dict[str, Any]:
+    """Who can invoke a bundled skill: `userInvocable` defaults true and
+    `disableModelInvocation` false in the bundled registrar; a function-valued
+    field becomes a runtime getter and reads null."""
+    flag_driven = set(rec.get("flag_driven") or [])
+    user = None if "user_invocable" in flag_driven else rec.get("user_invocable", True)
+    if "disable_model_invocation" in flag_driven:
+        model = None
+    else:
+        model = not rec.get("disable_model_invocation", False)
+    return {"user_invocable": user, "model_invocable": model}
 
 
 def _read_aliases(body: str) -> list[str]:
@@ -781,12 +1411,12 @@ def _resolve_object(
 
 def _resolve_descriptor_name(
     src: str, braces: BraceMap, ident: str, at: int
-) -> tuple[str, str] | None:
+) -> tuple[str, int] | None:
     """Resolve `name:x.name`: the registration reads its fields from a descriptor.
 
     `let t=c;registrar({name:t.name,description:t.description,...})` where
     `c={name:o,...}` and `o="slides"`. Returns the name and the descriptor's
-    text, whose fields stand in for the registration's member reads.
+    offset, whose fields stand in for the registration's member reads.
     """
     obj = _resolve_object(src, braces, ident, at)
     if obj is None:
@@ -796,10 +1426,10 @@ def _resolve_descriptor_name(
     if not m:
         return None
     if m.group(1) is not None:
-        return _unescape(m.group(1)), body
+        return _unescape(m.group(1)), open_i
     v = _nearest_binding(src, m.group(2), open_i)
     lit = re.match(_STR, src[v : v + 256]) if v is not None else None
-    return (_unescape(lit.group(1)), body) if lit else None
+    return (_unescape(lit.group(1)), open_i) if lit else None
 
 
 _ROSTER_HEAD_RE = re.compile(
@@ -932,7 +1562,7 @@ def extract_bundled_skills(
     # object carries no `name:` is another module's function that happens to
     # share the minified identifier, not a registration, so it is counted
     # apart and never inflates the resolved-versus-seen gap.
-    calls: list[tuple[int, str, re.Match[str]]] = []
+    calls: list[tuple[int, int, str, re.Match[str]]] = []
     unbounded = 0
     same_ident_calls = 0
     name_re = re.compile(
@@ -953,9 +1583,9 @@ def extract_bundled_skills(
         if not nm:
             same_ident_calls += 1
             continue
-        calls.append((m.start(), body, nm))
+        calls.append((m.start(), open_i, body, nm))
 
-    idents = {nm.group(2) for _, _, nm in calls if nm.group(2) and not nm.group(3)}
+    idents = {nm.group(2) for *_, nm in calls if nm.group(2) and not nm.group(3)}
     index = build_const_index(src, idents)
     out: dict[str, Any] = {}
     unresolved: list[str] = []
@@ -983,9 +1613,9 @@ def extract_bundled_skills(
         if name not in collisions:
             collisions.append(name)
 
-    for call_start, body, nm in calls:
+    for call_start, open_i, body, nm in calls:
         seen += 1
-        descriptor = ""
+        descriptor: int | None = None
         if nm.group(1) is not None:
             name = _unescape(nm.group(1))
         elif nm.group(4) is not None or _is_loop_registration(
@@ -995,7 +1625,7 @@ def extract_bundled_skills(
             # family, enumerable statically only when the loop walks a
             # literal table.
             roster = _resolve_roster(src, braces, call_start)
-            rows = _roster_records(body, nm, roster) if roster else None
+            rows = _roster_records(src, braces, open_i, nm, roster) if roster else None
             if roster is None or rows is None:
                 dynamic_rosters += 1
                 dynamic_patterns.append(
@@ -1020,7 +1650,7 @@ def extract_bundled_skills(
                 continue
             name = resolved
         resolved_calls += 1
-        add(_skill_record(name, body, descriptor))
+        add(_skill_record(src, braces, name, open_i, descriptor))
 
     # Counted per call, not per row: a roster call is one registration however
     # many rows it expands to, so it can never mask an unresolved one.
@@ -1042,34 +1672,66 @@ def extract_bundled_skills(
     return out, notes
 
 
-def _skill_record(name: str, body: str, descriptor: str = "") -> dict[str, Any]:
-    """One bundled-skill row from its registration literal.
+def _skill_record(
+    src: str,
+    braces: BraceMap,
+    name: str,
+    open_i: int,
+    descriptor: int | None = None,
+    row: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    """One bundled-skill row from its registration literal at `open_i`.
 
-    `descriptor` is the object a `name:x.name` registration reads its fields
-    from; a description the literal does not carry as a string is read there.
+    `descriptor` is the offset of the object a `name:x.name` registration
+    reads its fields from; a field the literal does not resolve is read
+    there. `row` maps a looped registration's variables to one table row's
+    values, which answer for a field that reads a loop variable.
     """
-    desc = _MENUDESC_RE.search(body) or _MENUDESC_RE.search(descriptor)
+    close = braces.pairs[open_i]
+    body = src[open_i : close + 1]
     rec: dict[str, Any] = {
         "name": name,
         "source": "bundled-skill",
-        "description": _unescape(desc.group(1)) if desc else "",
         "aliases": _read_aliases(body),
         "gated": "isEnabled" in body,
         "hidden": "isHidden" in body,
     }
+
+    def field_of(key: str) -> dict[str, Any] | None:
+        if row:
+            m = re.search(r"(?:^\{|,)" + key + r":(" + _IDENT + r")(?=[,}])", body)
+            if m and m.group(1) in row:
+                value = row[m.group(1)]
+                return {"value": value, "source": "roster"} if value else None
+        found = resolve_field(src, braces, open_i, key)
+        if (found is None or found["value"] is None) and descriptor is not None:
+            found = resolve_field(src, braces, descriptor, key) or found
+        return found
+
+    desc = field_of("description")
+    menu = field_of("menuDescription")
+    if (desc is None or desc["value"] is None) and menu and menu["value"]:
+        desc = menu
+    _apply_field(rec, "description", desc)
+    rec["description"] = rec["description"] or ""
+    if menu and menu["value"]:
+        rec["menu_description"] = menu["value"]
+    _apply_field(rec, "argument_hint", field_of("argumentHint"))
     rec.update(read_invocation_fields(body))
+    rec.update(skill_invocability(rec))
     return rec
 
 
 def _roster_records(
-    body: str,
+    src: str,
+    braces: BraceMap,
+    open_i: int,
     nm: re.Match[str],
     roster: tuple[str, dict[str, str], list[str]],
 ) -> list[dict[str, Any]] | None:
     """Expand a looped registration over its table's rows; None if any row fails."""
     _, var_to_key, rows = roster
     template = nm.group(4)
-    field = re.search(r"(?:menuDescription|description):(" + _IDENT + ")", body)
     out: list[dict[str, Any]] = []
     for row in rows:
         values = {var: _row_field(row, key) for var, key in var_to_key.items()}
@@ -1084,10 +1746,7 @@ def _roster_records(
             name = values.get(nm.group(2)) or ""
         if not _NAME_OK.fullmatch(name):
             return None
-        rec = _skill_record(name, body)
-        if not rec["description"] and field:
-            rec["description"] = values.get(field.group(1)) or ""
-        out.append(rec)
+        out.append(_skill_record(src, braces, name, open_i, row=values))
     return out
 
 
@@ -1096,9 +1755,14 @@ def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
     # and a function-valued one read as the same boolean, and the difference
     # (decided at runtime versus fixed) is exactly the evidence a collision
     # exists to preserve.
-    keys = ("description", "aliases", "gated", "hidden", "flag_driven") + tuple(
-        k for k, _ in _INVOCATION_FIELDS
-    )
+    keys = (
+        "description",
+        "argument_hint",
+        "aliases",
+        "gated",
+        "hidden",
+        "flag_driven",
+    ) + tuple(k for k, _ in _INVOCATION_FIELDS)
     return all(a.get(k) == b.get(k) for k in keys)
 
 
@@ -1113,6 +1777,198 @@ def extract_plugin_backed(src: str) -> dict[str, str]:
     for m in pattern.finditer(src):
         out[m.group(1)] = m.group(3)
     return out
+
+
+_WORKFLOW_PUSH = ".bundledWorkflows.push("
+_FUNC_HEAD_RE = re.compile(r"function\s+(" + _IDENT + r")\s*\(([^()]*)\)\s*\{")
+
+
+def _split_args(src: str, braces: BraceMap, i: int) -> list[int]:
+    """Start offsets of each top-level argument of the call whose `(` ends at `i`."""
+    n = len(src)
+    starts = [_skip_ws(src, i, n)]
+    depth = 0
+    while i < n:
+        ch = src[i]
+        if ch in _QUOTES:
+            i = _read_literal(src, i, n)[1]
+            continue
+        if ch == "{":
+            close = braces.pairs.get(i)
+            if close is None:
+                raise ValueError("unmatched brace")
+            i = close + 1
+            continue
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            if depth == 0:
+                return starts
+            depth -= 1
+        elif ch == "," and depth == 0:
+            starts.append(_skip_ws(src, i + 1, n))
+        i += 1
+    raise ValueError("unterminated call")
+
+
+def _workflow_registrars(src: str) -> dict[str, tuple[int | None, int | None]]:
+    """Each function that pushes onto `bundledWorkflows`, with its argument layout.
+
+    The registrar has no readable export name, so it is found by what it
+    does: `function f(script,meta,opts){...bundledWorkflows.push({...meta,
+    script, disableModelInvocation: opts?.disableModelInvocation})}`. Returns
+    the index of the spread (meta) argument and of the options argument.
+    """
+    out: dict[str, tuple[int | None, int | None]] = {}
+    for m in re.finditer(re.escape(_WORKFLOW_PUSH), src):
+        heads = list(_FUNC_HEAD_RE.finditer(src, max(0, m.start() - 400), m.start()))
+        if not heads:
+            continue
+        head = heads[-1]
+        params = [p.strip() for p in head.group(2).split(",")]
+        tail = src[m.end() : m.end() + 400]
+        spread = re.search(r"\.\.\.(" + _IDENT + r")", tail)
+        opts = re.search(r"(" + _IDENT + r")\?\.disableModelInvocation", tail)
+        out[head.group(1)] = (
+            params.index(spread.group(1))
+            if spread and spread.group(1) in params
+            else None,
+            params.index(opts.group(1)) if opts and opts.group(1) in params else None,
+        )
+    return out
+
+
+def _array_titles(src: str, braces: BraceMap, ident: str, at: int) -> list[str] | None:
+    """`title` of each row of the array literal an identifier is bound to."""
+    v = _binding_value(src, ident, at)
+    if v is None or not src.startswith("[", v):
+        return None
+    titles: list[str] = []
+    i = v + 1
+    while True:
+        i = _skip_ws(src, i, len(src))
+        if src.startswith(",", i):
+            i += 1
+            continue
+        if src.startswith("]", i):
+            return titles
+        close = braces.pairs.get(i) if src.startswith("{", i) else None
+        if close is None:
+            return None
+        title = resolve_field(src, braces, i, "title")
+        if title and title["value"]:
+            titles.append(title["value"])
+        i = close + 1
+
+
+def extract_bundled_workflows(
+    src: str, braces: BraceMap
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Bundled workflows (`/deep-research`), keyed by name, plus resolution notes.
+
+    A registration is `registrar(\\`<script>\\`,{name,description,whenToUse,
+    phases},{disableModelInvocation})`. Its fields are resolved from the call
+    site, never from the script text, whose own identifiers would shadow the
+    real bindings under the nearest-preceding rule.
+    """
+    notes: dict[str, Any] = {"registrar": None, "registrar_route": None}
+    registrars = _workflow_registrars(src)
+    if not registrars:
+        notes["error"] = (
+            "no function pushes onto bundledWorkflows - build layout changed"
+        )
+        return {}, notes
+    callees = {r: r for r in registrars}
+    for r in registrars:
+        for alias in re.findall(r"\b" + re.escape(r) + r" as (" + _IDENT + r")\b", src):
+            callees[alias] = r
+    notes["registrar"] = sorted(registrars)
+    notes["registrar_route"] = "push-site"
+
+    out: dict[str, dict[str, Any]] = {}
+    seen = 0
+    unresolved: list[str] = []
+    for callee, target in callees.items():
+        meta_i, opts_i = registrars[target]
+        for m in re.finditer(r"(?<![\w$.])" + re.escape(callee) + r"\(", src):
+            if src[max(0, m.start() - 9) : m.start()].endswith("function "):
+                continue
+            seen += 1
+            try:
+                args = _split_args(src, braces, m.end())
+            except (ValueError, IndexError):
+                unresolved.append(f"{callee}(...) at {m.start()}")
+                continue
+            if meta_i is None or meta_i >= len(args):
+                unresolved.append(f"{callee}(...) at {m.start()}")
+                continue
+            meta = args[meta_i]
+            if not src.startswith("{", meta):
+                obj = _resolve_object(
+                    src, braces, src[meta : _ident_end(src, meta)], m.start()
+                )
+                meta = obj[0] if obj else -1
+            name = (
+                resolve_field(src, braces, meta, "name", anchor=m.start())
+                if meta >= 0
+                else None
+            )
+            if not name or not name["value"] or not _NAME_OK.fullmatch(name["value"]):
+                unresolved.append(f"{callee}(...) at {m.start()}")
+                continue
+            rec: dict[str, Any] = {"name": name["value"], "source": "bundled-workflow"}
+            _apply_field(
+                rec,
+                "description",
+                resolve_field(src, braces, meta, "description", anchor=m.start()),
+            )
+            rec["description"] = rec["description"] or ""
+            when = resolve_field(src, braces, meta, "whenToUse", anchor=m.start())
+            rec["when_to_use"] = when["value"] if when else None
+            _apply_field(
+                rec,
+                "argument_hint",
+                resolve_field(src, braces, meta, "argumentHint", anchor=m.start()),
+            )
+            phases = _object_fields(src, braces, meta).get("phases")
+            if phases and phases[0] == "value" and src[phases[1]] in _ID_START:
+                ident = src[phases[1] : _ident_end(src, phases[1])]
+                rec["phases"] = _array_titles(src, braces, ident, m.start())
+            rec.update(_workflow_invocation(src, braces, args, opts_i))
+            out[rec["name"]] = rec
+    notes["registrations_seen"] = seen
+    notes["resolved"] = len(out)
+    if unresolved:
+        notes["unresolved"] = unresolved
+    return out, notes
+
+
+def _workflow_invocation(
+    src: str, braces: BraceMap, args: list[int], opts_i: int | None
+) -> dict[str, Any]:
+    """Invocation fields of a workflow registration.
+
+    A bundled workflow becomes a `type:"prompt"` command with no
+    `userInvocable` field, so users can always type it. Its
+    `disableModelInvocation` is a function the command loader calls at load
+    time, which makes model invocability a runtime decision (null) unless the
+    registration passes a constant.
+    """
+    rec: dict[str, Any] = {"user_invocable": True, "model_invocable": True}
+    if opts_i is None or opts_i >= len(args) or not src.startswith("{", args[opts_i]):
+        return rec
+    entry = _object_fields(src, braces, args[opts_i]).get("disableModelInvocation")
+    if entry is None:
+        return rec
+    token = src[entry[1] : entry[1] + 2]
+    if entry[0] == "value" and token in ("!0", "!1"):
+        rec["disable_model_invocation"] = token == "!0"
+        rec["model_invocable"] = token == "!1"
+    else:
+        rec["disable_model_invocation"] = True
+        rec["flag_driven"] = ["disable_model_invocation"]
+        rec["model_invocable"] = None
+    return rec
 
 
 def detect_cli_version(src: str) -> str | None:
@@ -1142,6 +1998,8 @@ def check_integrity(
     skill_notes: dict[str, Any],
     plugin_backed: dict[str, str] | None = None,
     runs_below_floor: int = 0,
+    workflows: dict[str, Any] | None = None,
+    workflow_notes: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Decide whether this extraction can be trusted, per lane, and say why.
 
@@ -1158,8 +2016,9 @@ def check_integrity(
     advisories prefixed by the lane name, so the healthy lanes' counts stay
     reportable and the broken lane is named rather than hidden.
     """
+    present = LANES + ((WORKFLOW_LANE,) if workflows is not None else ())
     lanes: dict[str, dict[str, Any]] = {
-        lane: {"status": "ok", "problems": [], "advisories": []} for lane in LANES
+        lane: {"status": "ok", "problems": [], "advisories": []} for lane in present
     }
     top_advisories: list[str] = []
 
@@ -1251,14 +2110,31 @@ def check_integrity(
                 "the pluginName scan resolved nothing it should have"
             )
 
+    if workflows is not None:
+        flow = lanes[WORKFLOW_LANE]
+        wnotes = workflow_notes or {}
+        if wnotes.get("error"):
+            flow["problems"].append(wnotes["error"])
+        missing_flows = [w for w in WORKFLOW_CANARY if w not in workflows]
+        if missing_flows and not wnotes.get("error"):
+            flow["problems"].append(
+                f"canary bundled workflow(s) absent: {', '.join(missing_flows)} - the "
+                "workflow scan resolved nothing it should have"
+            )
+        if wnotes.get("unresolved"):
+            flow["advisories"].append(
+                f"{len(wnotes['unresolved'])} bundled-workflow registration(s) did not "
+                "resolve a name; the bundled-workflow list is a floor, not a total"
+            )
+
     problems: list[str] = []
     advisories: list[str] = list(top_advisories)
-    for lane in LANES:
+    for lane in present:
         lanes[lane]["status"] = _lane_status(
             lanes[lane]["problems"], lanes[lane]["advisories"]
         )
-    all_broken = all(lanes[lane]["status"] == "broken" for lane in LANES)
-    for lane in LANES:
+    all_broken = all(lanes[lane]["status"] == "broken" for lane in present)
+    for lane in present:
         entry = lanes[lane]
         if entry["status"] == "broken" and all_broken:
             problems.extend(f"{lane}: {p}" for p in entry["problems"])
@@ -1480,6 +2356,41 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
+_BINARY_LANES = (
+    ("builtin_commands", "command"),
+    ("bundled_skills", "skill"),
+    ("bundled_workflows", "workflow"),
+)
+
+
+def undetermined_fields(report: dict[str, Any]) -> dict[str, Any]:
+    """Names whose invocability or text the bundle does not settle statically.
+
+    Informational, not a lane problem: a runtime-decided field is a real
+    property of the build, not an extraction failure.
+    """
+    out: dict[str, list[str]] = {
+        "model_invocable_null": [],
+        "user_invocable_null": [],
+        "description_unresolved": [],
+        "argument_hint_unresolved": [],
+    }
+    for lane, _ in _BINARY_LANES:
+        for name, entry in (report.get(lane) or {}).items():
+            for rec in registrations_of(entry):
+                if rec.get("internal"):
+                    continue
+                if rec.get("model_invocable") is None:
+                    out["model_invocable_null"].append(name)
+                if rec.get("user_invocable") is None:
+                    out["user_invocable_null"].append(name)
+                if rec.get("description_source") == "unresolved":
+                    out["description_unresolved"].append(name)
+                if rec.get("argument_hint_source") == "unresolved":
+                    out["argument_hint_unresolved"].append(name)
+    return {k: {"count": len(v), "names": sorted(set(v))} for k, v in out.items()}
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     report: dict[str, Any] = {
         "schema": 1,
@@ -1504,6 +2415,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 meta["brace_pairs"] = len(braces.pairs)
                 commands = extract_builtin_commands(src, braces)
                 skills, skill_notes = extract_bundled_skills(src, braces)
+                workflows, workflow_notes = extract_bundled_workflows(src, braces)
                 plugin_backed = extract_plugin_backed(src)
 
                 for name, plugin in plugin_backed.items():
@@ -1524,6 +2436,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["builtin_commands"] = commands
                 report["bundled_skills"] = skills
                 report["bundled_skill_notes"] = skill_notes
+                report["bundled_workflows"] = workflows
+                report["bundled_workflow_notes"] = workflow_notes
                 report["plugin_backed"] = plugin_backed
                 report["integrity"] = check_integrity(
                     src,
@@ -1532,7 +2446,17 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                     skill_notes,
                     plugin_backed,
                     int(meta.get("runs_below_floor", 0) or 0),
+                    workflows,
+                    workflow_notes,
                 )
+                report["integrity"]["undetermined"] = undetermined_fields(report)
+
+    if getattr(args, "docs", False):
+        report["docs_crosscheck"] = build_crosscheck(
+            report,
+            docs_file=args.docs_file,
+            changelog_file=args.changelog_file,
+        )
 
     if not args.binary_only:
         report["sources"]["disk"] = {"available": True}
@@ -1581,6 +2505,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--disk-only", action="store_true", help="skip reading the binary")
     ap.add_argument("--out", help="write JSON here instead of stdout")
     ap.add_argument(
+        "--docs",
+        action="store_true",
+        help="cross-check the built-in surface against the live commands page and "
+        "changelog (network; a fetch failure degrades the docs_crosscheck block only)",
+    )
+    ap.add_argument(
+        "--docs-file", help="read the commands page from this file (implies --docs)"
+    )
+    ap.add_argument(
+        "--changelog-file", help="read the changelog from this file (implies --docs)"
+    )
+    ap.add_argument(
         "--self-check",
         action="store_true",
         help="print only the integrity verdict; exit 0 ok, 1 broken, 3 degraded "
@@ -1592,9 +2528,11 @@ def main(argv: list[str] | None = None) -> int:
         print("--binary-only and --disk-only are mutually exclusive", file=sys.stderr)
         return 2
 
+    args.docs = bool(args.docs or args.docs_file or args.changelog_file)
     if args.self_check:
         args.disk_only = False
         args.binary_only = True
+        args.docs = False
 
     report = build_report(args)
 
