@@ -40,7 +40,7 @@ continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" src/ lib/            # explicit paths (a missing one is a usage error)
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --all                # every tracked or untracked-but-not-ignored file
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --registry scripts/cross-plugin-source-registry.txt --all
-"${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --all src/    # the code-metrics/v1 document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
