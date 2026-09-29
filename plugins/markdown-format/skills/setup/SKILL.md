@@ -39,15 +39,18 @@ truth for what it requires and how it resolves things.
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook and the `SessionStart` probe both exit through the enabled gate before
-probing anything, so a deliberately disabled plugin is not broken. Report the probes informationally and note that re-enabling
+When the plugin's toggle is disabled, every prerequisite absence except Node.js (item 1)
+downgrades from FAIL to INFO. The hook and the `SessionStart` probe both exit through the
+enabled gate before probing anything, so a deliberately disabled plugin is not broken.
+Node.js stays FAIL: Claude Code must spawn `node` for the hook row before that gate can run. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
 1. **Node.js.** Every hook row starts through `node hooks/exec-bash.mjs`, so without
    `node` on `PATH` no hook launches and nothing is enforced. Probe it via Bash with
-   `{ command -v node 2>/dev/null || echo absent; }` (a hook cannot report its own missing
-   launcher). FAIL if absent; the remediation is to install Node.js (README Requirements).
+   `node --version` (a hook cannot report its own missing launcher; a stale version-manager
+   shim resolves on `PATH` yet cannot run, so resolution alone is not a PASS). FAIL if it is
+   absent or exits non-zero, in every toggle state; the remediation is to install or repair
+   Node.js (README Requirements).
 2. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
 3. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. FAIL if absent *and* the repository opted in per item 5: the
@@ -113,7 +116,7 @@ relevant `check` probe live via Bash (a pre-computed row predates the remediatio
 its actual result. Never claim resolved on the
 install command's exit code alone. For everything else `apply` only points:
 
-- missing `jq` / Bash: platform install instructions from the README Requirements section;
+- missing `jq` / Bash / Node.js: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
