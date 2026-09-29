@@ -1,0 +1,10 @@
+// expect: rule-inert-assertion
+// Nothing awaits the .resolves chain, so the test ends before it settles and
+// passes whatever fetchUser returns.
+import { fetchUser } from '../src/users';
+
+describe('fetchUser', () => {
+  it('loads the user by id', async () => {
+    expect(fetchUser(1)).resolves.toEqual({ id: 1, name: 'Ada' });
+  });
+});

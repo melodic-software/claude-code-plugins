@@ -1,0 +1,10 @@
+// expect: rule-recomputed-derived
+// The expected total is reduced from the same items the code totals.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { total } from '../src/cart.mjs';
+
+test('totals the items', () => {
+  const items = [{ price: 10 }, { price: 5 }];
+  assert.equal(total(items), items.reduce((s, i) => s + i.price, 0));
+});

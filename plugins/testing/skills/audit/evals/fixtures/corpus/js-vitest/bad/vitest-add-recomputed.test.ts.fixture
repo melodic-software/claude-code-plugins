@@ -1,0 +1,12 @@
+// source: pocock S2
+// expect: rule-recomputed-derived
+// "the assertion recomputes the expected value the way the code does
+// (expect(add(a, b)).toBe(a + b))".
+import { expect, test } from 'vitest';
+import { add } from './math';
+
+test('adds two numbers', () => {
+  const a = 2;
+  const b = 3;
+  expect(add(a, b)).toBe(a + b);
+});

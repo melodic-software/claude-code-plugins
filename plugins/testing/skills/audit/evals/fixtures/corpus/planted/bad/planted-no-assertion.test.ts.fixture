@@ -1,0 +1,8 @@
+// adapter: js-jest
+// expect: rule-zero-assertion
+// Planted #6, a control.
+import { calculateTotal } from '../src/limits';
+
+test('no assertion control', () => {
+  calculateTotal([1]);
+});

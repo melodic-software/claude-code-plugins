@@ -1,0 +1,11 @@
+// expect: rule-weak-oracle
+// Any stored value passes toBeTruthy, an expired token included.
+import { expect, test } from '@playwright/test';
+
+test('login stores a token', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('ada@example.com');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  const token = await page.evaluate(() => localStorage.getItem('token'));
+  expect(token).toBeTruthy();
+});

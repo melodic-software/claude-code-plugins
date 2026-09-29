@@ -1,0 +1,13 @@
+// expect: rule-weak-oracle
+// Any invoice passes Assert.NotNull, one with the wrong total included.
+using Xunit;
+
+public class InvoiceNotNullTests
+{
+    [Fact]
+    public void Create_ReturnsAnInvoice()
+    {
+        var invoice = InvoiceBuilder.Build("order-7");
+        Assert.NotNull(invoice);
+    }
+}

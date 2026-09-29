@@ -1,0 +1,8 @@
+// adapter: js-playwright
+// expect: rule-inert-assertion
+// Planted #3.
+import { expect, test } from '@playwright/test';
+
+test('unawaited expect', async ({ page }) => {
+  expect(page.getByText('Saved')).toBeVisible();
+});

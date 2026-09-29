@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.12] - 2026-09-29
+## [0.19.13] - 2026-09-29
 
 ### Changed
 
@@ -14,6 +14,14 @@ All notable changes to the `implementation` plugin are documented here. Format f
   ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).
 - **`reference/run-end-outcome-verify.md` is removed.** The question it recorded is decided and the
   contract lives in `implement-dispatch`.
+
+## [0.19.12] - 2026-09-29
+
+### Changed
+
+- **`implementer` and `phase-verifier` preload `testing:test-value`.** When a diff adds or changes
+  tests, `phase-verifier` reports a new expected value with no named independent source as a
+  finding outside the brief, not as a PASS/FAIL verdict.
 
 ## [0.19.11] - 2026-09-29
 
