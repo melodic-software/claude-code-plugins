@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# Homegrown ok/no helpers feed a FAIL counter; the last test sets the exit
+# status. Shape from gen-hook-filters.test.sh and comment-tooling-probe.test.sh.
+set -uo pipefail
+
+PASS=0 FAIL=0
+ok() { PASS=$((PASS + 1)); }
+no() {
+  FAIL=$((FAIL + 1))
+  printf 'not ok: %s\n' "$1"
+}
+check() { if eval "$2"; then ok; else no "$1"; fi; }
+
+check "sort puts a first" '[[ "$(printf "b\na\n" | sort | head -1)" == a ]]'
+printf '%d passed, %d failed\n' "$PASS" "$FAIL"
+[[ "$FAIL" -eq 0 ]]

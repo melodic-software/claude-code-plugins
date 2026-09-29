@@ -55,8 +55,12 @@ is additional; it does not replace that contract.
   conforms, and `scripts/validate-plugin-contracts.test.sh` asserts zero warnings on that tree. An
   edit that drifts warns here and fails that test until the hint is grammar again, with the
   displaced prose moved into the skill body rather than deleted.
+- **WARN** when the skill body has a line that starts with `**Arguments.**` (a line inside a fenced
+  code block does not count) and the first inline code span on that line is not equal to the
+  unquoted hint. The body's argument line leads with the hint and may add the full form after it.
+  The warning names the skill and this doc.
 
-A skill that omits the key is silent under this check.
+A skill that omits the key, or has no `**Arguments.**` line, is silent under these checks.
 
 ## What this convention is not
 

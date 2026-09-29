@@ -1,0 +1,10 @@
+// expect: rule-zero-assertion
+// Calls the code under test and logs the result; nothing can fail it.
+package slug
+
+import "testing"
+
+func TestSlugify(t *testing.T) {
+	got := Slugify("Hello, World!")
+	t.Logf("slug: %s", got)
+}

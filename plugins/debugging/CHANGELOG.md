@@ -3,6 +3,13 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.10] - 2026-09-29
+
+### Changed
+
+- **`debug` Phase 5** takes the regression test's expected value from the bug report, never from
+  what the fixed code returns.
+
 ## [0.7.9] - 2026-09-28
 
 ### Changed

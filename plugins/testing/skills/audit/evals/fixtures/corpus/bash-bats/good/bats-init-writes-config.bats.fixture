@@ -1,0 +1,20 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# bats-file checks the file greet init wrote.
+
+setup() {
+  load 'test_helper/bats-support/load'
+  load 'test_helper/bats-file/load'
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+  TEST_HOME="$(temp_make)"
+}
+
+teardown() {
+  temp_del "$TEST_HOME"
+}
+
+@test "greet init writes a default config file" {
+  HOME="$TEST_HOME" greet init
+  assert_file_exists "$TEST_HOME/.greetrc"
+  assert_file_contains "$TEST_HOME/.greetrc" '^name='
+}

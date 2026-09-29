@@ -22,6 +22,14 @@ match.
 2. Post the marker comment (first line exactly as above, remainder is the human-readable question).
 3. Apply the role label in the **same** label edit as any label removals the outcome requires.
 
+`attend-queue` matches on author **and** marker prefix. Suppress duplicate markers from the same
+write identity, never from marker text alone.
+
+Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
+item plus marker comment is the escalation of record when the record write fails (see
+[`${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md)
+"Background-job launch mode").
+
 ## Proposed work class (optional body line, `kind=escalated`)
 
 When a lane that may not record a class escalates an item for class stamping
@@ -36,11 +44,3 @@ where `<label>` is exactly one live `work-class:` label string as the repository
 example `work-class: scoped`), followed by its one-line basis. It is a proposal for
 the operator, never an admission input: `attend-queue` reads it to pre-fill the stamp question,
 and no consumer admits, dispatches, or merges on it. The marker `kind` stays `escalated`.
-
-`attend-queue` matches on author **and** marker prefix. Suppress duplicate markers from the same
-write identity, never from marker text alone.
-
-Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
-item plus marker comment is the escalation of record when the record write fails (including when a
-background-job harness blocks Write to the shared checkout before `EnterWorktree`;
-[#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).

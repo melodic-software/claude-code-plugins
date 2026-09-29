@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# The echo-FAIL-then-exit idiom is this harness's assertion.
+set -uo pipefail
+
+out="$(printf 'b\na\n' | sort | head -1)"
+if [[ "$out" != "a" ]]; then
+  echo "FAIL: sort put '$out' first"
+  exit 1
+fi
+echo "PASS"
