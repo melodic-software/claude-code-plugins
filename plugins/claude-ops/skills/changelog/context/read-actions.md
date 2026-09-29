@@ -108,7 +108,11 @@ Read-only dry run of `apply`. It answers "is this range worth an `apply`?"
 3. Otherwise run Phase 0 (ingest) over the releases the `releases` line names, then Phase 1
    (explore) and Phase 2 (research) from SKILL.md, and stop before the interview.
 
-Output: the triage table showing what would need to change, with enriched research. No file edits.
+Output: decision rows grouped by owner surface, each carrying a lens and its required sentence,
+with no row for a skip item, followed by a docs-lag section. The row shape, where each kind of
+decision is recorded, the fan-out and the saved working set are in [decisions.md](decisions.md).
+No repo edits: the only files written are the working set under
+`<memory_dir>/claude-code-changelog/<range>/`.
 
 ## Action: status
 

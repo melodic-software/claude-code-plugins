@@ -72,6 +72,26 @@
         "Each candidate ties the option to an observed fact that could be falsified by reading the codebase, not merely a plausible narrative",
         "Output still presents multiple ordered candidates and invites the user to react rather than picking unilaterally"
       ]
+    },
+    {
+      "id": 7,
+      "name": "disconnected-scan-before-new-work-d7-d11",
+      "prompt": "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the skill directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py.",
+      "expected_output": "Before proposing new work, the skill scans for what is already built but not connected and reports it as candidates ahead of greenfield options: the unused build_digest import in app/notifier.py (the digest builder exists in app/digest.py), the weekly_digest flag in app/config.py that defaults to False and is never read, and the delivery_receipts table in db/schema.sql that nothing reads or writes. It then invites the user to react.",
+      "files": [
+        "evals/fixtures/disconnected-scan/app/notifier.py.txt",
+        "evals/fixtures/disconnected-scan/app/digest.py.txt",
+        "evals/fixtures/disconnected-scan/app/config.py.txt",
+        "evals/fixtures/disconnected-scan/app/store.py.txt",
+        "evals/fixtures/disconnected-scan/db/schema.sql.txt"
+      ],
+      "expectations": [
+        "Output names the unused build_digest import in app/notifier.py as already-built work that is not connected",
+        "Output names the weekly_digest flag in app/config.py as defaulting to off and never read",
+        "Output names the delivery_receipts table in db/schema.sql as having no reader",
+        "Output reports the disconnected items as candidates ahead of any greenfield option (wire up or enable existing work before building new)",
+        "Output ends by inviting the user to react or mark what resonates rather than picking one"
+      ]
     }
   ]
 }

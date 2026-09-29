@@ -130,14 +130,16 @@
     },
     {
       "id": 11,
-      "name": "collapse-self-check-d34-residue",
-      "prompt": "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. Most of the plan is mechanical wiring (add the logger import, thread it through the sender, and pick whether a failed delivery logs before or after the retry), so collapse those sections and keep the plan short.",
-      "expected_output": "Before collapsing any section as mechanical, re-checks it for judgment calls: the import and threading steps may be folded, but the before-or-after-retry logging choice is a design decision and stays expanded or is flagged rather than folded away.",
+      "name": "unilateral-decision-not-folded-step-4-6",
+      "prompt": "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. The work is the logger import, threading the logger through the sender, and logging failed deliveries. Collapse the mechanical parts and keep the plan short.",
+      "expected_output": "The plan folds the logger import and the threading of the logger through the sender into short mechanical steps, but the brief never said whether a failed delivery is logged before or after the retry. That choice is tagged [EXEC-SHAPE] or [FALLBACK] in the plan body and listed as a row of the 'Decisions made (gate-passed)' table with a filled what-it-changes cell, never folded into a section the user called mechanical. The output ends at the Step 5 approval gate and starts no implementation.",
       "files": [],
       "expectations": [
-        "The before-or-after-retry logging choice stays expanded or is explicitly flagged as a decision, not folded into a collapsed mechanical section",
-        "Output does not collapse a plan section solely because the user called it mechanical without re-checking for hidden judgment calls",
-        "Output still ends at an explicit approval gate and does not begin implementation"
+        "The plan body carries an [EXEC-SHAPE] or [FALLBACK] tag on the choice of logging a failed delivery before or after the retry",
+        "The 'Decisions made (gate-passed)' table has a row for the before-or-after-retry choice whose 'What it changes in the plan' cell names the phase and the concrete delta",
+        "The before-or-after-retry choice does not appear only inside a section collapsed or labeled as mechanical wiring",
+        "The logger import and the threading of the logger through the sender may be folded into short mechanical steps",
+        "Output ends at the Step 5 approval gate and does not begin implementation"
       ]
     }
   ]
