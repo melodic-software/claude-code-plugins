@@ -36,9 +36,9 @@ if [[ -d /proc/$$ ]] && command -v pgrep >/dev/null 2>&1; then
   mkdir -p "$tmp/repoA/src"
   (cd "$tmp" && exec -a "dotnet-fixture-rel repoA/src/app.csproj" sleep 60) &
   PIDS+=($!)
-  (cd "$tmp/repoA" && exec -a dotnet-fixture-anc bash -c "bash '$PREFLIGHT' '$tmp/repoA' >'$tmp/anc.out' 2>&1") &
-  ANC=$!
-  PIDS+=("$ANC")
+  (cd "$tmp/repoA" && exec -a dotnet-fixture-chain bash -c "bash '$PREFLIGHT' '$tmp/repoA' >'$tmp/chain.out' 2>&1") &
+  CHAIN=$!
+  PIDS+=("$CHAIN")
   sleep 1
   out="$(bash "$PREFLIGHT" "$tmp/repoA" "$tmp/repoB" 2>/dev/null)"
   procs="$(sed -n '/^RUNTIME_PROCS:/,/^RECENT_BUILD:/p' <<<"$out")"
@@ -48,8 +48,8 @@ if [[ -d /proc/$$ ]] && command -v pgrep >/dev/null 2>&1; then
   assert_not_contains "out-of-scope process omitted" "$procs" "dotnet-fixture-out"
   assert_not_contains "sibling-prefix dir is out of scope" "$procs" "dotnet-fixture-sib"
   assert_contains "relative cmdline path resolves against cwd" "$procs" "dotnet-fixture-rel"
-  wait "$ANC" 2>/dev/null
-  assert_not_contains "invoking ancestor is not listed" "$(cat "$tmp/anc.out")" "dotnet-fixture-anc"
+  wait "$CHAIN" 2>/dev/null
+  assert_not_contains "invoking ancestor is not listed" "$(cat "$tmp/chain.out")" "dotnet-fixture-chain"
   assert_contains "unattributed count reported" "$out" "RUNTIME_PROCS_UNATTRIBUTED: "
   assert_not_contains "unattributed count is nonzero" "$out" "RUNTIME_PROCS_UNATTRIBUTED: 0 "
   assert_contains "IDE_OPEN label with roots" "$out" "IDE_OPEN:"
