@@ -686,7 +686,7 @@ else
   # inside a repository. Outside one, name a durable user-scope directory
   # already on the probed PATH rather than a repo-local install that cannot
   # be followed.
-  if hook::notice_once "markdown-format-markdownlint" "$INPUT" prerequisite; then
+  if hook::notice_once "markdown-format-markdownlint-cli2" "$INPUT" prerequisite; then
     hook::emit_skip_notice PostToolUse \
       "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation) Run /markdown-format:check. It does not install.
 PATH probed: $(format_probed_path)"

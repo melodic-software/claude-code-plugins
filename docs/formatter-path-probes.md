@@ -35,7 +35,7 @@ This document is the fleet checklist. Per-hook notices must:
 
 | Plugin | Hook | Probe order | Filesystem / repo-local route | Notice key |
 |---|---|---|---|---|
-| `markdown-format` | `hooks/markdown-format.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the edited file up to `$REPO_ROOT` | `npm i -D markdownlint-cli2` | `markdown-format-markdownlint` |
+| `markdown-format` | `hooks/markdown-format.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the edited file up to `$REPO_ROOT` | `npm i -D markdownlint-cli2` | `markdown-format-markdownlint-cli2` |
 | `biome-format` | `hooks/biome-format.sh` | walk `node_modules/.bin/biome` from file, then `command -v biome` | `npm i -D @biomejs/biome` | `biome-format-biome` |
 | `ruff-format` | `hooks/ruff-format.sh` | walk `.venv/{bin,Scripts}/ruff` from file, then `command -v ruff` | project `.venv` / `pip install ruff` | `ruff-format-ruff` |
 | `bash-format` | `hooks/bash-format.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | `bash-format-shfmt`, `bash-format-shellcheck` |

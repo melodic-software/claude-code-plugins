@@ -7,7 +7,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. The session-start probe reads every tool name, check, and install line from the plugin's `prerequisites.json`. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
 
 ## [0.11.75] - 2026-09-28
 
