@@ -3,6 +3,20 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports remote branch families** ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)).
+  A last-fetched remote-tracking branch named `agent-<hex>`, `claude/*`, `plan/*`, `stranded/*` or
+  `pre-wipe/*` that no `merged-remote-branch` finding covers gets one `LOW` `remote-branch-family` row with
+  the family, tip, age in days and whether the tip is on the default branch. It is report-only: no remote
+  probe, handoff or deletion preview.
+- **`merged-remote-branch` covers a tip that is an ancestor of the merged head.** When the PR's
+  `headRefOid` differs from the remote-tracking tip, the tip is an ancestor of it and that commit is in the
+  clone, the finding is `MEDIUM` (never `HIGH`, since no live probe runs). A head commit absent from the
+  clone emits nothing.
+
 ## [0.24.2] - 2026-09-29
 
 ### Fixed
