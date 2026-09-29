@@ -49,9 +49,11 @@ for; in a duplication document that is every file holding an instance of a survi
 which the markdown labels `Files with clones`. A clone group a registry excluded adds nothing to
 `summary.files`: its files stay in `scope.files` and in `excluded[].instances`. When at least one
 file holds nothing but excluded groups, the markdown's exclusion line says how many, so a total
-exclusion (`Files with clones: 0` beside a non-zero scope count) explains itself. The two counts
-were deliberately kept apart rather than made equal: folding excluded files into the summary would
-make it describe the scanned population a second time and stop saying where duplication remains.
+exclusion (`Files with clones: 0` beside a non-zero scope count) explains itself. That count is
+also `summary.files_excluded_only`, present only when it is greater than zero. It does not add
+those files to `summary.files`. The two counts were deliberately kept apart rather than made
+equal: folding excluded files into `summary.files` would make it describe the scanned population
+a second time and stop saying where duplication remains.
 
 The markdown rendering joins the rows the same way the count does: one line per function with
 every collector's values, a row with no start line joining the one function of its name in the

@@ -4,6 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.24] - 2026-09-28
+
+### Changed
+
+- **Fable 5.1 recheck, not a doctrine rewrite ([#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346)).** The adaptation chapter keeps the guide's "without changes" claim, drops the unconfirmed "keep instructed checks" section, confirms forced `tool_choice` and thinking-block readability against the thinking page, and adds the guide's quoting-retrieved-sources default. The calibration pointer, the context-economy `keep:all` record, and the prompt-caching header are restated with a 2026-09-28 status instead of being left past their recheck triggers, and the prompt-caching chapter records that cache diagnostics is generally available. The context-economy `keep:all` record is re-derived against Claude Code 2.1.283, the version this repository pins.
+
+## [0.13.23] - 2026-09-28
+
+### Changed
+
+- **Keep the Opus 5 and Opus 4.8 adaptation chapters (#4349).** They remain
+  fallback targets. model-config "Automatic model fallback" (fetched 2026-09-28)
+  still routes biology-flagged Fable 5.1 / Fable 5 / Opus 5.5 requests to Opus 5
+  and cybersecurity-flagged requests to Opus 4.8. Recheck when that section no
+  longer names them.
+
 ## [0.13.22] - 2026-09-28
 
 ### Added

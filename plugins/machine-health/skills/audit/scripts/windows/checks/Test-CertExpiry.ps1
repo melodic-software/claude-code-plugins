@@ -10,14 +10,15 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'cert-expiry'
 $category = 'security'
 $commands = @(
     'Get-ChildItem Cert:\CurrentUser\My | Select-Object Subject, Issuer, NotAfter'
 )
 
-try {
+$FailureSummary = 'Cert expiry check failed.'
+$PassThru = $false
+$CheckBody = {
     $now = Get-Date
     $certs = @(Get-ChildItem -Path Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
             Where-Object {
@@ -70,9 +71,5 @@ try {
         expiring_soon = @($crit + $warn + $expired | Select-Object -First 20)
     } `
         -NeedsAdmin $false -RanSuccessfully $true
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Cert expiry check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
