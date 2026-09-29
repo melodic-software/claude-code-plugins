@@ -190,6 +190,13 @@ FILL_MARK = "<!-- FILL"
 # U+2014.
 FILL_SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (.*?) -->")
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
+GOAL_COPY_LINE = (
+    "Type `/goal ` (with a trailing space), then paste everything between the dashed "
+    "lines. Confirm the `◎ /goal active` indicator appears after you send it; if it "
+    "is missing, redo it:"
+)
+# The condition limit, stated once in reference/save-point.md (goal region).
+GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
     "confirm its Original goal still governs the remaining next steps, then continue "
@@ -577,29 +584,69 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     ascii_rails = [
         i for i, line in enumerate(body) if ASCII_RAIL_RE.match(line.strip())
     ]
-    if len(rails) != 2:
+    if len(rails) not in (2, 4):
         detail = f"found {len(rails)}"
         if ascii_rails:
             detail += (
                 f", plus {len(ascii_rails)} ASCII rail line(s); rails are U+2500 only"
             )
-        f.fail(f"Resume prompt: exactly two U+2500 rails required ({detail})")
-        return
-    top, bottom = rails
-    if not any(line.strip() == COPY_LINE for line in body[:top]):
         f.fail(
-            f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the top rail"
+            f"Resume prompt: two U+2500 rails (resume region) or four (goal region plus resume region) required ({detail})"
         )
-    between = body[top + 1 : bottom]
-    if any(not line.strip() for line in between):
-        f.fail("Resume prompt: blank line between the rails")
-    between = [line for line in between if line.strip()]
-    pos = 0
-    if between and between[0].startswith("/goal "):
-        pos = 1
-    if pos >= len(between) or not between[pos].startswith("Read @"):
+        return
+    # Each rail pair is a region, classified by the instruction line above its
+    # top rail. Order is a producer rule, so either order passes.
+    resume: list[str] | None = None
+    resume_bottom = 0
+    goals: list[list[str]] = []
+    prev_end = 0
+    for top, bottom in zip(rails[0::2], rails[1::2]):
+        above = [line.strip() for line in body[prev_end:top]]
+        prev_end = bottom + 1
+        region = body[top + 1 : bottom]
+        if any(not line.strip() for line in region):
+            f.fail("Resume prompt: blank line between the rails")
+        region = [line for line in region if line.strip()]
+        if any(line.lstrip().startswith("/goal") for line in region):
+            f.fail(
+                "Resume prompt: a line between the rails starts with '/goal'; the user types the command, the region holds the condition only"
+            )
+        if COPY_LINE in above:
+            if resume is not None:
+                f.fail("Resume prompt: more than one resume region")
+            resume, resume_bottom = region, bottom
+        elif GOAL_COPY_LINE in above:
+            goals.append(region)
+        else:
+            f.fail(
+                f"Resume prompt: no copy instruction line above a top rail (resume region {COPY_LINE!r}, goal region {GOAL_COPY_LINE!r})"
+            )
+    if len(goals) > 1:
+        f.fail("Resume prompt: more than one goal region")
+    if resume is None:
         f.fail(
-            "Resume prompt: first line between the rails (after an optional /goal) must be the 'Read @' directive"
+            f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the resume region's top rail"
+        )
+        return
+    between, bottom = resume, resume_bottom
+    for goal in goals:
+        size = len("\n".join(goal))
+        if size > GOAL_CONDITION_MAX:
+            f.fail(
+                f"Resume prompt: goal region holds {size} characters (max {GOAL_CONDITION_MAX}); shorten the condition text"
+            )
+        if len(goal) < 2 or not goal[-1].startswith("Read @"):
+            f.fail(
+                "Resume prompt: goal region must be condition text ending in the 'Read @' directive line"
+            )
+        elif between and goal[-1] != between[0]:
+            f.fail(
+                "Resume prompt: goal region's last line must equal the resume region's 'Read @' directive line"
+            )
+    pos = 0
+    if not between or not between[0].startswith("Read @"):
+        f.fail(
+            "Resume prompt: first line between the resume region's rails must be the 'Read @' directive"
         )
         return
     directive = between[pos]
@@ -1380,6 +1427,15 @@ def _fill(name: str, instruction: str) -> str:
     return f"<!-- FILL: {name} — {instruction} -->"
 
 
+def _goal_slot_instruction(order: str, edge: str) -> str:
+    return (
+        "optional: when a goal applies and save-point.md's order rule puts the goal region "
+        f"{order} the resume region, the whole goal region as lines: the fixed goal instruction "
+        "line, a blank line, the top rail, the condition text, the resume region's Read @ line, "
+        f"the bottom rail; {edge}; otherwise delete this line"
+    )
+
+
 def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[str]:
     """Carry a predecessor's cumulative section forward verbatim, tagging
     untagged entries `[h<default_hop>]` and, for a predecessor that failed
@@ -1623,13 +1679,15 @@ def build_skeleton(
     section(
         "Resume prompt",
         [
+            _fill(
+                "goal-first",
+                _goal_slot_instruction(
+                    "before", "end the value with a newline so a blank line follows the region"
+                ),
+            ),
             COPY_LINE,
             "",
             RAIL,
-            _fill(
-                "goal-rearm",
-                "optional: when a /goal is active this session, replace this line with '/goal <condition>' as the FIRST line between the rails; otherwise delete this line",
-            ),
             f"Read @{read_path}, {DIRECTIVE_TAIL}",
             f"Prior session: {session_id}.",
             f"Handoff origin: {_slot(origin)} {_slot(origin_path)}",
@@ -1639,6 +1697,12 @@ def build_skeleton(
                 f"1 to {NEXT_MAX} plain headline lines replacing this line, one per line, no bullets, no blank lines; the last may be 'Then: /<one skill>' at a stage boundary; for a closing handoff write '{NEXT_CLOSED}' on the line above and delete this one",
             ),
             RAIL,
+            _fill(
+                "goal-after",
+                _goal_slot_instruction(
+                    "after", "start the value with a newline so a blank line precedes the region"
+                ),
+            ),
             "",
             f"Or reopen the producing session in place: `claude --resume {session_id}`.",
             _fill(
