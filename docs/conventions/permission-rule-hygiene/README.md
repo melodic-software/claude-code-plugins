@@ -112,12 +112,12 @@ Remove or re-scope the rule, or run the sub-agent action outside auto mode.
 
 ### House position: no inline-dependency runners
 
-Bundled scripts in this repository are not launched through PEP 723 inline-dependency runners
-(`uvx`, `pipx run` and the like). The reason is the one above: an allow rule written for a package
-runner is dropped in auto mode, so it grants nothing. The operator decided this on
-[#3615](https://github.com/melodic-software/claude-code-plugins/issues/3615#issuecomment-5858906921).
-The Python toolchain pin is in
-[`.claude/rules/ruff-pin.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/.claude/rules/ruff-pin.md).
+Scripts shipped in plugins are not launched through PEP 723 inline-dependency runners or `uvx`. The
+reason is the one above: an allow rule written for a package runner is dropped in auto mode, so it
+grants nothing. Development scripts under this repository's `scripts/` are not shipped in a plugin
+and are outside this position; the ruff wrapper in
+[`.claude/rules/ruff-pin.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/.claude/rules/ruff-pin.md)
+may run its pin through `uvx`.
 
 ## Anti-pattern 2: hardcoded absolute machine/user paths
 
