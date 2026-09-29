@@ -28,7 +28,8 @@ the reviewer to confirm the description still names that intent, or to restore t
   (<https://code.claude.com/docs/en/skills#frontmatter-reference>). A quoted or block scalar may
   contain the indicator. `compatibility`, when present, is 1-500 characters and FAILs outside that
   (Agent Skills spec; Claude Code accepts the field and does not act on it). Absence is success:
-  the spec says most skills do not need the field. The effective name (the declared field, else the directory leaf) is at most 64 codepoints
+  the spec says most skills do not need the field. The effective name (the declared field, else
+  the directory leaf) is at most 64 codepoints
   (FAIL; the Agent Skills spec's `name` cap, <https://agentskills.io/specification>, enforced by
   its `skills-ref` validator) and carries neither `anthropic` nor `claude` (WARN; a Skills API
   upload requirement, <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>,
