@@ -15,8 +15,9 @@ brackets; "(judgment)" marks a rule no source states.
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled)).
 - Set `imageSmoothingEnabled` again after every canvas resize, which resets context state
   (judgment).
-- Set CSS `image-rendering: pixelated` on the canvas (unverified; see
-  [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/image-rendering)).
+- Set CSS `image-rendering: pixelated` on the canvas. `pixelated` scales with nearest neighbor to
+  the nearest integer multiple of the original, then smooths to the final size
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/image-rendering)).
 - Draw at integer coordinates only: `Math.floor` every x and y before `fillRect` or `drawImage`
   (judgment; fractional coordinates blend edges).
 
@@ -81,6 +82,20 @@ brackets; "(judgment)" marks a rule no source states.
   sound ships as the HTML file, or is recorded in-browser to WebM/MP4 via `canvas.captureStream`
   plus `MediaRecorder` (container depends on the browser,
   [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static)).
+
+## Review capture
+
+- Expose `window.__pixelScene` with `duration` in seconds, `seek(seconds)` (render that instant
+  and pause), `frameDataURL(scale)` (PNG data URL of the logical frame, nearest-neighbor), and
+  `play()` to resume the fixed step. `scripts/capture.py` is the one review command and calls
+  these (judgment; the names are this plugin's contract).
+- `--record` steps `seek` at 30 fps and records those frames with `canvas.captureStream` plus
+  `MediaRecorder`, so the WebM clock matches the scene clock. Audio tracks on
+  `window.__pixelScene.audioStream` are mixed in when the scene provides them
+  ([MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static),
+  [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)).
+- Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
+  (judgment). Do not describe the picture as reviewed.
 
 ## Checklist before shipping
 

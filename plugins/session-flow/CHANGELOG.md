@@ -1,5 +1,14 @@
 # Changelog: session-flow plugin
 
+## [0.38.26] - 2026-09-28
+
+### Changed
+
+- `workflow` drops the `arguments:` frontmatter field
+  ([#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001)). The body reads
+  `$ARGUMENTS` whole: the first word is the mode and, after `continue`, the second word is the
+  modifier. `argument-hint` is unchanged.
+
 ## [0.38.25] - 2026-09-28
 
 ### Changed

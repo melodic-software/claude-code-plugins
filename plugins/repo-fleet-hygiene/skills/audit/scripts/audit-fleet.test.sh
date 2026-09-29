@@ -1239,8 +1239,9 @@ fi
 
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1261,8 +1262,9 @@ else
 fi
 
 # A Git project directory still does not become scope without config or CLI paths (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1272,14 +1274,25 @@ else
   failures=$((failures + 1))
 fi
 
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
+  grep -Fq "Scope: cwd" "$ladder_out"; then
+  printf 'PASS: cwd checkout is the no-scope fallback\n'
+else
+  printf 'FAIL: cwd checkout is the no-scope fallback\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) does not fall back to
 # the project directory; the remedy names the consumed config and directs scope INTO it.
 cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]
     maxDepth = 5
 SCOPELESS
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
@@ -2602,6 +2615,102 @@ if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/skip-fle
 else
   printf 'FAIL: CLI/config skip compose unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
   failures=$((failures + 1))
+fi
+
+# #4220: package-manager cache trees are default skips; --extend-skip / fleet.skipAppend add to
+# whichever list is in effect instead of replacing it.
+# The kept repos reuse mocked basenames (so they report their skip-root toplevel); the cache-tree
+# repos have basenames the git mock rejects, so walking into any of them surfaces its path.
+cache_root="$TMP/cache-root"
+for cache_repo in .pnpm-store/v3/cached-pnpm .cargo/git/checkouts/cached-cargo \
+  .nuget/packages/cached-nuget .tox/cached-tox __pycache__/cached-pyc keep/visible-repo \
+  third_party/under-third; do
+  mkdir -p "$cache_root/$cache_repo/.git"
+done
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_root" >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    grep -Fq "Repo: $TMP/skip-root/third_party/under-third" "$skip_out" &&
+    ! grep -Fq "cached-" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 2" "$skip_out"; then
+    printf 'PASS: default skip list hides package-manager cache trees\n'
+  else
+    printf 'FAIL: default skip list hides package-manager cache trees\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: default cache skip discovery unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_root" \
+  --extend-skip third_party >"$skip_out" 2>&1; then
+  if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
+    ! grep -Fq "under-third" "$skip_out" &&
+    ! grep -Fq "cached-" "$skip_out" &&
+    grep -Fq "Repositories discovered (audit targets after deduplication): 1" "$skip_out"; then
+    printf 'PASS: --extend-skip adds to the defaults without restating them\n'
+  else
+    printf 'FAIL: --extend-skip adds to the defaults without restating them\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
+else
+  printf 'FAIL: --extend-skip unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+cat >"$TMP/config/skip-append-fleet.conf" <<EOF
+[fleet]
+    root = ../cache-root
+    skip = keep
+    skipAppend = third_party
+EOF
+# An explicit fleet.skip replaces the defaults, so the cache trees are walked again and their
+# (mock-rejected) repos surface; the run may exit nonzero on those rejections.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/skip-append-fleet.conf" \
+  --detail >"$skip_out" 2>&1
+if ! grep -Fq "visible-repo" "$skip_out" &&
+  ! grep -Fq "under-third" "$skip_out" &&
+  grep -Fq "Discovery skips: 5 non-repository" "$skip_out" &&
+  grep -Fq ".pnpm-store/v3/cached-pnpm" "$skip_out"; then
+  printf 'PASS: fleet.skipAppend adds to an explicit fleet.skip replace list\n'
+else
+  printf 'FAIL: fleet.skipAppend adds to an explicit fleet.skip replace list\n%s\n' "$(cat "$skip_out")" >&2
+  failures=$((failures + 1))
+fi
+
+skip_err_ext="$TMP/skip-err-ext.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_root" --extend-skip 'a/b' \
+  >"$skip_out" 2>"$skip_err_ext"; then
+  printf 'FAIL: path-separator --extend-skip unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "invalid --extend-skip value" "$skip_err_ext"; then
+  printf 'PASS: path-separator --extend-skip hard-fails with a named error\n'
+else
+  printf 'FAIL: path-separator --extend-skip hard-fails with a named error\n%s\n' "$(cat "$skip_err_ext")" >&2
+  failures=$((failures + 1))
+fi
+
+# A pnpm-store junction is never reached under the default skip list, so it cannot BLOCK the
+# fleet. A link the operator walks into explicitly stays UNKNOWN (intermediate-symlink case above).
+if ! host_makes_symlinks; then
+  printf 'SKIP: symlink inside a package-cache tree — ln -s copies here\n'
+else
+  cache_sym_root="$TMP/cache-sym-root"
+  mkdir -p "$cache_sym_root/.pnpm-store/v3" "$TMP/cache-sym-target"
+  ln -s "$TMP/cache-sym-target" "$cache_sym_root/.pnpm-store/v3/linked"
+  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_sym_root" \
+    --detail >"$skip_out" 2>&1; then
+    if ! grep -Fq "discovery-symlink-skip" "$skip_out" &&
+      ! grep -Fq "Fleet verdict: BLOCKED" "$skip_out"; then
+      printf 'PASS: a pnpm-store junction under the default skip list does not block the fleet\n'
+    else
+      printf 'FAIL: a pnpm-store junction under the default skip list does not block the fleet\n%s\n' "$(cat "$skip_out")" >&2
+      failures=$((failures + 1))
+    fi
+  else
+    printf 'FAIL: cache-tree symlink run unexpectedly aborted\n%s\n' "$(cat "$skip_out")" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
 skip_err="$TMP/skip-err.txt"

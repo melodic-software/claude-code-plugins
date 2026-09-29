@@ -54,7 +54,7 @@ const CATEGORY_ORDER = [
   "operations",
   "learning",
   "visual-arts",
-  "music",
+  "audio",
   "personal",
 ];
 

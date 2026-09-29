@@ -45,7 +45,7 @@ LaneStatus              : { status: "ok" | "degraded" | "broken", problems: [str
 ### Convention grammars (`docs/conventions/native-references`)
 
 ```text
-route   : description phrase carrying the gate token "resolves in your session"   (existing)
+route   : description phrase carrying the gate token "resolves in this session"   (existing)
 wrap    : body section "## Native step: <name> (<class>)" carrying the gate token, the identity
           check by class, the mutation clause, the skip-and-report contract for five states
           (does not resolve, invocation refused with the reason named, identity mismatch,

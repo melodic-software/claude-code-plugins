@@ -6,6 +6,17 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.3] - 2026-09-28
+
+Clarification. No key, allowed value, or default changes.
+
+- **Architecture map readers (#4639).** `diagram_dialect.system` gains four readers:
+  `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`,
+  and `/architecture:map-deployment`. Each draws a C4 view of the code only when the key names
+  `likec4` or `c4-plantuml`; unset, the view is not drawn, and mermaid stays refused.
+  `diagram_dialect.data` gains `/architecture:map-data`. `landscape_dialect` stays the
+  architecture plugin's key for `/architecture:map-landscape` alone.
+
 ## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the
