@@ -1,10 +1,7 @@
-/** ESM resolve hook mapping the bare specifier `playwright` to a stub whose chromium.launch rejects. */
-const stubSource =
-  'export const chromium = { launch: async () => { throw new Error("playwright stub: chromium.launch blocked in tests"); } };';
+/** ESM resolve hook mapping the bare specifier `playwright` to test-support/playwright-stub.mjs. */
+const stubUrl = new URL("./playwright-stub.mjs", import.meta.url).href;
 
 export function resolve(specifier, context, next) {
-  if (specifier === "playwright") {
-    return { url: `data:text/javascript,${encodeURIComponent(stubSource)}`, shortCircuit: true };
-  }
+  if (specifier === "playwright") return { url: stubUrl, shortCircuit: true };
   return next(specifier, context);
 }
