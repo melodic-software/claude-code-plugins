@@ -56,7 +56,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 ### Changed
 
 - Trimmed the nine model-invocable skill descriptions to 500 characters or fewer each, keeping
-  every skill's trigger phrases and its routing pointer (#4657). The plugin's listing-budget
+  most trigger phrases and routing pointers (#4657). `onboard-adapter` dropped "use
+  Gitea/Redmine/YouTrack/Azure DevOps/Phabricator with work-items", "the seam has no adapter for
+  my provider", and its two skip clauses; `attend-queue` dropped "attend queue"; the sibling-skill
+  lists in `decompose`, `triage`, `track`, `work`, and the `scan-todos` hygiene-gate guidance were
+  removed. The plugin's listing-budget
   aggregate (`check-listing-budget.sh plugins/work-items/skills`) drops from 7,651 to 4,212
   characters, and the fleet aggregate from 149,643 to 146,204. `decompose` no longer breaches
   the 1,024-codepoint cap, so its row leaves `scripts/skill-description-cap-baseline.txt`.

@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "upstream-citation-and-task-list-are-skipped",
-      "prompt": "/work-items:scan-todos \u2014 we have 'see org/repo#12' in a comment and a markdown [TODO] task list. File those.",
+      "prompt": "/work-items:scan-todos: we have 'see org/repo#12' in a comment and a markdown [TODO] task list. File those.",
       "expected_output": "Skips the external upstream citation and the structured task-list grammar. It does not create tracker items for either, and it still sweeps real TODO/FIXME/HACK/XXX comment markers.",
       "files": [],
       "narration": true,
@@ -31,7 +31,7 @@
     {
       "id": 3,
       "name": "work-flag-files-through-track-add",
-      "prompt": "/work-items:scan-todos --work \u2014 this TODO is real unfinished work. File it.",
+      "prompt": "/work-items:scan-todos --work: this TODO is real unfinished work. File it.",
       "expected_output": "Classifies the marker as file-a-work-item-plus-remove-marker and creates the item through /work-items:track add, then removes the marker. It does not keep an actionable TODO in merged production code.",
       "files": [],
       "narration": true,
