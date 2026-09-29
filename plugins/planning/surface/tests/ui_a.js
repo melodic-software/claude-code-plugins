@@ -17,6 +17,7 @@ async page => {
   const lock = await page.textContent('.sec[data-key="g:g10"] .lock').catch(() => "");
   ok("dependent group shows locked", /opens after New group/.test(lock), lock);
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
+  ok("only the group whose summary predates a question shows Stale", (await page.$$('.sec[data-key="g:ordering"] .sec-hint .chip.hot')).length === 1 && !(await page.$('.sec[data-key="g:content"] .sec-hint .chip.hot')));
   ok("needs connector on N2", /needs N1/.test(await page.textContent('.qbtn[data-q="N2"]')));
 
   // history labels
