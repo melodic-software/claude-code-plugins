@@ -33,8 +33,11 @@ metadata:
 
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
-primary objective; reclaimed bytes are secondary.** Read
-[the safety model](reference/safety-model.md) before the optional execution lane.
+primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
+full: there is no emergency lane and no rule that yields under pressure. The recorded Option A
+(no proportionality, no regenerable-at-a-cost engine signal) lives in
+[the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
+optional execution lane.
 
 ## Arguments and boundaries
 
@@ -200,6 +203,16 @@ re-verification checks a candidate with no live-I/O value left to give would oth
 fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
+The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
+subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
+`curl` without the belt. **Basis:** #4228 audit on Claude Code 2.1.278 (Windows 11); the hooks
+page describes skill-hook lifetime and is silent on subagent reach
+(https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
+**Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
+note names that reach. Enforcing "workers return evidence only" in a hook that fires for
+subagents is parked: a plugin-level gate that reached subagents would be a new
+hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
+belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -212,7 +225,10 @@ coverage gaps, not clean results.
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
 report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring the managed-state
-rule below.
+rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) and fills
+`recommendation` when that size reaches the baseline policy's
+`os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
+own. A `null` recommendation with a `complete` measurement means the zone is below the threshold.
 
 ## 2. Establish evidence and ownership
 
@@ -226,6 +242,12 @@ patterns and from live filesystem state, and an entry that names a single field 
 step straight past a cloud-sync root whose name embeds a tenant.
 This positional read is how session-state droppings that share no common name (a runner-controller
 status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
+
+The scan's `stdlib_shadowing` list names each home-root `*.py` file whose stem is a standard-library
+module name. The file's entry carries a `stdlib-module-shadow` advisory, and the home-root
+`__pycache__` entry carries `bytecode_sources` naming the modules its `.pyc` files come from. An
+advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
+renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
 For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
 
@@ -432,8 +454,15 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
   apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
-  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+  interpreter. The same denial text also admits literal-form read-only supporting commands whose
+  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
+  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
+  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
+  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
+  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
+  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
+  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
+  exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

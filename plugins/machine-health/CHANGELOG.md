@@ -3,13 +3,34 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.3] - 2026-09-28
+## [0.14.5] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `setup` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.14.4] - 2026-09-28
+
+### Changed
+
+- **audit:** Windows lib modules that start a native tool (`nvidia-smi`, `pnputil`, the
+  `winget` CLI fallback) call `Invoke-NativeCommand` with one string per argv entry (#3423). A
+  tool missing from PATH returns `source: absent` and a non-zero exit returns `NonZero`; callers
+  keep the fallbacks they already had. CheckResult is unchanged.
+
+## [0.14.3] - 2026-09-28
+
+### Changed
+
+- **audit:** the Windows checks share one result envelope (#3451).
+  `Invoke-HealthCheckEnvelope.ps1` owns the stopwatch, the outer catch, the
+  UNKNOWN fallback, the duration stamp, and the result write. Each check
+  dot-sources it and supplies its id, category, commands, and body, so a check
+  cannot drop part of the envelope. The body still runs in the check's own
+  scope, which is what lets Pester mocks resolve. Emitted results keep the same
+  fields, status vocabulary, and duration semantics.
 
 ## [0.14.2] - 2026-09-28
 

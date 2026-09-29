@@ -3,13 +3,30 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.11] - 2026-09-28
+## [0.24.12] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `check` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.24.11] - 2026-09-28
+
+### Added
+
+- **`measure-invocation`: a repeatable description-invocation probe harness (#3526).** Scores
+  whether a skill's listing text would win the requests it should, with a train/validation split
+  and a false-trigger rate. Default method is a deterministic lexical listing-overlap floor that
+  runs without a model. CI validates the probe schema and runs the harness tests; `score` and
+  `compare` are run by hand. `emit-plugin-eval` writes `claude plugin eval` cases for an
+  on-demand live run; `compare` prints the delta versus a baseline so a rewrite cannot hide a
+  validation drop behind a train gain. Seed probes (20 queries each) cover `skill-quality:check`
+  and `mcp-tools:audit`. `score` fails on a competitor it cannot load, `compare` fails unless
+  both reports cover the same skills, and `emit-plugin-eval` refuses a non-empty output
+  directory. Fleet-wide description rewrites stay attended. Command:
+  `bash plugins/skill-quality/scripts/measure-invocation.sh validate|score|compare|emit-plugin-eval`.
+  Contract: `reference/invocation-probes.md`.
 
 ## [0.24.10] - 2026-09-28
 

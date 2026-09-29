@@ -1,6 +1,6 @@
 ---
 description: "Proactively hunt a rotated lane for safe structural improvements (Beck tidyings) and ship one tight structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items."
-argument-hint: "[<lane> | dry-run [<lane>] | self-update | help] [override]"
+argument-hint: "[<lane> | <glob>... | dry-run [<lane> | <glob>...] | self-update | help] [override]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
@@ -68,6 +68,7 @@ Parse `$ARGUMENTS` to determine the action:
 |----------|--------|----------|
 | *(empty)* | **Smart default** | Infer the most appropriate lane from current branch / recent commits / git status. If the inference is ambiguous, pause and ask the user. Otherwise proceed as if `<lane>` was passed. |
 | `<lane>` (from the catalog below) | **Targeted lane run** | Load the lane file, run the full Workflow on that lane's scope. |
+| `<glob>...` | **Ad hoc scope** | No lane covers the files. Run the full Workflow on those globs per **Ad hoc scope when no lane fits** below. Combines with `dry-run`. |
 | `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. Do NOT make edits. Do NOT branch. Do NOT push. Do NOT file tracker items. The user reviews and decides whether to proceed. |
 | `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
@@ -109,6 +110,27 @@ Bundled templates (copy + adapt into `.claude/tidy-lanes/`):
 | Non-primary-language services / MCP servers / sidecars | `templates/polyglot-services-lane.template.md` |
 
 Read the resolved lane file in full at Phase A entry; do not infer scope from this table.
+
+### Ad hoc scope when no lane fits
+
+When no bundled or project lane covers the target files (for example a lone `.github/scripts/*.mjs`
+tree tested with `node --test`), pass globs in place of a lane name: `dry-run <glob>...` to plan,
+`<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is
+ad hoc scope. The run then:
+
+- takes its scope from those globs, still filtered by the global exclusions below;
+- borrows the watch-for list, the lane-specific extra exclusions, and the Conventional Commits type
+  from the closest template (`templates/polyglot-services-lane.template.md` for source code, the
+  `docs-prose` lane for markdown), filling each template `<placeholder>` from the scoped files or
+  dropping just that placeholder's clause when nothing in scope fills it;
+- takes verification from the repository's documented test command;
+- names its branch `chore/tidy-adhoc-<slug>-YYYY-MM-DD`, where `<slug>` is the first glob's literal
+  directory prefix in kebab case (`github-scripts` for `.github/scripts/*.mjs`), or `root` when the
+  glob has no directory;
+- skips the anchor-commit lookup and hunts the whole scope, since no earlier sweep is known to cover
+  the same globs;
+- writes no `.claude/tidy-lanes/` file, so Phase H's Summary names the globs in place of the lane
+  and `none (ad hoc)` in place of the anchor commit.
 
 ## Workflow (8 phases)
 
@@ -261,7 +283,7 @@ two get conflated whenever the request is "clean this up":
   glob-scoped lane regardless of recent activity, under a scope budget, and ships one
   structure-only PR.
 
-**Routing.** When the bundled `simplify` skill resolves in your session, prefer it for refining a
+**Routing.** When the bundled `simplify` skill resolves in this session, prefer it for refining a
 diff that exists: what you just wrote, a path, a PR. Prefer this skill when nothing has changed
 yet and the question is what small structural improvement one slice of the codebase can take
 today. The sibling `batch-simplify` owns the same cleanup at sweep scale.

@@ -3,13 +3,47 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.12] - 2026-09-28
+## [0.23.16] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `batch-simplify` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.23.15] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `batch-simplify` and `tidy` routing lines named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.23.14] - 2026-09-28
+
+### Fixed
+
+- **`audit-dead-code` accounts for every in-scope source file.** A `Lane:` line's `files=`
+  is the real input count, including a missing tool and a lane with no manifest root. No
+  `package.json` or `go.mod` is `state=no-manifest`, distinct from `skipped` (no resolvable
+  binary). `Summary coverage: covered=N uncovered=M` plus one `Note:` per uncovered file names the
+  reason: no lane for the language, no manifest root, tool not installed, tool could not parse it,
+  or lane not selected. The clean-result note is printed only when nothing is uncovered.
+  `Summary total:` reports `files-with-findings=` so that key is not the scan count.
+
+## [0.23.13] - 2026-09-28
+
+### Added
+
+- **`tidy` accepts an ad hoc glob scope.** When no lane covers the target files,
+  `tidy [dry-run] <glob>...` runs on those globs with a borrowed template's watch-for list,
+  lane-specific exclusions, and commit type, plus the repository's own test command, and writes no
+  lane file.
+
+## [0.23.12] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.23.11] - 2026-09-28
 

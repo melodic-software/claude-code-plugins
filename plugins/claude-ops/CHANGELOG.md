@@ -3,13 +3,45 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.26] - 2026-09-28
+## [0.63.29] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `audit-performance`, `audit-skill-visibility`, `changelog`, `inventory`, `known-issues`, `lanes`, `morning-brief`, `observability`, `plugins` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.63.28] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence-gate token is `resolves in this session`** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). `audit-native-overlap`'s `GATE_TOKEN` was `resolves in your session`, which kept second person in every description that bakes a native-surface route. Anthropic's skill-authoring best practices say to always write a description in the third person because it is injected into the system prompt. The forward and reverse parity checks, the ungated-presence advisory's suggested fix, and the test fixtures now use the new token. The `audit-install-state` and `audit-skill-visibility` descriptions, which kept the old token after the voice sweep in #4108, carry the new one, as do their bodies, `audit-performance`'s routing line, the `audit-native-overlap` body and evals, and the store evidence in `docs/native-surfaces/records.json`. The native-references convention moves to 3.0.0 for the token change. A baked row whose description still carries `resolves in your session` now fails forward parity (self-check exit 1) until the description is rebaked with the new token.
+
+## [0.63.27] - 2026-09-28
+
+### Fixed
+
+- **`audit-skill-visibility` follows the product on a non-Boolean `enabledPlugins` value.** A
+  settings file holding one (`"yes"`, `1`) now contributes none of its `enabledPlugins` keys, so
+  its `true` siblings read disabled too, and the other scopes still decide each key. A key only such
+  a file names makes its plugin's skills `hidden` with the new cause `settings-file-rejected`; the
+  evidence names the file and the offending key. Such a file's `skillListingBudgetFraction` and
+  `skillListingMaxDescChars` are left out of the listing budget too. The JSON model's `schema_version` is `1.4.0`.
+  Measured with `claude plugin list --json` and `claude doctor` on Claude Code 2.1.280 in a fixture
+  config directory; the verification record is in the skill. The `defaultEnabled` record now cites
+  the live `settings-reference#enabledplugins` and `plugins-reference#defaultenabled` anchors
+  (#4660).
+- **`plugins` sync Step 5** cites plugins-reference `#metadata-precedence` for a marketplace entry's
+  `defaultEnabled` overriding `plugin.json`, instead of `scope-semantics.md`, which has no such
+  content. It also says an id on `missing_from_enabled` is not loading today, with a verification
+  record (#4660).
+
+## [0.63.26] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.63.25] - 2026-09-28
 

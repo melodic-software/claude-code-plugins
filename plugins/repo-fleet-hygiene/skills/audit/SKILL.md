@@ -11,7 +11,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail] | --apply-plan <path>`. Full form: [<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>
+**Arguments.** `[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail] | --apply-plan <path>`. Full form: [<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>
 
 ## Purpose
 
@@ -47,11 +47,15 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--skip <name>`: discovery directory-name skip (repeatable). Explicit `--skip` / `fleet.skip`
   entries **replace** the default skip list rather than appending. Otherwise shrinking is
-  impossible. Default (neither CLI nor config): `node_modules`, `vendor`, `.venv`. To extend, pass
-  those three defaults plus your names; to shrink (e.g. reach a repo under `vendor/`), omit names
-  you want walked. CLI and config compose additively with each other like other scope inputs.
-  Values must be bare directory names (no empty value, no path separator). `.`, `..`, and `.git`
-  stay skipped unconditionally even when an explicit list omits them.
+  impossible. Default (neither CLI nor config): `vendor` plus the package-manager cache trees
+  `node_modules`, `.venv`, `.pnpm-store`, `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`,
+  `.nuget`, `__pycache__`, and `.tox`. To shrink (e.g. reach a repo under `vendor/`), list only the
+  names you still want skipped. CLI and config compose additively with each other like other scope
+  inputs. Values must be bare directory names (no empty value, no path separator). `.`, `..`, and
+  `.git` stay skipped unconditionally even when an explicit list omits them.
+- `--extend-skip <name>`: discovery directory-name skip that **adds** to whichever list is in
+  effect (the defaults, or an explicit `--skip` / `fleet.skip` list) instead of replacing it
+  (repeatable). Config equivalent: repeatable `fleet.skipAppend`. Same bare-name validation.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
   It is **not** a scope fallback. A run with no scope fails rather than auditing it.
@@ -270,8 +274,8 @@ Related fleet contracts that remain separate:
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
-  the discovery-skips header line. Windows directory junctions test as symlinks under Git Bash, so
-  they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
+  the discovery-skips header line. Windows directory
+  junctions test as symlinks under Git Bash, so they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
   (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is

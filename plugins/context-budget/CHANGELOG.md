@@ -5,13 +5,24 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.43] - 2026-09-28
+## [0.6.44] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `audit` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.6.43] - 2026-09-28
+
+### Fixed
+
+- **`plugin-disable` lever states the observed `enabledPlugins` rule.** A plugin no scope names
+  does not load, whatever its `defaultEnabled`; the settings reference agrees, the plugins reference
+  still says it falls back to `defaultEnabled`, and the lever now says so. Two caveats carry the verification records
+  (Claude Code 2.1.280): the no-fallback rule, and a non-Boolean value making Claude Code skip every
+  `enabledPlugins` entry in its file. The lever cites the `settings-reference#enabledplugins`,
+  `plugins-reference#defaultenabled`, and `settings#fix-a-broken-settings-file` anchors (#4660).
 
 ## [0.6.42] - 2026-09-28
 

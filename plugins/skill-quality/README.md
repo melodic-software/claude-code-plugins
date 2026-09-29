@@ -2,8 +2,9 @@
 
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
 skill directory, reports the shared listing-budget estimate across a set of skills, and validates a
-skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint. No model
-invocation anywhere. The same checks run identically in a session, a pre-commit hook, or CI.
+skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint, and scores
+description-driven auto-invocation probes (`measure-invocation`). Default paths invoke no model.
+The same checks run identically in a session, a pre-commit hook, or CI.
 
 The drift static analysis catches best is a rewrite silently dropping a `description` trigger
 phrase, which can degrade a skill's auto-invocation. Check 3 compares the trigger phrases against
@@ -13,7 +14,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 | Skill | What it does |
 |---|---|
-| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) for one skill, a set of roots, or every skill. |
+| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), schema-validates and quality-lints evals (`validate-evals`), or scores description auto-invocation probes (`measure-invocation`). |
 | `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
 ## Checks
@@ -123,6 +124,7 @@ because the budget it reports is the shared one.
 /skill-quality:check validate-evals my-skill   # schema-check + quality-lint evals.json
 /skill-quality:check listing-budget            # report the shared budget over the resolved root
 /skill-quality:check listing-budget plugins/*/skills  # pool every plugin's root into one aggregate
+/skill-quality:check measure-invocation        # score description auto-invocation probes
 ```
 
 ## Skills directory is never baked in
@@ -168,6 +170,20 @@ stands alone.
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-five still gate.
+
+## Description-invocation probes
+
+`measure-invocation` scores whether a skill's listing text would win the requests it should
+(and stay quiet on the ones it should not). Default method is a deterministic lexical
+listing-overlap floor; `emit-plugin-eval` writes `claude plugin eval` cases for a live run.
+Contract: [`reference/invocation-probes.md`](reference/invocation-probes.md).
+
+```shell
+bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/skill-quality/probes
+bash plugins/skill-quality/scripts/measure-invocation.sh score plugins/skill-quality/probes
+bash plugins/skill-quality/scripts/measure-invocation.sh compare \
+  plugins/skill-quality/probes/baselines/listing-overlap.json /tmp/score.json
+```
 
 ## Configuration
 

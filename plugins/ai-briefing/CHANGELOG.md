@@ -3,13 +3,19 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.43] - 2026-09-28
+## [0.7.44] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `generate` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.7.43] - 2026-09-28
+
+### Security
+
+- The `generate` build pins `image-size` to `^2.0.3` through an npm `overrides` entry, clearing GHSA-5p2g-fcmc-qvqq and GHSA-w3rx-r6r6-pgpr (denial of service through infinite loops in the JXL, HEIF, and ICNS parsers). `pptxgenjs@4.0.1` declares `image-size ^1.2.1` but its distributed build never imports it, so the major bump changes no build behavior.
 
 ## [0.7.42] - 2026-09-27
 

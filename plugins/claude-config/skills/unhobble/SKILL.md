@@ -41,8 +41,10 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
   instruction-files mode, and this body does not restate either**; the four-part record is this
   plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
-  and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
-  operator explicitly opts in per phase-1 prompt, never by default.
+  and plugins enabled at any scope. User-global files (`~/.claude/**`) are edited only when the
+  operator explicitly opts in per phase-1 prompt, never by default. A plugin enabled at user
+  scope is still classified, and a behavioral one is ablated by the project `enabledPlugins`
+  overlay below, not by editing the user settings file.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.
 - **Reversible by construction.** Tracked-file changes happen on a dedicated experiment branch;
   untracked/settings changes are backed up to plugin state before modification or removal and
@@ -78,7 +80,8 @@ when `.claude/topic-docs.yaml` sets one). Name
 `scripts/check-contract-slice-prune.sh --check-diff` as the reason: a pull request that leaves a
 path there fails that gate, and the slice is pruned before merge, which deletes the ledger.
 
-- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention`),
+- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
+  `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
   the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
   No absolute host path, in any field.
@@ -129,6 +132,33 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
    config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
    noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
    residue down with the behavioral surface.
+
+   **Plugins, every one enabled at any scope.** Inventory user, project, and local
+   `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
+   plugin: id, scopes, the component types it ships, hook-wiring or not, class, and the Phase 2
+   action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
+   **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
+   reference "Standard layout" table and `hooks` manifest field
+   (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
+   2026-09-28. **Recheck:** that page names another hook location. Classify each wired
+   entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
+   a second hook rubric. A plugin whose every component is policy (or behavioral with a
+   non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a
+   plainly behavioral component is `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with
+   a per-hook kill switch still available when the plugin exposes one. One whose every component
+   is behavioral is the overlay candidate. A plugin with no hook wiring is not
+   automatically skill-only: inventory every component type that same table lists (MCP and LSP
+   servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
+   LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin
+   is `non-derivable`. Only then apply this rubric to its skills, commands, agents, output styles,
+   workflows, and settings: `policy`
+   when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
+   carries a machine fact or procedure the model cannot derive; `behavioral` when all are
+   convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
+   overlay candidate. When the components disagree (a policy or non-derivable component beside
+   behavioral ones), the plugin is `hybrid`: kept whole and recorded `unstripped-mixed-plugin`,
+   the same rule as for hook-wiring plugins. A plugin force-enabled by managed settings cannot be disabled from project
+   scope; record it kept. Managed settings are never edited.
 4. Write `manifest.json` and an empty `stumbles.md` under `.claude/unhobble/<experiment-id>/`
    with the Write or Edit tool. Do not write them with a shell redirect or a heredoc. Present the
    strip plan (what goes, what stays and why) and stop for confirmation. Do not commit yet: the
@@ -192,24 +222,32 @@ Apply the confirmed strip plan:
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
   or config where one exists, else leave it wired and record `unstripped-hybrid-hook` (observe
   phase notes the confound), per the plan's named split.
-- Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
-  classified `behavioral` for this project (leave policy/tooling plugins the operator marked keep).
-  Plugins toggle whole, since project settings offer no partial disable, so a plugin classified
-  **`hybrid`** (any `policy`-classified surface alongside behavioral components, e.g. a policy
-  hook next to behavioral convenience skills; older strip plans say "mixed" for the same class)
-  is **kept whole**, with its behavioral components recorded in the manifest as
-  `unstripped-mixed-plugin` (label unchanged for manifest continuity); the observe phase notes
-  them as still-loaded confounds rather than
-  silently taking the policy gate down with the plugin. Within a kept-whole mixed plugin, a
-  behavioral or hybrid HOOK may still be individually stripped when the plugin exposes a per-hook
-  kill switch (a `<hook>_enabled`-style userConfig option): record the option flipped and its
-  prior value in the manifest as a partial strip, restoring by flipping it back. No per-hook
-  switch → the hook stays loaded, recorded by its own class: `unstripped-behavioral-hook` for a
-  plain behavioral hook (nothing of it is legitimately loaded; the whole hook is the confound),
-  `unstripped-hybrid-hook` for a hybrid (its policy residue is legitimately loaded; only the
-  behavioral surface is the confound), alongside the plugin's confound note.
-- Print the "you are bare" summary: what a fresh session will now load (ideally: nothing but the
-  code) and how to restore everything (`readd` phase reads the manifest; `git` holds the files).
+- Plugins classified `behavioral`: record the prior enabled set in the manifest, then write
+  `"<plugin>@<marketplace>": false` into the committed project `.claude/settings.json`
+  `enabledPlugins` map. Keep every key in byte order (`LC_ALL=C` sort), one per line, which is
+  what the repository catalog-enablement gate checks (check-plugin-catalog-enablement, under
+  the repository scripts directory); an explicit `false` passes that gate
+  as a recorded opt-out. Record each key's prior project value (absent or `true`) in the
+  manifest. Restore to that value: set `true` back where the project had `true`, and delete the
+  key where the `false` was newly added over another scope's enablement.
+  A plugin classified `hybrid` is kept whole, behavioral parts recorded as
+  `unstripped-mixed-plugin` (label unchanged for manifest continuity). Within that kept plugin, a
+  behavioral or hybrid hook may still be stripped when a per-hook kill switch exists (a
+  `<hook>_enabled`-style userConfig option): record the option flipped and its prior value,
+  restoring by flipping it back. No switch means the hook stays loaded:
+  `unstripped-behavioral-hook` or `unstripped-hybrid-hook`, as before.
+  **Claim:** a project-scope `enabledPlugins` value of `false` overrides a user-scope `true` for
+  the same `plugin@marketplace` key. **Basis:** the settings reference
+  `enabledPlugins` section, "Project settings take precedence over user settings"
+  (<https://code.claude.com/docs/en/settings-reference>), fetched 2026-09-28. The worked example
+  on that page is the other direction: a user `false` does not disable a project `true`.
+  **As of:** 2026-09-28. **Recheck:** that section no longer says project settings take
+  precedence over user settings, or it states that a project `false` does not override a user
+  `true`. Do not call an arm stripped until a fresh session's `claude plugin list --json` omits
+  the plugin. One that is still listed is a confound; local or managed scope can still win.
+- Print the "you are bare" summary: what a fresh session will now load, which plugins were
+  disabled, which were kept as policy or tooling, which are `unstripped-mixed-plugin`, and how
+  to restore everything (`readd` phase reads the manifest; `git` holds the files).
 
 Start a **fresh session** after stripping. The current session already carries the old
 instructions in context, so it cannot measure their absence.
@@ -263,7 +301,11 @@ rows after real work is a licensed permanent deletion.
    defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
-   repo's normal PR flow.
+   repo's normal PR flow. The register hold covers only protected rules, so before that merge run
+   `/review:security-review` against the pull request (if the `review` plugin is installed). Its
+   instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
+   enforces. Without the plugin, record in the pull request body that the retired rules got no
+   security pass.
 
 ## Cadence wiring (optional)
 

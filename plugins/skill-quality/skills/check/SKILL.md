@@ -1,6 +1,6 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
-argument-hint: "[check|validate-evals|listing-budget] [<skill-or-root> ...]"
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Static QA gate for skill frontmatter, caps, and evals
 ---
 
-**Arguments.** `[check|validate-evals|listing-budget] [<skill-or-root> ...]`. Full form: [check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root; give check one or more roots to gate several trees in one run
+**Arguments.** `[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]`. Full form: [check|validate-evals|listing-budget|measure-invocation] [<skill-name-or-root> ...]. Omit the action for check; measure-invocation takes validate|score|compare|emit-plugin-eval
 
 ## Purpose
 
@@ -20,7 +20,9 @@ JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eva
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
-limit from `check`'s per-skill entry cap).
+limit from `check`'s per-skill entry cap). The `measure-invocation` action runs
+`measure-invocation.sh`, a repeatable probe harness that scores whether a skill's listing text
+would win the requests it should.
 
 ## Skills-directory resolution
 
@@ -82,6 +84,8 @@ Parse `$ARGUMENTS`:
 - **`listing-budget <root> [<root> ...]`**. Pool every listing-eligible skill under each given root
   into ONE shared aggregate (e.g. every plugin's skills dir in a marketplace repo). Every root given
   must exist.
+- **`measure-invocation`** *(default `validate` then `score`)*. Run the description-invocation
+  probe harness. See Action: measure-invocation.
 
 ## Action: check
 
@@ -190,6 +194,41 @@ Both claims are verified 2026-09-06 against Claude Code 2.1.263 and the skills p
 short", which names `"name-only"` as the way to free budget). Recheck when either section stops
 carrying its statement, or when a release note names skill listing budget or `skillOverrides`.
 
+## Action: measure-invocation
+
+Repeatable probe harness for whether a skill's listing text would win the auto-invocation match.
+Default method is a deterministic lexical floor (`listing-overlap`) that runs without a model. CI
+validates the probe schema and runs the harness tests; `score` and `compare` are run by hand.
+Model-graded `claude plugin eval` cases are emitted on demand. Contract:
+[reference/invocation-probes.md](../../reference/invocation-probes.md).
+
+1. Resolve the probes directory: `${CLAUDE_PLUGIN_ROOT}/probes` when present, else the
+   marketplace path `plugins/skill-quality/probes`.
+2. Run, in this order unless the user named one sub-action:
+
+   ```shell
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/measure-invocation.sh" validate <probes-dir>
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/measure-invocation.sh" score <probes-dir>
+   ```
+
+   `compare <baseline> <treatment>` prints per-skill train and validation deltas. `emit-plugin-eval
+   <probes-dir> <out-dir>` writes `claude plugin eval` cases into an empty or new `<out-dir>`.
+   Claim: each case is a directory holding `prompt.md` (frontmatter fields, body is the prompt)
+   and `graders/`, and a `tool_used` grader with `tool: Skill` and an `input_match` on the skill
+   name checks that the skill fired. Basis: <https://code.claude.com/docs/en/plugin-evals>, the
+   case layout and `tool_used` grader sections. As of: 2026-09-28. Recheck: that page changes the
+   case layout, the `prompt.md` fields, or the `tool_used` grader fields.
+3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
+   `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
+   against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot). The action
+   is complete when both splits are named; a single blended rate is not the done-condition.
+4. `listing-overlap` is a floor, not a model-graded auto-invocation rate. Say so when reporting.
+   Do not treat a 1.0 positive rate on the floor as proof the description saturates live
+   auto-invocation.
+
+The seed probe set is two skills chosen for competitor density (`skill-quality:check`,
+`mcp-tools:audit`). Fleet-wide description rewrites stay attended.
+
 ## Cross-skill invocation (doctrine)
 
 The Skill tool executes one skill within the main conversation, so a step needing two skills is two
@@ -204,6 +243,9 @@ tool. This gate does not automate that reachability check; author and review aga
 
 ## Gotchas
 
+- `measure-invocation`'s default `listing-overlap` method is a lexical floor. A 1.0 positive
+  trigger rate means the description already contains the request's nouns, not that live
+  auto-invocation saturates. Report both splits and name the method.
 - A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor
   byte-identity, stale-tracking metadata, committed-artifact scan) skip with a note when cwd
   is outside a repo. Marketplace plugin-cache installs are plain trees. Set

@@ -50,6 +50,16 @@ resolved value, and which layer supplied it, followed by a per-layer presence li
 single layer's value as the effective convention; a reader who cannot see which layer won cannot
 tell why `/source-control:commit` behaves as it does.
 
+When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
+overlay are **not applicable**
+([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
+do not read `${REPO_ROOT}/.claude/source-control.md` or the overlay as the team layer,
+report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
+or `project root is not inside a git repository`), and resolve user-global only.
+`parse-branch-issue.sh` prints the same note on stderr. Git
+tracked/ignored probes do not apply: there is no consumer repository to answer against.
+`apply layer=team` and `layer=local` refuse; offer `layer=user`.
+
 ```text
 key                        value                       won by
 subject_pattern            ^[A-Z]+-\d+: .+             team
@@ -267,7 +277,10 @@ In brief:
 
 - **Target layer.** `layer=` picks `user` / `team` (default) / `local`; infer the layer from the
   request's wording and state the pick before writing, the wrong layer either misses teammates or
-  commits a personal preference to shared history.
+  commits a personal preference to shared history. When `REPO_ROOT` is `$HOME` or an ancestor of
+  it, or is not inside a git working tree, refuse `layer=team` and `layer=local` (at home they
+  would write the operator's personal `~/.claude/source-control.md` under a team label; outside a
+  repository there is no team to share with) and offer `layer=user`.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
   non-machine-checkable value, and for an overlay omit requested keys the layers below already

@@ -230,7 +230,8 @@ name taken from `evidence.md`):
   confirmation a write was attempted and refused, so a later reader can weight them accordingly.
   **Seal once, last, after every write this step makes**, the findings, the provenance, and any
   rewrite record a read-back forced, per rule 3 of `reference/evidence-packet.md` ("when a step's
-  packet writes are complete").
+  packet writes are complete"). The seal is snapshot integrity, not currency of the audited world
+  (`reference/evidence-packet.md` "What a sealed packet asserts").
   Sealing straight after the findings instead leaves the provenance written past the last seal, so
   the Resume rule's mandatory verify reports it UNSEALED (exit 3) on *every* backstop-recovered
   packet: the one packet class whose provenance most needs to be trustworthy would be the one class
@@ -307,6 +308,10 @@ runs is used when installed, with a one-line fallback when absent:
   the audited plugin's code, so this seam is usually idle. *Absent:* re-state what was written
   and show the diff to the user.
 
+Before any seam runs, report seam resolution in one line per seam: used, or fell back, and why
+(not installed, disabled, or not applicable). A required seam that fell back, including
+`skill-quality:check` on a skill target, is a visible degradation.
+
 ### Step 6. Emit (sink resolution + egress gate)
 
 Resolve the sink by the ladder (first hit wins; full key reference in the plugin's
@@ -326,7 +331,8 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
    re-seal the packet
    (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>`), and tell the user
    where it is. The location is load-bearing, not incidental: retention keys its
-   never-delete-the-deliverable rule on finding `item.md` in the packet.
+   never-delete-the-deliverable rule on finding `item*.md` in the packet (`item.md`, or
+   `item-<owner>.md` when one audit emits for a second owner).
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
 surface. (a) the full item draft (title + body), (b) the destination (target repo, tracker, or
