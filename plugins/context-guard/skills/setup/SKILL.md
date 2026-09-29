@@ -50,8 +50,7 @@ zone bands, zones.json shape) are owned by
    cannot tee (it stays transparent and shows a visible notice), the standalone statusline
    degrades, and the zone resolver prints `unknown`. Remediation: install jq
    (<https://jqlang.org/download/>).
-
-   **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: every hook row in
+2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: every hook row in
    `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs <script>`, and Claude
    Code's native binary neither ships nor uses Node
    (<https://code.claude.com/docs/en/setup>), so without `node` on `PATH` the injection, the gate
@@ -61,7 +60,7 @@ zone bands, zones.json shape) are owned by
    The Node claim was verified 2026-09-29 against the setup page above; recheck when a Claude Code
    release note says the native binary bundles Node or runs hooks without it, or when that page
    stops saying the native binary needs no Node.
-2. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
+3. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
    pre-computed shim value compares `~/.claude/context-guard/bin/statusline-shim.sh` (the durable
    shim copy) against `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and
    carries the `# shim-revision:` marker of each file that exists. Classify it per
@@ -69,12 +68,12 @@ zone bands, zones.json shape) are owned by
    state", shared with the sibling guard plugin and synced byte-identical. An absent shipped
    source takes that reference's own branch and ends the comparison; never read `cmp: not
    identical` as drift when the shipped path is the missing one.
-3. **Statusline wiring state**. Read (never write) every settings scope that can carry a
+4. **Statusline wiring state**. Read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`, and managed settings, where `statusLine` is also a valid key)
    and determine which one owns the effective command (the most specific scope wins among the
    three non-managed scopes; a managed value outranks all of them). All wiring states below are
-   evaluated against that effective command. The printed edit in step 7 targets that scope's
+   evaluated against that effective command. The printed edit in step 8 targets that scope's
    file **except** when the owning scope is managed: that file is administrator-controlled, the
    operator running this skill generally cannot change it, and no lower-scope edit can override
    it. In that case name the managed source, say the operator cannot change it from here, and
@@ -91,7 +90,7 @@ zone bands, zones.json shape) are owned by
    - **`statusLine` references a `context-guard` `statusline-tee.sh` under the plugin cache**.
      LEGACY VERSION-PINNED WIRING: classify, report, and remediate per
      [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Legacy
-     version-pinned wiring" (the fix's `apply` is step 2's).
+     version-pinned wiring" (the fix's `apply` is step 3's).
    - **`statusLine` invokes `~/.claude/context-guard/bin/statusline-shim.sh`**. PASS. No path
      comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
      the tee at run time.
@@ -126,33 +125,33 @@ zone bands, zones.json shape) are owned by
      printing wiring will not fix it. The dated record for both settings keys is
      `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md`, branch 3 of "Distinguishing
      structural absence from breakage".
-4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. Probe
+5. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. Probe
    `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
    - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
      (zone-informed consumers get real data). Also report the zone:
      `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
    - Fresh but `used_percentage` or `current_usage` null → INFO: documented early-session or
      post-`/compact` statusline state; the resolver correctly answers `unknown`. Not a defect.
-   - Absent or stale while step 3 found **no `statusLine` in any scope** → INFO, not FAIL:
+   - Absent or stale while step 4 found **no `statusLine` in any scope** → INFO, not FAIL:
      nothing is writing snapshots because nothing is configured to, whether the file is missing
      or a leftover from an earlier session has gone stale. Which INFO depends on the same
-     condition step 3 branched on, and the two reports must agree, never print step 3's wiring
+     condition step 4 branched on, and the two reports must agree, never print step 4's wiring
      and then say nothing is broken.
-     - **If step 3 took the terminal-less exception** (you could tell this session refreshes no
+     - **If step 4 took the terminal-less exception** (you could tell this session refreshes no
        statusline) this is structural: `unknown` is correct and permanent here, no other channel
        can supply one, and there is nothing to fix. Do not report a defect and do not send the
        operator to fix an install that is not broken.
      - **Otherwise** this is the not-yet-wired state, the ordinary state of a fresh local
        install, and the single most common reason `check` is run. The remediation is the wiring
-       step 3 just printed; point at it, say snapshots start on the next statusline refresh once
+       step 4 just printed; point at it, say snapshots start on the next statusline refresh once
        it is applied, and do not call this structural.
-   - Absent or stale while step 3 reported correct wiring, did not find the status line
+   - Absent or stale while step 4 reported correct wiring, did not find the status line
      disabled, and did not take the terminal-less exception → FAIL: the wrapper is wired but
-     not running. Re-check steps 2 and 3; a shim that is wired but not installed produces
+     not running. Re-check steps 3 and 4; a shim that is wired but not installed produces
      exactly this. The file updates only while this session is interactive.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path; probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
-5. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
+6. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
    (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
    zero-config state, not a defect), present and valid
    (report the bands in effect, both shapes), or present with a malformed shape (report per
@@ -162,7 +161,7 @@ zone bands, zones.json shape) are owned by
    token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
    cannot be read, which is a defect the absent branch would hide. Report the read error and route
    the operator to the file's permissions, not to `apply`. Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
-6. **Hook registration vs hook activation**. Three separate facts, never collapsed into one
+7. **Hook registration vs hook activation**. Three separate facts, never collapsed into one
    status. A registered hook set that every hook exits out of immediately is the exact state an
    operator is diagnosing when injections or gating are missing, and reporting "active" because the
    plugin is enabled tells them the opposite of the runtime state.
@@ -187,13 +186,13 @@ zone bands, zones.json shape) are owned by
      default) leaves it inert while the injection hook still runs. Report it separately: an armed
      hook set with an advisory posture is a different runtime state from an inert hook set, and
      only one of the two is a defect.
-7. **Print the operator edit**, except when step 3 took the terminal-less exception, found the
+8. **Print the operator edit**, except when step 4 took the terminal-less exception, found the
    status line disabled by policy or trust, or found the effective command owned by managed
    settings. Those branches already forbade printing wiring the operator cannot make run. When
    this step does print, the wiring target is the shim's fixed path, never
    `${CLAUDE_PLUGIN_ROOT}`. Compose the value by running
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh"` over the effective
-   `statusLine` value from step 3, never by peeling and wrapping the string yourself:
+   `statusLine` value from step 4, never by peeling and wrapping the string yourself:
 
    ```bash
    jq '.statusLine' <the settings file that owns the effective command> |
@@ -206,7 +205,7 @@ zone bands, zones.json shape) are owned by
    rate-limit-guard), then [`reference/statusline-edit.md`](reference/statusline-edit.md) for this
    plugin's JSON edit blocks, the combined sibling-shim invocation, and the Windows note. Composing
    by hand double-wraps a sibling tee and stacks another `sh -c` layer on every re-run.
-8. **Dotfiles tracking proposal**, the printed edit changes a durable user-scope file the operator
+9. **Dotfiles tracking proposal**, the printed edit changes a durable user-scope file the operator
    maintains. When the operator's home directory is managed by a dotfiles system (chezmoi, yadm, a
    bare-repo setup, ...), surface the reminder to capture the `settings.json` change through that
    system's own add/track flow so the wiring survives machine rebuilds. This skill only surfaces
@@ -224,14 +223,14 @@ Copy `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` to
 result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` anyway):
 
 - The installed copy is **byte-identical** to the shipped source, never a rewrite, never a
-  templated variant. That is what makes `check` step 2 a plain `cmp`.
+  templated variant. That is what makes `check` step 3 a plain `cmp`.
 - **Idempotent**: if the file already exists and compares equal, write nothing and say so.
   Otherwise overwrite it (this is the update path after a plugin version bump changes the shim)
   and report the `# shim-revision:` values, old → new.
 - The shim is **inert until wired**: installing it starts nothing. Only the operator's
-  `settings.json` edit puts it on the statusline path. That edit is step 7 of `check`, which
+  `settings.json` edit puts it on the statusline path. That edit is step 8 of `check`, which
   this skill never applies. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 7), honoring that step's exceptions,
+- After installing, print the wiring edit (`check` step 8), honoring that step's exceptions,
   so the operator's next action is in front of them when there is one, and note that a
   statusline already wired to the shim needs no change now or on any future plugin update.
 
