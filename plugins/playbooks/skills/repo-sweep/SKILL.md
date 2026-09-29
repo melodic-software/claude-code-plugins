@@ -20,7 +20,7 @@ default checked state, and override text; changing a sweep means editing the cat
 |---|---|---|
 | `/playbooks:repo-sweep plan` | Recommend per entry, open the selection page, create the sweep branch and draft PR | [reference/plan.md](reference/plan.md) |
 | `/playbooks:repo-sweep next` | Run the first unticked step: audit, review findings with the user, fix, one commit, tick | [reference/next.md](reference/next.md) |
-| `/playbooks:repo-sweep review` | Dispatch an independent reviewer on the last step, merge with user report, audit and file each problem after approval | [reference/review.md](reference/review.md) |
+| `/playbooks:repo-sweep review` | Ask the user what went wrong, dispatch an independent reviewer on the last step, merge both lists, audit and file each problem after approval | [reference/review.md](reference/review.md) |
 
 No argument: run `${CLAUDE_SKILL_DIR}/scripts/state.sh` (below). Exit 10 or 11 means `plan`; exit 0
 means `next`. Say which you chose.

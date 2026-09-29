@@ -46,14 +46,15 @@ never combined with `&&` or other commands in one call. The record for these sha
 2. Read the entry: its row from `S/catalog.sh C`, `S/catalog.sh --override <id> C`, and
    `S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
-3. When the row's `prime` column (last field) is not `false`, invoke
+3. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
+   `plan.md` uses (`git ls-files`, globs, `ls`). Skip it when resuming: `state.sh` reported
+   `in-progress` with a dirty tree, so an earlier session already ran the skill. When it no longer
+   holds, record each `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then
+   `S/tick.sh <id> not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the
+   step without priming or running section 3. Evidence must be one line with no commas.
+4. When the `prime` column (column 8, the last field of `S/catalog.sh C`) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
-4. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
-   `plan.md` uses (`git ls-files`, globs, `ls`). When it no longer holds, record each
-   `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then `S/tick.sh <id>
-   not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
-   running section 3. Evidence must be one line with no commas.
 5. `mkdir -p W`, then `S/tick.sh <id> in-progress`.
 6. Unless resuming, run `git rev-parse HEAD` as its own call, keep that SHA as the base, and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
