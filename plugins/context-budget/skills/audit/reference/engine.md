@@ -20,6 +20,11 @@ prepended to output; skill token cells formatted `~<int>` or `< <int>` unlike ev
 `--output-format json` returning the same markdown as a string (the engine parses plain output
 instead).
 
+`cli-parse` also recognizes two harness-only lines that a real `/context` render never emits:
+`Caveat: <text>` and `<!-- synthesized-zero: <bucket> -->`. They let the hermetic test's
+`cli-parse` fake exercise caveat merging and the additivity saturation guard. Against real output
+the guard runs only in `sdk` mode.
+
 ## Mechanism claims and citations
 
 | Claim the skill relies on | Source |
@@ -98,12 +103,13 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   do not compose alike: the deferred side adds, the prefix side double-counts.
   `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
-  run because they are structurally unreachable from a headless inventory, not silent zeros).
+  run because they are structurally unreachable from a headless inventory, not silent zeros),
+  the binary stamp, and `skillListingSignature`.
   `knownUncovered.deniedAbsent` lists names from that file that were also passed in
   `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
   labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
   never enters either attributed headless bucket, and a bare-name deny cannot remove it while any
-  other tool remains, plus the binary stamp and `skillListingSignature`. A deny can empty a
+  other tool remains. A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in

@@ -120,9 +120,11 @@ audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-bu
 # namespace, which already supplies the object. biome-format, go-format and
 # markdown-format join on their own grounds: each reports whether the one
 # binary its format hook needs resolves on PATH, read-only, never installing,
-# and the answer is pass or fail. The namespace already names the tool, so a
-# qualifier such as `check-binary` would add nothing the reader lacks.
-check biome-format,go-format,instruction-placement,markdown-format,skill-quality,toolchain
+# and the answer is pass or fail. actionlint joins on the same grounds: it
+# reports whether the actionlint binary its hook needs resolves. The namespace
+# already names the tool, so a qualifier such as `check-binary` would add
+# nothing the reader lacks.
+check actionlint,biome-format,go-format,instruction-placement,markdown-format,skill-quality,toolchain
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.

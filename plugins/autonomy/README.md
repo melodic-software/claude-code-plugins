@@ -9,6 +9,14 @@ state and records that binding.
 skills produced a commit); see
 [`docs/out-of-scope/agent-run-artifact-attestation.md`](../../docs/out-of-scope/agent-run-artifact-attestation.md).
 
+## Requirements
+
+Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's native
+binary neither ships nor uses Node
+([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the hooks
+do not launch and the lane-stop gate is not enforced. The setup `check` reports whether `node`
+resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without `jq` they fail open.
+
 ## Shipped capability (0.7.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
@@ -188,15 +196,21 @@ measuring.
 
 | Path | Creations before | After | Launches before | After |
 |---|---|---|---|---|
-| Default: no gate footprint anywhere (every interactive `Stop`) | 4 | 1 | 2 (`grep`, `uname`) | 1 (`uname`) |
+| Default: no gate footprint anywhere (every interactive `Stop`) | 4 | 0 | 2 (`grep`, `uname`) | 0 |
 | Enabled by user settings, first stop, no signal (block) | 48 | 10 | 18 | 5 |
 | Enabled, sentinel on its own line (allow) | 44 | 9 | 16 | 4 |
 | Enabled, second stop after the nudge (allow, notify) | 54 | 10 | 21 | 5 |
 | Enabled, marker file present (allow, consume) | 51 | 12 | 19 | 6 |
 | Armed by the launcher, first stop (block) | 60 | 11 | 20 | 5 |
 
-The default path's one process is `uname -s`, the managed-settings platform primitive (`$OSTYPE`
-is a variable a repository's env block can set). Of the enabled block path's 10 creations, 4 are
+The table counts `lane-stop-gate.sh` alone, run as `bash lane-stop-gate.sh`. Through `hooks.json`
+each `Stop` also starts a `node` process (`hooks/exec-bash.mjs`), which spawns that bash, so the
+launcher adds one node process to every row. That process, and the threads node starts, are not
+counted here.
+
+The default path creates no process: the suite pins 0 creations and 0 launches for the script.
+The enabled paths still run `uname -s`, the managed-settings platform primitive (`$OSTYPE` is a
+variable a repository's env block can set). Of the enabled block path's 10 creations, 4 are
 `hook::buffer_stdin_to` in the synced shared library (its capture, its read-slice probe and its
 `printf | jq -e` validation pass); the hook's own 6 are the one payload jq pass (3),
 `uname`, one settings `jq` and the block-decision `jq`. The suite pins these counts by trace where

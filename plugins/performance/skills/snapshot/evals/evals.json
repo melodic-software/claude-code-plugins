@@ -138,6 +138,60 @@
         "Names updating the tool or changing the goal's command as the fix",
         "Does not report p50 numbers from an incompatible harness"
       ]
+    },
+    {
+      "id": 12,
+      "name": "flags-a-post-snapshot-measured-with-a-different-tool-revision",
+      "prompt": "/performance:snapshot post. The baseline report's Tool line reads `<repo-root>/harness/ab.sh @ 3f9a1c2 (1.4.0)`. This run resolved the harness to `<plugin-cache>/performance/harness/ab.sh @ 8be07d4 (1.6.0)`. Report the before/after ratio.",
+      "expected_output": "Records the post snapshot's Tool line, compares it with the baseline's recorded line, and flags the difference in path, revision and version. States that a pair measured with two tool copies does not isolate the change and reports no before/after ratio. Names re-measuring both arms with one tool copy as the way forward.",
+      "files": [],
+      "expectations": [
+        "Records the same Tool line in the post snapshot",
+        "Flags the difference in path, revision and version from the baseline's recorded line",
+        "Does not report a before/after ratio for the mismatched pair",
+        "States that two tool copies do not compare the change alone",
+        "Names re-measuring both arms with one tool copy as the fix"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "tool-identity-override-requires-a-stated-reason",
+      "prompt": "/performance:snapshot post. The Tool line differs from the baseline's: the revision changed from 3f9a1c2 to 8be07d4. I know, the harness only got a README change. Override the tool-identity gate and report the ratio. (Follow-up variant: same request, but I give no reason and just say 'override it'.)",
+      "expected_output": "With a stated reason, accepts the tool-identity override and puts `OVERRIDE: tool-identity  reason: <the human's stated reason>  gate: tool-identity` at the top of the report, not in a footnote. Without a reason, refuses the override, keeps the gate blocking, and reports no ratio.",
+      "files": [],
+      "expectations": [
+        "Uses the named tool-identity gate, not the unmeasurable-host override",
+        "Records the human's stated reason in the OVERRIDE line",
+        "Places the OVERRIDE line at the top of the report",
+        "Refuses the override when no reason is given and reports no ratio"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "reports-an-unobservable-path-as-unobserved",
+      "prompt": "/performance:snapshot baseline. Goal names the common path: Stop hook skip with no interpreter. The hook writes no marker, the harness keeps no exit codes per arm, and nobody logged the spawned processes. Report the baseline p50 and say the skip path ran.",
+      "expected_output": "Does not assume the skip path ran. Reports the path per arm as unobserved, states whether path-selecting state was reset or recorded, flags the arm like a mismatch, and does not report the duration as the goal's headline metric. Names how to make the path observable (a marker, an exit code, or a process census) before re-running.",
+      "files": [],
+      "expectations": [
+        "Reports the observed path as unobserved rather than assuming the skip path ran",
+        "States whether path-selecting state was reset or recorded before the arm",
+        "Flags the unobserved arm like a path mismatch",
+        "Does not report the p50 as the goal's headline metric for the skip path",
+        "Names an observable (marker, exit code, or process census) to add before re-running"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "runs-every-size-the-goal-records-and-carries-per-size-results",
+      "prompt": "/performance:snapshot baseline. The goal's Scaling line records two sizes for the Stop hook's transcript input: 50 KB and 10 MB. Its Event line names the wall-clock time of the Stop event. Capture the baseline; the 50 KB run is quick, so just report that one.",
+      "expected_output": "Runs both recorded sizes, not only the 50 KB one, and captures the event-level Stop wall-clock metric as well as the unit metric at each size. The report carries a per-size result for each of the two sizes so /performance:verify can check the bound at each. Does not report a single-size result as the baseline.",
+      "files": [],
+      "expectations": [
+        "Runs both the 50 KB and the 10 MB size recorded in the goal's Scaling line",
+        "Captures the event-level metric named in the goal's Event line as well as the unit metric",
+        "Carries a separate per-size result for each size into the report",
+        "Does not report the 50 KB result alone as the baseline"
+      ]
     }
   ]
 }

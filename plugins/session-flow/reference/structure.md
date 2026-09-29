@@ -576,11 +576,30 @@ every other refusal names its fix.
 binding's no-project-root branch ([`topic-docs.md`](topic-docs.md)). Interactive, ask for a
 location and pass it as `--memory-dir`. Non-interactive, skip steps 1 to 3 and run `new` with no
 `--memory-dir`: outside a git work tree it resolves `<plugin data>/topic-docs` itself, from
-`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path, because Claude Code
-does not export that variable to Bash-tool commands. The self-ignore guard still binds there. The
+`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path (the record below says
+why). The self-ignore guard still binds there. The
 first refusal names the exact `.gitignore` path to create; create it with the single line `*`,
 announce the write, and re-run. When neither source gives a data dir (a `--plugin-dir` or source
 checkout run), `new` refuses and asks for an explicit `--memory-dir`.
+
+**Verification record: plugin data dir.**
+
+- **Claim.** `${CLAUDE_PLUGIN_DATA}` is `~/.claude/plugins/data/<id>/`, with `<id>` the plugin
+  identifier with every character outside `[A-Za-z0-9_-]` replaced by `-`. It is substituted inline
+  in skill content and exported as an environment variable only to hook processes and MCP and LSP
+  server subprocesses, never to Bash-tool commands. The page does not say the substitution reaches
+  a file a skill reads with the Read tool, or the `${CLAUDE_PLUGIN_DATA:-default}` form, so this
+  plugin relies on neither: a SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a
+  script run through Bash derives the dir (`save_point.py` `_plugin_data_root`).
+- **Basis.** The Environment variables section of
+  <https://code.claude.com/docs/en/plugins-reference#environment-variables>: "`~/.claude/plugins/data/<id>/`
+  ... `<id>` is the plugin identifier with every character other than a letter, digit, `_`, or `-`
+  replaced by `-`"; the Skill, command, and agent content row resolves "Anywhere in the Markdown
+  body"; "The variables aren't present in the environment of commands Claude runs through the Bash
+  tool, in the main session or in a subagent."
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the plugins-reference page changes which
+  processes receive the plugin path variables, where they substitute, or the data-dir layout.
 
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
