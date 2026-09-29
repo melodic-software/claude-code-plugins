@@ -55,7 +55,7 @@ Six skills, one capability:
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
   symbols, and a portable grep lane for shell and PowerShell symbols, JS/TS
   symbols outside a `package.json` root, plus
-  unreferenced source files with a recognised extension). Every
+  unreferenced source files with a recognized extension). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
   writes nothing and deletes nothing.

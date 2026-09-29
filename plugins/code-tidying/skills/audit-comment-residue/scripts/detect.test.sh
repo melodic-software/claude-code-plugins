@@ -602,7 +602,7 @@ assert_contains "from the feature branch is ticket-pr-residue" "$feature_branch_
 # --- 10. Cue coverage, word boundaries, bare repo#N, anchored marker exemption ---------
 
 # Each case is one comment line in a throwaway file, so a finding cannot be blamed on a
-# neighbour. `expect_shape` wants the shape reported; `expect_clean` wants no finding at all.
+# neighbor. `expect_shape` wants the shape reported; `expect_clean` wants no finding at all.
 CUE_N=0
 cue_file() {
   CUE_N=$((CUE_N + 1))

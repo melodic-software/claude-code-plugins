@@ -13,7 +13,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   SKILL.md lane table records the measured precision and recall (2 of 3 each). Knip still covers
   files inside a root ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
 - **`audit-comment-residue` catches weak history cues and comments wrapped across lines.** A tier 2
-  `history-narration-weak` shape covers `as before`, `always` and `the old <noun>`, and a comment
+  `history-narration-weak` shape covers `as before`, `always used`, `the old <word>` and a bare phase number, and a comment
   that continues over several lines is joined before matching. A bare `repo#N` reference is a cue
   ([#4530](https://github.com/melodic-software/claude-code-plugins/issues/4530)).
 - **`audit-comment-residue` labels findings in sync-managed and generated files.** A file that has

@@ -221,6 +221,7 @@ audit_file() {
     [[ -n "$n" ]] && license_block["$n"]=1
   done < <(cr_license_block_lines "$file")
 
+  # shellcheck disable=SC2094 # emit_finding only prints the file name; it never writes the file
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
     if cr_line_skipped "$prev_line" "$line"; then

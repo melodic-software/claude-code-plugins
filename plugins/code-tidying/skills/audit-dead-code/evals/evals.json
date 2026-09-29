@@ -17,7 +17,7 @@
         "Every candidate carries exactly one of the three verdicts: dead, uncertain, or alive",
         "formatLegacyRow is verdicted dead",
         "renderPanel is NOT verdicted dead, and the saving evidence cited is the template-literal dynamic import in ts-entry.ts",
-        "ts-orphan.ts is reported as an unused file, and orphaned-file coverage includes knip unused files inside a package.json root plus an unreferenced-file candidate for recognised source extensions at tier 2",
+        "ts-orphan.ts is reported as an unused file, and orphaned-file coverage includes knip unused files inside a package.json root plus an unreferenced-file candidate for recognized source extensions at tier 2",
         "formatBytes and mountPanel are not reported as candidates",
         "No per-candidate confidence percentage is attributed to knip, which emits no confidence field",
         "Findings come from parsing the canned capture rather than from reading the TypeScript sources and judging them directly",
