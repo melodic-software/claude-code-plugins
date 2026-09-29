@@ -3,11 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.19] - 2026-09-28
+## [0.23.20] - 2026-09-28
 
 ### Fixed
 
 - **The ranking suite passes where scc is installed.** Its expectations are pygments counts, but an installed scc supplies the comment lines and counts a shebang as one, so the comment-free `plain.sh` got a nonzero score. The suite now puts a failing scc stub first on PATH, so the census falls back to pygments as it does on CI. Test-only.
+
+## [0.23.19] - 2026-09-28
+
+### Changed
+
+- **`batch-simplify` composes the bundled `simplify` skill.** When it resolves and passes the
+  identity check, Phase 6 runs it on each group's files in place of the simplifier agent (`docs`
+  mode keeps the agent), flags any change outside the group's files as mutation, and the Phase 8
+  report opens with a Native step result block. A skip names its state, the axis line, and the
+  enable path. Native-step groups run one at a time. Under an `unattended` token the step never
+  runs: the simplifier agent takes every group and the block records the skip.
+- **`tidy` and `batch-simplify` descriptions route to `simplify`** when it resolves: current-diff
+  and single-file cleanup go there.
 
 ## [0.23.18] - 2026-09-28
 

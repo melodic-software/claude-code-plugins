@@ -140,7 +140,7 @@
 # the same breaker count, both relaunch, and one lane name ends up with two
 # `claude --bg` sessions — lane-launcher.sh's own running-lane guard is
 # same-process, and a just-launched session does not appear in
-# `claude agents --json` instantly. A `run` therefore holds a mkdir-atomic
+# `claude agents --json` instantly. A `run` therefore holds an O_EXCL
 # sentinel (`<data-dir>/lanes/<repo-key>/.restart-consumer-lock`, the same idiom
 # as the observability prune's `.prune-in-progress`) across the whole
 # read -> decide -> relaunch -> append span, released on an EXIT trap. A run that
@@ -578,8 +578,23 @@ lock_owner_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
-# `mkdir` is the atomic arbiter: exactly one process can create the directory, so
-# a loser never mutates. The stamp file dates the lock for the abandonment check.
+# Take the lock: the directory, then an owner-pid token created inside it with
+# noclobber (bash's own O_EXCL open). The directory alone is not an arbiter
+# everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both succeed, so the
+# token decides, the same way on GNU, uutils, macOS and Git Bash (which has no
+# flock). The subshell keeps noclobber off for every later write.
+#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
+#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
+#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
+#   As of: 2026-09-28.
+#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
+take_lock_dir() {
+  mkdir "$LOCK_DIR" 2>/dev/null &&
+    (set -o noclobber && printf '%s\n' "$$" >"$LOCK_DIR/owner-pid") 2>/dev/null
+}
+
+# take_lock_dir is the atomic arbiter: exactly one process wins it, so a loser
+# never mutates. The stamp file dates the lock for the abandonment check.
 # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
 # holder may have won the mkdir microseconds ago and not written its stamp yet,
 # and stealing that lock is the very duplication this guards. Stamping instead
@@ -600,8 +615,8 @@ acquire_lock() {
     err "cannot create the lock directory's parent: $parent"
     return 2
   fi
-  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    # mkdir failed. Contention writes a stamp we can read; a storage fault does
+  if ! take_lock_dir; then
+    # Not taken. Contention writes a stamp we can read; a storage fault does
     # not even leave a directory behind.
     if [[ ! -d "$LOCK_DIR" ]]; then
       err "cannot create the lock directory: $LOCK_DIR"
@@ -625,7 +640,7 @@ acquire_lock() {
     fi
     warn "reclaiming a lock held since epoch $stamp with no live run to release it: $LOCK_DIR"
     remove_lock_dir
-    mkdir "$LOCK_DIR" 2>/dev/null || return 1
+    take_lock_dir || return 1
   fi
   OWN_LOCK=1
   trap release_lock EXIT
@@ -1333,4 +1348,7 @@ main() {
   exit "$EXIT_STATUS"
 }
 
-main "$@"
+# Sourceable, so the tests can race the lock arbiter directly.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

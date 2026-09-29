@@ -1,0 +1,51 @@
+# pytest, and unittest-style test methods in pytest-collected files.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: py-pytest
+language: python
+block_model: indent
+files: ['test_*.py', '*_test.py']
+test_start:
+  - '^[[:space:]]*(async[[:space:]]+)?def[[:space:]]+test[A-Za-z0-9_]*[[:space:]]*\('
+# Decorators on the lines above a test_start.
+test_skip:
+  - '^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\.[[:space:]]*mark[[:space:]]*\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*@[[:space:]]*unittest[[:space:]]*\.[[:space:]]*skip'
+assertion:
+  calls:
+    - '[Aa]ssert'
+    - '\.raises'
+    - '\.warns'
+    - 'self\.fail'
+    - '[Ee]xpect'
+    - '[Vv]erify'
+    - '[Ss]hould'  # spellchecker:disable-line
+    - '[Cc]heck'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+mock:
+  create:
+    - 'MagicMock'
+    - 'AsyncMock'
+    - 'Mock\('
+    - 'create_autospec'
+    - 'patch\('
+    - 'patch\.object'
+    - 'mocker\.'
+  verify:
+    - 'assert_called'
+    - 'assert_any_call'
+    - 'assert_has_calls'
+    - 'assert_not_called'
+    - 'assert_awaited'
+    - 'call_count'
+    - 'mock_calls'
+    - '\.called([^A-Za-z0-9_]|$)'
+  # Second entry: an assert statement WHOSE SUBJECT is a mock property. The
+  # property tokens carry word-boundary guards so a real attribute that merely
+  # contains one (result.called_back) is never stripped.
+  strip:
+    - '\.assert_(called|any_call|has_calls|not_called|awaited)[a-z_]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - 'assert[[:space:]][^\n]*([^A-Za-z0-9_](call_count|mock_calls)([^A-Za-z0-9_]|$)|\.called([^A-Za-z0-9_]|$))[^\n]*'
+equality:
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
+suppress_marker: 'cant-fail-ok:'

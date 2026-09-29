@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.36] - 2026-09-28
+
+### Fixed
+
+- The statusline tee's writer lock (`.rate-limits.json.lock`) and drain lock (`spool/.drain.lock`) are now files created with bash `noclobber` (an `O_EXCL` open) instead of `mkdir` directories. uutils `mkdir` (Ubuntu 25.10+) is not atomic, so two racing writers could both take the lock. Stale-lock steal keeps its one- and two-minute age floors and also clears a lock directory left by an older version. Taking a lock no longer spawns a process; releasing one still runs `rm`.
+
 ## [0.8.35] - 2026-09-28
 
 ### Changed

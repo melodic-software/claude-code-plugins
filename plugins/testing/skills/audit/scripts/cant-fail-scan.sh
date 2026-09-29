@@ -90,7 +90,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path>] [--check [--strict] | --findings | --count | --help]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
   --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
@@ -101,6 +101,7 @@ Usage: cant-fail-scan.sh [--check [--strict] | --findings | --count | --help]
   --findings  emit a detector-findings-conforming findings file on stdout; coverage on stderr;
               refuses (exit 2) when no test file was examined or no branch is checked out
   --count     integer finding count on stdout, coverage block on stderr
+  --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
 testing/audit/rule-mock-only-oracle, and over each Playwright config found,
@@ -113,8 +114,9 @@ EOF
 
 mode="report"
 strict=0
-for arg in "$@"; do
-  case "$arg" in
+FILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
   -h | --help)
     usage
     exit 0
@@ -123,12 +125,22 @@ for arg in "$@"; do
   --findings) mode="findings" ;;
   --count) mode="count" ;;
   --strict) strict=1 ;;
+  --file)
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      printf 'ERROR: --file needs a path\n' >&2
+      usage >&2
+      exit 2
+    fi
+    FILE="$2"
+    shift
+    ;;
   *)
-    printf 'ERROR: unknown argument %s\n' "$arg" >&2
+    printf 'ERROR: unknown argument %s\n' "$1" >&2
     usage >&2
     exit 2
     ;;
   esac
+  shift
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -147,9 +159,20 @@ require_readable() {
 require_readable "$AWK_PROG" 'rule engine'
 require_readable "$MASK_AWK" 'shared JavaScript masker'
 require_readable "$CONFIG_AWK" 'runner-config rule engine'
+LOADER="$SCRIPT_DIR/adapter-load.awk"
+require_readable "$LOADER" 'adapter loader'
+ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
 ROOT_SOURCE=""
-if [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
+if [[ -n "$FILE" ]]; then
+  if [[ ! -f "$FILE" ]]; then
+    printf 'ERROR: --file is not a file: %s\n' "$FILE" >&2
+    exit 2
+  fi
+  ROOT="$(cd "$(dirname "$FILE")" && pwd)"
+  FILE="$ROOT/$(basename "$FILE")"
+  ROOT_SOURCE="--file"
+elif [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
   ROOT="$CANT_FAIL_SCAN_ROOT"
   ROOT_SOURCE="\$CANT_FAIL_SCAN_ROOT"
 else
@@ -182,7 +205,55 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 
 WALK_ERR="$(mktemp)"
-trap 'rm -f "$WALK_ERR"' EXIT
+ADAPTER_TABLE="$(mktemp)"
+trap 'rm -f "$WALK_ERR" "$ADAPTER_TABLE"' EXIT
+
+# --- Adapters -----------------------------------------------------------------
+# Every adapter is validated up front: a malformed one refuses the whole run
+# (exit 2), never a per-file engine error the aggregate could absorb.
+if ! awk -f "$LOADER" "$ADAPTER_DIR"/*.yaml >"$ADAPTER_TABLE"; then
+  printf 'ERROR: adapter load failed (see above); refusing to scan.\n' >&2
+  exit 2
+fi
+adapter_ids=()
+declare -A a_lang=() a_globs=() a_detect=()
+while IFS=$'\t' read -r id key val; do
+  [[ -n "${a_lang[$id]+x}" ]] || {
+    adapter_ids+=("$id")
+    a_lang[$id]=""
+  }
+  case "$key" in
+  language) a_lang[$id]="$val" ;;
+  files) a_globs[$id]+="$val"$'\n' ;;
+  detect.any_regex) a_detect[$id]+="$val"$'\n' ;;
+  *) ;;
+  esac
+done <"$ADAPTER_TABLE"
+
+# pick_adapter <file>: the adapter claiming <file> by its files: globs; among
+# several, the first in load order whose detect.any_regex matches the content,
+# else the first in load order. Prints nothing when none claims the file.
+pick_adapter() {
+  local base="${1##*/}" id glob re first="" pats
+  for id in "${adapter_ids[@]}"; do
+    while IFS= read -r glob; do
+      # shellcheck disable=SC2053 # the glob is a pattern on purpose
+      if [[ -n "$glob" && "$base" == $glob ]]; then
+        if [[ -z "$first" ]]; then
+          first="$id"
+        fi
+        pats=()
+        while IFS= read -r re; do [[ -n "$re" ]] && pats+=(-e "$re"); done <<<"${a_detect[$id]:-}"
+        if [[ ${#pats[@]} -gt 0 ]] && LC_ALL=C grep -qE "${pats[@]}" -- "$1" 2>/dev/null; then
+          printf '%s' "$id"
+          return
+        fi
+        break
+      fi
+    done <<<"${a_globs[$id]:-}"
+  done
+  printf '%s' "$first"
+}
 
 # Location values are REPO-relative, not scan-root-relative: the fix action
 # fences each remediation to Location, so a subdirectory scan root must not
@@ -194,9 +265,10 @@ REPO_PREFIX="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
 # --- Walk ---------------------------------------------------------------------
 # Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
 # (a detector's fixture corpus is deliberately defective test code; scanning it
-# reports planted defects as the consumer's own).
+# reports planted defects as the consumer's own). With --file the walk starts
+# at that one file, so the prune never applies and only its name is tested.
 collect_files() {
-  find "$ROOT" \
+  find "${FILE:-$ROOT}" \
     \( -name .git -o -name node_modules -o -name vendor -o -name dist \
     -o -name build -o -name out -o -name obj -o -name bin -o -name target \
     -o -name .work -o -name __pycache__ -o -name .venv -o -name venv \
@@ -204,12 +276,34 @@ collect_files() {
     -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
-mapfile -t js_files < <(collect_files \
-  -name '*.test.js' -o -name '*.test.jsx' -o -name '*.test.ts' -o -name '*.test.tsx' \
-  -o -name '*.test.mjs' -o -name '*.test.cjs' -o -name '*.spec.js' -o -name '*.spec.jsx' \
-  -o -name '*.spec.ts' -o -name '*.spec.tsx' -o -name '*.spec.mjs' -o -name '*.spec.cjs')
-mapfile -t py_files < <(collect_files -name 'test_*.py' -o -name '*_test.py')
-mapfile -t cs_files < <(collect_files -name '*Test.cs' -o -name '*Tests.cs')
+# The walk takes the union of every adapter's files: globs. Each file is then
+# bucketed by its adapter's language, and the buckets scan in the fixed order
+# js, python, cs, so finding order does not depend on adapter file names.
+name_args=()
+declare -A glob_seen=()
+for id in "${adapter_ids[@]}"; do
+  while IFS= read -r glob; do
+    [[ -z "$glob" || -n "${glob_seen[$glob]:-}" ]] && continue
+    glob_seen[$glob]=1
+    [[ ${#name_args[@]} -gt 0 ]] && name_args+=(-o)
+    name_args+=(-name "$glob")
+  done <<<"${a_globs[$id]:-}"
+done
+js_files=()
+py_files=()
+cs_files=()
+declare -A file_adapter=()
+while IFS= read -r f; do
+  [[ -n "$f" ]] || continue
+  id="$(pick_adapter "$f")"
+  file_adapter[$f]="$id"
+  case "${a_lang[$id]}" in
+  js) js_files+=("$f") ;;
+  python) py_files+=("$f") ;;
+  cs) cs_files+=("$f") ;;
+  *) ;;
+  esac
+done < <(collect_files "${name_args[@]}")
 
 # Playwright runner configs: the same pruned walk, for the six filenames the
 # runner probes. Playwright never walks upward, so every directory holding any
@@ -251,8 +345,8 @@ d_cfg1=0
 d_cfg2=0
 
 scan_one() {
-  # scan_one <lang> <file>
-  local lang="$1" file="$2" rel kind slug line detail
+  # scan_one <file>
+  local file="$1" rel kind slug line detail
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     unreadable=$((unreadable + 1))
@@ -289,7 +383,8 @@ scan_one() {
     E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
     *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
-  done < <(awk -v LANG_ID="$lang" -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
+  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" \
+    -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
 }
 
 scan_config() {
@@ -348,9 +443,9 @@ scan_config() {
   done < <(awk -f "$MASK_AWK" -f "$CONFIG_AWK" "$file" 2>>"$WALK_ERR")
 }
 
-for f in ${js_files[@]+"${js_files[@]}"}; do scan_one js "$f"; done
-for f in ${py_files[@]+"${py_files[@]}"}; do scan_one py "$f"; done
-for f in ${cs_files[@]+"${cs_files[@]}"}; do scan_one cs "$f"; done
+for f in ${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"}; do
+  scan_one "$f"
+done
 
 # One config per directory, in Playwright's probe order. Everything else the
 # walk enumerated in that directory is shadowed: the runner would never load it,
@@ -460,6 +555,9 @@ coverage_block() {
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
   printf '  test files: %d examined of %d enumerated (js/ts %d, python %d, csharp %d); %d unreadable\n' \
     "$examined" "$enumerated" "$enum_js" "$enum_py" "$enum_cs" "$unreadable"
+  if [[ -n "$FILE" ]]; then
+    printf '  adapter: %s\n' "${file_adapter[$FILE]:-none (no adapter claims this file)}"
+  fi
   printf '  test blocks parsed: %d; blocks that fired a block rule: %d; exempted findings (cant-fail-ok): %d\n' \
     "$blocks" "$fired_blocks" "$exempted"
   if [[ "$cfg_enum" -eq 0 ]]; then
