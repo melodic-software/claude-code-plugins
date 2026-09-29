@@ -29,6 +29,12 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+  # xUnit's *Async assertions return a Task (xUnit2021).
+  async:
+    - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
+  # .Should() with no matcher chained, as a whole statement.
+  inert:
+    - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
 mock:
   create:
     - 'new[[:space:]]+Mock<'

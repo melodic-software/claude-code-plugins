@@ -28,6 +28,9 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+  # assert.rejects and assert.doesNotReject return promises.
+  async:
+    - '(t[[:space:]]*\.[[:space:]]*)?(assert[[:space:]]*\.[[:space:]]*)?(rejects|doesNotReject)[[:space:]]*\('
 mock:
   create:
     - '(^|[^A-Za-z0-9_$])mock[[:space:]]*\.[[:space:]]*(fn|method|getter|setter|property|module)[[:space:]]*\('

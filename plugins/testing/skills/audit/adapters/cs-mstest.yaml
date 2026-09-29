@@ -14,5 +14,12 @@ test_start:
 test_skip:
   - 'Ignore'
   - 'ExpectedException'
+assertion:
+  async:
+    - 'Assert[[:space:]]*\.[[:space:]]*(ThrowsExceptionAsync|ThrowsAsync|ThrowsExactlyAsync)[[:space:]]*[<(]'
+  # A literal condition always passes (MSTEST0032).
+  inert:
+    - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
+    - 'Assert[[:space:]]*\.[[:space:]]*(IsTrue[[:space:]]*\([[:space:]]*true|IsFalse[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
 equality:
   call2: [CollectionAssert.AreEqual, CollectionAssert.AreEquivalent, Assert.AreEquivalent, Assert.AreSequenceEqual, assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]

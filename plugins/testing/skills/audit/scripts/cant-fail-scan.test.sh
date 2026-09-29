@@ -976,85 +976,141 @@ CORPUS="$FIX/corpus"
 corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/bad/bats-greet-run-unchecked.bats.fixture
+  bash-bats/bad/bats-page-source-text.bats.fixture
+  bash-bats/bad/bats-retry-limit-restated.bats.fixture
   bash-bats/good/bats-greet-against-literal.bats.fixture
   bash-bats/good/bats-greet-asserts-output.bats.fixture
   bash-bats/good/bats-greet-run-status.bats.fixture
   bash-bats/good/bats-greet-skipped.bats.fixture
   bash-bats/good/bats-greet-test-command.bats.fixture
   bash-bats/good/bats-init-writes-config.bats.fixture
+  bash-bats/good/bats-repaired-oracles.bats.fixture
+  bash-harness/bad/bracket-status-dropped.test.sh.fixture
+  bash-harness/bad/deploy-source-text.test.sh.fixture
   bash-harness/bad/prints-only.test.sh.fixture
+  bash-harness/bad/retry-limit-restated.test.sh.fixture
   bash-harness/bad/sort-against-itself.test.sh.fixture
   bash-harness/good/fail-and-exit.test.sh.fixture
   bash-harness/good/failure-counter.test.sh.fixture
   bash-harness/good/node-driver-heredoc.test.sh.fixture
   bash-harness/good/pwsh-selftest.test.sh.fixture
   bash-harness/good/python-in-variable.test.sh.fixture
+  bash-harness/good/repaired-oracles.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
+  cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
   cs-mstest/bad/OrderPlacementTests.cs.fixture
+  cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
+  cs-mstest/good/OrderRepairedOraclesTests.cs.fixture
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
+  cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
   cs-nunit/bad/CartPurchaseTests.cs.fixture
   cs-nunit/bad/CartRefundTests.cs.fixture
+  cs-nunit/bad/CartSourceTextTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
   cs-nunit/good/CartPurchaseAssertedTests.cs.fixture
+  cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
+  cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
   cs-xunit/good/InvoiceRenderSnapshotTests.cs.fixture
+  cs-xunit/good/InvoiceRepairedOraclesTests.cs.fixture
   cs-xunit/good/InvoiceTotalFluentTests.cs.fixture
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
+  go-testing/bad/go_slugify_logs_mismatch_test.go.fixture
   go-testing/bad/go_slugify_runs_test.go.fixture
   go-testing/good/go_cart_helper_test.go.fixture
   go-testing/good/go_codec_fuzz_test.go.fixture
   go-testing/good/go_export_skipped_test.go.fixture
   go-testing/good/go_hash_bench_test.go.fixture
   go-testing/good/go_query_diff_literal_test.go.fixture
+  go-testing/good/go_repaired_oracles_test.go.fixture
   go-testing/good/go_slugify_checked_test.go.fixture
+  js-jest/bad/jest-checkout-calls-payment-verbatim.test.ts.fixture
+  js-jest/bad/jest-checkout-calls-payment.test.ts.fixture
+  js-jest/bad/jest-checkout-source-text.test.ts.fixture
   js-jest/bad/jest-discount-runs.test.ts.fixture
   js-jest/bad/jest-slug-itself.test.js.fixture
   js-jest/bad/jest-split-call-runs.test.ts.fixture
+  js-jest/bad/jest-sync-call-count.test.ts.fixture
+  js-jest/bad/jest-upload-limit-restated.test.ts.fixture
+  js-jest/bad/jest-user-resolves-unawaited.test.ts.fixture
   js-jest/good/jest-discount-checked.test.ts.fixture
+  js-jest/good/jest-repaired-oracles.test.ts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
   js-jest/good/jest-split-call.test.ts.fixture
+  js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
   js-node-test/bad/node-test-csv-itself.test.mjs.fixture
+  js-node-test/bad/node-test-page-source-text.test.mjs.fixture
+  js-node-test/bad/node-test-post-limit-restated.test.mjs.fixture
   js-node-test/bad/node-test-price-runs.test.mjs.fixture
   js-node-test/good/node-test-context-assert.test.mjs.fixture
   js-node-test/good/node-test-context-skip.test.mjs.fixture
   js-node-test/good/node-test-csv-literal.test.mjs.fixture
   js-node-test/good/node-test-destructured.test.js.fixture
   js-node-test/good/node-test-price-checked.test.mjs.fixture
+  js-node-test/good/node-test-repaired-oracles.test.mjs.fixture
   js-node-test/good/node-test-suite-skip.test.mjs.fixture
   js-node-test/good/node-test-todo-option.test.mjs.fixture
   js-playwright/bad/playwright-login-clicks.spec.ts.fixture
+  js-playwright/bad/playwright-page-size-restated.spec.ts.fixture
+  js-playwright/bad/playwright-page-source-text.spec.ts.fixture
+  js-playwright/bad/playwright-saved-unawaited.spec.ts.fixture
   js-playwright/bad/playwright-title-itself.spec.ts.fixture
   js-playwright/good/playwright-body-skip.spec.ts.fixture
   js-playwright/good/playwright-configured-expect.spec.ts.fixture
   js-playwright/good/playwright-describe-fixme.spec.ts.fixture
   js-playwright/good/playwright-login-asserted.spec.ts.fixture
   js-playwright/good/playwright-poll.spec.ts.fixture
+  js-playwright/good/playwright-repaired-oracles.spec.ts.fixture
   js-playwright/good/playwright-soft-step.spec.ts.fixture
   js-playwright/good/playwright-title-literal.spec.ts.fixture
   js-vitest/bad/vitest-cart-runs.test.ts.fixture
   js-vitest/bad/vitest-duration-itself.test.ts.fixture
+  js-vitest/bad/vitest-limit-against-itself.test.ts.fixture
+  js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture
+  js-vitest/bad/vitest-post-limit-restated.test.ts.fixture
+  js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
+  js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
+  js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
+  planted/bad/PlantedShouldAloneTests.cs.fixture
+  planted/bad/PlantedSumRecomputedTests.cs.fixture
+  planted/bad/PlantedUnawaitedAsyncTests.cs.fixture
+  planted/bad/planted-constant-restatement.test.ts.fixture
+  planted/bad/planted-no-assertion.test.ts.fixture
+  planted/bad/planted-reduce-recomputed.test.ts.fixture
+  planted/bad/planted-self-identity.test.ts.fixture
+  planted/bad/planted-source-text.test.ts.fixture
+  planted/bad/planted-unawaited-expect.spec.ts.fixture
+  planted/bad/test_planted_constant.py.fixture
+  planted/bad/test_planted_sum_recomputed.py.fixture
+  planted/bad/test_planted_tuple_assert.py.fixture
+  pwsh-pester/bad/pester-module-source-text.Tests.ps1.fixture
   pwsh-pester/bad/pester-report-invoke-only.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-against-itself.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-bare-comparison.Tests.ps1.fixture
   pwsh-pester/bad/pester-sum-writes-host.Tests.ps1.fixture
+  pwsh-pester/good/pester-repaired-oracles.Tests.ps1.fixture
   pwsh-pester/good/pester-report-invoke-and-value.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-against-literal.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-context-skip.Tests.ps1.fixture
@@ -1062,12 +1118,17 @@ corpus_files=(
   pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_limit_restated.py.fixture
+  py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
   py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
   py-pytest/bad/test_pytest_price_recomputed.py.fixture
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
+  py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_price_literal.py.fixture
   py-pytest/good/test_pytest_raises.py.fixture
+  py-pytest/good/test_pytest_repaired_oracles.py.fixture
   py-pytest/good/test_pytest_skip_marker.py.fixture
   py-pytest/good/test_pytest_skipif_split.py.fixture
   py-pytest/good/test_pytest_skipped_class.py.fixture
@@ -1077,11 +1138,15 @@ corpus_files=(
   py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture
   py-unittest/bad/test_unittest_deliver_awaits.py.fixture
+  py-unittest/bad/test_unittest_limit_restated.py.fixture
+  py-unittest/bad/test_unittest_notify_called_once_with.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
+  py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_raises.py.fixture
-  py-unittest/good/test_unittest_skiptest.py.fixture
+  py-unittest/good/test_unittest_repaired_oracles.py.fixture
   py-unittest/good/test_unittest_skipped_class.py.fixture
+  py-unittest/good/test_unittest_skiptest.py.fixture
   py-unittest/good/test_unittest_skipunless.py.fixture
   py-unittest/good/test_unittest_skipunless_split.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
@@ -1093,13 +1158,30 @@ if [[ "$on_disk" == "$listed" ]]; then
 else
   fail "corpus list matches disk" "$(diff <(printf '%s\n' "$listed") <(printf '%s\n' "$on_disk"))"
 fi
+# A `reads: <path>` file reads a source file by a static path: its copy sits in
+# test/ under a fresh git repository that tracks a stub at <path>, so the
+# driver's tracked-file check can keep the read. planted/ is no adapter's
+# directory, so its files name their adapter in an `adapter: <id>` header.
+reads_n=0
 for rel in "${corpus_files[@]}"; do
   base="${rel##*/}"
   copy="$TMP_ROOT/corpus/${rel%/*}/${base%.fixture}"
+  reads="$(sed -n 's/.*reads: \([^ ]*\).*/\1/p' "$CORPUS/$rel")"
+  if [[ -n "$reads" ]]; then
+    reads_n=$((reads_n + 1))
+    repo="$TMP_ROOT/corpus-reads/$reads_n"
+    copy="$repo/test/${base%.fixture}"
+    mkdir -p "$repo/test" "$(dirname "$repo/$reads")"
+    printf 'stub\n' >"$repo/$reads"
+    git -C "$repo" init -q
+    git -C "$repo" add -- "$reads"
+  fi
   mkdir -p "${copy%/*}"
   cp "$CORPUS/$rel" "$copy"
   run_file --file "$copy"
-  assert_contains "corpus $rel: claimed by ${rel%%/*}" "$out" "adapter: ${rel%%/*}"
+  claim="$(sed -n 's/.*adapter: \([a-z-]*\).*/\1/p' "$CORPUS/$rel")"
+  [[ -n "$claim" ]] || claim="${rel%%/*}"
+  assert_contains "corpus $rel: claimed by $claim" "$out" "adapter: $claim"
   want="$(sed -n 's/.*expect: \(rule-[a-z-]*\).*/\1/p' "$copy" | sort -u | paste -sd, -)"
   got="$(printf '%s\n' "$out" | sed -n 's|^finding \[testing/audit/\(rule-[a-z-]*\)\].*|\1|p' | sort -u | paste -sd, -)"
   if [[ "$got" == "$want" ]]; then
@@ -1108,6 +1190,149 @@ for rel in "${corpus_files[@]}"; do
     fail "corpus $rel: exact rule set" "want [$want], got [$got]"
   fi
 done
+
+# --- report-only rules: print, never gate -------------------------------------
+# inert-assertion, constant-restatement and source-text-read are reported and
+# counted, and gate neither --check nor --check --strict.
+RO="$TMP_ROOT/report-only"
+# ro_repo <dir> <tracked source>...: a git repository tracking stub sources.
+ro_repo() {
+  local dir="$1" src
+  shift
+  mkdir -p "$dir/test"
+  git -C "$TMP_ROOT" init -q -b report-only "${dir#"$TMP_ROOT"/}"
+  for src in "$@"; do
+    mkdir -p "$(dirname "$dir/$src")"
+    printf 'export const X = 1;\n' >"$dir/$src"
+    git -C "$dir" add -- "$src"
+  done
+}
+ro_repo "$RO/inert"
+cp "$CORPUS/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture" "$RO/inert/test/test_pytest_total_tuple_assert.py"
+ro_repo "$RO/constant"
+cp "$CORPUS/js-vitest/bad/vitest-post-limit-restated.test.ts.fixture" "$RO/constant/test/vitest-post-limit-restated.test.ts"
+ro_repo "$RO/source" app/pitch-detail.tsx
+cp "$CORPUS/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture" "$RO/source/test/vitest-pitch-detail-source-order.test.ts"
+for pair in inert:rule-inert-assertion constant:rule-constant-restatement source:rule-source-text-read; do
+  dir="$RO/${pair%%:*}" rule="${pair#*:}"
+  run_scan "$dir" --check
+  assert_exit "(a) --check passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+  assert_contains "(a) --check names $rule report-only" "$out" "report-only and never gate --check, --strict included"
+  run_scan "$dir" --check --strict
+  assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+done
+# (c) the whole-tree walk, not --file, resolves the read against the tracked source.
+run_scan "$RO/source"
+assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
+  "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
+git -C "$RO/source" rm -q --cached app/pitch-detail.tsx
+run_scan "$RO/source"
+assert_not_contains "(c) the same read of an untracked file is no finding" "$out" "rule-source-text-read"
+
+# (b) a file the test wrote itself, and reads through a glob or a directory
+# walk, are never a source-text read, though the sources they reach are tracked.
+ro_repo "$RO/policy" src/limits.ts src/gen.ts scripts/deploy.sh
+printf '%s\n' "import { globSync, readFileSync, readdirSync, writeFileSync } from 'fs';" \
+  "import { join } from 'path';" "import { tmpdir } from 'os';" \
+  "test('reads back what it wrote', () => {" "  const out = join(tmpdir(), 'gen.ts');" \
+  "  writeFileSync(out, 'x');" "  expect(readFileSync(out, 'utf8')).toBe('x');" "});" \
+  "test('no debugger in any source', () => {" "  for (const f of globSync('src/*.ts')) {" \
+  "    expect(readFileSync(f, 'utf8')).not.toContain('debugger');" "  }" \
+  "  readdirSync('src').forEach((f) => expect(readFileSync('src/limits.ts', 'utf8')).toBeTruthy());" "});" \
+  >"$RO/policy/test/policy.test.ts"
+printf '%s\n' '#!/usr/bin/env bash' 'set -uo pipefail' 'REPO="$(cd "$(dirname "$0")/.." && pwd)"' \
+  'TMP="$(mktemp -d)"' 'cp "$REPO/scripts/deploy.sh" "$TMP/deploy.sh"' \
+  'grep -q pipefail "$TMP/deploy.sh" || fail "copy"' \
+  'for f in "$REPO"/scripts/*.sh; do grep -q pipefail "$f" || fail "$f"; done' \
+  'find "$REPO/src" -name "*.ts" -exec grep -L x {} + >/dev/null' 'pass policy' >"$RO/policy/test/policy.test.sh"
+run_scan "$RO/policy"
+assert_contains "(b) the policy tree was examined" "$out" "test files: 2 examined of 2 enumerated"
+assert_not_contains "(b) a self-written file, a glob and a walk are never a source-text read" "$out" "rule-source-text-read"
+
+# (d) a contract constant under cant-fail-ok: is exempt, and counted.
+printf '%s\n' "import { X_POST_CHARACTER_LIMIT } from '../src/post';" \
+  "test('the API caps posts at 280', () => {" "  // cant-fail-ok: the 280 limit is fixed by the X API contract" \
+  "  expect(X_POST_CHARACTER_LIMIT).toBe(280);" "});" >"$RO/contract.test.ts"
+run_file --file "$RO/contract.test.ts"
+assert_not_contains "(d) an annotated constant restatement is not reported" "$out" "rule-constant-restatement"
+assert_contains "(d) the annotated constant restatement is counted as exempt" "$out" "exempted findings (cant-fail-ok): 1"
+
+# Remedies, pinned per scope: each rule's Action is asserted where it fires,
+# and asserted absent where the advice would not apply.
+# remedy <corpus copy> <rule>: the Action text of that rule's finding.
+remedy() {
+  run_file --file "$1"
+  printf '%s\n' "$out" | sed -n "s|^finding \[testing/audit/$2\].*Action: ||p" | head -1
+}
+C="$TMP_ROOT/corpus"
+a="$(remedy "$C/js-playwright/bad/playwright-saved-unawaited.spec.ts" rule-inert-assertion)"
+assert_contains "inert remedy (js) says to await the matcher" "$a" "await (or return) the async matcher"
+assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tuple"
+a="$(remedy "$C/cs-xunit/bad/InvoiceShouldAloneTests.cs" rule-inert-assertion)"
+assert_contains "inert remedy (cs) names await and a chained matcher" "$a" "chain a matcher after .Should()"
+assert_not_contains "inert remedy (cs) offers no bats advice" "$a" '$status'
+a="$(remedy "$C/py-pytest/bad/test_pytest_total_tuple_assert.py" rule-inert-assertion)"
+assert_contains "inert remedy (python) says to drop the tuple and use assert_*" "$a" "assert_called_once_with"
+assert_not_contains "inert remedy (python) never says await" "$a" "await"
+a="$(remedy "$C/bash-bats/bad/bats-greet-run-unchecked.bats" rule-inert-assertion)"
+assert_contains "inert remedy (bash) says to check what run captured" "$a" 'check what run captured ($status'
+assert_not_contains "inert remedy (bash) never says await" "$a" "await"
+a="$(remedy "$C/pwsh-pester/bad/pester-sum-bare-comparison.Tests.ps1" rule-inert-assertion)"
+assert_contains "inert remedy (pwsh) says to pipe to Should" "$a" "Should -Be 5"
+assert_not_contains "inert remedy (pwsh) never says await" "$a" "await"
+a="$(remedy "$C/go-testing/bad/go_slugify_logs_mismatch_test.go" rule-inert-assertion)"
+assert_contains "inert remedy (go) says to fail with t.Errorf" "$a" "t.Errorf or t.Fatalf"
+assert_not_contains "inert remedy (go) never says await" "$a" "await"
+for f in js-jest/bad/jest-upload-limit-restated.test.ts py-pytest/bad/test_pytest_limit_restated.py \
+  bash-bats/bad/bats-retry-limit-restated.bats; do
+  a="$(remedy "$C/$f" rule-constant-restatement)"
+  assert_contains "constant remedy ($f) asserts behavior or records a contract constant" "$a" \
+    "Assert the behavior that uses the constant"
+  assert_contains "constant remedy ($f) names the cant-fail-ok: exemption" "$a" "cant-fail-ok: <why>"
+  assert_not_contains "constant remedy ($f) is not the inert remedy" "$a" "Make the assertion evaluate"
+done
+while IFS= read -r f; do
+  a="$(remedy "$f" rule-source-text-read)"
+  assert_contains "source remedy (${f##*/}) says to exercise the code" "$a" "Exercise the code (render it, call it, run it)"
+  assert_contains "source remedy (${f##*/}) routes policy tests to a glob or walk" "$a" "a glob or a directory walk"
+  assert_not_contains "source remedy (${f##*/}) never offers the cant-fail-ok escape" "$a" "cant-fail-ok"
+done < <(find "$TMP_ROOT/corpus-reads" -path '*/test/*' \( -name 'jest-checkout-source-text.test.ts' \
+  -o -name 'test_pytest_views_source_text.py' -o -name 'deploy-source-text.test.sh' \) | sort)
+# The findings file carries the per-rule tier: change detectors below the can't-fail rules.
+cp "$CORPUS/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture" "$RO/constant/test/test_pytest_total_tuple_assert.py"
+cp "$CORPUS/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture" "$RO/constant/test/vitest-pitch-detail-source-order.test.ts"
+mkdir -p "$RO/constant/app"
+printf 'x\n' >"$RO/constant/app/pitch-detail.tsx"
+git -C "$RO/constant" add app/pitch-detail.tsx
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
+assert_exit "--findings persists report-only findings" 0 "$rc"
+assert_matches "an inert-assertion row is IMPORTANT with high confidence" "$out" \
+  '^\| [0-9]+ \| IMPORTANT \| high \| test/test_pytest_total_tuple_assert.py:8 \|'
+assert_matches "a constant-restatement row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-post-limit-restated.test.ts:10 \|'
+assert_matches "a source-text-read row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-pitch-detail-source-order.test.ts:12 \|'
+assert_contains "Surfaces counts the report-only rules" "$out" \
+  "report-only findings (never gate --check): testing/audit/rule-inert-assertion 1, testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
+
+# (e) every rule id the scanner can emit has a positive evals.json expectation.
+EVALS="$SCRIPT_DIR/../evals/evals.json"
+expected="$(jq -r '.evals[] | .expected_output, .expectations[]' "$EVALS")"
+emitted="$({
+  grep -ohE 'emit\([^,]*, "[a-z-]+"' "$SCRIPT_DIR/cant-fail-scan.awk" "$SCRIPT_DIR/runner-config-scan.awk"
+  grep -ohE 'slug=[a-z-]+' "$SCRIPT_DIR/cant-fail-scan.sh"
+} | sed -E 's/.*[" =]([a-z-]+)"?$/\1/' | sort -u)"
+if [[ "$(printf '%s\n' "$emitted" | grep -c .)" -ge 8 ]]; then
+  pass "(e) the emitted rule ids were extracted from the engines"
+else
+  fail "(e) the emitted rule ids were extracted from the engines" "got: $emitted"
+fi
+while IFS= read -r slug; do
+  assert_contains "(e) evals.json expects testing/audit/rule-$slug" "$expected" "testing/audit/rule-$slug"
+done <<<"$emitted"
 
 # --- corpus grid: GRID.md rows and pair cells ---------------------------------
 GRIDCHK="$SCRIPT_DIR/check-corpus-grid.sh"
@@ -1138,6 +1363,11 @@ printf '| Adapter | rule-x |\n|---|---|\n| a | pair |\n| b | n/a: no such shape 
 rc=0
 bash "$GRIDCHK" "$G/corpus" "$G/adapters" >/dev/null 2>&1 || rc=$?
 assert_exit "pair cells with both files and n/a cells pass the grid" 0 "$rc"
+printf '\n| Id | Rule or judge |\n|---|---|\n| T3 | judge |\n' >>"$G/corpus/GRID.md"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "a second table after the Adapter grid is not read as adapter rows" 0 "$rc"
+assert_not_contains "the second table's rows are never named as adapters" "$out" "T3"
 
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.

@@ -25,11 +25,30 @@ All notable changes to the `testing` plugin are documented here. Format follows
   The test-scan hook covers the new globs.
 - **audit:** a fixture corpus with a bad and a good file per adapter and rule, and
   `check-corpus-grid.sh`, which fails when a `GRID.md` pair cell lacks either file.
+- **audit:** three report-only rules. They print and count, and never gate `--check`, `--strict`
+  included. `rule-inert-assertion` finds assertions that never evaluate: an async matcher nothing
+  awaits, an `expect` with no matcher, a bare `.Should()`, a Python tuple assert or a Mock
+  `called_once_with`, a bats `run` nothing checks or a `!` that is not the last line, and the like
+  in every adapter. `rule-constant-restatement` finds a constant, or a literal the test bound
+  itself, compared to a literal with no code under test called. `rule-source-text-read` finds a
+  test reading a git-tracked, non-test source file by a static path; a read through a glob or a
+  walk is never flagged. Adapters gain `assertion.async` and `assertion.inert` fields. The
+  inert-assertion remedy names the repair for the file's language.
+- **audit:** `GRID.md` maps each of Matt Pocock's low-value test examples to a rule or to the
+  Release 2 judge, and the corpus holds the twelve planted taxonomy tests, one per file.
+- **hooks:** `test-scan` asks where the expected value comes from for a constant restatement too,
+  and leads with "change detectors" when those are the only findings.
 
 ### Changed
 
 - **audit:** when no adapter's `detect` matches a file, the claimant with no `detect` list wins, so
   `cs-xunit` stays the C# default.
+- **audit:** `--findings` rows carry a per-rule tier: `SUGGESTION` for the two change-detector rules.
+- **audit:** the Jest-family adapters count `expect.poll(` and `expect.soft(` as assertions, and no
+  longer count a `checkout(` call as one.
+- **audit:** `check-corpus-grid.sh` reads only the `GRID.md` table headed `Adapter`.
+- **hooks:** `test-scan` claims its once-per-call and once-per-file markers as files created with
+  `noclobber` (`O_EXCL`) instead of `mkdir`, which is not atomic under uutils coreutils.
 
 ## [0.9.7] - 2026-09-28
 

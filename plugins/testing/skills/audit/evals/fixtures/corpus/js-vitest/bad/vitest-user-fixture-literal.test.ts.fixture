@@ -1,0 +1,11 @@
+// expect: rule-constant-restatement
+// Testing the fixture: the subject is a literal the test built itself, and no
+// code under test runs, so the test only checks its own setup.
+import { describe, expect, it } from 'vitest';
+
+describe('user', () => {
+  it('has a display name', () => {
+    const user = { name: 'Ada', role: 'admin' };
+    expect(user.name).toBe('Ada');
+  });
+});

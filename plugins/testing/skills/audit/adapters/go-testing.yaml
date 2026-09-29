@@ -26,6 +26,10 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+  # Matched against an if statement joined onto one line: a comparison whose
+  # branch is empty or only logs (staticcheck SA9003 for the empty one).
+  inert:
+    - 'if[[:space:]].*(!=|==).*\{[[:space:]]*(t[[:space:]]*\.[[:space:]]*Logf?[[:space:]]*\([^{}]*\)[[:space:]]*;?[[:space:]]*)*\}$'
 equality:
   call2: [reflect.DeepEqual, cmp.Equal, cmp.Diff, bytes.Equal, slices.Equal, maps.Equal, errors.Is, strings.EqualFold]
 suppress_marker: 'cant-fail-ok:'

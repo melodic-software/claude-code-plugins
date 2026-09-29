@@ -14,5 +14,10 @@ test_skip:
   - 'Ignore'
   - 'Explicit'
   - 'ExpectedResult'
+assertion:
+  # Assert.ThatAsync returns a Task that must be awaited. Assert.ThrowsAsync is
+  # left out: it returns a Task only from NUnit 5, and NUnit 4 runs it synchronously.
+  async:
+    - 'Assert[[:space:]]*\.[[:space:]]*ThatAsync[[:space:]]*[<(]'
 equality:
   call2: [ClassicAssert.AreEqual, ClassicAssert.AreSame, CollectionAssert.AreEqual, CollectionAssert.AreEquivalent, StringAssert.AreEqualIgnoringCase, assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]

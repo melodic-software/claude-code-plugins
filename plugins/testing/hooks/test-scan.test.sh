@@ -5,8 +5,9 @@
 # pipes hand-built PostToolUse payloads through the hook. Covers the option
 # gate (through the exec-form launcher), findings on a create, the once-per-
 # file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, the doubtful-hit prompt, and the per-call dedup
-# that keeps two overlapping `if` rows from reporting twice.
+# timeout, gitignored paths, the doubtful-hit prompt (recomputed expectations
+# and constant restatements), and the per-call dedup that keeps two
+# overlapping `if` rows from reporting twice.
 
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -72,6 +73,15 @@ import { sum } from './sum';
 
 test('adds', () => {
   expect(sum(1, 2)).toBe(sum(1, 2));
+});
+EOF
+
+cat >"$REPO/src/limit.test.ts" <<'EOF'
+import { test, expect } from 'vitest';
+import { MAX_ITEMS } from './sum';
+
+test('caps the cart', () => {
+  expect(MAX_ITEMS).toBe(50);
 });
 EOF
 
@@ -147,6 +157,21 @@ assert_empty "(f) gitignored path: no output" "$out"
 run Write "$REPO/src/again.test.ts"
 assert_contains "(g) names rule-recomputed-expectation" "$out" "rule-recomputed-expectation"
 assert_contains "(g) asks for the expected value's source" "$out" "where the expected value"
+
+# (h) a constant restatement carries the same prompt, under a change-detector
+# lead rather than the can't-fail one.
+run Write "$REPO/src/limit.test.ts"
+assert_contains "(h) names rule-constant-restatement" "$out" "rule-constant-restatement"
+assert_contains "(h) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(h) leads with change detectors" "$out" "fail on harmless changes"
+assert_not_contains "(h) does not call a change detector a test that cannot fail" "$out" "tests that cannot fail"
+
+# The markers are files created exclusively, not directories.
+if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]] && [[ -z "$(find "$CLAUDE_PLUGIN_DATA/marks" -mindepth 1 -type d)" ]]; then
+  ok "markers are plain files"
+else
+  fail "markers are plain files"
+fi
 
 # Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call

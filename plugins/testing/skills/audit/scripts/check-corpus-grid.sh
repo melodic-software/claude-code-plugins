@@ -28,8 +28,15 @@ has_header() {
 
 rules=()
 declare -A rowed=()
+# Only the table whose header's first cell is Adapter is the grid; any other
+# table in GRID.md (Pocock examples, planted tests) is prose for readers. A
+# line that does not start with | ends a table.
+in_grid=0
 while IFS= read -r line; do
-  [[ "$line" == '|'* ]] || continue
+  if [[ "$line" != '|'* ]]; then
+    in_grid=0
+    continue
+  fi
   IFS='|' read -ra cells <<<"$line"
   for i in "${!cells[@]}"; do
     cells[i]="$(printf '%s' "${cells[i]}" | sed 's/^ *//; s/ *$//')"
@@ -37,12 +44,14 @@ while IFS= read -r line; do
   adapter="${cells[1]}"
   case "$adapter" in
   Adapter)
+    in_grid=1
     rules=("${cells[@]:2}")
     continue
     ;;
   ---*) continue ;;
   *) ;;
   esac
+  ((in_grid)) || continue
   rowed[$adapter]=1
   for i in "${!rules[@]}"; do
     cell="${cells[i + 2]:-}" rule="${rules[i]}"

@@ -22,6 +22,10 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+  # A Mock attribute named like an assertion without assert_ returns a child
+  # Mock, which is truthy and asserts nothing.
+  inert:
+    - '[A-Za-z_][A-Za-z0-9_.]*\.[[:space:]]*called(_once)?_with[[:space:]]*\('
 mock:
   create:
     - 'MagicMock'

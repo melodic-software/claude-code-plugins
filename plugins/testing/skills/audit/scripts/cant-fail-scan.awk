@@ -22,10 +22,14 @@
 # Output, tab-separated, one record per line:
 #   F <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding
 #   X <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding exempted by a cant-fail-ok: annotation
+#   S <tab> <F|X> <tab> <line> <tab> <path>           a source-text-read candidate: a static path a
+#                                                      test reads; the driver keeps it only when git
+#                                                      tracks it as a non-test source file
 #   B <tab> <count>                                    test blocks parsed (emitted once, at END)
 #   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
 #
-# Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle.
+# Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
+# inert-assertion | constant-restatement (source-text-read comes from S).
 # The driver owns the qualified rule-id form and the thresholds' prose.
 #
 # Design bias, load-bearing: every heuristic errs toward NOT firing. Assertion
@@ -95,6 +99,9 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_SKIP = V["test_skip"]
   R_SUITE_SKIP = V["suite_skip"]
   if (R_EXEMPT == "") R_EXEMPT = "cant-fail-ok:"
+  # Statement-initial forms: anchored here, so an adapter lists bare starts.
+  R_ASYNC = V["assertion.async"] == "" ? "" : "^(" V["assertion.async"] ")"
+  R_INERT = V["assertion.inert"] == "" ? "" : "^(" V["assertion.inert"] ")"
 
   # Two-argument equality helpers, matched by substring in list order.
   # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
@@ -493,6 +500,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
         emit(tkind, "recomputed-expectation", FNR, RW_NAME[i] "(" expr ") compared to itself")
         return
       }
+      if (const_check(a, b, tkind)) return
     }
   }
   # two-argument equality helpers
@@ -510,6 +518,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
         emit(tkind, "recomputed-expectation", FNR, fn " " expr " " expr)
         return
       }
+      if (const_check(SW1, SW2, tkind)) return
       continue
     }
     while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
@@ -522,6 +531,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       emit(tkind, "recomputed-expectation", FNR, fn "(" expr ", " expr ")")
       return
     }
+    if (const_check(a, b, tkind)) return
   }
   # pipeline form, e.g. A | Should -Be A: A runs from the statement start to
   # the last pipe before the matcher; the other side is the matcher's first word.
@@ -541,6 +551,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       emit(tkind, "recomputed-expectation", FNR, expr " | " PIPE[i] " " expr)
       return
     }
+    if (const_check(a, b, tkind)) return
   }
   # python assert EXPR == EXPR: the statement is language syntax, not adapter data
   if (LEXER == "python" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
@@ -551,8 +562,413 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       expr = norm(EQL)
       if (expr != "" && expr == norm(EQR)) {
         emit(tkind, "recomputed-expectation", FNR, "assert " expr " == " expr)
-      }
+      } else const_check(EQL, EQR, tkind)
     }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Change detectors. rule-constant-restatement: an equality whose one side is a
+# constant (SCREAMING_SNAKE, bare or at the end of a member access, no call)
+# and whose other side is a literal. Shell variables are uppercase whether
+# constant or computed, so a shell name counts only when nothing in the file
+# assigned it earlier: it came from a sourced file. "Testing the fixture"
+# (js, python): the subject's root is bound to a literal in the same block
+# and the block calls nothing but assertions; judged when the block closes.
+# ---------------------------------------------------------------------------
+
+function is_lit(s) {
+  if (s ~ /^-?[0-9][0-9_]*(\.[0-9]+)?$/ || s ~ /^(true|false|null|undefined|None|True|False)$/) return 1
+  # A shell helper may take a message first; a spaced string is that message.
+  if (SHELL_LEX && s ~ /[[:space:]]/) return 0
+  if (s ~ /^'[^']*'$/ || s ~ /^"[^"$\\]*"$/ || s ~ /^`[^`$]*`$/) return 1
+  return SHELL_LEX && s ~ /^[A-Za-z0-9_.,:\/+-]+$/
+}
+
+function is_const(s,    name) {
+  if (SHELL_LEX) {
+    name = s
+    gsub(/^"|"$/, "", name)
+    if (name !~ /^\$(\{[A-Z][A-Z0-9_]*[A-Z0-9]\}|[A-Z][A-Z0-9_]*[A-Z0-9])$/) return 0
+    gsub(/[${}]/, "", name)
+    return !(name in SH_SET) && name !~ /^BATS_/
+  }
+  return s ~ /^([A-Za-z_$][A-Za-z0-9_$]*\.)*[A-Z][A-Z0-9_]*[A-Z0-9]$/ && s !~ /(^|\.)env\./
+}
+
+function const_check(a, b, tkind,    x, y) {
+  if (!LINE_IN_TEST) return 0
+  x = trim(a); y = trim(b)
+  if (is_lit(x) && !is_lit(y)) { x = y; y = trim(a) }
+  if (!is_lit(y) || x == "") return 0
+  if (is_const(x)) {
+    emit(tkind, "constant-restatement", FNR, "constant " x " compared to the literal " y)
+    return 1
+  }
+  # A path rooted in a plain identifier, no call anywhere in it.
+  if ((LEXER == "js" || LEXER == "python") && x ~ /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*|\[[^]()]*\])*$/)
+    G8_CAND = G8_CAND FNR "\t" tkind "\t" x "\t" y "\n"
+  return 0
+}
+
+# A binding of a name to a literal, for the fixture variant.
+function g8_bind(m, r,    re) {
+  if (LEXER == "js") re = "^[[:space:]]*(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=[[:space:]]*([{['\"`0-9-]|true|false|null)"
+  else re = "^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*([{['\"0-9-]|True|False|None)"
+  if (r !~ re) return
+  sub(/^[[:space:]]*((const|let|var)[[:space:]]+)?/, "", m)
+  match(m, /^[A-Za-z_$][A-Za-z0-9_$]*/)
+  G8_BOUND = G8_BOUND " " substr(m, 1, RLENGTH) " "
+}
+
+# 1 when every call in the block body, the test-start line aside, is an
+# assertion: expect, assert*, a to* matcher, or node:assert's bare helpers.
+function g8_no_calls(    rest, n, lines, i, s, name) {
+  n = split(block_masked, lines, "\n")
+  for (i = 2; i <= n; i++) {
+    s = lines[i]
+    while (match(s, /[A-Za-z_$][A-Za-z0-9_$.]*[[:space:]]*\(/)) {
+      name = substr(s, RSTART, RLENGTH)
+      s = substr(s, RSTART + RLENGTH)
+      gsub(/[[:space:](]/, "", name)
+      if (name ~ /^(if|for|while|switch|catch|function|return|typeof|await|and|or|not|in|assert|elif)$/) continue
+      sub(/^.*\./, "", name)
+      if (name !~ /^(expect|assert[A-Za-z_]*|to[A-Z][A-Za-z]*|strictEqual|deepStrictEqual|deepEqual|equal|notEqual|ok)$/) return 0
+    }
+  }
+  return 1
+}
+
+function g8_eval(    n, recs, i, f, root) {
+  if (G8_CAND == "" || G8_BOUND == "" || !g8_no_calls()) return
+  n = split(G8_CAND, recs, "\n")
+  for (i = 1; i < n; i++) {
+    split(recs[i], f, "\t")
+    root = f[3]
+    sub(/[.[].*$/, "", root)
+    if (index(G8_BOUND, " " root " "))
+      emit(f[2], "constant-restatement", f[1], root " is a literal bound in the test and " f[3] " is compared to the literal " f[4] " with no code under test called")
+  }
+}
+
+# Shell names assigned so far in the file: bash NAME=, local/export/readonly/
+# declare NAME=, read NAME, for NAME in; PowerShell $NAME =.
+function sh_assign(m,    s, name) {
+  s = m
+  while (match(s, /(^|[[:space:];&|(])(local|export|readonly|declare|typeset)?[[:space:]]*(-[A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_]*\+?=/)) {
+    name = substr(s, RSTART, RLENGTH)
+    s = substr(s, RSTART + RLENGTH)
+    sub(/\+?=$/, "", name)
+    sub(/^.*[^A-Za-z0-9_]/, "", name)
+    SH_SET[name] = 1
+  }
+  if (match(m, /(^|[[:space:];&|])(read|for)[[:space:]]+(-[A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_[:space:]]*/)) {
+    s = substr(m, RSTART, RLENGTH)
+    sub(/^[^A-Za-z]*(read|for)[[:space:]]+(-[A-Za-z]+[[:space:]]+)*/, "", s)
+    while (match(s, /[A-Za-z_][A-Za-z0-9_]*/)) {
+      SH_SET[substr(s, RSTART, RLENGTH)] = 1
+      s = substr(s, RSTART + RLENGTH)
+    }
+  }
+  if (LEXER == "pwsh" && match(m, /^[[:space:]]*\$[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[^=]/)) {
+    name = substr(m, RSTART, RLENGTH)
+    gsub(/[^A-Za-z0-9_]/, "", name)
+    SH_SET[name] = 1
+  }
+}
+
+# Whole-file bash facts the shell forms depend on: set -e (a failing [ ] then
+# exits), a sourced helper (which may set it), a cd (a relative path no longer
+# resolves against the start directory), and names assigned from mktemp or a
+# temp directory (never a source path).
+function sh_file_facts(    name, rhs, v) {
+  if (masked ~ /(^|[[:space:];&|])set[[:space:]]+(-[A-Za-z]*e[A-Za-z]*|-o[[:space:]]+errexit)([[:space:]]|$)/ ||
+      (FNR == 1 && raw ~ /^#!.*[[:space:]]-[A-Za-z]*e/)) SET_E = 1
+  if (masked ~ /(^|[[:space:];&|])(source|\.)[[:space:]]/) SOURCED = 1
+  if (masked ~ /(^|[[:space:];&|])(cd|pushd)[[:space:]]/) SH_CD = 1
+  if (match(raw, /^[[:space:]]*((local|export|readonly|declare)[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=/)) {
+    name = substr(raw, RSTART, RLENGTH - 1)
+    sub(/^.*[^A-Za-z0-9_]/, "", name)
+    rhs = substr(raw, RSTART + RLENGTH)
+    if (rhs ~ /mktemp|TMP|TEMP|[Tt]mp|[Tt]emp/) SH_TMP[name] = 1
+    else if (match(rhs, /\$\{?[A-Za-z_][A-Za-z0-9_]*/)) {
+      v = substr(rhs, RSTART, RLENGTH)
+      gsub(/[${]/, "", v)
+      if (v in SH_TMP) SH_TMP[name] = 1
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# rule-inert-assertion: a statement that looks like an assertion and never
+# asserts. The adapter's assertion.async (never awaited) and assertion.inert
+# forms match a statement start; the language forms live here: the Python
+# tuple assert, bats run and !, a harness [ ] whose status nothing reads, and
+# for go the if statement joined onto one line.
+# ---------------------------------------------------------------------------
+
+function snippet(r) {
+  sub(/^[[:space:]]+/, "", r); sub(/[[:space:]]+$/, "", r)
+  return length(r) > 60 ? substr(r, 1, 57) "..." : r
+}
+
+function line_kind() { return (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT) ? "X" : "F" }
+
+# A statement starts on this line unless the code before it leaves an
+# expression open (an operator, an opener, a comma, a line continuation).
+function stmt_start(    p) {
+  if (LEXER == "python") return bracket_depth <= 0 && prev_code !~ /\\[[:space:]]*$/
+  p = prev_code
+  sub(/[[:space:]]+$/, "", p)
+  if (p ~ /[-+*\/%=<>!&|?:,(\[.\\`]$/) return 0
+  return p !~ /(^|[^A-Za-z0-9_$])(await|return|yield|void)$/
+}
+
+# The code line as seen for stmt_start: masking blanks a string, so a line
+# ending in one would read as ending in the "=" before it. A closing quote in
+# the raw text stands in for the masked string; a comment stays blank.
+function code_tail(m, r,    i, c) {
+  for (i = length(r); i > 0; i--) {
+    c = substr(m, i, 1)
+    if (c !~ /[[:space:]]/) return m
+    c = substr(r, i, 1)
+    if (c == "\"" || c == "'" || c == "`") return substr(m, 1, i - 1) "\""
+  }
+  return m
+}
+
+function py_assert_inert(r,    rest) {
+  rest = r
+  sub(/^[[:space:]]*assert[[:space:]]*/, "", rest)
+  if (has(rest, R_INERT)) return "assert of a mock attribute is always true"
+  if (substr(rest, 1, 1) == "(" && extract_parens(rest, 1) && split_top_comma(EXTRACT) &&
+      substr(rest, EXTEND + 1) ~ /^[[:space:]]*(#.*)?$/)
+    return "assert of a parenthesized tuple is always true"
+  return ""
+}
+
+# bats: `run cmd` leaves the status in $status, so a run nothing checks before
+# the next run or the end of the test passes whatever cmd did; `! cmd` fails
+# the test only as its last command. Harness (file model): a [ ] test on its
+# own line whose status the next line does not read, in a file with no set -e
+# and no sourced helper that might set it.
+function sh_inert(s, r) {
+  if (MODEL == "file") {
+    if (s == "" || s ~ /^(fi|done|esac|else|elif|then|do|\}|\)|;;)/) { if (s != "") BRK_PEND = ""; return }
+    if (BRK_PEND != "" && r !~ /\$\?/) BRK_OUT = BRK_OUT BRK_PEND
+    BRK_PEND = ""
+    if (s ~ /^\[\[?[[:space:]][^;&|]*[[:space:]]\]\]?[[:space:]]*;?$/)
+      BRK_PEND = FNR "\t" line_kind() "\t" snippet(r) "\n"
+    return
+  }
+  if (s != "" && s !~ /^(fi|done|esac|\}|\)|;;)/ && BANG_PEND) {
+    emit(BANG_KIND, "inert-assertion", BANG_PEND, "a ! command that is not the test's last line never fails it: " BANG_SNIP)
+    BANG_PEND = 0
+  }
+  if (s ~ /^run[[:space:]]/ && s !~ /^run[[:space:]]+(--?[A-Za-z-]+[[:space:]]+)*(!|-[0-9])/) {
+    if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
+    RUN_PEND = FNR; RUN_KIND = line_kind(); RUN_SNIP = snippet(r)
+    r = substr(r, index(r, "run") + 3)
+  } else if (s ~ /^run[[:space:]]/) {
+    if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
+    RUN_PEND = 0
+  }
+  if (RUN_PEND && r ~ /\$\{?(status|output|lines|stderr|stderr_lines)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])(assert|refute)[A-Za-z_]*/) RUN_PEND = 0
+  if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r) }
+}
+
+# Flushed as the block closes: a pending run or harness [ ] is decided there.
+function inert_close(    n, recs, i, f) {
+  if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
+  if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
+  RUN_PEND = BANG_PEND = 0
+  if (!SET_E && !SOURCED && BRK_OUT != "") {
+    n = split(BRK_OUT, recs, "\n")
+    for (i = 1; i < n; i++) {
+      split(recs[i], f, "\t")
+      emit(f[2], "inert-assertion", f[1], "a [ ] test whose status nothing reads, with no set -e, never fails the script: " f[3])
+    }
+  }
+  BRK_OUT = BRK_PEND = ""
+}
+
+# go: an if statement is joined onto one line (at most 30) before the inert
+# forms are matched, so a multi-line branch holding only t.Log reads whole.
+function go_inert(s, m) {
+  if (GO_IF == 0) {
+    if (s !~ /^if[[:space:]]/) return
+    GO_IF = FNR; GO_KIND = line_kind(); GO_BUF = s; GO_D = brace_delta(m); GO_N = 0
+  } else {
+    GO_BUF = GO_BUF " " s; GO_D += brace_delta(m)
+  }
+  if (GO_D > 0 && ++GO_N <= 30) return
+  if (GO_D <= 0 && has(GO_BUF, R_INERT) && GO_BUF !~ /(^|[^A-Za-z0-9_])nil([^A-Za-z0-9_]|$)/)
+    emit(GO_KIND, "inert-assertion", GO_IF, "an if branch that only logs never fails the test: " snippet(GO_BUF))
+  GO_IF = 0
+}
+
+function inert_scan(m, r,    s, d) {
+  s = m
+  sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+  if (LEXER == "bash") { sh_inert(s, r); return }
+  if (LEXER == "go") { if (GO_IF || stmt_start()) go_inert(s, m); return }
+  if (s == "" || !stmt_start()) return
+  # A Pester script block nested in the test (a ParameterFilter, a
+  # Where-Object) returns its bare comparison; only the It body discards it.
+  if (LEXER == "pwsh" && depth != 1) return
+  d = ""
+  if (has(s, R_ASYNC)) d = "an async assertion nothing awaits never runs before the test ends"
+  else if (has(s, R_INERT)) d = "the statement looks like an assertion and asserts nothing"
+  else if (LEXER == "python" && s ~ /^assert[[:space:](]/) d = py_assert_inert(r)
+  if (d != "") emit(line_kind(), "inert-assertion", FNR, d ": " snippet(r))
+}
+
+# ---------------------------------------------------------------------------
+# rule-source-text-read candidates: a file read whose path is a static
+# literal, optionally joined onto the test's own directory or the repository
+# root. A path from a variable, a glob or a walk is never a candidate, and
+# neither is a temp, fixture or testdata path.
+# ---------------------------------------------------------------------------
+
+function unquote(s) {
+  if (s ~ /^@?"[^"]*"$/) { sub(/^@?"/, "", s); sub(/"$/, "", s) }
+  else if (s ~ /^'[^']*'$/ || s ~ /^`[^`$]*`$/) s = substr(s, 2, length(s) - 2)
+  else return ""
+  return s
+}
+
+# The literal path an argument list names, or "".
+function arg_path(args,    first, p) {
+  first = split_top_comma(args) ? trim(SPLIT1) : trim(args)
+  if (unquote(first) != "") return unquote(first)
+  # new URL('lit', import.meta.url)
+  if (first ~ /^new[[:space:]]+URL[[:space:]]*\(/ && index(first, "import.meta.url")) {
+    p = index(first, "(")
+    if (extract_parens(first, p) && split_top_comma(EXTRACT)) return unquote(trim(SPLIT1))
+    return ""
+  }
+  # join / resolve / Path.Combine / filepath.Join over a base and literals
+  if (first ~ /^([A-Za-z_]+\.)?(resolve|join|Join|Combine)[[:space:]]*\(/) {
+    p = index(first, "(")
+    if (!extract_parens(first, p)) return ""
+    return join_lits(EXTRACT)
+  }
+  return ""
+}
+
+function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+
+# Literal parts joined with "/", after an optional leading base that names the
+# test's directory (__dirname, import.meta.dirname).
+function join_lits(args,    out, part, more) {
+  out = ""
+  for (;;) {
+    more = split_top_comma(args)
+    part = trim(more ? SPLIT1 : args)
+    if (out == "" && part ~ /^(__dirname|import\.meta\.dirname)$/) part = ""
+    else {
+      part = unquote(part)
+      if (part == "") return ""
+    }
+    if (part != "") out = out (out == "" ? "" : "/") part
+    if (!more) break
+    args = SPLIT2
+  }
+  return out
+}
+
+function src_emit(path) {
+  gsub(/\\/, "/", path)
+  sub(/^\.\//, "", path)
+  if (path == "" || path ~ /[*?[$]/ || path ~ /^\//) return
+  if (tolower(path) ~ /(^|\/)(tmp|temp|fixtures?|testdata|__fixtures__|__snapshots__|snapshots?)(\/|$)/) return
+  if (path !~ /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$/) return
+  emit("S", line_kind(), FNR, path)
+}
+
+# A shell word naming a path: a literal, or one joined onto the test's own
+# directory ($(dirname ...), ${BASH_SOURCE%/*}, $BATS_TEST_DIRNAME) or a
+# directory variable that names the repository or a script directory and was
+# never assigned from mktemp or a temp variable.
+function sh_path(w,    v) {
+  if (w ~ /^"/) { sub(/^"/, "", w); sub(/"$/, "", w) }
+  else if (w ~ /^'[^']*'$/) return substr(w, 2, length(w) - 2)
+  if (w ~ /^\$\(dirname[^)]*\)\//) sub(/^\$\(dirname[^)]*\)\//, "", w)
+  else if (w ~ /^\$\{BASH_SOURCE(\[0\])?%\/\*\}\//) sub(/^[^}]*\}\//, "", w)
+  else if (match(w, /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\//)) {
+    v = substr(w, 1, RLENGTH - 1)
+    gsub(/[${}]/, "", v)
+    if (v in SH_TMP || v !~ /^(BATS_TEST_DIRNAME|[A-Z_]*(ROOT|DIR|REPO|HERE))$/ ||
+        v ~ /TMP|TEMP|WORK|FIX|SANDBOX|SCRATCH|OUT|CACHE|DATA|HOME|CASE|STUB|MOCK|FAKE|BIN/) return ""
+    w = substr(w, RLENGTH + 1)
+  } else if (SH_CD) return ""
+  return w ~ /[$`]/ ? "" : w
+}
+
+function src_scan_sh(m, r,    s, rest, cmd, i, n, skip_first, w, prev) {
+  s = m
+  while (match(s, /(^|[;&|(!]|(^|[[:space:]])(if|then|while|until|elif|do|run))[[:space:]]*(cat|grep|sed|awk|head)[[:space:]]/)) {
+    rest = substr(s, RSTART + RLENGTH)
+    cmd = substr(s, RSTART, RLENGTH)
+    s = rest
+    i = length(m) - length(rest) + 1
+    n = length(r)
+    skip_first = cmd ~ /(grep|sed|awk)[[:space:]]$/
+    prev = ""
+    while (i <= n) {
+      while (substr(r, i, 1) ~ /[[:space:]]/) i++
+      if (i > n || substr(r, i, 1) ~ /[|;&><)]/) break
+      i = shell_word(r, i); w = SW
+      if (w ~ /^-/) {
+        # -e PATTERN / -f PROGRAM: the pattern word is given, so every
+        # operand after it is a file; the word after -f is a program.
+        if (w ~ /^-(e|f)$|^--(file|regexp)$/) skip_first = 0
+        prev = w
+        continue
+      }
+      if (prev ~ /^-(e|f)$|^--(file|regexp)$/) { prev = ""; continue }
+      prev = ""
+      if (skip_first) { skip_first = 0; continue }
+      w = sh_path(w)
+      if (w != "") src_emit(w)
+    }
+  }
+}
+
+function src_scan(m, r,    p, args, low, w) {
+  if (m ~ /(^|[^A-Za-z0-9_])(find|glob|readdir|readdirSync|walk|Walk|WalkDir|iglob|rglob|GetFiles|EnumerateFiles)[[:space:]]*[( ]/ ||
+      tolower(m) ~ /get-childitem|mktemp/) return
+  if (LEXER == "bash") { src_scan_sh(m, r); return }
+  if (LEXER == "js" && match(m, /(^|[^A-Za-z0-9_$])readFile(Sync)?[[:space:]]*\(/)) {
+    p = RSTART + RLENGTH - 1
+    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
+  } else if (LEXER == "python" && match(m, /(^|[^A-Za-z0-9_.])(open|Path)[[:space:]]*\(/)) {
+    p = RSTART + RLENGTH - 1
+    if (!extract_parens(r, p)) return
+    args = EXTRACT
+    if (substr(m, RSTART, RLENGTH) ~ /Path/ && substr(m, EXTEND + 1) !~ /^[[:space:]]*\.[[:space:]]*read_(text|bytes)[[:space:]]*\(/) return
+    if (split_top_comma(args)) {
+      if (trim(SPLIT2) !~ /^['"]r[bt]?['"]/ && SPLIT2 !~ /^[[:space:]]*encoding[[:space:]]*=/) return
+      args = SPLIT1
+    }
+    src_emit(unquote(trim(args)))
+  } else if (LEXER == "cs" && match(m, /File[[:space:]]*\.[[:space:]]*ReadAll(Text|Lines|Bytes)(Async)?[[:space:]]*\(/)) {
+    p = RSTART + RLENGTH - 1
+    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
+  } else if (LEXER == "go" && match(m, /(os|ioutil)[[:space:]]*\.[[:space:]]*ReadFile[[:space:]]*\(/)) {
+    p = RSTART + RLENGTH - 1
+    if (extract_parens(r, p)) src_emit(arg_path(EXTRACT))
+  } else if (LEXER == "pwsh" && match(tolower(m), /(^|[^a-z0-9_-])get-content[[:space:]]/)) {
+    p = RSTART + RLENGTH
+    shell_words(r, p)
+    w = SW1
+    if (tolower(w) ~ /^-(literal)?path$/) w = SW2
+    if (w ~ /^"\$PSScriptRoot[\/\\]/) { sub(/^"\$PSScriptRoot[\/\\]/, "", w); sub(/"$/, "", w); if (w ~ /[$`]/) w = "" }
+    else if (w ~ /^\(Join-Path[[:space:]]/) {
+      low = w; sub(/^\(Join-Path[[:space:]]+\$PSScriptRoot[[:space:]]+/, "", low)
+      w = low == w ? "" : unquote(trim(substr(low, 1, length(low) - 1)))
+    } else w = unquote(w)
+    src_emit(w)
   }
 }
 
@@ -565,6 +981,7 @@ function eval_block(    blk, stripped, mocka_n, kind) {
   # A test that skips itself from inside its body does not run: not judged.
   if (has(blk, R_BODY_SKIP)) return
   blocks++
+  g8_eval()
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
   if (!has(blk, R_ANY) && !has(blk, R_MOCKA)) {
@@ -588,18 +1005,26 @@ function open_block(line, name) {
   block_masked = ""
   block_exempt = (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT)
   block_raw = 0; BW1 = BW2 = ""
+  prev_code = G8_CAND = G8_BOUND = ""
+  RUN_PEND = BANG_PEND = GO_IF = 0
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
-# the two before it, which counts as an assertion.
+# the two before it, which counts as an assertion. The per-line rules that
+# need to know they are inside a test run from here.
 function append_block(m, r) {
   block_masked = block_masked m "\n"
   block_last = FNR
+  LINE_IN_TEST = 1
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
     if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = r
   }
+  if (FNR != block_line) inert_scan(m, r)
+  src_scan(m, r)
+  if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
+  if (m !~ /^[[:space:]]*$/) prev_code = code_tail(m, r)
 }
 
 function close_block() {
@@ -610,7 +1035,7 @@ function close_block() {
   closed_lo = block_line; closed_at = FNR
   if (PEND != "" && in_scope(block_line, block_hi)) printf "%s", PEND
   PEND = ""
-  closing = 1; eval_block(); closing = 0
+  closing = 1; inert_close(); eval_block(); closing = 0
 }
 
 # A C# test body starting on this line: a "{" opens a brace body, a "=>" opens
@@ -776,6 +1201,9 @@ function brace_decl() {
   else masked = mask_cs(raw)
 
   if (has(masked, R_MOCKC)) file_mock = 1
+  LINE_IN_TEST = 0
+  if (SHELL_LEX) sh_assign(masked)
+  if (LEXER == "bash") sh_file_facts()
 
   if (MODEL == "file") whole_file()
   else if (MODEL == "indent") indent()

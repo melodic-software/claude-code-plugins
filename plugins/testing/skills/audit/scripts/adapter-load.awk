@@ -25,6 +25,10 @@
 # body_skip matches inside the body, as in t.Skip. assertion.idioms and
 # delegation match RAW text, strings and comments included, over a window of
 # three consecutive body lines, so `echo "FAIL"` then `exit 1` counts.
+# assertion.async matches the start of a statement that asserts nothing unless
+# it is awaited or returned; assertion.inert the start of a statement that
+# looks like an assertion and never asserts. Both match masked code with its
+# leading blanks removed (for go, an if statement joined onto one line).
 # No double quotes, flow maps, anchors, aliases, tags, block scalars or
 # document markers. A trailing \r is stripped, so CRLF files load.
 #
@@ -35,11 +39,11 @@
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
   split("detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
+  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
   split("additional_test_blocks", t, " ")

@@ -30,3 +30,9 @@ assertion:
     - '[Cc]heck[A-Z_]'
     - '[Ee]nsure'
     - '[Vv]alidate'
+  # Web-first matchers retry until they pass or time out, so each returns a
+  # promise; unawaited, the test ends before the check runs.
+  async:
+    - 'expect[[:space:]]*(\.[[:space:]]*soft[[:space:]]*)?\(.*\)[[:space:]]*(\.[[:space:]]*not[[:space:]]*)?\.[[:space:]]*(toBeAttached|toBeChecked|toBeDisabled|toBeEditable|toBeEmpty|toBeEnabled|toBeFocused|toBeHidden|toBeInViewport|toBeVisible|toBeOK|toContainClass|toContainText|toHaveAccessibleDescription|toHaveAccessibleErrorMessage|toHaveAccessibleName|toHaveAttribute|toHaveClass|toHaveCount|toHaveCSS|toHaveId|toHaveJSProperty|toHaveRole|toHaveScreenshot|toHaveText|toHaveTitle|toHaveURL|toHaveValue|toHaveValues|toMatchAriaSnapshot|toPass)[[:space:]]*\('
+    - 'expect[[:space:]]*\(.*\)[[:space:]]*\.[[:space:]]*(resolves|rejects)[[:space:]]*\.'
+    - 'expect[[:space:]]*\.[[:space:]]*poll[[:space:]]*\('

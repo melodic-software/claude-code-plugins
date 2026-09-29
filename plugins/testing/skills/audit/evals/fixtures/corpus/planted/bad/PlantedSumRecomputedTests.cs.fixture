@@ -1,0 +1,10 @@
+// adapter: cs-xunit
+// pending: rule-recomputed-derived
+// Planted #10: .Sum() over the same input the call under test receives.
+public class PlantedSumRecomputedTests {
+    [Fact]
+    public void SumRecomputed() {
+        var items = new[] {1,2};
+        Assert.Equal(items.Sum(), Calc.Total(items));
+    }
+}

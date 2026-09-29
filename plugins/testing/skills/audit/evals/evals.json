@@ -121,6 +121,42 @@
         "Output states the annotation is file-scoped in a config and that each suppression is counted in the coverage block",
         "Output reports no finding for the annotated config without presenting it as a config that was never examined"
       ]
+    },
+    {
+      "id": 11,
+      "name": "inert-assertion-report-only",
+      "prompt": "My Playwright and pytest suites are green. Check whether any of their assertions never actually run.",
+      "expected_output": "Runs cant-fail-scan.sh and reports testing/audit/rule-inert-assertion with its fired threshold for the unawaited toBeVisible and the parenthesized tuple assert. Explains why each never evaluates: an unawaited web-first matcher settles after the test ends, and a non-empty tuple is always truthy. Proposes the language's repair (await the matcher; write assert cond, msg), and notes the rule is report-only: it never gates --check, --strict included.",
+      "files": ["evals/fixtures/corpus/js-playwright/bad/playwright-saved-unawaited.spec.ts.fixture", "evals/fixtures/corpus/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-inert-assertion for the unawaited matcher and for the tuple assert",
+        "Output proposes awaiting the matcher and removing the tuple's parentheses, each in its own language",
+        "Output states the finding is report-only and does not fail --check or --check --strict"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "constant-restatement-is-a-change-detector",
+      "prompt": "Is expect(X_POST_CHARACTER_LIMIT).toBe(280) a good test? Run the audit on it.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-constant-restatement with its fired threshold. Explains it is a change detector, not a can't-fail test: it fails when the constant is renamed or changed, never when the validator that uses it breaks. Proposes asserting the behavior (281 characters rejected, 280 accepted), or a cant-fail-ok: <why> annotation when the value is a contract constant, and notes the rule is report-only.",
+      "files": ["evals/fixtures/corpus/js-vitest/bad/vitest-post-limit-restated.test.ts.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-constant-restatement with the fired threshold",
+        "Output explains the test fails on a rename or value change and not on broken behavior",
+        "Output proposes a behavior assertion or the cant-fail-ok: annotation for a contract constant, and does not propose deleting the test"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "source-text-read-needs-a-tracked-source",
+      "prompt": "One of our tests reads the page component's .tsx file and checks the order of two names. Audit it.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-source-text-read, naming the tracked source file the test reads by a static path. Explains the test checks source text rather than behavior, so reformatting the file fails it and a broken render does not. Proposes rendering the component and asserting on its output, notes that a policy test over many files reads them through a glob or directory walk (which the rule never flags), and that the rule is report-only.",
+      "files": ["evals/fixtures/corpus/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-source-text-read and names the source file read",
+        "Output proposes rendering or calling the code instead of reading its source text",
+        "Output notes that a glob or directory walk over many files is not flagged and that the rule does not gate --check"
+      ]
     }
   ]
 }

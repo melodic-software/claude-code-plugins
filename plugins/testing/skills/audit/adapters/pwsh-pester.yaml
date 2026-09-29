@@ -22,6 +22,9 @@ assertion:
   calls:
     - '(^|[^A-Za-z0-9_$.-])[Ss]hould([[:space:]]|-|$)'
     - '(^|[^A-Za-z0-9_$.-])[Tt]hrow([[:space:]]|$)'
+  # A bare comparison as a statement: Pester discards the bool it returns.
+  inert:
+    - '\$[A-Za-z][A-Za-z0-9_.]*[[:space:]]+-[CcIi]?([Ee][Qq]|[Nn][Ee]|[Gg][Tt]|[Gg][Ee]|[Ll][Tt]|[Ll][Ee])[[:space:]][^|;]*$'
 mock:
   create:
     - '(^|[^A-Za-z0-9_$.-])[Mm]ock[[:space:]]'

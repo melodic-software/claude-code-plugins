@@ -1,0 +1,16 @@
+// expect: rule-source-text-read
+// reads: src/Order.cs
+// Counts lines in the source file instead of exercising Order.
+using System.IO;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderSourceTextTests
+{
+    [TestMethod]
+    public void Order_StaysSmall()
+    {
+        var lines = File.ReadAllLines("../src/Order.cs");
+        Assert.IsTrue(lines.Length < 200);
+    }
+}

@@ -53,11 +53,17 @@ lines="${HOOK_JQ_FIELDS[6]}"
 
 DATA="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}/testing-plugin-data}"
 mkdir -p "$DATA/marks" 2>/dev/null
-find "$DATA/marks" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + 2>/dev/null
+find "$DATA/marks" -mindepth 1 -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
+
+# mark <path>: create a marker file exclusively (noclobber opens with O_EXCL),
+# so exactly one of several racing runs succeeds. mkdir is not atomic under
+# uutils coreutils.
+mark() { (set -o noclobber && : >"$1") 2>/dev/null; }
 
 # Two `if` rows can match one path (test_x_test.py matches test_*.py and
-# *_test.py) and each starts this hook; mkdir is atomic, so one run wins.
-if [[ -n "$call" ]] && ! mkdir "$DATA/marks/call-$call" 2>/dev/null; then exit 0; fi
+# *_test.py) and each starts this hook; only the run that creates the marker
+# reports.
+if [[ -n "$call" ]] && ! mark "$DATA/marks/call-$call"; then exit 0; fi
 
 scope=()
 if [[ "$tool" == Write && "$wtype" == create ]]; then
@@ -97,14 +103,18 @@ findings="$(grep '^finding \[' "$out_file")"
 ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
-  hook::findings_to ctx "testing: $FILE_BASE has tests that cannot fail:" "$findings" FINDINGS_JSON
-  if [[ "$findings" == *rule-recomputed-expectation* ]]; then
+  # The two change-detector rules flag tests that can fail, on harmless changes.
+  lead="has tests that cannot fail:"
+  grep -qv -e rule-constant-restatement -e rule-source-text-read <<<"$findings" ||
+    lead="has tests that fail on harmless changes (change detectors):"
+  hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON
+  if [[ "$findings" == *rule-recomputed-expectation* || "$findings" == *rule-constant-restatement* ]]; then
     ctx+=$'\n'"Before you continue, state where the expected value in each flagged assertion comes from (a spec, a bug report, a hand-computed literal). If it comes from running the code under test, replace it with a value worked out independently."
   fi
 fi
 
 key="$(printf '%s|%s|%s' "$session" "$agent" "$FILE" | cksum)"
-if mkdir "$DATA/marks/note-${key%% *}" 2>/dev/null; then
+if mark "$DATA/marks/note-${key%% *}"; then
   ctx+="${ctx:+$'\n'}Tests here should fail when the behavior they cover breaks. Load the testing:test-value skill for where expected values must come from and what makes a test worth keeping."
 fi
 
