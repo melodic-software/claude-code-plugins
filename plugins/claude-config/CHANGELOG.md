@@ -5,6 +5,25 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.53.0] - 2026-09-29
+
+### Added
+
+- **`scripts/fetch-docs.sh`: one shared fetcher for upstream docs pages.** It resolves each page
+  through the docs index, reads it verbatim over HTTPS from the docs origin, and writes a per-run
+  manifest with `url`, `retrieved`, `sha256`, `status`, `content_type`, `bytes`, `lines`, `state`,
+  and `reason` per page, plus `claude_version`. A 404, a non-markdown body, or a truncated body is
+  `unread` and leaves no file. There is no persistent cache
+  ([#4655](https://github.com/melodic-software/claude-code-plugins/issues/4655)).
+
+### Changed
+
+- **`audit` engine:** reads its docs pages through the fetcher and carries the manifest fields in
+  the `docs` coverage record (#4655).
+- **`check-doc-citations.sh`:** reads its pages through the fetcher. A slug the docs index does not
+  list, or any page the fetcher reports unread, prints a visible `SKIP` line instead of grepping a
+  foreign body (#4655).
+
 ## [0.52.1] - 2026-09-29
 
 ### Changed
