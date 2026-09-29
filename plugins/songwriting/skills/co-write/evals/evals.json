@@ -34,7 +34,7 @@
       "id": 3,
       "name": "title-action-does-not-skip-constraints",
       "prompt": "/songwriting:co-write title candidates for 'last call at the diner', country, first person",
-      "expected_output": "Routes to the title action, not the title-game cascade. Loads hook.md 'title generation', idea-to-title.md and templates/title-generation-prompt.md. Returns several labeled title candidates from the idea, holding the genre and POV constraints. Does not run the 10-15 chained-title cascade.",
+      "expected_output": "Routes to the title action, not the title-game cascade. Loads the hook's 'title generation' section, the idea-to-title reference and the title-generation-prompt template. Returns several labeled title candidates from the idea, holding the genre and POV constraints. Does not run the 10-15 chained-title cascade.",
       "files": [],
       "expectations": [
         "Does not run the Title Game cascade of 10-15 chained titles",

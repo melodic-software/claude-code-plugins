@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.38] - 2026-09-29
+
+### Fixed
+
+- **`co-write` eval case 3** now asks for title candidates from an idea, the behavior the `title` action
+  implements ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The prompt, expected
+  output, and expectations no longer describe drafting a country verse from a single title.
+
 ## [1.4.37] - 2026-09-28
 
 ### Changed
