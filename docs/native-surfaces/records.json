@@ -212,7 +212,6 @@
         "aliases: checkup",
         "native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions",
         "the native surface offers to fix; audit-install-state is report-only by contract and never writes to the target tree",
-        "shared listing budget measured at ~13.0x over the documented 8,000-char default across 153 listing-eligible skills (check-listing-budget.sh, 2026-08-23), so the baked phrase is the best available routing surface, not a guaranteed one",
         "invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it"
       ],
       "observation": {
@@ -230,7 +229,7 @@
         "native_step": false,
         "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
@@ -248,14 +247,13 @@
       },
       "verdict": "complementary",
       "integration": "suggest",
-      "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing line for the shared surface description still lives on audit-install-state.",
+      "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing sentence for the shared surface lives in audit-install-state.",
       "evidence": [
         "`doctor` present in the extraction as bundled-skill",
         "markers: gated",
         "native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions",
         "our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything",
-        "invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it",
-        "budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)"
+        "invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it"
       ],
       "observation": {
         "class": "extraction",
@@ -272,7 +270,7 @@
         "native_step": false,
         "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
@@ -299,8 +297,7 @@
         "our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch",
         "recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces",
         "this row's routing survives the split: the /doctor row of https://code.claude.com/docs/en/commands.md still credits the bundled doctor skill with finding 'unused skills, MCP servers, and plugins versus their context cost' inside its setup checkup, so the deferral recorded here is to a surface that still does the job (read 2026-09-07)",
-        "invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it",
-        "budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)"
+        "invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it"
       ],
       "observation": {
         "class": "extraction",
@@ -317,7 +314,7 @@
         "native_step": false,
         "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
