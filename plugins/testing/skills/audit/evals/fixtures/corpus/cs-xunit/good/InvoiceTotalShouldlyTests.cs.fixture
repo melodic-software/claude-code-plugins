@@ -1,0 +1,16 @@
+// good-for: rule-zero-assertion
+// Shouldly's ShouldBe and Should.Throw are this file's assertions.
+using Shouldly;
+using Xunit;
+
+public class InvoiceTotalShouldlyTests
+{
+    [Fact]
+    public void Total_RejectsNegativeLines()
+    {
+        var invoice = new Invoice(taxRate: 0.1m);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => invoice.AddLine("refund", -5m));
+        invoice.Lines.Count.ShouldBe(0);
+    }
+}

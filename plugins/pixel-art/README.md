@@ -45,7 +45,7 @@ that open in any browser.
 | Setting | Default | Purpose |
 |---|---|---|
 | `output_dir` | unset (ask) | Where outputs go when the request and the project name no location |
-| `backend` | `native` | `native`, `aseprite`, `pixellab`, or `retrodiffusion` |
+| `backend` | `native` | `native` or `aseprite` |
 
 A project can name its own assets folder in its `CLAUDE.md`; that wins over `output_dir`.
 
@@ -55,11 +55,9 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 - **A local browser** (Chrome or Chromium on `PATH`): optional. `scripts/capture.py` drives it
   for the scene review loop. Without one, the command exits 3 and the skill says the scene was
   not reviewed visually.
-- **Backends other than `native`**: optional. `scripts/backends.py` runs Aseprite when
-  `aseprite --version` works, and PixelLab or Retro Diffusion when the API token is set and the
-  user has confirmed the spend. Anything missing falls back to `native` with one line. Details are
-  in `reference/backends.md`. The three adapters have run only against local stand-ins so far, not
-  the real tools or services.
+- **Aseprite**: optional. `scripts/backends.py` runs it when `aseprite --version` works and
+  otherwise falls back to `native` with one line. Details are in `reference/backends.md`. The
+  adapter has run only against a local stand-in so far, not the real tool.
 
 Native `sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation
 tags list frame names and per-frame durations rather than `from`/`to` ranges. The Aseprite backend
@@ -116,7 +114,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `output_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_OUTPUT_DIR` | Where rendered sprites, sheets and scenes go when neither the request nor the project names a location. Leave unset to be asked. |
-| `backend` | string | `"native"` | `CLAUDE_PLUGIN_OPTION_BACKEND` | native (default, no external tools), aseprite, pixellab, or retrodiffusion. A named backend that is not present falls back to native with a notice. |
+| `backend` | string | `"native"` | `CLAUDE_PLUGIN_OPTION_BACKEND` | native (default, no external tools) or aseprite. A named backend that is not present falls back to native with a notice. |
 
 ### How to set these
 

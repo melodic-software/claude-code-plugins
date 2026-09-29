@@ -1,0 +1,41 @@
+// good-for: rule-conditional-assertion
+// good-for: rule-recomputed-derived
+// good-for: rule-snapshot-only
+// good-for: rule-weak-oracle
+// The repaired twins: the loop runs after a length check, the expected total
+// is a literal, the snapshot sits beside a literal assertion, and toBeDefined
+// sits beside the value the test exists for.
+import { expect, it } from 'vitest';
+import { activeUsers } from '../src/users';
+import { calculateTotal } from './cart';
+import { renderInvoice } from '../src/invoice';
+import { login } from '../src/auth';
+
+it('returns only active users', async () => {
+  const rows = await activeUsers();
+  expect(rows).toHaveLength(2);
+  for (const row of rows) {
+    expect(row.active).toBe(true);
+  }
+});
+
+it('sums line items', () => {
+  const items = [{ price: 10 }, { price: 5 }];
+  expect(calculateTotal(items)).toBe(15);
+});
+
+it('renders the invoice', () => {
+  const out = renderInvoice({ id: 7, total: 15 });
+  expect(out).toContain('Total: 15');
+  expect(out).toMatchSnapshot();
+});
+
+it('logs the user in', async () => {
+  const session = await login('ada', 'secret');
+  expect(session).toBeDefined();
+  expect(session.user).toBe('ada');
+});
+
+it('rejects a bad password with its message', async () => {
+  await expect(login('ada', 'wrong')).rejects.toThrow('invalid password');
+});

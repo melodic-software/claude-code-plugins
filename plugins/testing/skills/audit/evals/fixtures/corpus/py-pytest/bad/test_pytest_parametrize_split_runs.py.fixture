@@ -1,0 +1,25 @@
+# expect: rule-zero-assertion
+# A split skip marker covers only the test it decorates. The next test's
+# split decorator is not a skip, and its body only prints, so it passes
+# whatever slugify returns.
+import sys
+
+import pytest
+
+from slugs import slugify
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="accent folding differs on Windows",
+)
+def test_slugify_folds_accents():
+    slugify("Creme Brulee")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["a -- b", "a--b"],
+)
+def test_slugify_collapses_dashes(text):
+    print(slugify(text))

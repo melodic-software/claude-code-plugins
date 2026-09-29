@@ -1,0 +1,20 @@
+// expect: rule-source-text-read
+// reads: test/handler.go
+// Searches the handler's source for ctx.Done() instead of cancelling a request.
+package api
+
+import (
+	"os"
+	"strings"
+	"testing"
+)
+
+func TestHandlerHonorsCancel(t *testing.T) {
+	src, err := os.ReadFile("handler.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "ctx.Done()") {
+		t.Error("handler does not watch ctx.Done()")
+	}
+}
