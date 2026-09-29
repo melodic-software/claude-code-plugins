@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.46.1] - 2026-09-29
+## [0.46.2] - 2026-09-29
 
 ### Changed
 
 - **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
+## [0.46.1] - 2026-09-29
+
+### Changed
+
+- **The surface README states that CI skips the browser checks by choice.** The SKIP line in `surface.test.sh` stays, and the Python unit tests cover the server side in CI ([#4652](https://github.com/melodic-software/claude-code-plugins/issues/4652)).
 
 ## [0.46.0] - 2026-09-29
 

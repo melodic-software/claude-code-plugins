@@ -457,5 +457,40 @@ git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
 
+# --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
+mkclean() {
+  git init "$1" >/dev/null 2>&1
+  git -C "$1" config user.email t@example.com
+  git -C "$1" config user.name Test
+  git -C "$1" commit --allow-empty -m init >/dev/null 2>&1
+}
+CLEAN="$TEST_TMPDIR/cleanrepo"
+mkclean "$CLEAN"
+out="$(bash "$BATCH" --tier caches --repo "$CLEAN" 2>/dev/null)"
+assert_contains "clean repo reports nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_not_contains "clean repo is not would-clean" "$out" "Outcome: would-clean"
+assert_contains "clean repo summary keeps counting" "$out" "Summary: repos=1 planned=0"
+
+DIRTY="$(mkrepo mixdirty)"
+CLEAN2="$TEST_TMPDIR/cleanrepo2"
+mkclean "$CLEAN2"
+out="$(bash "$BATCH" --tier caches --repo "$DIRTY" "$CLEAN2" 2>/dev/null)"
+assert_contains "mixed fleet has would-clean" "$out" "Outcome: would-clean"
+assert_contains "mixed fleet has nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_contains "summary table header" "$out" "Repo | Outcome | Paths | Bytes"
+assert_contains "table row for the dirty repo" "$out" "$DIRTY | would-clean | "
+assert_contains "table row for the clean repo" "$out" "$CLEAN2 | nothing-to-do | 0 | "
+
+GT="$(mkrepo gitnew)"
+git -C "$GT" worktree add "$TEST_TMPDIR/gitnew-wt" -b wt2 >/dev/null 2>&1
+out="$(bash "$BATCH" --tier git --repo "$GT" "$TEST_TMPDIR/gitnew-wt" 2>/dev/null)"
+assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | "
+assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
+assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
+assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
+
+help_out="$(bash "$BATCH" --help)"
+assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"
