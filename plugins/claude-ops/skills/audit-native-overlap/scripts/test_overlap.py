@@ -1702,6 +1702,7 @@ class DiscoveryScoringTests(unittest.TestCase):
         self.assertEqual(rec("bundled-skill", "user-only"), "suggest")
         self.assertEqual(rec("bundled-skill", "model+user"), "route-or-wrap")
         self.assertEqual(rec("builtin-command", "model+user"), "route")
+        self.assertEqual(rec("bundled-workflow", "model+user"), "route")
         self.assertIsNone(rec("bundled-skill", "unknown"))
 
 
