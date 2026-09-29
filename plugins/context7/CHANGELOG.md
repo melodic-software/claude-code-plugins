@@ -5,6 +5,14 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`/context7:check`, a model-invocable read-only check
+  ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).**
+  `prerequisites.json` named `/context7:setup check`, which `disable-model-invocation: true`
+  hides from Claude. It now names `/context7:check`, which follows only the `check` section of
+  `setup` and never installs.
+
 ### Changed
 
 - **`lookup` restores the clause "even for libraries you 'know.'" in its philosophy line

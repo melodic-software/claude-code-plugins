@@ -6,10 +6,12 @@ answers about libraries, frameworks, SDKs, and cloud services come from live
 docs instead of stale training data.
 
 Run a lookup with `/context7:lookup` (or let Claude invoke it automatically when
-a question names a library); configure the environment with `/context7:setup`:
+a question names a library); verify the environment read-only with `/context7:check`;
+configure it with `/context7:setup`:
 
 ```text
 /context7:lookup react "useEffect cleanup"
+/context7:check
 /context7:setup
 /context7:lookup update
 ```
@@ -25,6 +27,9 @@ a question names a library); configure the environment with `/context7:setup`:
   latest npm release (`--fix` upgrades it) and diffs Upstash's upstream
   reference skills against the plugin's bundled `vendor/` baselines, reporting
   anything new for manual review. It never auto-rewrites the skill.
+- **`/context7:check`**. Read-only check of the `ctx7` CLI, `CONTEXT7_API_KEY` auth and
+  Context7 MCP server state. Claude can invoke it on its own, for example after a session
+  notice that `ctx7` is missing. It never installs; `/context7:setup apply install-cli` does.
 - **`/context7:setup`**. Idempotent verification and configuration. `check`
   (default) reports the `ctx7` CLI, `CONTEXT7_API_KEY` auth, and Context7 MCP
   server state read-only; `apply` resolves what it found (auth and MCP guidance);
