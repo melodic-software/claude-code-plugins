@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.65.1] - 2026-09-29
+## [0.66.1] - 2026-09-29
 
 ### Fixed
 
@@ -11,6 +11,41 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
   managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
   the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
+
+## [0.66.0] - 2026-09-29
+
+### Added
+
+- **`inventory` reports every built-in surface's arguments and invocability.** Commands, bundled
+  skills and bundled workflows carry `argument_hint`, `user_invocable` and `model_invocable`,
+  resolved from the bundle; a value the bundle computes at runtime is `null` and counted under
+  `integrity.undetermined`, never guessed.
+- **`inventory` has a bundled-workflows lane** (`bundled_workflows`, canary `deep-research`) with
+  its own integrity status.
+- **`inventory --docs`** fetches the live commands page and changelog and classifies each name:
+  documented, undocumented, alias, removed in the docs, removed but still registered, or
+  docs-only, with kind and alias disagreements. A fetch failure degrades that block only.
+  `--docs-file` and `--changelog-file` run it offline.
+- **`audit-native-overlap detect` discovers candidates** by scoring every native surface against
+  every repo skill and agent (`--threshold`, `--top-k`), beside the seeded pairs. Each candidate
+  carries `invocable_by` and a `recommended_integration` label: a user-only surface is
+  recommended as `suggest`. A label is never a verdict.
+
+### Fixed
+
+- **`inventory` extraction on Claude Code 2.1.284.** Template-literal substitutions are now read as
+  code, so a quote inside a regex in `${...}` no longer desynchronizes the brace reader (15 of 152
+  commands resolved before). `registerSlidesSkill`, literal-table skill rosters and
+  constant-named commands resolve. Validated against 2.1.284.
+- **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
+  instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
+  cannot stall the parser on regex backtracking. A body truncated after its headers
+  (`http.client.HTTPException`) degrades the block instead of raising.
+- **`audit-native-overlap detect` scores a plugin-backed command once**, under its plugin-backed
+  class and with the description the extractor enriched it with, instead of adding a bare second
+  surface.
+- **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
+  rule that rejects `wrap` on a bundled-workflow row.
 
 ## [0.65.0] - 2026-09-29
 

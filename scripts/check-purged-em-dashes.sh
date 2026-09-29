@@ -277,6 +277,10 @@ fi
 # claim would be a comment, not a property of the run.
 
 mkdir -p "$TMP/root/.claude" "$TMP/home" || exit 2
+# The detector reads a team layer only under a git working tree. GIT_DIR and its
+# siblings are unset for this call: a hook that exports one would otherwise make
+# `git init` reinitialize the repository they name.
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git init -q "$TMP/root" || exit 2
 
 # Table rows in detect.sh are `  "rule-<slug>|...`. Reading them from $DETECT
 # keeps this list identical to the roster the invocation will actually run.

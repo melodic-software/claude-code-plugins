@@ -197,6 +197,7 @@ function frameDataURL(scale) {
 
 window.__pixelScene = {
   duration: LOOP,
+  audio: typeof AUDIO === "string" ? AUDIO : null,
   seek(seconds) { paused = true; simulateTo(seconds); paint(); },
   frameDataURL,
   play() { paused = false; last = performance.now(); acc = 0; requestAnimationFrame(tick); },
