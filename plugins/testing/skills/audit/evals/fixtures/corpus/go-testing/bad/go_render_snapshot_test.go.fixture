@@ -1,0 +1,14 @@
+// expect: rule-snapshot-only
+// The stored snapshot is the only oracle.
+package render
+
+import (
+	"testing"
+
+	"github.com/gkampitakis/go-snaps/snaps"
+)
+
+func TestRenderOrder(t *testing.T) {
+	got := RenderOrder(Order{ID: 7, Total: 15})
+	snaps.MatchSnapshot(t, got)
+}

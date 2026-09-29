@@ -1,0 +1,10 @@
+# expect: rule-conditional-assertion
+# The only assertion runs once per exported row; no rows, no assertion.
+Describe 'Export-Orders' {
+    It 'exports every order with an id' {
+        $rows = Export-Orders -Since '2026-01-01'
+        foreach ($row in $rows) {
+            $row.Id | Should -BeGreaterThan 0
+        }
+    }
+}

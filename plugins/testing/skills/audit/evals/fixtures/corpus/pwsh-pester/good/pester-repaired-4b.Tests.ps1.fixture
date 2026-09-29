@@ -1,0 +1,29 @@
+# good-for: rule-conditional-assertion
+# good-for: rule-recomputed-derived
+# good-for: rule-weak-oracle
+# The repaired twins: the row count is asserted before the loop, the total is
+# a literal, the report check sits beside a value, and -Throw names the error.
+Describe 'repaired' {
+    It 'exports every order with an id' {
+        $rows = Export-Orders -Since '2026-01-01'
+        $rows.Count | Should -Be 2
+        foreach ($row in $rows) {
+            $row.Id | Should -BeGreaterThan 0
+        }
+    }
+
+    It 'adds the prices' {
+        $items = @([pscustomobject]@{ Price = 10 }, [pscustomobject]@{ Price = 5 })
+        Get-Total $items | Should -Be 15
+    }
+
+    It 'builds the report' {
+        $report = Get-Report -Month 9
+        $report | Should -Not -BeNullOrEmpty
+        $report.Total | Should -Be 42
+    }
+
+    It 'rejects a month out of range' {
+        { Get-Report -Month 13 } | Should -Throw -ExpectedMessage '*month*'
+    }
+}

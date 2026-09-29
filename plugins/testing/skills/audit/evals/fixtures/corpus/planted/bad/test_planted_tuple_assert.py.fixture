@@ -1,0 +1,8 @@
+# adapter: py-pytest
+# expect: rule-inert-assertion
+# Planted #7.
+from app import total
+
+
+def test_tuple_assert():
+    assert (total([1, 2]) == 4, "msg")

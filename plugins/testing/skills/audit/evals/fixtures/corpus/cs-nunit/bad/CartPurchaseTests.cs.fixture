@@ -1,0 +1,17 @@
+// expect: rule-zero-assertion
+// Purchases a cart and stops: nothing asserts the cart was emptied or the
+// order recorded, so the test passes whatever Purchase does.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartPurchaseTests
+{
+    [Test]
+    public void Purchase_EmptiesTheCart()
+    {
+        var cart = new Cart();
+        cart.Add(new Item("pen", 2m));
+
+        cart.Purchase();
+    }
+}

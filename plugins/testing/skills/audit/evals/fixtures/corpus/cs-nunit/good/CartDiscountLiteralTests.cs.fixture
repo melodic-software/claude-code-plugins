@@ -1,0 +1,15 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the expected price is a literal.
+using NUnit.Framework;
+using NUnit.Framework.Legacy;
+
+[TestFixture]
+public class CartDiscountLiteralTests
+{
+    [Test]
+    public void Discount_TakesTenPercentOff()
+    {
+        ClassicAssert.AreEqual(180m, Pricing.Discount(200m, 0.1m));
+        CollectionAssert.AreEquivalent(new[] { "pen", "ink" }, Pricing.Discounted(new Cart()));
+    }
+}
