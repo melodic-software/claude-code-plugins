@@ -42,15 +42,15 @@ truth for what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
+FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report those probes informationally and note that re-enabling
+restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs before the enabled-gate.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
-1a. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
+1a. **`node`.** The pre-computed `node` row. FAIL if absent, even when the toggle is off: every hook row launches through
    `node hooks/exec-bash.mjs`, so the hook does not launch and lint does not run. The hook cannot
    report this itself; the transcript shows a hook error notice. Probed here through Bash, which
    works without the launcher.
@@ -90,14 +90,13 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
   `/plugin configure actionlint@<marketplace>` any time, or headless
-  `claude plugin install actionlint@<marketplace> -s user --config actionlint_enabled=true`
+  `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Pass `-s user`: `-s` places the install record and the `enabledPlugins` entry, and the option
-  value lands in user settings whichever scope is passed. Do not copy a scope from
-  `claude plugin list`: a rerun at another scope adds a second install record and enables the
-  plugin there. A rejected value prints a warning yet
+  to its manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
+  `project` or `local` scope run from that project's directory, so the rerun matches the existing
+  install record; from the home directory pass `user`. A rejected value prints a warning yet
   exits 0, so read the output. This skill never writes user settings or `pluginConfigs`.
   Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its

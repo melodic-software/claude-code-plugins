@@ -3,19 +3,13 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Changed
-
-- `/actionlint:setup apply` tells the operator to pass `-s user` when reconfiguring headlessly and not to copy a scope from `claude plugin list`, matching the plugin-reconfiguration convention. The setup eval expectation follows.
-
 ## [0.10.0] - 2026-09-29
 
 ### Changed
 
 - The missing-`actionlint` notice is now the session-only `prerequisite` class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). It fires once per session for every agent, and the eighth-skip renewal keeps the install route. It names `/actionlint:check`. The missing-`jq` notice stays once per session and agent.
 - `/actionlint:setup check` now reports `actionlint_lint_gitignored` and lists all three tunables. Its skip-notice wording, the setup evals, and the hook comments state the real cadence: `actionlint` missing is once per session, `jq` missing is once per session and agent, both renewed every eighth skip.
-- `/actionlint:setup check` also probes `node`, which every hook row launches through; without it the hook does not launch and lint does not run. `/actionlint:setup apply` states the scope rule in one sentence (pass the scope `claude plugin list` reports, `user` from the home directory) and no longer restates the convention's measurements.
+- `/actionlint:setup check` also probes `node`, which every hook row launches through; without it the hook does not launch and lint does not run. A missing `node` stays FAIL even when the toggle is off, because the launcher runs before the enabled-gate. `/actionlint:setup apply` states the scope rule in one sentence (pass the scope `claude plugin list` reports, `user` from the home directory) and no longer restates the convention's measurements.
 - README: Requirements lists Node.js and the failure mode without it; the hook-budget census is marked as measured at 0.8.43, before the gitignore check and the `node` launcher. Entries 0.8.60, 0.8.61 and 0.9.2 say they are shared-library or launcher syncs with no change to this plugin.
 
 ### Added
