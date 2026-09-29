@@ -313,6 +313,21 @@ async page => { // the user journey in order on one page, no reload after phase 
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
   }
+  if (PHASE === 8) { // the shell added Q9; the user answers it with their own text
+    await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
+    const q9 = (await state()).questions.questions.find(q => q.id === "Q9");
+    const res = await post({id: "Q9", kind: "own", text: "what are the patterns?", contentRev: q9.contentRev});
+    ok("the own answer on Q9 is saved", res.ok(), res.status());
+  }
+  if (PHASE === 9) { // the shell revised Q9's recommendation in response to that own text
+    await page.waitForTimeout(900);
+    await pick("Q9");
+    ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
+    await tap("[data-again]", 300);
+    await arm("a"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const acc = await last();
+    ok("Ctrl+Enter accepts the revised recommendation, not the old own text", acc.id === "Q9" && acc.kind === "accept" && acc.text === "", JSON.stringify(acc));
+  }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }

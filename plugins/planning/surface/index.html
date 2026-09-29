@@ -934,7 +934,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function fillNote(){
     const q = Q[S.sel]; if (!q) { $("note").value = ""; grow($("note")); return; }
     const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    $("note").value = draft !== null ? draft : ((d && d.text) || "");
+    $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
     grow($("note"));
   }
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
