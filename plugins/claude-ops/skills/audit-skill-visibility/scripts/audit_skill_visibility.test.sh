@@ -54,28 +54,6 @@ echo "ok: fresh-install fixture withheld every cold verdict ($UNOBS/$TOTAL)"
 # scope. A manifest listing the same plugin at two scopes must not double the
 # fleet -- the fleet is the denominator the listing budget is measured against,
 # so a doubled fleet roughly doubles the reported overflow.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-host_cygpath_rewrites_posix_path() {
-  command -v cygpath >/dev/null 2>&1 || return 1
-  local p mixed
-  p="$(mktemp -d)"
-  mixed="$(cygpath -m "$p" 2>/dev/null || true)"
-  rm -rf "$p"
-  [[ -n "$mixed" && "$mixed" != "$p" ]]
-}
-# Status captured outside `if` so SC2310 stays quiet. Errexit would exit on a
-# non-zero predicate before the skip decision, so it is off for this call only —
-# the same suppression an `if` test applies inside the function.
-set +e
-host_cygpath_rewrites_posix_path
-host_rc=$?
-set -e
-if [[ "$host_rc" -eq 0 ]]; then
-  printf 'SKIP (host: %s): %s\n' \
-    "cygpath rewrites the POSIX mktemp cfg the --installed contract embeds" \
-    "--installed collapsed two install records to one plugin"
-  exit 0
-fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"
@@ -91,6 +69,7 @@ mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WOR
 # a host that needs no rewrite.
 host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 REPO="$(host_path "$WORK/repo")"
+CFG="$(host_path "$WORK/cfg")"
 
 printf -- '---\nname: one\ndescription: "does a thing"\n---\n' \
   >"$WORK/repo/plugins/alpha/skills/one/SKILL.md"
@@ -104,7 +83,7 @@ printf '{"version":2,"plugins":{"alpha@mkt":[{"scope":"project","version":"1.0.0
 # `projectPath` and CLAUDE_PROJECT_DIR are compared to each other, so both use
 # the one spelling; converting only one turns the project-scope record
 # not-applicable and changes what the assertion below measures.
-INST="$(CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$WORK/cfg" --render json)"
+INST="$(CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$CFG" --render json)"
 read -r ENTRIES PLUGINS SKILLS <<EOF
 $(printf '%s' "$INST" | "$PYTHON" -c 'import json,sys; m=json.load(sys.stdin); f=m["fleet"]; print(f["manifest_entries"], f["plugins_resolved"], len(m["skills"]))')
 EOF
