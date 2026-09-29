@@ -1,0 +1,14 @@
+# expect: rule-mock-only-oracle
+# The only oracle is the AsyncMock's await record; nothing checks what
+# deliver_all returns or leaves behind.
+import unittest
+from unittest.mock import AsyncMock, call
+
+from outbox import deliver_all
+
+
+class DeliverAllTests(unittest.IsolatedAsyncioTestCase):
+    async def test_deliver_all_sends_each_message(self):
+        sender = AsyncMock()
+        await deliver_all(sender, ["a", "b"])
+        sender.send.assert_has_awaits([call("a"), call("b")])

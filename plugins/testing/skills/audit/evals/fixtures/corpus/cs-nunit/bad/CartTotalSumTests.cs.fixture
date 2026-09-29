@@ -1,0 +1,17 @@
+// expect: rule-recomputed-derived
+// The expected total is summed from the same items the code sums. The engine
+// parses ClassicAssert.AreEqual; Assert.That(x, Is.EqualTo(y)) is not parsed.
+using System.Linq;
+using NUnit.Framework;
+using NUnit.Framework.Legacy;
+
+[TestFixture]
+public class CartTotalSumTests
+{
+    [Test]
+    public void Total_AddsThePrices()
+    {
+        var items = new[] { new Item(10m), new Item(5m) };
+        ClassicAssert.AreEqual(items.Sum(i => i.Price), Cart.Total(items));
+    }
+}

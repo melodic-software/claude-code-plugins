@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# The assertions live in the PowerShell self-test this script runs.
+# Shape from Invoke-Dlss5Mod.test.sh.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+command -v pwsh >/dev/null || { echo "SKIP: pwsh not installed"; exit 0; }
+pwsh -NoProfile -File "$SCRIPT_DIR/Invoke-Mod.ps1" -Verb selftest

@@ -1,5 +1,8 @@
-# xUnit, with the NUnit and MSTest test attributes and Moq, NSubstitute and
-# FakeItEasy mocks. Schema and YAML subset: scripts/adapter-load.awk.
+# xUnit, and the default for any C# test file cs-nunit and cs-mstest do not
+# detect, so it also knows their test attributes. The assertion tokens cover
+# FluentAssertions, Shouldly and Verify snapshots; the mock fields cover Moq,
+# NSubstitute and FakeItEasy. cs-nunit and cs-mstest extend this adapter.
+# Schema and YAML subset: scripts/adapter-load.awk.
 id: cs-xunit
 language: cs
 block_model: brace
@@ -26,28 +29,65 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+    # Microsoft.CodeAnalysis.Testing's analyzer and code-fix test types. The
+    # engine adds }.RunAsync( on their initializer in a file that imports the
+    # harness (cant-fail-scan.awk, BEGIN).
+    - 'CSharp(Analyzer|CodeFix|CodeRefactoring|SourceGenerator)Test[[:space:]]*<'
+  # xUnit's *Async assertions return a Task (xUnit2021).
+  async:
+    - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
+  # .Should() with no matcher chained, as a whole statement.
+  inert:
+    - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
+  # Not null, and a throw of any exception. cs-nunit and cs-mstest inherit these.
+  weak:
+    - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*That[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*Is[[:space:]]*\.[[:space:]]*Not[[:space:]]*\.[[:space:]]*Null[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*ThrowsAny(Async)?[[:space:]]*<[[:space:]]*(System[[:space:]]*\.[[:space:]]*)?Exception[[:space:]]*>[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+  count:
+    - '\.[[:space:]]*(Count|Length|LongLength)([^A-Za-z0-9_]|$)'
+    - 'Assert[[:space:]]*\.[[:space:]]*(Single|Empty|NotEmpty)'
+    - '(HaveCount|ContainSingle|BeEmpty|ShouldHaveSingleItem|ShouldBeEmpty)'
+    - '(Has|Is)[[:space:]]*\.[[:space:]]*(Count|Length|Exactly|Empty|Not[[:space:]]*\.[[:space:]]*Empty)'
+  fail:
+    - '(Classic)?Assert[[:space:]]*\.[[:space:]]*Fail[[:space:]]*\('
 mock:
   create:
     - 'new[[:space:]]+Mock<'
     - 'Mock\.Of<'
-    - 'Substitute\.For<'
+    - 'Substitute\.For(PartsOf)?<'
+    - 'new[[:space:]]+MockRepository'
     - 'A\.Fake<'
   verify:
-    - '\.Verify[[:space:]]*\('
+    - '\.Verify(Get|Set|Add|Remove)?[[:space:]]*\('
     - '\.VerifyAll'
     - '\.VerifyNoOtherCalls'
     - '\.Received'
+    - 'Received\.InOrder'
     - '\.DidNotReceive'
     - 'MustHaveHappened'
     - 'MustNotHaveHappened'
   # Each chain is stripped as a BOUNDED expression, never to end of line, so a
-  # same-line real assertion after the chain survives the strip.
+  # same-line real assertion after the chain survives the strip. Verify and
+  # Received.InOrder allow parentheses three deep, as in It.IsAny<T>() inside
+  # the verified call.
   strip:
-    - '\.[[:space:]]*Verify(All|NoOtherCalls)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
-    - '\.[[:space:]]*Received[[:space:]]*(\([^()]*\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
-    - '\.[[:space:]]*DidNotReceive[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - '\.[[:space:]]*Verify(All|NoOtherCalls|Get|Set|Add|Remove)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
+    - 'Received\.InOrder[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
+    - '\.[[:space:]]*Received(WithAnyArgs)?[[:space:]]*(\([^()]*\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
+    - '\.[[:space:]]*DidNotReceive(WithAnyArgs)?[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
     - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
     - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
+# Verify, statement-initial: Moq's mock.Verify( is a mock assertion instead.
+snapshot:
+  - '^[[:space:]]*(return[[:space:]]+|await[[:space:]]+)*(Verifier[[:space:]]*\.[[:space:]]*)?Verify(Json|Xml|File)?[[:space:]]*\('
+# FsCheck and CsCheck: the expected value is derived from generated inputs on purpose.
+property_markers:
+  - '\[[[:space:]]*(FsCheck[[:space:]]*\.[[:space:]]*)?(Xunit[[:space:]]*\.[[:space:]]*)?Property([[:space:]]*[](]|$)'
+  - 'Prop[[:space:]]*\.[[:space:]]*ForAll'
+  - '(^|[^A-Za-z0-9_])Gen[[:space:]]*\.[[:space:]]*[A-Z]'
 equality:
-  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
+# C# constants are PascalCase, so an uppercase name says nothing about constness.
+rules_off: [constant-restatement]
 suppress_marker: 'cant-fail-ok:'

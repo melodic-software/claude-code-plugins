@@ -1,0 +1,10 @@
+# expect: rule-constant-restatement
+# assertEqual on a constant and its literal value.
+import unittest
+
+from app.limits import LIMIT
+
+
+class LimitTests(unittest.TestCase):
+    def test_limit(self):
+        self.assertEqual(LIMIT, 280)

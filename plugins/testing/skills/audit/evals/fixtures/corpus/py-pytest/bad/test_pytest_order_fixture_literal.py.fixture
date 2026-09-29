@@ -1,0 +1,6 @@
+# expect: rule-constant-restatement
+# Testing the fixture: the dict is the test's own literal and no code under
+# test runs.
+def test_order_total():
+    order = {"id": 7, "total": 15}
+    assert order["total"] == 15

@@ -1,0 +1,11 @@
+// source: pocock M1
+// expect: rule-mock-only-oracle
+// Verbatim from tests.md, kept as a lexing fixture. It is invalid Jest:
+// jest.mock takes a module path and returns the jest object, so this does not
+// run as written. The only assertion is on a mock interaction.
+// BAD: Tests implementation details
+test("checkout calls paymentService.process", async () => {
+  const mockPayment = jest.mock(paymentService);
+  await checkout(cart, payment);
+  expect(mockPayment.process).toHaveBeenCalledWith(cart.total);
+});

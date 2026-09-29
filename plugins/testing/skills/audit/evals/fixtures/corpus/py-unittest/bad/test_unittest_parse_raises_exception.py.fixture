@@ -1,0 +1,12 @@
+# expect: rule-weak-oracle
+# assertRaises(Exception) passes for any error, a NameError from a typo in
+# parse included.
+import unittest
+
+from app.parse import parse
+
+
+class ParseTests(unittest.TestCase):
+    def test_rejects_empty_input(self):
+        with self.assertRaises(Exception):
+            parse("")

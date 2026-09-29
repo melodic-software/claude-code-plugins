@@ -1,12 +1,19 @@
 # Changelog: session-flow plugin
 
-## [0.39.0] - 2026-09-29
+## [0.40.0] - 2026-09-29
 
 ### Changed
 
 - **A new `/goal` arrives as its own railed region in the handoff resume prompt** ([#4337](https://github.com/melodic-software/claude-code-plugins/issues/4337)). When the user asked for a fresh goal, or a `/goal` is active in the producing session, `## Resume prompt` holds two railed regions, each with its own copy line: the goal region first (type `/goal` and a space, paste the condition, confirm the `◎ /goal active` indicator), then the resume region. The condition carries no leading `/goal`, ends with the `Read @` directive, and stays within the 4,000-character limit. With no goal the output is unchanged.
 - **`save_point.py` emits, fills and validates the goal region.** The `goal-rearm` slot is replaced by `goal-first` and `goal-after`. `check` fails a `/goal` line between rails, a second goal region, a goal region without its copy line or `Read @` directive, and an over-limit condition.
 - **`handoff`, `continue-in-background` and `find-handoff` follow the new contract.** The recoverable unit is the resume region, the goal region and every below-rail re-arm message, so `find-handoff` recovers a goal from a file or a transcript.
+
+## [0.39.0] - 2026-09-29
+
+### Added
+
+- **The retro transcript parser emits `data.plugin_usage`** ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)): each plugin skill invoked in the session with a count, from the model's Skill tool calls and the operator's typed `/<plugin>:<skill>` commands. A multi-session run sums it into `aggregate.all_plugin_skills`. Hook events are not attributed to a plugin: a transcript records a plugin hook command unexpanded. Existing keys are unchanged.
+- **`workflow` wrap-up offers `/plugin-quality:audit session`** in one line when the session invoked at least one plugin skill. The offer is presence-gated on `plugin-quality`; the run stays operator-gated.
 
 ## [0.38.29] - 2026-09-29
 
