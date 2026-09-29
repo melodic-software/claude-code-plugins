@@ -22,7 +22,7 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Narrow-write setup. This plugin's **configuration** surface is three kinds of thing setup cannot
 conformingly write:
 
-- **System tools** (`jq`, `node`). `check` probes them; installing it is the operator's.
+- **System tools** (`jq`, `node`). `check` probes them; installing them is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
   `pluginConfigs` setup must never write. Reconfigure through Claude Code's native flow, per the
   marketplace's plugin-reconfiguration convention
