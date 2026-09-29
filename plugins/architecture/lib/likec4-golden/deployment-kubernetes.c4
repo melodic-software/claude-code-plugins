@@ -1,0 +1,23 @@
+specification {
+  element container
+  deploymentNode environment
+  deploymentNode node
+}
+model {
+  c2_api = container 'api' {
+    technology 'ghcr.io/acme/api:2'
+    description 'replicas 2'
+  }
+}
+deployment {
+  env2_prod = environment 'prod' {
+    n3_api = node 'api' 'ingress api.example.com'
+    instanceOf c2_api
+  }
+}
+views {
+  deployment view view2_prod {
+    title 'prod'
+    include env2_prod.**
+  }
+}

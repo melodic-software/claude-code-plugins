@@ -1,5 +1,5 @@
 ---
-description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, interview the selected candidate with a Design-It-Twice branch, and hand off the agreed shape. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension ask ('what should we improve', 'highest-impact improvement', or 'find improvements') routes to /improvement:find; also skip mechanical tidying, diff review, architecture-rule enforcement, or root-cause debugging."
+description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, and interview the chosen one with a Design-It-Twice branch. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension ask ('what should we improve') routes to /improvement:find."
 argument-hint: "[action]"
 user-invocable: true
 disable-model-invocation: false
