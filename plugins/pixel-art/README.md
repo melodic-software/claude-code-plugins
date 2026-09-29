@@ -33,6 +33,8 @@ that open in any browser.
    `reference/engine-layouts.md`.
 2. `scripts/render.py` (Python standard library only) writes the engine asset at 1x, an upscaled
    preview, a GIF per animation, and frame data. `scripts/embed.py` builds scenes into one HTML file.
+   `scripts/capture.py` serves that file and, when a browser is present, saves timeline shots and
+   an optional WebM.
 3. The model looks at what it rendered and revises, usually two to four rounds. Each round marks
    the brief's done criteria pass or fail. The loop stops when they all pass, or when the round
    budget is spent and the failures are named.
@@ -50,9 +52,9 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 ## Prerequisites
 
 - **Python 3**: required. The renderer uses the standard library only.
-- **A browser automation tool** (for example a Playwright CLI or MCP): optional. With one, the
-  `scene` skill screenshots its own output and reviews it; without one, it says the scene was not
-  reviewed visually and asks you to open it.
+- **A local browser** (Chrome or Chromium on `PATH`): optional. `scripts/capture.py` drives it
+  for the scene review loop. Without one, the command exits 3 and the skill says the scene was
+  not reviewed visually.
 - **Backends other than `native`**: optional and documented in `reference/backends.md`, not yet
   exercised. The skills check for a selected backend and fall back to `native` with a notice; no
   adapter code ships in this version.
@@ -62,8 +64,10 @@ list frame names and per-frame durations rather than `from`/`to` ranges.
 
 ## Audio
 
-This plugin makes no sound. A scene accepts an audio file you pass in, so a separate audio tool
-can supply music or effects without either plugin depending on the other.
+This plugin does not synthesize sound. `embed.py` inlines a WAV you place next to the template
+(`/*WAV:file.wav*/null`), and the scene plays it on the first click. `examples/campfire/campfire.wav`
+is that file for the example. It was rendered from the score in `examples/campfire/AUDIO.txt`.
+The renderer that produced it lives in the `retro-audio` plugin and is not imported here.
 
 ## Example
 
@@ -76,6 +80,7 @@ python3 hero_mz.py
 python3 <plugin>/scripts/render.py hero_mz.json --out out --scale 4
 python3 <plugin>/scripts/embed.py scene.html out/campfire.html
 python3 <plugin>/scripts/gallery.py out
+python3 <plugin>/scripts/capture.py out/campfire.html --at 0,3,7 --record 4 --out out/capture
 ```
 
 ## Reference files

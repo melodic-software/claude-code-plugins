@@ -3,11 +3,30 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.22] - 2026-09-28
+## [0.51.25] - 2026-09-28
 
 ### Changed
 
 - **`unhobble` watch clears a consequential deletion with the re-add grammar** ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)). The re-add gate stays the only evidence grammar: ledger rows, same-cause aggregation, and a commit that cites the rows. `watch` records a per-rule window before removal. A protected class never enters a watch. An editorial cut does not need one. A consequential deletion is applicable only when the watch closes with its qualifying-session count met and zero attributed rows, and the removing commit cites that watch. `audit-instructions` requires that citation before a consequential cut may proceed.
+
+## [0.51.23] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-grants` criteria (#4583).** P2 cites `docs/plugin-philosophy.md` as the
+  doctrine owner for hardcoded consumer specifics; this skill keeps the permission-grant detector only.
+
+## [0.51.22] - 2026-09-28
+
+### Changed
+
+- **`unhobble` Phase 4 sends the deletions it keeps to a security pass**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The register
+  hold restores protected rules only. Before the experiment branch merges, the pull request
+  now runs `/review:security-review` when the `review` plugin is installed. That skill's
+  instruction-surface lens checks every rule left deleted for a guardrail nothing else
+  enforces. Without the plugin, the pull request body records that the retired rules got no
+  security pass.
 
 ## [0.51.21] - 2026-09-28
 

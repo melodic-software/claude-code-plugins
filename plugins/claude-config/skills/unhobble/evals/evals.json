@@ -191,13 +191,14 @@
       "name": "consequential-deletion-needs-a-closed-watch",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — delete the rule that says never commit straight to main. It governs commits. No watch is recorded yet. The exception register does not match it.",
-      "expected_output": "Does not delete the rule. Opens a watch in the ledger file before any removal: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
+      "expected_output": "Does not delete the rule before a watch is recorded. Opens a watch in the ledger file first: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Then removes the rule and keeps it out of context for the whole window, because a rule still loaded cannot show its own absence; a disqualifying stumble restores it. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
       "files": [],
       "expectations": [
         "Refuses to delete a consequential rule before a watch is recorded",
         "Records the rule, surface, governed situation, qualifying-session window, and disqualifier",
         "Uses the re-add grammar and does not define a second evidence grammar",
-        "States that the tier clears only when the closed watch has zero attributed rows"
+        "States that the tier clears only when the closed watch has zero attributed rows",
+        "Removes the watched rule for the window instead of keeping it loaded"
       ]
     },
     {
@@ -205,11 +206,11 @@
       "name": "closed-watch-with-zero-rows-clears-the-deletion",
       "narration": true,
       "prompt": "/claude-config:unhobble watch — the watch on the branch-before-commit rule has met its qualifying-session count and the ledger has zero attributed rows. Remove it.",
-      "expected_output": "The deletion is warranted. Presents the removal for confirmation and requires the removing commit to cite the watch, the same way a restoring commit cites ledger rows. Does not treat this as a re-add. The re-add gate is unchanged: it still restores only on at least two same-cause rows.",
+      "expected_output": "The deletion is warranted. Presents the removal for confirmation and requires the commit that makes the removal permanent to cite the watch, the same way a restoring commit cites ledger rows. Does not treat this as a re-add. The re-add gate is unchanged: it still restores only on at least two same-cause rows.",
       "files": [],
       "expectations": [
         "Treats a closed watch with zero attributed rows as clearing the consequential deletion",
-        "Requires the removing commit to cite the watch",
+        "Requires the commit that makes the removal permanent to cite the watch",
         "Leaves the re-add gate as two same-cause rows for restores"
       ]
     },

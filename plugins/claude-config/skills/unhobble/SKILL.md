@@ -266,7 +266,11 @@ rows after real work is a licensed permanent deletion.
    defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
-   repo's normal PR flow.
+   repo's normal PR flow. The register hold covers only protected rules, so before that merge run
+   `/review:security-review` against the pull request (if the `review` plugin is installed). Its
+   instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
+   enforces. Without the plugin, record in the pull request body that the retired rules got no
+   security pass.
 
 ## Deletion watch
 
@@ -282,6 +286,11 @@ and the surface it lives on; the governed situation, stated as where its absence
 window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
 duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
 
+Then remove the rule and keep it removed for the whole window. A watched rule is never kept
+loaded: a rule still in context prevents the stumble it exists to prevent, so zero attributed rows
+would say nothing about whether it can go. A disqualifying stumble ends the watch and restores the
+rule.
+
 Attribute a stumble by that governed situation. Same-cause aggregation is the re-add gate's rule.
 Co-absence is not attribution. When several rules were removed together, a stumble attaches to
 one rule only when exactly one removed rule governs the situation. When two do, the row attaches
@@ -291,8 +300,9 @@ A watch that never accumulates qualifying sessions expires unresolved. Report th
 evidence the rule can go.
 
 The deletion is warranted when the qualifying-session count is met and the attributed row count,
-after same-cause aggregation, is zero. The removing commit cites the watch the way a restoring
-commit cites its ledger rows. Present the removal and wait for confirmation. A closed watch with
+after same-cause aggregation, is zero. The commit that makes the removal permanent cites the watch
+the way a restoring commit cites its ledger rows. Present the closed watch and wait for
+confirmation before the removal is kept. A closed watch with
 zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
 is not clear, and silence is not a warrant.
 

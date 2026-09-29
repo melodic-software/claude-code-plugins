@@ -83,7 +83,9 @@ Before deep review, stop early when any of these hold (say so plainly and post
 nothing else):
 
 1. PR is closed or not open
-2. Change has no security-relevant surface after reading the diff
+2. Change has no security-relevant surface after reading the diff. A diff that deletes, narrows,
+   or softens a standing instruction is not eligible for this skip until it has been read under
+   the instruction-surface lens below: it reads as prose-only while it can remove a control
 3. This head already has a successful security review that still applies
 
 ## Criteria
@@ -106,6 +108,19 @@ pins. Defer to it and do not re-report those findings here. This lane's value
 is the logic, architecture, data-flow, and trust-boundary security reasoning
 static analysis cannot reach, so report an Actions finding only when it needs
 that reasoning. If you find no security issues, say so plainly.
+
+**Instruction-surface deletions.** Removing a guardrail makes the surrounding context the model's
+only judgment input, and a hostile context then decides what the removed rule used to. When the
+diff deletes, narrows, or softens a standing instruction (`CLAUDE.md`, `AGENTS.md`, a rules file,
+a skill or agent body, a hook's block list or allowlist), check each removed rule against the
+protected classes in the
+[instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md).
+Recognition is by consequence, not phrasing: ask what breaks when the rule is absent at the moment
+it was written for. A match is a finding when nothing else in the tree still enforces it, such as
+a hook, a permission deny rule, or a validator. Name the class, the action the rule prevented, and
+the request that now reaches that action with no check. That is this lane's exploit path. A rule
+that a mechanism still enforces is not a finding, and neither is one the diff compresses without
+changing what it forbids.
 
 ## High-signal bar
 

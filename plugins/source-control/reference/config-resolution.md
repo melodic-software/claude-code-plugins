@@ -364,6 +364,16 @@ Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwi
 `git rev-parse --show-toplevel`. A cwd-relative read from a nested directory finds
 `<subdir>/.claude/source-control.md`, misses the repo-root config, and silently degrades.
 
+When that root is `$HOME` or an ancestor of `$HOME`, or is not inside a git working
+tree, team and overlay are **not applicable** (config-cascade #4672): report both with
+that reason and resolve user-global only. Never read `~/.claude/source-control.md` as
+the team layer; at home those two paths are the same file. `parse-branch-issue.sh`
+skips both layers and prints `team and overlay not applicable: project root is the
+home directory (or an ancestor of it)` or `... project root is not inside a git
+repository` on stderr. A team or overlay path that physically equals the user-global file
+is skipped even when the root is not home. `/source-control:setup apply layer=team`
+and `layer=local` refuse in that state; `layer=user` still writes.
+
 Layers, in resolution order, where a later layer refines an earlier one:
 
 1. **`~/.claude/source-control.md`**: user-global. The operator's own preference, following them
