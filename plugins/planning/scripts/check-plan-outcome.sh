@@ -16,7 +16,8 @@
 #                   /home/<name> path, unless the line carries <!-- path-example -->.
 #                   /Users and /home count only where they begin a path: not right
 #                   after a letter, digit, _, . / or -, so a repo folder such as
-#                   Domain/Users/ or src/home/ passes but ROOT:/Users/x and |/Users/x| fail
+#                   Domain/Users/ or src/home/ passes, but one right after a colon,
+#                   pipe or comma fails
 #
 # "Every brief scope-item maps to a phase" is judgment and stays in the skill's
 # prose; this gate does not claim it.
