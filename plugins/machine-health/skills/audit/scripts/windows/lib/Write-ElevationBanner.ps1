@@ -34,8 +34,7 @@ Banner structure:
 
     To run elevated:
       Open Windows Terminal as Administrator, then:
-        pwsh -NoProfile -File '<skill>\scripts\windows\Invoke-MachineHealthCheck.ps1' `
-             -OutputBase '<OutputBase>' -StateBase '<StateBase>'
+        pwsh -NoProfile -Command "Start-Transcript -Path '<StateBase>\logs\elevated-run-<date>.log' -Force | Out-Null; & '<skill>\scripts\windows\Invoke-MachineHealthCheck.ps1' -OutputBase '<OutputBase>' -StateBase '<StateBase>'; Stop-Transcript | Out-Null"
 
     Suppress this banner with -SkipBanner.
    ================================================================
@@ -90,12 +89,14 @@ function Write-ElevationBanner {
     }
 
     $invokeScript = Join-Path $SkillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1'
-    $lines.Add(' To run elevated:')
-    $lines.Add('   Open Windows Terminal as Administrator, then:')
-    $lines.Add("     pwsh -NoProfile -File '$invokeScript' ``")
-    $rerunArgs = "          -OutputBase '$OutputBase'"
+    $logBase = if ($StateBase) { $StateBase } else { $OutputBase }
+    $transcript = "$($logBase.TrimEnd('\'))\logs\elevated-run-$(Get-Date -Format 'yyyy-MM-dd').log"
+    $rerunArgs = "-OutputBase '$OutputBase'"
     if ($StateBase) { $rerunArgs += " -StateBase '$StateBase'" }
-    $lines.Add($rerunArgs)
+    $lines.Add(' To run elevated (the transcript is the only copy of the output the calling session can read):')
+    $lines.Add('   Open Windows Terminal as Administrator, then:')
+    $lines.Add("     pwsh -NoProfile -Command ""Start-Transcript -Path '$transcript' -Force | Out-Null; & '$invokeScript' $rerunArgs; Stop-Transcript | Out-Null""")
+    $lines.Add("   Output is captured to: $transcript")
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
     $lines.Add($sep)
@@ -140,7 +141,7 @@ function Get-ElevationCoverageMarkdown {
         $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
     }
     $body.Add('')
-    $body.Add('To populate these: re-run the skill from an elevated Windows Terminal.')
+    $body.Add('To populate these: re-run the skill from an elevated Windows Terminal. The run banner prints the command; it writes a transcript to `<StateBase>/logs/elevated-run-<date>.log`, the only copy of the output the calling session can read.')
     $body.Add('</details>')
     return ($body -join "`n")
 }
