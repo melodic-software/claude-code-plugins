@@ -115,7 +115,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
 
 def quiet_env(**extra):
-    env = {"PATH": "/usr/bin:/bin", "PIXEL_ART_BACKEND_CONFIRM": ""}
+    env = {"PATH": "/usr/bin:/bin"}
     env.update(extra)
     return env
 
