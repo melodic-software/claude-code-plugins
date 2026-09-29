@@ -150,14 +150,16 @@ assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings pr
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 
 # String keys under `permissions` (defaultMode, disable*) are ordinary settings.
-# The verdict must not depend on key order: `jq -e` reads only the LAST output, so
-# a file whose last `permissions` key was a string used to be rejected as
-# invalid-json and never scanned, which hid every conf record in it.
+# The verdict must not depend on key order: `jq -e` reads only the LAST output,
+# so a per-key verdict would reject a file whose last `permissions` key is a
+# string and hide every conf record in it.
+printf '{"permissions":{}}\n' >"$SHAPE/pol/managed-settings.json"
 printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":{"allow":["Bash(ls)"],"defaultMode":"acceptEdits"}}\n' >"$SHAPE/home/.claude/settings.json"
 OUT_SCALAR=$(run_tree "$SHAPE")
 assert_contains "a permissions object holding only a string key is present" "$OUT_SCALAR" "project settings present"
 assert_contains "a string key after the rule lists is present" "$OUT_SCALAR" "user settings present"
+assert_contains "an empty permissions object is present" "$OUT_SCALAR" "managed file present"
 assert_contains "the string-only file's defaultMode is read" "$OUT_SCALAR" 'conf project settings defaultMode "bypassPermissions"'
 assert_contains "rules before a trailing string key still count" "$OUT_SCALAR" "rule user settings allow Bash(ls)"
 

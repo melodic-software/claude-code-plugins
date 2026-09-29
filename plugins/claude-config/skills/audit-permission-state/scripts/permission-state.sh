@@ -274,10 +274,9 @@ classify_json_file() {
   # fixture now covers it.
   #
   # Only the three rule lists are checked: `defaultMode` and the `disable*` keys
-  # are strings and belong in `permissions`. `jq -e` reads the exit status from
-  # the LAST output, so a check that emitted one verdict per key made the answer
-  # depend on key order, and a file whose last `permissions` key was a string was
-  # rejected as invalid-json and never scanned.
+  # are strings and belong in `permissions`. `jq -e` takes its exit status from
+  # the LAST output, so this filter emits exactly one verdict; a per-key verdict
+  # would make the answer depend on key order.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true

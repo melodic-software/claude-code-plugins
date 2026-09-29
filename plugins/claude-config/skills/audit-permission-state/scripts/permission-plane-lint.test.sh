@@ -93,6 +93,7 @@ assert_eq "project bypassPermissions fires the defaultMode gate" 1 "$(count_matc
 assert_contains "the finding names the 2.1.257 gate" "$OUT" "v2.1.257"
 assert_contains "the finding says the session starts in Manual" "$OUT" "starts in Manual"
 assert_contains "the finding says to remove the value from the file" "$OUT" "remove it here"
+assert_contains "the Manual start is conditional on nothing higher-ranked setting a mode" "$OUT" "Unless a higher-ranked settings file or --permission-mode sets a mode"
 
 # The restriction names project and local settings, so the local file and the
 # pre-v2.1.211 start-directory copy of it are dead too.
