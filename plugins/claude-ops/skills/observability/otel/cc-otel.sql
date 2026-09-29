@@ -101,8 +101,13 @@ SELECT
   list_filter(r.attributes, lambda x: x.key = 'tool_use_id')[1].value.stringValue          AS tool_use_id,
   list_filter(r.attributes, lambda x: x.key = 'terminal.type')[1].value.stringValue        AS terminal_type,
   TRY_CAST(list_filter(r.attributes, lambda x: x.key = 'event.sequence')[1].value.intValue AS BIGINT) AS event_sequence,
-  r.traceId                                                                                AS trace_id,
-  r.spanId                                                                                 AS span_id,
+  -- traceId/spanId via a by-name struct cast, NOT native r.traceId: read_json_auto infers only
+  -- the keys present, and records emitted without tracing carry neither, so such a slice (a
+  -- prune's dropped temp, or a whole store) binder-errors on a native reference. The cast
+  -- yields NULL for an absent member and, unlike to_json(r), never serializes the body.
+  -- timeUnixNano is in the target because the cast needs at least one matching member.
+  (r::STRUCT(timeUnixNano VARCHAR, traceId VARCHAR, spanId VARCHAR)).traceId               AS trace_id,
+  (r::STRUCT(timeUnixNano VARCHAR, traceId VARCHAR, spanId VARCHAR)).spanId                AS span_id,
   r.body.stringValue                                                                       AS body,
   r.attributes                                                                             AS attributes_list
 FROM records;

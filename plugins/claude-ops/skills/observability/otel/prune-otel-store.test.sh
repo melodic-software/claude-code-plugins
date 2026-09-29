@@ -518,6 +518,53 @@ else
   skip_case "duckdb not found — skipping schema-thin metrics case"
 fi
 
+# --- 15c. schema-thin logs slice (duckdb): records without traceId/spanId still compact ---
+# Real-data regression (#5232): records emitted without tracing carry no traceId/spanId, so a
+# dropped temp made only of them has no such key for a native r.traceId reference to bind.
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store coldlogsthin)"
+  {
+    real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" | sed 's/,"traceId":"[^"]*","spanId":"[^"]*"//'
+    real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  } >"$S/cc-logs.json"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  glob="$(sql_path "$S")/cold/cc-logs-*.parquet"
+  assert_eq "traceless logs compaction exits 0" "0" "$rc"
+  assert_eq "traceless cold row has NULL trace_id" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE trace_id IS NULL AND session_id IS NOT NULL;")"
+else
+  skip_case "duckdb not found — skipping schema-thin logs case"
+fi
+
+# --- 15d. compaction failure surfaces the tool's stderr instead of a bare abort ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store coldbadjson)"
+  {
+    printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"%s","body":{"stringValue":"x"},"attributes":"not-a-list"}]}]}]}\n' "$OLD"
+    real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  } >"$S/cc-logs.json"
+  out="$(run_prune_real "$S")"
+  assert_contains "compact failure reports duckdb stderr" "$out" "duckdb failed:"
+else
+  skip_case "duckdb not found — skipping compaction stderr case"
+fi
+
+# --- 15e. Windows: a backslash CC_OTEL_STORE (as Machine-scope env delivers it) is usable ---
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  S="$(new_store backslash)"
+  {
+    log_line "$RECENT" "$RECENT"
+    log_line "$OLD" "$OLD"
+  } >"$S/cc-logs.json"
+  out="$(run_prune "$(cygpath -w "$S")")"
+  rc=$?
+  assert_eq "backslash store path prune exits 0" "0" "$rc"
+  assert_contains "backslash store path pruned" "$out" "action=pruned"
+  assert_eq "backslash store path trimmed hot file" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
+else
+  skip_case "not Windows — skipping backslash store path case"
+fi
+
 # --- 16. window knobs honored at runtime (structure + body) ---
 S="$(new_store knobstructure)"
 real_log_line "$MID" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
