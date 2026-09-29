@@ -17,6 +17,7 @@
     "get-item": true,
     "claim": true,
     "renew-lease": true,
+    "release": false,
     "reclaim": true,
     "link-blocks": true,
     "add-sub-item": true,

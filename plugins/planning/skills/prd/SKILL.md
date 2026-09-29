@@ -90,7 +90,7 @@ Tier choice rationale lives in [`context/templates.md`](context/templates.md). W
 
 ### Step 1. Skip-condition check
 
-Before any other work, validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
+Before any other work, run this mandatory check: validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
 
 > *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend: `/planning:interview` for fuzzy intent OR `/planning:plan` directly if scope is clear."*
 
@@ -141,7 +141,7 @@ If after the survey (Step 2) a required section has NO answerable content in the
 
 Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise.
 
-Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
+Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
 
 Question shapes that recur, in priority order:
 
@@ -162,6 +162,8 @@ Stop asking once every required section has either a resolved answer or an expli
 ### Step 5. Persist the PRD
 
 Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars). The same slug `/planning:interview`, `/planning:design`, and `/planning:plan` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`). The topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
+
+When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
 
 Frontmatter:
 
@@ -348,7 +350,5 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 - **Goals as outcomes, never implementations.** "Add a search box" is not a goal; "users can find a song from any of its lyrics in <2 seconds" is. Most common PRD failure: goals that pre-decide the architecture
 - **Success metrics need a window.** "Increase engagement" is not a metric; "DAU/MAU rises from X to Y over 30 days post-launch" is. If a metric has no number and no window, it can't validate the feature
-- **Don't write a PRD for engineering-internal work.** Skip-condition check is mandatory. PRDs for refactors, hooks, lint rules waste cycles and dilute the convention
 - **Tier governs verbosity, not which sections exist.** All three tiers have the same seven required sections. Tier-1 is one line per section; tier-3 is a full paragraph. Don't drop sections to "save time". Drop words
 - **The PRD is never an architecture document.** When discussion drifts to implementation, anchor back to *what for whom*. Capture architecture questions in the **open questions** section for `/planning:plan` to resolve
-- **Resume vs revise vs start-fresh on prior PRDs.** Never silently overwrite. If scope shifted, append a dated restart note capturing why before rewriting
