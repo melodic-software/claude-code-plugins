@@ -1504,9 +1504,17 @@ function helper_scan(m,    name, ind, k, calls) {
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
     for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
   # A definition line is read from after the name it defines.
-  if (name != "") m = substr(m, DEF_END)
+  if (name != "") {
+    m = substr(m, DEF_END)
+    # The parameter count, from the list on this line, C# only (the header
+    # match ends at its open paren; no other lexer has overloads); -1 when
+    # unknown.
+    DEF_ARITY[DEF_N] = -1
+    if (LEXER == "cs" && extract_parens("(" m, 1)) DEF_ARITY[DEF_N] = arg_count(EXTRACT)
+  }
   if (HK > 0 && (calls = called_names(m)) != "")
     for (k = 1; k <= HK; k++) DEF_CALLS[HD[k]] = DEF_CALLS[HD[k]] calls
+  for (k = 1; k <= HK; k++) DEF_SELF[HD[k]] = DEF_SELF[HD[k]] self_arities(m, DEF_NAME[HD[k]])
 }
 
 # The class a line sits in, by indentation as helper_scan tracks functions:
@@ -1564,20 +1572,45 @@ function helper_mark(i) {
   NAME_ASSERTS[DEF_NAME[i]] = 1
 }
 
-# Whether definition i calls its own name while another definition of that
-# name in its scope asserts: an overload delegating to one that asserts.
-# ponytail: calls carry a name, not an arity, so an overload that only
-# recurses on itself is credited too (a miss, never a false finding); record
-# call arity if that shape shows up in a precision run.
+# The number of top-level arguments in an argument or parameter list.
+function arg_count(s,    n) {
+  if (s ~ /^[[:space:]]*$/) return 0
+  n = 1
+  while (split_top_comma(s)) { n++; s = SPLIT2 }
+  return n
+}
+
+# The arity of every call to name in m, bare or on self, this or cls, each
+# with a leading space.
+function self_arities(m, name,    out, pre, p) {
+  out = ""
+  while ((p = index(m, name)) > 0) {
+    pre = substr(m, 1, p - 1)
+    m = substr(m, p + length(name))
+    if (pre ~ /[A-Za-z0-9_$]$/) continue
+    if (pre ~ /\.[[:space:]]*$/ && pre !~ /(^|[^A-Za-z0-9_$.])(self|this|cls)[[:space:]]*\.[[:space:]]*$/) continue
+    if (match(m, /^[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/) && extract_parens(m, RLENGTH)) out = out " " arg_count(EXTRACT)
+  }
+  return out
+}
+
+# Whether definition i calls another overload of its own name, by argument
+# count, and that overload asserts. A call whose count matches i's own
+# parameters is recursion, not delegation. An arity of -1 (a parameter list
+# split over lines) matches any count.
 # Plain statements on purpose: gawk 5.2.1 double-frees on this test written
 # as one return of joined && and || terms (Ubuntu 24.04, 2026-09-29).
-function delegates_to_overload(i,    key, calls, name) {
-  key = DEF_CLS[i] SUBSEP DEF_NAME[i]
-  if (!(key in SCOPE_ASSERTS)) return 0
-  calls = DEF_CALLS[i] " "
-  name = DEF_NAME[i]
-  if (index(calls, " " name " ")) return 1
-  return index(calls, " ." name " ") > 0
+function delegates_to_overload(i,    j, a) {
+  if (DEF_SELF[i] == "") return 0
+  for (j = 1; j <= DEF_N; j++) {
+    if (j == i || !(j in DEF_ASSERTS)) continue
+    if (DEF_NAME[j] != DEF_NAME[i] || DEF_CLS[j] != DEF_CLS[i]) continue
+    if (DEF_ARITY[j] < 0 || DEF_ARITY[i] < 0) return 1
+    if (DEF_ARITY[j] == DEF_ARITY[i]) continue
+    a = " " DEF_ARITY[j] " "
+    if (index(DEF_SELF[i] " ", a)) return 1
+  }
+  return 0
 }
 
 # A helper that calls an asserting helper asserts too, to any depth: repeat

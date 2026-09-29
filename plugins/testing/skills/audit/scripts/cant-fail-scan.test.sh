@@ -1067,6 +1067,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
   cs-xunit/bad/InvoiceNotNullTests.cs.fixture
   cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
+  cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
   cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
