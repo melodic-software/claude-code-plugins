@@ -151,7 +151,8 @@ fenced_blocks() {
 contract="$PLUGIN_ROOT/reference/parent-contract.md"
 hub="$PLUGIN_ROOT/skills/research/SKILL.md"
 want_envelope="$(fenced_blocks "$contract" text '## The pre-dispatch envelope'; fenced_blocks "$contract" text '## The pre-dispatch envelope' 2)"
-got_envelope="$(fenced_blocks "$hub" text '## Routing. Dispatch by default')"
+hub_envelope_heading='## Pre-dispatch envelope and baseline'
+got_envelope="$(fenced_blocks "$hub" text "$hub_envelope_heading")"
 if [[ -n "$want_envelope" && "$want_envelope" == "$got_envelope" ]]; then
   pass 'the research hub envelope matches the contract envelope'
 else
@@ -160,7 +161,7 @@ else
 fi
 for lang in bash powershell; do
   want="$(fenced_blocks "$contract" "$lang" '## The pre-dispatch baseline' | sed 's/<explore|research|trace-intent>/research/g')"
-  got="$(fenced_blocks "$hub" "$lang" '## Routing. Dispatch by default')"
+  got="$(fenced_blocks "$hub" "$lang" "$hub_envelope_heading")"
   if [[ -n "$want" && "$want" == "$got" ]]; then
     pass "the research hub $lang baseline matches the contract"
   else
@@ -222,6 +223,18 @@ assert_present 'the researcher body points at the per-gap fan-out' \
   'agents/researcher.md' 'Per-gap fan-out \(Phase 2\)'
 assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
   'skills/research-deep/SKILL.md' 'Per-gap fan-out \(Phase 2\)'
+for site in agents/researcher.md skills/research/context/discipline.md skills/research/context/phases.md; do
+  assert_present "the per-gap fan-out threshold reads two or more numbered gaps in $site" \
+    "$site" 'two or more( numbered)?$|two or more numbered gaps'
+done
+assert_absent 'no fan-out threshold reads 3 or more gaps' \
+  '(3|three) or more( numbered( gaps)?)?$|(3|three) or more numbered gaps'
+
+# research-deep points at the Budget: vocabulary and the verifier instead of restating either.
+assert_present 'research-deep points Budget: at the parent-contract vocabulary' \
+  'skills/research-deep/SKILL.md' 'parent-contract\.md.*"`Budget:` vocabulary"'
+assert_present 'research-deep names the verifier, its write-back and the cost skip' \
+  'skills/research-deep/SKILL.md' 'discovery:research-verifier`.*`verification:` write-back.*`skipped \(cost\)`'
 
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
@@ -287,8 +300,10 @@ assert_present 'parent contract names the Python twin' \
 # envelope section further down.
 # ---------------------------------------------------------------------------
 turns_of() { grep -m1 -E '^maxTurns:' "$PLUGIN_ROOT/agents/$1.md" | tr -dc '0-9'; }
-contract_turns="$(grep -m1 -oE 'Every worker definition here sets `maxTurns: [0-9]+`' \
-  "$PLUGIN_ROOT/reference/parent-contract.md" | tr -dc '0-9')"
+contract_turns="$(grep -m1 -oE 'Every producing worker definition here \([^)]*\) sets `maxTurns: [0-9]+`' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | grep -oE 'maxTurns: [0-9]+' | tr -dc '0-9')"
+verifier_contract_turns="$(grep -m1 -oE 'read-only `research-verifier` sets `maxTurns: [0-9]+`' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | grep -oE 'maxTurns: [0-9]+' | tr -dc '0-9')"
 for agent in explorer researcher intent-tracer; do
   agent_turns="$(turns_of "$agent")"
   if [[ -n "$contract_turns" && "$agent_turns" == "$contract_turns" ]]; then
@@ -297,6 +312,16 @@ for agent in explorer researcher intent-tracer; do
     fail "$agent maxTurns (${agent_turns:-unset}) equals the parent contract's value (${contract_turns:-unset})"
   fi
 done
+verifier_turns="$(turns_of research-verifier)"
+if [[ -n "$verifier_contract_turns" && "$verifier_turns" == "$verifier_contract_turns" ]]; then
+  pass "research-verifier maxTurns ($verifier_turns) equals the parent contract's value ($verifier_contract_turns)"
+else
+  fail "research-verifier maxTurns (${verifier_turns:-unset}) equals the parent contract's value (${verifier_contract_turns:-unset})"
+fi
+assert_present 'research-verifier pins the verdict tier: model opus' \
+  'agents/research-verifier.md' '^model: opus$'
+assert_present 'research-verifier pins the verdict tier: effort high' \
+  'agents/research-verifier.md' '^effort: high$'
 
 # ---------------------------------------------------------------------------
 # 8. Progressive disclosure is not inverted (#2271 D-F4)
@@ -316,6 +341,10 @@ fi
 # 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
 # 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
 # the same phrase is not waiting in the tail. The worker procedure is the spoke.
+# The research slice holds the acceptance and outcome gates, the disciplines they
+# grade, the effort ceiling and the topic slot; the pre-dispatch envelope, the
+# baseline and the inline conditions follow it, since no gate needs them after a
+# dispatch.
 assert_in_slice() {
   local label="$1" file="$2" phrase="$3" bytes slice tail
   bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
@@ -339,6 +368,16 @@ assert_in_slice 'research outcome gate is inside the re-attach slice' \
   'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
 assert_in_slice 'research owner column is inside the re-attach slice' \
   'skills/research/SKILL.md' 'Owner column governs'
+assert_in_slice 'research disciplines are inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Disciplines'
+assert_in_slice 'research last discipline is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Every accepted claim follows from its sources jointly'
+assert_in_slice 'research effort ceiling heading is inside the re-attach slice' \
+  'skills/research/SKILL.md' '### Effort, source breadth'
+assert_in_slice 'research effort ceiling sentence is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'The Effort row is the ceiling over discipline 8'
+assert_in_slice 'research topic slot is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Research the following topic: $ARGUMENTS'
 if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
   && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
   pass 'explore and research worker procedures live in the spokes'
@@ -575,9 +614,15 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'Turn budget:'
   assert_present "$file keeps a denied path unread by every other tool" \
     "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
-  assert_present "$file reads each file once and re-reads only to see its own change" \
-    "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
+assert_present "research-verifier states its limit as its own frontmatter maxTurns ($verifier_turns)" \
+  'agents/research-verifier.md' "Your limit is \`maxTurns: ${verifier_turns}\`"
+verifier_stop="$(grep -m1 -oiE 'stop gathering by turn [0-9]+' "$PLUGIN_ROOT/agents/research-verifier.md" | tr -dc '0-9')"
+if [[ -n "$verifier_stop" && -n "$verifier_turns" && "$verifier_stop" -gt 0 && "$verifier_stop" -lt "$verifier_turns" ]]; then
+  pass "research-verifier names a stop-gathering turn ($verifier_stop) below its limit ($verifier_turns)"
+else
+  fail "research-verifier names a stop-gathering turn (${verifier_stop:-unset}) below its limit (${verifier_turns:-unset})"
+fi
 assert_absent 'no agent says it cannot observe its own turn budget' \
   'cannot observe your own remaining turn'
 
@@ -728,6 +773,9 @@ fi
 # token. No frontmatter key can block one shell command, so the rule is
 # instruction held in one place, with every agent pointing at it.
 # ---------------------------------------------------------------------------
+# flat <file>: the file's prose on one line, blockquote markers dropped, so a
+# phrase matches wherever the source wraps it.
+flat() { sed 's/^> //' "$PLUGIN_ROOT/$1" | tr '\n' ' ' | tr -s ' '; }
 cred_heading='^## Credentials stay unread, stated once$'
 assert_present 'the parent contract owns the credential read boundary' \
   'reference/parent-contract.md' "$cred_heading"
@@ -748,6 +796,87 @@ for agent in explorer researcher intent-tracer; do
     "agents/$agent.md" 'gh auth token'
 done
 
+# The rule reaches every agent that holds a shell, not only the three producers:
+# the per-gap workers Phase 2 dispatches and the general-purpose sibling verifier
+# carry the same Bash pool. The sandbox settings live in the claude-config audit
+# reference, so the section points there instead of restating them.
+cred_section="$(sed -n '/^## Credentials stay unread, stated once$/,/^## Read each file once/p' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ' | tr -s ' ')"
+for scope in 'per-gap workers' 'sibling verifier'; do
+  if [[ "$cred_section" == *"$scope"* ]]; then
+    pass "the credential section names the $scope"
+  else
+    fail "the credential section names the $scope"
+  fi
+done
+if [[ "$cred_section" == *allowUnsandboxedCommands* ]]; then
+  fail 'the credential section does not restate the sandbox settings'
+else
+  pass 'the credential section does not restate the sandbox settings'
+fi
+cred_pointer='verify presence only, never read or print a value; rule and forbidden commands: .*parent-contract\.md, Credentials stay unread'
+if [[ "$(flat skills/research/context/discipline.md)" =~ Credentials:\ $cred_pointer ]]; then
+  pass "discipline.md's per-gap worker brief carries the credential pointer"
+else
+  fail "discipline.md's per-gap worker brief carries the credential pointer"
+fi
+assert_present 'the sibling verifier Posture line carries the credential pointer' \
+  'reference/parent-contract.md' "^Posture: .*credentials: $cred_pointer"
+if [[ "$(flat agents/research-verifier.md)" == *'credential file is not to be `Read` either'* ]]; then
+  pass 'agents/research-verifier.md bars a credential file from Read'
+else
+  fail 'agents/research-verifier.md bars a credential file from Read'
+fi
+
+# ---------------------------------------------------------------------------
+# The read-each-file-once rule is stated once and pointed at (#4258)
+#
+# An explorer run spent a quarter of its turns re-reading files already in its
+# context. The rule was pasted into three agents verbatim; it lives in the
+# parent contract now, and the agents point at it. The rule's body text must
+# not come back into any agent, so a copy cannot drift.
+# ---------------------------------------------------------------------------
+readonce_heading='^## Read each file once, stated once$'
+readonce_phrases=(
+  'A file you have already read in this run is still in your context'
+  'spends two turns on one read'
+  'so your reads stay easy to recognize as reads'
+)
+readonce_owners="$(grep -cE -- "$readonce_heading" "$PLUGIN_ROOT/reference/parent-contract.md")"
+if [[ "$readonce_owners" -eq 1 ]]; then
+  pass 'the parent contract carries the read-once heading exactly once'
+else
+  fail "the parent contract carries the read-once heading exactly once — found $readonce_owners"
+fi
+readonce_stray="$(surface | grep -v '/reference/parent-contract\.md$' | xargs grep -lE -- "$readonce_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$readonce_stray" -eq 0 ]]; then
+  pass 'no other file carries the read-once heading'
+else
+  fail "no other file carries the read-once heading — $readonce_stray other file(s) do"
+fi
+contract_flat="$(flat reference/parent-contract.md)"
+for phrase in "${readonce_phrases[@]}"; do
+  if [[ "$contract_flat" == *"$phrase"* ]]; then
+    pass "the parent contract states the read-once rule: $phrase"
+  else
+    fail "the parent contract states the read-once rule — no match for: $phrase"
+  fi
+done
+for agent in explorer researcher intent-tracer research-verifier; do
+  assert_present "agents/$agent.md points at the read-once rule" \
+    "agents/$agent.md" '"Read each file once, stated once"'
+  agent_flat="$(flat "agents/$agent.md")"
+  copied=0
+  for phrase in "${readonce_phrases[@]}"; do
+    [[ "$agent_flat" == *"$phrase"* ]] && copied=1
+  done
+  if [[ "$copied" -eq 0 ]]; then
+    pass "agents/$agent.md does not restate the read-once rule"
+  else
+    fail "agents/$agent.md does not restate the read-once rule"
+  fi
+done
+
 # 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
 #
 # The post-dispatch gate's steps live in the research skill body. A parent that
@@ -757,7 +886,7 @@ done
 assert_present 'researcher states that whoever dispatched it owes the acceptance gate' \
   'agents/researcher.md' '^## Whoever dispatched you owes the acceptance gate$'
 assert_present 'the researcher payload names the gate it is owed' \
-  'agents/researcher.md' '^gate_owed: "check-dispatch-artifact\.sh, check-coverage-complete\.sh, check-source-applicability\.py, per skills/research/SKILL\.md Post-dispatch acceptance gate"$'
+  'agents/researcher.md' '^gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact\.sh, check-coverage-complete\.sh and check-source-applicability\.py: it also owes the discovery:research-verifier dispatch and project fit\. Source: the discovery plugin.s skills/research/SKILL\.md .Post-dispatch acceptance gate. and reference/parent-contract\.md .Running the acceptance gate."$'
 assert_present 'the parent contract says a direct dispatch owes the gate' \
   'reference/parent-contract.md' 'including a direct dispatch of$'
 assert_present 'the research skill still carries the gate the pointer names' \
@@ -821,6 +950,90 @@ for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
   skills/trace-intent/context/dispatch.md; do
   assert_present "$file points at the sibling verifier" \
     "$file" '"The sibling verifier, stated once"'
+done
+
+# One table owns the verification: value set (#4274, #4231). skipped (cost) is
+# the parent choosing not to pay, unverified (none, <date>) is it being unable
+# to dispatch, and the table is the one place that says so. artifact-shape.md
+# keeps a one-line list, which must match the table's first column.
+values_heading='^### The `verification:` values$'
+assert_present 'the parent contract owns the verification: values table' \
+  'reference/parent-contract.md' "$values_heading"
+values_owners="$(surface | xargs grep -lE -- "$values_heading" 2>/dev/null | wc -l | tr -d ' ')"
+values_count="$(grep -cE -- "$values_heading" "$PLUGIN_ROOT/reference/parent-contract.md")"
+if [[ "$values_owners" -eq 1 && "$values_count" -eq 1 ]]; then
+  pass 'the verification: values heading exists exactly once'
+else
+  fail "the verification: values heading exists exactly once — $values_owners files carry it, $values_count times in the parent contract"
+fi
+values_table="$(awk '/^### The `verification:` values$/ {on=1; next} on && /^#/ {exit} on' \
+  "$PLUGIN_ROOT/reference/parent-contract.md")"
+for value in 'pass (research-verifier, <date>)' \
+  'fail rows <n>[,<n>…] (research-verifier, <date>)' \
+  'skipped (cost)' 'unverified (none, <date>)' 'pending'; do
+  if [[ "$values_table" == *"| \`$value\` |"* ]]; then
+    pass "the values table has a row for $value"
+  else
+    fail "the values table has a row for $value"
+  fi
+  if grep -qF -- "\`$value\`" "$PLUGIN_ROOT/skills/research/context/artifact-shape.md"; then
+    pass "artifact-shape.md lists $value as the table does"
+  else
+    fail "artifact-shape.md lists $value as the table does"
+  fi
+done
+
+# verdict: is the report contract's run outcome (complete | partial | stopped),
+# so the explore and trace-intent verifier's pass or fail line is result:.
+assert_absent 'no file has a verifier return pass or fail on a verdict: line' \
+  'verdict: (pass|fail)'
+assert_present 'the explore and trace-intent verifier returns result: pass or result: fail' \
+  'reference/parent-contract.md' '^Return: first line `result: pass` or `result: fail`'
+
+# The intro lists what the contract owns without counting it, so adding a
+# statement cannot stale a number.
+intro_flat="$(sed '/^## The pre-dispatch envelope$/q' "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ')"
+if grep -qiE '(^|[^[:alpha:]])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|[0-9]+) statements' <<<"$intro_flat"; then
+  fail 'the parent contract intro spells out no count before statements'
+else
+  pass 'the parent contract intro spells out no count before statements'
+fi
+
+# ---------------------------------------------------------------------------
+# 17. References follow the content that moved into the spokes
+# ---------------------------------------------------------------------------
+assert_present 'blindspot names the explore workflow spoke' \
+  'skills/blindspot/SKILL.md' 'skills/explore/reference/workflow\.md'
+assert_absent_in 'blindspot does not send the moved dimensions to the explore hub' \
+  'skills/blindspot/SKILL.md' 'skills/explore/SKILL\.md'
+assert_present 'the researcher names the phases spoke' \
+  'agents/researcher.md' 'skills/research/context/phases\.md'
+for file in skills/research/SKILL.md skills/blindspot/SKILL.md; do
+  assert_present "$file carries a Next section" "$file" '^## Next$'
+done
+
+# ---------------------------------------------------------------------------
+# 18. Each agent carries one final-message shape
+#
+# `discovery:report` is a second return shape. An agent that preloads it carries
+# that core beside its own `Return exactly this` block, and the parent parses
+# the agent's own block, so the preload adds a contradiction and no contract.
+# A bare `report` entry resolves inside this plugin, so it counts too.
+# ---------------------------------------------------------------------------
+for agent in explorer researcher intent-tracer research-verifier; do
+  file="agents/$agent.md"
+  if awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on' "$PLUGIN_ROOT/$file" |
+    grep -qE "^skills:.*report|^[[:space:]]+-[[:space:]]*[\"']?(discovery:)?report[\"']?[[:space:]]*$"; then
+    fail "$file does not preload the report return contract"
+  else
+    pass "$file does not preload the report return contract"
+  fi
+  sections="$(grep -cE '^## Return exactly this' "$PLUGIN_ROOT/$file")"
+  if [[ "$sections" -eq 1 ]]; then
+    pass "$file has exactly one Return exactly this section"
+  else
+    fail "$file has exactly one Return exactly this section — found $sections"
+  fi
 done
 
 printf '\n'
