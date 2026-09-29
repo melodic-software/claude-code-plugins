@@ -319,7 +319,10 @@ environment.
 
 For each user-approved fix:
 
-1. Make the edit. Done when the target file carries the change and nothing else in it moved.
+1. Make the edit. Route each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json`
+   through the built-in `update-config` skill, not a direct write. In auto mode a settings edit needs
+   the `[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that
+   fix is the consent. Done when the target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
@@ -330,6 +333,19 @@ After all fixes:
 - Re-run the engine and present the before/after `summary` (findings by severity, rule counts,
   server counts)
 - Verify all config files are still valid JSON
+
+### Refusals in auto mode
+
+Two operations are refused in auto mode. Writing the team-layer suppression record
+`.claude/audit-pass.md` is refused as `[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh`
+for the after-fix summary is refused as `[Self-Modification]`. Never retry around a refusal. Hand the
+operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
+re-run and paste its output back. Report the before/after comparison from what they return.
+
+Claim: auto mode refuses those two operations under those two category names. Basis: a
+`claude-config:audit@0.48.2` `--fix` run in melodic-software/.github PR #153, Claude Code 2.1.283,
+auto mode. As of 2026-09-27. Recheck when a Claude Code release changes auto-mode classifier
+categories, or a run where either refusal no longer fires.
 
 ### Fixes the skill can apply
 

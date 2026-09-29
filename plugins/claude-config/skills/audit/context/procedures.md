@@ -57,6 +57,15 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Remove orphan plugins (`true`) | No | Yes (user enabled a now-removed plugin, so investigate intent) |
 | Rename plugins (heuristic match) | No | Yes (verify upstream rename, update key, preserve `enabled` value) |
 
+Each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json` goes through the
+built-in `update-config` skill. In auto mode it needs the `[Self-Modification]` handshake: the
+classifier asks, and the user's explicit approval of that fix is the consent. Two operations are
+refused in auto mode: writing `.claude/audit-pass.md` (`[Instruction Poisoning]`) and re-running
+`scripts/audit-engine.sh` for the after-fix summary (`[Self-Modification]`). The fallback for each is
+the operator applying the edit or running the re-run and pasting the output back; never retry around
+the refusal. The verification record for the category names is in
+[SKILL.md](../SKILL.md) "Refusals in auto mode".
+
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
 added, and neither is mechanical:
 
