@@ -72,27 +72,37 @@ linkage::chomp_to() {
   printf -v "$__plv_dest" '%s' "$__plv_s"
 }
 
-# Scratch file reused for the life of this process. `readarray` splits in C
-# without a fork; `${rest#*$'\n'}` copies every surviving byte each line, so
-# 16k two-character lines exceeded the 15s hooks.json timeout, and a per-char
-# offset walk is linear in copies but still too many bash iterations.
-# umask 077 at load so the body is never world-readable in TMPDIR; capturing
-# umask to restore it would be a command substitution, which is a fork.
-# The file is overwritten on each call and truncated after linkage::problems.
+# `readarray` splits in C without a fork; `${rest#*$'\n'}` copies every
+# surviving byte each line, so 16k two-character lines exceeded the 15s
+# hooks.json timeout, and a per-char offset walk is linear in copies but still
+# too many bash iterations.
+#
+# A here-string feeds `readarray` with no fork and no file this process must
+# remove, but a here-string of >=64KiB deadlocks on bash builds that write it
+# to a pipe in-process (see hardcoded-path-patterns.sh). Text shorter than
+# _PR_LINKAGE_HERESTRING_MAX characters stays under 64000 bytes even at four
+# bytes a character, so it takes the here-string. Longer text goes through a
+# scratch file removed right after the read: one `rm` per call, and only for
+# bodies far larger than any compliant PR body.
+# umask 077 at load so the scratch body is never world-readable in TMPDIR;
+# capturing umask to restore it would be a command substitution, which is a fork.
 umask 077
-_PR_LINKAGE_SPLIT_FILE="${TMPDIR:-/tmp}/pr-linkage-lines.$$"
+_PR_LINKAGE_HERESTRING_MAX=16000
 
 # Split <text> into the LINKAGE_LINES array, element-for-element as
 # `while IFS= read -r line || [[ -n "$line" ]]; … done < <(printf '%s\n' "$text")`
 # did: `printf '%s\n'` terminates the last line, so the element count is always
 # one more than the number of newlines in <text>, and an empty <text> yields one
-# empty element. No process substitution, so no fork; also no here-string, which
-# deadlocks at >=64KiB (see hardcoded-path-patterns.sh) — the reason the read
-# loop existed in the first place. The scratch write is this shell's own
-# redirection, so it is not a clone.
+# empty element. No process substitution, so no fork.
 linkage::split_lines() {
-  printf '%s\n' "$1" >"$_PR_LINKAGE_SPLIT_FILE"
-  readarray -t LINKAGE_LINES <"$_PR_LINKAGE_SPLIT_FILE"
+  if ((${#1} < _PR_LINKAGE_HERESTRING_MAX)); then
+    readarray -t LINKAGE_LINES <<<"$1"
+    return 0
+  fi
+  local __plv_file="${TMPDIR:-/tmp}/pr-linkage-lines.$$"
+  printf '%s\n' "$1" >"$__plv_file"
+  readarray -t LINKAGE_LINES <"$__plv_file"
+  rm -f "$__plv_file"
 }
 
 # Remove HTML comments the way the validator does — every terminated `<!-- … -->`
@@ -419,6 +429,5 @@ linkage::problems() {
   }
   ((_plv_linked == 0)) ||
     LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N). If this PR references an issue it must not close, put "Refs: #N" (or "Relates to: #N") on its own line. If it relates to no GitHub issue at all, state "No linked issue" (or "No related issue:") in the body instead.')
-  : >"$_PR_LINKAGE_SPLIT_FILE"
   ((${#LINKAGE_PROBLEMS[@]} == 0))
 }

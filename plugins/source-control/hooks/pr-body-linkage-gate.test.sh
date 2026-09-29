@@ -608,6 +608,33 @@ else
   fi
 fi
 
+# The gate leaves nothing in TMPDIR: a compliant body, a blocked body, and the
+# 16000-line body that takes the scratch-file split.
+for tmp_case in "compliant:$GOOD:0" "blocked:$NO_RELATED:2" "dense:@dense.md:2"; do
+  tmp_name="${tmp_case%%:*}"
+  tmp_rest="${tmp_case#*:}"
+  tmp_want="${tmp_rest##*:}"
+  tmp_body="${tmp_rest%:*}"
+  if [[ "$tmp_body" == @* ]]; then
+    tmp_cmd="gh pr create -t T --body-file ${tmp_body#@}"
+  else
+    tmp_cmd="$(gh_body "$tmp_body")"
+  fi
+  tmp_dir="$(mktemp -d)"
+  tmp_payload=$(mk_payload "$GATED" "$tmp_cmd")
+  tmp_rc=0
+  (cd "$UNRELATED" && printf '%s' "$tmp_payload" | TMPDIR="$tmp_dir" bash "$HOOK" >/dev/null 2>&1) || tmp_rc=$?
+  tmp_left="$(ls -A "$tmp_dir")"
+  if ((tmp_rc != tmp_want)); then
+    fail "$tmp_name body: expected rc=$tmp_want, got rc=$tmp_rc"
+  elif [[ -n "$tmp_left" ]]; then
+    fail "$tmp_name body left files in TMPDIR: $tmp_left"
+  else
+    ok "$tmp_name body leaves TMPDIR empty"
+  fi
+  rm -rf "$tmp_dir"
+done
+
 # linkage::split_lines matches the `printf '%s\n'` + read contract: one more
 # element than the number of newlines, empty text is one empty element.
 export LC_ALL=C
@@ -635,6 +662,8 @@ expect_split "empty text is one empty element" "" ""
 expect_split "no trailing newline still yields the last line" $'a\nb' a b
 expect_split "trailing newline yields a final empty element" $'a\nb\n' a b ""
 expect_split "only a newline is two empty elements" $'\n' "" ""
+split_pad="$(printf 'x%.0s' {1..16000})"
+expect_split "text past the here-string limit splits the same" "$split_pad"$'\nb\n' "$split_pad" b ""
 
 {
   printf 'Closes #5\n\n'
