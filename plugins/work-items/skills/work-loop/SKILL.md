@@ -360,7 +360,9 @@ a surviving literal `${user_config.…}` placeholder means the key is unset, so 
 default). A PR open longer than that stops silently excluding its item: it is still not dispatched
 or classified, and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
 number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
-marker read suppresses duplicates, and the labelled item leaves the autonomous frontier. The cycle
+marker read suppresses duplicates only while the item still wears the human-gated label; an item
+back on the frontier gets a fresh marker naming the PR, and the labelled item leaves the
+autonomous frontier. The cycle
 report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
 A failed check has no age and stays excluded. The escalation is not progress: it does not reset
 the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover

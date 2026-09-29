@@ -32,12 +32,12 @@ as `SKILL.md`'s in-flight line, from the adapter's reporting reduction. An id wh
 `work_loop_in_flight_stale_days` bound was escalated to a human (`SKILL.md` "In-flight
 precondition"); the final report lists each such id among the items escalated to a human, with its
 PR number, draft state, and age, and it counts as human-gated for the drain-terminal test below
-even though its PR is still open.
+even though its PR is still open, draft or ready. Its PR is not "in flight" for that test.
 
 ## Drain-terminal state
 
-When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever, leading the report with those human-gated and
+When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight
+(a stale PR whose item was escalated does not count), report and stop cleanly rather than idling forever, leading the report with those human-gated and
 escalated items. Apply the post-snapshot intake report below
 before stopping.
 
