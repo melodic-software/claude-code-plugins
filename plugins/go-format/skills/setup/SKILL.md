@@ -84,23 +84,22 @@ re-verifying. For everything else `apply` only points:
   toolchain: https://go.dev/dl/).
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
-  plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure go-format@<marketplace>` any time, or headless
-  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=true`
-  (repeatable per key; `go_format_lint_gitignored` is set the same way). Against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
-  for this plugin, and run from that project's directory for a `project`/`local` scope, or the
-  rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. A rejected value prints a warning yet exits 0,
-  so read the output. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
-  still reports the OLD value; report the observed effective value, never an unobserved change.
+- toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
+  the measured CLI behavior (including that a rerun against an already-installed plugin still
+  writes the value) and its verification record
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
+  Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
+  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
+  (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
+  - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
+    resets every option to its manifest default.
+  - Pass `-s user`. Do not copy a scope from `claude plugin list`.
+  - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
+    `check` in a **fresh session** and report the observed effective value, never an unobserved
+    change.
+  - Read the command's output, not its exit code: a rejected value prints a warning yet exits 0.
+
+  This skill never writes user settings or `pluginConfigs`.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
