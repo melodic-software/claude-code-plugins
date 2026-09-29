@@ -297,7 +297,7 @@ for cmd in \
   "git push --force-with-lease origin x" \
   "git push --delete --dry-run origin x" \
   "git push -d -n origin x" \
-  "git push -nd origin x" \
+  "git push -dn origin x" \
   "git push origin :"; do
   assert_exit "allows (not matched by is_destructive): $cmd" 0 "$(guard_exit "$cmd")"
 done
