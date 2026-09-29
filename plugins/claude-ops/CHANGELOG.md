@@ -3,11 +3,30 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.28] - 2026-09-28
+
+### Fixed
+
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+
 ## [0.63.27] - 2026-09-28
 
 ### Fixed
 
-- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename. `hook::physical_path_to` uses `cygpath -l -m` when `realpath` and `readlink` are absent, so a long-name temp path and an 8.3 `TEMP` resolve to one directory ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- **`audit-skill-visibility` follows the product on a non-Boolean `enabledPlugins` value.** A
+  settings file holding one (`"yes"`, `1`) now contributes none of its `enabledPlugins` keys, so
+  its `true` siblings read disabled too, and the other scopes still decide each key. A key only such
+  a file names makes its plugin's skills `hidden` with the new cause `settings-file-rejected`; the
+  evidence names the file and the offending key. Such a file's `skillListingBudgetFraction` and
+  `skillListingMaxDescChars` are left out of the listing budget too. The JSON model's `schema_version` is `1.4.0`.
+  Measured with `claude plugin list --json` and `claude doctor` on Claude Code 2.1.280 in a fixture
+  config directory; the verification record is in the skill. The `defaultEnabled` record now cites
+  the live `settings-reference#enabledplugins` and `plugins-reference#defaultenabled` anchors
+  (#4660).
+- **`plugins` sync Step 5** cites plugins-reference `#metadata-precedence` for a marketplace entry's
+  `defaultEnabled` overriding `plugin.json`, instead of `scope-semantics.md`, which has no such
+  content. It also says an id on `missing_from_enabled` is not loading today, with a verification
+  record (#4660).
 
 ## [0.63.26] - 2026-09-28
 

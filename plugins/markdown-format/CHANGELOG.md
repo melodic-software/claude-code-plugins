@@ -3,11 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.75] - 2026-09-28
+## [0.11.76] - 2026-09-28
 
 ### Fixed
 
-- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename. `hook::physical_path_to` uses `cygpath -l -m` when `realpath` and `readlink` are absent, so a long-name temp path and an 8.3 `TEMP` resolve to one directory ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+
+## [0.11.75] - 2026-09-28
+
+### Changed
+
+- README: a missing-prerequisite or trust-gate notice appears in full on the first skip for each session and subagent, then as a shorter renewal on the eighth skip and every eighth after that (`HOOK_NOTICE_RENEW_EVERY`), not only once per session.
+- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes that use a file-write call it recognizes, and names `perl -i`, `tee`, a standalone `cp`, and `node -e` among the forms it does not detect.
 
 ## [0.11.74] - 2026-09-28
 

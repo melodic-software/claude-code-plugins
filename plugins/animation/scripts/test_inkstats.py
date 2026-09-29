@@ -92,5 +92,22 @@ class WorkDirFinalHold(unittest.TestCase):
             self.assertAlmostEqual(times[-1] - times[-2], 1 / FPS, places=6)
 
 
+@unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
+class ShotsJsonCuts(unittest.TestCase):
+    def test_shots_json_t0_values_are_the_cut_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = write_work(Path(tmp) / 'work', [0.0, 1.0, 2.0], 3.0, (16, 200, 80))
+            shots = Path(tmp) / 'shots.json'
+            shots.write_text(json.dumps({'shots': [
+                {'t0': 0}, {'t0': 1.5},
+            ]}), encoding='utf-8')
+            cuts = inkstats.parse_cuts(str(shots))
+            self.assertEqual(cuts, [0.0, 1.5])
+            rows = inkstats.measure(work)
+            segments = inkstats.summary(rows, cuts)['segments']
+            self.assertEqual([round(g['t0'], 3) for g in segments], [0.0, 1.5])
+            self.assertEqual(inkstats.parse_cuts('0,1.5'), [0.0, 1.5])
+
+
 if __name__ == '__main__':
     unittest.main()

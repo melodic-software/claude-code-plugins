@@ -15,7 +15,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-ServiceTriggerStart.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'services'
 $category = 'services'
 $commands = @(
@@ -24,7 +23,9 @@ $commands = @(
     'Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location, User'
 )
 
-try {
+$FailureSummary = 'Services check failed.'
+$PassThru = $false
+$CheckBody = {
     $uptime = $null
     try {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
@@ -121,9 +122,5 @@ try {
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
         -NeedsAdmin $false -RanSuccessfully $true
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Services check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

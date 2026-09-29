@@ -3424,6 +3424,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "stdlib_shadowing",
                 "children_rollup",
                 "errors",
                 "policy_sources",
@@ -3714,6 +3715,162 @@ class StandingPolicyTests(unittest.TestCase):
         )
 
 
+class StdlibShadowingTests(unittest.TestCase):
+    @staticmethod
+    def home_fixture(home: Path) -> None:
+        cache = home / "__pycache__"
+        cache.mkdir(parents=True)
+        (home / "gettext.py").write_text("import urllib\n", encoding="utf-8")
+        (home / "notes.py").write_text("x = 1\n", encoding="utf-8")
+        (cache / "gettext.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (cache / "notes.cpython-314.pyc").write_bytes(b"\0" * 16)
+        (home / "projects").mkdir()
+        (home / "projects" / "random.py").write_text("", encoding="utf-8")
+
+    def scan(self, target: Path, home: Path, max_depth: int | None = None):
+        with (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "user_home", return_value=home),
+        ):
+            policy = hygiene.load_policy(None)
+            snapshot = hygiene.scan_tree(target, policy, max_depth)
+        return snapshot, {entry["path"]: entry for entry in snapshot["entries"]}
+
+    def test_home_root_stdlib_name_is_flagged_and_tied_to_its_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home)
+        self.assertEqual(
+            [
+                {
+                    "path": "gettext.py",
+                    "module": "gettext",
+                    "bytecode_cache": "__pycache__",
+                }
+            ],
+            snapshot["stdlib_shadowing"],
+        )
+        advisories = by_path["gettext.py"]["advisories"]
+        self.assertEqual("stdlib-module-shadow", advisories[0]["id"])
+        self.assertIn("Rename or move", advisories[0]["reason"])
+        self.assertEqual([], by_path["gettext.py"]["hints"])
+        self.assertNotIn("advisories", by_path["notes.py"])
+        self.assertNotIn("advisories", by_path["projects/random.py"])
+        cache = by_path["__pycache__"]
+        self.assertIn("python-bytecode-cache", [hint["id"] for hint in cache["hints"]])
+        self.assertEqual(
+            [
+                {"module": "gettext", "source": "gettext.py", "shadows_stdlib": True},
+                {"module": "notes", "source": "notes.py", "shadows_stdlib": False},
+            ],
+            cache["bytecode_sources"],
+        )
+
+    def test_builtin_module_name_is_not_flagged_and_symlink_is(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "sys.py").write_text("", encoding="utf-8")
+            (home / "real.py").write_text("", encoding="utf-8")
+            try:
+                (home / "gettext.py").symlink_to(home / "real.py")
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            ["gettext.py"], [row["path"] for row in snapshot["stdlib_shadowing"]]
+        )
+
+    def test_windows_case_folding_links_source_and_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "__pycache__").mkdir()
+            (home / "__pycache__" / "random.cpython-314.pyc").write_bytes(b"\0")
+            entries = [
+                {"path": "Random.py", "kind": "file"},
+                {"path": "__pycache__", "kind": "directory"},
+            ]
+            with (
+                mock.patch.object(hygiene, "user_home", return_value=home),
+                mock.patch.object(hygiene.sys, "platform", "win32"),
+            ):
+                findings = hygiene.annotate_stdlib_shadowing(entries, home)
+        self.assertEqual(
+            [{"path": "Random.py", "module": "random", "bytecode_cache": "__pycache__"}],
+            findings,
+        )
+        self.assertEqual(
+            [{"module": "random", "source": "Random.py", "shadows_stdlib": True}],
+            entries[1]["bytecode_sources"],
+        )
+
+    def test_depth_cut_cache_still_names_its_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(home, home, max_depth=1)
+        self.assertIn("__pycache__", snapshot["truncated_paths"])
+        self.assertEqual(
+            "__pycache__", snapshot["stdlib_shadowing"][0]["bytecode_cache"]
+        )
+        self.assertEqual(
+            ["gettext", "notes"],
+            [row["module"] for row in by_path["__pycache__"]["bytecode_sources"]],
+        )
+
+    def test_shadowing_file_without_bytecode_names_no_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "random.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            [{"path": "random.py", "module": "random", "bytecode_cache": None}],
+            snapshot["stdlib_shadowing"],
+        )
+
+    def test_home_below_the_target_is_found_by_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            home = base / "Users" / "someone"
+            self.home_fixture(home)
+            snapshot, by_path = self.scan(base, home)
+        self.assertEqual(
+            ["Users/someone/gettext.py"],
+            [row["path"] for row in snapshot["stdlib_shadowing"]],
+        )
+        self.assertEqual(
+            "Users/someone/__pycache__",
+            snapshot["stdlib_shadowing"][0]["bytecode_cache"],
+        )
+        self.assertIn("bytecode_sources", by_path["Users/someone/__pycache__"])
+
+    def test_target_inside_home_reports_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            (home / "projects" / "email.py").write_text("", encoding="utf-8")
+            snapshot, _ = self.scan(home / "projects", home)
+        self.assertEqual([], snapshot["stdlib_shadowing"])
+
+    def test_scan_stdout_carries_the_findings_in_quiet_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self.home_fixture(home)
+            snapshot, _ = self.scan(home, home)
+        payload = hygiene.scan_stdout_payload(
+            hygiene.scan_complete_payload(
+                home,
+                home / "snapshot.json",
+                snapshot,
+                {"policy_sources": ["baseline"]},
+                None,
+                "note",
+            ),
+            True,
+        )
+        self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
+
+
 class OsAutocleanAdvisoryTests(unittest.TestCase):
     def test_zone_outside_temp_has_no_advisory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3744,6 +3901,207 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
         else:
             expected = "not-detected"
         self.assertEqual(expected, advisory["mechanism"])
+
+
+class StorageSenseTempThresholdTests(unittest.TestCase):
+    WEEKLY_ON = {"enabled": True, "temporary_files_cleanup": True, "cadence_days": 7}
+
+    def windows_advisory(
+        self,
+        temp_root: Path,
+        state: dict[str, object],
+        threshold: int,
+        target: Path | None = None,
+    ) -> dict[str, object]:
+        with (
+            mock.patch.object(hygiene.sys, "platform", "win32"),
+            mock.patch.object(
+                hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+            ),
+            mock.patch.object(
+                hygiene, "windows_storage_sense_state", return_value=dict(state)
+            ),
+        ):
+            advisory = hygiene.os_autoclean_advisory(
+                target or temp_root,
+                {"os_temp_recommendation_threshold_bytes": threshold},
+            )
+        assert advisory is not None
+        return advisory
+
+    @staticmethod
+    def temp_fixture(base: Path) -> Path:
+        temp_root = base / "Temp"
+        (temp_root / "nested").mkdir(parents=True)
+        (temp_root / "a.tmp").write_bytes(b"x" * 3000)
+        (temp_root / "nested" / "b.tmp").write_bytes(b"y" * 2000)
+        return temp_root
+
+    def test_baseline_policy_ships_the_threshold(self) -> None:
+        threshold = hygiene.baseline_policy()["os_temp_recommendation_threshold_bytes"]
+        self.assertIsInstance(threshold, int)
+        self.assertGreater(threshold, 0)
+
+    def test_above_threshold_with_storage_sense_on_recommends_running_it_now(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, self.WEEKLY_ON, 4096)
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertTrue(advisory["temp_zone"]["complete"])
+        self.assertEqual(4096, advisory["temp_zone"]["threshold_bytes"])
+        recommendation = advisory["recommendation"]
+        self.assertIsInstance(recommendation, str)
+        self.assertIn("Run Storage Sense now", recommendation)
+        self.assertIn("Settings > System > Storage", recommendation)
+        self.assertIn("runs every 7 days", recommendation)
+        self.assertIn("temporary-files cleanup on", recommendation)
+
+    def test_recommendation_reports_detected_non_weekly_schedule(self) -> None:
+        state = {**self.WEEKLY_ON, "cadence_days": 30}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("runs every 30 days", recommendation)
+        self.assertNotIn("every 7 days", recommendation)
+        self.assertIn("Run Storage Sense now", recommendation)
+
+    def test_above_threshold_with_storage_sense_off_recommends_enabling_and_manual_run(
+        self,
+    ) -> None:
+        state = {"enabled": False, "temporary_files_cleanup": False, "cadence_days": 0}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("Recommend enabling Storage Sense", recommendation)
+        self.assertIn("manual run is available either way", recommendation)
+        self.assertIn("Storage Sense detected: off", recommendation)
+        self.assertIn("temporary-files cleanup off", recommendation)
+
+    def test_above_threshold_with_temp_cleanup_off_recommends_turning_it_on(
+        self,
+    ) -> None:
+        state = {**self.WEEKLY_ON, "temporary_files_cleanup": False}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        self.assertIn("turning on temporary-files cleanup", advisory["recommendation"])
+
+    def test_below_threshold_stays_null_whatever_the_configuration(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            for state in (self.WEEKLY_ON, off):
+                advisory = self.windows_advisory(temp_root, state, 1024**3)
+                self.assertIsNone(advisory["recommendation"])
+                self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+
+    def test_home_target_measures_the_temp_directory_itself(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            temp_root = self.temp_fixture(home / "AppData" / "Local")
+            (home / "outside.bin").write_bytes(b"z" * 9000)
+            advisory = self.windows_advisory(
+                temp_root, self.WEEKLY_ON, 4096, target=home
+            )
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertIsNotNone(advisory["recommendation"])
+
+    def test_capped_measurement_is_a_floor(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            # Cap 2 counts both top-level entries in any scandir order, so
+            # a.tmp's bytes always land, and still stops before nested/b.tmp.
+            with mock.patch.object(hygiene, "TEMP_ZONE_ENTRY_CAP", 2):
+                over = self.windows_advisory(temp_root, self.WEEKLY_ON, 1)
+                under = self.windows_advisory(temp_root, off, 1024**3)
+        self.assertFalse(over["temp_zone"]["complete"])
+        self.assertIn("holds at least", over["recommendation"])
+        self.assertFalse(under["temp_zone"]["complete"])
+        self.assertIn("Recommend enabling", under["recommendation"])
+
+    def test_linked_directory_in_temp_is_not_followed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            elsewhere = base / "elsewhere"
+            elsewhere.mkdir()
+            (elsewhere / "big.bin").write_bytes(b"w" * 50_000)
+            try:
+                (temp_root / "link").symlink_to(elsewhere, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(5000, zone["logical_bytes"])
+
+    def test_cloud_placeholder_in_temp_is_not_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            with mock.patch.object(
+                hygiene, "is_cloud_placeholder_stat", return_value=True
+            ):
+                zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(0, zone["logical_bytes"])
+
+    def test_recommendation_leaves_scan_eligibility_unchanged(self) -> None:
+        real_advisory = hygiene.os_autoclean_advisory
+
+        def snapshot_entries(threshold: int) -> tuple[object, object]:
+            def windows_advisory(target, _policy=None):
+                with (
+                    mock.patch.object(hygiene.sys, "platform", "win32"),
+                    mock.patch.object(
+                        hygiene,
+                        "windows_storage_sense_state",
+                        return_value=dict(self.WEEKLY_ON),
+                    ),
+                ):
+                    return real_advisory(
+                        target, {"os_temp_recommendation_threshold_bytes": threshold}
+                    )
+
+            output = io.StringIO()
+            with (
+                mock.patch.object(
+                    hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+                ),
+                mock.patch.object(
+                    hygiene, "os_autoclean_advisory", side_effect=windows_advisory
+                ),
+                redirect_stdout(output),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(temp_root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            payload = json.loads(output.getvalue())
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            return payload["os_autoclean"]["recommendation"], snapshot["entries"]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            recommended, entries_over = snapshot_entries(1)
+            silent, entries_under = snapshot_entries(1024**3)
+        self.assertIsNotNone(recommended)
+        self.assertIsNone(silent)
+        self.assertEqual(entries_under, entries_over)
 
 
 class LeastObservableEnginePathTests(unittest.TestCase):

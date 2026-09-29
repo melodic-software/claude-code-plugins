@@ -33,6 +33,14 @@
 # Recheck: git-branch-delete.sh stops being the only sanctioned local-delete
 # path, or a paid slice adds those patterns with an ack path that does not
 # duplicate the confirmation gate.
+#
+# The skill's own mutating scripts are in the net only in their --apply
+# spelling (clean-caches, clean-build, git-prune, git-tree-reset,
+# git-tree-reset-batch, remove-path, clean-batch). A dry-run stays allowed so
+# the confirmation gate can still run. `git worktree remove` with a force flag
+# is in the net too: the skill does not own worktree removal, and a force
+# remove during a clean session is the accidental spelling the audit recorded.
+# The ack prefix still lifts either block after the confirmation gate.
 
 set -uo pipefail
 
@@ -58,13 +66,24 @@ fi
 is_destructive() {
   local cmd="$1"
   local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+)*'
-  local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)'
+  local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([^[:alnum:]_-]|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
     grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi
   if grep -qE "git[[:space:]]+${gopt}clean[[:space:]]" <<<"$cmd" &&
+    grep -qE "$force_re" <<<"$cmd"; then
+    return 0
+  fi
+  # Basename plus --apply, so a path prefix and a dry-run do not both fire.
+  # git-tree-reset-batch is its own alternative: git-tree-reset.sh does not
+  # match the batch script, because `.sh` has to follow the name.
+  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([^[:alnum:]_.-]|$)' <<<"$cmd" &&
+    grep -qE '(^|[^[:alnum:]_-])--apply([^[:alnum:]_-]|$)' <<<"$cmd"; then
+    return 0
+  fi
+  if grep -qE "git[[:space:]]+${gopt}worktree[[:space:]]+remove[[:space:]]" <<<"$cmd" &&
     grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi

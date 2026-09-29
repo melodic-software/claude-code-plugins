@@ -3437,8 +3437,13 @@ rrp_case cyg "drive-letter case does not matter" 'C:/Repo/src/run.sh' 'c:/repo' 
 rrp_case cyg "cygpath disagreement falls back to the caller's spelling" /tmp/repo/src/run.sh /tmp/repo src/run.sh 0
 rrp_case nocyg "a trailing slash on a POSIX root still strips" /repo/src/run.sh /repo/ src/run.sh 0
 
-# physical_path_to on Windows: realpath is absent, cygpath -l -m is the resolver.
-# The stub above is the only cygpath, and PATH hides realpath and readlink.
+# physical_path_to on Windows with realpath and readlink absent must stay
+# UNRESOLVED even when cygpath answers: cygpath does not follow symlinks, and
+# block-hook-bypass `_bbh_physical_path` and secret-pattern-detection step 7
+# refuse their temp exemption only because this returns 1. The target is a
+# temp symlink pointing into a repository, the #3727 bypass shape.
+mkdir -p "$RRP_DIR/repo" "$RRP_DIR/temp"
+ln -s "$RRP_DIR/repo" "$RRP_DIR/temp/to-repo"
 PHYS_PROBE=$(
   # shellcheck disable=SC2016  # the child's $1 is its own positional, quoted on purpose
   PATH="$RRP_DIR/cyg" "$BASH" -c '
@@ -3446,17 +3451,16 @@ PHYS_PROBE=$(
     # shellcheck source=hook-utils.sh
     source "$1"
     _out=""
-    hook::physical_path_to _out "/c/runner-temp/long-name" || exit 1
-    printf "%s\n%s\n" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$_out"
-  ' _ "$HOOK_DIR/hook-utils.sh"
+    hook::physical_path_to _out "$2"
+    printf "%s\n%s\n" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED"
+  ' _ "$HOOK_DIR/hook-utils.sh" "$RRP_DIR/temp/to-repo"
 )
-PHYS_RC=$?
-PHYS_FLAG="${PHYS_PROBE%%$'\n'*}"
-PHYS_OUT="${PHYS_PROBE#*$'\n'}"
-if ((PHYS_RC == 0)) && [[ "$PHYS_FLAG" == 0 && "$PHYS_OUT" == "C:/runner-temp/long-name" ]]; then
-  ok "physical_path_to: Windows uses cygpath -l -m when realpath is absent"
+PHYS_RC="${PHYS_PROBE%%$'\n'*}"
+PHYS_FLAG="${PHYS_PROBE#*$'\n'}"
+if [[ "$PHYS_RC" == 1 && "$PHYS_FLAG" == 1 ]]; then
+  ok "physical_path_to: msys temp symlink with only cygpath stays unresolved"
 else
-  fail "physical_path_to windows cygpath: rc=$PHYS_RC flag=$PHYS_FLAG out=$PHYS_OUT"
+  fail "physical_path_to msys cygpath-only: rc=$PHYS_RC flag=$PHYS_FLAG"
 fi
 rm -rf "$RRP_DIR"
 

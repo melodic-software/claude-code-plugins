@@ -609,18 +609,9 @@ hook::physical_path_to() {
       return 0
     fi
   fi
-  # Git Bash has no realpath. cygpath -l -m is the resolver that turns an 8.3
-  # TEMP spelling and a long-name target into one directory (#4527). Gated on
-  # the Windows bash OSTYPE: looking up cygpath on WSL walks /mnt/c.
-  case "${OSTYPE:-}" in
-  msys* | cygwin* | win32)
-    if __hu_r=$(cygpath -l -m -- "$2" 2>/dev/null) && [[ -n "$__hu_r" ]]; then
-      printf -v "$1" '%s' "$__hu_r"
-      return 0
-    fi
-    ;;
-  *) ;; # POSIX hosts keep the unresolved answer below
-  esac
+  # No cygpath fallback: cygpath converts spellings but does not follow
+  # symlinks, and guards that fail closed on this return would exempt a temp
+  # symlink pointing into the repository.
   HOOK_PHYSICAL_PATH_UNRESOLVED=1
   printf -v "$1" '%s' "$2"
   return 1

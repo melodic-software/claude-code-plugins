@@ -3,6 +3,41 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12] - 2026-09-28
+
+### Changed
+
+- **The manual handoff says what a run-directory write costs (part of #4225).**
+  `reference/unsupported-platform-handoff.md` step 1 now states that `<run-dir>` sits under
+  `~/.claude`, a protected directory. A Write of `handoff-paths.json` or `vcs-evidence.json`
+  therefore prompts in `default` and `acceptEdits`, goes to the classifier in `auto`, and is denied
+  in `dontAsk`, and no allow rule pre-approves it. It also states that the prompt's session-wide
+  "edit files in its ~/.claude folder" option covers every later `~/.claude/` write, not just this
+  run, and that the evidence-file exception is unavailable in `dontAsk`. The engine-side fix, where
+  the engine persists its own artifacts, stays open in #4225.
+
+## [0.28.11] - 2026-09-28
+
+### Added
+
+- **`scan` flags home-root `*.py` files that shadow a standard-library module** ([#4217](https://github.com/melodic-software/claude-code-plugins/issues/4217)). A loose `~/gettext.py` shadowed stdlib `gettext` for Python started from the home directory, and the engine hinted only the `__pycache__` it kept rebuilding. The snapshot and stdout, including `--quiet`, now carry `stdlib_shadowing`, one row per home-root file whose stem is in the interpreter's `sys.stdlib_module_names` but not `sys.builtin_module_names` (a symlinked source counts; the match is case-insensitive on Windows), with the sibling `bytecode_cache` when that cache holds its `.pyc`. The file's entry gains a `stdlib-module-shadow` advisory, and the home-root `__pycache__` entry gains `bytecode_sources` naming the module each `.pyc` was compiled from, read with one directory listing even when a depth cut left the cache unwalked. The advisory is not a hint: it adds no tier and no eligibility.
+
+## [0.28.10] - 2026-09-28
+
+### Fixed
+
+- **`os_autoclean.recommendation` acts on a large Windows temp directory** ([#4010](https://github.com/melodic-software/claude-code-plugins/issues/4010)). It stayed `null` whenever Storage Sense was enabled on a schedule, even with 7.0 GB standing in `AppData\Local\Temp`. The advisory now sums the temp directory's regular-file sizes in a read-only walk that follows no links, skips cloud placeholders, and stops after 100,000 entries, and reports that as `temp_zone`. At or above the new baseline-policy value `os_temp_recommendation_threshold_bytes` (1 GiB), it recommends running Storage Sense now when it is on, turning on temporary-files cleanup when only that is off, or enabling it with a note that a manual run is available either way. The text quotes the detected on/off state, schedule, and scope. Below the threshold the recommendation is `null` whatever the configuration. When a capped walk stays below the threshold, the size proves nothing, and the configuration-only recommendation applies as before. The advisory runs nothing and changes nothing about engine eligibility. systemd-tmpfiles is unchanged.
+
+## [0.28.9] - 2026-09-28
+
+### Changed
+
+- **No disk-full emergency lane; every pass stays a cautious tidiness pass**
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
+  patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
+  signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
+
 ## [0.28.8] - 2026-09-28
 
 ### Changed

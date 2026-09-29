@@ -23,7 +23,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Get-WingetPackageUpdate.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'winget-upgrades'
 $category = 'updates'
 $commands = @(
@@ -34,7 +33,9 @@ $commands = @(
 # Correlate KEV on the structured winget Id, never display names: a name substring match
 # floods false positives (Microsoft.WSL's "Windows" name matches every Windows CVE).
 
-try {
+$FailureSummary = 'winget upgrade check failed.'
+$PassThru = $false
+$CheckBody = {
     $wrapperResult = Get-WingetPackageUpdate
 
     # Contract: Get-WingetPackageUpdate always returns @{ upgrades; error }.
@@ -170,9 +171,5 @@ try {
             -NeedsAdmin $false -RanSuccessfully $true `
             -Notes $notes
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'winget upgrade check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
