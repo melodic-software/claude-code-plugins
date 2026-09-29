@@ -8,21 +8,52 @@ metadata:
   summary: Start the app, drive real flows, capture evidence
 ---
 
-**Arguments.** `[unattended] [scenario]`. e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui
-
 ## Native step: run (bundled skill)
 
-When the bundled `run` skill resolves in this session, invoke it to launch the app, then layer
-screenshots, responses, and logs on top of its result.
+When the bundled `run` skill resolves in this session, the Step 3 drive subagent invokes it through
+the Skill tool as `run`, asking it only to launch the app and report how to reach it (URL, port,
+process). The driving stays with this skill: screenshots, responses, and logs are layered on top of
+`run`'s result under the evidence contract in [context/e2e.md](context/e2e.md). Prerequisites, run
+config, evidence, and handoff stay with this skill too. The step runs only under the
+one-launch-path rule in the Boundary section: it is skipped when the project's orchestrator governs
+the start, and on the non-UI route, where there is no app to launch.
 
-**Mutation.** `run` starts processes rather than editing files; fingerprint the tracked tree before
-the step and confirm it is unchanged after.
+**Identity check.** The name is in the skill listing; the description is advisory. A listed `run`
+that reads as a project skill is not a skip: the bundled skill itself defers to a project skill of
+that name ([context/bundled-run.md](context/bundled-run.md)). A description that reads as an
+unrelated surface is an identity mismatch: skip with a warning and use this skill's own launch
+playbook. A name with no description (`name-only`, listing-budget overflow) is invoked with the
+warning "identity confirmed by name alone".
 
-**Skip report.** When the step does not run, open with `did not resolve in this session` and name
-the axis line: settings or environment, plan, platform or provider, host surface; fall back to this
-skill's own launch playbook.
+**Mutation.** `run` starts processes rather than editing files. The drive subagent fingerprints the
+tracked tree (`git diff HEAD | sha256sum`) immediately before and after the invocation, as
+individual Bash calls. Any difference is **mutation detected after a scoped invocation**: the run
+exits degraded and the report names the paths whose diff changed.
 
-**`unattended`:** record the Native step result block without asking.
+**Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
+`did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
+session's skills allowlist, `disableBundledSkills`, `skillOverrides`, or a permission deny);
+`identity mismatch`; `mutation detected after a scoped invocation`; or `resolved but degraded`
+when `run` says it ran a weaker procedure, in which case the report relays its disclosure instead
+of calling the launch complete. Each state names the axis line:
+settings or environment, plan, platform or provider, host surface; and the enable path
+(`disableBundledSkills`, `skillOverrides`). Every skip falls back to this skill's own launch playbook, the project's
+documented start command per [context/e2e.md](context/e2e.md); mutation detected exits degraded
+instead of launching a second time.
+
+The `run` body enters context once and stays there.
+
+**Result block.** The Step 3 evidence output opens with this block, whichever state the step ended
+in:
+
+```text
+Native step: run
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | skipped (unattended | orchestrator governs the start | non-UI route) | mutation detected after a scoped invocation
+Outside-scope changes: none | <paths>
+```
+
+**`unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
+records `State: skipped (unattended)` without asking.
 
 ## Repository context. Gather first
 
@@ -49,7 +80,13 @@ Autonomous live verification of a running application: start it, navigate, inter
 
 ## Arguments
 
-`$ARGUMENTS`, optional scenario description. `non-ui` routes directly to the non-UI playbook.
+`$ARGUMENTS`: `[unattended] [scenario]`, e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`,
+`/testing:run-e2e non-ui`, `/testing:run-e2e unattended the login flow`.
+
+- `unattended`, optional, the first token: the caller declares no one is present. Its effect is the
+  `unattended` rule in the Native step.
+- `scenario`, optional description of what to verify. `non-ui` routes directly to the non-UI
+  playbook.
 
 ## Step 0: Route
 
@@ -77,6 +114,9 @@ Two keys govern this run: `recording` (`video | gif | off`) and `browser_mode` (
 
 Delegate the drive loop to a subagent: it starts the app, navigates, interacts, and captures evidence, returning only the evidence paths. The orchestrator consumes those paths. It never carries the browser session in its own context.
 
+The launch, on whichever path the one-launch-path rule in the Boundary section selects, happens
+inside this subagent, and the evidence output it returns opens with the Native step result block.
+
 Pass the resolved config through to the executor:
 
 - `browser_mode` → the `/playwright:playwright` session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
@@ -101,18 +141,25 @@ conflated whenever the request is "run it and see":
   TUI, browser-driven), starts the app, and drives it so a change can be looked at. It captures no
   evidence to a contract and has no non-UI mode.
 - **This skill (marketplace plugin).** Starts the app through the consuming project's
-  orchestrator configuration, drives UI and API flows, and captures evidence under the contract in
+  orchestrator configuration (or through `run` where none governs the start), drives UI and API
+  flows, and captures evidence under the contract in
   [context/e2e.md](context/e2e.md); its non-UI smoke lane has no native counterpart.
 
-**Routing.** When the bundled `run` skill resolves in this session, prefer it for a quick look at
-a change with no record needed. Prefer this skill when the outcome must be evidenced (screenshots,
-responses, logs), when the project's orchestrator governs the start, or when the target is a
-library, MCP server, hook, or script. The `/verify` handoff in the Handoff section stands beside
-this one.
+**Routing.** When the bundled `run` skill resolves in this session, prefer it directly for a quick
+look at a change with no record needed. Prefer this skill when the outcome must be evidenced
+(screenshots, responses, logs) or when the target is a library, MCP server, hook, or script; for an
+app whose start the project's orchestrator does not govern, this skill then launches through `run`
+(the Native step above). The `/verify` handoff in the Handoff section stands beside this one.
 
 **Mutation gate.** Neither surface edits code, but both start processes. This skill drives the run
-in an isolated subagent and never chains into a `run` invocation on its own behalf; one
-orchestrator per verification.
+in an isolated subagent and fingerprints the tracked tree around the `run` invocation (Native step,
+Mutation).
+
+**One launch path per verification.** When the project's orchestrator configuration governs the
+start (Aspire, docker-compose, tilt, a dev-server script), the Native step is skipped with
+`skipped (orchestrator governs the start)` and the orchestrator path runs unchanged. Otherwise,
+when `run` resolves, `run` launches the app. Never both. The launch, on either path, happens inside
+the Step 3 drive subagent.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
 host; this section states what to do when one resolves, never that it is present. The four-part
