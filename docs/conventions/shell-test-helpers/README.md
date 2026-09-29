@@ -85,6 +85,19 @@ contract suite is [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.tes
 - `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change the
   per-plugin rule.
 
+## Probe awk-sensitive suites under two awks
+
+Run this on a changed `*.test.sh` that passes a regex or other backslash-bearing value through
+`awk -v`:
+
+```sh
+scripts/check-shell-portability.sh --awk-probe path/to/changed.test.sh
+```
+
+It needs gawk and mawk installed; `SHELL_PORTABILITY_AWKS` overrides the candidate list. Exit `0` is
+clean, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. CI does not run it.
+The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh).
+
 ## Deferred, not rejected
 
 `guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` share a shape closely (both are
