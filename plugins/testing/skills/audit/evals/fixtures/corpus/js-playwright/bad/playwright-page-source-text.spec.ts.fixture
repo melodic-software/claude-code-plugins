@@ -1,0 +1,10 @@
+// expect: rule-source-text-read
+// reads: src/app/page.tsx
+// An e2e test that reads the page's source instead of loading the page.
+import { expect, test } from '@playwright/test';
+import fs from 'fs';
+
+test('the page renders a heading', async () => {
+  const src = fs.readFileSync('src/app/page.tsx', 'utf8');
+  expect(src).toContain('<h1>');
+});

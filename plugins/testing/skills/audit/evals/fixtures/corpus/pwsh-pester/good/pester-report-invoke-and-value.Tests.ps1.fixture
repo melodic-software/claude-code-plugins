@@ -1,0 +1,15 @@
+# good-for: rule-mock-only-oracle
+# Beside the mock check, the test asserts on what Send-Report returned.
+
+BeforeAll {
+    . $PSScriptRoot/Send-Report.ps1
+    Mock Send-MailMessage {}
+}
+
+Describe 'Send-Report' {
+    It 'mails the report to the recipient' {
+        $sent = Send-Report -To 'ops@example.com'
+        $sent.Recipient | Should -Be 'ops@example.com'
+        Should -Invoke Send-MailMessage -Times 1 -Exactly -ParameterFilter { $To -eq 'ops@example.com' }
+    }
+}
