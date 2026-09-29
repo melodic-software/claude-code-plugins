@@ -122,10 +122,13 @@ On a mixed MSYS/native host this is not an edge case. It is the default hazard.
 ## Process counting on MSYS/Cygwin (Git Bash)
 
 **Claim:** On Git Bash under MSYS, many Windows-side process counters (Job Object child counts,
-Process Explorer, some hook telemetry) rise by **two** per external command the shell runs: one
-for the MSYS fork and one for the Windows `CreateProcess` the shim performs to run the real binary.
-**Basis:** Observed during Windows hook-latency work ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)); one added `tail` raised the job-object count by 2, not 1.
+Process Explorer, some hook telemetry) rise by **two** per external command the shell runs.
+**Basis:** The +2 was observed during Windows hook-latency work ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)); one added `tail` raised the job-object count by 2, not 1.
 **As-of:** 2026-09-28. **Recheck:** when the host shell or MSYS runtime changes.
+
+A likely explanation, not verified here, is one count for the MSYS fork and one for the Windows
+`CreateProcess` the shim performs to run the real binary. Treat the mechanism as a hypothesis; the
+observed +2 is the claim.
 
 This plugin's spawn census counts **PATH-shim intercepts** (external tools the subject invoked),
 not Job Object membership. A goal that expects "+1 process" from "+1 external command" on MSYS must
@@ -136,8 +139,14 @@ quote that label in the goal and snapshot report rather than re-labeling it as a
 
 - shell **builtins** (`echo`, `cd`, `test`, …)
 - **`$(<file)`** and other redirection forms that do not spawn a child to read the file
-- **command substitution** that runs no external binary (but `$(...)` wrapping an external command
-  **is** a spawn on MSYS; see below)
+
+Expected counter delta per external command, by platform:
+
+| Platform | Expected delta | Status |
+|---|---|---|
+| MSYS/Cygwin Git Bash | +2 | measured ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)) |
+| POSIX shell on Linux or macOS | not measured by this plugin | unmeasured |
+| Native Windows (`cmd`, PowerShell) | not measured by this plugin | unmeasured |
 
 When the goal's counter is a Windows-side process count, record the expected **+2 per external
 command** on MSYS in the goal's `Boundary:` or `Done when:` line, or prefer the bundled spawn census
@@ -145,8 +154,8 @@ so before/after comparisons use one accounting end to end.
 
 ## Two shell behaviors that hide a wrong number
 
-- **`$(...)` command substitution is a process spawn on MSYS.** A "builtins-only" hot path that
-  reports via stdout still costs a full process. A spawn-count harness that ignores its own
+- **`$(...)` command substitution is a process spawn on MSYS, even around builtins.** A
+  "builtins-only" hot path that reports via stdout still costs a full process. A spawn-count harness that ignores its own
   substitutions undercounts.
 - **`${var: -N}` returns the empty string when the string is shorter than N** in bash. This silently
   collapsed a per-plugin cache key onto one shared file, which a harness would read as a cache that
