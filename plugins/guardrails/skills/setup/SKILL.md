@@ -44,6 +44,8 @@ disabled plugin is not broken. Report the probes informationally and note that r
 restores the FAIL semantics.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
+   Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
+   (its header lists the candidate order), which can differ from the Bash tool's own bash.
    FAIL below the floor with the README Requirements remediation.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, every guard then fails
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is

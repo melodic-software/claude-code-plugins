@@ -6,6 +6,12 @@ written by an agent. The k × S targets are pending a human `/performance:goal`
 run with the Windows harness numbers. The ceilings are what was measured on
 this host, not targets. Tracked on #4390.
 
+The census rows and the Floor line below were measured while the hook rows were
+shell form (`sh`, then bash). Since 0.41.3 every row is exec form: node starts
+first, then the bash it spawns. The rows were not re-measured under exec form on
+this host (strace is not installed). No hook or skill reads this file; it is a
+contributor record.
+
 Target (from /performance:target): the five events in #4390, already measured on
 the dotfiles fan-out harness (E1). Baselines stay off the tree; the numbers below were taken on this host on
 2026-09-28.

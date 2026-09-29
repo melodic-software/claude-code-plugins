@@ -24,10 +24,12 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 Since **0.31.0** the always-on guards are registered through one dispatcher per event,
 `hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
-process, and sources each guard in turn inside that one bash process. Since **0.41.0**
+process, and sources each guard in turn inside that one bash process. Since **0.41.3**
 those rows are exec form: `"command": "node"` with `hooks/exec-bash.mjs` and the
-dispatcher script in `args`. Node finds Git Bash (never the WSL relay) and spawns it;
-bash still sources every guard in one process. `workflow-resilience-check.sh` is
+dispatcher script in `args`. Each fire starts two processes: node, which finds bash
+(the candidate order is in the header of `hooks/exec-bash.mjs`; on Windows it is Git Bash,
+never the WSL relay) and spawns it, then that bash, which sources every guard in one
+process. `workflow-resilience-check.sh` is
 the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the
 default-off checker exits in node before bash starts. The table below
 still names every guard, and every guard still ships as its own script with its own

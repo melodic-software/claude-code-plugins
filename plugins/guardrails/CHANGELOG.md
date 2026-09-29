@@ -20,8 +20,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - README: `wsl` handling is dated to 0.38.11 and the guards that re-parse a `-c` or wsl operand are the six `block-*` guards, `block-hook-bypass` included; 8.3 temp handling is dated to 0.38.6; the `.work/.gitignore` redirect is no longer attributed to session-flow's procedure; the PowerShell here-string shapes refused with no allow token are listed with their rewrite; the plugin-scoped GitHub MCP matcher is shown; the contributor to-do and tracker state are removed.
-- `reference/edit-write-guards/PLAN.md` says the "no further process can be removed" floor was shown only for the PostToolUse cold-finding path, and marks the goal an unratified draft pending a human `/performance:goal` run.
-- Tests: `wsl` regression rows in the `block-hook-bypass`, `block-noncanonical-commit` and `block-convention-violation` suites.
+- README: the exec-form dispatcher rows are dated to 0.41.3, not 0.41.0, and each fire is stated as two processes, node and then the bash it spawns.
+- `/guardrails:setup check` probes the bash `hooks/exec-bash.mjs` resolves, not the Bash tool's own bash.
+- `reference/edit-write-guards/PLAN.md` says the "no further process can be removed" floor was shown only for the PostToolUse cold-finding path, and marks the goal an unratified draft pending a human `/performance:goal` run. It also says its census rows and floor line were measured under shell form and not re-measured under exec form, and that no hook or skill reads it.
+- Tests: `wsl` regression rows in the `block-hook-bypass`, `block-noncanonical-commit` and `block-convention-violation` suites. `exec-bash.test.sh` accepts the first bash on `PATH` (a Homebrew bash included) as well as `/bin/bash` and `/usr/bin/bash`, and the plugin's resolver test gains the PATH-first cases.
 - **Released entries corrected in place, no heading removed.**
   - 0.41.7 keeps only what changed for guardrails, the vendored `hook-utils.sh` optional `prerequisite` notice class.
   - 0.40.0 drops the instruction to measure `RUN_GUARDS_PROFILE=1` on a Windows host and the "this Linux CI checkout" wording, and links #4235 instead of calling it open.
