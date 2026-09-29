@@ -1,6 +1,6 @@
 ---
-description: "Chart the modules inside one deployable as a C4 component view, with a directed arrow for every internal build reference citing its declaration. Use when: 'map components', 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'C4 component view', 'layering of this deployable'. Skip when: the question is which repositories exist (map-landscape), which deployables exist (map-containers), or module-design friction (improve)."
-argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <outside,to,inside>] [--out <dir>]"
+description: "Chart the modules inside one deployable as a C4 component view, one directed arrow per internal build reference, each citing its declaration. Use when: 'map components', 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'C4 component view', 'layering of this deployable'. Skip when: which repositories exist (map-landscape), which deployables exist (map-containers), or module-design friction (improve)."
+argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <list>] [--dialect likec4|c4-plantuml]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -76,47 +76,37 @@ This skill never writes the consumer's root instruction file or its topic doc.
 
 ## Read the dependency graph
 
-The view is a render of `dependency-graph.json`. The physical shape, the edge
-kinds, and the unknown-ecosystem rule are in
-[dependency-graph.md](reference/dependency-graph.md). Do not draw a box the
-record does not contain, and do not add an edge the record does not cite.
+The view is a render of `dependency-graph.json`, the record
+`/architecture:map-dependencies` writes. The writer's layout is in the header
+of its `dependency-graph.sh` (`--help` prints it), and what this renderer reads
+from it is in [dependency-graph.md](reference/dependency-graph.md). Do not draw
+a box the record does not contain, and do not add an edge the record does not
+cite.
 
 1. When `<architecture_dir>/dependency-graph.json` already exists, confirm it
-   is schema_version 1, then render that file. Do not recollect. Say so in the
-   report.
-2. Otherwise run the shared extractor,
-   `${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh`,
-   and write its stdout to `<architecture_dir>/dependency-graph.json` unchanged.
-   Do not pretty-print it.
-3. If that script is not on disk, run
-   [component-graph.sh](scripts/component-graph.sh). It emits schema_version 1
-   that this renderer accepts, from .NET `ProjectReference` and
-   `PackageReference` only. Any other ecosystem is `unknown` with empty node
-   and edge arrays, not an empty architecture. Field differences between the
-   two writers are in [dependency-graph.md](reference/dependency-graph.md).
-
-Pass `--generated-on` to the fallback from `git -C <root> log -1 --format=%cs`,
-or `unknown` when that fails, so a second run on the same HEAD does not churn.
-`dependency-graph.sh` takes the repository path and prints the record; it does
-not take `--generated-on`. Write a graph you collected. A graph that was
-already there stays untouched.
+   is schema_version 1, then render that file. Do not recollect, and leave the
+   file untouched. Say so in the report.
+2. Otherwise run the shared extractor. It writes the record itself, and a
+   second run on the same HEAD is byte-identical. Do not pretty-print it.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh" "<root>"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh" \
+  --out "<architecture_dir>/dependency-graph.json" "<root>"
 ```
 
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/component-graph.sh" \
-  --repo "<root>" --out "<architecture_dir>/dependency-graph.json" \
-  --generated-on "<YYYY-MM-DD|unknown>"
-```
+A tree with no .NET project is `result` `unknown` with empty node and edge
+arrays, not an empty architecture. The render says so and draws nothing.
 
 ## Choose one container
 
 A container is one deployable: an indegree-zero project, plus the projects
-reached by following internal edges. When exactly one deployable covers every
-project, that is the subject. When the renderer exits 3, it lists the choices
-and writes nothing. In an interactive run, ask which one and re-run with
+reached by following internal edges. A test project (the node's `test` field) is
+not a deployable: its references are not counted toward a project's indegree, so
+`Api.Tests` referencing `Api` leaves `Api` a root, and it is never listed as a
+choice. When exactly one deployable covers every project, that is the subject.
+When the renderer exits 3, it lists the choices and writes nothing. It also
+exits 3 when every project is a test project, and says so; `--container` still
+charts one on request. In an interactive run, ask which one and re-run with
 `--container`. In a non-interactive run, stop and report the list. Do not chart
 all of them.
 
@@ -124,9 +114,14 @@ all of them.
 
 `--group-by` is `directory` (the default), `namespace`, or `layer`.
 
-- `directory` groups by the project file's directory.
-- `namespace` uses a `namespace` field on the node when the graph has one, and
-  the project name otherwise.
+- `directory` groups by the parent of the project's own directory, one level up:
+  `src/Api/Api.csproj` and `src/Domain/Domain.csproj` both group under `src`.
+  A project directly under the root, or one folder down, groups under `.`.
+- `namespace` groups by the containing namespace: the node's `namespace` field
+  (`RootNamespace`, else `AssemblyName`, from the project file), else the project
+  name, with the last dotted segment dropped. `Billing.Api` and
+  `Billing.Domain` both group under `Billing`. A name with no dot is its own
+  group.
 - `layer` requires a declared layering convention: `component_layers` in the
   topic doc, or `--layers host,application,domain` ordered from outside to
   inside. A node matches a layer by a whole path segment or a dotted name
@@ -134,7 +129,7 @@ all of them.
   violation. The mark is informational. The exit code stays 0. Enforcement
   belongs to the consumer's architecture tests.
 
-Above the node threshold (the record's `node_threshold`, else 24, or
+Above the node threshold (the record's `node_threshold`, else 40, or
 `--node-threshold`), the view collapses to coarser groups and says so on the
 artifact. It does not drop a component or an evidence row.
 
@@ -144,9 +139,9 @@ artifact. It does not drop a component or an evidence row.
   --out "<architecture_dir>" \
   --dialect "<likec4|c4-plantuml|none>" \
   --group-by directory \
+  --root "<root>" \
   --layers "<component_layers>" \
   --container "<name>" \
-  --source "<dependency-graph.json|dependency-graph.sh|component-graph.sh>" \
   --notes "<architecture_dir>/components-notes.md"
 ```
 
@@ -161,6 +156,11 @@ annotation as an annotation. Annotations say what a component is for.
 The renderer prints one summary line. Keep it for the report:
 
 `components: container="<name>" components=<n> edges=<n> drawn_edges=<n> violations=<n> aggregated=<yes|no> thin=<yes|no> external_collapsed=<n> unresolved=<n> dialect=<likec4|c4-plantuml|none>`
+
+`--root` lets the renderer compare the record's `generated_on` with the HEAD
+commit date of `<root>`. When they differ it writes one line, `dependency-graph.json
+was generated on <d>; HEAD commit date is <d2>`, into `components.md` and to
+stderr, and renders anyway.
 
 A thin result (`thin=yes`) is a single module with no internal edges. The
 artifact says so and names the neighboring rungs. It does not present a one-box
@@ -185,8 +185,9 @@ End every run with this block, in this order:
   nothing was dropped.
 - **External and unresolved**: the two counts. Unresolved targets were not
   matched by name.
-- **Graph source**: existing `dependency-graph.json`, `dependency-graph.sh`,
-  or `component-graph.sh`.
+- **Graph source**: the existing `dependency-graph.json`, or the one
+  `dependency-graph.sh` wrote this run. Quote the staleness warning when the
+  renderer printed one.
 - **Dialect**: `diagram_dialect.system`, its value, and the layer: `argument`,
   `team convention doc <path>`, or `unset (no C4 view emitted)`.
 
@@ -200,6 +201,8 @@ End every run with this block, in this order:
 - Fail the run because an edge violates a declared layering.
 - Invent a home, a layering convention, or an edge.
 - Re-collect when `<architecture_dir>/dependency-graph.json` is already present.
+  Whether a stale graph should be regenerated is the caller's call; the
+  renderer's warning is how the staleness is surfaced, and it never blocks.
 - Parse source imports. Evidence is a build declaration.
 
 ## Next
@@ -211,18 +214,41 @@ End every run with this block, in this order:
 ## Gotchas
 
 - **The dialect key is `diagram_dialect.system`, and it has no default.** The
-  operator's decision on #4639 puts every C4 view of the code on the key the
+  Every C4 view of the code reads the key the
   authoring-formats convention assigns to C4 system views, which refuses
-  mermaid because mermaid C4 is experimental. That decision lives in
+  mermaid because mermaid C4 is experimental. The key is documented in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Unset, `components.md` carries the
   tables and no diagram, and the report says no view was emitted.
 - **A component diagram is one container.** Claim: the C4 component diagram
   scopes to a single container, and its primary elements are the components
   inside that container. The model is notation-independent. Basis:
-  <https://c4model.com/diagrams/component> and <https://c4model.com/>, fetched
-  2026-09-28. As of: 2026-09-28. Recheck when that component-diagram page states
+  <https://c4model.com/diagrams/component> and <https://c4model.com/>. As of:
+  2026-09-29. Recheck when that component-diagram page states
   a scope other than a single container, or primary elements other than the
   components inside it.
+- **C4-PlantUML component syntax: read against the README, never run.** Claim: the `plantuml`
+  block uses `!include <C4/C4_Component>`, `Container_Boundary(alias, label, ?tags, ?link, ?descr)`
+  for the container, `Boundary(alias, label, ?type, ...)` per group, `Component(alias, label,
+  ?techn, ?descr, ...)`, and `Rel(from, to, label, ?techn, ?descr, ?sprite, ?tags, ?link)`. A layer
+  violation is `AddRelTag("layer-violation", $textColor, $lineColor)` plus `$tags` on that `Rel`,
+  because `UpdateRelStyle(textColor, lineColor)` restyles every relationship. Basis:
+  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
+  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
+  `C4_Component` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes
+  those signatures or the include path, or when a host with Java can run PlantUML over a rendered
+  block. No PlantUML run has parsed this output.
+- **LikeC4 component syntax: parsed by the CLI.** Claim: the `likec4` block is a `specification`
+  with `softwareSystem`, `container`, `boundary`, and `component` element kinds, a `model` nesting
+  boundaries and components in the container, relationships by dotted full name with a
+  `style { color red }` body, and a `views` block holding `view components of <container>` with
+  `title` and `include *`; an aggregated view puts one component per group directly in the
+  container. Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
+  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
+  validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`components.c4`, `components-aggregated.c4`), which `render-components.test.sh` diffs
+  against. As of: 2026-09-29. Recheck
+  when any of those pages changes that syntax or a newer `likec4` release ships: set
+  `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **The record is one object per line.** A node line starts with `{"id":`. An
   edge line starts with `{"from":`. Any other layout exits 1 and writes
   nothing. Regenerate the graph; do not pretty-print it.
@@ -232,9 +258,10 @@ End every run with this block, in this order:
   and table cells have no portable escape for their own delimiters, so the
   delimiter is swapped. The evidence table still names the file and the
   declaration.
-- **`component-graph.sh` reads one adapter.** The Include attribute has to sit
-  on the opening tag, double-quoted. A multiline tag, a single-quoted Include,
-  and an Update attribute are not read. Another ecosystem stays `unknown`.
+- **An older graph is refused, not rendered.** A record with no `result` key
+  did not come from `dependency-graph.sh`. The renderer exits 1 and writes
+  nothing. Stop and point at `/architecture:map-dependencies`, which owns
+  rewriting that file.
 - **Aggregation is announced.** Past the threshold the view draws coarser
   groups and says how many components that replaced. The evidence table keeps
   every original declaration.
