@@ -29,6 +29,9 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
   audits do take this repo selection: `git-branch-audit.sh` and
   `git-stash-audit.sh` accept `--repo`, `--repos-from`, `--skip`, `--skip-from`
   and print a `Repo: <path>` block per repo; delete from inside the audited repo.
+  A branch or worktree audit across many repositories, including one outside the ghq
+  root, is `/repo-fleet-hygiene:audit` (`--root`, `--repo`), which hands per-repo
+  cleanup back here.
 - The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 
@@ -43,7 +46,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   [--batch-plan FILE]
 ```
 
-Default: `--dry-run`. Output labels and full flag help: script `--help`.
+Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
+plan to a stable path instead of a mktemp dir. Output labels and full flag help: script `--help`.
 
 ### Tiers
 
@@ -135,9 +139,11 @@ reported as a store that vanished after the dry-run.
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
-(dry-run) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
+(dry-run) / `nothing-to-do` (dry-run: a `caches`/`build`/`all` repo with no paths to
+remove and no new shared object store; its plan record still applies as a no-op) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
-`failed` (a child `rm` failed). A closing `Summary:` totals the batch and exits
+`failed` (a child `rm` failed). A dry-run also prints a `Repo | Outcome | Paths | Bytes` table, one row per repo
+(skipped and blocked repos show 0 and 0), before `BatchPlan:`. A closing `Summary:` totals the batch and exits
 non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
 `skipped` repos with their reasons before the totals: those need the user.
 
