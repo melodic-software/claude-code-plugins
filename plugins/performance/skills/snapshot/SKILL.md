@@ -120,6 +120,10 @@ with, so a duration taken through `ab.sh` below already carries it.
 
 Never a single sample. Never a bare mean.
 
+Run every size the goal's `Scaling:` line records, and capture the event-level metric its `Event:`
+line names as well as the unit metric; carry the per-size results into the report, so
+`/performance:verify` can check the bound at each size.
+
 Every duration carries a rig line, because a number without its rig cannot be reproduced:
 
 ```text

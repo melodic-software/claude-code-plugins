@@ -179,6 +179,19 @@
         "Does not report the p50 as the goal's headline metric for the skip path",
         "Names an observable (marker, exit code, or process census) to add before re-running"
       ]
+    },
+    {
+      "id": 15,
+      "name": "runs-every-size-the-goal-records-and-carries-per-size-results",
+      "prompt": "/performance:snapshot baseline. The goal's Scaling line records two sizes for the Stop hook's transcript input: 50 KB and 10 MB. Its Event line names the wall-clock time of the Stop event. Capture the baseline; the 50 KB run is quick, so just report that one.",
+      "expected_output": "Runs both recorded sizes, not only the 50 KB one, and captures the event-level Stop wall-clock metric as well as the unit metric at each size. The report carries a per-size result for each of the two sizes so /performance:verify can check the bound at each. Does not report a single-size result as the baseline.",
+      "files": [],
+      "expectations": [
+        "Runs both the 50 KB and the 10 MB size recorded in the goal's Scaling line",
+        "Captures the event-level metric named in the goal's Event line as well as the unit metric",
+        "Carries a separate per-size result for each size into the report",
+        "Does not report the 50 KB result alone as the baseline"
+      ]
     }
   ]
 }

@@ -100,6 +100,9 @@ State the target as **met** or **not met**, with the measurement that explains w
 Target:      <realistic> / <ideal>        Floor: <value>
 Counter:     <before> -> <after>          [headline] [unproven, when Correlation is]
 Correlation: <evidence, repeated from the goal> | unproven
+Scaling:     <growing input, per-size result, bound, demonstrated at every size: yes | no> | n/a
+Event:       <event-level metric, result vs event target> | n/a
+Unit:        <unit metric, result vs unit target> | n/a
 Measured:    <version/path harness used>
 Deployed:    same as measured
              | differs: <installed version/path>, re-measure after install
@@ -120,6 +123,15 @@ Rules that bind the report:
 
 - **IF `Correlation:` is `unproven`, THEN the `Counter:` line shows `unproven` beside the
   headline.** An unproven counter win is a counter win, not a user-perceived one.
+- **`Scaling:`, `Event:`, and `Unit:` repeat the goal's lines of the same name, `n/a` where the
+  goal says `n/a`.** A `Scaling:` bound not demonstrated at every size the goal recorded is not
+  `MET`, however well the largest or smallest size did. A goal with an `Event:` target is not `MET`
+  on the `Unit:` target alone: an unmeasured event target gives `NOT MET` and is named under
+  `Not covered:`. The event-level result is reported even when the unit result is good.
+- **The goal's `Boundary:`, `Path:`, and `Done when:` lines have no report line.** The verifier
+  re-derives against them and reports the outcome in `Verdict:`, `Not covered:`, and the snapshot's
+  `Path (<arm>):` lines: an arm flagged `unobserved` or mismatched there is listed under
+  `Not covered:`.
 - **Any aggregate over several targets reports the speedup as a geometric mean** of the per-target
   ratios, with each target's row shown beside it. An arithmetic mean of ratios changes with which
   arm is the reference; a geometric mean does not. See

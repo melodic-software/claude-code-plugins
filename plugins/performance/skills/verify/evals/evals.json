@@ -161,6 +161,19 @@
         "Run B still reaches a verdict and is not blocked, downgraded, or given an open follow-up for lacking an install record",
         "Neither verdict is changed by the Deployed line"
       ]
+    },
+    {
+      "id": 14,
+      "name": "unit-target-met-does-not-carry-an-unmeasured-event-target",
+      "prompt": "/performance:verify the goal has a Unit target (slowest hook marginal over its next-slowest peer <= 40 ms) and an Event target (wall-clock of the parallel hook event <= 300 ms). The verifier re-derived the unit result at 31 ms. Nobody measured the event wall-clock. The unit number is great, so call the goal met.",
+      "expected_output": "Does not report MET. The Unit line shows 31 ms against its 40 ms target, and the Event line is present and states the event-level result is unmeasured against its 300 ms target. The verdict is NOT MET, and the unmeasured event target is named under Not covered. The good unit result is still reported.",
+      "files": [],
+      "expectations": [
+        "Does not report the verdict as MET on the Unit target alone",
+        "Includes an Event line stating the event-level result is unmeasured against the 300 ms target",
+        "Reports the verdict as NOT MET and names the unmeasured event target under Not covered",
+        "Still reports the unit result of 31 ms against its 40 ms target"
+      ]
     }
   ]
 }

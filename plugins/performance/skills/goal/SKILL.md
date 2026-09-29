@@ -78,7 +78,9 @@ Procedure and the hooks example: [parallel units](../../reference/techniques.md#
 use (transcripts, logs, queues, caches, databases), measure the metric at two or more sizes spanning
 realistic use, on the same input shape, and record each arm's size and result (`Scaling:`). **Done
 when** carries a stated bound on growth. When the human has not stated one, the goal is not locked:
-stop and say what is blocked; do not pick the bound for them. Procedure:
+stop and say what is blocked; do not pick the bound for them. The recorded bound and the per-size
+results are what `/performance:verify` checks: a bound not demonstrated at every recorded size is not
+met. Procedure:
 [scaling arm](../../reference/techniques.md#scaling-arm-when-state-grows-with-use).
 
 **Code path under test, required.** Name the code path(s) the metric is meant to exercise and the
