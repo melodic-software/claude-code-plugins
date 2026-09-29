@@ -11,8 +11,9 @@ patterns), and record one verdict per row. Where two levels differ (for example 
 skill `evals.json`), the row carries one scoped verdict per level.
 
 **Status of the verdicts:** this is a read-only analysis. Every **adopt** verdict is a proposal,
-re-gated to the operator one element at a time (operator decision on #3614, 2026-09-27); none is
-decided here.
+re-gated to the operator one element at a time (operator decision on #3614, 2026-09-27); no
+verdict in the table below is decided here. The operator's decisions are in
+"Operator decisions (#5255)" at the end.
 
 | Pipeline element | Fleet today | Verdict | Notes |
 |---|---|---|---|
