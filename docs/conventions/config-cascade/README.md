@@ -392,7 +392,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line (#3573); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, or is not inside a git working tree, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; a shared root resolver for other surfaces is the follow-up. Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
+| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line (#3573); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, or is not inside a git working tree, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; the resolver is `plugins/source-control/lib/config-root.sh`, and other surfaces carry it as in [Root rule by surface](#root-rule-by-surface). Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `bugs` | `.claude/bugs.md` | all three | conforms; `lanes` concatenate and deduplicate by lane `name`, with a declared empty-list opt-out that also drops the bundled defaults, and `filing_posture` is a nearest-wins scalar. A `## Gotchas` section outside the YAML fence concatenates across layers and is pre-computed by `/bugs:scan` and `/bugs:write`. Keys owned by the plugin's `reference/config.md`, which also partitions them from the plugin's `output_dir` `userConfig` option. That option is never a key in this surface, and a layer declaring it is reported as an inert unknown key. Written (team layer only) by `/bugs:setup apply`, read by `/bugs:scan` |
@@ -420,18 +420,20 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 ### Root rule by surface
 
 Each row states whether the surface implements Resolution algorithm step 2 on `main`: classifies the
-root through `plugins/source-control/lib/config-root.sh` and skips team and overlay at a `home` or
-`non-repo` root. "Not yet" names the reader and its anchor. "Prose only" means a model-run skill
-with no reader script, so the rule lives in the skill text.
+root through `plugins/source-control/lib/config-root.sh` (or an inline copy of the same rule) and
+skips team and overlay at a `home` or `non-repo` root. A plugin whose reader script adopts the
+resolver carries a byte-identical `lib/config-root.sh`, kept in step by
+`scripts/sync-config-root.sh`. "Not yet" names the reader and its anchor. "Prose only" means a
+model-run skill with no reader script, so the rule lives in the skill text.
 
 | Surface | Step 2 | Reader and anchor |
 |---|---|---|
 | `source-control` | implements | `parse-branch-issue.sh` sources the resolver; the `commit` and `pull-request` skills classify before their layer probes; setup `apply layer=team` / `layer=local` refuse at a `home` or `non-repo` root |
 | `toolchain` / `ecosystem-commands` | prose only | `/toolchain:check`, `/toolchain:lint`, `/toolchain:setup`; no reader script |
 | `codebase-health`, `github`, `standards`, `rendered-views`, `testing` (`run-e2e`), `instruction-placement`, `overengineering`, `claude-config` (`audit-pass`) | prose only | model-run skills; no layer-reader script |
-| `bugs` | not yet | `scripts/concat-gotchas.sh`: `CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel` |
-| `docs-hygiene` | not yet | `scripts/resolve-config.sh`: `git rev-parse --show-toplevel` from the current directory unless a root is passed |
-| `ai-slop` | not yet | `skills/audit/scripts/detect.sh`: `CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`, else `pwd` |
+| `bugs` | implements | `scripts/concat-gotchas.sh` classifies its root inline (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) with the same rule and skips a team or overlay path that is the user-global file; it does not source the resolver |
+| `docs-hygiene` | implements | `scripts/resolve-config.sh` sources its `lib/config-root.sh` copy and classifies `--root` (else the git toplevel of the current directory) against `--home`; `paths` reports team and overlay as not-applicable at a `home` or `non-repo` root, and a team or overlay path that is the user-global file is read once |
+| `ai-slop` | not yet | `skills/audit/scripts/detect.sh`: `CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`, else `pwd`; at a home root the user-global file is listed and applied a second time as team, with the same result |
 | `code-metrics` | not yet | `scripts/resolve-config.py`: `git rev-parse --show-toplevel`, else the current directory; `CLAUDE_PROJECT_DIR` is not consulted |
 | `disk-hygiene` | not yet | the clean engine takes the team file from `--project-dir`; no root classification |
 | `repo-fleet-hygiene` | not yet | `audit-fleet.sh`: `--project-dir`, else `CLAUDE_PROJECT_DIR`; `setup-config.sh`: `CLAUDE_PROJECT_DIR`, else `$PWD` |
