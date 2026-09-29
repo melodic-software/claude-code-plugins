@@ -309,6 +309,16 @@ rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out18" --index-url http://docs.test/docs/llms.txt skills >/dev/null 2>&1 || rc=$?
 assert_eq "case 18: a non-https index URL" 2 "$rc"
 
+# --- Case: the claude version probe runs under a timeout ---
+mkdir -p "$TEST_TMPDIR/tbin"
+# shellcheck disable=SC2016 # the stub script expands its own arguments
+printf '#!/usr/bin/env bash\necho "$1" >"%s"\nshift\nexec "$@"\n' "$TEST_TMPDIR/timeout.log" >"$TEST_TMPDIR/tbin/timeout"
+chmod +x "$TEST_TMPDIR/tbin/timeout"
+PATH="$TEST_TMPDIR/tbin:$PATH" SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLAUDE_STUB" \
+  bash "$SCRIPT" --index-url "$INDEX" --out "$TEST_TMPDIR/out-to" skills || true
+assert_eq "timeout: probe bounded to 30 s" 30 "$(cat "$TEST_TMPDIR/timeout.log" 2>/dev/null)"
+assert_eq "timeout: version still read" 9.8.7 "$(jq -r .claude_version "$TEST_TMPDIR/out-to/manifest.json")"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"

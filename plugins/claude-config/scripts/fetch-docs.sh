@@ -280,7 +280,11 @@ done
 claude_bin="${SETTINGS_AUDIT_ENGINE_CLAUDE_BIN-$(command -v claude 2>/dev/null || true)}"
 claude_version=""
 if [[ -n "$claude_bin" && -f "$claude_bin" ]]; then
-  raw="$("$claude_bin" --version 2>/dev/null </dev/null | head -n 1)"
+  if command -v timeout >/dev/null 2>&1; then
+    raw="$(timeout 30 "$claude_bin" --version 2>/dev/null </dev/null | head -n 1)"
+  else
+    raw="$("$claude_bin" --version 2>/dev/null </dev/null | head -n 1)"
+  fi
   [[ "$raw" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && claude_version="${BASH_REMATCH[1]}"
 fi
 
