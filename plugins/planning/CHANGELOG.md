@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.8] - 2026-09-28
+## [0.45.9] - 2026-09-28
 
 ### Added
 
 - **Eval cases:** `brainstorm` gains a case for its observed-fact evidence bar, and `plan` a case for the collapse self-check before folding mechanical sections ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
+## [0.45.8] - 2026-09-28
+
+### Changed
+
+- **`/planning:plan` keeps its gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** Reviewer dispatch, early escalation of hard-to-reverse decisions, agent-team routing, the Step 4.7 outcome gate (with its `check-plan-outcome.sh` run), unattended approval, and Step 5 (present for approval) sit in the first 20,000 bytes of `SKILL.md`. That is the stand-in for the skills page's first 5,000 tokens, re-fetched 2026-09-28 (two identical fetches, 120,554 B, MD5 `344a849d89a6fac60cbd30f8dba6b389`). Step 4.5's analysis steps moved to `context/plan-template.md`.
 
 ## [0.45.7] - 2026-09-28
 
