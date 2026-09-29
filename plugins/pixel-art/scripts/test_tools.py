@@ -1,9 +1,11 @@
 """Checks for embed.py and gallery.py."""
 import json
 import pathlib
+import struct
 import sys
 import tempfile
 import unittest
+import wave
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import embed  # noqa: E402
@@ -37,6 +39,31 @@ class ToolsTest(unittest.TestCase):
                 self.assertIn(name, page)
             self.assertNotIn('src="sheet.png"', page)
             self.assertNotIn("sheet.json", page)
+
+
+class WavEmbedTest(unittest.TestCase):
+    def test_embed_inlines_wav_as_data_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = pathlib.Path(tmp)
+            with wave.open(str(directory / "a.wav"), "w") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(8000)
+                handle.writeframes(struct.pack("<h", 1000))
+            (directory / "t.html").write_text("<script>const A = /*WAV:a.wav*/null;</script>")
+            self.assertEqual(embed.embed(directory / "t.html", directory / "s.html"), 1)
+            text = (directory / "s.html").read_text()
+            self.assertIn('"data:audio/wav;base64,', text)
+            self.assertNotIn("/*WAV:", text)
+
+    def test_campfire_wav_is_a_riff_file(self):
+        wav = pathlib.Path(__file__).resolve().parents[1] / "examples" / "campfire" / "campfire.wav"
+        data = wav.read_bytes()
+        self.assertEqual(data[:4], b"RIFF")
+        self.assertEqual(data[8:12], b"WAVE")
+        scene = (wav.parent / "scene.html").read_text()
+        self.assertIn("/*WAV:campfire.wav*/null", scene)
+        self.assertIn("campfire.wav", (wav.parent / "AUDIO.txt").read_text())
 
 
 if __name__ == "__main__":
