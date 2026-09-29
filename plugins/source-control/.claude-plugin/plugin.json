@@ -190,17 +190,17 @@
       "description": "Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir."
     },
     "promotion_evidence_binding": {
-      "type": "string",
+      "type": "file",
       "title": "Promotion-evidence security binding",
       "description": "Absolute path to the security binding document the babysit-loop promotion-evidence seam reads (the binding argument of the autonomy plugin's check-security-binding.mjs). It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no promotion-evidence bootstrap is configured and every promotable cell stays effective-unpromoted."
     },
     "promotion_evidence_root": {
-      "type": "string",
+      "type": "directory",
       "title": "Promotion-evidence probe evidence root",
       "description": "Absolute path to the directory passed as --probe-evidence-root: the protected evidence surface the seam resolves isolation probe transcripts against. It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no probe evidence root is configured and every promotable cell stays effective-unpromoted."
     },
     "promotion_evidence_source": {
-      "type": "string",
+      "type": "file",
       "title": "Promotion-evidence events file",
       "description": "Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process the lane can read but not write. It must sit outside the target repository and every lane worktree. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no evidence source is configured and every promotable cell stays effective-unpromoted."
     },
