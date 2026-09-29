@@ -3,6 +3,13 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-09-29
+
+### Fixed
+
+- The setup skill, its evals and the README cover `bash_format_lint_gitignored`: `check` reports both options, explains why a gitignored edit is skipped by default, and `apply` can set either option ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). The skip-notice wording matches the README's "once per session and agent, renewed every eighth skip" ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+- CHANGELOG: corrected the 0.8.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship.
+
 ## [0.8.5] - 2026-09-28
 
 ### Changed
