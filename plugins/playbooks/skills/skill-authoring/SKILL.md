@@ -245,7 +245,9 @@ A skill's **execution context** is a separate choice: inline (omit `context`) ve
 [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
 Read it before setting `context: fork`. The default is inline. A fork discards conversation
 history and, unless `background: false` is set, returns asynchronously. Skill-tool targets and
-user-invoked report skills in this fleet take `background: false`. Anti-candidate classes
+user-invoked report skills in this fleet take `background: false`; a user-invoked report may
+background only after a skill-specific confirmation that an async report is the intended UX.
+Anti-candidate classes
 (current-session measuring, mid-flow interview, mutating action variants) stay inline.
 
 ---
