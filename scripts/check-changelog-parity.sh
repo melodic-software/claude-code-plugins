@@ -91,7 +91,7 @@
 #     the deliberate one-line "Shared launcher/library sync" entries stay legal.
 #     Repeats already on the base are not this change set's to fix.
 #   * --check-bump also rejects a BUMP WITHOUT CHANGE: a bumped plugin must have
-#     a changed file under plugins/<name>/ other than its plugin.json and root
+#     a changed file under plugins/<name>/ (or a plugin.json edit beyond `version`) other than its root
 #     CHANGELOG.md. A deliberate re-release is named as `<plugin>@<version>` in
 #     scripts/changelog-no-op-bumps.txt (CHANGELOG_NO_OP_BUMPS overrides it).
 #
@@ -498,6 +498,7 @@ fi
 # a main-only advance back into scope.
 declare -A bumped_candidate
 declare -A shipped_changed
+declare -A manifest_edited
 # The changelogs this change set touched, in `git diff` order, for
 # --check-preserved. Same two roots --check-order sweeps.
 touched_changelogs=()
@@ -540,6 +541,11 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
     bumped_candidate["${rest%%/*}"]=1
+    # A manifest edit other than `version` (description, userConfig, ...) is a
+    # shipped change; only a version-only edit is the bump itself.
+    if [[ "$(git show "$merge_base:$path" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null)" != "$(git show "$head_commit:$path" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null)" ]]; then
+      manifest_edited["${rest%%/*}"]=1
+    fi
     ;;
   plugins/*/CHANGELOG.md)
     rest="${path#plugins/}"
@@ -783,7 +789,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
 
   # A release must ship something: a bump whose only plugin changes are the
   # manifest and the changelog is a re-release of the previous version.
-  if [[ -z "${shipped_changed[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
+  if [[ -z "${shipped_changed[$name]:-}" && -z "${manifest_edited[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
     echo "BUMP WITHOUT CHANGE: $name went $base_version -> $head_version but this change set touches nothing under plugins/$name/ besides plugin.json and CHANGELOG.md; ship the change with the bump, or name '$name@$head_version' in $NO_OP_BUMPS if the re-release is deliberate." >&2
     empty_bump=$((empty_bump + 1))
   fi

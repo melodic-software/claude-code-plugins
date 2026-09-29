@@ -1334,4 +1334,11 @@ synced() {
 bump_case synced
 if [[ $rc -eq 0 ]]; then ok "a bump with a synced file under the plugin passes"; else fail "sync bump wrongly failed: rc=$rc out='$out'"; fi
 
+manifest_edit() {
+  re_release
+  printf '{ "name": "alpha", "version": "1.1.0", "description": "changed" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+}
+bump_case manifest_edit
+if [[ $rc -eq 0 ]]; then ok "a bump with a non-version plugin.json edit passes"; else fail "manifest edit wrongly failed: rc=$rc out='$out'"; fi
+
 test_harness::report

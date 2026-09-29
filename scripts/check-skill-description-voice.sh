@@ -64,11 +64,39 @@ esac
 awk '
   FNR == 1 { fm = ($0 ~ /^---[[:space:]]*$/); blk = 0; next }
   # A block-scalar description (`>-`, `|`) is its indented continuation lines.
-  fm && blk && /^([[:space:]]|$)/ { acc = acc " " $0; next }
-  fm && blk { check(FILENAME, acc); blk = 0 }
+  # A flow scalar (plain or quoted) continues over indented lines too; its
+  # trailing `# comment` is not part of the value (blk == 2).
+  fm && blk && /^([[:space:]]|$)/ { acc = acc " " (blk == 2 ? uncomment($0) : $0); next }
+  fm && blk { check(FILENAME, blk == 2 ? unquote(acc) : acc); blk = 0 }
   fm && /^---[[:space:]]*$/ { fm = 0; next }
   fm && /^description:[[:space:]]*[>|][-+0-9]*[[:space:]]*$/ { blk = 1; acc = ""; next }
-  fm && /^description:/ { check(FILENAME, substr($0, 13)) }
+  fm && /^description:/ {
+    blk = 2; acc = substr($0, 13); sub(/^[[:space:]]+/, "", acc)
+    q = substr(acc, 1, 1); acc = uncomment(acc)
+    next
+  }
+
+  # Only a plain scalar has a comment to drop; a quoted one is cut at its close.
+  function uncomment(s) {
+    if (q != "\"" && q != "\047") sub(/(^|[[:space:]])#.*$/, "", s)
+    return s
+  }
+
+  # The value of a quoted scalar: from after the opening quote to the closing one.
+  function unquote(s,   i, n, c) {
+    sub(/^[[:space:]]+/, "", s)
+    if (q != "\"" && q != "\047") return s
+    n = length(s)
+    for (i = 2; i <= n; i++) {
+      c = substr(s, i, 1)
+      if (q == "\"" && c == "\\") { i++; continue }
+      if (c == q) {
+        if (q == "\047" && substr(s, i + 1, 1) == q) { i++; continue }
+        break
+      }
+    }
+    return substr(s, 2, i - 2)
+  }
 
   function strip(s,   out, i, j, n, c, prev) {
     out = ""; n = length(s); i = 1

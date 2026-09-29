@@ -51,6 +51,20 @@ else
   ok "a folded block-scalar description is checked"
 fi
 
+printf -- '---\nname: demo\ndescription: "Audits widgets." # explain your choice\n---\n' >"$TMP/SKILL.md"
+if bash "$SCRIPT" --paths "$TMP/SKILL.md" >/dev/null 2>&1; then
+  ok "a trailing YAML comment is not part of the description"
+else
+  fail "a trailing YAML comment is judged as description text"
+fi
+
+printf -- '---\nname: demo\ndescription: "Audits widgets.\n  Tells you which drift."\n---\n' >"$TMP/SKILL.md"
+if bash "$SCRIPT" --paths "$TMP/SKILL.md" >/dev/null 2>&1; then
+  fail "a multi-line quoted description is checked"
+else
+  ok "a multi-line quoted description is checked"
+fi
+
 if bash "$SCRIPT" 2>/dev/null; then
   fail "no argument should be a usage error"
 else
