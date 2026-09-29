@@ -12,6 +12,7 @@ shell: bash
 tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 - `shellcheck`: !`{ command -v shellcheck 2>/dev/null || echo "absent"; }`
 - `shfmt`: !`{ command -v shfmt 2>/dev/null || echo "absent"; }`
 
@@ -53,18 +54,21 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
+2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row launches through
+   `node hooks/exec-bash.mjs`, so without `node` the hook does not launch and no shell edit is
+   linted or formatted (README Requirements).
+3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    notice instead of running either pass.
-3. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the lint pass
+4. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the lint pass
    skips with a visible notice.
-4. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
+5. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
    `.editorconfig` opt-in below, because the format pass runs **only when the repo has opted
    in**:
    - opted in AND `shfmt` absent → FAIL: the format pass skips with a visible
      notice.
    - not opted in → INFO regardless of `shfmt`: the format pass stays quiet by design (the
      repo chose not to format), so a missing `shfmt` is not a defect here.
-5. **`.editorconfig` shell opt-in.** Mirror the hook's opt-in logic
+6. **`.editorconfig` shell opt-in.** Mirror the hook's opt-in logic
    (`shell_editorconfig_opt_in` / `section_applies_to_shell`), not merely "does an
    `.editorconfig` exist". The opt-in is an EditorConfig **section that names shell files**:
    a shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed
@@ -75,18 +79,18 @@ restores the FAIL semantics.
    exists and therefore whether the format pass is active. If none exists, INFO-note the
    consequence per the hook's logic: shell files are left unformatted rather than rewritten
    to shfmt's built-in defaults.
-6. **`.shellcheckrc`.** INFO: ShellCheck auto-discovers `.shellcheckrc` by walking up from
+7. **`.shellcheckrc`.** INFO: ShellCheck auto-discovers `.shellcheckrc` by walking up from
    the file's directory. Report whether one exists; its absence is not a FAIL (ShellCheck
    applies its own defaults).
-7. **Hook options.** Report both effective values. `${user_config.bash_format_enabled}`
+8. **Hook options.** Report both effective values. `${user_config.bash_format_enabled}`
    (unexpanded or empty means the manifest default `true`; any value other than `true`
    disables the hook). `${user_config.bash_format_lint_gitignored}` (unexpanded or empty means
    the manifest default `false`): unless it is `true`, an edit to a file the repository
    gitignores is silently skipped, so a user asking why `.work/scratch.sh` was not formatted
    gets this answer.
-8. **Hook registration.** INFO: confirm the plugin is enabled for this project
+9. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
-9. **Project scope.** INFO: when `CLAUDE_PROJECT_DIR` is set, the hook acts only
+10. **Project scope.** INFO: when `CLAUDE_PROJECT_DIR` is set, the hook acts only
    on shell files inside it (symlink-resolved membership guard in the shared hook
    library, aware of Windows 8.3 short-name spellings of in-project paths, a
    per-volume property; only volumes with 8.3 generation enabled produce them);
@@ -97,14 +101,14 @@ restores the FAIL semantics.
    `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions) the guard
    is skipped and any existing edited file is processed. Report this so a green
    `check` is not read as "every shell edit anywhere is covered".
-10. **Gitignored files.** INFO: unless `bash_format_lint_gitignored` is `true`, a file the
+11. **Gitignored files.** INFO: unless `bash_format_lint_gitignored` is `true`, a file the
     repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
     notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
     decide (git absent, no repository, an error) the hook acts as before
-    (`hook::gitignored_out_of_scope` in `hooks/rewrite-guard.sh`). Report the item 7 value
+    (`hook::gitignored_out_of_scope` in `hooks/rewrite-guard.sh`). Report the item 8 value
     beside this.
 
-When every probe passes, report the result **with the scope caveats** (items 9 and 10).
+When every probe passes, report the result **with the scope caveats** (items 10 and 11).
 Never an unqualified "fully operational", which would imply out-of-project shell
 edits are covered when they are deliberately skipped.
 
@@ -117,7 +121,7 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   skill never installs system packages.
 - missing `shfmt` while the repo opts in: install guidance
   ([shfmt](https://github.com/mvdan/sh#shfmt)); this skill never installs system packages.
-- missing `jq` / Bash: platform install instructions from the README Requirements section.
+- missing `node` / `jq` / Bash: platform install instructions from the README Requirements section.
 - no shell `.editorconfig` opt-in (and formatting is wanted): explain that adding a governing
   shell section (`[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`) to an `.editorconfig` opts the
   repo in. A bare `[*]` is not enough, but this skill does not write it. `.editorconfig` is
@@ -167,9 +171,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   hooks dir first and grep a short relative path) rather than passing the full
   cache path on the command line.
 - **`check` PASS ≠ every shell edit is covered.** When `CLAUDE_PROJECT_DIR` is set
-  the hook is project-scoped (probe 9): shell files written outside it are silently
+  the hook is project-scoped (probe 10): shell files written outside it are silently
   skipped, so a fully green `check` still does not cover out-of-project edits. (When
-  `CLAUDE_PROJECT_DIR` is unset the scoping does not apply. See probe 9.)
+  `CLAUDE_PROJECT_DIR` is unset the scoping does not apply. See probe 10.)
 - **`shfmt` FAIL is opt-in-conditional.** A missing `shfmt` is only a FAIL when an
   `.editorconfig` section governs shell files; without that opt-in it is INFO, not
   a defect. Resolve the `.editorconfig` opt-in state before calling `shfmt` a failure.

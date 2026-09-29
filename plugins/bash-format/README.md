@@ -63,6 +63,12 @@ Every skip notice below appears once per session and agent, renewed every eighth
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
+- **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, so
+  without `node` the hook does not launch and shell edits are neither linted nor formatted.
+  Claude Code's native installer does not ship or use Node.js; only its npm package needs it
+  ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29). Unlike the tool
+  notices below, a missing `node` shows no notice from this plugin. Check it with
+  `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice. [Install jq](https://jqlang.org/download/).
 - **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
