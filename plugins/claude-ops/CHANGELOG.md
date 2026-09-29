@@ -28,6 +28,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   code, so a quote inside a regex in `${...}` no longer desynchronizes the brace reader (15 of 152
   commands resolved before). `registerSlidesSkill`, literal-table skill rosters and
   constant-named commands resolve. Validated against 2.1.284.
+- **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
+  instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
+  cannot stall the parser on regex backtracking.
 
 ## [0.64.1] - 2026-09-29
 

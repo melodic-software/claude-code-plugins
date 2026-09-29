@@ -1078,6 +1078,15 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertNotIn("not-a-row", self.rows)
         self.assertEqual(self.rows["code-review"]["args"], "[low|high] [--fix]")
 
+    def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
+        import time
+
+        hostile = "## All commands\n\n| `/a` | " + " " * 40_000 + "\n| `/b` | ok |\n"
+        began = time.monotonic()
+        rows = self.dc.parse_commands_table(hostile)
+        self.assertLess(time.monotonic() - began, 1.0)
+        self.assertEqual(set(rows), {"b"})
+
     def test_removed_anchors_on_the_row_start(self) -> None:
         self.assertFalse(self.rows["reload-skills"]["removed"])
         self.assertTrue(self.rows["ultraplan"]["removed"])
