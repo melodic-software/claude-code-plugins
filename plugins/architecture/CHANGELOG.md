@@ -17,6 +17,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   merges them into one record; each node carries its own `ecosystem`.
 - `SKILL.md` lists the ecosystems read and the ones declined (Ruby, PHP).
 
+### Changed
+
+- `map-components` no longer counts a stray manifest as a deployable: a project no
+  internal edge touches, in an ecosystem no linked project and no .NET project
+  shares (a tooling `package.json`, a requirements file). A .NET tree with one
+  still charts its host, and the report says how many were set aside.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added
