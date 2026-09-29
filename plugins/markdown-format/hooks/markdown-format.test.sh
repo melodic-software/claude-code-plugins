@@ -1038,6 +1038,35 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '
 else
   fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
 fi
+# The notice is shown on the first skip and renewed every eighth (prerequisite
+# class, session-keyed); the renewal keeps the install route.
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '
+  (.hookSpecificOutput.additionalContext | contains("renewed every eighth")) and
+  ((.hookSpecificOutput.additionalContext | contains("latches once per session")) | not)
+' >/dev/null 2>&1; then
+  ok "missing markdownlint notice states the renewal cadence"
+else
+  fail "missing markdownlint notice cadence wording wrong: $OUT_NO_MDLINT"
+fi
+PD_RENEW="$(mktemp -d "$WORK/pd.XXXXXX")"
+RENEW_PAYLOAD="{\"session_id\":\"renew-seq\",\"tool_input\":{\"file_path\":\"$FA\"}}"
+renew_ok=1
+renew_out=()
+for n in 1 2 3 4 5 6 7 8; do
+  renew_out[n]="$(cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_RENEW" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK" <<<"$RENEW_PAYLOAD")"
+done
+[[ "${renew_out[1]}" == *"was not found on this hook"* && "${renew_out[1]}" == *"PATH probed:"* ]] || renew_ok=0
+for n in 2 3 4 5 6 7; do
+  [[ -z "${renew_out[n]}" ]] || renew_ok=0
+done
+[[ "${renew_out[8]}" == *"[8 skips this session]"* && "${renew_out[8]}" == *"/markdown-format:check"* &&
+  "${renew_out[8]}" == *"This hook does not invoke npx"* ]] || renew_ok=0
+if ((renew_ok)); then
+  ok "missing markdownlint: fire 1 full, fires 2-7 silent, fire 8 renews with the install route"
+else
+  fail "missing markdownlint 8-fire sequence wrong: 1=[${renew_out[1]}] 2=[${renew_out[2]}] 7=[${renew_out[7]}] 8=[${renew_out[8]}]"
+fi
 # #3134: plugin-bin directories collapse to a count; plausible dirs stay.
 PLUGIN_BIN_HOME="$WORK/fake-plugin-home"
 mkdir -p "$PLUGIN_BIN_HOME/.local/bin"
