@@ -16,7 +16,11 @@
 # Team and overlay layers apply only to `repo`. `home` wins over `repo`: a
 # dotfiles checkout at $HOME is still home.
 
-# True when two paths name the same file or directory. Existing directories
+# Lowercase without `${x,,}`, which Bash 3.2 (stock macOS) rejects.
+config_root_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# True when two paths name the same file or directory. Paths with one inode
+# (a symlinked file or directory) match first. Existing directories
 # compare via `pwd -P` (case-folded) so a native `C:/Users/<user>` and an MSYS
 # `/c/Users/<user>` of the same home still match. Existing files compare by that
 # physical parent plus the leaf. Missing paths compare after slash-folding,
@@ -25,19 +29,20 @@
 config_root_paths_same() {
   local a="$1" b="$2" ap bp ad bd al bl
   [[ -n "$a" && -n "$b" ]] || return 1
+  [[ "$a" -ef "$b" ]] && return 0
   if [[ -d "$a" && -d "$b" ]]; then
     if ap=$(cd "$a" 2>/dev/null && pwd -P) && bp=$(cd "$b" 2>/dev/null && pwd -P); then
-      [[ "${ap,,}" == "${bp,,}" ]] && return 0
+      [[ "$(config_root_lower "$ap")" == "$(config_root_lower "$bp")" ]] && return 0
     fi
   elif [[ -f "$a" || -f "$b" ]]; then
     ad=$(cd "$(dirname -- "$a")" 2>/dev/null && pwd -P) || ad=""
     bd=$(cd "$(dirname -- "$b")" 2>/dev/null && pwd -P) || bd=""
-    al="${a##*/}"; al="${al,,}"
-    bl="${b##*/}"; bl="${bl,,}"
-    [[ -n "$ad" && -n "$bd" && "${ad,,}" == "${bd,,}" && "$al" == "$bl" ]] && return 0
+    al=$(config_root_lower "${a##*/}")
+    bl=$(config_root_lower "${b##*/}")
+    [[ -n "$ad" && -n "$bd" && "$(config_root_lower "$ad")" == "$(config_root_lower "$bd")" && "$al" == "$bl" ]] && return 0
   fi
-  a="${a//\\//}"; a="${a%/}"; a="${a,,}"
-  b="${b//\\//}"; b="${b%/}"; b="${b,,}"
+  a="${a//\\//}"; a=$(config_root_lower "${a%/}")
+  b="${b//\\//}"; b=$(config_root_lower "${b%/}")
   [[ "$a" == "$b" ]]
 }
 
@@ -55,8 +60,8 @@ config_root_is_home_or_ancestor() {
   config_root_paths_same "$root" "$home" && return 0
   rp=$(cd "$root" 2>/dev/null && pwd -P) || rp="$root"
   hp=$(cd "$home" 2>/dev/null && pwd -P) || hp="$home"
-  rp="${rp//\\//}"; rp="${rp%/}"; rp="${rp,,}"
-  hp="${hp//\\//}"; hp="${hp%/}"; hp="${hp,,}"
+  rp="${rp//\\//}"; rp=$(config_root_lower "${rp%/}")
+  hp="${hp//\\//}"; hp=$(config_root_lower "${hp%/}")
   [[ "$hp" == "$rp"/* ]]
 }
 
