@@ -75,6 +75,21 @@
         "Invokes /plugin-quality:audit for the skill defect",
         "Files nothing with gh issue create until the user approves each draft"
       ]
+    },
+    {
+      "id": 7,
+      "name": "next-scope-round-uses-interview-scope",
+      "prompt": "/playbooks:repo-sweep next (the audit step found three fix-eligible findings, one on a file synced from another repository)",
+      "expected_output": "After the user reviews the findings, the skill invokes /planning:interview scope via the Skill tool and writes or commits no PLAN.md. The synced-file finding is listed separately and not edited. Returned answers land verbatim in the step commit's Scope decisions: section. A Blocked: line stops the step until the user answers. With planning not installed, it falls back to a numbered chat list.",
+      "files": [],
+      "expectations": [
+        "Invokes /planning:interview scope via the Skill tool after the user reviews the findings",
+        "Writes or commits no PLAN.md",
+        "Lists the synced-file finding separately and does not edit it",
+        "Copies the returned answers verbatim into the step commit's Scope decisions: section",
+        "Stops the step on a Blocked: line until the user answers",
+        "With planning not installed, falls back to a numbered chat list"
+      ]
     }
   ]
 }
