@@ -1961,6 +1961,7 @@ fi
 # the format hook. The gate sits in the launcher (exec-bash.mjs
 # --run-if-unset-or-true), so probe-prerequisite.sh stays the shared,
 # byte-identical manifest reader and a closed gate never resolves bash.
+# shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
 PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"]]'
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]?.args]' "$HOOKS_JSON")"

@@ -151,7 +151,7 @@ skip (`HOOK_NOTICE_RENEW_EVERY`). The `SessionStart` probe below uses the same
 notice key, so its notice counts as skip number one, the first per-edit skip is
 number two and stays silent, and the next per-edit notice appears at the eighth
 skip. The missing-`jq` notice and the trust-gate notice are once per session and
-agent, renewed every eighth skip. Only the notice latches.
+agent, renewed every eighth skip.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
 `PATH probed:` line naming the plausible directories the hook process actually
