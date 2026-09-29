@@ -59,7 +59,16 @@ restores the FAIL semantics.
 3. **Node.js**. The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
    without it the hook does not launch and no notification fires. The probe runs through the Bash
-   tool, so it works when the launcher cannot.
+   tool, so it works when the launcher cannot. Remediation: install Node.js from
+   `https://nodejs.org/en/download`, or from the platform package manager.
+   Claim: Claude Code's native binary does not invoke Node at runtime, so Node is a separate
+   prerequisite for a hook launched as `node`.
+   Basis: `https://code.claude.com/docs/en/setup`, npm install section ("The installed `claude`
+   binary does not itself invoke Node"), and `https://code.claude.com/docs/en/hooks`, "Exec form
+   and shell form".
+   As of: 2026-09-29.
+   Recheck: the setup page stops saying the binary does not use Node, or the hooks page changes the
+   exec-form `node` example.
 4. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
@@ -86,7 +95,8 @@ restores the FAIL semantics.
 Run `check`, then for each FAIL or actionable INFO offer the resolution. This skill installs
 nothing and writes nothing, so every remediation is a pointer the user acts on:
 
-- **missing Node.js / `jq` / old Bash**. The platform install instructions from the README Requirements
+- **missing Node.js**. `https://nodejs.org/en/download` or the platform package manager.
+- **missing `jq` / old Bash**. The platform install instructions from the README Requirements
   section. This skill never installs system packages.
 - **missing `notify-send`** (Linux, `os_toast` enabled). `sudo apt install libnotify-bin`
   (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
