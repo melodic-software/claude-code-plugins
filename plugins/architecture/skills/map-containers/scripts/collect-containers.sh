@@ -17,7 +17,8 @@
 #   collect-containers.sh --help
 #
 # Tracked files only (git ls-tree HEAD). --graph, when set, supplies project
-# edges for containment and is not re-derived from ProjectReference.
+# edges for containment and is not re-derived from ProjectReference. Without it
+# the edges come from lib/dotnet-references.sh, the reader map-dependencies uses.
 # A reference whose target is missing, escapes the repository, is absolute,
 # or is a glob is not a module. Nothing is matched by project name.
 #
@@ -35,6 +36,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../lib/dotnet-references.sh
+source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 REDACT_AWK="$SCRIPT_DIR/../../../lib/redact-connection.awk"
 ASSIGN_AWK="$SCRIPT_DIR/config-assignments.awk"
 
@@ -370,7 +373,7 @@ if [[ -n "$graph_file" ]]; then
     }
     /^[[:space:]]*\{"from":/ {
       kind = jstr($0, "kind")
-      if (kind != "project" && kind != "ProjectReference") next
+      if (kind != "project" || jstr($0, "status") == "unresolved") next
       from = jstr($0, "from")
       to = jstr($0, "to")
       ev = jstr($0, "evidence")
@@ -382,8 +385,8 @@ else
     [[ -n "$id" ]] || continue
     dir="${id%/*}"
     [[ "$dir" == "$id" ]] && dir=""
-    while IFS=$'\t' read -r include decl; do
-      [[ -n "$include" ]] || continue
+    while IFS=$'\t' read -r ref_kind include decl; do
+      [[ "$ref_kind" == "project" && -n "$include" ]] || continue
       case "$include" in
       *'*'* | *'?'* | /* | [A-Za-z]:*) continue ;;
       *) ;;
@@ -398,21 +401,7 @@ else
       fi
       has_project "$resolved" || continue
       printf '%s\t%s\t%s: %s\n' "$id" "$resolved" "$id" "$decl" >>"$refs"
-    done < <(awk '
-      {
-        line = $0
-        sub(/\r$/, "", line)
-        rest = line
-        while (match(rest, /<ProjectReference[^>]*Include="[^"]*"/)) {
-          tag = substr(rest, RSTART, RLENGTH)
-          inc = tag
-          sub(/^.*Include="/, "", inc)
-          sub(/"$/, "", inc)
-          printf "%s\t%s\n", inc, tag
-          rest = substr(rest, RSTART + RLENGTH)
-        }
-      }
-    ' "$root/$id")
+    done < <(dotnet_reference_records "$root/$id")
   done <"$all_proj"
 fi
 

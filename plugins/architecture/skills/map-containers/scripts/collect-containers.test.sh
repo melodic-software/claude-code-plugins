@@ -217,6 +217,39 @@ assert_contains "c4-plantuml includes the container library" "$mono_text" "!incl
 bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect likec4 >"$MOUT/struct.out"
 assert_equals "mono: likec4 render exits 0" "$?" "0"
 assert_contains "likec4 is a container view" "$(cat "$MOUT/containers.md")" "view containers of e_sys"
+assert_contains "module evidence cites the whole reference tag" "$mono_text" 'Include=\"..\\Billing\\Billing.csproj\" />'
+
+# The no-graph path reads references with the shared reader: a tag that spans
+# lines with a single-quoted Include is a module, and a commented-out one is not.
+SHARED="$TEST_TMPDIR/shared-reader"
+mkdir -p "$SHARED/src/Host" "$SHARED/src/Lib" "$SHARED/src/Ghost"
+cat >"$SHARED/src/Host/Host.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference
+        Include='..\Lib\Lib.csproj' />
+    <!-- <ProjectReference Include="..\Ghost\Ghost.csproj" /> -->
+  </ItemGroup>
+</Project>
+EOF
+cat >"$SHARED/src/Lib/Lib.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+cat >"$SHARED/src/Ghost/Ghost.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+commit_repo "$SHARED"
+bash "$COLLECT" --repo "$SHARED" --out "$TEST_TMPDIR/shared-reader.json" --generated-on 2026-09-28 >/dev/null
+assert_equals "shared reader: collect exits 0" "$?" "0"
+shared_text="$(cat "$TEST_TMPDIR/shared-reader.json")"
+assert_contains "shared reader: a multi-line single-quoted reference is a module" "$shared_text" '"path":"src/Lib/Lib.csproj"'
+assert_contains "shared reader: the citation runs through the closing bracket" "$shared_text" "Include='..\\\\Lib\\\\Lib.csproj' />"
+assert_not_contains "shared reader: a commented-out reference is not a module" "$shared_text" 'src/Ghost/Ghost.csproj'
 
 BUS="$TEST_TMPDIR/bus"
 mkdir -p "$BUS/src/Api" "$BUS/src/Worker"
@@ -324,7 +357,12 @@ assert_equals "hostile: two fence lines" "$(grep -c '^```' "$TEST_TMPDIR/hostile
 assert_contains "hostile: the name is drawn, sanitized" "$(cat "$TEST_TMPDIR/hostile-render/containers.md")" "evil') @enduml'''x"
 
 GRAPH="$TEST_TMPDIR/graph-repo"
-mkdir -p "$GRAPH/src/Host" "$GRAPH/src/OnlyGraph" "$GRAPH/src/FromFile"
+mkdir -p "$GRAPH/src/Host" "$GRAPH/src/OnlyGraph" "$GRAPH/src/FromFile" "$GRAPH/src/Phantom"
+cat >"$GRAPH/src/Phantom/Phantom.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
 cat >"$GRAPH/src/Host/Host.csproj" <<'EOF'
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
@@ -348,16 +386,16 @@ cat >"$TEST_TMPDIR/graph.json" <<'EOF'
 {
   "schema_version": 1,
   "generated_on": "2026-09-28",
-  "subject": "graph-repo",
+  "result": "ok",
+  "message": "",
   "ecosystem": "dotnet",
-  "unknown_reason": "",
-  "unshipped": "",
-  "node_threshold": 24,
+  "node_threshold": 40,
   "nodes": [
     {"id":"src/Host/Host.csproj","name":"Host","path":"src/Host/Host.csproj","ecosystem":"dotnet","kind":"project"}
   ],
   "edges": [
-    {"from":"src/Host/Host.csproj","to":"src/OnlyGraph/OnlyGraph.csproj","kind":"project","evidence":"graph: Host to OnlyGraph"}
+    {"from":"src/Host/Host.csproj","to":"src/OnlyGraph/OnlyGraph.csproj","kind":"project","status":"resolved","evidence":"graph: Host to OnlyGraph"},
+    {"from":"src/Host/Host.csproj","to":"src/Phantom/Phantom.csproj","kind":"project","status":"unresolved","evidence":"graph: Host to a missing Phantom"}
   ]
 }
 EOF
@@ -369,6 +407,7 @@ gtext="$(cat "$GOUT/containers.json")"
 assert_contains "graph supplies the contained module" "$gtext" '"path":"src/OnlyGraph/OnlyGraph.csproj"'
 assert_not_contains "file reference is not used when the graph is present" "$gtext" "src/FromFile/FromFile.csproj"
 assert_contains "containment source is the graph" "$gtext" '"containment": "dependency-graph.json"'
+assert_not_contains "an unresolved graph edge is not a module even when its text is a project path" "$gtext" "src/Phantom/Phantom.csproj"
 
 LINK="$TEST_TMPDIR/link-repo"
 mkdir -p "$LINK/src/Api"

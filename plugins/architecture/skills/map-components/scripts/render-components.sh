@@ -10,7 +10,9 @@
 #   render-components.sh --help
 #
 # Options:
-#   --graph <file>         schema_version 1 record. Required.
+#   --graph <file>         The record map-dependencies' dependency-graph.sh
+#                          writes (schema_version 1, with a "result" key).
+#                          Required.
 #   --out <dir>            Directory the artifacts are written into. Required.
 #   --container <name>     Deployable to chart: a node id, path, or unique name.
 #                          With one indegree-zero deployable whose closure covers
@@ -32,22 +34,23 @@
 #   --source <text>        Provenance line. Default: dependency-graph.json.
 #   --node-threshold <N>   Component count above which the view aggregates to
 #                          coarser groups and says so. Default: the record's
-#                          node_threshold, else 24. Aggregation never drops a
+#                          node_threshold, else 40. Aggregation never drops a
 #                          component or an evidence row.
 #   --notes <file>         Appended verbatim to components.md.
 #
 # The record's physical shape is one object per line, the same contract as
 # landscape.json. A node line's first key is "id". An edge line's first key is
-# "from". Any other layout exits 1 and writes nothing.
+# "from". Any other layout exits 1 and writes nothing. So does a record with no
+# "result" key, which is not a dependency-graph.sh record: regenerate it.
 #
-# Edge kind "project" (or ProjectReference) is an internal component edge.
-# Kind "package" (or PackageReference) is collapsed, not drawn. Kind
-# "unresolved", or a project edge whose target is not a charted project, is
-# listed and never matched to a similarly named project.
+# An edge of kind "project" and status "resolved" whose ends are both charted
+# projects is an internal component edge. Kind "package" is collapsed, not
+# drawn. A project edge whose status is "unresolved", or whose target is not a
+# charted project, is listed and never matched to a similarly named project.
 #
 # A single project with no internal edges is a thin result: components.md says
 # so and names the neighboring rungs, and no one-box diagram is written.
-# ecosystem "unknown" writes that reason and no diagram.
+# ecosystem "unknown" writes the record's message and no diagram.
 #
 # Prints one summary line on stdout:
 #
@@ -205,6 +208,8 @@ fi
 [[ -z "$notes" || -r "$notes" ]] || die "cannot read notes: $notes" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$graph" ||
   die "not a schema_version 1 record: $graph" 1
+grep -q '^[[:space:]]*"result"[[:space:]]*:' "$graph" ||
+  die "not a dependency-graph.sh record (no result key); regenerate it with /architecture:map-dependencies: $graph" 1
 
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
@@ -241,14 +246,11 @@ layout_problem="$(awk "$LAYOUT_AWK" "$graph")"
 
 if [[ -z "$threshold" ]]; then
   threshold="$(sed -n 's/^[[:space:]]*"node_threshold"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$graph" | head -n 1)"
-  [[ -n "$threshold" ]] || threshold=24
+  [[ -n "$threshold" ]] || threshold=40
 fi
 
 ecosystem="$(sed -n 's/^[[:space:]]*"ecosystem"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-unknown_reason="$(sed -n 's/^[[:space:]]*"unknown_reason"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-if [[ -z "$unknown_reason" ]]; then
-  unknown_reason="$(sed -n 's/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
-fi
+message="$(sed -n 's/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 [[ -n "$generated_on" ]] || generated_on="unknown"
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
@@ -256,7 +258,7 @@ generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\
 # shellcheck disable=SC1003 # the backslash is a tr operand, not an escape
 prose() { printf '%s' "$1" | tr -d '\000-\037`"\\'; }
 generated_on="$(prose "$generated_on")"
-unknown_reason="$(prose "$unknown_reason")"
+message="$(prose "$message")"
 source_name="$(prose "$source_name")"
 
 md_out="$outdir/components.md"
@@ -267,11 +269,11 @@ write_summary() {
 }
 
 if [[ "$ecosystem" == "unknown" ]]; then
-  [[ -n "$unknown_reason" ]] || unknown_reason="The dependency graph reports ecosystem unknown."
+  [[ -n "$message" ]] || message="The dependency graph reports ecosystem unknown."
   {
     printf '# Component view\n\n'
     printf 'Generated on %s from %s.\n\n' "$generated_on" "$source_name"
-    printf 'Unknown: the dependency graph reports ecosystem `unknown`. %s\n\n' "$unknown_reason"
+    printf 'Unknown: the dependency graph reports ecosystem `unknown`. %s\n\n' "$message"
     printf 'No diagram is drawn. An unrecognized ecosystem is not an empty architecture.\n'
     if [[ -n "$notes" ]]; then
       printf '\n'
@@ -379,15 +381,6 @@ function md(v,   n, parts, i, out) {
   out = parts[1]
   for (i = 2; i <= n; i++) out = out "\\|" parts[i]
   return out
-}
-function norm_edge(k) {
-  if (k == "project" || k == "ProjectReference" || k == "module" || k == "workspace") return "project"
-  if (k == "package" || k == "PackageReference" || k == "nuget" || k == "npm") return "package"
-  if (k == "unresolved") return "unresolved"
-  return "other"
-}
-function is_proj_kind(k) {
-  return k == "project" || k == "module"
 }
 function trim(s) {
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
@@ -515,7 +508,7 @@ BEGIN {
   nkind[id] = unquote(field($0, "kind"))
   ns[id] = unquote(field($0, "namespace"))
   layer_field[id] = unquote(field($0, "layer"))
-  if (is_proj_kind(nkind[id])) is_project[id] = 1
+  if (nkind[id] == "project") is_project[id] = 1
   next
 }
 /^[[:space:]]*\{"from":/ {
@@ -523,15 +516,15 @@ BEGIN {
   efrom[ne] = unquote(field($0, "from"))
   edge_to[ne] = unquote(field($0, "to"))
   ekind[ne] = unquote(field($0, "kind"))
+  estatus[ne] = unquote(field($0, "status"))
   eevidence[ne] = unquote(field($0, "evidence"))
   next
 }
 END {
   for (i = 1; i <= ne; i++) {
-    ek = norm_edge(ekind[i])
-    if (ek == "project" && (efrom[i] in is_project) && (edge_to[i] in is_project)) eclass[i] = "project"
-    else if (ek == "package") eclass[i] = "package"
-    else if (ek == "unresolved" || ek == "project") eclass[i] = "unresolved"
+    if (ekind[i] == "project" && estatus[i] != "unresolved" && (efrom[i] in is_project) && (edge_to[i] in is_project)) eclass[i] = "project"
+    else if (ekind[i] == "package") eclass[i] = "package"
+    else if (ekind[i] == "project") eclass[i] = "unresolved"
     else eclass[i] = "other"
     if (eclass[i] == "project") indegree[edge_to[i]]++
   }

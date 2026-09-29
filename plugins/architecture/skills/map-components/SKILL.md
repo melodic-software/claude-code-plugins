@@ -76,40 +76,26 @@ This skill never writes the consumer's root instruction file or its topic doc.
 
 ## Read the dependency graph
 
-The view is a render of `dependency-graph.json`. The physical shape, the edge
-kinds, and the unknown-ecosystem rule are in
-[dependency-graph.md](reference/dependency-graph.md). Do not draw a box the
-record does not contain, and do not add an edge the record does not cite.
+The view is a render of `dependency-graph.json`, the record
+`/architecture:map-dependencies` writes. The writer's layout is in the header
+of its `dependency-graph.sh` (`--help` prints it), and what this renderer reads
+from it is in [dependency-graph.md](reference/dependency-graph.md). Do not draw
+a box the record does not contain, and do not add an edge the record does not
+cite.
 
 1. When `<architecture_dir>/dependency-graph.json` already exists, confirm it
-   is schema_version 1, then render that file. Do not recollect. Say so in the
-   report.
-2. Otherwise run the shared extractor,
-   `${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh`,
-   and write its stdout to `<architecture_dir>/dependency-graph.json` unchanged.
-   Do not pretty-print it.
-3. If that script is not on disk, run
-   [component-graph.sh](scripts/component-graph.sh). It emits schema_version 1
-   that this renderer accepts, from .NET `ProjectReference` and
-   `PackageReference` only. Any other ecosystem is `unknown` with empty node
-   and edge arrays, not an empty architecture. Field differences between the
-   two writers are in [dependency-graph.md](reference/dependency-graph.md).
-
-Pass `--generated-on` to the fallback from `git -C <root> log -1 --format=%cs`,
-or `unknown` when that fails, so a second run on the same HEAD does not churn.
-`dependency-graph.sh` takes `--generated-on` and `--out` too and defaults to the
-same HEAD commit date. Write a graph you collected. A graph that was
-already there stays untouched.
+   is schema_version 1, then render that file. Do not recollect, and leave the
+   file untouched. Say so in the report.
+2. Otherwise run the shared extractor. It writes the record itself, and a
+   second run on the same HEAD is byte-identical. Do not pretty-print it.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh" "<root>"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh" \
+  --out "<architecture_dir>/dependency-graph.json" "<root>"
 ```
 
-```bash
-"${CLAUDE_SKILL_DIR}/scripts/component-graph.sh" \
-  --repo "<root>" --out "<architecture_dir>/dependency-graph.json" \
-  --generated-on "<YYYY-MM-DD|unknown>"
-```
+A tree with no .NET project is `result` `unknown` with empty node and edge
+arrays, not an empty architecture. The render says so and draws nothing.
 
 ## Choose one container
 
@@ -134,7 +120,7 @@ all of them.
   violation. The mark is informational. The exit code stays 0. Enforcement
   belongs to the consumer's architecture tests.
 
-Above the node threshold (the record's `node_threshold`, else 24, or
+Above the node threshold (the record's `node_threshold`, else 40, or
 `--node-threshold`), the view collapses to coarser groups and says so on the
 artifact. It does not drop a component or an evidence row.
 
@@ -146,7 +132,6 @@ artifact. It does not drop a component or an evidence row.
   --group-by directory \
   --layers "<component_layers>" \
   --container "<name>" \
-  --source "<dependency-graph.json|dependency-graph.sh|component-graph.sh>" \
   --notes "<architecture_dir>/components-notes.md"
 ```
 
@@ -185,8 +170,8 @@ End every run with this block, in this order:
   nothing was dropped.
 - **External and unresolved**: the two counts. Unresolved targets were not
   matched by name.
-- **Graph source**: existing `dependency-graph.json`, `dependency-graph.sh`,
-  or `component-graph.sh`.
+- **Graph source**: the existing `dependency-graph.json`, or the one
+  `dependency-graph.sh` wrote this run.
 - **Dialect**: `diagram_dialect.system`, its value, and the layer: `argument`,
   `team convention doc <path>`, or `unset (no C4 view emitted)`.
 
@@ -232,9 +217,10 @@ End every run with this block, in this order:
   and table cells have no portable escape for their own delimiters, so the
   delimiter is swapped. The evidence table still names the file and the
   declaration.
-- **`component-graph.sh` reads one adapter.** The Include attribute has to sit
-  on the opening tag, double-quoted. A multiline tag, a single-quoted Include,
-  and an Update attribute are not read. Another ecosystem stays `unknown`.
+- **An older graph is refused, not rendered.** A record with no `result` key
+  did not come from `dependency-graph.sh`. The renderer exits 1 and writes
+  nothing. Stop and point at `/architecture:map-dependencies`, which owns
+  rewriting that file.
 - **Aggregation is announced.** Past the threshold the view draws coarser
   groups and says how many components that replaced. The evidence table keeps
   every original declaration.
