@@ -143,8 +143,25 @@ The Rust adapter:
   `workspace = true` with no workspace entry to resolve it, a multi-line inline table, and
   a members glob the reader cannot resolve are `unread-manifest` findings.
 
-Other ecosystems stay unread. The message names them. The JVM adapter is not this skill
-yet.
+The JVM adapter (Gradle and Maven):
+
+- Every `pom.xml`, `build.gradle` and `build.gradle.kts` is a project node, id its
+  repo-relative path. A folder with a `settings.gradle(.kts)` and no build file is a node
+  under the settings file.
+- A `settings.gradle(.kts)` `include` argument is an internal project edge from the settings
+  folder's project to the folder its project path names, when that folder holds a build
+  file. A `project(':x')` or `project(path = ':x')` dependency in a build file resolves from
+  the nearest settings file above it. A `pom.xml` `<modules><module>` entry is an internal
+  project edge to the `pom.xml` in the folder it names. Each edge cites the declaration.
+  A project path or module naming no build file, or leaving the root, is `unresolved`.
+- No external package edge is drawn for JVM.
+- `includeFlat`, `includeBuild`, an include holding a variable, an interpolated string or a
+  spread, anything inside a loop, a `projectDir`, `buildFileName` or `name` assignment,
+  `apply from`, a `projects.x` type-safe accessor, a `project(...)` with a non-literal
+  argument, a module holding a `${property}`, and a module naming a pom file not called
+  `pom.xml` are `unread-manifest` findings.
+
+Other ecosystems stay unread. The message names them.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
 above which the human diagram aggregates to directories. The JSON stays at project

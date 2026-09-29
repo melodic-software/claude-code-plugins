@@ -195,6 +195,31 @@
 # 2026-09-29. Recheck when either page changes what a dependency entry or a
 # members entry may hold.
 #
+# The JVM adapter (lib/jvm-references.sh): every pom.xml, build.gradle and
+# build.gradle.kts is a project node whose id is its repo-relative path; a
+# folder with a settings.gradle(.kts) and no build file is one too, under the
+# settings file. A Gradle project is its folder. An include argument in
+# settings.gradle(.kts) is an internal project edge from the settings folder's
+# project to the folder that project path names, when that folder holds a
+# build file. A project(':x') dependency in a build file resolves from the
+# nearest settings file at or above it (a path with no colon resolves from the
+# build file's folder), and project(path = ':x') is the same reference. A
+# pom.xml <modules><module> entry, including one inside a profile, is an
+# internal project edge to the pom.xml in the folder it names, or to the
+# pom.xml it names when it ends in .xml. A project path or module that names no
+# build file, or leaves the root, is status "unresolved". Every edge cites the
+# declaration. No external package edge is drawn for JVM. Unread: includeFlat,
+# includeBuild, an include with a variable, an interpolated string or a spread,
+# an include or project reference inside a loop, a project(...).projectDir,
+# .buildFileName or .name assignment, apply from, projects.x type-safe
+# accessors, project(...) with a non-literal argument, a module holding a
+# property reference, and a module naming a pom file not called pom.xml.
+# Basis: https://docs.gradle.org/current/userguide/multi_project_builds.html
+# https://docs.gradle.org/current/userguide/declaring_dependencies_basics.html
+# and https://maven.apache.org/pom.html Verified 2026-09-29. Recheck when
+# any page changes how a project path maps to a folder or what a module entry
+# may hold.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -226,6 +251,8 @@ source "$SCRIPT_DIR/../../../lib/go-references.sh"
 source "$SCRIPT_DIR/../../../lib/python-references.sh"
 # shellcheck source=../../../lib/rust-references.sh
 source "$SCRIPT_DIR/../../../lib/rust-references.sh"
+# shellcheck source=../../../lib/jvm-references.sh
+source "$SCRIPT_DIR/../../../lib/jvm-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -568,7 +595,7 @@ done < <(
     -o -name 'package.json' -o -name 'pnpm-workspace.yaml' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
     -o -name 'go.mod' -o -name 'go.work' -o -name 'Cargo.toml' \
-    -o -name 'pom.xml' -o -name 'build.gradle*' \
+    -o -name 'pom.xml' -o -name 'build.gradle*' -o -name 'settings.gradle*' \
     -o -name 'Gemfile' -o -name 'composer.json' \
     \) -print 2>/dev/null |
     ROOT="$root/" awk 'index($0, ENVIRON["ROOT"]) == 1 { $0 = substr($0, length(ENVIRON["ROOT"]) + 1) } { print }' |
@@ -588,6 +615,9 @@ py_files=()
 req_files=()
 setup_files=()
 cargo_files=()
+pom_files=()
+gradle_files=()
+settings_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -609,7 +639,9 @@ for rel in "${files[@]+"${files[@]}"}"; do
   go.mod) go_files+=("$rel") ;;
   go.work) gowork_files+=("$rel") ;;
   Cargo.toml) cargo_files+=("$rel") ;;
-  pom.xml | build.gradle*) OTHER[jvm]="$rel" ;;
+  pom.xml) pom_files+=("$rel") ;;
+  build.gradle | build.gradle.kts) gradle_files+=("$rel") ;;
+  settings.gradle | settings.gradle.kts) settings_files+=("$rel") ;;
   Gemfile) OTHER[ruby]="$rel" ;;
   composer.json) OTHER[php]="$rel" ;;
   *) ;;
@@ -623,7 +655,7 @@ done
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
 # lists the shipped readers, in the order they run. A reader parses in its own
 # file, lib/<name>-references.sh, sourced above.
-READERS=(dotnet node go python rust)
+READERS=(dotnet node go python rust jvm)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
@@ -1294,6 +1326,121 @@ read_rust() {
         add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
       fi
     done
+  done
+}
+
+has_jvm() { [[ ${#pom_files[@]} -gt 0 || ${#gradle_files[@]} -gt 0 || ${#settings_files[@]} -gt 0 ]]; }
+
+read_jvm() {
+  # gnode is keyed "/<folder>": bash refuses an empty subscript for the root.
+  local -A is_pom=() gnode=() is_settings=()
+  local rel dir label name rec kind a b n cur sdir
+
+  # An edge from project $1 to the Gradle project path $3, resolved from folder
+  # $2, with the citation $4. A path with no leading colon is relative to $2.
+  gradle_edge() {
+    local p="${3#:}" t
+    p="${p//://}"
+    if t="$(normalize_within_root "$2" "$p")" && [[ -n "${gnode[/$t]+x}" ]]; then
+      [[ "${gnode[/$t]}" == "$1" ]] || add_edge "$1" "${gnode[/$t]}" "project" "resolved" "$4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$4"
+    fi
+  }
+
+  # A Gradle project is its folder. Its node is the folder's build file, else
+  # its settings file when the folder has one.
+  for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${label##*/}" "$rel" "project"
+    [[ -n "${gnode[/$dir]+x}" ]] || gnode[/$dir]="$rel"
+  done
+  for rel in "${settings_files[@]+"${settings_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    is_settings[/$dir]=1
+    if [[ -z "${gnode[/$dir]+x}" ]]; then
+      add_node "$rel" "${label##*/}" "$rel" "project"
+      gnode[/$dir]="$rel"
+    fi
+  done
+
+  for rel in "${settings_files[@]+"${settings_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      include) gradle_edge "${gnode[/$dir]}" "$dir" "$a" "$rel: $b" ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_settings_records "$root/$rel")
+  done
+
+  # project(':x') resolves from the nearest settings file at or above the
+  # build file; a path with no colon resolves from the build file's folder.
+  for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    sdir=""
+    cur="$dir"
+    while :; do
+      if [[ -n "${is_settings[/$cur]+x}" ]]; then
+        sdir="$cur"
+        break
+      fi
+      [[ -n "$cur" ]] || break
+      cur="$(proj_dir_of "$cur")"
+    done
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      project)
+        if [[ "$a" == :* && -z "${is_settings[/$sdir]+x}" ]]; then
+          add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+        elif [[ "$a" == :* ]]; then
+          gradle_edge "$rel" "$sdir" "$a" "$rel: $b"
+        else
+          gradle_edge "$rel" "$dir" "$a" "$rel: $b"
+        fi
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_build_records "$root/$rel")
+  done
+
+  # A pom is a project node named by its artifactId. A <module> is a folder
+  # holding a pom.xml, or a pom file, relative to the aggregating pom.
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    is_pom[$rel]=1
+  done
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    name="$(jvm_pom_records "$root/$rel" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      module)
+        if [[ "$a" == *.xml && "${a##*/}" != pom.xml ]]; then
+          add_unread_manifest "$rel" "$b"
+        elif n="$(normalize_within_root "$dir" "$a")"; then
+          [[ "$a" == *.xml ]] || n="${n:+$n/}pom.xml"
+          if [[ -n "${is_pom[$n]+x}" ]]; then
+            [[ "$n" == "$rel" ]] || add_edge "$rel" "$n" "project" "resolved" "$rel: $b"
+          else
+            add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+          fi
+        else
+          add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+        fi
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_pom_records "$root/$rel")
   done
 }
 

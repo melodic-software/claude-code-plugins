@@ -995,5 +995,99 @@ rsmix_json="$(bash "$GRAPH" "$rsmix")"
 assert_contains "rust beside python: ecosystem is mixed" "$rsmix_json" '"ecosystem": "mixed"'
 assert_contains "rust beside python: each node keeps its own ecosystem" "$rsmix_json" '"id":"svc/Cargo.toml","name":"svc","path":"svc/Cargo.toml","ecosystem":"rust"'
 
+# Gradle (Groovy): include and project(':x') are internal edges.
+gr="$(make_tree gr)"
+put "$gr/settings.gradle" "rootProject.name = 'demo'
+include ':app', ':core', ':lib:util', ':nobuild', ':ghost'
+include(modulesVar)
+includeBuild('../other')"
+put "$gr/build.gradle" "plugins { id 'java' }"
+put "$gr/app/build.gradle" "dependencies {
+    implementation project(':core')
+    implementation project(path: ':lib:util')
+    implementation project(':missing')
+    implementation projects.core
+    implementation 'org.slf4j:slf4j-api:2.0.0'
+}"
+put "$gr/core/build.gradle" "dependencies { api project(':lib:util') }"
+put "$gr/lib/util/build.gradle" "// leaf"
+put "$gr/nobuild/README" "no build file"
+gr_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$gr")"
+assert_contains "gradle: ecosystem jvm" "$gr_json" '"ecosystem": "jvm"'
+assert_contains "gradle: a build file is a project node named by its folder" "$gr_json" '{"id":"app/build.gradle","name":"app","path":"app/build.gradle","ecosystem":"jvm","kind":"project"}'
+assert_contains "gradle: an include is an internal edge citing the declaration" "$gr_json" '{"from":"build.gradle","to":"app/build.gradle","kind":"project","status":"resolved","evidence":"settings.gradle: include '"'"':app'"'"', '"'"':core'"'"', '"'"':lib:util'"'"', '"'"':nobuild'"'"', '"'"':ghost'"'"'"}'
+assert_contains "gradle: a nested project path maps to nested folders" "$gr_json" '"from":"build.gradle","to":"lib/util/build.gradle","kind":"project","status":"resolved"'
+assert_contains "gradle: an include with no build file is unresolved" "$gr_json" '"to":":nobuild","kind":"project","status":"unresolved"'
+assert_contains "gradle: project(path: ':x') is an internal edge citing the declaration" "$gr_json" '{"from":"app/build.gradle","to":"lib/util/build.gradle","kind":"project","status":"resolved","evidence":"app/build.gradle: implementation project(path: '"'"':lib:util'"'"')"}'
+assert_contains "gradle: a project(':x') dependency is an internal edge" "$gr_json" '{"from":"app/build.gradle","to":"core/build.gradle","kind":"project","status":"resolved","evidence":"app/build.gradle: implementation project('"'"':core'"'"')"}'
+assert_contains "gradle: a dependency on a project with no folder is unresolved" "$gr_json" '"from":"app/build.gradle","to":":missing","kind":"project","status":"unresolved"'
+assert_contains "gradle: a variable include is an unread-manifest finding" "$gr_json" '{"kind":"unread-manifest","path":"settings.gradle","evidence":"settings.gradle: include(modulesVar)"}'
+assert_contains "gradle: includeBuild is an unread-manifest finding" "$gr_json" '"evidence":"settings.gradle: includeBuild('"'"'../other'"'"')"'
+assert_contains "gradle: a type-safe accessor is an unread-manifest finding" "$gr_json" '{"kind":"unread-manifest","path":"app/build.gradle","evidence":"app/build.gradle: implementation projects.core"}'
+assert_not_contains "gradle: an external coordinate draws no edge" "$gr_json" 'slf4j'
+assert_not_contains "gradle: the message does not name JVM as unread" "$gr_json" 'Not read: jvm'
+gr_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gr")"
+assert_equals "gradle: two runs are byte-identical" "$gr_again" "$gr_json"
+
+# Gradle (Kotlin DSL) with a settings file and no root build file.
+grk="$(make_tree grk)"
+put "$grk/settings.gradle.kts" 'include(":api")
+include(":impl")'
+put "$grk/api/build.gradle.kts" 'dependencies { implementation(project(":impl")) }'
+# shellcheck disable=SC2016 # backticks are literal fixture text
+put "$grk/impl/build.gradle.kts" 'plugins { `java-library` }'
+
+grk_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$grk")"
+assert_contains "kotlin dsl: a settings file with no build file is a project node" "$grk_json" '{"id":"settings.gradle.kts","name":"'"${grk##*/}"'","path":"settings.gradle.kts","ecosystem":"jvm","kind":"project"}'
+assert_contains "kotlin dsl: an include is an edge from the settings project" "$grk_json" '{"from":"settings.gradle.kts","to":"api/build.gradle.kts","kind":"project","status":"resolved","evidence":"settings.gradle.kts: include(\":api\")"}'
+assert_contains "kotlin dsl: project(\":x\") is an internal edge" "$grk_json" '{"from":"api/build.gradle.kts","to":"impl/build.gradle.kts","kind":"project","status":"resolved","evidence":"api/build.gradle.kts: dependencies { implementation(project(\":impl\")) }"}'
+
+# A build file with no settings file above it cannot resolve a project path.
+grn="$(make_tree grn)"
+put "$grn/loose/build.gradle.kts" 'dependencies { implementation(project(":api")) }'
+grn_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$grn")"
+assert_contains "kotlin dsl: a build file with no settings file above it is unresolved" "$grn_json" '{"from":"loose/build.gradle.kts","to":":api","kind":"project","status":"unresolved","evidence":"loose/build.gradle.kts: dependencies { implementation(project(\":api\")) }"}'
+
+# Maven: <modules> are internal edges.
+mv="$(make_tree mv)"
+# shellcheck disable=SC2016 # fixture text with a literal ${dyn}
+put "$mv/pom.xml" '<project>
+  <artifactId>parent</artifactId>
+  <modules>
+    <module>core</module>
+    <module>web/pom.xml</module>
+    <module>alt/pom-alt.xml</module>
+    <module>gone</module>
+    <module>../outside</module>
+    <module>${dyn}</module>
+  </modules>
+  <profiles><profile><modules><module>extra</module></modules></profile></profiles>
+</project>'
+put "$mv/core/pom.xml" '<project><parent><artifactId>parent</artifactId></parent><artifactId>core</artifactId></project>'
+put "$mv/web/pom.xml" '<project><artifactId>web-default</artifactId></project>'
+put "$mv/extra/pom.xml" '<project><artifactId>extra</artifactId></project>'
+mv_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$mv")"
+assert_contains "maven: ecosystem jvm" "$mv_json" '"ecosystem": "jvm"'
+assert_contains "maven: a pom is a project node named by its artifactId" "$mv_json" '{"id":"core/pom.xml","name":"core","path":"core/pom.xml","ecosystem":"jvm","kind":"project"}'
+assert_contains "maven: a module is an internal edge citing the declaration" "$mv_json" '{"from":"pom.xml","to":"core/pom.xml","kind":"project","status":"resolved","evidence":"pom.xml: <module>core</module>"}'
+assert_contains "maven: a module inside a profile is an internal edge" "$mv_json" '"from":"pom.xml","to":"extra/pom.xml","kind":"project","status":"resolved"'
+assert_contains "maven: a module naming a pom.xml is that pom" "$mv_json" '"from":"pom.xml","to":"web/pom.xml","kind":"project","status":"resolved"'
+assert_contains "maven: a module naming a pom file not called pom.xml is an unread-manifest finding" "$mv_json" '{"kind":"unread-manifest","path":"pom.xml","evidence":"pom.xml: <module>alt/pom-alt.xml</module>"}'
+assert_contains "maven: a module with no pom is unresolved" "$mv_json" '"to":"gone","kind":"project","status":"unresolved"'
+assert_contains "maven: a module outside the root is unresolved" "$mv_json" '"to":"../outside","kind":"project","status":"unresolved"'
+# shellcheck disable=SC2016 # ${dyn} is literal fixture text
+assert_contains "maven: a property module is an unread-manifest finding" "$mv_json" '{"kind":"unread-manifest","path":"pom.xml","evidence":"pom.xml: <module>${dyn}</module>"}'
+assert_not_contains "maven: the other manifest kinds are not unread" "$mv_json" 'Not read: jvm'
+
+# JVM beside another ecosystem is one mixed record; Ruby beside JVM is still named unread.
+jvmix="$(make_tree jvmix)"
+put "$jvmix/svc/pom.xml" '<project><artifactId>svc</artifactId></project>'
+put "$jvmix/app/requirements.txt" 'click'
+put "$jvmix/Gemfile" 'source "https://rubygems.org"'
+jvmix_json="$(bash "$GRAPH" "$jvmix")"
+assert_contains "jvm beside python: ecosystem is mixed" "$jvmix_json" '"ecosystem": "mixed"'
+assert_contains "jvm beside python: each node keeps its own ecosystem" "$jvmix_json" '"id":"svc/pom.xml","name":"svc","path":"svc/pom.xml","ecosystem":"jvm"'
+assert_contains "jvm beside ruby: only the unshipped ecosystem is named unread" "$jvmix_json" 'Not read: ruby (Gemfile).'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
