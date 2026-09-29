@@ -16,5 +16,20 @@
     "diagnose",
     "coverage",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "test_guards_enabled": {
+      "type": "boolean",
+      "title": "Test guard hooks",
+      "description": "Scan each test file Claude writes or edits for tests that cannot fail, and feed the findings back to Claude. Off by default.",
+      "default": false
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open",
+      "default": 2,
+      "min": 1
+    }
+  }
 }
