@@ -328,6 +328,24 @@ assert_eq "locked run leaves file unchanged" "2" "$(wc -l <"$S/cc-logs.json" | t
 assert_not_contains "locked run never stops Collector" "$(ls "$TMP")" "stopped.marker"
 rmdir "$S/.prune-in-progress"
 
+# --- 8a. lock race: sixteen acquirers in a tight loop, never two holders at once ---
+# Whole prunes start too far apart to race; uutils mkdir (Ubuntu 25.10+) let two racers both
+# win, which only a tight loop like this reproduces.
+race_log="$TMP/sentinel-race.log"
+: >"$race_log"
+for _ in $(seq 16); do
+  # shellcheck disable=SC2016  # the inner script expands its own variables
+  bash -c 'err() { :; }; source "$1"; SENTINEL="$2"
+    for _ in $(seq 200); do
+      take_sentinel || continue
+      printf "in %s\n" "$$" >>"$3"; sleep 0.01; printf "out %s\n" "$$" >>"$3"
+      release_sentinel
+    done' _ "$LIFECYCLE" "$TMP/race-sentinel" "$race_log" &
+done
+wait
+assert_eq "racing prunes hold the sentinel one at a time" "ok" \
+  "$(awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{print (bad||!n||h!="")?"overlap":"ok"}' "$race_log")"
+
 # --- 9. verify-before-mv: failed verify aborts, original untouched, exit 1 ---
 S="$(new_store verifyfail)"
 {

@@ -211,13 +211,13 @@ reclaim_tee_tmp() {
   return 0
 }
 
-# Lock directory currently held (see acquire_tee_lock below); a global for
+# Lock file currently held (see acquire_tee_lock below); a global for
 # the same trap-lifetime reason as TEE_TMP, and defined before the trap is
 # installed so an early exit never references an undefined function.
 TEE_LOCK=""
 
 release_tee_lock() {
-  [[ -n "$TEE_LOCK" ]] && rmdir "$TEE_LOCK" 2>/dev/null
+  [[ -n "$TEE_LOCK" ]] && rm -f "$TEE_LOCK" 2>/dev/null
   TEE_LOCK=""
   return 0
 }
@@ -227,7 +227,7 @@ release_tee_lock() {
 TEE_DRAIN_LOCK=""
 
 release_drain_lock() {
-  [[ -n "$TEE_DRAIN_LOCK" ]] && rmdir "$TEE_DRAIN_LOCK" 2>/dev/null
+  [[ -n "$TEE_DRAIN_LOCK" ]] && rm -f "$TEE_DRAIN_LOCK" 2>/dev/null
   TEE_DRAIN_LOCK=""
   return 0
 }
@@ -260,26 +260,45 @@ sweep_stale_tee_temps() {
   return 0
 }
 
+# Create the lock file $1, or return 1 when it already exists. noclobber is
+# bash's own O_EXCL open, so exactly one of any number of racers wins, on GNU,
+# uutils, macOS and Git Bash alike (flock is absent on Git Bash). `mkdir` is
+# not a safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers
+# both succeed. In-process rather than in a subshell, so it costs no fork on
+# the render path; nothing else in this script leaves noclobber on.
+#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
+#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
+#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
+#   As of: 2026-09-28.
+#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
+_rlg_lock_create() {
+  local rc=0
+  set -o noclobber
+  { : >"$1"; } 2>/dev/null || rc=1
+  set +o noclobber
+  return "$rc"
+}
+
 # Serialize the preservation decision with the rename. Check-then-write
 # without mutual exclusion lets a windowless writer pass its check, lose the
 # CPU to a window-bearing writer's rename, and then clobber the fresh windows
 # anyway — concurrent sessions are the normal operating model here. The lock
-# is a directory (mkdir-as-lock is atomic on every platform this runs on,
-# including Git Bash on Windows, where flock is unavailable). A holder killed
-# between mkdir and rmdir would leave the lock forever, so a contender steals
-# any lock older than the same one-minute age floor the temp sweep uses —
-# far above the sub-second hold time of a live writer. The release side lives
+# is a file taken by _rlg_lock_create. A holder killed between create and
+# remove would leave the lock forever, so a contender steals any lock older
+# than the same one-minute age floor the temp sweep uses — far above the
+# sub-second hold time of a live writer. The sweep matches any file type:
+# older versions took the same path as a directory. The release side lives
 # with the traps above.
 acquire_tee_lock() {
   local dir="$1" lock="$1/.rate-limits.json.lock" _try
   # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
   for _try in 1 2 3; do
-    if mkdir "$lock" 2>/dev/null; then
+    if _rlg_lock_create "$lock"; then
       TEE_LOCK="$lock"
       return 0
     fi
-    find "$dir" -maxdepth 1 -type d -name '.rate-limits.json.lock' \
-      -mmin +1 -exec rmdir {} + 2>/dev/null || true
+    find "$dir" -maxdepth 1 -name '.rate-limits.json.lock' \
+      -mmin +1 -delete 2>/dev/null || true
     sleep 0.1 2>/dev/null || true
   done
   return 1
@@ -913,7 +932,7 @@ _rlg_tee_run() {
 # DRAIN LOCK. The election takes its OWN lock (spool/.drain.lock), not the
 # snapshot lock. Two reasons, both load-bearing: tee_snapshot acquires and
 # releases the snapshot lock through one global, so a drain holding it would
-# have tee_snapshot burn its full retry budget and then rmdir the lock out from
+# have tee_snapshot burn its full retry budget and then remove the lock out from
 # under its own caller; and the snapshot lock's existing semantics — a
 # window-bearing writer proceeds through a lock it could not take — must keep
 # working, which a drain gated on that same lock would break.
@@ -954,19 +973,19 @@ _rlg_shard_name() {
 
 # Take the election lock, or return 1. No retry loop and no sleep: a render
 # that loses the election has nothing to wait for — the winner is doing the
-# work — so the collapse costs exactly one failed mkdir. The stale-lock steal
+# work — so the collapse costs exactly one failed create. The stale-lock steal
 # is attempted only when the stamp itself is far past due, which is the only
 # state a lock abandoned by a killed holder can produce.
 acquire_drain_lock() {
   local spool="$1" steal="$2" lock="$1/.drain.lock"
-  if mkdir "$lock" 2>/dev/null; then
+  if _rlg_lock_create "$lock"; then
     TEE_DRAIN_LOCK="$lock"
     return 0
   fi
   ((steal)) || return 1
-  find "$spool" -maxdepth 1 -type d -name '.drain.lock' \
-    -mmin +2 -exec rmdir {} + 2>/dev/null || true
-  if mkdir "$lock" 2>/dev/null; then
+  find "$spool" -maxdepth 1 -name '.drain.lock' \
+    -mmin +2 -delete 2>/dev/null || true
+  if _rlg_lock_create "$lock"; then
     TEE_DRAIN_LOCK="$lock"
     return 0
   fi

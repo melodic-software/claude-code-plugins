@@ -185,7 +185,7 @@ parity claim.
   unreadable ledger as zero restarts) would silently restore the full budget on
   exactly the file a crashed writer left behind, turning corruption into an
   unbounded restart loop.
-- **One mutating run at a time.** A `run` holds an mkdir-atomic sentinel
+- **One mutating run at a time.** A `run` holds an O_EXCL lock sentinel
   (`<data-dir>/lanes/<repo-key>/.restart-consumer-lock`, the idiom the
   observability prune's `.prune-in-progress` established) across the whole
   read → decide → relaunch → append span. This is not theoretical: the

@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.33] - 2026-09-28
+
+### Fixed
+
+- **The restart consumer's lock and the OTEL prune sentinel admit one holder on uutils
+  coreutils.** uutils `mkdir` (Ubuntu 25.10+) is not atomic: two racing calls can both
+  succeed, so two runs could relaunch the same lane or two prunes could overlap. Both keep
+  their lock directory, so readers that test for it still work, and now decide the race with
+  a token file inside it (`owner-pid`, `owner`) created with bash `noclobber`, an `O_EXCL`
+  open. Stale-lock recovery is unchanged.
+
 ## [0.63.32] - 2026-09-28
 
 ### Changed

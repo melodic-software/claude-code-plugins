@@ -508,6 +508,25 @@ OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/d
   --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
 assert_contains "check runs regardless of a held lock" "$OUT" "| work | would-restart |"
 
+# Sixteen acquirers race the arbiter in a tight loop; each winner logs in/out
+# around a short hold, and the log must never show two holders at once. Whole
+# runs start too far apart to race: uutils mkdir (Ubuntu 25.10+) lets two
+# racers both win, which only a tight loop like this one reproduces.
+RACE_LOG="$TMP/lock-race.log"
+: >"$RACE_LOG"
+for _ in $(seq 16); do
+  # shellcheck disable=SC2016  # the inner script expands its own variables
+  bash -c 'source "$1"; LOCK_DIR="$2"
+    for _ in $(seq 200); do
+      take_lock_dir || continue
+      printf "in %s\n" "$$" >>"$3"; sleep 0.01; printf "out %s\n" "$$" >>"$3"
+      remove_lock_dir
+    done' _ "$SCRIPT" "$TMP/race-lock" "$RACE_LOG" &
+done
+wait
+assert_eq "racing acquirers hold the lock one at a time" "ok" \
+  "$(awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{print (bad||!n||h!="")?"overlap":"ok"}' "$RACE_LOG")"
+
 # --- 18. A failed telemetry READ is api-error, never no-state ----------------
 # no-state means "the lane did not ask"; a gh blip must never wear that face.
 OUT="$(GH_LOG="$TMP/gh-apierr.log" GH_FAIL_COMMENTS=1 bash "$SCRIPT" check \
