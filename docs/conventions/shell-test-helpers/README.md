@@ -19,11 +19,12 @@ worked example.
 That mechanism exists for clusters that are meant to stay **byte-identical**. The assert-helper copies
 below are not that: they are three genuinely different *assertion-primitive* shapes (`ok`/`bad`,
 `pass`/`fail`, vendored-seam), not one library that drifted. The telemetry-sink pair
-`make_sink` / `wait_for_sink` is a different fact: one helper family that drifted, recorded
-below as sanctioned copy. Do not hoist it unpaid.
+`make_sink` / `wait_for_sink` is outside those three shapes and a different fact: one helper
+family that drifted, recorded below as sanctioned copy. Do not hoist it unpaid.
 
-- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters, plus `make_sink`/`wait_for_sink` for
-  hook telemetry): [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
+- **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; both files also carry a
+  `make_sink`/`wait_for_sink` copy that is not one of the three assertion-primitive shapes):
+  [`guardrails/hooks/guardrails-test-helpers.sh`](../../../plugins/guardrails/hooks/guardrails-test-helpers.sh),
   [`claude-ops/hooks/claude-ops-test-helpers.sh`](../../../plugins/claude-ops/hooks/claude-ops-test-helpers.sh).
   Fourteen other suites still define `make_sink` inline (formatter family, `actionlint`,
   `desktop-notification`, `context-guard`, `autonomy`, and `lib/hook-utils.test.sh`). Those
@@ -72,8 +73,8 @@ denominator or grow branching per caller. Neither is simpler than each script do
 
 ## make_sink copies (sanctioned until a plugin-local helper)
 
-Option A: park a repo-wide hoist. Declare the remaining inline copies sanctioned. Do not rewrite
-the formatter fleet unpaid.
+Park a repo-wide hoist. Declare the remaining inline copies sanctioned. Do not rewrite the
+formatter fleet unpaid.
 
 - **Claim:** `make_sink` / `wait_for_sink` is one helper family that drifted. A repo-wide
   hoist into `lib/` plus `sync-*.sh`, or a rewrite of the fourteen inline suites onto a new
