@@ -29,13 +29,13 @@ check "no glob appears twice" '[[ "$(sort <<<"$rows" | uniq -d)" == "" ]]'
 
 matches_source=""
 while IFS= read -r row; do
-  glob="${row#Edit(}"
+  glob="${row#*(}"
   glob="${glob%)}"
   # shellcheck disable=SC2053  # the glob is the pattern
   [[ app.ts == $glob ]] && matches_source+="$row "
 done <<<"$rows"
 check "no row matches src/app.ts" '[[ -z "$matches_source" ]]'
-check "a real test name is covered" 'grep -qF "Edit(*.test.ts)" <<<"$rows"'
+check "a real test name is covered for Write and Edit" 'grep -qF "Write(*.test.ts)" <<<"$rows" && grep -qF "Edit(*.test.ts)" <<<"$rows"'
 
 backup="$(mktemp)"
 cp "$HOOKS" "$backup"

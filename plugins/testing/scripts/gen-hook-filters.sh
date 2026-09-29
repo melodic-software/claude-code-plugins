@@ -4,8 +4,10 @@
 # The test-scan hook starts only for paths an `if` row matches, and those rows
 # must list exactly the test-file globs the scanner claims, so they are
 # generated from one source: the union of every shipped adapter's files: list,
-# deduplicated and sorted. One row per glob, because an `if` holds one rule.
-# A glob with no slash matches the basename at any depth (gitignore syntax).
+# deduplicated and sorted. An `if` holds one rule and names one tool, so each
+# glob gets a Write row and an Edit row: an Edit(...) row does not match a
+# Write call (probes.md). A glob with no slash matches the basename at any
+# depth (gitignore syntax).
 #
 # Usage: gen-hook-filters.sh [--check]
 #   (no arg)  rewrite hooks/hooks.json
@@ -28,12 +30,12 @@ json="$(jq -R . <<<"$globs" | jq -s '{
   description: "Scans a test file for tests that cannot fail after Claude writes or edits it (opt-in: test_guards_enabled).",
   hooks: {PostToolUse: [{
     matcher: "Write|Edit|MultiEdit",
-    hooks: [.[] | {
+    hooks: [.[] as $g | ("Write", "Edit") | {
       type: "command",
       command: "node",
       args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "TEST_GUARDS_ENABLED",
         "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"],
-      if: "Edit(\(.))",
+      if: "\(.)(\($g))",
       timeout: 10,
       statusMessage: "Scanning the test file for tests that cannot fail..."
     }]
