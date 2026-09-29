@@ -81,6 +81,7 @@ rules; the classifier's shapes and tiers above are the skill's built-in baseline
 - **Comment-scoped detection.** Only the comment portion of a line is classified. Residue-shaped words in code (identifiers, string literals) are not flagged.
 - **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` / `HACK` / `XXX` marker tracking real work is never flagged as ticket residue. The marker must be a whole word opening the comment or a clause and followed by `(` or `:`.
 - **Opt-out markers respected.** `comment-residue-ignore` on a line (or the line before it) skips it.
+- **Synced and generated files.** A finding in a file whose first 10 lines say `sync-managed`, `do not edit` or `@generated` belongs upstream, where the file is produced. The script labels it with a `Note: upstream (sync-managed or generated file) <path>` line before that file's summary, and the finding still counts in the tiers; nothing is silently hidden. To leave files out of a run on purpose, pass `--exclude-from <file>`: one root-relative glob per line, blank lines and `#` lines ignored, a missing file exits 2, and the run reports `Note: excluded N file(s) by --exclude-from`. That list is separate from `.claude/code-tidying/exclusion-overrides.md`, which lifts `/code-tidying:tidy`'s hard exclusions and has the inverse meaning.
 - **Output deterministic.** Filenames sort lexically; findings sort by line number; no timestamps.
 
 ## Output schema

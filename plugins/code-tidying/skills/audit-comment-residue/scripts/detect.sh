@@ -24,6 +24,7 @@ cr_anchor_path() {
 }
 
 PATHS_FILE=""
+EXCLUDE_FILE=""
 TARGETS=()
 
 usage() {
@@ -33,11 +34,18 @@ detect.sh — emit comment-residue findings for /audit-comment-residue.
 Usage:
   detect.sh <file>...
   detect.sh --paths-file <file>
+  detect.sh [--exclude-from <file>] [<file>...]
   detect.sh --help
 
 Audits code files only (markdown is /audit-noise's territory and is skipped).
 When no paths are given, audits the uncommitted code files of the repository
-it runs in (from git status). Exit: 0 on audit, 2 on unknown arguments.
+it runs in (from git status).
+
+--exclude-from <file> skips targets matching a root-relative glob, one per line
+(blank lines and lines starting with '#' are ignored) and reports how many.
+A file whose first 10 lines carry sync-managed, do not edit or @generated gets
+a "Note: upstream" line before its summary. Exit: 0 on audit, 2 on unknown
+arguments or a missing --exclude-from file.
 EOF
 }
 
@@ -49,6 +57,14 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     PATHS_FILE="$2"
+    shift 2
+    ;;
+  --exclude-from)
+    if [[ $# -lt 2 ]]; then
+      echo "detect.sh: --exclude-from requires a value" >&2
+      exit 2
+    fi
+    EXCLUDE_FILE="$2"
     shift 2
     ;;
   -h | --help)
@@ -81,6 +97,13 @@ if [[ ${#TARGETS[@]} -gt 0 ]]; then
   TARGETS=("${ANCHORED[@]}")
 fi
 [[ -n "$PATHS_FILE" ]] && PATHS_FILE="$(cr_anchor_path "$PATHS_FILE")"
+if [[ -n "$EXCLUDE_FILE" ]]; then
+  EXCLUDE_FILE="$(cr_anchor_path "$EXCLUDE_FILE")"
+  if [[ ! -f "$EXCLUDE_FILE" ]]; then
+    echo "detect.sh: --exclude-from file not found: $EXCLUDE_FILE" >&2
+    exit 2
+  fi
+fi
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 if [[ -n "$repo_root" ]]; then
@@ -111,22 +134,52 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   fi
 fi
 
+EXCLUDE_GLOBS=()
+if [[ -n "$EXCLUDE_FILE" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    [[ -z "$line" || "$line" == '#'* ]] && continue
+    EXCLUDE_GLOBS+=("$line")
+  done <"$EXCLUDE_FILE"
+fi
+excluded=0
+
+# True when the target, made root-relative, matches an --exclude-from glob.
+cr_is_excluded() {
+  local rel="$1" glob
+  rel="${rel#"$repo_root"/}"
+  rel="${rel#"$INVOCATION_CWD"/}"
+  rel="${rel#./}"
+  for glob in ${EXCLUDE_GLOBS[@]+"${EXCLUDE_GLOBS[@]}"}; do
+    # shellcheck disable=SC2053
+    [[ "$rel" == $glob ]] && return 0
+  done
+  return 1
+}
+
+cr_excluded_note() {
+  [[ -n "$EXCLUDE_FILE" ]] && printf 'Note: excluded %s file(s) by --exclude-from\n' "$excluded"
+  return 0
+}
+
 # Expand directory targets to the files inside them (recursive); filter every target down to
 # code files (markdown is /audit-noise's job, so a .md target is silently skipped).
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then
     while IFS= read -r f; do
-      cr_is_code_file "$f" && EXPANDED+=("$f")
+      cr_is_code_file "$f" || continue
+      if cr_is_excluded "$f"; then excluded=$((excluded + 1)); else EXPANDED+=("$f"); fi
     done < <(find "$target" -type f 2>/dev/null)
   elif cr_is_code_file "$target"; then
-    EXPANDED+=("$target")
+    if cr_is_excluded "$target"; then excluded=$((excluded + 1)); else EXPANDED+=("$target"); fi
   fi
 done
 
 if [[ ${#EXPANDED[@]} -eq 0 ]]; then
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: no code targets — pass code file paths or edit some tracked code files"
+  cr_excluded_note
   exit 0
 fi
 
@@ -210,6 +263,9 @@ audit_file() {
     prev_shapes="$shapes"
   done <"$file"
 
+  if ((t1 + t2 + t3 > 0)) && head -n 10 "$file" | grep -qiE 'sync-managed|do not edit|@generated'; then
+    printf 'Note: upstream (sync-managed or generated file) %s\n' "$file"
+  fi
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"
 }
 
@@ -217,5 +273,6 @@ for file in "${SORTED[@]}"; do
   audit_file "$file"
 done
 
+cr_excluded_note
 printf 'Summary total: files=%s T1=%s T2=%s T3=%s\n' "$files_audited" "$total_t1" "$total_t2" "$total_t3"
 exit 0
