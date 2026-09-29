@@ -4,6 +4,9 @@
 # confirmation (--yes, or a single prompt on a terminal).
 # Non-fast-forward, dubious ownership, and a partial stash apply are skipped
 # and reported. Nothing is reset.
+# Parking dirty work needs --worktree-create <path to worktree-create.sh>, the
+# only way this script learns of the helper; without it a dirty repo is skipped.
+# --worktree-root overrides the root the helper resolves from the repository.
 # A skipped line is skipped<TAB>repo<TAB>reason[<TAB>extra]<TAB>git-exit=<n><TAB>remedy=<text>.
 # git-exit is the status of the command that failed (the worktree helper's for
 # a worktree skip), or none when a plan rule skipped the repo.
@@ -79,12 +82,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$WT_CREATE" ]]; then
-  sibling="${SCRIPT_DIR}/../../../../source-control/scripts/worktree-create.sh"
-  if [[ -f "$sibling" ]]; then
-    WT_CREATE="$sibling"
-  fi
-fi
+[[ -z "$WT_CREATE" ]] || [[ -f "$WT_CREATE" && "${WT_CREATE##*/}" == worktree-create.sh ]] ||
+  fail "--worktree-create must name an existing file called worktree-create.sh: $WT_CREATE"
 
 [[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
 
@@ -212,7 +211,7 @@ for repo in "${REPOS[@]}"; do
   dirty="$(git -C "$canonical" status --porcelain 2>/dev/null || true)"
   if [[ -n "$dirty" && -z "$current" ]]; then
     add_plan "$canonical" skip "" "detached-dirty"
-  elif [[ -n "$dirty" && ( -z "$WT_CREATE" || -z "$WT_ROOT" ) ]]; then
+  elif [[ -n "$dirty" && -z "$WT_CREATE" ]]; then
     add_plan "$canonical" skip "" "worktree-create-missing"
   elif [[ -n "$dirty" && "$current" != "$branch" ]]; then
     add_plan "$canonical" park-existing "$branch" "$current"
@@ -325,17 +324,25 @@ unpark() {
 # the checkout on the default branch, give <held> a linked worktree, and move
 # the work (stash <sha>, taken on <held>) into it.
 park_finish() {
-  local action="$1" repo="$2" branch="$3" held="$4" sha="$5" back="${6:-}" rc wt
+  local action="$1" repo="$2" branch="$3" held="$4" sha="$5" back="${6:-}" rc wt errf said hint=""
+  local args=(--name "$held" --existing-branch --repo-dir "$repo")
+  # Without --root the helper resolves the root from the repository itself.
+  [[ -z "$WT_ROOT" ]] || args+=(--root "$WT_ROOT")
   switch_default "$repo" "$branch" || {
     rc=$?
     report_skip "$repo" fetch-or-switch "$rc" "git fetch or git switch to $branch failed; check that origin is reachable, then rerun (on stash-kept the work is still in stash $sha)" "$(unpark "$repo" "$held" "$sha" "$back")"
     return
   }
-  wt="$(bash "$WT_CREATE" --name "$held" --existing-branch --root "$WT_ROOT" --repo-dir "$repo")"
+  errf="$(mktemp)"
+  wt="$(bash "$WT_CREATE" "${args[@]}" 2>"$errf")"
   rc=$?
+  said="$(head -n 1 "$errf" | tr '\t\r' '  ')"
+  cat "$errf" >&2
+  rm -f "$errf"
   # Helper exit 4 and 5 leave a worktree on disk (worktree-create.sh header): keep it.
   if ! [[ "$rc" =~ ^(0|4|5)$ && -n "$wt" && -d "$wt" ]]; then
-    report_skip "$repo" worktree "$rc" "worktree-create.sh exited $rc and reported no usable worktree; see its message above, then rerun (on stash-kept the work is still in stash $sha; check git worktree list for a worktree the helper left)" "$(unpark "$repo" "$held" "$sha" "$back")"
+    ((rc != 3)) || hint="; set worktreeroot.path in the repository's git config, or pass --worktree-root <dir>"
+    report_skip "$repo" worktree "$rc" "worktree-create.sh exited $rc and reported no usable worktree (${said:-no message})$hint; then rerun (on stash-kept the work is still in stash $sha; check git worktree list for a worktree the helper left)" "$(unpark "$repo" "$held" "$sha" "$back")"
     return
   fi
   ((rc == 0)) || printf 'note: %s: worktree-create.sh exited %s but the worktree exists at %s; continuing with the stash apply (its warning is above)\n' "$repo" "$rc" "$wt" >&2
@@ -364,7 +371,7 @@ for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
     dubious-or-unreadable) remedy="if git names dubious ownership, run git config --global --add safe.directory '$repo' once you trust its owner; otherwise check that it is a readable git repository" ;;
     ls-remote) remedy="check that origin is reachable and names a default branch: git -C '$repo' ls-remote --symref origin HEAD" ;;
     detached-dirty) remedy="check out a branch or commit the work in '$repo', then rerun" ;;
-    worktree-create-missing) remedy="pass --worktree-root and --worktree-create <worktree-create.sh> so the work can be parked, or commit or stash it in '$repo' by hand" ;;
+    worktree-create-missing) remedy="pass --worktree-create <path to source-control's scripts/worktree-create.sh> so the work can be parked, or park it by hand with /source-control:worktree create --existing-branch, or commit or stash it in '$repo'" ;;
     *) remedy="see the reason" ;;
     esac
     report_skip "$repo" "$note" "${PLAN_RC[$i]}" "$remedy"

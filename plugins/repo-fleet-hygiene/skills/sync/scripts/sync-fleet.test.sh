@@ -151,16 +151,49 @@ nowt="$(bash "$SCRIPT" --repo "$dirty" --apply --yes)"
 code=$?
 if [[ "$nowt" == *$'skip\t'"$dirty"$'\t\tworktree-create-missing'* && "$(git -C "$dirty" branch --show-current)" == "feature" &&
   -f "$dirty/DIRTY.md" && -z "$(git -C "$dirty" stash list)" ]]; then
-  pass "a park with no worktree root is skipped before anything changes"
+  pass "a park with no worktree helper is skipped before anything changes"
 else
-  fail "a park with no worktree root is skipped before anything changes" "$nowt"
+  fail "a park with no worktree helper is skipped before anything changes" "$nowt"
 fi
 expect "a plan-rule skip exits 1 with git-exit=none and a remedy" "code=$code $nowt" \
   has "$nowt" $'skipped\t'"$dirty"$'\tworktree-create-missing\tgit-exit=none\tremedy='
 expect "a plan-rule skip exits 1" "code=$code" is "$code" 1
+expect "the no-helper remedy names the helper argument and the manual route" "$nowt" \
+  has "$nowt" "--worktree-create <path to source-control's scripts/worktree-create.sh>"
+expect "the no-helper remedy names the manual worktree route" "$nowt" \
+  has "$nowt" "/source-control:worktree create --existing-branch"
+rooted_only="$(bash "$SCRIPT" --repo "$dirty" --worktree-root "$wtroot")"
+expect "a worktree root alone does not enable a park" "$rooted_only" \
+  has "$rooted_only" $'skip\t'"$dirty"$'\t\tworktree-create-missing'
 
-printf 'exit 1\n' >"$TMP/fail-create.sh"
-broken="$(bash "$SCRIPT" --repo "$dirty" --apply --yes --worktree-root "$wtroot" --worktree-create "$TMP/fail-create.sh")"
+# The helper is named only by --worktree-create, and only a file called worktree-create.sh.
+mkdir "$TMP/fail" "$TMP/helper-dir" "$TMP/helper-dir/worktree-create.sh"
+printf 'exit 1\n' >"$TMP/fail/worktree-create.sh"
+printf 'exit 0\n' >"$TMP/fail-create.sh"
+for bad in "$TMP/fail-create.sh" "$TMP/absent/worktree-create.sh" "$TMP/helper-dir/worktree-create.sh"; do
+  bash "$SCRIPT" --repo "$dirty" --worktree-create "$bad" >"$TMP/bad.out" 2>"$TMP/bad.err"
+  code=$?
+  expect "--worktree-create $bad is refused with exit 2" "code=$code $(cat "$TMP/bad.err")" is "$code" 2
+  expect "a refused --worktree-create names the rule and plans nothing" "$(cat "$TMP/bad.err") $(cat "$TMP/bad.out")" \
+    is "$(grep -c 'must name an existing file called worktree-create.sh' "$TMP/bad.err")|$(wc -c <"$TMP/bad.out" | tr -d ' ')" "1|0"
+done
+
+# The source-control plugin next door is never probed: a decoy in its place stays unread.
+layout="$TMP/layout"
+mkdir -p "$layout/source-control/scripts"
+cp -R "$SCRIPT_DIR/../../.." "$layout/repo-fleet-hygiene"
+printf '#!/usr/bin/env bash\ntouch "%s"\necho "%s"\n' "$TMP/decoy.ran" "$TMP/decoy-worktree" >"$layout/source-control/scripts/worktree-create.sh"
+for sibling in "a decoy" no; do
+  [[ "$sibling" != no ]] || rm -rf "$layout/source-control"
+  copy="$(bash "$layout/repo-fleet-hygiene/skills/sync/scripts/sync-fleet.sh" --repo "$dirty" --apply --yes --worktree-root "$wtroot")"
+  code=$?
+  expect "with $sibling source-control sibling, a park is skipped as worktree-create-missing" "code=$code $copy" \
+    has "$copy" $'skipped\t'"$dirty"$'\tworktree-create-missing\tgit-exit=none'
+  expect "with $sibling source-control sibling, nothing is stashed and no helper ran" "$(git -C "$dirty" stash list)" \
+    is "$([[ -e "$TMP/decoy.ran" ]] && echo ran)|$(git -C "$dirty" stash list)" "|"
+done
+
+broken="$(bash "$SCRIPT" --repo "$dirty" --apply --yes --worktree-root "$wtroot" --worktree-create "$TMP/fail/worktree-create.sh")"
 if [[ "$broken" == *$'skipped\t'"$dirty"$'\tworktree\trestored'* && "$(git -C "$dirty" branch --show-current)" == "feature" &&
   -f "$dirty/DIRTY.md" && "$(git -C "$dirty" diff --cached --name-only)" == "STAGED.md" && -z "$(git -C "$dirty" stash list)" ]]; then
   pass "a failed worktree create puts the branch and the stash back"
@@ -181,14 +214,17 @@ else
   fail "dirty non-default branch is parked in a worktree" "$parked"
 fi
 
-# Test double for worktree-create.sh. STUB_FOREIGN=1 makes another session push
-# a stash first, STUB_REAL=1 creates the real worktree and prints its path, and
-# STUB_EXIT ends the run with that status.
+# Test double for worktree-create.sh. It records its arguments in $STUB_LOG.
+# STUB_FOREIGN=1 makes another session push a stash first, STUB_REAL=1 creates
+# the real worktree and prints its path, and STUB_EXIT ends the run with that
+# status.
 mkdir "$TMP/stub"
 STUB="$TMP/stub/worktree-create.sh"
+export STUB_LOG="$TMP/stub.args"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
 args=("$@")
+printf '%s\n' "$*" >"$STUB_LOG"
 repo=""
 while [[ $# -gt 0 ]]; do
   [[ "$1" == --repo-dir ]] && repo="$2"
@@ -217,13 +253,18 @@ dirty_clone() {
   git -C "$1" add STAGED.md
 }
 
-# run_park <repo> <worktree-root>: apply with the stub helper under the caller's
-# STUB_* variables; sets OUT, ERR, CODE, and WT (the applied worktree path).
+# run_park <repo> [<worktree-root>]: apply with the stub helper under the
+# caller's STUB_* variables, passing --worktree-root only when a root is given;
+# sets OUT, ERR, CODE, ARGS (what the helper was called with), and WT (the
+# applied worktree path).
 run_park() {
-  mkdir -p "$2"
-  OUT="$(bash "$SCRIPT" --repo "$1" --apply --yes --worktree-root "$2" --worktree-create "$STUB" 2>"$TMP/park.err")"
+  local root=()
+  [[ -z "${2:-}" ]] || { mkdir -p "$2"; root=(--worktree-root "$2"); }
+  rm -f "$STUB_LOG"
+  OUT="$(bash "$SCRIPT" --repo "$1" --apply --yes ${root[@]+"${root[@]}"} --worktree-create "$STUB" 2>"$TMP/park.err")"
   CODE=$?
   ERR="$(cat "$TMP/park.err")"
+  ARGS="$(cat "$STUB_LOG" 2>/dev/null)"
   WT="$(printf '%s\n' "$OUT" | awk -F '\t' '$1 == "applied" { print $4 }')"
   WT="${WT:-$TMP/no-worktree}"
 }
@@ -241,6 +282,7 @@ expect "a park applies its own stash by SHA, not the top of the stack" "$d" rest
 expect "a park drops only its own stash and the other session's survives" "$d $(stash_subjects "$repo_a")" \
   is "$(stash_subjects "$repo_a")" "On main: foreign-session"
 expect "an applied park exits 0" "$d" is "$CODE" 0
+expect "--worktree-root reaches the helper as --root" "$d args=$ARGS" has "$ARGS" "--root $TMP/wt-a"
 
 # The same push, then a failed worktree create: unpark must restore its own entry.
 repo_b="$TMP/park-b"
@@ -266,6 +308,30 @@ expect "helper exit 3 is unparked and reported with its status" "$d" \
 expect "helper exit 3 leaves the work in place and the stash empty" "$d" \
   restored_in_place "$repo_c"
 expect "helper exit 3 leaves no stash" "$d" is "$(stash_subjects "$repo_c")" ""
+expect "helper exit 3 quotes the helper's first stderr line and names the root remedy" "$d" \
+  has "$OUT" "(stub: warning, exiting 3); set worktreeroot.path"
+
+# Without --worktree-root the helper gets no --root and resolves the root from the repository.
+repo_h="$TMP/park-h"
+dirty_clone "$repo_h" feature-h
+git -C "$repo_h" config worktreeroot.path "$TMP/wt-h"
+STUB_REAL=1 run_park "$repo_h"
+d="code=$CODE out=$OUT err=$ERR args=$ARGS"
+expect "an unset --worktree-root keeps --root out of the helper call" "$d" \
+  is "$([[ " $ARGS " == *" --root "* ]] && echo root)" ""
+expect "an unset --worktree-root parks under the repository's worktreeroot.path" "$d" has "$WT" "$TMP/wt-h/"
+expect "an unset --worktree-root still parks the work in the worktree" "$d" restored_in_place "$WT"
+
+# The real helper refuses when no root resolves anywhere: unparked, skipped, its message quoted.
+repo_i="$TMP/park-i"
+dirty_clone "$repo_i" feature-i
+OUT="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT" --repo "$repo_i" --apply --yes --worktree-create "$HELPER" 2>"$TMP/park.err")"
+CODE=$?
+d="code=$CODE out=$OUT err=$(cat "$TMP/park.err")"
+expect "no root anywhere skips the repo as helper exit 3, restored, with a remedy" "$d" \
+  has "$OUT" $'skipped\t'"$repo_i"$'\tworktree\trestored\tgit-exit=3\tremedy=worktree-create.sh exited 3'
+expect "no root anywhere leaves the work in place and no stash" "$d" \
+  is "$(restored_in_place "$repo_i" && echo in-place)|$(stash_subjects "$repo_i")" "in-place|"
 
 # Helper status 4 and 5 with a path: the worktree exists, so the park continues.
 for status in 4 5; do
