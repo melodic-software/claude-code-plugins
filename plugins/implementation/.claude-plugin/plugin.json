@@ -20,7 +20,7 @@
     "implement_dispatch_wave_cap": {
       "type": "number",
       "title": "Dispatch wave cap",
-      "description": "Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. The cap changes behavior only when several rows may share a worktree, which is commit authority orchestrator with an assigned worktree; under the default worker authority, and in the autonomous work-lane with worker-side provisioning, rows in one worktree already run one at a time whatever the cap allows. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one.",
+      "description": "Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that share a worktree under the default worker authority are further serialized to one at a time, whatever the cap allows. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one.",
       "min": 1
     }
   }

@@ -12,6 +12,10 @@ All notable changes to the `implementation` plugin are documented here. Format f
   duplicate-rule check from [#4279](https://github.com/melodic-software/claude-code-plugins/issues/4279)
   returns 1 per rule again. The build/test gate timing names its commit-authority exception, and the
   index-lock claim no longer asserts git internals.
+- **Review fixes.** The re-attach slice's verifier gate carries the interactive mechanical carve-out,
+  the `phase-verifier` body no longer restates the unavailable-`PowerShell` behavior (the `implementer`
+  record owns it), and the `implement_dispatch_wave_cap` description says the cap bounds all rows in
+  flight while shared-worktree rows under `worker` authority are further serialized.
 - **The compaction re-attach slice keeps the phase-verifier rule** ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)),
   and `reattach-slice.test.sh` pins it with the other four gates.
 - **`implement` Step 5 requires a stated skip.** A run that ends without outcome verification against the

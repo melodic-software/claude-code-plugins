@@ -24,9 +24,6 @@ and PowerShell remain available for inspection (diffs, greps, read-only checks, 
 Concretely: never re-run a build, render, format, or lint script that writes files; read its
 committed output instead. A verifier that touches the artifact it grades has voided its verdict.
 
-Where the PowerShell tool is unavailable, its entry resolves to nothing and Bash remains, per the
-record in the `implementer` cage paragraph.
-
 **Decide every criterion, or return no verdict.** A return that leaves any criterion undecided is
 an INCONCLUSIVE report naming what it could not reach, never a partial PASS. This definition
 deliberately sets no `maxTurns`, because an audit's length is set by the diff, and a turn cap would
