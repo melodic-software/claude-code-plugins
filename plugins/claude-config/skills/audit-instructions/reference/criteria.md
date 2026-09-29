@@ -1,5 +1,5 @@
 ---
-version: 1.23.0
+version: 1.24.0
 last-updated: 2026-09-28
 ---
 
@@ -377,8 +377,12 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-- **Detect:** a bare "never / do not / don't" instruction. The deterministic pre-scan marks
-  candidate lines; a line already carrying a rationale marker is a weaker candidate.
+- **Detect:** a bare "never / do not / don't" instruction. The deterministic pre-scan seeds a
+  sentence that opens with the prohibition and carries neither a paired positive ("instead",
+  "rather than", "prefer", "in place of") nor a rationale marker, joining soft-wrapped paragraph
+  lines into one sentence and never reading frontmatter, fenced code, table rows, or headings.
+  Those exclusions are structural, not this row's fences: a prohibition the seed skips is still
+  in scope when the lane reads it, and the report states the raw and surviving seed counts.
 - **Remediate:** reframe positively, stating what to do instead, as the primary fix. Where a
   genuine hard "never" survives, keep it but add its rationale (see I7) as the fallback.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
@@ -2025,6 +2029,10 @@ invocation or reads on demand other than its `SKILL.md`, such as `reference/`, `
 - **Must NOT flag:** a one-line scope note that bounds the file's subject ("Windows only"); the
   hub's own index table, which is where loading conditions belong; frontmatter.
 - **Remediate:** delete the self-description; keep the loading condition in the hub's index row.
+- **Reporting:** one finding per spoke, anchored by an excerpt (`e:`) over the opener sentence, with
+  its heading path as the duplicate discriminator. A whole-surface (`s:`) anchor survives this row's
+  own remediation, so it never keys an I33 finding. I33 is lane-only (no pre-scan seed), and each
+  lane brief restates the Must NOT flag fences above.
 
 ---
 

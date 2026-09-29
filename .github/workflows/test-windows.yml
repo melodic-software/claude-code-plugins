@@ -173,20 +173,21 @@ jobs:
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
   #
-  # GUARDRAILS SUITES ARE NOT IN THIS LANE (#4527). Six of 22
-  # `plugins/guardrails/hooks/*.test.sh` and `lib/git-hooks/*.test.sh` suites
-  # fail on a Windows 11 Git Bash host and none of them run here, so a Windows
-  # regression in those six currently ships green:
-  #   block-hook-bypass, block-windows-drive-tmp, coverage-manifest,
-  #   hardcoded-path-check, run-guards, secret-pattern-detection.
-  # `hardcoded-path-check` and `block-windows-drive-tmp` overlap #3683 (host-skip
-  # the path-form cases; drive-tmp is a real MSYS writer-path gap, not a skip).
-  # `block-hook-bypass` carries host-gated `windows temp:` cases that have never
-  # run in CI. `coverage-manifest` and `run-guards` may not be Windows-specific.
-  # Do not add these suites here without a per-suite triage against this job's
-  # 20-minute timeout and the ~140 ms spawn cost; a host-skip or a Linux-side
-  # fix is the default until that triage lands. Each host-gated case that still
-  # cannot run must print a counted SKIP line rather than pass silently.
+  # GUARDRAILS (#4527). Six suites failed on a Windows 11 Git Bash host and
+  # none of them ran here. Triage, against this job's 20-minute timeout:
+  #   block-windows-drive-tmp — OSTYPE/cygpath writer lane. Runs here.
+  #   hardcoded-path-check — cygpath repo-relative telemetry. Runs here.
+  #   run-guards — NOT here yet. The git.exe shim fixes the post-verify count,
+  #     but the Windows run still fails its hooks.json dispatch-table, BASHPID
+  #     and post-lane merge cases; each needs its own triage.
+  #   secret-pattern-detection, block-hook-bypass — NOT here yet. Their temp
+  #     exemptions need hook::physical_path_to to follow symlinks, and Git Bash
+  #     offers no resolver it can trust, so on this host the exemption fails
+  #     closed and the D1 / `windows temp:` cases block. A cygpath fallback was
+  #     rejected: cygpath does not follow symlinks, which reopens #3727.
+  #   coverage-manifest — README/permissions sync. It passes on Linux and has
+  #     no OSTYPE branch, so it stays on the Linux lane.
+  # A host-gated case that cannot run must print a counted SKIP line.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
@@ -241,6 +242,12 @@ jobs:
       # discovered.
       - name: Test the file-name rename executor on Windows
         run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
+      # Guardrails suites whose guards branch on OSTYPE, cygpath, or MSYS
+      # (#4527). coverage-manifest is a README sync check and stays on Linux.
+      - name: Test block-windows-drive-tmp on Windows
+        run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
+      - name: Test hardcoded-path-check on Windows
+        run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
