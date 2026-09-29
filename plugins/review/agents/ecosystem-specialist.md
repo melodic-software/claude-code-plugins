@@ -25,7 +25,7 @@ Resolve each ecosystem's build / test / check command from the first source that
 2. **Otherwise, the consuming project's documented conventions.** Read the project rules, contributing docs, `package.json` scripts, `Makefile`/`justfile` targets, and CI workflow files. Projects often encode their canonical build/test/lint commands, with flags and gotchas. Use those verbatim.
 3. **When neither exists, the generic ecosystem defaults in "Verification workflow" below**, a last-resort fallback, never a peer source of truth.
 
-This agent is read-only, so it stops at "documented conventions" and the bundled defaults. It deliberately omits the contract's infer-and-persist and ask-user rungs, which belong to a plugin with a `setup`/write action, not a reviewer.
+This agent does not edit the reviewed code, by instruction (it runs build and test commands that write artifacts), so it stops at "documented conventions" and the bundled defaults. It deliberately omits the contract's infer-and-persist and ask-user rungs, which belong to a plugin with a `setup`/write action, not a reviewer.
 
 ## Verification workflow
 

@@ -57,7 +57,9 @@ body {
   line-height: 1.55;
 }
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
-:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
+}
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: 0.45rem 0.5rem; vertical-align: top; }
 code { font-family: var(--mono); }
