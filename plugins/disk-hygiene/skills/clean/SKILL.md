@@ -374,7 +374,8 @@ The destructive command runs only through `managed-apply`, with the same
 commands call `gate_exact_tier_approval`. Get its approval token from
 `preview --lane managed` with the same snapshot and plan; a plain `preview` runs the
 deletion lane, which blocks every managed candidate. The managed preview re-stats the
-approved path and checks the registry. It does not apply the deletion lane's
+approved path, checks the registry, and blocks on any recorded or consumer protection
+under the path, because an owner command can empty the directory it owns. It does not apply the deletion lane's
 unlink prerequisites, descendant-set equality, or live-handle probe: those
 exist so `apply` can delete, and a live owner's directory would otherwise
 never clear. The lane executes the registry argv and does not delete the

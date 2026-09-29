@@ -20,7 +20,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   uses; `preview --lane managed` issues its approval token. The engine deletion
   lane is unchanged: managed candidates stay `native-managed-report-only`.
   The container probe lists no symlink or reparse point, so a linked `.cache`
-  or `AppData` cannot pull rows from outside the target. Each registry entry
+  or `AppData` cannot pull rows from outside the target. The managed preview
+  blocks on any scan-recorded protection or consumer-protected glob under the
+  candidate, since an owner command such as `dotnet nuget locals all --clear`
+  empties the directory it owns. Each registry entry
   that names a command carries its upstream basis, verification date, and
   recheck trigger.
 

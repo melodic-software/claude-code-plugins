@@ -3332,6 +3332,12 @@ def preview(
             # path itself and then stops: the registry command is not a delete.
             if not same_identity(path, entries[relative]):
                 blockers.append("changed-since-scan")
+            # Protection still binds: an owner command such as
+            # `dotnet nuget locals all --clear` empties the directory it owns.
+            for name in expected_paths:
+                blockers.extend(entries[name].get("protected_reasons") or [])
+                if any(glob_matches(name, pattern) for pattern in globs):
+                    blockers.append("consumer-protected-path")
             state, detail = "clear", None
         else:
             if "truncated-not-inventoried" in blockers:

@@ -11794,6 +11794,37 @@ class ManagedStateLaneTests(unittest.TestCase):
             )
         )
 
+    def test_managed_preview_keeps_consumer_protection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            kept = root / "AppData" / "Local" / "Docker" / "kept.bin"
+            kept.parent.mkdir(parents=True)
+            kept.write_text("state", encoding="utf-8")
+            policy = hygiene.load_policy(None)
+            policy["additional_protected_path_globs"] = ["**/kept.bin"]
+            snapshot = hygiene.scan_tree(root.resolve(), policy)
+            managed = candidate("AppData/Local/Docker")
+            managed["owner"] = "Docker Desktop"
+            managed["native_gc_evidence"] = {
+                "command": hygiene.owner_registry.render_argvs(
+                    [
+                        ["docker", "image", "prune", "-f"],
+                        ["docker", "builder", "prune", "-f"],
+                    ]
+                ),
+                "result": "eligible",
+            }
+            plan = {"version": 1, "tier": "high", "candidates": [managed]}
+            with (
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene.owner_registry, "tool_present", return_value=True),
+            ):
+                checked = hygiene.preview(snapshot, plan, lane="managed")
+            self.assertEqual("blocked", checked["outcome"])
+            self.assertIn(
+                "consumer-protected-path", checked["candidates"][0]["blockers"]
+            )
+
     def test_managed_apply_runs_registry_argv_and_does_not_delete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
