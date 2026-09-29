@@ -140,9 +140,10 @@ never merged autonomously in ANY tier, the merge gate refuses it absent `--allow
 which is passed only on an explicit user instruction to merge that specific PR.
 
 **Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
-the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
-label is held the same way. The PR is reported and left unmerged. The hyphenated label name in a
-body is not a hold.
+the merge gate reads the live body and reports a blocker. A PR carrying a `do-not-merge` label is
+also left unmerged: the autopilot merge tier enforces it in the gate through `--block-labels`, and
+in the other tiers the gate only surfaces the labels, so the agent reads them and holds the PR. The
+PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
