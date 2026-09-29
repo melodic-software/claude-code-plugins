@@ -1697,38 +1697,61 @@ run_pwsh "PS hs: the removed token string does not open the expandable-body sink
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
 # THE BUDGET REFUSES (#4682). Once the loop has blanked five granted sink shapes
 # and the remainder, re-classified once more, still cannot be read, the guard
-# refuses. It used to exit 0 there with the destructive text still visible: a
-# here-string opener with trailing whitespace is a special construct whose
-# region walk makes no progress, so under that one token every round was spent
-# on it and the `git reset --hard` beside it was never read.
+# refuses. It used to exit 0 there with the destructive text still visible.
 #
-# #4683: a trailing-space opener is not confirmed, so `"@` at column zero is
-# herestring-orphan-closer (no allow token). PS_BUDGET_NOPROGRESS and
-# PS_BUDGET_FIVE_TRIGGERS still exit 2, now as that shape, which is the
-# monotone over-block. The budget-exhausted *message* is pinned on the
-# quoted-call no-progress shape, which still spends five granted rounds on
-# itself without acquiring an untrusted flag.
-PS_BUDGET_NOPROGRESS="$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')"
-PS_BUDGET_FIVE_TRIGGERS="$(printf '%s\n%s\n%s' 'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard; Write-Output @" ' "\$(y)" '"@')"
+# Fewer shapes reach that cap than when it was written. A here-string opener with
+# trailing whitespace, or an opener on a closer line, used to spend rounds on
+# itself; both are refused earlier now as untrusted reductions, so a case built
+# on one exits 2 whether or not the budget holds. A case that claims the budget
+# is therefore pinned on the MESSAGE only the exhaustion refusal prints.
+#
+# Five distinct triggers fill the budget exactly and the command is still read.
+# The rounds are special-construct, dynamic-invocation, launcher,
+# herestring-subexpr, and herestring-unbalanced: the closer line `"@ @"` carries a
+# second opener, which the subexpr round joins onto the prefix and the next round
+# finds hanging. The remainder then settles, so `git status` is allowed and
+# `git reset --hard` is refused by the reset check rather than by the budget.
 PS_SINK_TOKENS_5=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
-run_pwsh "PS budget: a no-progress special construct beside reset --hard is blocked under its token" \
-  "$PS_BUDGET_NOPROGRESS" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-run_pwsh "PS budget: five sink triggers plus reset --hard are blocked under all five sink tokens" \
-  "$PS_BUDGET_FIVE_TRIGGERS" 2 \
+ps_budget_five() { printf '%s\n%s\n%s' "Write-Host {a}; iex b; pwsh -File c.ps1; git $1; x @\"" "\$(y)" '"@ @"'; }
+run_pwsh "PS budget: five distinct sink triggers fill the budget and git status is still allowed" \
+  "$(ps_budget_five status)" 0 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+run_pwsh "PS budget: five distinct sink triggers then reset --hard are blocked by the reset check" \
+  "$(ps_budget_five 'reset --hard')" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+assert_absent "PS budget: and that refusal is not the budget's" "$GUARD_ERR" "sink-attempt budget is exhausted"
 run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
-  "$PS_BUDGET_FIVE_TRIGGERS" 2
+  "$(ps_budget_five 'reset --hard')" 2
+# A sixth round cannot follow those five: an opener stacked on the hanging one
+# puts a quote in its prefix and is refused as untrusted. The budget is reached
+# the other way. Three distinct triggers (herestring-unbalanced, special-construct,
+# dynamic-invocation) take three rounds and the launcher is the fourth. `$o=pwsh x`
+# is a launcher in assignment-glued form, which the statement blanker leaves
+# alone, so the launcher round and every later one read the same text: the fifth
+# round is spent and the sixth is refused.
+PS_BUDGET_EXHAUSTED="$(printf '%s\n%s' "Write-Host {a}; iex b; \$o=pwsh x; git reset --hard" "Write-Output @'")"
+run_pwsh "PS budget: four distinct triggers, the last one stuck, are blocked under all five sink tokens" \
+  "$PS_BUDGET_EXHAUSTED" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+assert_contains "PS budget: the refusal names the exhausted budget (four triggers)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: and says no allow token clears it (four triggers)" "$GUARD_ERR" "No allow token clears this"
+assert_absent "PS budget: it does not point at an allow token (four triggers)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+# Without the launcher token the same payload stops at the fourth round, on the
+# launcher. That the refusal names it, and not the budget, shows the three rounds
+# before it were spent on three different triggers.
+run_pwsh "PS budget: without the launcher token the same payload is refused at the launcher" \
+  "$PS_BUDGET_EXHAUSTED" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced,ps-unparsable-special-construct,ps-unparsable-dynamic-invocation
+assert_contains "PS budget: the refusal names the launcher" "$GUARD_ERR" "process launcher or nested shell"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
 # The same no-progress round from a call operator whose quoted target stays
 # opaque: the differential found it allowed under its one token.
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-guard_invoke --tool PowerShell --command "\$a=& 'git reset --hard'" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
-  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-assert_contains "PS budget: the refusal names the exhausted budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
-assert_contains "PS budget: and says no allow token clears it" "$GUARD_ERR" "No allow token clears this"
-assert_absent "PS budget: it does not point at an allow token" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+assert_contains "PS budget: the refusal names the exhausted budget (quoted call)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: and says no allow token clears it (quoted call)" "$GUARD_ERR" "No allow token clears this"
+assert_absent "PS budget: it does not point at an allow token (quoted call)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
 # A command that settles inside the budget is still read, not refused.
 run_pwsh "PS budget: three granted triggers then git status are still allowed" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git status' 0 \
@@ -1736,9 +1759,16 @@ run_pwsh "PS budget: three granted triggers then git status are still allowed" \
 run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-# Trailing-space opener is unconfirmed, so `"@` at column zero is orphan closer
-# even with no git and even with the special-construct token (#4683).
-run_pwsh "PS budget: a no-progress construct beside a harmless line is refused as orphan closer (git-free)" \
+# Trailing-space opener is unconfirmed, so `"@` at column zero is an orphan
+# closer: refused by shape, with or without git beside it and with the
+# special-construct token granted, never read and never by the budget. The
+# git-free case is an over-block: a command with no git in it is refused too.
+run_pwsh "PS budget: a trailing-space opener beside reset --hard is refused as an orphan closer" \
+  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+assert_contains "PS budget: the refusal names the orphan closer" "$GUARD_ERR" "closer ('@ or \"@) at column zero"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
+run_pwsh "PS budget: a trailing-space opener beside a harmless line is refused as an orphan closer (git-free)" \
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 
@@ -1831,6 +1861,14 @@ pin_predicate "ps::payload_has_bare_cr: JSON \\r is a bare CR" \
   ps::payload_has_bare_cr '{"tool_input":{"command":"hi\rgit push"}}' 0
 pin_predicate "ps::payload_has_bare_cr: JSON \\r\\n is CRLF" \
   ps::payload_has_bare_cr '{"tool_input":{"command":"hi\r\nlo"}}' 1
+pin_predicate "ps::has_bare_cr: no CR at all is not bare" \
+  ps::has_bare_cr $'hi\nlo' 1
+pin_predicate "ps::has_bare_cr: a CR ending the text is bare" \
+  ps::has_bare_cr $'hi\r' 0
+pin_predicate "ps::payload_has_bare_cr: no CR and no \\r escape is not bare" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\nlo"}}' 1
+pin_predicate "ps::payload_has_bare_cr: an escaped backslash before r is not a CR" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\\rlo"}}' 1
 assert_contains "PS hs: the hook names opener-untrusted when a quote holds the command" \
   "$(pwsh_stderr "$ps_hs_quote_prefix" || true)" \
   "quote, backslash, or backtick"
