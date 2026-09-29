@@ -8,8 +8,6 @@ metadata:
   summary: Classify changes by required test type and coverage gaps
 ---
 
-**Arguments.** `[range or scope]`. e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -37,6 +35,8 @@ Coverage-gap analysis: what needs testing, at what level, and in what priority. 
 ## Arguments
 
 `$ARGUMENTS`, optional diff range or scope description. Default: uncommitted changes plus the current branch's commits vs the default branch.
+
+Examples: /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module.
 
 ## Process
 
