@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-09-29
+
+### Fixed
+
+- CHANGELOG: the 0.8.5 entry claimed format hooks probe at session start and that `/claude-ops:prerequisites` reads a `prerequisites.json` here. This plugin ships neither, by design (README Requirements, `skills/setup`); the entry now states what shipped ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).
+
 ## [0.8.5] - 2026-09-28
 
 ### Changed
