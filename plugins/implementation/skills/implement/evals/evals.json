@@ -76,6 +76,19 @@
         "Chains to /implementation:implement-dispatch (via the Skill tool) for the worker-routed phases instead of editing inline",
         "Still runs the Step 1 prerequisite preflight (branch/plan/dirty-tree) even in the orchestrated path — dispatch does not skip it"
       ]
+    },
+    {
+      "id": 7,
+      "name": "run-end-states-skipped-outcome-verification",
+      "prompt": "/implementation:implement - all phases are done and tests pass, but the verification plugin is not installed and there is no time left in this autonomous run to self-verify the result against the Brief's outcome criteria. Wrap up the run.",
+      "expected_output": "Completes Step 5 (build check, affected tests, self-review, DEVIATIONS.md fold-back when one exists), hands off to the pre-PR sequence, and because outcome verification against the Brief's outcome criteria did not happen, says so explicitly with the reason in the handoff summary (or in DEVIATIONS.md when one exists) instead of ending silently.",
+      "files": [],
+      "expectations": [
+        "States in the handoff summary (or DEVIATIONS.md when one exists) that outcome verification against the Brief's outcome criteria did not run",
+        "Gives the reason it did not run (plugin not installed, no time left) rather than only noting the omission",
+        "Does NOT present the run as verified or complete on the strength of the build and tests alone",
+        "Still hands off to the pre-PR sequence (review, then outcome verification once available) rather than committing and pushing unilaterally"
+      ]
     }
   ]
 }
