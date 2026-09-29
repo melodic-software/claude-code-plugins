@@ -138,8 +138,7 @@ interleaved `bash -c :` floor on Windows 11 under Git Bash:
 | PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
 
 The 18.7 row is the current figure for this host class. Releases after 0.6.55 have not been
-measured on Windows; see [Hook cost accounting](#hook-cost-accounting) for a same-method Linux
-comparison through 0.6.62.
+measured on Windows.
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
@@ -299,19 +298,7 @@ expansions, and the jq that copies `notebook_path` onto `file_path` now runs onl
 for a payload that carries one, which no `Write` or `Edit` does.
 
 **Later figures.** A plugin-quality audit on 2026-09-19 measured **18.7** on
-0.6.55 with the same method on the Windows host (n=8). On 2026-09-27 the same
-method ran on Linux x86_64 (bash 5.2, git 2.43, jq 1.7, typos 1.42.1), with 24
-trials interleaved across three releases in each round:
-
-| Release | Median spawn-equivalents (Linux) | p25 to p75 |
-| --- | --- | --- |
-| 0.6.35 | 35.7 | 31.9 to 37.3 |
-| 0.6.55 | 31.2 | 28.6 to 32.5 |
-| 0.6.62 | 25.0 | 24.1 to 26.0 |
-
-The Linux floor is about 1 ms, so its ratios are noisier than the Windows
-host's and do not compare to its rows. What carries over is the relative
-change: 0.6.62 runs about 30 percent below 0.6.35 on the same host.
+0.6.55 with the same method on the Windows host (n=8).
 
 **Residual, and why it stays.** The dominant single cost is the `typos` binary's
 own startup, which is the point of the hook. On the measuring host it resolves
@@ -319,7 +306,7 @@ through a WinGet Links shim, an indirection this hook cannot remove. Of the
 remaining twelve processes, eight to ten belong to the shared
 `hooks/hook-utils.sh`: payload validation, the `file_path` read and its
 project-membership scoping, and the repository-root lookup. That file is a
-registered byte-identical cross-plugin cluster, so changing it is a nine-plugin
+registered byte-identical cross-plugin cluster, so changing it is a fleet-wide
 change and not this plugin's to make. Two `cygpath` calls resolve the
 repository-relative argument `typos` runs on, which the tool needs to apply the
 repository's own exclude rules.

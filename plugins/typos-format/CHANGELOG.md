@@ -12,6 +12,11 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **The setup skill records its basis for the policy-disabled row and for step 1's limit ([#4566](https://github.com/melodic-software/claude-code-plugins/pull/4566)).** Both carry a dated four-part record against the skills docs. Step 1 says why it only reports a Bash version: on Windows without Git Bash the `shell: bash` skill fails to load, and the README Requirements now say to install Git for Windows and rerun. The skill's notice wording matches the hook's latch scopes, and a new eval covers the Windows case.
 - CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship.
 
+### Documentation
+
+- README: removed the unreproducible 2026-09-27 Linux spawn-equivalent table and the stale nine-plugin count.
+- CHANGELOG: restored the `### Changed` headings on 0.6.65 and 0.6.64.
+
 ## [0.7.5] - 2026-09-28
 
 ### Changed
@@ -74,12 +79,16 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ## [0.6.65] - 2026-09-27
 
+### Changed
+
 - **`setup` probes `jq` and `typos` at load time.** The two `command -v` checks run as pre-computed
   context, so `check` reads the result instead of making two Bash calls. The FAIL rules are
   unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
   re-check still probes live.
 
 ## [0.6.64] - 2026-09-27
+
+### Changed
 
 - README: documents that a gitignored path is still scanned, because the hook names the file explicitly and `--force-exclude` covers only typos' own excludes; `[files] extend-exclude` is the lever.
 - README: documents the write paths the `Write|Edit|NotebookEdit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
