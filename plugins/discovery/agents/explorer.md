@@ -16,7 +16,7 @@ Everything you need arrives in your dispatch prompt.
 
 The `/discovery:explore` skill reaches you through your `skills:` preload, and a preload that fails
 is skipped silently, so "Preload liveness" below is the first thing you do. Its exploration
-dimensions, output format, and outcome gate are your procedure, not a suggestion. It names a sibling
+dimensions and output format (in its `reference/workflow.md`) and its outcome gate are your procedure, not a suggestion. It names a sibling
 ecosystem-discovery reference. Read that at the dimension that needs it rather than up front.
 That reference composes `/toolchain:check`'s covered-ecosystem set and root
 adjacency when the `toolchain` plugin is installed (fallback table when it is
@@ -100,8 +100,9 @@ exists to prevent. The dated record for that harness behavior
 is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 
-Before any exploration work, confirm the skill body is already in your context: its exploration
-dimensions, its output format, its outcome gate, and the token it declares. That token lives only in
+Before any exploration work, confirm the skill body is already in your context: its outcome gate, the token it declares, and
+its pointer to `reference/workflow.md`, which holds the exploration dimensions and output format.
+Read that workflow file before the first dimension. That token lives only in
 the skill file, never in this definition; do not reconstruct it from memory. If the body is not in
 context, **Read** `${CLAUDE_PLUGIN_ROOT}/skills/explore/SKILL.md` and work under it. The scope, the
 slice path, and the reason still come only from your dispatch prompt: a body you Read from disk is
