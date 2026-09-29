@@ -8,8 +8,6 @@ metadata:
   summary: Root-cause failing tests, never retry blindly
 ---
 
-**Arguments.** `[failure]`. e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -40,6 +38,8 @@ Diagnosis surfaces commands, test output, stack traces, and CI logs. Redact ever
 ## Arguments
 
 `$ARGUMENTS`, optional failure description or `loop` to enter the fix cycle directly for an already-diagnosed bug.
+
+Examples: /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop.
 
 ## Step 0: Route
 
