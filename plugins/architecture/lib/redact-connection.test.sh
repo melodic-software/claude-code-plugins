@@ -196,6 +196,21 @@ assert_not_contains "local http: userinfo and query are dropped" "$(local_shape 
 assert_equals "local http: opt-in keeps loopback" "$(local_shape Services.Orders.BaseUrl "http://127.0.0.1:5001" 1)" $'http\t127.0.0.1\t5001\t\t\t'
 assert_equals "local http: opt-in reads every ;-separated URL" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 1)" $'http\tlocalhost\t7001\t\t\t\nhttp\tlocalhost\t5001\t\t\t'
 assert_equals "local http: a ;-separated list is unread by default" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 0)" ""
+leak_semi_tok="semitok321"
+leak_semi_num="4815162342"
+for opt in 0 1; do
+  semi_word="$(local_shape Services.Api.BaseUrl "https://${leak_semi_tok};x@api.example.com" "$opt")"
+  assert_equals "local http ($opt): a ; in userinfo does not become the host" "$semi_word" $'http\tapi.example.com\t\t\t\t'
+  semi_num="$(local_shape Services.Api.BaseUrl "https://svc:${leak_semi_num};x@api.example.com" "$opt")"
+  assert_equals "local http ($opt): a numeric password before a ; is not a port" "$semi_num" $'http\tapi.example.com\t\t\t\t'
+done
+semi_list="$(local_shape Services.Api.BaseUrl "https://${leak_semi_tok};x@localhost:7001;http://${leak_semi_tok};y@orders:5001/v1" 1)"
+assert_equals "local http: userinfo is stripped before each ; split" "$semi_list" $'http\tlocalhost\t7001\t\t\t\nhttp\torders\t5001\t\t\t'
+assert_not_contains "local http: no ;-list row carries the credential" "$semi_list" "$leak_semi_tok"
+semi_store="$(local_shape Cache "redis://${leak_semi_tok};x@cache.example.com:6379" 1)"
+assert_equals "local http: a ; in a store URL's userinfo is dropped" "$semi_store" $'cache\tcache.example.com\t6379\t\t\t'
+assert_equals "local http: a ; ends a store URL authority for the opt-in caller" "$(local_shape Cache "redis://cache.example.com:6379;x" 1)" $'cache\tcache.example.com\t6379\t\t\t'
+assert_equals "local http: a ; does not end a store URL authority by default" "$(local_shape Cache "redis://cache.example.com:6379;x" 0)" ""
 assert_equals "local http: authority keys stay dotted-host only" "$(local_shape Auth.Authority "https://login/tenant" 1)" ""
 assert_equals "local http: a store kind never takes a bare name" "$(local_shape Cache "redis://cache:6379" 1)" ""
 

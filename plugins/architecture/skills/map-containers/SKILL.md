@@ -115,6 +115,12 @@ A `search` store's `technology` is `Azure AI Search`, `OpenSearch`, `Elasticsear
 chosen from the host by `store_technology` in `collect-containers.sh`; a compose service's is its
 image. A search store is drawn as a database element.
 
+An `http` or `https` URL is a search store, not an endpoint, when its host is a search-service domain
+`store_technology` names or when the last segment of its config key contains `elasticsearch`,
+`opensearch`, `searchendpoint`, or `searchservice`. Such a URL with a bare host, such as
+`ElasticsearchUrl: http://elasticsearch:9200` naming a compose service, draws no store, edge, or
+finding; the compose service's image charts the store, and nothing links a deployable to it.
+
 An endpoint is an `http` or `https` URL a deployable's own configuration names. It is an edge only
 when it resolves to exactly one other deployable through a cited fact: a compose service whose
 build context is that deployable's directory (the URL host is the service name and any declared

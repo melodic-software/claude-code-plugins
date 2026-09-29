@@ -661,6 +661,8 @@ assert_contains "three owners: the table lists the first pair" "$hmd" "| src/Api
 # An endpoint a deployable's config names is an edge only through a cited fact.
 leak_ep_pass="EndpointPass456"
 leak_ep_tok="EndpointTok789"
+leak_semi_tok="semitok321"
+leak_semi_num="4815162342"
 EP="$TEST_TMPDIR/endpoint-repo"
 web_project "$EP/src/Web" Web
 web_project "$EP/src/OrdersApi" OrdersApi
@@ -782,6 +784,35 @@ assert_contains "leak: the edge still resolves" "$leak_ep_text" '{"from":"src/We
 assert_not_contains "leak: the password is in no output" "$leak_ep_text" "$leak_ep_pass"
 assert_not_contains "leak: the query token is in no output" "$leak_ep_text" "$leak_ep_tok"
 assert_not_contains "leak: the userinfo is in no output" "$leak_ep_text" "user:"
+
+# A ; inside userinfo is credential text: it is never the host of an edge or a finding.
+SEMI="$TEST_TMPDIR/semi-userinfo-repo"
+web_project "$SEMI/src/Web" Web
+web_project "$SEMI/src/OrdersApi" OrdersApi
+cat >"$SEMI/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+EOC
+cat >"$SEMI/src/Web/appsettings.json" <<EOC
+{
+  "Services": {
+    "External": { "BaseUrl": "https://${leak_semi_tok};x@api.example.com" },
+    "Numeric": { "BaseUrl": "https://svc:${leak_semi_num};x@api.example.com" },
+    "Orders": { "BaseUrl": "https://${leak_semi_tok};y@orders-api/" }
+  }
+}
+EOC
+commit_repo "$SEMI"
+collect_render "$SEMI" "$TEST_TMPDIR/semi-userinfo-out"
+mkdir -p "$TEST_TMPDIR/semi-userinfo-likec4"
+bash "$RENDER" --record "$TEST_TMPDIR/semi-userinfo-out/containers.json" --out "$TEST_TMPDIR/semi-userinfo-likec4" --dialect likec4 >"$TEST_TMPDIR/semi-userinfo-likec4/render.out" 2>&1
+semi_text="$(cat "$TEST_TMPDIR/semi-userinfo-out"/* "$TEST_TMPDIR/semi-userinfo-likec4"/*)"
+assert_contains "semicolon userinfo: the edge still resolves" "$semi_text" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_contains "semicolon userinfo: a word before the ; is not the host" "$semi_text" "Services.External.BaseUrl names host api.example.com; resolves to no deployable"
+assert_contains "semicolon userinfo: a number before the ; is not the port" "$semi_text" "Services.Numeric.BaseUrl names host api.example.com; resolves to no deployable"
+assert_not_contains "semicolon userinfo: the word is in no output" "$semi_text" "$leak_semi_tok"
+assert_not_contains "semicolon userinfo: the number is in no output" "$semi_text" "$leak_semi_num"
 
 # Files are read from the working tree, and a dirty tracked file is a finding.
 DIRTY="$TEST_TMPDIR/dirty-repo"

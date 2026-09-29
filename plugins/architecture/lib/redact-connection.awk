@@ -17,9 +17,11 @@
 # values are dropped. A value that is only a credential produces no row.
 #
 # A caller that charts endpoints between its own deployables sets
-# redact_local_http (awk -v redact_local_http=1) so an http shape may also name
-# a bare service name, localhost, or 127.0.0.1, and a ; ends a URL authority.
-# Every other shape and every other caller still drops those hosts.
+# redact_local_http (awk -v redact_local_http=1). An http shape may then also
+# name a bare service name, localhost, or 127.0.0.1, and for every URL shape a ;
+# after the userinfo ends the authority, so a ;-separated URL list reads as one
+# shape per URL. Without it a bare service name and a loopback host are
+# dropped, and a ; does not end the authority.
 #
 # redact_secret(key, value) is 1 when the key names a credential or the value
 # carries one. A caller that prints a raw value drops it when this is 1.
@@ -164,8 +166,7 @@ function redact_server(raw, kind, db,    port, host) {
   redact_emit(kind, host, port, db, "")
 }
 
-function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, stop) {
-  stop = (redact_local_http + 0) ? "[/?#; \t\r\n]" : "[/?# \t\r\n]"
+function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, semi) {
   rest = value
   guard = 0
   while (match(rest, /[A-Za-z][A-Za-z0-9+.-]*:\/\//)) {
@@ -173,7 +174,7 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     if (guard > 20) return
     scheme = tolower(substr(rest, RSTART, RLENGTH - 3))
     rest = substr(rest, RSTART + RLENGTH)
-    if (match(rest, stop)) cut = RSTART
+    if (match(rest, /[\/?# \t\r\n]/)) cut = RSTART
     else cut = length(rest) + 1
     if (cut <= 1) {
       if (length(rest) > 0) rest = substr(rest, 2)
@@ -183,6 +184,10 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     auth = substr(rest, 1, cut - 1)
     rest = substr(rest, cut)
     if (index(auth, "@") > 0) sub(/^.*@/, "", auth)
+    if ((redact_local_http + 0) && (semi = index(auth, ";")) > 0) {
+      rest = substr(auth, semi + 1) rest
+      auth = substr(auth, 1, semi - 1)
+    }
     port = ""
     host = auth
     if (substr(host, 1, 1) == "[") continue
