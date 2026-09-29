@@ -3,6 +3,16 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-29
+
+### Changed
+
+- **Breaking: reports use `code-metrics/v2` and root-relative paths.** The schema identifier is now
+  `code-metrics/v2`. Every measured path is relative to the new `root` object (the repository root,
+  or the working directory outside a work tree), and `scan_root` records where the scan started.
+  v1 documents are not comparable path-for-path, so a baseline taken under v1 must be re-taken.
+  Producers emit v2 only.
+
 ## [0.3.24] - 2026-09-29
 
 ### Fixed
