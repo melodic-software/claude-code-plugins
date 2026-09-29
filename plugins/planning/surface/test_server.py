@@ -1392,6 +1392,20 @@ class TestConfirm(WaitCase):
         self.assertEqual(code, 200, data)
         self.assertEqual(data["seq"], after["seq"] + 1)
 
+    def test_4_a_confirm_after_a_commitments_revise_is_a_new_event(self):
+        body = {"id": "A", "kind": "confirm", "alt": "0"}
+        code, first = self.post(body)
+        self.assertEqual(code, 200, first)
+        rc, out = self.rp(
+            "revise", "A", "--commit", "Third", "--commit", "Fourth", "--force"
+        )
+        self.assertEqual(rc, 0, out)
+        code, data = self.post(body)
+        self.assertEqual(code, 200, data)
+        self.assertGreater(data["seq"], first["seq"])
+        code, again = self.post(body)
+        self.assertEqual((code, again["seq"]), (200, data["seq"]), again)
+
 
 def seed_restatement(d, rev):
     doc = json.loads((Path(d) / "questions.json").read_text(encoding="utf-8"))

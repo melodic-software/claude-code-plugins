@@ -610,16 +610,18 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
-def repeat_of(events, event):
+def repeat_of(events, event, since_seq=None):
     """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
-    event's seq. A commitment's confirm repeats any live confirm of it; an understanding Confirm
-    repeats only when the newest answer to that restatement rev is a Confirm."""
+    event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
+    question's commitsSinceSeq: a commitments revise retires earlier confirms); an understanding
+    Confirm repeats only when the newest answer to that restatement rev is a Confirm."""
     kind = event["kind"]
     if kind == "confirm":
         same = [
             e
             for e in events
             if not e.get("withdrawn")
+            and (e.get("seq") or 0) > (since_seq or 0)
             and (e.get("kind"), e.get("id"), e.get("alt"))
             == (kind, event["id"], event["alt"])
         ]
@@ -894,7 +896,9 @@ class Hub:
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
-            dup = repeat_of(r["events"], event)
+            dup = repeat_of(
+                r["events"], event, (qs.get(qid) or {}).get("commitsSinceSeq")
+            )
             if dup:
                 return dup["seq"], content_rev(qs[qid], r["events"]) if qid else None
             r["seq"] = seq = event["seq"]
