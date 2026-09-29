@@ -668,7 +668,7 @@ def model_fill(text: str) -> str:
     for line in text.split("\n"):
         whole = FILL_RE.fullmatch(line.strip())
         if whole and (
-            whole.group(1) in ("goal-rearm", "below-rail")
+            whole.group(1) in ("goal-first", "goal-after", "below-rail")
             or whole.group(1).endswith("-new")
         ):
             continue
@@ -1556,7 +1556,9 @@ def test_fill_normalizes_a_crlf_value_to_one_break_per_line(tmp_path):
     assert b"\n" not in crlf_data.replace(b"\r\n", b"")
 
 
-@pytest.mark.parametrize("slot", ["goal-rearm", "below-rail", "constraints-new"])
+@pytest.mark.parametrize(
+    "slot", ["goal-first", "goal-after", "below-rail", "constraints-new"]
+)
 def test_fill_deletes_absent_optional_slot_line(tmp_path, slot):
     target = new_hop2_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
@@ -1574,15 +1576,181 @@ def test_fill_deletes_absent_optional_slot_line(tmp_path, slot):
 def test_fill_substitutes_a_present_optional_slot(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
-    payload["goal-rearm"] = "/goal ship the fill subcommand"
+    payload["goal-first"] = goal_slot_value(
+        target.read_text(encoding="utf-8"), "goal-first", "ship the fill subcommand"
+    )
     payload["below-rail"] = "Re-arm the sweep loop in its own follow-up message."
     run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
     after = target.read_text(encoding="utf-8")
-    assert "/goal ship the fill subcommand" in after
+    assert "\nship the fill subcommand\n" in after
     assert "Re-arm the sweep loop in its own follow-up message." in after
     assert "<!-- FILL" not in after
     validated = run("validate", str(target), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
+
+
+# --- goal region ----------------------------------------------------------------------
+
+GOAL_COPY_LINE = (
+    "Type `/goal ` (with a trailing space), then paste everything between the dashed "
+    "lines. Confirm the `◎ /goal active` indicator appears after you send it; if it "
+    "is missing, redo it:"
+)
+COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
+RAIL = "─" * 58
+CONDITION = "Every call site of OrderReader uses the retry policy and `dotnet test` exits 0."
+
+
+def directive_line(text: str) -> str:
+    return next(line for line in text.split("\n") if line.startswith("Read @"))
+
+
+def goal_slot_value(skeleton: str, slot: str, condition: str = CONDITION) -> str:
+    """The whole goal region as the `goal-first` / `goal-after` slot takes it:
+    the value carries its own blank-line separator."""
+    directive = directive_line(skeleton)
+    region = "\n".join([GOAL_COPY_LINE, "", RAIL, condition, directive, RAIL])
+    return region + "\n" if slot == "goal-first" else "\n" + region
+
+
+def goal_target(tmp_path: Path, *slots: str, condition: str = CONDITION) -> Path:
+    """A filled first-hop handoff with the goal region in each named slot."""
+    target = new_skeleton(tmp_path)
+    skeleton = target.read_text(encoding="utf-8")
+    payload = required_slots(skeleton)
+    for slot in slots:
+        payload[slot] = goal_slot_value(skeleton, slot, condition)
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    return target
+
+
+def validate_text(target: Path, text: str) -> subprocess.CompletedProcess[bytes]:
+    target.write_text(text, encoding="utf-8", newline="\n")
+    return run("validate", str(target), "--strict-transcript")
+
+
+def test_goal_first_region_validates_and_emits_before_the_resume_region(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    assert "goal-after" not in text and "<!-- FILL" not in text
+    validated = run("validate", str(target), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    emitted = out(run("emit", str(target)))
+    assert rail_lines(emitted) == 4
+    assert emitted.startswith(GOAL_COPY_LINE + "\n\n" + RAIL + "\n" + CONDITION + "\n")
+    assert emitted.index(GOAL_COPY_LINE) < emitted.index(COPY_LINE)
+
+
+def test_goal_after_region_validates_and_emits_after_the_resume_region(tmp_path):
+    target = goal_target(tmp_path, "goal-after")
+    validated = run("validate", str(target), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    emitted = out(run("emit", str(target)))
+    assert rail_lines(emitted) == 4
+    assert emitted.startswith(COPY_LINE)
+    assert emitted.index(COPY_LINE) < emitted.index(GOAL_COPY_LINE)
+    assert emitted.index("Or reopen the producing session") > emitted.index(CONDITION)
+
+
+def test_no_goal_output_is_the_single_resume_region(tmp_path):
+    target = goal_target(tmp_path)
+    emitted = out(run("emit", str(target)))
+    assert rail_lines(emitted) == 2
+    assert emitted.startswith(COPY_LINE + "\n\n" + RAIL + "\nRead @")
+    assert "/goal" not in emitted
+    assert run("validate", str(target), "--strict-transcript").returncode == 0
+
+
+def test_goal_condition_at_the_limit_passes_and_over_it_fails(tmp_path):
+    # Equal-length directory names keep the stored directive line the same length.
+    probe = goal_target(tmp_path / "p1", "goal-first")
+    directive = directive_line(probe.read_text(encoding="utf-8"))
+    fits = "x" * (4000 - len(directive) - 1)
+    at_limit = goal_target(tmp_path / "p2", "goal-first", condition=fits)
+    assert run("validate", str(at_limit), "--strict-transcript").returncode == 0
+    over = goal_target(tmp_path / "p3", "goal-first", condition=fits + "x")
+    result = run("validate", str(over), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "goal region holds 4001 characters (max 4000)" in out(result), out(result)
+
+
+def test_validate_refuses_a_leading_goal_line_in_the_goal_region(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    result = validate_text(target, text.replace(f"\n{CONDITION}\n", f"\n/goal {CONDITION}\n"))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "starts with '/goal'" in out(result), out(result)
+
+
+def test_validate_refuses_a_leading_goal_line_in_the_resume_region(tmp_path):
+    target = new_skeleton(tmp_path)
+    run(
+        "fill",
+        str(target),
+        "--slots",
+        slots_file(tmp_path, required_slots(target.read_text(encoding="utf-8"))),
+    ).check_returncode()
+    text = target.read_text(encoding="utf-8")
+    result = validate_text(target, text.replace(f"{RAIL}\nRead @", f"{RAIL}\n/goal ship it\nRead @", 1))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "starts with '/goal'" in out(result), out(result)
+    assert "must be the 'Read @' directive" in out(result), out(result)
+
+
+def test_validate_refuses_a_goal_region_without_its_instruction_line(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    result = validate_text(target, text.replace(GOAL_COPY_LINE + "\n", "", 1))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "no copy instruction line above a top rail" in out(result), out(result)
+
+
+def test_validate_refuses_two_goal_regions(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    result = validate_text(target, text.replace(COPY_LINE, GOAL_COPY_LINE, 1))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "more than one goal region" in out(result), out(result)
+
+
+def test_validate_refuses_a_goal_region_on_each_side_of_the_resume_region(tmp_path):
+    target = goal_target(tmp_path, "goal-first", "goal-after")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "two U+2500 rails" in out(result), out(result)
+
+
+def test_validate_refuses_a_goal_region_not_ending_in_the_directive(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    directive = directive_line(text)
+    result = validate_text(target, text.replace(f"{directive}\n{RAIL}\n\n{COPY_LINE}", f"Do the thing.\n{RAIL}\n\n{COPY_LINE}", 1))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "ending in the 'Read @' directive line" in out(result), out(result)
+
+
+def test_validate_refuses_a_goal_region_with_a_blank_line_between_the_rails(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    result = validate_text(target, text.replace(f"{RAIL}\n{CONDITION}\n", f"{RAIL}\n{CONDITION}\n\n", 1))
+    assert result.returncode == 1, out(result) + err(result)
+    assert "blank line between the rails" in out(result), out(result)
+
+
+def test_emit_substitutes_the_real_path_in_both_regions(tmp_path):
+    target = goal_target(tmp_path, "goal-first")
+    text = target.read_text(encoding="utf-8")
+    stored = f"Read @{real_posix(target)}"
+    assert text.count(stored) == 2
+    target.write_text(
+        text.replace(stored, f"Read @/work/elsewhere/{target.name}"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = run("emit", str(target))
+    assert result.returncode == 0, err(result)
+    assert out(result).count(f"{stored}, confirm") == 2
+    assert "/work/elsewhere/" not in out(result)
 
 
 @pytest.mark.parametrize(
@@ -1768,15 +1936,17 @@ def test_fill_closing_value_into_crlf_keeps_crlf(tmp_path):
     assert validated.returncode == 0, out(validated) + err(validated)
 
 
-def test_fill_closing_value_works_with_goal_rearm_present(tmp_path):
+def test_fill_closing_value_works_with_a_goal_region_present(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = NEXT_CLOSED
-    payload["goal-rearm"] = "/goal close the loop"
+    payload["goal-after"] = goal_slot_value(
+        target.read_text(encoding="utf-8"), "goal-after", "close the loop"
+    )
     run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert f"\n{NEXT_CLOSED}\n─" in text
-    assert "/goal close the loop" in text
+    assert "\nclose the loop\n" in text
     validated = run("validate", str(target), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
     emitted = run("emit", str(target))
