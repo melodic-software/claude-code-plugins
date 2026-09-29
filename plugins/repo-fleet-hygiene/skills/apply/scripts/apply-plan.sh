@@ -110,7 +110,7 @@ fi
 # expected_oid may be empty when the plan evidence lacked a headRefOid (fail-closed later).
 PLAN_TSV="$(
   PLAN_FILE_PATH="$PLAN_FILE" python3 - <<'PY'
-import json, os, re, subprocess, sys
+import json, os, re, sys
 
 path = os.environ["PLAN_FILE_PATH"]
 try:
@@ -151,6 +151,20 @@ INDEXED_KINDS = BRANCH_KINDS | WORKTREE_KINDS | REMOTE_KINDS | {"merged-remote-b
 CLASSES = {"never-pr", "closed-unmerged"}
 full_oid_re = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
 remote_name_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+def valid_branch(b: str) -> bool:
+    # git-check-ref-format rules, plus no leading "-", without a git subprocess.
+    return (
+        bool(b)
+        and not re.search(r"[\x00-\x20\x7f~^:?*\[\\]", b)
+        and ".." not in b
+        and "@{" not in b
+        and "//" not in b
+        and b != "@"
+        and not b.startswith(("/", "-"))
+        and not b.endswith(("/", "."))
+        and not any(c.startswith(".") or c.endswith(".lock") for c in b.split("/"))
+    )
+
 oid_re = re.compile(r"headRefOid[ \t]+([0-9a-fA-F]{7,40})")
 # Map (canonical, target) -> first actionable finding kind, oid and evidence.
 finding_index = {}
@@ -282,13 +296,7 @@ for _idx, action in ordered:
                 problem = "remote is not a plain remote name"
             elif not ref_name or target_s != f"{canonical} :: {remote}/{ref_name}":
                 problem = "target is not canonical :: remote/branch"
-            elif (
-                subprocess.run(
-                    ["git", "check-ref-format", f"refs/heads/{ref_name}"],
-                    capture_output=True,
-                ).returncode
-                != 0
-            ):
+            elif not valid_branch(ref_name):
                 problem = "branch is not a valid ref name"
             elif rclass not in CLASSES:
                 problem = "class is not never-pr or closed-unmerged"
@@ -296,6 +304,8 @@ for _idx, action in ordered:
                 problem = "expected_oid is not a full lowercase object id"
             elif f"refs/heads/{ref_name} at {oid}" not in evidence:
                 problem = "expected_oid does not match the audit finding evidence"
+            elif f"class {rclass}:" not in evidence:
+                problem = "class does not match the audit finding evidence"
             if problem:
                 print(
                     f"Error: remote branch row for {target_s} rejected: {problem}",

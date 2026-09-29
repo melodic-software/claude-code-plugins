@@ -606,7 +606,7 @@ assert_remote_head() {
 }
 
 # write_remote_plan OUT CANONICAL KIND ROW...: one delete-remote-branches action, each ROW being
-# branch|class|expected_oid[|evidence_oid]. LOCAL_ROW=branch|oid adds a merged-local-branch action.
+# branch|class|expected_oid[|evidence_oid[|evidence_class]]. LOCAL_ROW=branch|oid adds a merged-local-branch action.
 write_remote_plan() {
   local out=$1 canonical=$2 kind=$3
   shift 3
@@ -619,6 +619,7 @@ for row in rows:
     parts = row.split("|")
     branch, cls, oid = parts[:3]
     evidence_oid = parts[3] if len(parts) > 3 else oid
+    evidence_class = parts[4] if len(parts) > 4 else cls
     target = f"{canonical} :: origin/{branch}"
     targets.append(target)
     findings.append({
@@ -626,7 +627,7 @@ for row in rows:
         "findings": [{
             "kind": kind,
             "confidence": "HIGH",
-            "evidence": f"class {cls}: no PR; ls-remote confirmed refs/heads/{branch} at {evidence_oid}",
+            "evidence": f"class {evidence_class}: no PR; ls-remote confirmed refs/heads/{branch} at {evidence_oid}",
             "disposition": "Candidate",
             "handoff": "n/a",
         }],
@@ -887,6 +888,17 @@ bash "$SCRIPT" --plan-file "$RG_BAD" --remote-branches >"$TMP/rg-bad.txt" 2>&1 |
 [[ "$rg_rc" -eq 2 ]] && grep -Fq "does not match the audit finding evidence" "$TMP/rg-bad.txt" &&
   pass "expected_oid that disagrees with the finding evidence is rejected" ||
   fail "expected_oid that disagrees with the finding evidence is rejected (rc=$rg_rc)"
+write_remote_plan "$RG_BAD" "$REMOTE_REPO" "$NP" "feat/merged|closed-unmerged|$RG_OID|$RG_OID|never-pr"
+rg_rc=0
+bash "$SCRIPT" --plan-file "$RG_BAD" --remote-branches >"$TMP/rg-bad.txt" 2>&1 || rg_rc=$?
+[[ "$rg_rc" -eq 2 ]] && grep -Fq "class does not match the audit finding evidence" "$TMP/rg-bad.txt" &&
+  pass "class that disagrees with the finding evidence is rejected" ||
+  fail "class that disagrees with the finding evidence is rejected (rc=$rg_rc)"
+write_remote_plan "$RG_BAD" "$REMOTE_REPO" "$NP" "feat/../x|never-pr|$RG_OID"
+rg_rc=0
+bash "$SCRIPT" --plan-file "$RG_BAD" --remote-branches >"$TMP/rg-bad.txt" 2>&1 || rg_rc=$?
+[[ "$rg_rc" -eq 2 ]] && grep -Fq "branch is not a valid ref name" "$TMP/rg-bad.txt" &&
+  pass "invalid branch ref name is rejected" || fail "invalid branch ref name is rejected (rc=$rg_rc)"
 
 # A ledger that cannot be written aborts that branch before the push.
 if [[ "$HAVE_PTY" -eq 1 ]]; then

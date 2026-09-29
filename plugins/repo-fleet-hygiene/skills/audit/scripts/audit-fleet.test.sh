@@ -1093,6 +1093,20 @@ else
   printf 'FAIL: apply-plan preview renders each remote branch with its class and expected tip\n' >&2
   failures=$((failures + 1))
 fi
+# The apply verb accepts the plan this audit wrote and, without its opt-in flag, skips every remote row.
+apply_remote_out="$TMP/apply-remote-rows.txt"
+apply_remote_rc=0
+bash "$SCRIPT_DIR/../../apply/scripts/apply-plan.sh" --plan-file "$unmerged_plan" >"$apply_remote_out" 2>&1 ||
+  apply_remote_rc=$?
+if [[ "$apply_remote_rc" -eq 0 ]] &&
+  [[ "$(grep -Fc "remote deletion requires --remote-branches" "$apply_remote_out")" -eq 2 ]]; then
+  printf 'PASS: apply-plan accepts the audit plan and skips its remote rows without --remote-branches\n'
+else
+  printf 'FAIL: apply-plan accepts the audit plan and skips its remote rows without --remote-branches (rc=%s)\n' \
+    "$apply_remote_rc" >&2
+  cat "$apply_remote_out" >&2
+  failures=$((failures + 1))
+fi
 # Every ls-remote failing leaves no remote candidate and no per-repository unverified row.
 unmerged_fail_out="$TMP/unmerged-all-fail.txt"
 MOCK_UNMERGED_REMOTE=1 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
