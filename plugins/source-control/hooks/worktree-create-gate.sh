@@ -8,7 +8,7 @@
 # the in-repo default — the nested placement the nesting invariant exists to
 # avoid; that claim is owned, measured and dated in exactly one place, and this
 # comment does not restate it: see
-# skills/worktree/SKILL.md § "The nesting invariant, verified".
+# skills/worktree/SKILL.md § "The nesting invariant, dated measurement".
 # This hook is the seam that covers those three paths,
 # and it is a thin stdin adapter over the same helper so there is one placement
 # implementation rather than two.
