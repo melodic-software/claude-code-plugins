@@ -1,0 +1,13 @@
+# good-for: rule-zero-assertion
+# Should -Be checks the value Get-Sum returned.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds two numbers' {
+        $result = Get-Sum -A 2 -B 3
+        $result | Should -Be 5
+    }
+}

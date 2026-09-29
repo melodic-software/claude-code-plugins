@@ -1,0 +1,14 @@
+// expect: rule-recomputed-derived
+// The expected total is summed from the same lines the code sums.
+using System.Linq;
+using Xunit;
+
+public class InvoiceTotalSumTests
+{
+    [Fact]
+    public void Total_AddsThePrices()
+    {
+        var lines = new[] { new Line(10m), new Line(5m) };
+        Assert.Equal(lines.Sum(l => l.Price), Invoice.Total(lines));
+    }
+}
