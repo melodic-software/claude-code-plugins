@@ -1,0 +1,32 @@
+{
+  "skill": "mcp-tools:audit",
+  "plugin": "mcp-tools",
+  "skill_dir": "plugins/mcp-tools/skills/audit",
+  "ranking_note": "Seed skill: shares 'audit MCP' vocabulary with mcp-tools:audit-posture, so false triggers are the interesting failure. Starvation ranking is live-session input; this pair is the in-plugin competitor the issue's probe design needs.",
+  "competitors": ["mcp-tools:audit-posture"],
+  "competitor_dirs": {
+    "mcp-tools:audit-posture": "plugins/mcp-tools/skills/audit-posture"
+  },
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "audit MCP tools"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "check MCP tool descriptions before I ship the server"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "review MCP server quality of our tool definitions"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "readOnlyHint missing on a read-only tool"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "parameter descriptions missing in the MCP tools"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "check the _meta annotations on these tools"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "are my server instructions too long"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "mcp audit of tool definitions in this repo"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "tool annotations on the MCP server I am authoring"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "maxResultSizeChars on our MCP tools"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "is it safe to run my MCP servers"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "floating MCP versions in my config"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "npx @latest MCP server on this machine"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "MCP server inventory of what Claude Code will launch"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "unpinned MCP server in user settings"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "mcp posture of configured servers, not tool design"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "which MCP servers run on my host"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "mcp supply chain of the servers I have configured"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "check this SKILL.md before publishing"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "what permissions are actually in effect"}
+  ]
+}

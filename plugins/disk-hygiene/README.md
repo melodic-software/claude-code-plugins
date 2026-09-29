@@ -248,10 +248,35 @@ predicates and the baseline protected-name/root rules are non-overridable by any
 file can only add protections, add hints, or disable discovery hints (which can only cause junk to
 be missed, never removed).
 
+When the scan covers the user home directory, `stdlib_shadowing` lists each home-root `*.py` file
+whose stem is a Python standard-library module name, such as `~/gettext.py`. That file shadows the
+module for Python started from the home directory with `-c`, `-m`, or the REPL, and it keeps the
+home-root `__pycache__` rebuilding. The file's entry carries a `stdlib-module-shadow` advisory, and
+the `__pycache__` entry gains `bytecode_sources` naming the modules its `.pyc` files were compiled
+from. So a report can say to rename the source, not only to delete the cache. The advisory is not a
+hint: it assigns no tier and changes no eligibility. The stdlib name set is the engine
+interpreter's `sys.stdlib_module_names`.
+
 When the audited zone overlaps the user temp directory, the scan also reports an `os_autoclean`
 advisory naming the OS mechanism that should own it (Windows Storage Sense, systemd-tmpfiles) and,
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
 hand-cleaning the zone.
+
+On Windows the advisory also sums the user temp directory's regular-file sizes in a read-only walk
+that follows no links and stops after 100,000 entries. The result is reported as `temp_zone`, and
+the size is a floor when `complete` is false. The recommendation then depends on size against
+`os_temp_recommendation_threshold_bytes` in `skills/clean/reference/baseline-policy.json` (1 GiB by
+default):
+
+| Temp directory size | Storage Sense | `recommendation` |
+|---|---|---|
+| At or above the threshold | On, temporary-files cleanup on | Run Storage Sense now (Settings > System > Storage > Storage Sense) |
+| At or above the threshold | On, temporary-files cleanup off | Turn on temporary-files cleanup and run it now |
+| At or above the threshold | Off or not detected | Enable it on a schedule; a manual run is available either way |
+| Below the threshold | Any | `null` |
+
+The text quotes the detected on/off state, schedule, and temporary-files scope. The advisory never
+runs Storage Sense, and it changes nothing about what the engine may delete in that directory.
 
 ## Volume-root coverage
 

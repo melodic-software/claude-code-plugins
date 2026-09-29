@@ -31,6 +31,10 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+# shellcheck source=lib/cascade-read.sh
+source "$SCRIPT_DIR/lib/cascade-read.sh"
+# shellcheck source=lib/resolve-targets.sh
+source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
 # All text processing runs in the C locale: the byte-sequence rules require it,
 # and word counts diverge between UTF-8 and C locales (caught by the CI
@@ -138,7 +142,6 @@ OFFSET=0
 LIMIT=0
 SHOW_CONFIG=0
 LIST_TARGETS=0
-PATHS_FILE_EMPTY=0
 
 usage() {
   cat <<'EOF'
@@ -229,71 +232,26 @@ DISABLED_RULES=""
 # silences exactly one rule on exactly the named paths.
 declare -A RULE_ALLOWED_GLOBS
 
-# Every reader below strips carriage returns from jq's output, because the
-# Windows build of jq terminates its lines with CRLF (#3343). `cfg_array`
-# translates the line feed to a space, which leaves the CR attached to the
-# element itself: every configured glob and rule slug arrived as
-# `plugins/*/skills/*/vendor/**<CR>`, matched nothing, and `excluded_paths`,
-# `em_dash_allowed_paths` and `disabled_rules` silently stopped applying on a
-# Windows workstation while CI, which runs on Linux and sees LF, agreed with the
-# config. `cfg_scalar` reads the same CRLF but is masked under Git Bash, whose
-# command substitution strips one trailing CRLF pair; a bash that strips only
-# the line feed carries the CR into the emitted threshold text, in
-# `--show-config` and in the density finding's label. (gawk and mawk both read a
-# CR-suffixed threshold as a strnum, so the numeric comparison itself was
-# measured unaffected on the awks CI and Git Bash use; BusyBox awk is where it
-# would diverge.) The `rule_allowed_paths` reader below has the same exposure
-# through `read`. The CR originates in the detector's own jq invocation, so no
-# caller can normalize it away from the config file it supplies — it is
-# stripped here.
-
-# cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
-cfg_scalar() {
-  local path="$1" layer v out=""
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    # Capture, then strip: a `| tr -d '\r'` inside the substitution would hand
-    # this guard tr's exit status instead of jq's, and a layer that parses to a value
-    # and then meets malformed trailing bytes emits that value while exiting nonzero.
-    # That partial read must not become the effective setting.
-    v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
-    v="${v//$'\r'/}"
-    [[ -n "$v" ]] && out="$v"
-  done
-  printf '%s' "$out"
-}
-
-cfg_array() {
-  local path="$1" layer v out=""
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "($path // empty) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
-    [[ -n "${v// /}" ]] && out="$v"
-  done
-  printf '%s' "$out"
-}
-
 # threshold_for <threshold key> <default>: .thresholds.<key> from config, else default.
 threshold_for() {
   local key="$1" default="$2" v
-  v="$(cfg_scalar ".thresholds.${key}")"
+  cascade::scalar v ".thresholds.${key}" ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   printf '%s' "${v:-$default}"
 }
 
 if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  read -r -a EXCLUDED_GLOBS <<<"$(cfg_array '.excluded_paths')"
-  read -r -a EM_DASH_ALLOWED_GLOBS <<<"$(cfg_array '.em_dash_allowed_paths')"
-  DISABLED_RULES="$(cfg_array '.disabled_rules')"
-  # rule_allowed_paths: object of slug -> glob array; later layer wins per slug.
-  # tr -d '\r' for the same reason as the two readers above, reached differently:
-  # `read` splits on the line feed, so a CRLF leaves the CR on the last glob of
-  # every entry. @tsv escapes a CR inside a value as the two characters \ and r,
-  # so the only raw CR byte here is jq's own line terminator.
-  for layer in "${CFG_LAYERS[@]}"; do
-    while IFS=$'\t' read -r slug globs; do
-      [[ -n "$slug" && -n "${globs// /}" ]] && RULE_ALLOWED_GLOBS[$slug]="$globs"
-    done < <(jq -r '(.rule_allowed_paths // {}) | to_entries[] | [.key, (.value | join(" "))] | @tsv' "$layer" 2>/dev/null | tr -d '\r')
-  done
-  add="$(cfg_array '.vocab_add')"
-  remove="$(cfg_array '.vocab_remove')"
+  cascade::list EXCLUDED_GLOBS excluded_paths "${CFG_LAYERS[@]}"
+  cascade::list EM_DASH_ALLOWED_GLOBS em_dash_allowed_paths "${CFG_LAYERS[@]}"
+  _disabled=()
+  cascade::list _disabled disabled_rules "${CFG_LAYERS[@]}"
+  DISABLED_RULES="${_disabled[*]-}"
+  cascade::slug_map RULE_ALLOWED_GLOBS rule_allowed_paths "${CFG_LAYERS[@]}"
+  _add=()
+  _remove=()
+  cascade::list _add vocab_add "${CFG_LAYERS[@]}"
+  cascade::list _remove vocab_remove "${CFG_LAYERS[@]}"
+  add="${_add[*]-}"
+  remove="${_remove[*]-}"
   [[ -n "${add// /}" ]] && VOCAB="$VOCAB $add"
   if [[ -n "${remove// /}" ]]; then
     filtered=""
@@ -305,37 +263,9 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
     done
     VOCAB="${filtered# }"
   fi
-  # phrase_add / phrase_remove: whole ERE fragments, one array element each.
-  # NOT cfg_array — its space-join would split "honest take" into two dead
-  # words. Per-layer wholesale replacement keyed on the KEY BEING PRESENT
-  # (jq has()), so an explicit `"phrase_add": []` in a later layer clears an
-  # inherited list instead of reading as absent. jq's own exit status guards
-  # both reads — a layer caught mid-write (valid object then truncated bytes)
-  # is refused whole, the cfg_scalar posture, which the tr pipe of an earlier
-  # revision silently overrode. CR stripped by expansion, not a pipe, for the
-  # same reason. The winning layer is kept so hygiene warnings below can name
-  # where a bad fragment came from.
-  #
-  # read_phrase_list <layer> <key> <dest array>: nonzero when the layer does not
-  # define the key or jq refused it, so the caller leaves the inherited list
-  # (and the recorded layer) standing.
-  read_phrase_list() {
-    local layer="$1" key="$2" dest="$3" v
-    jq -e "has(\"$key\")" "$layer" >/dev/null 2>&1 || return 1
-    v="$(jq -r ".$key | .[]" "$layer" 2>/dev/null)" || return 1
-    v="${v//$'\r'/}"
-    if [[ -n "${v//[[:space:]]/}" ]]; then
-      mapfile -t "$dest" <<<"$v"
-    else
-      local -n dest_ref="$dest"
-      # shellcheck disable=SC2034  # nameref: this assignment clears the caller's array without a null device
-      dest_ref=()
-    fi
-  }
-  for layer in "${CFG_LAYERS[@]}"; do
-    read_phrase_list "$layer" phrase_add PHRASE_ADD && PHRASE_ADD_LAYER="$layer"
-    read_phrase_list "$layer" phrase_remove PHRASE_REMOVE
-  done
+  cascade::list PHRASE_ADD phrase_add "${CFG_LAYERS[@]}"
+  PHRASE_ADD_LAYER="$cascade_list_layer"
+  cascade::list PHRASE_REMOVE phrase_remove "${CFG_LAYERS[@]}"
 elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   echo "Note: jq not found; config layers present but unread, using defaults" >&2
 fi
@@ -431,175 +361,7 @@ fi
 
 # --- Target list -----------------------------------------------------------------
 
-if [[ -n "$PATHS_FILE" ]]; then
-  if [[ ! -r "$PATHS_FILE" ]]; then
-    echo "detect.sh: cannot read --paths-file: $PATHS_FILE" >&2
-    exit 2
-  fi
-  # A line with exactly one tab is `<key><TAB><path>` (--list-targets output)
-  # and contributes its path; any other line is the path itself.
-  while IFS= read -r line; do
-    [[ -n "${line//[[:space:]]/}" ]] || continue
-    rest="${line#*$'\t'}"
-    [[ "$rest" != "$line" && "$rest" != *$'\t'* ]] && line="$rest"
-    TARGETS+=("$line")
-  done <"$PATHS_FILE"
-  # A list with no non-blank line is an empty scope, not "no scope given":
-  # falling through to the repository listing would scan files nobody asked for.
-  if [[ "${#TARGETS[@]}" -eq 0 ]]; then
-    echo "detect.sh: --paths-file lists no paths; nothing was scanned: $PATHS_FILE" >&2
-    PATHS_FILE_EMPTY=1
-  fi
-fi
-
-# A bare invocation lists the repository's tracked markdown, and it carries the
-# same two hazards the directory expansion below already answers.
-#
-# `ls-files` quotes any pathname holding a byte above 0x80 unless
-# `core.quotePath=false` (git-config: "bytes higher than 0x80 are not
-# considered unusual any more"), so a tracked `notes-é.md` arrived as the literal
-# escape `"notes-\303\251.md"`, failed the scan loop's existence test, and
-# produced neither a finding nor a declined row. A bare invocation is the shape
-# the audit skill uses to sweep a whole repository, so that silent drop meant
-# every non-ASCII-named file was outside the audit while the report claimed
-# repository-wide coverage.
-#
-# A listing that fails says so on stderr instead of vanishing into
-# `2>/dev/null`. An empty target list from a failed `ls-files` is
-# indistinguishable from a repository with no tracked markdown, and both read
-# as a clean audit. `--is-inside-work-tree` picks the branch up front so a
-# missing git binary and a directory outside any checkout each get their own
-# message rather than one opaque nonzero exit.
-list_repo_markdown() {
-  local inside listing status
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  inside="$(git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)"
-  status=$?
-  if [[ "$status" -ne 0 || "$inside" != "true" ]]; then
-    echo "detect.sh: git could not confirm a work tree at $REPO_ROOT; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  listing="$(git -C "$REPO_ROOT" -c core.quotePath=false ls-files '*.md')"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed in $REPO_ROOT (exit $status); nothing was scanned" >&2
-    return 0
-  fi
-
-  [[ -n "$listing" ]] || return 0
-  printf '%s\n' "$listing"
-}
-
-if [[ "${#TARGETS[@]}" -eq 0 && "$PATHS_FILE_EMPTY" -eq 0 ]]; then
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    TARGETS+=("$REPO_ROOT/$line")
-  done < <(list_repo_markdown)
-fi
-
-# Directory targets expand to the markdown beneath them (tracked files when the
-# directory is inside a git checkout, a filesystem walk otherwise). Without
-# this a directory fails the scan loop's -f test and is skipped silently.
-#
-# ONE anchor, the caller's own spelling of the directory. A directory has
-# several spellings on Git Bash: git answers `C:/Users/<user>/...` for the same
-# checkout a shell reaches as `/tmp/...`. The earlier expansion built its
-# prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
-# any host where those disagree no candidate survived the filter and the walk
-# below silently replaced the tracked-files listing it was meant to back up.
-# `ls-files` C-quotes any path holding a non-ASCII byte unless
-# `core.quotePath=false`, so a tracked `notes-é.md` (or a filename that itself
-# holds an em dash) would arrive as a literal quoted escape, fail the scan
-# loop's existence test, and produce neither a finding nor a declined row.
-#
-# Running `ls-files` with `-C <dir>` needs neither: it is already
-# restricted to that directory's subtree and answers in paths relative to it,
-# so `<dir>` is the only anchor and cannot disagree with itself.
-#
-# The branch is chosen up front from `--is-inside-work-tree`, never from an
-# empty pipeline. A silent walk is only the answer when git is present and
-# reports the directory is genuinely outside a checkout. If git is missing,
-# or git cannot confirm a work tree (safe.directory refusal, unreadable
-# .git, nonzero rev-parse), the walk still runs because tracked-files-only
-# is not achievable, and that fallback is reported on stderr. Inside a
-# confirmed checkout, a listing that fails says so on stderr rather than
-# degrading into a different set of files.
-#
-# Strip one trailing slash, except when that would turn a Windows drive root
-# (`C:/`) into a drive-relative path (`C:`). Windows then treats the target as
-# "cwd on that drive", so git -C / find can scan the wrong tree or nothing.
-# Unix root `/` is the same class: stripping leaves empty, so the original
-# spelling is kept. `C:\` is unchanged because this strip only removes `/`.
-normalize_dir_target() {
-  local dir="${1%/}"
-  if [[ -z "$dir" || "$dir" == [A-Za-z]: ]]; then
-    printf '%s\n' "$1"
-    return 0
-  fi
-  printf '%s\n' "$dir"
-}
-
-expand_dir_target() {
-  local dir inside listing status
-  dir="$(normalize_dir_target "$1")"
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; directory $dir expanded via filesystem walk (tracked-files-only is not achievable)" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-
-  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git could not confirm a work tree under $dir (exit $status); expanding via filesystem walk" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-  if [[ "$inside" != "true" ]]; then
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-
-  listing="$(git -C "$dir" -c core.quotePath=false ls-files '*.md')"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2
-    return 0
-  fi
-
-  while IFS= read -r rel; do
-    [[ -n "$rel" ]] || continue
-    if [[ "$dir" == */ || "$dir" == *\\ ]]; then
-      printf '%s%s\n' "$dir" "$rel"
-    else
-      printf '%s/%s\n' "$dir" "$rel"
-    fi
-  done <<<"$listing"
-}
-
-EXPANDED=()
-for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
-  if [[ -d "$t" ]]; then
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && EXPANDED+=("$line")
-    done < <(expand_dir_target "$t")
-  else
-    EXPANDED+=("$t")
-  fi
-done
-mapfile -t TARGETS < <(printf '%s\n' ${EXPANDED[@]+"${EXPANDED[@]}"} | sort -u)
-if [[ "$LIST_TARGETS" -eq 0 ]] && [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
-  end="${#TARGETS[@]}"
-  [[ "$LIMIT" -gt 0 ]] && end=$((OFFSET + LIMIT))
-  mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | awk -v s="$OFFSET" -v e="$end" 'NR > s && NR <= e')
-fi
+resolve_targets TARGETS "$REPO_ROOT" "$PATHS_FILE" "$OFFSET" "$LIMIT" "$LIST_TARGETS" ${TARGETS[@]+"${TARGETS[@]}"} || exit $?
 
 matches_glob() {
   # matches_glob <path> <glob>...: any glob matches the path (or its repo-relative form).
@@ -614,10 +376,9 @@ matches_glob() {
   return 1
 }
 
-# The same two filters the scan loop applies before reading a file.
+# Excluded paths, the filter the scan loop applies before reading a file.
 if [[ "$LIST_TARGETS" -eq 1 ]]; then
   for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
-    [[ -f "$file" ]] || continue
     [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}" && continue
     printf '%s\t%s\n' "${file#"$REPO_ROOT"/}" "$file"
   done
@@ -883,7 +644,6 @@ emit_finding() {
 }
 
 for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
-  [[ -f "$file" ]] || continue
   rel="${file#"$REPO_ROOT"/}"
 
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then

@@ -56,6 +56,9 @@
 
 set -uo pipefail
 
+# shellcheck source=lib/worktree-facts.sh
+source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
@@ -1015,17 +1018,10 @@ fi
 # time only: no session token, so it matches no session and check-enter
 # reports a foreign claim. Do not put the host name where the session id
 # goes; that would make every helper lock look owned by every session.
-lock_host="${HOSTNAME:-}"
-if [[ -z "$lock_host" ]]; then
-  lock_host="$(hostname 2>/dev/null || printf 'unknown-host')"
-fi
-lock_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ -n "$session_id" ]]; then
-  lock_reason="$(printf 'worktree-create.sh: lane active on %s session %s since %s; unlock when the owning lane is done' \
-    "$lock_host" "$session_id" "$lock_stamp")"
+  lock_reason="$(worktree_lock_reason worktree-create.sh "$session_id")"
 else
-  lock_reason="$(printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
-    "$lock_host" "$lock_stamp")"
+  lock_reason="$(worktree_lock_reason worktree-create.sh)"
 fi
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then

@@ -2,7 +2,7 @@
 description: "Move every canonical checkout in a fleet onto the remote default branch and fast-forward it. Divergent dirty work is parked in a linked worktree. Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation. Use when: 'sync the fleet', 'update all repos to main', 'fast-forward canonical checkouts', 'park my dirty branches and pull'."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--named <dir>]... [--config <file>] [--apply] [--yes]"
+argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--config <file>] [--apply] [--yes]"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh:*)
 metadata:
@@ -23,7 +23,7 @@ source-control's `worktree-create.sh --existing-branch`.
 
 First hit wins:
 
-1. Explicit `--repo`, `--root`, or a bare path.
+1. Explicit `--repo`, `--root`, or a bare path. `--root`, `--repo`, and `--named` repeat.
 2. Fleet config (`--config`, else the project file, else `~/.claude/repo-fleet-hygiene.conf`).
 3. `--named` paths from the conversation.
 4. `ghq root`, when `ghq` is installed.
@@ -40,6 +40,10 @@ First hit wins:
 | `--apply` on a terminal | One prompt for the whole plan. Decline changes nothing. |
 | `--apply` without a terminal | Exit 3. Nothing changes. |
 | `--apply --yes` | Apply. |
+
+`--yes` skips the script's prompt, not the user. Pass it only after you have shown the user the
+dry-run plan (its `repos:` count and each repo's action row) and the user has
+explicitly said to go ahead. This holds in non-terminal runs too: no terminal is never consent.
 
 Non-fast-forward, dubious ownership, and a partial stash apply are skipped and reported.
 The script does not reset a branch.

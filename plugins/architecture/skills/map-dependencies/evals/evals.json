@@ -1,0 +1,59 @@
+{
+  "skill_name": "map-dependencies",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dotnet-project-and-package-edges-are-cited",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has src/App/App.csproj with a ProjectReference to src/Lib/Lib.csproj and a PackageReference to Newtonsoft.Json. No dependency-graph.json exists yet.",
+      "expected_output": "Runs dependency-graph.sh on the repository root, writes dependency-graph.json in the one-object-per-line layout, and renders dependency-graph.md as a mermaid flowchart of the internal edge. The package is collapsed. Every edge's evidence names the csproj and the declaration.",
+      "narration": true,
+      "expectations": [
+        "Runs ${CLAUDE_SKILL_DIR}/scripts/dependency-graph.sh and writes its stdout to docs/architecture/dependency-graph.json without pretty-printing it",
+        "Renders with render-dependencies.sh rather than drawing the flowchart by hand",
+        "The App to Lib edge is a resolved project edge whose evidence includes the ProjectReference declaration",
+        "Newtonsoft.Json is a package edge and is absent from the default mermaid flowchart",
+        "The closing report quotes the renderer's summary line"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unrecognized-ecosystem-is-unknown",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a package.json and no .NET project file. This is a non-interactive run.",
+      "expected_output": "Writes a dependency-graph.json whose result is unknown and whose message names package.json, and a dependency-graph.md with that message and no mermaid flowchart.",
+      "narration": true,
+      "expectations": [
+        "result is unknown, not ok with an empty node list presented as a graph of no dependencies",
+        "The message names package.json and says an empty graph was not invented",
+        "Does not parse dependencies out of package.json",
+        "dependency-graph.md has no mermaid fence",
+        "Does not ask the operator to pick an ecosystem"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "outside-project-reference-stays-unresolved",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves. src/App/App.csproj has a ProjectReference whose Include path leaves the repository root. A project with the same file name exists inside the repository at a different path, and again as a sibling checkout outside the root.",
+      "expected_output": "The edge is status unresolved and its to field is the declared relative path. Neither the inside decoy nor the outside checkout is used as the target.",
+      "narration": true,
+      "expectations": [
+        "status is unresolved",
+        "Does not search the disk for a project with the same file name",
+        "Does not read any directory outside the repository root",
+        "The closing report says the reference was not matched by name"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cycle-is-at-the-top-and-imports-are-ignored",
+      "prompt": "/architecture:map-dependencies --cycles-only\n\nThe convention home resolves. Three projects reference each other in a directed cycle. One of them also has a C# file with a using directive for a fourth name that no project file references.",
+      "expected_output": "The cycle is listed at the top of dependency-graph.md, above the mermaid flowchart. The using directive produces no edge. The diagram is a flowchart, not a C4 diagram.",
+      "narration": true,
+      "expectations": [
+        "The Cycles section appears above the Diagram section and names the three projects",
+        "Must not add an edge from a using directive or any other source import",
+        "The rendered diagram is a mermaid flowchart, never a C4Component or C4Container block",
+        "Passes --cycles-only to render-dependencies.sh rather than deleting edges from the JSON"
+      ]
+    }
+  ]
+}
