@@ -281,7 +281,7 @@
         "https://code.claude.com/docs/en/plugins-reference#defaultenabled",
         "https://code.claude.com/docs/en/settings#fix-a-broken-settings-file"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-09-28",
       "recheckTrigger": "The plugins/settings pages change the key or its precedence, agent listings become budget-capped like skills, or a Claude Code release applies the defaultEnabled fallback to a plugin no scope names."
     },
     {
