@@ -145,11 +145,14 @@ loops rather than to save money. All are config keys (`.claude/attribution.json`
 **Under `sweep`, both are scoped to the sweep rather than to one invocation.** The ceiling is
 spent across the whole sweep, so a resumed sweep restores its spend from the sweep ledger instead
 of starting again at zero, and the cache is likewise the sweep's: a resume re-validates an entry
-before reusing it, because a page fetched before the interruption may have changed since. Neither
-happens on its own. The ledger at `.work/<topic-slug>/sweep-ledger.md` is prose the run keeps by
-hand, no script writes or reads it, and it is checkout-local, so a sweep resumed in a different
-checkout has no spend and no cache to restore and is a new sweep. `SKILL.md` "Sweep" and
-`reference/dispositions.md` "Sweep closure" carry the resume rules and the entry's fields.
+before reusing it, because a page fetched before the interruption may have changed since. The
+ledger at `.work/<topic-slug>/sweep-ledger.md` is where both live, and `scripts/sweep-ledger.sh`
+keeps it: `spend` adds fetches to the total, `cache-add` and `cache-check` record and look up a
+source, and `status` exits non-zero once the total reaches `corpus_fetch_ceiling`. The run still
+has to call them, and the script checks arithmetic, never whether a fetch was worth spending. The
+ledger is checkout-local, so a sweep resumed in a different checkout has no spend and no cache to
+restore and is a new sweep. `SKILL.md` "Sweep" and `reference/dispositions.md` "Sweep closure"
+carry the resume rules and the entry's fields.
 
 Exhausting a budget produces the neutral outcome, not a failure and not a negative verdict:
 `source not identified (budget exhausted; searched: ...)`, naming every surface checked. Absence

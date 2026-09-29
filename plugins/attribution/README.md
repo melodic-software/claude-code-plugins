@@ -123,7 +123,7 @@ prints one warning naming it and the `attribution` file name to rename it to.
 ## Prerequisites
 
 - **bash** for `list-corpus.sh`, `extract-breadcrumbs.sh`, `check-stamps.sh`,
-  `emit-findings.sh`, and `score-golden.sh`.
+  `emit-findings.sh`, `score-golden.sh`, and `sweep-ledger.sh`.
 - **Node** for `fingerprint.mjs`, the one module with real data structures.
 - **Web fetch** for source confirmation. Without it, the audit still runs and reports, but every
   finding that would have been verified stops at `llm-suspected`, or at `vendored-snapshot` where
