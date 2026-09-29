@@ -18,6 +18,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
   exporter's append-only limit, replacing the earlier cold-store estimate.
 
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
 ## [0.64.1] - 2026-09-29
 
 ### Fixed
