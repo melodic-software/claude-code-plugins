@@ -61,7 +61,7 @@ When porting upstream additions, **keep** this plugin's customizations:
 | Frontmatter shape | `grounding/SKILL.md` | Plugin conventions (`user-invocable`, `argument-hint`, `disable-model-invocation`, `metadata`) |
 | The `grounding`/`sync` skill split | Both skills | `/dometrain:sync` must stay non-model-reachable |
 | Standing untrusted-data instruction | `grounding/SKILL.md` | Prompt-injection defense this plugin adds; upstream's own skill doesn't carry it |
-| `userConfig`-driven setup pointer | `grounding/SKILL.md`, README | This plugin's native secure-credential-storage UX, absent from upstream's env-var auth |
+| Tool-source pointer | `grounding/SKILL.md`, README | Names `dometrain-mcp` and the user-scope server as the two ways to get the tools, absent from upstream's env-var auth |
 
 What to **adopt** from upstream (when present):
 

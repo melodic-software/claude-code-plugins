@@ -4,13 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.13.30] - 2026-09-28
+## [0.13.31] - 2026-09-28
 
 ### Changed
 
 - **`skill-authoring`** points at the argument-hint house style
   (`docs/conventions/argument-hint/README.md`) instead of restating it. The convention owns the
   budget, the bracket grammar, and the empty-key rule; the fleet contract validator enforces them.
+
+## [0.13.30] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` points at the invocation-context rubric** for when a skill may set
+  `context: fork`, the anti-candidate classes, and this fleet's `background: false` default
+  (#3545). The hub, the runtime-model section, the pre-share checklist, and one eval case all
+  point; they do not restate the rubric.
 
 ## [0.13.29] - 2026-09-28
 

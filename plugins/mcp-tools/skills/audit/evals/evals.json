@@ -79,6 +79,19 @@
         "States that Claude Code ignores any value other than JSON `true`, so the intended consent gate silently never applies",
         "Prioritizes the C18 FAIL items ahead of WARN and info items"
       ]
+    },
+    {
+      "id": 7,
+      "name": "blocking-fork-has-no-parent-history",
+      "prompt": "You already know from earlier in this chat that we only care about the payments server. Audit the MCP tools.",
+      "expected_output": "The skill does not use prior conversation: it is a blocking fork with no parent history. Without a path in $ARGUMENTS it audits the whole project rather than narrowing to a remembered server, and it identifies itself as context: fork with background: false.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output does not treat prior conversation as a scope filter",
+        "Output audits the whole project when $ARGUMENTS is empty, rather than a remembered server",
+        "Output identifies the skill as a blocking fork (context: fork, background: false)"
+      ]
     }
   ]
 }

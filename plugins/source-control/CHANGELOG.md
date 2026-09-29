@@ -3,13 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.18] - 2026-09-28
+## [0.62.19] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `babysit-loop`, `babysit-prs`, `pull-request`, `setup`, `worktree` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.62.18] - 2026-09-28
+
+### Changed
+
+- The `setup` spoke `reference/apply-convention.md` gains two headings (target layer and
+  non-interactive writes; the interactive interview) and a Contents block that links them, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on it. No step text
+  changed.
 
 ## [0.62.17] - 2026-09-28
 

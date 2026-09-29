@@ -3,6 +3,7 @@
 ## Contents
 
 - [3. Run state, keying, and concurrency](#3-run-state-keying-and-concurrency)
+  - [The lease: how `--resume` tells a live run from an abandoned one](#the-lease-how---resume-tells-a-live-run-from-an-abandoned-one)
 - [5. Mid-run resumability](#5-mid-run-resumability)
 
 This file owns §3 and §5: how the run tree is keyed, the applying lock, the lease that tells a live

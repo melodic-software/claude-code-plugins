@@ -3,13 +3,21 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.29] - 2026-09-28
+## [0.51.30] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `audit`, `audit-automation-gaps`, `audit-instructions`, `audit-permission-grants`, `audit-permission-state`, `audit-prompting-postures`, `unhobble` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
   Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
+## [0.51.29] - 2026-09-28
+
+### Changed
+
+- `audit-pass` reference spokes `determinism-tiers.md` and `run-state-and-resumability.md`, and
+  the `audit` spoke `validation-categories.md`, open with a Contents block of section anchors, so
+  skill-quality check 26 (long spoke files carry a table of contents) passes on them.
 
 ## [0.51.28] - 2026-09-28
 
