@@ -157,7 +157,7 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
   acknowledged with a reviewed reason.
 - **Basis**: `cutover-check.sh`, no `--skip-canary`, over the ten repositories on 2026-09-29,
   Claude Code 2.1.284, exit 0. The trees were read as they stood and not fetched, so the grade is
-  for those local commits, not for current `origin/main`. The per-repository commit table and the
+  for those local commits, not for the current default branch. The per-repository commit table and the
   full per-condition output are in the comment on tracker issue #4281, not copied here.
 - **As of**: 2026-09-29.
 - **Recheck trigger**: a pin move in any in-scope repository, a Claude Code release whose
