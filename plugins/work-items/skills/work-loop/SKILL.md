@@ -472,6 +472,10 @@ The loop never works, closes, or waits on them; an open telemetry issue is the l
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
 blocking drain exit.
 
+## Next
+
+Escalations and first-drain ratification items wait in `/work-items:attend-queue`.
+
 ## Gotchas
 
 - **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary;

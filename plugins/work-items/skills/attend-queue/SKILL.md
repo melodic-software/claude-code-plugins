@@ -265,6 +265,10 @@ and report the pause
 to the operator, who may explicitly choose to continue (the operator's presence is the "explicit
 user request" the hard-stop rule anticipates).
 
+## Next
+
+The autonomous drain that picks up what this flipped: `/work-items:work-loop`.
+
 ## Gotchas
 
 - **The label alone is not an escalation.** `needs-human` (or its remap) marks parked items too;

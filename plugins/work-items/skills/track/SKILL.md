@@ -64,6 +64,11 @@ memory root's self-ignore guard (a `.gitignore` containing `*`, created and anno
 Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`) don't
 need a checklist.
 
+## Next
+
+- A picked item: `/work-items:work`.
+- Raw intake: `/work-items:triage`.
+
 ## Action Router
 
 Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.

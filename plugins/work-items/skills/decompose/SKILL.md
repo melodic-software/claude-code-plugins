@@ -200,6 +200,10 @@ close-on-ship drift doctrine. A run that publishes plain slices needs none of it
 
 After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order. **work the frontier** (unblocked slices first).
 
+## Next
+
+A slice ready to build: `/work-items:work`.
+
 ## Re-decompose (rerouting)
 
 Read [context/re-decompose.md](context/re-decompose.md) when the target item already carries slices

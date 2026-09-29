@@ -218,6 +218,11 @@ On user confirmation ("yes"):
 
 1. **On completion:** invoke `/work-items:track done` (one-off items) or `/work-items:track recheck` (recurring items) via the Skill tool.
 
+## Next
+
+- The PR it opened: `/source-control:babysit-prs`.
+- The next pick: `/work-items:work`.
+
 ## Bug Investigation Rule
 
 Reproduce the reported failure FIRST. Never close a bug item without either reproducing and fixing it, or proving via git history why the reporter saw the failure and why it no longer applies.

@@ -149,6 +149,10 @@ One compact macro map, then the recommendation:
 - Frontier: the workable items, blockers-first ordering preserved
 - Next: the single routed action from Step 4
 
+## Next
+
+The next item: `/work-items:work`.
+
 ## What this skill does NOT do
 
 - Execute items (`/work-items:work` / the operator's shared-branch flow), create or re-slice items

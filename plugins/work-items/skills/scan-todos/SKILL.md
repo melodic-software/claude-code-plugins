@@ -48,6 +48,10 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 - **Actionable (in scope):** bare `TODO`/`FIXME`/`HACK`/`XXX` markers describing work to do; internal tracker provenance comments (e.g. `item #N` breadcrumbs left in code)
 - **Not actionable (skip):** external upstream citations (`org/repo#issue`), structured task-list grammar in working-notes files (e.g. `[TODO]` phase tags), test fixtures that assert on the literal marker text, and the consuming repo's documented exclusion paths
 
+## Next
+
+The raw items it filed: `/work-items:triage`.
+
 ## Workflow
 
 1. **Scan** using the detection command above (or the repo's own tooling). Avoid per-file grep loops over large trees, one `git grep` pass scales; per-file spawning is unusable on Windows.
