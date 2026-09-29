@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-reports-write-mode-as-info-not-pass",
       "prompt": "/typos-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, Node.js, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
       "files": [],
       "expectations": [
         "Resolves the typos binary on PATH only, matching the hook — no .venv-style per-repo convention — and reports the resolved path plus `typos --version` output when found",

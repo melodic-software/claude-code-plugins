@@ -10,10 +10,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **The missing-`typos` notice uses the `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** It latches once per session, shared by every agent, instead of once per session and agent, and the renewal on every eighth skip keeps the install route. The notice text says so. The missing-`jq` notice keeps its per-session-and-agent latch.
 - **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The `typos_format_lint_gitignored` default and its meaning are unchanged.
 - **The setup skill records its basis for the policy-disabled row and for step 1's limit ([#4566](https://github.com/melodic-software/claude-code-plugins/pull/4566)).** Both carry a dated four-part record against the skills docs. Step 1 says why it only reports a Bash version: on Windows without Git Bash the `shell: bash` skill fails to load, and the README Requirements now say to install Git for Windows and rerun. The skill's notice wording matches the hook's latch scopes, and a new eval covers the Windows case.
-- CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship.
+- CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship. The probe and manifest for the remaining binary-probing format plugins are tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
 
 ### Documentation
 
+- README Requirements and the setup skill's `check` now list Node.js, which every hook launch needs since 0.7.1: without `node` the hook does not launch and spelling is not checked ([#3708](https://github.com/melodic-software/claude-code-plugins/issues/3708)).
+- README hook cost accounting: a disabled hook costs a `node` process and an enabled edit costs `node` plus bash, not one shell and an unchanged count. Dropped the pre-0.7.1 disabled-row figures and added 2026-09-29 Linux rows for 0.7.6, marking the 0.6.35 and 0.6.55 figures and the 0.6.48 census as predating the launcher.
 - README: removed the unreproducible 2026-09-27 Linux spawn-equivalent table and the stale nine-plugin count.
 - CHANGELOG: restored the `### Changed` headings on 0.6.65 and 0.6.64.
 

@@ -63,7 +63,8 @@ table with one remediation line per FAIL. Do not modify anything.
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+restores the FAIL semantics. Node.js (step 8) is the exception: the enabled-gate runs inside the
+`node` launcher, so its absence is a FAIL either way.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
@@ -93,6 +94,12 @@ restores the FAIL semantics.
    Name the remediation in the same line rather than leaving the reader to infer it.
 7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+8. **Node.js.** Run `command -v node` via Bash, which works without the launcher. FAIL when
+   absent, even with the toggle off: the hook row runs `node hooks/exec-bash.mjs`, so a missing
+   `node` is a hook launch error and the hook never runs. Verification record. Claim: Claude
+   Code's native binary neither ships nor uses Node. Basis: [Set
+   up](https://code.claude.com/docs/en/setup). As of 2026-09-29. Recheck when a re-read of that
+   page no longer says the native install does not use Node.
 
 ## `apply` (idempotent)
 
@@ -107,7 +114,7 @@ After the consumer installs `typos` themselves, re-run `check` with live Bash pr
 pre-computed rows predate the install) and report its actual result.
 Never claim resolved without re-verifying. For everything else `apply` only points:
 
-- missing `jq` / Bash: platform install instructions from the README Requirements section;
+- missing `jq` / Bash / Node.js: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention

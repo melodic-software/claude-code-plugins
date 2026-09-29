@@ -111,6 +111,11 @@ the tools reference).
   native Windows, Git Bash is missing: install Git for Windows and rerun
   ([skills docs](https://code.claude.com/docs/en/skills#how-injected-commands-run), checked
   2026-09-29: a `shell: bash` skill fails before any command runs when Git Bash is not found).
+- **Node.js** on `PATH`. The hook row runs `node hooks/exec-bash.mjs`, which finds Bash and
+  runs the script. Claude Code's native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), checked 2026-09-29), so without `node`
+  the hook does not launch and spelling is not checked. A missing `node` is a hook launch
+  error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
@@ -137,8 +142,17 @@ interleaved `bash -c :` floor on Windows 11 under Git Bash:
 | PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
 | PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
 
-The 18.7 row is the current figure for this host class. Releases after 0.6.55 have not been
-measured on Windows.
+| PostToolUse `Write`, clean `.md`, hook enabled | 1 | 62.7 ms with the launcher, 34.6 ms for the script alone, on a floor of about 1 ms (0.7.6) | 2026-09-29, n=30, Linux x86_64, bash 5.3, node 24, `typos` 1.49 | the exec-form row runs `node hooks/exec-bash.mjs`, which spawns the script's bash: one `node` process on top of the script's own |
+| PostToolUse `Write`, hook disabled | 1 | 23.8 ms on a floor of about 1 ms (0.7.6) | 2026-09-29, n=30, same host | the launcher exits before bash, but the `node` process itself still starts |
+
+The two 0.7.6 rows are wall time on a Linux host, not spawn-equivalents: the floor there is about
+1 ms, so a ratio to it says little, and no `strace` was available for a kernel census. The
+Windows rows are the last spawn-equivalent figures. Releases after 0.6.55 have not been measured
+on Windows, and the 0.6.35 and 0.6.55 figures and the 0.6.48 census below predate the launcher
+and the current `hooks/hook-utils.sh`, so they do not describe the 0.7.6 process shape.
+Reproduce the Linux rows with `hyperfine -N --input <payload.json>` over the command in
+`hooks/hooks.json`, with `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false` exported for the
+disabled row.
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
@@ -317,14 +331,14 @@ by the write-mode allowlist would stop reporting typos in `Dockerfile`,
 `Makefile`, `.gitignore` and every extensionless file. That is a behavior
 change, not a saving.
 
-**A disabled hook costs one shell.** The `hooks/hooks.json` row reads
-`typos_format_enabled` itself and exits before the script starts, so the harness's
-shell is the only process a disabled hook creates. Measured in two runs on a Windows
-Git Bash host under different load, 15 interleaved trials each with the switch off, the old row cost 2.5 to 4.0
-times the `bash -c :` floor and the new row about 1.0 times it (medians: 96.1 ms
-against 23.7 ms on a 24.0 ms floor, and 157.6 ms against 62.4 ms on a 61.9 ms floor).
-With the switch on the row `exec`s the script in place of its own shell, so the
-process count is unchanged.
+**A disabled hook costs a `node` process; an enabled edit costs `node` plus bash.** The
+`hooks/hooks.json` row runs `node hooks/exec-bash.mjs --run-if-unset-or-true TYPOS_FORMAT_ENABLED`
+(0.7.1). With `typos_format_enabled` off the launcher exits before it resolves or spawns bash, so
+`node` is the only process the hook creates. With it on, `node` spawns bash for the script, so the
+edit path carries one more process than the pre-0.7.1 row, which `exec`'d the script in place of
+its own shell. The 2026-09-29 Linux run in Hook budget accounting measured 23.8 ms disabled and
+62.7 ms enabled, against 34.6 ms for the script alone. The earlier Windows figures for a disabled
+row describe a row that no longer exists and are not repeated.
 
 ### Why the row stays synchronous (#4677)
 
