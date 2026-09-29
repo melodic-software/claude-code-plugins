@@ -40,7 +40,9 @@ Both live under `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/`, stdlib-on
 ## Redaction and the untrusted-data boundary
 
 The distilled observations are **transient and machine-local** (written under the plugin's work dir,
-`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`), consumed once by the analysis run, and **deleted
+`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`; the hook reads the exported variable, the `arm`
+skill block uses the substituted token, and both fall back to the temp dir when it is empty),
+consumed once by the analysis run, and **deleted
 after a successful run**, never written to the durable, portable ledger; only the analysis run's
 redacted findings block is. Redaction is **two-hop**, matching `running-retro`'s ledger contract: the
 `-p` run performs the **semantic** pass (it is the only reasoning agent in the loop; its prompt makes
