@@ -216,6 +216,12 @@ if kill -0 "$(cat "$TMP/child.pid")" 2>/dev/null; then
 else
   ok "(d) the timeout kills the scanner's children"
 fi
+# A scanner that exits 0 once its child is killed is still a timeout.
+printf '#!/usr/bin/env bash\nsleep 30\nexit 0\n' >"$TMP/survive.sh"
+: >"$CLAUDE_PLUGIN_DATA/test-weaken.log"
+run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP" TEST_WEAKEN_SCANNER="$TMP/survive.sh" TEST_WEAKEN_TIMEOUT=1
+assert_no_decision "(d) a scanner that exits 0 after the timeout: no decision" "$out"
+assert_contains "(d) and it logs the timeout" "$(cat "$CLAUDE_PLUGIN_DATA/test-weaken.log" 2>/dev/null)" "timed out"
 
 # (d) with no CLAUDE_PLUGIN_DATA the log and markers stay out of TMPDIR.
 mkdir -p "$TMP/tmpdir"

@@ -23,6 +23,8 @@ testing::data_dir() {
 # stdout and stderr to <out file> and set SCAN_RC. It runs in its own process
 # group (set -m), so the timeout signals the whole group and an awk the
 # scanner started dies with it; a timed-out run leaves SCAN_RC above 128.
+# Every process here is reaped by its parent: an orphan goes to PID 1, which
+# in a container without an init never reaps it.
 testing::run_scanner() {
   local t="$1" out="$2" pid watchdog
   shift 2
@@ -31,11 +33,29 @@ testing::run_scanner() {
   pid=$!
   set +m
   (
-    sleep "$t"
+    trap 'kill "$s"; wait "$s"; exit' TERM
+    sleep "$t" &
+    s=$!
+    wait "$s"
+    trap '' TERM
+    : >"$out.timeout"
+    # The scanner's children first, so the scanner reaps them.
+    # ponytail: one level; a grandchild still orphans, and without pkill the group kill alone runs.
+    if pkill -TERM -P "$pid"; then
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$pid" || break
+        sleep 0.1
+      done
+    fi
     kill -TERM -- "-$pid"
   ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$pid"
   SCAN_RC=$?
   kill "$watchdog" 2>/dev/null
+  wait "$watchdog"
+  if [[ -e "$out.timeout" ]]; then
+    rm -f "$out.timeout"
+    ((SCAN_RC > 128)) || SCAN_RC=143
+  fi
 }
