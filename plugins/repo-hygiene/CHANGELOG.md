@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` proves a branch landed without a PR record (#5230).** When the PR map
+  has no entry, it runs `git cherry` against the default branch (every commit equivalent) and
+  then a tree-equality check before falling to REVIEW or LOSSY.
+- **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
+  dirty file count, and any merge, rebase, cherry-pick or bisect in progress, naming the file
+  that shows it. It emits no deletable tier while an operation is in progress, and
+  `git-branch-delete.sh` refuses to delete then.
+
 ## [0.11.2] - 2026-09-29
 
 ### Fixed
