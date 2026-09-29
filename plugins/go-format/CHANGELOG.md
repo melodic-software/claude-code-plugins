@@ -3,6 +3,17 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6] - 2026-09-29
+
+### Fixed
+
+- The session-start prerequisite probe honors `go_format_enabled`: with the kill switch off, no `goimports was not found` notice appears.
+
+### Changed
+
+- README and the setup skill state the `go_format_lint_gitignored` exemption (gitignored files are skipped by default; a tracked file matching an ignore pattern stays in scope) and no longer describe the hook as unconditional. The setup `check` action reports the option's effective value, with a matching eval.
+- The setup skill's toggle-off step prints the reconfiguration convention's short form: `-s user`, never uninstall to reconfigure, next-session observation, read the output rather than the exit code.
+
 ## [0.4.5] - 2026-09-28
 
 ### Changed
