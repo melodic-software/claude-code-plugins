@@ -6,8 +6,9 @@ adopter row is a minor bump; docs-only clarification is a patch.
 
 ## [3.4.1] - 2026-09-29
 
-**Patch.** Docs-only clarification: rule 2 now says that an omitted-`Confidence` detector row ranks
-below a reviewer's `low` row in a merged report, and that this is a deliberate result of the rule.
+**Patch.** Docs-only clarification: rule 2 now says that, at equal tier and agreement count, an
+omitted-`Confidence` detector row ranks below a reviewer's `low` row in a merged report, and that this
+is a deliberate result of the rule.
 No producer's output and no rule changes.
 
 ## [3.4.0] - 2026-09-29
