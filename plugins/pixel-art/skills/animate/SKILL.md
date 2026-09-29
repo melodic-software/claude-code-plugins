@@ -56,11 +56,13 @@ the engine's order, and declare each cycle under `animations` with `fps` or `dur
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 4
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 4
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
-Output location resolves as in `/pixel-art:sprite`. `render.py` writes one GIF per animation.
+Output location resolves as in `/pixel-art:sprite`. `backends.py` follows the same backend rule as
+`/pixel-art:sprite` (native unless `${user_config.backend}` or `--backend` says otherwise, and no
+`--confirm` until the user accepts a paid call). It writes one GIF per animation.
 
 ## 5. Review loop
 

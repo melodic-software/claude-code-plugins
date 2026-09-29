@@ -102,7 +102,7 @@ two are routinely conflated:
   this skill's scope by design; that surface stays with the bundled subcommand.
 
 **Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
-your session, prefer its `prompt-audit` for a model migration or any pass over application-code
+this session, prefer its `prompt-audit` for a model migration or any pass over application-code
 prompts, and run it as the vendor procedure whenever the target model changes. Prefer this skill for
 the standing catalog audit of Claude Code surfaces, for cross-surface conflicts, and for harness
 claims that misstate Claude Code's own behavior. Where a sweep wants both, run both: recurring gap

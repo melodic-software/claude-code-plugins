@@ -3,6 +3,25 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12] - 2026-09-28
+
+### Changed
+
+- **The manual handoff says what a run-directory write costs (part of #4225).**
+  `reference/unsupported-platform-handoff.md` step 1 now states that `<run-dir>` sits under
+  `~/.claude`, a protected directory. A Write of `handoff-paths.json` or `vcs-evidence.json`
+  therefore prompts in `default` and `acceptEdits`, goes to the classifier in `auto`, and is denied
+  in `dontAsk`, and no allow rule pre-approves it. It also states that the prompt's session-wide
+  "edit files in its ~/.claude folder" option covers every later `~/.claude/` write, not just this
+  run, and that the evidence-file exception is unavailable in `dontAsk`. The engine-side fix, where
+  the engine persists its own artifacts, stays open in #4225.
+
+## [0.28.11] - 2026-09-28
+
+### Added
+
+- **`scan` flags home-root `*.py` files that shadow a standard-library module** ([#4217](https://github.com/melodic-software/claude-code-plugins/issues/4217)). A loose `~/gettext.py` shadowed stdlib `gettext` for Python started from the home directory, and the engine hinted only the `__pycache__` it kept rebuilding. The snapshot and stdout, including `--quiet`, now carry `stdlib_shadowing`, one row per home-root file whose stem is in the interpreter's `sys.stdlib_module_names` but not `sys.builtin_module_names` (a symlinked source counts; the match is case-insensitive on Windows), with the sibling `bytecode_cache` when that cache holds its `.pyc`. The file's entry gains a `stdlib-module-shadow` advisory, and the home-root `__pycache__` entry gains `bytecode_sources` naming the module each `.pyc` was compiled from, read with one directory listing even when a depth cut left the cache unwalked. The advisory is not a hint: it adds no tier and no eligibility.
+
 ## [0.28.10] - 2026-09-28
 
 ### Fixed

@@ -197,6 +197,21 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# A breadth token narrows a small question below caller effort, and Budget: has
+# one vocabulary mapped to Effort rows.
+assert_present 'research argument-hint shows the breadth token' \
+  'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
+assert_present 'research SKILL.md states breadth narrows and never widens' \
+  'skills/research/SKILL.md' '^\*\*`breadth=` narrows, never widens\.\*\*'
+assert_present 'the parent contract defines the Budget: vocabulary once' \
+  'reference/parent-contract.md' '^### `Budget:` vocabulary$'
+for word in low medium full; do
+  assert_present "the Budget: vocabulary maps $word to an Effort row" \
+    'reference/parent-contract.md' "^\| \`$word\` \| \`(low|medium|high)\`"
+done
+assert_present 'the parent contract envelope opens Budget: with the vocabulary' \
+  'reference/parent-contract.md' '^Budget: <low\|medium\|full>'
+
 # One topic with many gaps fans out inside Phase 2 when nesting is available;
 # the principle alone never fired (#4151).
 assert_present 'the discipline file carries the per-gap fan-out recipe' \
@@ -776,6 +791,37 @@ assert_present 'the researcher writes verification: pending in its first write' 
   'agents/researcher.md' 'first write carries `verification: pending`'
 assert_present 'the artifact gate prints the verification value' \
   'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
+
+# ---------------------------------------------------------------------------
+# The sibling verifier is specified once and pointed at
+#
+# Every payload asks for a verifier, and no agent, prompt, write-back line or
+# no-verifier fallback was stated anywhere, so a verified index and one whose
+# verifier never ran read the same.
+# ---------------------------------------------------------------------------
+verifier_heading='^## The sibling verifier, stated once$'
+verifier_line='^verification: <pass\|fail\|unverified> \(<worker>, <YYYY-MM-DD>\)$'
+assert_present 'the parent contract owns the sibling verifier' \
+  'reference/parent-contract.md' "$verifier_heading"
+assert_present 'the parent contract states the literal write-back line' \
+  'reference/parent-contract.md' "$verifier_line"
+assert_present 'the parent contract names the verifier route' \
+  'reference/parent-contract.md' '^\*\*Route\.\*\* `explore` and `trace-intent` dispatch a `general-purpose` subagent'
+assert_present 'the parent contract states the no-verifier fallback' \
+  'reference/parent-contract.md' '`verification: unverified \(none, <YYYY-MM-DD>\)`'
+for pair in "heading:$verifier_heading" "write-back line:$verifier_line"; do
+  owners="$(surface | xargs grep -lE -- "${pair#*:}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$owners" -eq 1 ]]; then
+    pass "the sibling verifier's ${pair%%:*} is stated exactly once"
+  else
+    fail "the sibling verifier's ${pair%%:*} is stated exactly once — $owners files carry it"
+  fi
+done
+for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file points at the sibling verifier" \
+    "$file" '"The sibling verifier, stated once"'
+done
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
