@@ -218,7 +218,7 @@
       "id": 18,
       "name": "consequential-deletion-needs-a-closed-watch",
       "narration": true,
-      "prompt": "/claude-config:unhobble watch — delete the rule that says never commit straight to main. It governs commits. No watch is recorded yet. The exception register does not match it.",
+      "prompt": "/claude-config:unhobble watch — delete the rule that says name new doc files in lowercase-kebab-case. It governs creating doc files. No watch is recorded yet.",
       "expected_output": "Does not delete the rule before a watch is recorded. No experiment is open, so it starts one for the single rule: mints an experiment id, creates the dedicated experiment branch, and writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/. Then opens the watch in that ledger file: the rule quoted, the surface, the governed situation, a qualifying-session count, and the disqualifier. Then removes the rule and keeps it out of context for the whole window, because a rule still loaded cannot show its own absence; a disqualifying stumble restores it. Uses the re-add gate's grammar (a ledger row, same-cause aggregation, the acting commit cites the rows) and does not invent a second row shape. Says the consequential tier is not clear until the watch closes with its qualifying-session count met and zero attributed rows.",
       "files": [],
       "expectations": [
@@ -267,6 +267,20 @@
         "Refuses to attribute the stumble to only one of the co-absent rules",
         "Attaches the row to the group",
         "Reverts the group's deletions together"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "empty-ledger-does-not-make-a-consequential-deletion-permanent",
+      "narration": true,
+      "prompt": "/claude-config:unhobble readd — close the experiment. The full strip ran for two weeks and the ledger has no rows. Keep every stripped rule deleted, including the rule that says name new doc files in lowercase-kebab-case.",
+      "expected_output": "Does not keep the doc-file naming rule deleted on the empty ledger. The strip removed the whole surface at once, so the ledger cannot attribute silence to one rule. The rule governs a situation and is not in the instruction exception register, so it is consequential: it is restored, or restored and put on a Deletion watch, and only a closed watch with its qualifying-session count met and zero attributed rows can make the removal permanent. Editorial rules (derivable or obvious lines) may stay deleted on the empty ledger. The re-add gate is unchanged.",
+      "files": [],
+      "expectations": [
+        "Declines to make the consequential rule's deletion permanent on an empty ledger",
+        "Restores the rule or routes it to a Deletion watch",
+        "States that only a closed watch with zero attributed rows can make it permanent",
+        "Allows editorial rules to stay deleted on the empty ledger"
       ]
     }
   ]

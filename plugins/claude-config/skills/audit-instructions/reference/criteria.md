@@ -100,8 +100,8 @@ declines a row on this ground says where it routed, so "no row" never reads as "
 **Axes.** Three orthogonal axes, never conflated:
 
 - **Evidence tier**: `mechanical` (pattern-detectable by static reading) or `behavioral` (ground
-  truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
-  loop, never confident removals).
+  truth is observed model behavior, so findings ship as proposals verified per Deletion tiers,
+  never confident removals).
 - **Authority**: `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
   (a practitioner's stated practice), or `HOUSE` (a session-knowledge defect this catalog defines
   itself; it has no external page to cite, and it is on by default because its ground truth is the
@@ -446,8 +446,9 @@ run the other way.
   non-model rationale is not this instance.** Reviewability of returns, rate limits, cost, or
   shared mutable state each justify a bound on their own terms, and that justification is the
   surface's to make, not this row's to override.
-- **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
-  that default performance holds or improves.
+- **Remediate:** propose removal or a briefer instruction; verify per Deletion tiers (a
+  consequential removal needs a closed watch, an editorial one does not) that default performance
+  holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities",
   the prefer-general-instructions statement quoted above (the gate-meeting, model-agnostic one).
@@ -480,7 +481,8 @@ run the other way.
   is NOT a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never
   flagged):** security review, destructive operations, managed-upstream-file changes, PR merge
   gates.
-- **Remediate:** propose removal; verify via the delete-and-watch loop.
+- **Remediate:** propose removal; verify per Deletion tiers (a consequential removal needs a closed
+  watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below.
 - **Source:** Opus 5 guide, "Task scope and over-verification", which says to remove explicit
   verification instructions: they "cause over-verification on Claude Opus 5, and removing them
@@ -597,7 +599,8 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Remediate:** name the constraint the brevity or rhythm was protecting, whether a latency
   requirement, an external contract, or a human process, and where one exists, state that
   constraint instead of the turn-length assumption; where none exists, remove the directive and let
-  turn length follow the work. Verify via the delete-and-watch loop.
+  turn length follow the work. Verify per Deletion tiers (a consequential removal needs a closed
+  watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
   belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
@@ -639,8 +642,8 @@ report one finding per line rather than two.
   that a long run stays interruptible, and either state that outcome and let the model meet it, or
   move it to a mechanism rather than an instructed rhythm. Where the *content* of native updates is
   miscalibrated rather than absent, describe what a good update contains and give examples; that is
-  the upstream remediation and it does not reintroduce a cadence. Verify via the delete-and-watch
-  loop.
+  the upstream remediation and it does not reintroduce a cadence. Verify per Deletion tiers (a
+  consequential removal needs a closed watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
   rationale.** A rhythm the surface states exists so a long autonomous run stays visible or
@@ -1579,7 +1582,7 @@ even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest 
 consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
 This row rests on a reported model *tendency*, "can occasionally suggest a new session", with no
 documented hard consequence, which is the behavioral tier's definition. The stake is the Output
-format rule: behavioral findings ship as proposals paired with the delete-and-watch loop, never as
+format rule: behavioral findings ship as proposals verified per Deletion tiers, never as
 confident removals.
 
 - **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
@@ -1859,8 +1862,9 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   audience test I8-b applies. This row is the canonical instance.
 - **Remediate:** for arm 1, normal conditional phrasing: "Use this tool when …". For arm 2, replace
   the blanket default with the condition it was standing in for: "Use [tool] when it would enhance
-  your understanding of the problem." Verify via the delete-and-watch loop; watch for
-  overtriggering receding, not just continued triggering.
+  your understanding of the problem." Verify per Deletion tiers (a consequential removal needs a
+  closed watch, an editorial one does not); watch for overtriggering receding, not just continued
+  triggering.
 - **Source:** prompting best practices, "Tool usage": prompts "designed to reduce undertriggering
   on tools or skills … may now overtrigger. The fix is to dial back any aggressive language. Where
   you might have said 'CRITICAL: You MUST use this tool when…', you can use more normal prompting
@@ -2128,5 +2132,4 @@ Findings are presented using the Phase D report table defined in the skill body
 restated here.
 
 A clean audit ("No instructions flagged.") is a valid outcome. Behavioral-tier proposals are
-always presented as proposals paired with the delete-and-watch follow-through, never as confident
-removals.
+always presented as proposals verified per Deletion tiers, never as confident removals.

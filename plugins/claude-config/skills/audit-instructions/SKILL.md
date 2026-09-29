@@ -469,8 +469,8 @@ plainly that nothing has been applied.
   instead of what not to do"; adding a rationale is the fallback where a genuine hard "never"
   survives. Do not mechanically delete every prohibition the pre-scan flags.
 - **Behavioral findings ship as proposals, not confident cuts.** A narrow eval can miss a small
-  regression from an over-aggressive trim, which is why the verify pass and the delete-and-watch
-  loop exist. Never present a behavioral removal as certain.
+  regression from an over-aggressive trim, which is why the verify pass and the Deletion tiers
+  in [criteria.md](reference/criteria.md) exist. Never present a behavioral removal as certain.
 - **Windows shell.** The pre-scans are bash; on native Windows run them through Git Bash.
 - **A conflict pair needs two files.** Feeding `conflict-scan.sh` one surface at a time reproduces
   Phase B's blind spot and always reports clean.
