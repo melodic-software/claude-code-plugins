@@ -551,11 +551,11 @@ git clone -q "$bare" "$TMP/nest/outer/inner"
 nested="$(bash "$SCRIPT" --root "$TMP/nest")"
 expect "discovery stops at a checkout, so a repository nested in one is not planned" "$nested" \
   is "$(printf '%s\n' "$nested" | awk -F'\t' '/^[a-z-]+\t/ { printf "%s ", $2 }')" "$TMP/nest/outer "
-mkdir -p "$TMP/anc/one" "$TMP/anc/two" "$TMP/anc/plain/deep"
-git -C "$TMP/anc/one" init -q
-git -C "$TMP/anc/two" init -q
-r_anc="$(cd "$TMP/anc/plain/deep" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" 2>&1)"
-expect "an ancestor holding repositories plans rung=ancestor" "$r_anc" is "$(rung_of "$r_anc" "$TMP/anc/one")" "rung=ancestor"
+mkdir -p "$TMP/ancdir/one" "$TMP/ancdir/two" "$TMP/ancdir/plain/deep"
+git -C "$TMP/ancdir/one" init -q
+git -C "$TMP/ancdir/two" init -q
+r_ancdir="$(cd "$TMP/ancdir/plain/deep" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" 2>&1)"
+expect "an ancestor holding repositories plans rung=ancestor" "$r_ancdir" is "$(rung_of "$r_ancdir" "$TMP/ancdir/one")" "rung=ancestor"
 r_skip="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir")"
 expect "a skipped plan line carries the rung" "$r_skip" has "$r_skip" $'skip\t'"$TMP/no-such-dir"$'\t\tnot-a-directory\trung=repo'
 r_skipped="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir" --apply --yes)"
