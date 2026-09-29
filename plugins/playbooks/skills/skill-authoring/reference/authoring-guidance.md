@@ -151,8 +151,7 @@ the on-demand read applies to the supporting files it points to. So standing rul
 body and bulky material in the files the body names.
 
 Forked execution (`context: fork`) is a Claude Code extension, not part of the filesystem model
-above. The body becomes an isolated subagent's prompt with no parent history. Whether that pays,
-the anti-candidate classes, and this fleet's `background: false` default live in the
+above. What a fork changes, whether it pays, the anti-candidate classes, and this fleet's `background: false` default live in the
 [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md);
 this section does not restate them.
 

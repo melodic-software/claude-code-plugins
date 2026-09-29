@@ -22,10 +22,10 @@ authorities, cited (not recapped) so the current text always governs:
 Produces a per-tool scorecard with actionable findings. Catches description gaps, missing annotations,
 and naming issues before they degrade LLM tool selection accuracy.
 
-This skill runs as a **blocking fork** (`context: fork`, `background: false`): the body is the
-subagent's prompt and there is no parent conversation. `$ARGUMENTS` (an optional path) and the
-working tree are the whole input. The caller waits for the scorecard in the same turn. Rubric:
-[invocation-context](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
+This skill runs as a **blocking fork** (`context: fork`, `background: false`; what that changes is
+owned by the
+[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md)).
+`$ARGUMENTS` (an optional path) and the working tree are the whole input.
 
 ## Server discovery configuration
 
