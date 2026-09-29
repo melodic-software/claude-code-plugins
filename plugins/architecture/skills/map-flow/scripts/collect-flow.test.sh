@@ -105,12 +105,13 @@ assert_contains "subject is the github repo name" "$blob" '"subject": "billing"'
 assert_not_contains "record names no dialect key" "$blob" "dialect_key"
 place_line="$(grep -n '_orders.Place' "$repo/src/Transport/OrdersEndpoint.cs" | awk -F: 'NR==1{print $1}')"
 assert_contains "interface hop cites the call site" "$blob" "\"file\":\"src/Transport/OrdersEndpoint.cs\",\"line\":\"$place_line\""
-assert_contains "interface hop is unresolved dependency-injection" "$blob" '"resolution":"unresolved","mechanism":"dependency-injection"'
+assert_contains "interface hop is unresolved with mechanism interface" "$blob" '"resolution":"unresolved","mechanism":"interface"'
 assert_not_contains "interface hop does not guess OrdersImpl" "$blob" "OrdersImpl"
 handle_line="$(grep -n '_service.Handle' "$repo/src/Transport/OrdersEndpoint.cs" | awk -F: 'NR==1{print $1}')"
 assert_contains "concrete hop cites the call site" "$blob" "\"file\":\"src/Transport/OrdersEndpoint.cs\",\"line\":\"$handle_line\""
-assert_contains "cross-file unique method is inferred" "$blob" '"call":"Handle","file":"src/Transport/OrdersEndpoint.cs"'
-assert_contains "Handle resolution inferred" "$blob" '"resolution":"inferred"'
+handle_hop="$(grep -F '"call":"Handle"' "$record")"
+assert_contains "field-typed hop cites the call site and the callee" "$handle_hop" "\"file\":\"src/Transport/OrdersEndpoint.cs\",\"line\":\"$handle_line\",\"callee_file\":\"src/Application/OrdersService.cs\",\"callee_line\":\"3\""
+assert_contains "a receiver typed by a field resolves statically, across files" "$handle_hop" '"resolution":"statically-resolved","mechanism":"","handoff":"no"'
 pub_line="$(grep -n 'Publish<OrderPlaced>' "$repo/src/Application/OrdersService.cs" | awk -F: 'NR==1{print $1}')"
 assert_contains "publish cites its call site" "$blob" "\"file\":\"src/Application/OrdersService.cs\",\"line\":\"$pub_line\""
 assert_contains "publish is a handoff" "$blob" '"handoff":"yes"'
@@ -125,11 +126,12 @@ render_out="$(bash "$RENDER" --record "$record" --out "$out")"
 assert_equals "render mermaid exits 0" "$?" "0"
 md="$(cat "$out/flow.md")"
 assert_contains "summary names the entry" "$render_out" "entry=/orders/{id}"
+assert_contains "summary splits the unresolved hops" "$render_out" "unresolved=2 external=0 di=1 handoffs=1"
 assert_contains "async arrow" "$md" "-->>"
 assert_contains "sync arrow" "$md" "->>"
 assert_contains "handoff names map-events" "$md" "handoff /architecture:map-events"
 assert_contains "unresolved label is on the diagram" "$md" "unresolved"
-assert_contains "inferred label is on the diagram" "$md" "inferred"
+assert_contains "statically-resolved label is on the diagram" "$md" "statically-resolved"
 assert_not_contains "render writes no dsl file" "$(ls "$out")" "flow.dsl"
 assert_not_contains "guessed implementation is not a participant" "$md" "OrdersImpl"
 
@@ -190,6 +192,322 @@ assert_contains "a Send hop is an unresolved broker hand-off" "$order_blob" '"sy
 no_decl="$(bash "$COLLECT" --repo "$order" --entry "Handle" --out "$TEST_TMPDIR/handle.json" 2>&1)"
 assert_equals "a call on publicApi is not a declaration of Handle" "$?" "3"
 assert_contains "the Handle entry is not found" "$no_decl" "refused: entry point not found"
+
+# A call binds only through the receiver's declared type. The hop lines of one call.
+hops_of() { grep -F "\"call\":\"$2\"" "$1"; }
+
+bind="$TEST_TMPDIR/bind"
+init_repo "$bind"
+mkdir -p "$bind/src/Application" "$bind/src/Domain" "$bind/src/Infrastructure"
+cat >"$bind/src/Application/Checkout.cs" <<'CS'
+namespace Shop.Application;
+public class Checkout {
+    private readonly Dictionary<string, int> _cache;
+    private readonly Logger _log;
+    private readonly Pricing _pricing;
+    private readonly IShipper _shipper;
+    private readonly Overloaded _over;
+    private readonly Twin _twin;
+    public void Run(string id) {
+        _cache.Add(id, 1);
+        _log.Info(id);
+        _pricing.Quote(id);
+        this._pricing.Quote(id);
+        Console.WriteLine(id);
+        string.IsNullOrWhiteSpace(id);
+        var names = items.Where(x => x.Ok).ToList();
+        var stock = new Stock();
+        stock.Reserve(id);
+        Stock spare = new();
+        Local(id);
+        _shipper.Dispatch(id);
+        _over.Compute(id);
+        _twin.Ping(id);
+    }
+    public void Local(string id) {
+        Audit.Record(id);
+    }
+}
+public class Ledger {
+    public void Add(string id, int n) {
+        Journal.Append(id);
+    }
+}
+CS
+cat >"$bind/src/Infrastructure/Diagnostics.cs" <<'CS'
+namespace Shop.Infrastructure;
+public class Diagnostics {
+    public void Info(string message) {
+        Sink.Emit(message);
+    }
+}
+CS
+cat >"$bind/src/Domain/Pricing.cs" <<'CS'
+namespace Shop.Domain;
+public class Pricing {
+    public decimal Quote(string id) {
+        Tax.Levy(id);
+        return 1;
+    }
+}
+CS
+cat >"$bind/src/Domain/Tax.cs" <<'CS'
+namespace Shop.Domain;
+public class Tax {
+    public decimal Levy(string id) {
+        return 1;
+    }
+}
+CS
+cat >"$bind/src/Domain/Stock.cs" <<'CS'
+namespace Shop.Domain;
+public class Stock {
+    public void Reserve(string id) {
+    }
+}
+CS
+cat >"$bind/src/Infrastructure/Shipper.cs" <<'CS'
+namespace Shop.Infrastructure;
+public interface IShipper {
+    void Dispatch(string id);
+}
+public class Shipper : IShipper {
+    public void Dispatch(string id) {
+        Carrier.Book(id);
+    }
+}
+CS
+cat >"$bind/src/Domain/Overloaded.cs" <<'CS'
+namespace Shop.Domain;
+public class Overloaded {
+    public void Compute(string id) {
+        Hidden.One(id);
+    }
+    public void Compute(int n) {
+        Hidden.Two(n);
+    }
+}
+CS
+cat >"$bind/src/Domain/Twin.cs" <<'CS'
+namespace Shop.Domain;
+public class Twin {
+    public void Ping(string id) {
+        Echo.Reply(id);
+    }
+}
+CS
+cat >"$bind/src/Infrastructure/Twin.cs" <<'CS'
+namespace Shop.Infrastructure;
+public class Twin {
+    public void Ping(string id) {
+        Echo.Reply(id);
+    }
+}
+CS
+git -C "$bind" add src
+git -C "$bind" commit --quiet -m "bind"
+bind_json="$TEST_TMPDIR/bind.json"
+bash "$COLLECT" --repo "$bind" --entry "Run" --out "$bind_json" >/dev/null
+assert_equals "bind: collect exits 0" "$?" "0"
+bind_blob="$(cat "$bind_json")"
+outside='"callee_file":"","callee_line":"","sync":"synchronous","resolution":"unresolved","mechanism":'
+assert_contains "a dictionary field's Add is an external-call" "$(hops_of "$bind_json" Add)" "$outside\"external-call\""
+assert_not_contains "Add is not walked into the unrelated same-file Add" "$bind_blob" "Append"
+assert_contains "a Logger field's Info is an external-call" "$(hops_of "$bind_json" Info)" "$outside\"external-call\""
+assert_not_contains "Info is not walked into the unrelated Info in another file" "$bind_blob" "Emit"
+quote_hops="$(hops_of "$bind_json" Quote)"
+assert_contains "a field-typed concrete receiver resolves and cites its class" "$quote_hops" '"callee_file":"src/Domain/Pricing.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
+assert_equals "a this-qualified receiver resolves the same way" "$(printf '%s\n' "$quote_hops" | grep -c 'statically-resolved')" "2"
+assert_contains "the followed callee's own call is a hop" "$bind_blob" '"call":"Levy","file":"src/Domain/Pricing.cs"'
+assert_contains "a type name written at the call site resolves" "$(hops_of "$bind_json" Levy)" '"callee_file":"src/Domain/Tax.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
+assert_contains "a static call on a type outside the tree is an external-call" "$(hops_of "$bind_json" WriteLine)" "$outside\"external-call\""
+assert_contains "a call on a predefined type keyword is an external-call" "$(hops_of "$bind_json" IsNullOrWhiteSpace)" "$outside\"external-call\""
+assert_not_contains "a target-typed new is not a call" "$bind_blob" '"call":"new"'
+assert_contains "a call on an undeclared name has an unknown receiver type" "$(hops_of "$bind_json" Where)" "$outside\"receiver-type-unknown\""
+assert_contains "a call chained on a result has an unknown receiver type" "$(hops_of "$bind_json" ToList)" "$outside\"receiver-type-unknown\""
+assert_contains "a constructor of a tree class without one is callee-not-in-tree" "$(hops_of "$bind_json" Stock)" "$outside\"callee-not-in-tree\""
+assert_contains "a var local initialised with new resolves" "$(hops_of "$bind_json" Reserve)" '"callee_file":"src/Domain/Stock.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
+assert_contains "an unqualified call resolves in the enclosing class" "$(hops_of "$bind_json" Local)" '"callee_file":"src/Application/Checkout.cs","callee_line":"25","sync":"synchronous","resolution":"statically-resolved"'
+assert_contains "the enclosing class's callee is walked" "$(hops_of "$bind_json" Record)" "$outside\"external-call\""
+assert_contains "a tree interface is unresolved with mechanism interface" "$(hops_of "$bind_json" Dispatch)" "$outside\"interface\""
+assert_not_contains "the interface's implementation is not walked" "$bind_blob" "Book"
+assert_contains "overloads are ambiguous" "$(hops_of "$bind_json" Compute)" "$outside\"ambiguous-method\""
+assert_not_contains "no overload is walked" "$bind_blob" "Hidden"
+assert_contains "a type declared twice is ambiguous" "$(hops_of "$bind_json" Ping)" "$outside\"ambiguous-method\""
+assert_not_contains "neither Twin is walked" "$bind_blob" "Echo"
+bind_dir="$TEST_TMPDIR/bind-out"
+mkdir -p "$bind_dir"
+bind_summary="$(bash "$RENDER" --record "$bind_json" --out "$bind_dir")"
+assert_contains "summary separates external hops from interface hops" "$bind_summary" "hops=16 truncated=no unresolved=11 external=8 di=1 handoffs=0"
+
+# A receiver reached through a base class, a partial class in another file, or a base method is inferred.
+infer="$TEST_TMPDIR/infer"
+init_repo "$infer"
+mkdir -p "$infer/src/Application" "$infer/src/Domain"
+cat >"$infer/src/Application/BaseHandler.cs" <<'CS'
+namespace Shop.Application;
+public abstract class BaseHandler {
+    protected readonly Pricing _pricing;
+    public void Log(string id) {
+        Trace.Write(id);
+    }
+}
+CS
+cat >"$infer/src/Application/OrderHandler.cs" <<'CS'
+namespace Shop.Application;
+public class OrderHandler : BaseHandler {
+    public void Handle(string id) {
+        _pricing.Quote(id);
+        Log(id);
+    }
+}
+CS
+cat >"$infer/src/Application/Part.cs" <<'CS'
+namespace Shop.Application;
+public partial class Part {
+    public void Go(string id) {
+        _pricing.Quote(id);
+    }
+}
+CS
+cat >"$infer/src/Application/Part.Fields.cs" <<'CS'
+namespace Shop.Application;
+public partial class Part {
+    private readonly Pricing _pricing;
+}
+CS
+cat >"$infer/src/Application/Booking.cs" <<'CS'
+namespace Shop.Application;
+public class Booking(Pricing pricing, ILogger log) {
+    public void Run(string id) {
+        pricing.Quote(id);
+        log.Info(id);
+    }
+}
+CS
+cat >"$infer/src/Domain/Pricing.cs" <<'CS'
+namespace Shop.Domain;
+public class Pricing {
+    public decimal Quote(string id) {
+        return 1;
+    }
+}
+CS
+git -C "$infer" add src
+git -C "$infer" commit --quiet -m "infer"
+infer_json="$TEST_TMPDIR/infer.json"
+bash "$COLLECT" --repo "$infer" --entry "OrderHandler.Handle" --out "$infer_json" >/dev/null
+assert_contains "a field declared in a base class is inferred" "$(hops_of "$infer_json" Quote)" '"callee_file":"src/Domain/Pricing.cs","callee_line":"3","sync":"synchronous","resolution":"inferred"'
+assert_contains "a method declared in a base class is inferred" "$(hops_of "$infer_json" Log)" '"callee_file":"src/Application/BaseHandler.cs","callee_line":"4","sync":"synchronous","resolution":"inferred"'
+part_json="$TEST_TMPDIR/part.json"
+bash "$COLLECT" --repo "$infer" --entry "Part.Go" --out "$part_json" >/dev/null
+assert_contains "a field declared in a partial class in another file is inferred" "$(hops_of "$part_json" Quote)" '"resolution":"inferred"'
+booking_json="$TEST_TMPDIR/booking.json"
+bash "$COLLECT" --repo "$infer" --entry "Booking.Run" --out "$booking_json" >/dev/null
+assert_contains "a primary-constructor parameter types its receiver" "$(hops_of "$booking_json" Quote)" '"callee_file":"src/Domain/Pricing.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
+assert_contains "a primary-constructor interface parameter stays unresolved" "$(hops_of "$booking_json" Info)" '"resolution":"unresolved","mechanism":"interface"'
+infer_dir="$TEST_TMPDIR/infer-out"
+mkdir -p "$infer_dir"
+bash "$RENDER" --record "$infer_json" --out "$infer_dir" >/dev/null
+assert_contains "inferred label is on the diagram" "$(cat "$infer_dir/flow.md")" "inferred"
+
+# Entry grammar: Type.Method, an optional HTTP verb, and a refusal that names the accepted forms.
+entry_repo="$TEST_TMPDIR/entry"
+init_repo "$entry_repo"
+mkdir -p "$entry_repo/src/Transport" "$entry_repo/src/Domain"
+cat >"$entry_repo/src/Transport/OrdersController.cs" <<'CS'
+namespace Shop.Transport;
+[Route("api/orders")]
+public class OrdersController {
+    private readonly Pricing _pricing;
+    [HttpGet("/orders/{id}")]
+    public IActionResult Get(string id) {
+        _pricing.Quote(id);
+    }
+    [HttpPut("/orders/{id}")]
+    public IActionResult Put(string id) {
+        _pricing.Adjust(id);
+    }
+    [HttpPost]
+    [Route("/orders")]
+    public IActionResult Create(string id) {
+        _pricing.Quote(id);
+    }
+    [Route("/legacy")]
+    [HttpGet("/legacy")]
+    public IActionResult Legacy(string id) {
+        _pricing.Quote(id);
+    }
+    [Route("/any")]
+    public IActionResult Any(string id) {
+        _pricing.Adjust(id);
+    }
+}
+CS
+cat >"$entry_repo/src/Domain/Pricing.cs" <<'CS'
+namespace Shop.Domain;
+public class Pricing {
+    public decimal Quote(string id) {
+        return 1;
+    }
+    public decimal Adjust(string id) {
+        return 2;
+    }
+}
+CS
+git -C "$entry_repo" add src
+git -C "$entry_repo" commit --quiet -m "entry"
+entry_json="$TEST_TMPDIR/entry.json"
+run_entry() {
+  bash "$COLLECT" --repo "$entry_repo" --entry "$1" --out "$entry_json" 2>&1
+}
+two="$(run_entry "/orders/{id}")"
+assert_equals "one route on two handlers is a refusal" "$?" "3"
+assert_contains "the refusal counts the sites" "$two" "matches 2 sites"
+assert_contains "the refusal names the accepted forms" "$two" "an HTTP verb and a route (GET /orders/{id}), Type.Method (OrdersService.Handle)"
+run_entry "GET /orders/{id}" >/dev/null
+assert_equals "a verb selects the GET handler" "$?" "0"
+assert_contains "the GET entry is the HttpGet attribute line" "$(cat "$entry_json")" '"entry": {"name":"GET /orders/{id}","file":"src/Transport/OrdersController.cs","line":"5"}'
+assert_contains "the GET handler's call is traced" "$(cat "$entry_json")" '"call":"Quote"'
+run_entry "put /orders/{id}" >/dev/null
+assert_equals "the verb is case-insensitive" "$?" "0"
+assert_contains "the PUT entry is the HttpPut attribute line" "$(cat "$entry_json")" '"entry": {"name":"put /orders/{id}","file":"src/Transport/OrdersController.cs","line":"9"}'
+assert_contains "the PUT handler's call is traced" "$(cat "$entry_json")" '"call":"Adjust"'
+missing_verb="$(run_entry "DELETE /orders/{id}")"
+assert_equals "a verb no handler takes is not found" "$?" "3"
+assert_contains "a verb no handler takes says so" "$missing_verb" "refused: entry point not found"
+run_entry "POST /orders" >/dev/null
+assert_equals "an Http verb attribute beside a Route attribute selects the handler" "$?" "0"
+run_entry "GET /orders" >/dev/null
+assert_equals "the Route handler does not take another verb" "$?" "3"
+run_entry "/legacy" >/dev/null
+assert_equals "Route and HttpGet on one method are one site" "$?" "0"
+run_entry "DELETE /any" >/dev/null
+assert_equals "a handler that names no verb takes any" "$?" "0"
+class_route="$(run_entry "api/orders")"
+assert_equals "a class-level route is not bound to the first action" "$?" "3"
+assert_contains "a class-level route is not found" "$class_route" "refused: entry point not found"
+run_entry "OrdersController.Put" >/dev/null
+assert_equals "Type.Method selects the method" "$?" "0"
+assert_contains "the Type.Method entry is the declaration line" "$(cat "$entry_json")" '"entry": {"name":"OrdersController.Put","file":"src/Transport/OrdersController.cs","line":"10"}'
+assert_contains "the Type.Method trace follows the method" "$(cat "$entry_json")" '"call":"Adjust"'
+run_entry "Pricing.Quote" >/dev/null
+assert_equals "Type.Method selects a method that calls nothing" "$?" "0"
+no_type="$(run_entry "Nope.Put")"
+assert_equals "an unknown type is not found" "$?" "3"
+assert_contains "an unknown type says so" "$no_type" "refused: entry point not found"
+no_method="$(run_entry "OrdersController.Missing")"
+assert_equals "a method the type lacks is not found" "$?" "3"
+assert_contains "a method the type lacks says so" "$no_method" "refused: entry point not found"
+run_entry "Quote" >/dev/null
+assert_equals "a unique bare method name still works" "$?" "0"
+bad_form="$(run_entry "GET Quote")"
+assert_equals "a verb without a route is refused" "$?" "3"
+assert_contains "a verb without a route names the accepted forms" "$bad_form" "Accepted entry forms"
+bad_form="$(run_entry "Orders Controller.Put")"
+assert_equals "an entry with a space and no verb is refused" "$?" "3"
+assert_contains "the malformed entry names the accepted forms" "$bad_form" "Accepted entry forms"
+assert_not_contains "no refusal advises a file the grammar cannot name" "$two$bad_form" "name one file"
 
 bad="$(bash "$COLLECT" --repo "$repo" --entry "/missing" --out "$TEST_TMPDIR/missing.json" 2>&1)"
 assert_equals "missing entry exits 3" "$?" "3"
