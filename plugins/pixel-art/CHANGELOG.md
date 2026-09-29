@@ -3,7 +3,7 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.2] - 2026-09-28
+## [0.3.3] - 2026-09-28
 
 ### Added
 
@@ -11,7 +11,17 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
   timeline points, and writes PNG shots. `--record` asks the page to record a WebM with
   `MediaRecorder` when the scene has a canvas stream. Exit 3 means no browser tool was present,
   so the scene stays visually unreviewed (#4403).
-- The campfire example exposes `seek`, `frameDataURL`, and `play` for that command.
+- The campfire example exposes `seek`, `frameDataURL`, and `play` for that command, and its
+  audio stream as `audioStream` once the first click starts the loop.
+
+## [0.3.2] - 2026-09-28
+
+### Added
+
+- `embed.py` inlines `/*WAV:file.wav*/null` as a `data:audio/wav;base64` URL. The campfire scene
+  plays `examples/campfire/campfire.wav` on the first click and rewinds its clock so the picture
+  and the loop start together. The WAV is an artifact; this plugin does not import the tool that
+  rendered it (#4404).
 
 ## [0.3.1] - 2026-09-28
 

@@ -146,7 +146,6 @@ function Get-RootResidue {
     }
 }
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'drive-root-litter'
 $category = 'storage'
 $commands = @(
@@ -154,7 +153,12 @@ $commands = @(
     "Get-Volume | Where-Object { `$_.DriveType -eq 'Fixed' -and `$_.DriveLetter }"
 )
 
-try {
+$FailureSummary = 'Drive-root litter check failed.'
+$PassThru = $false
+# Captured before the body. $PSBoundParameters inside a dot-sourced scriptblock
+# is the scriptblock's own (empty) dictionary, not the script's.
+$CheckBoundParameters = $PSBoundParameters
+$CheckBody = {
     if (-not $BaselinePath) {
         $BaselinePath = Join-Path (Resolve-SkillRoot) 'reference\windows\drive-root-baseline.jsonc'
     }
@@ -163,7 +167,7 @@ try {
     $baseline = Get-Content -LiteralPath $BaselinePath -Raw -ErrorAction Stop | ConvertFrom-Jsonc
 
     $systemRoot = if ($SystemRootPath) { $SystemRootPath } else { "$env:SystemDrive\" }
-    $dataRoots = if ($PSBoundParameters.ContainsKey('DataRootPath')) {
+    $dataRoots = if ($CheckBoundParameters.ContainsKey('DataRootPath')) {
         @($DataRootPath)
     } else {
         # Fixed, lettered volumes only: removable media and network drives hold
@@ -268,9 +272,5 @@ try {
             -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
             -NeedsAdmin $false -RanSuccessfully $true
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Drive-root litter check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

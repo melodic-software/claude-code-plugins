@@ -13,6 +13,7 @@
 <script>
 "use strict";
 const SPRITE = /*EMBED:hero_mz.json*/null;
+const AUDIO = /*WAV:campfire.wav*/null;
 const W = 240, H = 160;                         // logical resolution (GBA)
 const PAL = {                                   // locked scene palette
   sky0: "#1a1030", sky1: "#2c1c4a", sky2: "#4a2a5c", sky3: "#7a3c62", sky4: "#c0605a",
@@ -200,6 +201,34 @@ window.__pixelScene = {
   frameDataURL,
   play() { paused = false; last = performance.now(); acc = 0; requestAnimationFrame(tick); },
 };
+
+function rewind() {
+  resetSim();
+  acc = 0;
+  last = performance.now();
+}
+
+function startAudio() {
+  if (typeof AUDIO !== "string") return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new Ctx();
+  fetch(AUDIO).then((response) => response.arrayBuffer()).then((bytes) => ctx.decodeAudioData(bytes)).then((buffer) => {
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.connect(ctx.destination);
+    if (typeof ctx.createMediaStreamDestination === "function") {
+      const dest = ctx.createMediaStreamDestination();
+      src.connect(dest);
+      const hook = window.__pixelScene || {};
+      hook.audioStream = dest.stream;
+      window.__pixelScene = hook;
+    }
+    src.start();
+    rewind();
+  });
+}
+addEventListener("pointerdown", startAudio, { once: true });
 
 const params = new URLSearchParams(location.search);
 if (params.has("t")) window.__pixelScene.seek(Number(params.get("t")) || 0);

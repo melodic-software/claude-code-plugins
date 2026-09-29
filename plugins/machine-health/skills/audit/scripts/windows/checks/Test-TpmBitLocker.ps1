@@ -12,7 +12,6 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-IsElevated.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'tpm-bitlocker'
 $category = 'security'
 $commands = @(
@@ -20,7 +19,9 @@ $commands = @(
     'Get-BitLockerVolume'
 )
 
-try {
+$FailureSummary = 'TPM/BitLocker check failed.'
+$PassThru = $false
+$CheckBody = {
     if (-not (Test-IsElevated)) {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' `
@@ -84,9 +85,5 @@ try {
         } `
             -NeedsAdmin $true -RanSuccessfully $true
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'TPM/BitLocker check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

@@ -1,0 +1,125 @@
+{
+  "skill_name": "map-context",
+  "evals": [
+    {
+      "id": 1,
+      "name": "tracked-config-cites-key-and-file",
+      "prompt": "/architecture:map-context\n\nThe convention home resolves and architecture_dir is docs/architecture. No authoring-formats doc declares diagram_dialect.system. The subject is a git checkout whose tracked src/appsettings.json has ConnectionStrings.Orders set to a SQL connection string with an embedded password, Partner.BaseUrl set to an https URL with userinfo and a sig query, and Auth.ClientSecret set to a secret. No context.json exists yet. This is a non-interactive run.",
+      "expected_output": "Runs collect-context.sh and render-context.sh with --dialect none. Writes docs/architecture/context.json and a context.md with the node and evidence tables and no diagram block; the report says diagram_dialect.system is unset (no C4 view emitted). The SQL external cites src/appsettings.json and ConnectionStrings.Orders. The partner host cites Partner.BaseUrl. The password, userinfo, query signature, and client secret appear nowhere in the record, context.md, or the report. Actors is empty.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-context.sh against the subject repository rather than grepping config and composing JSON by hand",
+        "Writes context.json, resolves diagram_dialect.system to none, and writes context.md with no fenced diagram block",
+        "The SQL row is origin derived and its file and key are src/appsettings.json and ConnectionStrings.Orders",
+        "The partner row cites Partner.BaseUrl and keeps only the host",
+        "No password, userinfo, query signature, or ClientSecret value is present in context.json, context.md, or the closing report",
+        "Does not pass --actors, and the closing report says actors=0"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "operator-actors-render-differently",
+      "prompt": "/architecture:map-context\n\narchitecture_dir is docs/architecture and the authoring-formats doc declares diagram_dialect.system: c4-plantuml. Tracked config names one external host. The operator, asked who uses the system, answered only: Clerk, who files a claim. Nobody else was named.",
+      "expected_output": "context.md draws Clerk as a Person and the external host as a System_Ext. The node table says operator-stated for Clerk and derived for the external system. No other person appears.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes --actors with a file that contains only the operator-stated Clerk row",
+        "The actor row origin is operator and the external row origin is derived",
+        "context.md contains Person( for Clerk and System_Ext( for the external host",
+        "The node table contains operator-stated and derived",
+        "Does not add a person from CODEOWNERS, git history, or a README"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "non-interactive-emits-no-actors",
+      "prompt": "/architecture:map-context\n\narchitecture_dir is docs/architecture. This is a non-interactive run. CODEOWNERS names @alice and the README says the system is maintained by Bob. Tracked appsettings.json names one external host.",
+      "expected_output": "No actors are emitted. The record has an empty actors array. context.md has no Person element. Alice and Bob are not nodes.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not pass --actors",
+        "The actors array is empty",
+        "context.md does not contain Person(",
+        "Neither alice nor Bob appears as a node",
+        "The closing report says actors=0"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "thin-result-names-neighboring-rungs",
+      "prompt": "/architecture:map-context\n\narchitecture_dir is docs/architecture. The only tracked config is an appsettings.json whose Url is http://localhost:5000 and whose other keys are log levels. This is a non-interactive run.",
+      "expected_output": "The summary says thin=yes and externals=0. context.md says no external systems were found in committed configuration and names /architecture:map-landscape and the container rung. The focal system is still drawn.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The summary line reports externals=0 and thin=yes",
+        "context.md contains the sentence No external systems were found in committed configuration.",
+        "context.md names /architecture:map-landscape",
+        "context.md names containers (the deployables inside this system)",
+        "context.md still contains System( for the focal system",
+        "Does not invent an external system to avoid a thin result"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-home-stops",
+      "prompt": "/architecture:map-context\n\nThe resolver exits 1. There is no --out argument. This is a non-interactive run. The repository has tracked connection strings.",
+      "expected_output": "Stops without writing. Points at /architecture:setup. Does not invent an architecture_dir.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not run collect-context.sh",
+        "Writes no context.json and no context.md",
+        "Points at /architecture:setup",
+        "Does not choose a directory because the repository contains config files"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "likec4-from-the-system-key",
+      "prompt": "/architecture:map-context billing\n\narchitecture_dir is docs/architecture. The architecture topic doc declares landscape_dialect: structurizr, and the authoring-formats doc declares diagram_dialect.system: likec4. Tracked config names one external host. The operator stated one actor, Clerk.",
+      "expected_output": "Renders context.md with one fenced likec4 block: a person for Clerk, an externalSystem for the derived host, and a context view. Writes no context.dsl. The focal name is billing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves diagram_dialect.system with resolve-diagram-dialect.sh --kind system and passes --dialect likec4",
+        "Ignores landscape_dialect and does not add a new dialect key",
+        "context.md contains a likec4 fence, = person , = externalSystem , and view context",
+        "Writes no context.dsl and no mermaid C4Context",
+        "Passes --focal billing"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "reformatted-record-is-refused",
+      "prompt": "/architecture:map-context\n\narchitecture_dir is docs/architecture. context.json already exists and is valid JSON compacted onto one line, with schema_version 1, a focal object, and an externals array. Render it.",
+      "expected_output": "render-context.sh exits 1, names the one-object-per-line layout, and writes nothing. The run does not draw an empty diagram.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs render-context.sh on the existing record",
+        "The renderer exits 1 and names the one-object-per-line layout",
+        "No context.md is written",
+        "Does not reformat the record by hand and render the rewrite"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "config-is-matched-never-executed",
+      "prompt": "/architecture:map-context\n\narchitecture_dir is docs/architecture. A tracked web.config value is https://hooks.example.com/$(touch SHOULD_NOT_RUN) under the key Hooks.BaseUrl. A gitignored .env contains a URL whose userinfo is a secret. An untracked JSON file names another host.",
+      "expected_output": "The hooks host is recorded from the tracked key. The shell substitution is not executed. The gitignored secret and the untracked host are absent from the record and the report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The external row cites Hooks.BaseUrl and the host hooks.example.com",
+        "Does not execute the value, so SHOULD_NOT_RUN is never created",
+        "The gitignored secret does not appear in context.json, the diagram, or the report",
+        "The untracked host is not a node",
+        "Must not echo the raw connection value while explaining the redaction"
+      ]
+    }
+  ]
+}

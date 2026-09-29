@@ -125,6 +125,7 @@ class CaptureTest(unittest.TestCase):
             work = pathlib.Path(tmp)
             shutil.copy(CAMPFIRE / "hero_mz.py", work / "hero_mz.py")
             shutil.copy(CAMPFIRE / "scene.html", work / "scene.html")
+            shutil.copy(CAMPFIRE / "campfire.wav", work / "campfire.wav")
             subprocess.check_call([sys.executable, str(work / "hero_mz.py")], cwd=work)
             embed.embed(work / "scene.html", work / "campfire.html")
             out = work / "capture"

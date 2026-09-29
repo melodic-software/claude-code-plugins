@@ -24,8 +24,11 @@ Return contract: always a hashtable `@{ upgrades = [array|$null]; error = [strin
   "winget not available" message.
 
 Tests mock this wrapper to control upgrade data without installing winget
-or the module.
+or the module. The CLI fallback goes through Invoke-NativeCommand so the
+upgrade arguments stay one argv entry each.
 #>
+
+. (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
 
 function ConvertFrom-WingetTextOutput {
     [CmdletBinding()]
@@ -139,7 +142,10 @@ function Get-WingetPackageUpdate {
         }
     }
 
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    $cli = Invoke-NativeCommand -Name 'winget' -ArgumentList @(
+        'upgrade', '--include-unknown', '--accept-source-agreements'
+    )
+    if ($cli.status -eq 'Absent') {
         $err = if ($module) {
             'Microsoft.WinGet.Client module present but failed; winget CLI also not on PATH.'
         } else {
@@ -147,10 +153,9 @@ function Get-WingetPackageUpdate {
         }
         return (New-WingetUpgradeResult -Upgrades $null -ErrorMessage $err)
     }
-
     try {
-        $raw = winget upgrade --include-unknown --accept-source-agreements 2>&1 | Out-String
-        $lines = $raw -split "`r?`n"
+        if ($cli.status -eq 'Failed') { throw $cli.error }
+        $lines = $cli.output -split "`r?`n"
         $parsed = ConvertFrom-WingetTextOutput -Lines $lines
         return (New-WingetUpgradeResult -Upgrades @($parsed) -ErrorMessage $null)
     } catch {

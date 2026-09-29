@@ -19,7 +19,7 @@
       "id": 2,
       "name": "triggers-on-ambient-loop-with-audio",
       "prompt": "animated pixel background, an ambient loop of rain on a city street, use ./audio/rain.wav for sound",
-      "expected_output": "Fires /pixel-art:scene. Loads the named WAV with WebAudio, starts it on the first click because browsers block autoplay, and ties cues to the same timeline as the visuals. The scene loops.",
+      "expected_output": "Fires /pixel-art:scene. Puts a WAV token in the template so embed.py inlines a data URL, loads it with WebAudio, starts it on the first click because browsers block autoplay, rewinds the scene clock on that click, and loops the scene.",
       "files": [],
       "narration": true,
       "expectations": [
