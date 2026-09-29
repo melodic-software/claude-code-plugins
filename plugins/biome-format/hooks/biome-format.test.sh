@@ -78,6 +78,37 @@ else
 fi
 rm -rf "$NB_WORK"
 
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest has exactly one tool, biome,
+# and the hook's missing-binary notice call and local-bin walk state that tool's
+# name, check, install and local_bin, verbatim.
+MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.tools | length) == 1 and .tools[0].name == "biome" and .tools[0].local_bin == "node_modules/.bin/biome"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: exactly one tool, biome, at node_modules/.bin/biome"
+  else
+    fail "manifest: expected one tool named biome with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
+  fi
+  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
+  NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to BIOME_NOTICE/,/[^\\]$/p' "$HOOK")"
+  WALK_FN="$(sed -n '/^biome_local_bin_here()/,/^}/p' "$HOOK")"
+  # assert_hook_states <field> <needle> <haystack>
+  assert_hook_states() {
+    if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$3"; then
+      ok "manifest binding: hook states the manifest's $1 ($2)"
+    else
+      fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
+    fi
+  }
+  assert_hook_states name "'$MF_NAME'" "$NOTICE_CALL"
+  assert_hook_states check "$MF_CHECK" "$NOTICE_CALL"
+  assert_hook_states install "$MF_INSTALL" "$NOTICE_CALL"
+  assert_hook_states local_bin "$MF_LOCAL" "$WALK_FN"
+else
+  fail "manifest binding needs jq and $MANIFEST"
+fi
+
 # --- SessionStart probe honors biome_format_enabled ---------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
 # row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
