@@ -151,6 +151,13 @@ Code 2.1.284. Recheck when a Claude Code release note touches `ListAgents`, `Sen
 Control session listing, `crossSessionInbound` or `-n`/`--name`, or when a route below fails its
 hop check.
 
+The documented flag behavior the hub restates (`notify_when_idle` is same-machine only, `--bare`
+binds no inbox socket, `--bg` rejects `-p`, `--session-id` takes a UUID, a `-p` receiver needs
+`crossSessionInbound: accept`) rests on
+<https://code.claude.com/docs/en/cross-session-messaging>,
+<https://code.claude.com/docs/en/cli-reference> and <https://code.claude.com/docs/en/agent-view>,
+fetched 2026-09-29 against 2.1.284. Recheck when a release note names any of those flags.
+
 | Route | Result |
 |---|---|
 | Same machine, WSL and Windows lanes | Each lane's `ListAgents` shows only its own lane |
@@ -160,6 +167,7 @@ hop check.
 | R3 WSL to other machine's Windows | Reached the target's `claude.exe`, which failed on auth (signed-out lane) |
 | R4 Windows to this machine's WSL | `wsl.exe -d <distro> --cd /tmp -- zsh -lc 'claude -p ...'` listed the WSL sessions |
 | R5, R6 from a Windows origin | Untested; same far-side hop as R2 and R3 |
+| Port 22 script hop | Not probed in this pass |
 | Multi-turn, query and wait, background sessions | Untested |
 
 ## What the relay does not change

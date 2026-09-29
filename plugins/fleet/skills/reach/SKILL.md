@@ -80,11 +80,11 @@ Each verb fills `<agent-args>` in a matrix row. All but the first start an agent
 
 | Verb | `<agent-args>` | Status |
 |---|---|---|
-| Run a script | none: the command itself replaces `claude ...` over the same hop | tested (the hops) |
-| Prompt | `-p "<prompt>"` | tested |
+| Run a script | none: the command itself replaces `claude ...` over the same hop | hops tested on R1, R2, R4; port 22 untested |
+| Prompt | `-p "<prompt>"` | tested on R1, R2, R4 |
 | Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | untested |
-| List sessions | `-p "List the sessions you can reach"` | tested |
-| Message a session | `-p "SendMessage to <name>: <text>"` | tested |
+| List sessions | `-p "List the sessions you can reach"` | tested on R1, R4 |
+| Message a session | `-p "SendMessage to <name>: <text>"` | tested on R1, R2 |
 | Query and wait | `-p "SendMessage to <name> with notify_when_idle: <question>. Wait for the reply and print it."` | untested |
 | Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>"` | tested on R1 only |
 | Background session | `--bg --name <name> "<prompt>"`, not `-p`; manage with `claude agents --json`, `logs`, `stop` | untested |
