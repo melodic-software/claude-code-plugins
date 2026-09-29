@@ -64,7 +64,8 @@ command -v jq >/dev/null || {
   echo "dependabot-plugin-bump: jq is required" >&2
   exit 2
 }
-git rev-parse -q --verify "$base^{commit}" >/dev/null || {
+# shellcheck disable=SC2310  # verify_base is one git call; its non-zero return is the handled case
+changed_files::verify_base "$base" || {
   echo "dependabot-plugin-bump: base-ref '$base' is not a commit" >&2
   exit 2
 }

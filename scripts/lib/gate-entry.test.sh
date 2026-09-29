@@ -201,11 +201,78 @@ rm -rf "$repo"
 
 # --- no gate hand-rolls the commit-existence predicate --------------------
 
-hits="$(grep -nE 'rev-parse --verify --quiet' "$REPO_ROOT"/scripts/check-*.sh "$REPO_ROOT"/scripts/check-*.test.sh || true)"
+# Every rev-parse in a script that verifies or peels to a commit is either
+# changed_files::verify_base or one of these, each keyed by "<file>|<fixed
+# substring of the line>|<why it is not the existence predicate>". An entry whose
+# line is gone fails, so the list cannot outlive what it excuses.
+BASE_REF_ALLOW=(
+  'check-silent-revert.sh|sha="$(git rev-parse --verify "${commit}^{commit}"|captures the resolved sha'
+  'check-silent-revert.sh|git rev-parse --verify "${sha}^1"|captures the first parent'
+  'check-silent-revert.sh|git rev-parse --verify "${parent}:${file}"|captures a blob id'
+  'check-silent-revert.sh|git rev-parse --verify "${commit}:${file}"|captures a blob id'
+  'check-stale-base-overlap.sh|base_tip="$(git rev-parse "${base_ref}^{commit}")"|captures the resolved sha'
+  "check-changelog-parity.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
+  "dependabot-plugin-bump.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
+  'gitleaks-scoped-scan.sh|git rev-parse --verify|resolves HEAD and range ends under its own fail(); owned by the gitleaks lane'
+)
+
+# Prints the rev-parse lines under <scripts-dir> that peel to a commit or use
+# --verify, comments and changed-files.sh excluded, and not on BASE_REF_ALLOW.
+# The pattern is assembled so this file does not match itself.
+base_ref_predicate_hits() {
+  local dir="$1" f name line entry allowed
+  local pattern="rev-parse.*(\\^\\{commit\\}|--ver""ify)"
+  for f in "$dir"/*.sh "$dir"/lib/*.sh; do
+    [[ -f "$f" ]] || continue
+    name="${f##*/}"
+    [[ "$name" == changed-files.sh || "$name" == gate-entry.test.sh ]] && continue
+    while IFS= read -r line; do
+      [[ "${line#*:}" =~ ^[[:space:]]*# ]] && continue
+      allowed=0
+      for entry in "${BASE_REF_ALLOW[@]}"; do
+        [[ "${entry%%|*}" == "$name" && "$line" == *"$(cut -d'|' -f2 <<<"$entry")"* ]] && allowed=1
+      done
+      ((allowed)) || printf '%s:%s\n' "$name" "$line"
+    done < <(grep -nE "$pattern" "$f" || true)
+  done
+}
+
+# Prints each BASE_REF_ALLOW entry that matches no line under <scripts-dir>.
+stale_base_ref_allow() {
+  local dir="$1" entry file sub
+  for entry in "${BASE_REF_ALLOW[@]}"; do
+    file="${entry%%|*}"
+    sub="$(cut -d'|' -f2 <<<"$entry")"
+    grep -qF -- "$sub" "$dir/$file" 2>/dev/null || printf '%s\n' "$entry"
+  done
+}
+
+hits="$(base_ref_predicate_hits "$REPO_ROOT/scripts")"
 if [[ -z "$hits" ]]; then
-  ok "no gate or gate test hand-rolls the base-ref predicate"
+  ok "no script hand-rolls the base-ref predicate"
 else
   fail "hand-rolled base-ref predicate still present: $hits"
 fi
+
+stale="$(stale_base_ref_allow "$REPO_ROOT/scripts")"
+if [[ -z "$stale" ]]; then
+  ok "every base-ref allowlist entry still matches a line"
+else
+  fail "stale base-ref allowlist entries: $stale"
+fi
+
+scratch="$(mktemp -d)"
+printf '%s\n' 'git rev-parse -q --verify "$b^{commit}" >/dev/null || exit 2' >"$scratch/scratch.sh"
+if [[ -n "$(base_ref_predicate_hits "$scratch")" ]]; then
+  ok "a scratch script hand-rolling the predicate is caught"
+else
+  fail "the guard missed a hand-rolled predicate"
+fi
+if [[ -n "$(stale_base_ref_allow "$scratch")" ]]; then
+  ok "an allowlist entry matching no line is reported stale"
+else
+  fail "the stale allowlist check passed against a tree with none of the entries"
+fi
+rm -rf "$scratch"
 
 test_harness::report
