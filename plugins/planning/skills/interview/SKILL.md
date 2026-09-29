@@ -367,7 +367,7 @@ Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both H
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 
-**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register` with its status and resolution, generated from the register on disk, never from the transcript, so it survives a compaction. Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
+**Recap and procedure check (`me` and `auto`).** Before asking for confirmation, the restatement carries a Q&A recap: one line per `Q<N>` in the ledger's `## Open-question register`, shaped `Q<N> <status>: <question text> (<resolution>)`, generated from the register on disk, never from the transcript, so it survives a compaction. Then run the procedure check beside the register gate, ledger only, and cite its exit code and `procedure=` field as the evidence that the procedure ran, never your own account of it:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
@@ -405,7 +405,7 @@ land (for example a repo-sweep step commit). Skip the Step 4 `--brief` cross-che
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
-**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <contract_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, which the Step 3 run could not check because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
+**Cross-check the Brief once it exists.** Immediately after writing it, re-run the register gate with `--procedure --brief <contract_dir>/<topic-slug>/PLAN.md`. This run proves every `deferred` and `blocked` row actually reached `### Deferred questions`, and that the Brief carries all seven template headings (TLDR, Goal, Constraints, Acceptance criteria, Captured assumptions, Out-of-scope, Deferred questions); the Step 3 run could not check either because the file was not written yet. It matches on the `Q<N>` id, so each deferred entry must lead with one. A non-zero exit means the Brief is missing a question the ledger retired or a template heading: fix the Brief, do not retire the row. A general session writes no Brief and skips this.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite, and let the commit message carry the pivot rationale.
 

@@ -521,13 +521,13 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
 # and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
 # never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
-# The Brief cross-check now also passes `--procedure`, which only adds a check on the Brief's
+# The Brief cross-check also passes `--procedure`, which only adds a check on the Brief's
 # template headings; it retires no row and relaxes no rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "f45ec77fa90bbebae4dc80252e0009c790dadfa80abef8cb5b2775960d8e91b5"
+  "405223026ec44f285049ee3dabfd653819e84fb66f0e128aec40344b86503a3e"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -565,7 +565,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "6a1d61e1fd2a557b78129e022efbdb109d51442a4baaaba82fe51e2048be18af"
+  "8912973d4c0d98d78b60510b96d5c930a15224be21f088320940bcba318b0059"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -852,6 +852,10 @@ pin "SKILL.md: a sweep that adds an open row returns the run to Step 2" "$SKILL"
   "Step 3 is reached when a sweep adds no \`open\` row"
 pin "SKILL.md: the confirmation restatement carries a recap generated from the register on disk" "$SKILL" \
   "generated from the register on disk, never from the transcript, so it survives a compaction"
+pin "SKILL.md: each recap line carries the question text, not only its id and resolution" "$SKILL" \
+  "shaped \`Q<N> <status>: <question text> (<resolution>)\`"
+pin "SKILL.md: the Step 4 cross-check names the seven Brief template headings it requires" "$SKILL" \
+  "the Brief carries all seven template headings"
 pin "SKILL.md: the procedure check is cited by exit code, not by the model's account" "$SKILL" \
   "cite its exit code and \`procedure=\` field as the evidence that the procedure ran, never your own account of it"
 pin "SKILL.md: a non-zero procedure exit halts the confirmation request" "$SKILL" \
