@@ -3,13 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.7] - 2026-09-29
+## [0.33.8] - 2026-09-29
 
 ### Changed
 
 - **`audit-enforceability` crosswalk has a row for `attribution/audit/rule-restated-upstream-fact`.**
   The row maps it to `design-judgment` and `llm-only`: a panel's judgment selects the finding, so no
   deterministic rung catches it.
+
+## [0.33.7] - 2026-09-29
+
+### Changed
+
+- **`ecosystem-specialist` no longer triggers proactively.** Its description scopes the trigger to
+  an explicit 'build', 'test', 'lint', or 'check' request and says not after every edit, matching
+  `code-reviewer`.
 
 ## [0.33.6] - 2026-09-29
 

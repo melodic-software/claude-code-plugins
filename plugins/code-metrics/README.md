@@ -87,7 +87,7 @@ a documented YAML subset (block style, flow sequences of scalars, no flow mappin
 
 ## The report
 
-Every audit prints one `code-metrics/v1` JSON document (`--json`) or its markdown rendering. The
+Every audit prints one `code-metrics/v2` JSON document (`--json`) or its markdown rendering. The
 document opens with a "Coverage of this run" table naming, per lane and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
 measured nothing can never read as green. The markdown table shows each function once with every
@@ -96,7 +96,8 @@ markdown run also writes the whole document under `CLAUDE_PLUGIN_DATA` (else
 `~/.claude/plugins/data/code-metrics/reports`) and names the path, so the rows past the cap need no
 second run. A repository that declares its deliberate replication in a registry
 (`scope.registries`) sees each replicated function once, with the copy count beside the path.
-Field reference: `reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
+Measured paths are relative to the document's `root`. Field reference:
+`reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
 
 ## Getting a first artifact
 
