@@ -151,7 +151,8 @@ fenced_blocks() {
 contract="$PLUGIN_ROOT/reference/parent-contract.md"
 hub="$PLUGIN_ROOT/skills/research/SKILL.md"
 want_envelope="$(fenced_blocks "$contract" text '## The pre-dispatch envelope'; fenced_blocks "$contract" text '## The pre-dispatch envelope' 2)"
-got_envelope="$(fenced_blocks "$hub" text '## Routing. Dispatch by default')"
+hub_envelope_heading='## Pre-dispatch envelope and baseline'
+got_envelope="$(fenced_blocks "$hub" text "$hub_envelope_heading")"
 if [[ -n "$want_envelope" && "$want_envelope" == "$got_envelope" ]]; then
   pass 'the research hub envelope matches the contract envelope'
 else
@@ -160,7 +161,7 @@ else
 fi
 for lang in bash powershell; do
   want="$(fenced_blocks "$contract" "$lang" '## The pre-dispatch baseline' | sed 's/<explore|research|trace-intent>/research/g')"
-  got="$(fenced_blocks "$hub" "$lang" '## Routing. Dispatch by default')"
+  got="$(fenced_blocks "$hub" "$lang" "$hub_envelope_heading")"
   if [[ -n "$want" && "$want" == "$got" ]]; then
     pass "the research hub $lang baseline matches the contract"
   else
@@ -316,6 +317,10 @@ fi
 # 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
 # 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
 # the same phrase is not waiting in the tail. The worker procedure is the spoke.
+# The research slice holds the acceptance and outcome gates, the disciplines they
+# grade, the effort ceiling and the topic slot; the pre-dispatch envelope, the
+# baseline and the inline conditions follow it, since no gate needs them after a
+# dispatch.
 assert_in_slice() {
   local label="$1" file="$2" phrase="$3" bytes slice tail
   bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
@@ -339,6 +344,16 @@ assert_in_slice 'research outcome gate is inside the re-attach slice' \
   'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
 assert_in_slice 'research owner column is inside the re-attach slice' \
   'skills/research/SKILL.md' 'Owner column governs'
+assert_in_slice 'research disciplines are inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Disciplines'
+assert_in_slice 'research last discipline is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Every accepted claim follows from its sources jointly'
+assert_in_slice 'research effort ceiling heading is inside the re-attach slice' \
+  'skills/research/SKILL.md' '### Effort, source breadth'
+assert_in_slice 'research effort ceiling sentence is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'The Effort row is the ceiling over discipline 8'
+assert_in_slice 'research topic slot is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Research the following topic: $ARGUMENTS'
 if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
   && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
   pass 'explore and research worker procedures live in the spokes'
