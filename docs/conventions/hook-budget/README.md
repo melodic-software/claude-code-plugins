@@ -109,7 +109,35 @@ recorded in the hook-performance program's DEVIATIONS log.
 
 ## Exec-form fleet sweep
 
-Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)): `"command": "node"` and `hooks/exec-bash.mjs`, then the script. Option gates that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command`. A non-Windows skip of its spawn half does not show that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is absent; if that spawn reports args dropped, the script exits 1. Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`. The four-part record is [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). No shell-form hook row remains.
+Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)) with `"command": "node"`. A row whose script is bash runs `hooks/exec-bash.mjs` (canonical copy [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)) and then the script; a row whose script is Node names that script directly. The bullets state what the sweep costs and what it needs.
+
+- **What shipped.** Every row in `plugins/*/hooks/hooks.json` and in the skill-frontmatter hooks of
+  `disk-hygiene:clean` and `repo-hygiene:clean` carries `args` and `"command": "node"`. Option gates
+  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). Two
+  scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
+  `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
+  that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is
+  absent, and if that spawn reports args dropped, the script exits 1. `scripts/check-hook-exec-form.sh`
+  rejects bare `bash` with the script in `args`. The four-part record is
+  [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe).
+- **Cost.** The table's exec-form k of 1 applies to a row that runs the program itself, such as a
+  Node script named in `args`. A bash-scripted row behind the launcher is k = 2 (node, then bash),
+  plus 1 per program the script starts. That is the shell-form line's "a script is at least 2", so
+  the sweep is not a spawn saving.
+- **Prerequisite.** Node on PATH is now required for every hook (`command` is `node`). The launcher
+  cannot detect a missing node, because the launcher is a node process; a failed launch is
+  non-blocking, so the guard then enforces nothing (the
+  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)). With node present and bash
+  unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
+  script does not run (the header of
+  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
+- **Scope.** No shell-form row remains in the shipped hook surfaces named under "What shipped".
+  Neither check script inspects a shell-form row, so no gate enforces that absence. The philosophy
+  Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
+  is this sweep's choice.
+- **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
+  the sweep. No paired before-and-after run with the launcher is recorded here, so the launcher's
+  added time is unmeasured in this doc.
 
 ## Rules
 
