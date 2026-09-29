@@ -17,10 +17,10 @@ plugin.
   (ii) and is unpaid operator cost, not a skill to ship.
 - **Option 2 (declined):** split `check` from `apply` so `check` is
   model-invocable. The per-plugin form shipped in `actionlint`, `biome-format`,
-  `go-format` and `markdown-format` (a separate model-invocable `check` skill beside the
-  manual `setup`) with no invocation-mode amendment; the class list in
-  `docs/conventions/invocation-mode/README.md` is still three. Whether to keep that per-plugin split
-  is an open owner question,
+  `context7`, `go-format` and `markdown-format` (a separate model-invocable `check`
+  skill beside the manual `setup`) with no invocation-mode amendment; the class list in
+  `docs/conventions/invocation-mode/README.md` is still three. Whether to keep that
+  per-plugin split is an open owner question,
   [#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240) question 2.
 - **Option 3 (declined):** relax `disable-model-invocation` on `check` only.
   Same effect as option 2 with less structure.
@@ -29,16 +29,16 @@ plugin.
 drives the fleet's setup skills has no model-invocable path to them: all 58
 plugin `setup` skills are `disable-model-invocation: true`, which
 `scripts/validate-plugin-contracts.mjs` requires. The model-invocable host
-checks are `actionlint:check`, `biome-format:check`, `go-format:check` and
-`markdown-format:check` (one per plugin) and `claude-ops:prerequisites`, a
-read-only report over the `prerequisites.json` that 7 plugins declare. Host discovery stays inside each
-plugin's `setup`. If the idea returns, it is a `claude-ops` skill that feeds
+checks are `actionlint:check`, `biome-format:check`, `context7:check`,
+`go-format:check` and `markdown-format:check` (one per plugin) and
+`claude-ops:prerequisites`, a read-only report over the `prerequisites.json`
+that 7 plugins declare. Host discovery stays inside each plugin's `setup`. If the idea returns, it is a `claude-ops` skill that feeds
 `machine-health`'s declared-configuration drift check, never a second
 host-fact store.
 **Basis:** origin/main: 58 plugin-level `plugins/*/skills/setup/SKILL.md`
 files, all `disable-model-invocation: true`, required at
 `scripts/validate-plugin-contracts.mjs:189-190`. The `check` skill of each of
-those four plugins and `plugins/claude-ops/skills/prerequisites/SKILL.md`
+those five plugins and `plugins/claude-ops/skills/prerequisites/SKILL.md`
 set `disable-model-invocation: false`. `docs/conventions/invocation-mode/README.md`
 still lists three classes, class (ii) among them, and the invocation-reach
 invariant (a `true` skill cannot be invoked by any other skill). No
