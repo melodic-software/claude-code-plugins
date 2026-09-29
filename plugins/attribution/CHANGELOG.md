@@ -94,6 +94,15 @@
   n = 1, hard negatives n = 2 (10 cases). The class-size gate therefore holds whatever the panel
   returns, and no class is fix-eligible (Refs #3465).
 
+## [0.6.4] - 2026-09-29
+
+### Fixed
+
+- **audit:** a config root that is the home directory (or an ancestor of it) or is not inside a git
+  working tree no longer reads `.claude/attribution.json` and `.claude/attribution.local.json` as
+  team and overlay layers, and two paths naming one file are read once. The classifier is
+  `lib/config-root.sh`, a synced copy of the source-control resolver.
+
 ## [0.6.3] - 2026-09-29
 
 ### Fixed

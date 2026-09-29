@@ -16,7 +16,10 @@
 #
 #   dependencies: result=<ok|unknown> ecosystem=<name> nodes=<n>
 #   internal_edges=<i> external_edges=<e> unresolved=<u> membership=<m>
-#   cycles=<c> aggregated=<yes|no> drawn_edges=<d>
+#   unread_files=<f> cycles=<c> aggregated=<yes|no> drawn_edges=<d>
+#
+# membership counts unresolved solution members. unread_files counts files
+# with reference tags the collector did not turn into an edge.
 #
 # The flowchart is mermaid `flowchart` in both landscape_dialect settings.
 # This script does not read the dialect. External package nodes are collapsed
@@ -98,7 +101,7 @@ if [[ "$include_external" -eq 1 && "$external_only" -eq 1 ]]; then
 fi
 [[ -r "$record" ]] || die "cannot read record: $record" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
-grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
+grep -Eq '"schema_version"[[:space:]]*:[[:space:]]*1[[:space:]]*([,}]|$)' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
 # Readers match objects by line. A valid JSON document in another layout
@@ -186,8 +189,8 @@ function parent_dir(path,    slash) {
   return substr(path, 1, RSTART - 1)
 }
 function edge_on_cycle(from, to,    i, needle) {
-  needle = from " -> " to
-  for (i = 1; i <= cn; i++) if (index(cycle_id[i], needle) > 0) return 1
+  needle = " -> " from " -> " to " -> "
+  for (i = 1; i <= cn; i++) if (index(" -> " cycle_id[i] " -> ", needle) > 0) return 1
   return 0
 }
 function mermaid_label(s) {
@@ -275,7 +278,10 @@ function add_line(s) { md = md s "\n" }
 }
 /^[[:space:]]*\{"kind":/ {
   fn++
+  finding_kind[fn] = json_string_after_key($0, "kind")
   finding_evidence[fn] = json_string_after_key($0, "evidence")
+  if (finding_kind[fn] == "unread-reference-tags") unread_n++
+  else membership_n++
   next
 }
 END {
@@ -411,8 +417,8 @@ END {
   }
   print md > outfile
   close(outfile)
-  printf "dependencies: result=%s ecosystem=%s nodes=%d internal_edges=%d external_edges=%d unresolved=%d membership=%d cycles=%d aggregated=%s drawn_edges=%d\n",
-    result, ecosystem, nn, internal_n, external_edges, unresolved_n, fn, cn, (aggregated ? "yes" : "no"), dn
+  printf "dependencies: result=%s ecosystem=%s nodes=%d internal_edges=%d external_edges=%d unresolved=%d membership=%d unread_files=%d cycles=%d aggregated=%s drawn_edges=%d\n",
+    result, ecosystem, nn, internal_n, external_edges, unresolved_n, membership_n, unread_n, cn, (aggregated ? "yes" : "no"), dn
 }
 ' "$record" 2>"$errfile"
 )"

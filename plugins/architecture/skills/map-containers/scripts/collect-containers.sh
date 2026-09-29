@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collect a C4 container record from committed files in one repository.
+# Collect a C4 container record from the tracked files of one repository.
 #
 # WHY. A container is an application or a data store. Directory names are not
 # that fact. Every deployable cites the project output, the host builder, a
@@ -16,17 +16,29 @@
 #       [--graph <dependency-graph.json>] [--generated-on <date>]
 #   collect-containers.sh --help
 #
-# Tracked files only (git ls-tree HEAD). --graph, when set, supplies project
-# edges for containment and is not re-derived from ProjectReference.
-# A reference whose target is missing, escapes the repository, is absolute,
-# or is a glob is not a module. Nothing is matched by project name.
+# Tracked files only (git ls-tree HEAD). Each is read from the working tree, not
+# from HEAD, so one edit to a tracked file is charted; when git status reports
+# any, the count is the dirty-tracked-files finding. --graph, when set, supplies
+# project edges for containment and is not re-derived from ProjectReference.
+# Without it the edges come from lib/dotnet-references.sh, the reader
+# map-dependencies uses. A reference whose target is missing, escapes the
+# repository, is absolute, or is a glob is not a module. Nothing is matched by
+# project name. A test project (dotnet_is_test_project) is not a deployable, and
+# the count of those that would otherwise be one is the excluded-test-projects
+# finding.
 #
 # schema_version 1, one object per line:
 #   containers: {"id": ...}
 #   modules:    {"container": ...}
 #   edges:      {"from": ...}
-# Edge kind shared-infrastructure cites every config key that named the store.
-# technology is a runtime, framework, or image, or the literal unknown.
+#   findings:   {"kind": ...}
+# Edge kind shared-infrastructure is one edge per pair of owners of a store, and
+# cites the config keys of both. A sql store is one host, port, and database; with
+# no database named the id says "database unknown" and an edge between its
+# owners says "same server, database unknown".
+# technology is a runtime, framework, or image, or the literal unknown. A sql
+# store's is its URL scheme (mongodb, postgres, mysql), Azure SQL for a
+# database.windows.net host, or unknown.
 #
 # Redaction is plugins/architecture/lib/redact-connection.awk.
 # Portability: bash plus POSIX awk/sed. No jq, no python.
@@ -35,8 +47,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../lib/dotnet-references.sh
+source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 REDACT_AWK="$SCRIPT_DIR/../../../lib/redact-connection.awk"
-ASSIGN_AWK="$SCRIPT_DIR/config-assignments.awk"
+ASSIGN_AWK="$SCRIPT_DIR/../../../lib/config-assignments.awk"
+# shellcheck source=../../../lib/family-records.sh
+source "$SCRIPT_DIR/../../../lib/family-records.sh"
+# shellcheck source=../../../lib/github-remote.sh
+source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -56,35 +74,6 @@ json_escape() {
   s="${s//$'\r'/\\r}"
   s="${s//$'\n'/\\n}"
   JSON_ESC="$s"
-}
-
-github_repo_name() {
-  local url="$1" scheme=0 host rest host_l repo
-  [[ -n "$url" && "$url" != "unknown" ]] || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    if [[ "$rest" == :* ]]; then
-      return 1
-    fi
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  [[ -n "$rest" ]] || return 1
-  host_l="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
-  [[ "$host_l" == "github.com" || "$host_l" == "www.github.com" ]] || return 1
-  repo="${rest#*/}"
-  repo="${repo%%/*}"
-  [[ -n "$repo" && "$repo" != "$rest" ]] || return 1
-  printf '%s' "$repo"
 }
 
 normalize_inside() {
@@ -173,9 +162,12 @@ hits="$(mktemp)"
 container_body="$(mktemp)"
 module_body="$(mktemp)"
 edge_body="$(mktemp)"
-trap 'rm -f "$files_list" "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" "$module_body" "$edge_body"' EXIT
+excluded="$(mktemp)"
+finding_body="$(mktemp)"
+trap 'rm -f "$files_list" "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" "$module_body" "$edge_body" "$excluded" "$finding_body"' EXIT
 
 git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n' | LC_ALL=C sort >"$files_list"
+dirty_n="$(git -C "$root" --no-optional-locks status --porcelain --untracked-files=no 2>/dev/null | awk 'END { print NR }')"
 
 has_project() {
   awk -v id="$1" '$0 == id { found = 1 } END { exit !found }' "$all_proj"
@@ -256,6 +248,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   candidate=0
   if [[ "$functions" -eq 1 || "$sdk" == Microsoft.NET.Sdk.Web || "$sdk" == Microsoft.NET.Sdk.Web/* || "$sdk" == Microsoft.NET.Sdk.Worker || "$sdk" == Microsoft.NET.Sdk.Worker/* || "$output_type" == "exe" || "$output_type" == "winexe" ]]; then
     candidate=1
+  fi
+  if [[ "$candidate" -eq 1 ]] && dotnet_is_test_project "$abs"; then
+    printf '%s\n' "$rel" >>"$excluded"
+    continue
   fi
   if [[ "$candidate" -eq 1 ]]; then
     while IFS= read -r src || [[ -n "$src" ]]; do
@@ -370,7 +366,7 @@ if [[ -n "$graph_file" ]]; then
     }
     /^[[:space:]]*\{"from":/ {
       kind = jstr($0, "kind")
-      if (kind != "project" && kind != "ProjectReference") next
+      if (kind != "project" || jstr($0, "status") == "unresolved") next
       from = jstr($0, "from")
       to = jstr($0, "to")
       ev = jstr($0, "evidence")
@@ -382,8 +378,8 @@ else
     [[ -n "$id" ]] || continue
     dir="${id%/*}"
     [[ "$dir" == "$id" ]] && dir=""
-    while IFS=$'\t' read -r include decl; do
-      [[ -n "$include" ]] || continue
+    while IFS=$'\t' read -r ref_kind include decl; do
+      [[ "$ref_kind" == "project" && -n "$include" ]] || continue
       case "$include" in
       *'*'* | *'?'* | /* | [A-Za-z]:*) continue ;;
       *) ;;
@@ -398,21 +394,7 @@ else
       fi
       has_project "$resolved" || continue
       printf '%s\t%s\t%s: %s\n' "$id" "$resolved" "$id" "$decl" >>"$refs"
-    done < <(awk '
-      {
-        line = $0
-        sub(/\r$/, "", line)
-        rest = line
-        while (match(rest, /<ProjectReference[^>]*Include="[^"]*"/)) {
-          tag = substr(rest, RSTART, RLENGTH)
-          inc = tag
-          sub(/^.*Include="/, "", inc)
-          sub(/"$/, "", inc)
-          printf "%s\t%s\n", inc, tag
-          rest = substr(rest, RSTART + RLENGTH)
-        }
-      }
-    ' "$root/$id")
+    done < <(dotnet_reference_records "$root/$id")
   done <"$all_proj"
 fi
 
@@ -447,20 +429,28 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   esac
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
+  # The last FROM is the image that ships. Leading --flag tokens are options, a
+  # name that is an earlier stage resolves to that stage's image, and a variable
+  # is not an image name, so the image is unknown.
   image="$(awk '
     {
       line = $0
       sub(/\r$/, "", line)
       if (tolower(line) ~ /^from[[:space:]]+/) {
         sub(/^[Ff][Rr][Oo][Mm][[:space:]]+/, "", line)
-        sub(/[[:space:]]+[Aa][Ss][[:space:]].*$/, "", line)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-        if (line != "") last = line
+        while (line ~ /^--[^[:space:]]*[[:space:]]+/) sub(/^--[^[:space:]]*[[:space:]]+/, "", line)
+        n = split(line, w, /[[:space:]]+/)
+        img = w[1]
+        if (img == "") next
+        if (index(img, "$") > 0) img = "unknown"
+        else if (tolower(img) in stage) img = stage[tolower(img)]
+        if (n >= 3 && tolower(w[2]) == "as") stage[tolower(w[3])] = img
+        last = img
       }
     }
     END { if (last != "") print last }
   ' "$abs")"
-  image="${image##*@}"
+  image="${image%%@*}"
   attached=""
   best_len=-1
   while IFS=$'\t' read -r id _name _kind _tech _ev dir; do
@@ -588,8 +578,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
   base="$(basename "$rel")"
+  is_family_record "$base" && continue
   case "$base" in
-  containers.json | containers.md | containers.dsl | context.json | context.md | context.dsl | landscape.json | landscape.md | landscape.dsl | portfolio.md | dependency-graph.json | dependencies.md | package.json | package-lock.json | npm-shrinkwrap.json)
+  package.json | package-lock.json | npm-shrinkwrap.json)
     continue
     ;;
   *) ;;
@@ -617,7 +608,11 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
         if ($1 !~ /^(sql|storage|broker|cache)$/) next
         if ($2 ~ /[^a-z0-9.-]/ || index($2, ".") == 0 || index($2, "..") > 0) next
         if ($3 != "" && $3 !~ /^[0-9]+$/) next
-        printf "%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, rel, $4
+        db = $5
+        scheme = $6
+        if ($1 != "sql" || db !~ /^[a-z0-9_.-]+$/) db = ""
+        if ($1 != "sql" || scheme !~ /^[a-z][a-z0-9]*$/) scheme = ""
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, rel, $4, db, scheme
       }
     ' >>"$hits"
 done <"$files_list"
@@ -647,12 +642,12 @@ bind_deployable() {
 }
 
 store_technology() {
-  local kind="$1" host="$2"
+  local kind="$1" host="$2" scheme="$3"
   case "$kind" in
   sql)
     case "$host" in
     *.database.windows.net) printf 'Azure SQL' ;;
-    *) printf 'SQL' ;;
+    *) printf '%s' "${scheme:-unknown}" ;;
     esac
     ;;
   broker)
@@ -675,35 +670,57 @@ store_technology() {
 # Unit separator, not tab: bash read collapses empty tab fields, and a blank
 # port would slide the file path into the port.
 if [[ -s "$hits" ]]; then
-  while IFS=$'\034' read -r skind host port file key; do
+  while IFS=$'\034' read -r skind host port file key db scheme; do
     [[ -n "$host" ]] || continue
     owner="$(bind_deployable "$file")"
     sid="store:${skind}:${host}:${port}"
-    tech="$(store_technology "$skind" "$host")"
-    printf '%s\036%s\036%s\036%s\036%s\036%s\036%s\n' "$sid" "$skind" "$host" "$owner" "$file: $key" "$tech" "$port"
-  done < <(awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5 }' "$hits") >"$hits.grouped"
+    [[ "$skind" == sql ]] && sid="$sid:${db:-database unknown}"
+    printf '%s\036%s\036%s\036%s\036%s\036%s\036%s\036%s\n' "$sid" "$skind" "$host" "$owner" "$file: $key" "$scheme" "$port" "$db"
+  done < <(awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5, $6, $7 }' "$hits") >"$hits.grouped"
 else
   : >"$hits.grouped"
 fi
 
+# Every pair of owners of one store is one shared-infrastructure edge, and each
+# cites the config keys of both owners.
 if [[ -s "$hits.grouped" ]]; then
   while IFS= read -r sid; do
     [[ -n "$sid" ]] || continue
-    skind="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $2; exit }' "$hits.grouped")"
-    host="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $3; exit }' "$hits.grouped")"
-    tech="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $6; exit }' "$hits.grouped")"
+    IFS=$'\036' read -r skind host db scheme < <(awk -F'\036' -v sid="$sid" '
+      $1 == sid { if (kind == "") { kind = $2; host = $3; db = $8 } if (scheme == "") scheme = $6 }
+      END { printf "%s\036%s\036%s\036%s\n", kind, host, db, scheme }
+    ' "$hits.grouped")
+    name="$host"
+    if [[ "$skind" == sql ]]; then
+      name="$host (database unknown)"
+      [[ -z "$db" ]] || name="$host/$db"
+    fi
+    tech="$(store_technology "$skind" "$host" "$scheme")"
     cites="$(awk -F'\036' -v sid="$sid" '$1 == sid { print $5 }' "$hits.grouped" | LC_ALL=C sort -u | awk 'BEGIN { ORS="" } { if (n++) printf "; "; printf "%s", $0 }')"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sid" "$host" "store" "$tech" "$skind" "$cites" >>"$extras"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sid" "$name" "store" "$tech" "$skind" "$cites" >>"$extras"
     awk -F'\036' -v sid="$sid" '$1 == sid && $4 != "" { printf "%s\t%s\tuses\t-\t%s\n", $4, sid, $5 }' "$hits.grouped" |
       LC_ALL=C sort -u >>"$edges"
-    owners="$(awk -F'\036' -v sid="$sid" '$1 == sid && $4 != "" { print $4 }' "$hits.grouped" | LC_ALL=C sort -u)"
-    owner_n="$(printf '%s\n' "$owners" | awk 'NF { n++ } END { print n + 0 }')"
-    if [[ "$owner_n" -ge 2 ]]; then
-      first="$(printf '%s\n' "$owners" | awk 'NF { print; exit }')"
-      second="$(printf '%s\n' "$owners" | awk 'NF && ++c == 2 { print; exit }')"
-      all_cites="$(awk -F'\036' -v sid="$sid" '$1 == sid && $4 != "" { print $5 }' "$hits.grouped" | LC_ALL=C sort -u | awk 'BEGIN { ORS="" } { if (n++) printf "; "; printf "%s", $0 }')"
-      printf '%s\t%s\tshared-infrastructure\t%s\t%s\n' "$first" "$second" "$sid" "$all_cites" >>"$edges"
-    fi
+    note=""
+    [[ "$skind" == sql && -z "$db" ]] && note="same server, database unknown: "
+    LC_ALL=C awk -F'\036' -v sid="$sid" -v note="$note" '
+      $1 == sid && $4 != "" {
+        if (!($4 in cites)) owners[++n] = $4
+        if (!(($4 SUBSEP $5) in seen)) {
+          seen[$4 SUBSEP $5] = 1
+          cites[$4] = cites[$4] (cites[$4] == "" ? "" : "; ") $5
+        }
+      }
+      END {
+        for (i = 2; i <= n; i++) {
+          v = owners[i]
+          for (j = i - 1; j >= 1 && owners[j] > v; j--) owners[j + 1] = owners[j]
+          owners[j + 1] = v
+        }
+        for (i = 1; i <= n; i++)
+          for (j = i + 1; j <= n; j++)
+            printf "%s\t%s\tshared-infrastructure\t%s\t%s%s; %s\n", owners[i], owners[j], sid, note, cites[owners[i]], cites[owners[j]]
+      }
+    ' "$hits.grouped" >>"$edges"
   done < <(awk -F'\036' '{ print $1 }' "$hits.grouped" | LC_ALL=C sort -u)
 fi
 rm -f "$hits.grouped"
@@ -779,6 +796,16 @@ if [[ -s "$edges" ]]; then
   done >"$edge_body"
 fi
 
+if [[ "$dirty_n" -gt 0 ]]; then
+  printf 'collect-containers.sh: %d tracked file(s) differ from HEAD; their contents are read from the working tree\n' "$dirty_n" >&2
+  printf '{"kind":"dirty-tracked-files","count":%d,"evidence":"%d tracked file(s) differ from HEAD; their contents are read from the working tree"}\n' "$dirty_n" "$dirty_n" >>"$finding_body"
+fi
+excluded_n="$(awk 'END { print NR }' "$excluded")"
+if [[ "$excluded_n" -gt 0 ]]; then
+  json_escape "$(LC_ALL=C sort "$excluded" | awk 'BEGIN { ORS="" } { if (n++) printf "; "; printf "%s", $0 }')"
+  printf '{"kind":"excluded-test-projects","count":%d,"evidence":"not charted as deployables: %s"}\n' "$excluded_n" "$JSON_ESC" >>"$finding_body"
+fi
+
 emit_lines() {
   local key="$1" file="$2" comma="$3"
   if [[ ! -s "$file" ]]; then
@@ -806,12 +833,13 @@ record_body="$(
   printf '  "containment": "%s",\n' "$JSON_ESC"
   emit_lines containers "$container_body" ","
   emit_lines modules "$module_body" ","
-  emit_lines edges "$edge_body" ""
+  emit_lines edges "$edge_body" ","
+  emit_lines findings "$finding_body" ""
   printf '}\n'
 )"
 
 if [[ -n "$out_file" ]]; then
-  printf '%s\n' "$record_body" >"$out_file"
+  printf '%s\n' "$record_body" >"$out_file" || die "cannot write --out file: $out_file" 1
 else
   printf '%s\n' "$record_body"
 fi

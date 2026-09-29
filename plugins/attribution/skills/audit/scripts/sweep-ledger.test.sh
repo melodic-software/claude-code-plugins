@@ -28,6 +28,7 @@ fi
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/config"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"
+git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
 
 FAILED=0
 CASE_NUM=0

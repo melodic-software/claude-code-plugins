@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
+## [0.62.26] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and, once the PR reads `MERGED`, deletes the head branch with `git push <push-remote> --delete <branch>` through `resolve-remote.sh --push`, because older gh fails its local checkout of the default branch while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
 ## [0.62.25] - 2026-09-29
 
 ### Fixed
