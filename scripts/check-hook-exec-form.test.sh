@@ -121,7 +121,7 @@ new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$PRE_2570_HOOKS"
 out="$(run_check "$f" 2>&1)"
 if grep -q 'exec-bash.mjs' <<<"$out" && ! grep -q 'stays shell form' <<<"$out"; then
-  ok "the remedy names the exec-bash.mjs launcher and no longer sends a bash script to shell form"
+  ok "the remedy names the exec-bash.mjs launcher and does not send a bash script to shell form"
 else
   fail "expected the remedy to name exec-bash.mjs and not say 'stays shell form', got: $out"
 fi
