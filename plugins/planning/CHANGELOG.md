@@ -9,6 +9,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
 
+### Fixed
+
+- **`goal-condition-length.sh` exits 2 with a usage hint when stdin is a terminal** and no `--file` is given, instead of blocking on input. Piped and `--file` use are unchanged ([#5291](https://github.com/melodic-software/claude-code-plugins/issues/5291)).
+
 ## [0.47.0] - 2026-09-29
 
 ### Added
