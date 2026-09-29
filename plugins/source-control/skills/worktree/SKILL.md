@@ -128,7 +128,7 @@ Exit 4 prints `FOREIGN CLAIM: <reason>`. Stop; another session holds a live clai
 
 ## Action: `status`
 
-Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched `gh pr list` and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched `gh pr list` and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), the reap-age hours `cleanup` reads (48 default; `${user_config.worktree_reap_after_hours}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
 
 The **Work** axis answers a question age and PR state cannot: whether removing a worktree would destroy a commit. It is classified first and outranks the rest, so a worktree holding unpushed unlanded commits is `stranded`, never merely `stale`. An unprovable verdict reports `unknown` and is treated exactly as `stranded`, the engine reports `?` rather than `no` so that an ambiguity is never read as safe.
 
@@ -136,7 +136,7 @@ The **Work** axis answers a question age and PR state cannot: whether removing a
 
 ## Action: `cleanup [--dry-run]`
 
-Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (4 detection reasons: orphaned dir / prunable / PR-merged / stale) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c emit branch deletion for the user) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
+Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (5 detection reasons: orphaned dir / prunable / PR-merged / stale / reap age, the last proposing an already-safe worktree older than `${user_config.worktree_reap_after_hours}` hours, 48 by default) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c emit branch deletion for the user) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
 
 **Safety invariants cleanup MUST honor** (full detail in context/cleanup.md):
 
@@ -208,4 +208,5 @@ This skill complements other workflow components. It does not duplicate their lo
 - **`gh` CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the `delete_branch_on_merge` check are skipped with note: "GitHub API unavailable. PR status unknown."
 - **Not in a git repo**: All actions exit immediately with "Not in a git repository."
 - **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
+- **`worktree_reap_after_hours` invalid or unexpanded**: Falls back to 48 hours silently (treat a literal `${user_config.worktree_reap_after_hours}` token as unset).
 - **No worktrees exist**: `status` reports "No linked worktrees found." `cleanup` reports "Nothing to clean up."

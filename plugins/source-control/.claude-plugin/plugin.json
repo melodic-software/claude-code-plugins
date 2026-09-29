@@ -201,6 +201,13 @@
       "default": 14,
       "min": 1
     },
+    "worktree_reap_after_hours": {
+      "type": "number",
+      "title": "Worktree reap age (hours)",
+      "description": "Hours since last commit before /worktree cleanup proposes an already-safe worktree for removal by default",
+      "default": 48,
+      "min": 1
+    },
     "fetch_logs_max_bytes": {
       "type": "number",
       "title": "CI-log fetch size cap (bytes)",
