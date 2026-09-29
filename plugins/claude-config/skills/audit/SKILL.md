@@ -124,7 +124,7 @@ versions against it. An unreadable version turns those rows into `skip`, never c
 
 It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
 It hands the docs index (`llms.txt`) and each page it needs to the plugin's shared fetcher,
-`scripts/fetch-docs.sh`, which resolves the page from a link there and reads it verbatim to a file.
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh`, which resolves the page from a link there and reads it verbatim to a file.
 The `docs` object in the document is the coverage record, built from the fetcher's manifest: the
 index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
 and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
