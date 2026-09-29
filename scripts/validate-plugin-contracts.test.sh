@@ -1341,7 +1341,8 @@ fi
 
 for commented in '"" # none' '# none'; do
   hint_case commented x
-  sed -i "s/^argument-hint: \"x\"\$/argument-hint: $commented/" "$TMP/plugins/hintfix/skills/commented/SKILL.md"
+  skill_md="$TMP/plugins/hintfix/skills/commented/SKILL.md"
+  sed "s/^argument-hint: \"x\"\$/argument-hint: $commented/" "$skill_md" >"$skill_md.new" && mv "$skill_md.new" "$skill_md"
   out="$(run_fixture)"
   if has_fail_line 'argument-hint must be omitted' && grep -q 'hintfix/skills/commented/SKILL.md' <<<"$out"; then
     ok "an argument-hint that is only a YAML comment fails as empty: $commented"
