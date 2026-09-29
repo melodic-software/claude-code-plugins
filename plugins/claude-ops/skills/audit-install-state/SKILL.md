@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in your session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
+description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in this session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
 argument-hint: "[root] [unattended]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false

@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12] - 2026-09-28
+
+### Changed
+
+- **The manual handoff says what a run-directory write costs (part of #4225).**
+  `reference/unsupported-platform-handoff.md` step 1 now states that `<run-dir>` sits under
+  `~/.claude`, a protected directory. A Write of `handoff-paths.json` or `vcs-evidence.json`
+  therefore prompts in `default` and `acceptEdits`, goes to the classifier in `auto`, and is denied
+  in `dontAsk`, and no allow rule pre-approves it. It also states that the prompt's session-wide
+  "edit files in its ~/.claude folder" option covers every later `~/.claude/` write, not just this
+  run, and that the evidence-file exception is unavailable in `dontAsk`. The engine-side fix, where
+  the engine persists its own artifacts, stays open in #4225.
+
 ## [0.28.11] - 2026-09-28
 
 ### Added

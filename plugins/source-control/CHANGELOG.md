@@ -3,13 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.15] - 2026-09-28
+## [0.62.16] - 2026-09-28
 
 ### Added
 
 - **`worktree-create.sh --existing-branch`** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
   Checks out a local branch that already exists instead of creating one with `-b`. It cannot be
   combined with `--base-ref`. `/repo-fleet-hygiene:sync` uses it to park divergent work.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
 
 ## [0.62.14] - 2026-09-28
 
