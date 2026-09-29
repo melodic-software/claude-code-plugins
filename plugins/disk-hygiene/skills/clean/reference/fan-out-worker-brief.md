@@ -34,8 +34,9 @@ target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
   --sizes-only
 ```
 
-Read `inventory_mode: sizes-only` and `rollup_precision: exact` on stdout. `children_rollup` rows
-with `walked: true` are exact totals, not depth-cut floors.
+Read `inventory_mode: sizes-only` and `rollup_precision` on stdout. `partial` means a subtree was
+cut or failed to scan. `children_rollup` rows with `walked: true` are exact totals, not depth-cut
+floors.
 
 **Bounded inventory (hints + handoff paths):**
 

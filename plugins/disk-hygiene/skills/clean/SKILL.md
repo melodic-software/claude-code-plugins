@@ -163,6 +163,11 @@ naming what the question never presented cannot be met.
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
+**`--sizes-only` as implemented.** It does not ask the large-scan question, so a known-large root
+walks without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
+directories: it sums through them, read-only, and writes no entries. It has no entry cap. Whether
+that is the intended gate behavior is an open owner decision (#4009).
+
 ## 1. Create a read-only snapshot
 
 Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, plans, and reports must
@@ -178,7 +183,8 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
 `--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
-when the walk completed; depth-limited sizing runs mark `rollup_precision: partial`. Pasteable
+when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state
+error marks `rollup_precision: partial`. Pasteable
 fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies

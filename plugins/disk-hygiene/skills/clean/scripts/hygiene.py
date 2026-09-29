@@ -2090,7 +2090,7 @@ def scan_tree(
     }
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
-        payload["rollup_precision"] = "exact" if not truncated else "partial"
+        payload["rollup_precision"] = "partial" if unknown_paths else "exact"
     if root_children is not None:
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)

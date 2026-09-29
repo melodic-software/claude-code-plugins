@@ -219,6 +219,10 @@ target. That is required for an OS-managed volume root (the root itself is never
 also how a depth-1 home audit re-inventories the directories the operator approved, without
 walking the rest of the home.
 
+`--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
+large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
+cap; the owner decision on that is open (#4009).
+
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 

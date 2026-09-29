@@ -2888,6 +2888,104 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertFalse(child_row["walked"])
 
+    def test_sizes_only_differs_from_ordinary_scan_on_a_truncated_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "child").mkdir(parents=True)
+            (root / "child" / "deep.txt").write_text("x", encoding="utf-8")
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), None)
+            ):
+                ordinary = hygiene.scan_tree(target, policy, max_depth=1)
+                cut = hygiene.scan_tree(target, policy, max_depth=1, sizes_only=True)
+                uncut = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertNotEqual([], ordinary["entries"])
+            self.assertNotIn("inventory_mode", ordinary)
+            self.assertNotIn("rollup_precision", ordinary)
+            self.assertEqual([], cut["entries"])
+            self.assertEqual("sizes-only", cut["inventory_mode"])
+            self.assertEqual("partial", cut["rollup_precision"])
+            self.assertEqual("exact", uncut["rollup_precision"])
+
+    def test_sizes_only_unreadable_directory_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "locked").mkdir(parents=True)
+            (root / "locked" / "hidden.txt").write_text("x", encoding="utf-8")
+            (root / "open.txt").write_text("x", encoding="utf-8")
+            target = root.resolve()
+            locked = target / "locked"
+            real_scandir = os.scandir
+
+            def scandir(path: Any = ".") -> Any:
+                if Path(path) == locked:
+                    raise PermissionError(13, "denied", str(path))
+                return real_scandir(path)
+
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(hygiene.os, "scandir", scandir),
+            ):
+                snapshot = hygiene.scan_tree(
+                    target, hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+            row = next(
+                item for item in snapshot["children_rollup"] if item["name"] == "locked"
+            )
+            self.assertFalse(row["walked"])
+            self.assertEqual(["scan-error"], row["unwalked_reasons"])
+            self.assertEqual(["locked"], [e["path"] for e in snapshot["errors"]])
+
+    def test_sizes_only_mount_state_error_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "file.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), "mountinfo failed")
+            ):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+
+    def test_scan_sizes_only_stdout_carries_mode_and_precision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "file.txt").write_text("x", encoding="utf-8")
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            stdout_io = io.StringIO()
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--sizes-only",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertEqual("exact", payload["rollup_precision"])
+
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
