@@ -145,12 +145,15 @@ FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
   if (rest != "" && rest !~ /^ /) die("missing space after colon")
   sub(/^[ ]+/, "", rest)
   while (sp > 0 && S_IND[sp] >= ind) sp--
-  if (sp > 0) key = S_KEY[sp] "." key
+  # A key sits at column 0 or at the one child indent its open parent set.
+  if (sp == 0 ? ind != 0 : ((sp in S_CHILD) && S_CHILD[sp] != ind)) die("bad indentation")
+  if (sp > 0) { S_CHILD[sp] = ind; key = S_KEY[sp] "." key }
   if (!(key in KIND)) die("unknown key: " key)
   open_key(key)
 
   if (rest ~ /^(#.*)?$/) {
     sp++; S_IND[sp] = ind; S_KEY[sp] = key
+    delete S_CHILD[sp]
     next
   }
   if (rest ~ /^\[/) {

@@ -841,6 +841,12 @@ assert_contains "loader says the field is reserved" "$err" "delegation is reserv
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
 assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
+load_yaml oi.yaml $'id: oi\n  language: js\n'
+assert_exit "loader rejects a key indented under a scalar (exit 2)" 2 "$rc"
+assert_contains "loader names the misindented key" "$err" "oi.yaml:2: bad indentation"
+load_yaml si.yaml $'id: si\nlanguage: js\nmock:\n  create: [x]\n    verify: [y]\n'
+assert_exit "loader rejects a sibling key at a deeper indent (exit 2)" 2 "$rc"
+assert_contains "loader names the uneven sibling" "$err" "si.yaml:5: bad indentation"
 load_yaml dm.yaml $'---\nid: dm\n'
 assert_exit "loader rejects a document marker (exit 2)" 2 "$rc"
 assert_contains "loader says document markers are unsupported" "$err" "dm.yaml:1: document markers"
@@ -857,6 +863,9 @@ run_file --file "$PREC/vi.test.ts"
 assert_contains "a vitest import selects js-vitest" "$out" "adapter: js-vitest"
 run_file --file "$PREC/je.test.ts"
 assert_contains "jest.fn selects js-jest" "$out" "adapter: js-jest"
+printf "import { vi } from 'vitest'\nconst f = jest.fn()\nit('a', () => { expect(f).toBe(f) })\n" >"$PREC/both.test.ts"
+run_file --file "$PREC/both.test.ts"
+assert_contains "when both detect, the first in load order wins" "$out" "adapter: js-jest"
 run_file --file "$PREC/plain.test.ts"
 assert_contains "no detect match falls back to the first adapter in load order" "$out" "adapter: js-jest"
 run_file --file "$SCRIPT_DIR/cant-fail-scan.sh"
