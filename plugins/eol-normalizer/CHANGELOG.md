@@ -9,7 +9,7 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 
 - README: the Behavior list now states the gitignored skip and points at the `eol_normalizer_lint_gitignored` option.
 - The setup skill's rerun caveat names the plugin-reconfiguration convention's Verified-version record as its basis, with the verified release and a recheck trigger.
-- Corrected the 0.7.4, 0.7.2, 0.6.61 and 0.6.60 entries: resync-only, no behavior change.
+- Corrected the 0.7.4, 0.6.61 and 0.6.60 entries: resync-only, no behavior change.
 
 ## [0.7.4] - 2026-09-28
 
@@ -27,7 +27,7 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 
 ### Fixed
 
-- hook-utils.sh resynced from lib; no behavior change for this plugin. Fleet change: [#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527).
+- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
 
 ## [0.7.1] - 2026-09-28
 
