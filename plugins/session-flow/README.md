@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of
+A Claude Code plugin bundling fifteen skills for one cohesive capability: managing the lifecycle of
 a working session. The skills answer where you are in the work, how to pause and resume it, how to
 recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
@@ -23,6 +23,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
+| `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |
 
 ## Contents
 
@@ -326,9 +327,23 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 /session-flow:show-options my-topic   # scope the artifact-grounded reads to a topic slice
 ```
 
+### tidy-work
+
+Inventories the gitignored `.work` memory tiers (the repo's memory root and `~/.work`) that no other
+skill prunes. `report` (default, read-only) lists each first-level item with age, size, kind, and
+whether it is in flight. `normalize` moves misplaced handoffs and running-retro ledgers into their
+standard directories. `clean` removes stale items of a known kind. Both are dry runs that list exact
+paths and ask one confirmation before `--apply`. Unknown items (for example a tool's own folder) and
+in-flight items are always kept. Opt-in only: nothing runs unless invoked.
+
+```shell
+/session-flow:tidy-work                  # report
+/session-flow:tidy-work clean --days 30  # dry run, then one confirmation
+```
+
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other thirteen skills are zero-config.
+A check-centric setup for the **observer substrate only**. The other fourteen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;

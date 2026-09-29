@@ -26,6 +26,16 @@ Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` per the contract's filename spec
 is configurable via the concern file's `memory_dir` key; session-flow never writes the contract
 tier.
 
+The writers never delete, so the `tidy-work` skill owns the lifecycle (`scripts/tidy_work.py`).
+`report` inventories the memory root and `~/.work` by age, size, and kind (handoff, running-retro,
+slice, checklist, scratch, unknown) and marks each item in flight or stale. `normalize` moves a
+handoff or running-retro file that sits in the wrong directory into `handoffs/` or
+`running-retros/`; it never deletes and refuses to overwrite. `clean` removes only items of a known
+kind that are not in flight. Both are dry runs that print exact absolute paths until `--apply`. An
+unknown item, such as another tool's own folder, is always reported and always kept. An item is in
+flight when its frontmatter links an open or unknown-state issue or PR, it changed within the window
+(default 14 days), a later handoff names it, or its checklist has an unfinished stage.
+
 The running-retro **detached observer** ([`observer.md`](./observer.md)) writes autonomous post-end
 findings to that same `running-retros/` ledger (matched by `session_id`), so the autonomous and
 in-session checkpoints share one file per session. Its intermediate distilled observations are NOT a

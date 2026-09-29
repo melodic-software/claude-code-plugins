@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.39.0] - 2026-09-29
+
+### Added
+
+- **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes stale known-kind items. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, and always keep unknown and in-flight items. Opt-in only.
+
 ## [0.38.29] - 2026-09-29
 
 ### Fixed
