@@ -46,8 +46,17 @@ lives:
 | Code, config, schema, build files, tests, directory layout | Yes | "The service listens on port 8080" (a config value) |
 | Metadata the tooling exposes (git history, manifests, lockfiles) | Yes, with effort | "This module depends on X" (a manifest) |
 | Another tracked markdown document | No: this is duplication, not derivability | route to `/docs-hygiene:extract-ssot` |
-| Agent routing index, where to look, not what to do | Yes (targets are readable on demand) | `convert-to-pointer (already satisfied)` when the body is pointers only; not actionable |
+| Agent routing index, where to look, not what to do | Exception: graded on this row, not as derivable | `convert-to-pointer (already satisfied)` when the body is pointers only; not actionable |
 | Nowhere else, so the document is the only record | No: owned fact | "We chose X over Y because Acme's rate limit…" |
+
+The routing row is a named exception to the derivable-from-primary-sources rule
+above. A routing claim ("fact X lives at Y") is neither a restatement of code
+nor doc-to-doc duplication, so it is graded on its own row, not as
+derivable-from-code. A routing-only doc that loads at session start (root
+`CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file) is what tells the
+agent where to look, so the verdict is never `delete`. It stays
+`convert-to-pointer (already satisfied)`, not actionable, and counts in the
+aggregate.
 
 A document is *fully* derivable only when every substantive claim sits in the
 top two rows. One claim in the bottom "owned fact" row flips the whole document
@@ -180,7 +189,7 @@ anchor is worse than the doc it replaces.
 | Document | Factors | Verdict |
 |---|---|---|
 | A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
-| A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1); cheap for an agent to re-derive | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
+| A root `CLAUDE.md` that only routes to `README.md`, CI headers, and rules files | Routing index (Factor 1 exception); launch-loaded, so it is what tells the agent where to look | `convert-to-pointer (already satisfied)`. Not actionable; count in aggregate |
 | An empty root `CLAUDE.md` whose `git log` shows it was deliberately emptied as an instruction-baseline reset, with the decision recorded in the commit | The emptiness IS a recorded decision (Factor 4 "decisions" class), so check `git log` before grading an empty/near-empty file | `keep-owns-facts`, not `delete` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |
