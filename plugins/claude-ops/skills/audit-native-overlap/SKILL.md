@@ -84,7 +84,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" s
 ```
 
 `--repo`, `--store`, `--view`, and `--pairs` are flags with repo-relative defaults, so a consumer
-repository with a different layout points them wherever its files live.
+repository with a different layout points them wherever its files live. `detect` also takes
+`--threshold` (lowest discovery score kept, default `0.30`) and `--top-k` (most components kept per
+native surface, default `3`; `0` turns discovery off). Lower the threshold to `0.25` for a
+recall-first sweep; below that, most added pairs share one incidental word.
 
 Every subcommand exits `0` ok, `1` broken, `3` degraded, the sibling extractor's contract, not the
 shell gates' `0/1/2`, so one lane can carry both; `2` stays argparse's usage error. A degraded exit
@@ -94,10 +97,35 @@ for the repo's test discovery.
 
 ## Detection posture. Floor-honest
 
-Under-recall stated honestly beats confident completeness. Three rules:
+Under-recall stated honestly beats confident completeness. Candidates come from two origins:
+
+- **Seeded**: every pair in `reference/canonical-pairs.json`, emitted whether or not the extraction
+  shows the native side.
+- **Discovered**: every native surface in the extraction, internal ones excepted, scored against
+  every skill and agent in the repo from name, alias, and description tokens
+  (`scripts/discover.py` states the formula). A pair at or over `--threshold`, among the `--top-k`
+  best for its surface, is emitted with its score and the shared tokens as evidence. A pair the
+  store already records is listed under `discovery.existing` with its verdict instead; a pair that
+  is also seeded stays one seeded candidate carrying the score.
+
+Discovery is lexical. A one-line native description rarely shares words with the component it
+duplicates in concept (`recap` against `session-flow:orient`), so such a pair belongs in the seeds
+once a human confirms it; a pair discovery already finds needs no seed.
+
+Every candidate carries `native.invocable_by` (`model+user`, `user-only`, `model-only`, or
+`unknown`), read from the registration's `model_invocable` and `user_invocable` fields, or from
+`disable_model_invocation` in an older extraction; a field the extraction lacks makes it `unknown`.
+`model_invocable: false` also sets the `model-invocation-disabled` marker the store's suggest-only
+rule reads. From it comes `recommended_integration`: `suggest` for a user-only surface, `route` or
+`route-or-wrap` for a model-invocable one (`route` for a built-in command, which never takes
+`wrap`), and nothing when unknown. It is a label for the human writing the row, never a store value.
+
+Three rules:
 
 - **Carry the integrity floor through, per lane.** The inventory reports integrity per lane
-  (`builtin_commands`, `bundled_skills`, `plugin_backed`). A `degraded` lane makes every count from
+  (`builtin_commands`, `bundled_skills`, `plugin_backed`, and `bundled_workflows` when the
+  extraction has that lane; an extraction without it is not an error, the lane is simply not
+  reported). A `degraded` lane makes every count from
   that lane a floor, and the report says so in the same sentence as the number. A `broken` lane's
   counts are omitted, the report names the lane and its cause, and every candidate whose lane is
   broken is marked `re_derivable: false` (its presence or absence in that lane proves nothing
@@ -118,9 +146,11 @@ Inventory status per lane (ok | degraded | broken), cli_version vs validated_aga
 that means for every count below; a broken lane is named with its cause.
 
 ## Overlap candidates
-One row per (native surface, our component): native name + provenance class + hidden/gated
-markers, our component, the evidence, and the store's current verdict — or NEW where the
-store has no row yet.
+One row per (native surface, our component): origin (seeded | discovered), native name +
+provenance class + hidden/gated markers, invocable_by, our component, score and shared tokens,
+recommended integration (a label, not a verdict), the evidence, and the store's current verdict,
+or NEW where the store has no row yet. Discovered pairs the store already records follow as one
+line each with their verdict.
 
 ## Registry state
 Rows whose recheck trigger has fired, rows missing a baked line, rows baked but unverified.
@@ -133,8 +163,8 @@ to name-only degradation.
 Which substrate produced which section, and anything the run could not resolve.
 ```
 
-Provenance classes are never merged into one list. A bundled skill, a built-in command, a
-plugin-backed built-in, and a session-provided skill have different disable switches and different
+Provenance classes are never merged into one list. A bundled skill, a bundled workflow, a built-in
+command, a plugin-backed built-in, and a session-provided skill have different disable switches and different
 rosters per host; a merged list cannot be acted on.
 
 ## Budget exposure, a presence-gated seam
@@ -308,14 +338,15 @@ Two upstream facts this skill depends on, each with the trigger that obliges re-
 - **A plugin skill never shadows a native one.** Ours are namespaced, so both resolve and the model
   chooses. That is why the routing lives in descriptions rather than in a name.
 - **`plugin_backed` is its own lane.** `security-review` is reported there, not under
-  `builtin_commands`. Read the wrong key and the row looks absent. Verified 2026-09-06 against
-  Claude Code 2.1.263, by running `inventory.py --binary-only` on this machine and reading the
-  `plugin_backed` key, which holds `security-review` and nothing else. Recheck when the extractor's
-  provenance lanes change or a release note moves a bundled surface between them.
+  `builtin_commands`. Read the wrong key and the row looks absent. Verified 2026-09-29 against
+  Claude Code 2.1.284, by reading the `plugin_backed` key of an `inventory.py --binary-only`
+  extraction on this machine, which holds `security-review` and nothing else. Recheck when the
+  extractor's provenance lanes change or a release note moves a bundled surface between them.
 - **A bundled skill can carry aliases.** `code-review` answers to `review`; treating an alias as a
   separate surface produces a duplicate row for one capability. Basis:
   <https://code.claude.com/docs/en/commands> gives `/code-review` the line "Alias: `/review`".
-  Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when
+  Verified 2026-09-29 against Claude Code 2.1.284 (the extraction lists `review` as the alias) and
+  that page as fetched that day. Recheck when
   the commands page drops the alias line or a release note renames a bundled skill.
 - **Absent from the binary is not absent from the product.** Session-provided skills exist only in
   a live roster. "Not in the extraction" is a statement about the extraction.
