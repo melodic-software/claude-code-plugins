@@ -3,6 +3,33 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.28] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions`: the I6 pre-scan adopts the measured gate set of
+  `docs-hygiene`'s `rule-negation-without-positive`.** A row is now a sentence that opens with the
+  prohibition (after list, blockquote, checkbox, and emphasis markers) and carries neither a paired
+  positive (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) nor a rationale
+  marker. Soft-wrapped paragraph lines join into one sentence before the split, and frontmatter,
+  fenced code, table rows, headings, and HTML comment lines are never read. A fence, blockquoted
+  or not, closes only on its opener's character at the opener's length or longer with nothing
+  after it. audit-noise's hard-guardrail carve-out (secrets, credentials, production, …) is not
+  adopted: a guardrail "never" still owes I6's fallback rationale (I7), so it stays a candidate. On
+  this repository at `2dfaaa40`, over the 990 `*.md` files under `plugins/*/skills/`,
+  `plugins/*/agents/`, and `.claude/`, plus every `CLAUDE.md` and `AGENTS.md`, the seed falls from
+  6,608 raw rows to 913. New `--i6-counts` prints `I6 raw=<n> surviving=<n>`, which the Phase D
+  cost line now states. `criteria.md` 1.24.0 rewrites the I6 Detect sentence to say the exclusions
+  are structural, not the row's fences, and adds I33's Reporting line (#4115).
+- **`audit-instructions`: I33 is reported one finding per spoke and rolled up per plugin.** Each
+  finding is anchored by an excerpt over the spoke's opener sentence with its heading path as the
+  discriminator, never a whole-surface anchor. The lane brief restates the row's Must NOT flag
+  fences (one-line scope note, hub index table, frontmatter). Phase C judges the class with one
+  class-batched verifier, and Phase D moves I33 rows into a collapsed per-plugin section that keeps
+  each row's `Surface:Line` and fenced diff. The row's tier, authority, Detect, and Remediate are
+  unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
+  (#4115).
+
 ## [0.51.27] - 2026-09-28
 
 ### Added
