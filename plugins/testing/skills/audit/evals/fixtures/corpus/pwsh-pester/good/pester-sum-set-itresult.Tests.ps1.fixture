@@ -1,0 +1,13 @@
+# good-for: rule-zero-assertion
+# Set-ItResult -Skipped ends the test from inside its body, so it is not judged.
+
+BeforeAll {
+    . $PSScriptRoot/Get-Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds big integers' {
+        Set-ItResult -Skipped -Because 'bigint support is not implemented yet'
+        Get-Sum -A 9007199254740993 -B 1
+    }
+}

@@ -1,0 +1,17 @@
+// source: pocock T2
+// expect: rule-source-text-read
+// reads: app/pitch-detail.tsx
+// Checks that the videos section comes after the content plan by reading the
+// module's source instead of rendering it.
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+describe('pitch detail page', () => {
+  it('shows the videos after the content plan', () => {
+    const src = readFileSync(resolve(__dirname, '../app/pitch-detail.tsx'), 'utf8');
+    const plan = src.indexOf('ContentPlan');
+    const videos = src.indexOf('Videos');
+    expect(videos).toBeGreaterThan(plan);
+  });
+});

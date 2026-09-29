@@ -1,0 +1,9 @@
+// expect: rule-constant-restatement
+// The constant compared to its own literal value: no validation runs.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { X_POST_CHARACTER_LIMIT } from '../src/post.mjs';
+
+test('posts are capped at 280 characters', () => {
+  assert.strictEqual(X_POST_CHARACTER_LIMIT, 280);
+});

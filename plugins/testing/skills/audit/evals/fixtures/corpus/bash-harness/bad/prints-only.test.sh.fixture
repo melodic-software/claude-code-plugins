@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# expect: rule-zero-assertion
+# Runs the code under test and prints the result; nothing checks it, so the
+# suite exits 0 whatever sort does.
+set -uo pipefail
+
+out="$(printf 'b\na\n' | sort)"
+echo "sorted: $out"
+echo "done"

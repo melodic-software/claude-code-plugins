@@ -1,0 +1,50 @@
+# Node's built-in runner (node:test) with node:assert. Inherits js-jest's files
+# and expect receivers. Schema and YAML subset: scripts/adapter-load.awk.
+id: js-node-test
+extends: js-jest
+detect:
+  any_regex:
+    - '[''"]node:test[''"]'
+test_start:
+  - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\.[[:space:]]*only)?[[:space:]]*\('
+# expectFailure inverts the oracle, so those tests are not judged either.
+test_skip:
+  - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\.[[:space:]]*(skip|todo|expectFailure)'
+  - '(^|[^A-Za-z0-9_$])(skip|todo|expectFailure)[[:space:]]*:'
+body_skip:
+  - '(^|[^A-Za-z0-9_$.])(t|ctx|context)[[:space:]]*\.[[:space:]]*(skip|todo)[[:space:]]*\('
+suite_skip:
+  - '(^|[^A-Za-z0-9_$.])(describe|suite)[[:space:]]*\.[[:space:]]*(skip|todo)[[:space:]]*\('
+  - '(^|[^A-Za-z0-9_$.])(describe|suite)[[:space:]]*\(.*(skip|todo)[[:space:]]*:'
+assertion:
+  # assert(), assert.x(), t.assert.x() and new Assert() all carry the name;
+  # the bare names are node:assert's functions imported by destructuring.
+  calls:
+    - '[Aa]ssert'
+    - '(^|[^A-Za-z0-9_$.])(ok|equal|notEqual|strictEqual|notStrictEqual|deepEqual|notDeepEqual|deepStrictEqual|notDeepStrictEqual|partialDeepStrictEqual|throws|doesNotThrow|rejects|doesNotReject|match|doesNotMatch|fail|ifError)[[:space:]]*\('
+    - 'expect[[:space:]]*\('
+    - '[Ss]hould'  # spellchecker:disable-line
+    - '[Vv]erify'
+    - '[Cc]heck'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+  # assert.rejects and assert.doesNotReject return promises.
+  async:
+    - '(t[[:space:]]*\.[[:space:]]*)?(assert[[:space:]]*\.[[:space:]]*)?(rejects|doesNotReject)[[:space:]]*\('
+  # Not null or undefined, and a throws or rejects given no expected error.
+  weak:
+    - '(assert[[:space:]]*\.[[:space:]]*)?(notStrictEqual|notEqual)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*(null|undefined)[[:space:]]*\)'
+    - '(assert[[:space:]]*\.[[:space:]]*)?(throws|rejects)[[:space:]]*\([^(),]*(\([^()]*\)[^(),]*)*\)'
+mock:
+  create:
+    - '(^|[^A-Za-z0-9_$])mock[[:space:]]*\.[[:space:]]*(fn|method|getter|setter|property|module)[[:space:]]*\('
+  verify:
+    - '\.[[:space:]]*mock[[:space:]]*\.[[:space:]]*(calls|callCount)'
+  # An assert.x(...) call reading a mock's call record, one nesting level.
+  strip:
+    - 'assert[[:space:]]*\.[[:space:]]*[A-Za-z]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\.[[:space:]]*mock[[:space:]]*\.[[:space:]]*(calls|callCount)[^()]*(\([^()]*\)[^()]*)*\)'
+snapshot:
+  - '(^|[^A-Za-z0-9_$.])(t|ctx|context)[[:space:]]*\.[[:space:]]*assert[[:space:]]*\.[[:space:]]*snapshot[[:space:]]*\('
+equality:
+  # camelCase keeps strictEqual from matching notStrictEqual or deepStrictEqual.
+  call2: [assert.equal, strictEqual, deepEqual, deepStrictEqual, partialDeepStrictEqual]

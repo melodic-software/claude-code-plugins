@@ -1,0 +1,35 @@
+// good-for: rule-inert-assertion
+// good-for: rule-source-text-read
+// The repaired twins: the assertion reads a condition the code computes, the
+// async assertion is awaited, and a file the test wrote is read back.
+using System.IO;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderRepairedOraclesTests
+{
+    [TestMethod]
+    public void PlaceOrder_MarksOrderPlaced()
+    {
+        var order = new Order();
+        order.Place();
+        Assert.IsTrue(order.IsPlaced);
+    }
+
+    [TestMethod]
+    public async Task Cancel_AfterShipping_Throws()
+    {
+        var order = new Order();
+        order.Ship();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => order.CancelAsync());
+    }
+
+    [TestMethod]
+    public void Export_WritesTheOrder()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "order.cs");
+        new Order().ExportTo(path);
+        Assert.IsTrue(File.ReadAllText(path).Contains("class Order"));
+    }
+}
