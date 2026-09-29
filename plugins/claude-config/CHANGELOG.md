@@ -3,6 +3,88 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
+
+## [0.52.0] - 2026-09-29
+
+### Added
+
+- **`unhobble`: a `decide` argument.** `decide` lists an experiment's open decisions and, when the
+  `discovery` plugin is installed, researches each one and gives the memo to two blind decision
+  agents. Agreement is presented for confirmation and disagreement returns to the operator as a
+  question. It never mutates ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)).
+- **`unhobble`: `status` prints phase, elapsed days, ledger row count, register holds, confounds,
+  and the pull request URL.** The manifest gains `phase`, `branch_deviation`, and an optional
+  `pr_url`. `readd` refuses to run while the phase is `bare` or `observe` and reports the ledger
+  grouped by suspected missing instruction against the two-row gate (#4094).
+
+### Changed
+
+- **`unhobble`: a convention unit's default follows an oracle test.** A gating oracle strips the
+  prose and keeps the gate, an advisory oracle or none keeps the unit, and a register class is kept
+  whatever the test says. A unit under `plugins/<name>/` is recorded as
+  `unstripped-product-surface` and never stripped, and a session pinned to a branch uses it as the
+  experiment branch (#4094).
+- **`unhobble`: silence is no longer a deletion warrant.** An empty ledger licenses deleting an
+  editorial candidate only. A consequential rule the ledger did not defend goes to a Deletion watch
+  or is restored, and only a closed watch makes its removal permanent. The watch counts qualifying
+  sessions as fresh sessions on the experiment branch
+  ([#3563](https://github.com/melodic-software/claude-code-plugins/issues/3563)).
+- **`audit-instructions`: the findings relay follows `criteria.md` surfaces and tiers.** I31 and I33
+  admit any file inside a skill directory (I33 excludes `SKILL.md`), I33 names the nearest ancestor
+  `SKILL.md` as its hub, and I32 is CRITICAL under `plugins/` and IMPORTANT on a user or project
+  surface ([#4116](https://github.com/melodic-software/claude-code-plugins/issues/4116),
+  [#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)).
+- **`audit-instructions`: the subagent-window claim carries a verification record, the read-only
+  contract covers lane reports and run-state writes, and I33 rows count as one dispatch outside the
+  per-lane verifier batches.** `context/execution-and-report.md` is deleted; `SKILL.md`, the
+  finding-identity reference, and `context/persist-findings.md` own what it restated
+  ([#4113](https://github.com/melodic-software/claude-code-plugins/issues/4113),
+  [#4114](https://github.com/melodic-software/claude-code-plugins/issues/4114),
+  [#4115](https://github.com/melodic-software/claude-code-plugins/issues/4115)).
+- **`README.md`** describes the `audit-instructions` flags and the `unhobble` state fields.
+
+### Fixed
+
+- **`audit-instructions`: I21 and the `audit` effort-pin row state the current effort defaults.**
+  The default carve-out named only Opus 4.7 as a non-`high` default; the model-config page's
+  resolution order also has Opus 5.5 and Sonnet 5.5 defaulting to `medium`, so the "`high` is the
+  default" exemption lifts for them too. The stale first-run-hold clause is removed from Source,
+  and Verified and the recheck trigger follow the 2026-09-28 read of both pages.
+- **`unhobble`: the state-write gotcha and its eval no longer restate the `block-hook-bypass`
+  exit code or call a heredoc alone a blocked form.** The skill says why a shell write is wrong and
+  leaves what the hook catches to its README.
+- **`audit-instructions`: `finding-ids.sh` no longer hashes a non-instruction file under `$HOME`.**
+  A row naming `~/.ssh/config` or `~/.claude/.credentials.json` is refused as
+  `surface-not-an-instruction-file`. The user surface stays home-wide for instruction-file shapes
+  (any markdown file, and `settings.json`, `settings.local.json`, `hooks.json` inside a `.claude`
+  tree or the resolved `CLAUDE_CONFIG_DIR`, plus any file beneath a `skills/` directory in those
+  trees) (#4116).
+- **`audit-instructions`: the I15 ledger link in `conflict-criteria.md` no longer points outside the
+  repository.** It names the path in code font
+  ([#3568](https://github.com/melodic-software/claude-code-plugins/issues/3568)).
+- **`audit`: the row for a live `PreToolUse` hook that already blocks a pattern carries the
+  unattended-lane note** like the other ask-rule rows
+  ([#4600](https://github.com/melodic-software/claude-code-plugins/issues/4600)).
+- **`audit-permission-state`: a settings file whose last `permissions` key is a string is no longer
+  rejected as invalid JSON.** `{"permissions":{"defaultMode":"bypassPermissions"}}` is now scanned,
+  so `C2-defaultMode` and `C5-disableType` fire on real files. Both `C2-defaultMode` findings say to
+  remove the value from the named file and state the masking claim only where no higher-ranked
+  settings file or `--permission-mode` sets a mode. The unsourced auto version boundary is removed
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+- **`audit-instructions`: the 200000-token lane-window fallback carries a recheck trigger.** The
+  claim, basis, as-of date and trigger sit beside the fallback in `SKILL.md`.
+- **`audit-instructions`: `emit-findings.sh` finds the I33 hub when run from a repository
+  subdirectory with relative paths.** The hub probe now starts from the repository root instead of
+  the working directory.
+
+In-place changelog corrections:
+
+- 0.51.18: body replaced by a pointer; it repeated the 0.51.16 Fixed entry (released by #5159) and the 0.51.10 Changed entry (released by #5161).
+- 0.51.17: body replaced by a pointer; it repeated the 0.51.15 entry (released by #5156).
+- 0.51.7: states it shipped through #5154 (commit 9c2db71f6), not #5059 (closed unmerged).
+- File header: notes that 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
+
 ## [0.51.30] - 2026-09-28
 
 ### Changed
@@ -125,29 +207,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ## [0.51.18] - 2026-09-28
 
-### Fixed
-
-- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
-
-### Changed
-
-- **Managed-policy diagnosis routes to `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `audit-permission-state` still cannot see server-managed settings as live policy. The note sends the operator to `/status` (Setting sources and the Organization policy line) and to `claude doctor`, which shows the same line, for a policy that did not load, a policy-helper failure, or a credential that is signed in but not in use.
+No change: repeats the 0.51.16 entry (released by #5159) and the 0.51.10 entry (released by #5161).
 
 ## [0.51.17] - 2026-09-28
 
-### Changed
-
-- **Permission and effort facts from Claude Code 2.1.257 to 2.1.261**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  `required-permissions.md` now states that redirect targets are covered by Read and Edit deny
-  rules from 2.1.257, and that the 2.1.259 widening onto Bash arguments was reverted in 2.1.260.
-  Strict sandbox mode does not sandbox `!` shell-mode commands in an interactive session from
-  2.1.260. `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP
-  from 2.1.257. The audit checklist records `bashOutputMaxChars` (clamped 4000 to 128000, not
-  raised by default) and that `taskOutputMaxChars` was removed in 2.1.277. `audit-instructions`
-  I21 drops the "Opus 5 has no hold" sentence for the current model-config page: Opus 5.5 ignores
-  a top-level user `effortLevel`, and that key still applies on Opus 5, Fable 5.1, and earlier
-  models. Each claim cites the page read on 2026-09-28.
+No change: repeats the 0.51.15 entry (released by #5156).
 
 ## [0.51.16] - 2026-09-28
 
@@ -178,6 +242,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **Managed-policy diagnosis routes to `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `audit-permission-state` still cannot see server-managed settings, which have no local path. The note now sends the operator to `/status` (Setting sources and the Organization policy line) and to `claude doctor`, which shows the same line, for a policy that did not load, a policy-helper failure, or a credential that is signed in but not in use.
 
 ## [0.51.7] - 2026-09-28
+
+Shipped through [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) (commit 9c2db71f6), not #5059, which was closed unmerged.
 
 ### Fixed
 

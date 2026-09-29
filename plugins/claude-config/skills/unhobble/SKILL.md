@@ -1,6 +1,6 @@
 ---
-description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
-argument-hint: "[snapshot|bare|observe|readd|watch|status]"
+description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment', 'deletion watch', 'watch this rule before deleting it'. Human-gated, resumable."
+argument-hint: "[snapshot|bare|observe|readd|watch|status|decide]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,8 @@ metadata:
   summary: Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns
 ---
 
-**Arguments.** `[snapshot|bare|observe|readd|watch|status]`. Omit the phase for the guided full flow.
+**Arguments.** `[snapshot|bare|observe|readd|watch|status|decide]`. Omit the phase for the guided full flow.
+`decide` is not a phase; see Decide.
 
 ## Purpose
 
@@ -49,7 +50,7 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 - **Reversible by construction.** Tracked-file changes happen on a dedicated experiment branch;
   untracked/settings changes are backed up to plugin state before modification or removal and
   restored from that manifest. Nothing is destroyed: git history and the snapshot manifest are the safety net.
-- **Human-gated.** Every mutating step (strip, restore, re-add) presents its exact change set and
+- **Human-gated.** Every mutating step (strip, restore, re-add, watch removal) presents its exact change set and
   waits for operator confirmation. Bare invocation of a phase never mutates silently.
 - **Security posture is out of scope.** Hooks that enforce policy (secrets gates, PR-body contracts,
   permission guards) are classified `policy` at snapshot time and are NOT stripped by default:
@@ -83,7 +84,10 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
 - `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
   `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
-  the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
+  the plugin data dir), `origin_url`, `branch`, `base_commit`, `branch_deviation` (empty, or why the
+  experiment branch is not `experiment/unhobble-<model-version>`), target model, `phase`
+  (`snapshot` | `bare` | `observe` | `readd` | `closed`, or `watch` for a Deletion watch experiment),
+  phase timestamps, and optionally `pr_url` (the experiment pull request, written when one opens).
   No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity), with any deletion watch
@@ -93,13 +97,24 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
   behavioral, which git cannot restore and so is never stripped through the git helper). Never
   commit `backups/`.
 
-`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates,
-open and closed deletion watches.
+`status` reads `manifest.json` and `stumbles.md` and prints:
+
+- phase: manifest `phase`.
+- elapsed days: today minus the first phase timestamp.
+- ledger row count: table rows in `stumbles.md`.
+- register holds: rules the close recorded as register holds (0 before `readd` closes).
+- confounds: every `unstripped-*` record in the manifest, plus any confound the observe phase noted.
+- PR URL: manifest `pr_url`; the line is omitted while the manifest lacks that optional field.
+- re-add candidates and open and closed deletion watches.
 
 ## Phase 1: snapshot
 
 1. Verify a clean working tree; refuse to start on a dirty tree or on the default branch. Create or
-   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). **Clean here means no
+   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). When the session is
+   pinned to a designated branch (a cloud session's assigned branch, or one the operator names), use
+   it as the experiment branch instead of creating one, and record `branch_deviation` in the
+   manifest naming that branch and the pin. The default-branch refusal still applies to it.
+   **Clean here means no
    tracked modification and no unrelated untracked file.** An untracked instruction file from the
    `instruction-files.sh` list is admitted, and only that: it is the ordinary shape of a
    `CLAUDE.local.md`, it is what step 3 is about to classify, and a gate that read it as dirt would
@@ -115,7 +130,7 @@ open and closed deletion watches.
    plugins alike: `policy` (enforces team/safety policy regardless of model, so kept), `behavioral`
    (corrects or scaffolds model behavior, so stripped), `hybrid` (one unit carrying both, with the
    split named, trimmed and never removed whole), or `convention` (team conventions in git, the
-   operator's call, default kept per the official carve-out). For hook entries specifically, the
+   operator's call, default set by the oracle test below). For hook entries specifically, the
    classification rubric, covering mechanism vs class, the hybrid trim-not-delete rule, and the
    ground-truth-oracle carve-out (behavioral purpose with a non-derivable machine oracle is a
    keep), is owned by the marketplace's plugin-philosophy "Classifying a hook" section
@@ -134,6 +149,25 @@ open and closed deletion watches.
    config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
    noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
    residue down with the behavioral surface.
+
+   **Convention units: the oracle test.** The default for a `convention` unit rests on the
+   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+   and the ground-truth-oracle rule in the plugin-philosophy section linked above. No vendor page
+   states a convention exemption, and the register's definition of "highly important areas" is this
+   repository's own. Ask per unit what still checks the convention once its text is gone.
+   **Gating oracle remains** (a CI check, hook, or ruleset that fails or blocks a violation and is
+   not itself stripped): default strip the prose and keep the gate, classified `policy`; a stumble
+   then shows as a gate failure to log. **Advisory oracle remains** (a linter warning or report that
+   blocks nothing): default kept, since a violation passes and a silent ledger says nothing; strip
+   only on the operator's explicit call, recorded in the manifest. **No oracle:** default kept, and
+   removal is permanent only through a closed Deletion watch. A unit matching a register class is
+   kept whatever the test says.
+
+   **Product surfaces.** Record any unit under `plugins/<name>/` (a skill, agent, hook, command, or
+   any shipped file) as `unstripped-product-surface` and never strip it, whatever its class. The
+   reason is changelog-parity: `check-changelog-parity.sh`, in the repository scripts directory,
+   pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change (Gotchas, two
+   hats). Only the repo's own session surfaces are strip candidates.
 
    **Plugins, every one enabled at any scope.** Inventory user, project, and local
    `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
@@ -177,8 +211,9 @@ Apply the confirmed strip plan:
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`, and that commit includes
-  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`. The clean-tree check already
-  ran in Phase 1, before those files existed; other uncommitted dirt still refuses this phase.
+  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`, with `phase: bare`. The
+  clean-tree check already ran in Phase 1, before those files existed; other uncommitted dirt still
+  refuses this phase.
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
@@ -263,25 +298,43 @@ experiment branch:
 
 | Date | Task | What happened | Expected | Suspected missing instruction | Severity |
 
-Log honestly, including surprises in the other direction (things the bare model now does *better*;
+The first ledger commit sets `phase: observe`. Log honestly, including surprises in the other direction (things the bare model now does *better*;
 mark those `improvement`, since they are the deletions proving themselves). The ledger is the experiment's
-entire evidentiary output: an unlogged stumble cannot earn an instruction back, and a ledger with no
-rows after real work is a licensed permanent deletion.
+entire evidentiary output: an unlogged stumble cannot earn an instruction back. An empty ledger after
+real work licenses deleting an editorial candidate only. The strip removed the whole surface at once,
+so a ledger cannot attribute silence to one rule: a consequential rule the ledger did not defend goes
+back to a Deletion watch (or is restored) and is never made permanent by this ledger, and a
+protected-class rule is restored (Phase 4).
 
 ## Phase 4: readd
 
+**Refuse to run while the manifest `phase` is `bare` or `observe`.** Print the phase and the ledger
+row count from `stumbles.md`, and stop: the strip just landed or the window is open, and rows logged
+so far are not yet the evidence the gate reads. The operator ends the window by saying so; that sets
+`phase: readd`, committed. A watch experiment (`phase: watch`) never reaches this phase; its
+restore and close rules are under Deletion watch, unchanged.
+
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
-   This gate is the evidence grammar, and only the grammar: a row is one ledger line, rows that
-   share an underlying cause count as one, and the commit that acts cites the rows. The deletion
-   watch uses this grammar and does not define a second one.
+   The grammar is shared with the Deletion watch: a row is one ledger line, rows that share an
+   underlying cause count as one, and the commit that acts cites the rows. The watch defines no second
+   grammar, only its own threshold: one attributed row after aggregation ends a watch, where restoring
+   here takes two. That asymmetry is this skill's rule, not the spec's: restoring is cheap and
+   reversible, and the removal is the risky act.
+
+   **Ledger grouping.** No script parses `stumbles.md` (`instruction-files.sh` handles instruction
+   files only), so read the table and cluster it by hand. Put each row under its suspected missing
+   instruction, then merge groups whose rows share one underlying cause. Report every group as:
+   the instruction, its row dates, and `clears` (two or more rows) or `below the gate` (one row).
+   Rows marked `improvement` never count toward a group. Present the report and stop; restoring
+   goes through steps 2 to 5.
 2. For a root instruction file being restored whole,
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
    restore that returned every stripped file would hand back the instructions the ledger did not
    defend, which is the whole result this phase exists to protect. **`--all` is the abandon path,
-   never the close path.** Closing an experiment normally leaves the undefended surfaces retired,
-   per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
+   never the close path.** Closing an experiment normally leaves the undefended editorial surfaces
+   retired, per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
    whole experiment back to its pre-strip state and discarding the result: it overwrites what is on
    disk rather than skipping it, and it removes an instruction file the pre-strip state did not have
    **and git tracks**. One that was never tracked it names and leaves, since git cannot tell a file
@@ -293,10 +346,12 @@ rows after real work is a licensed permanent deletion.
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
    `audit-instructions` (same plugin), which owns instruction-content-vs-doctrine analysis.
-4. Everything the ledger did not defend stays deleted, **except a rule matching a protected class
-   in the [instruction exception
-   register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)**,
-   which is restored regardless of whether the ledger logged a stumble against it. The strip itself
+4. Everything the ledger did not defend and that is editorial stays deleted. A consequential rule
+   (Deletion watch defines the tier) the ledger did not defend is not left deleted on this ledger:
+   restore it, or restore it and open a Deletion watch, which alone can make its removal permanent.
+   A rule matching a protected class in the [instruction exception
+   register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+   is restored regardless of whether the ledger logged a stumble against it. The strip itself
    is fine: it is reversible and branch-local, which is why the experiment may run over a protected
    rail at all. What the register forbids is leaving one deleted on the evidence of silence. A rail
    whose absence is unrecoverable will not usually announce itself inside one experiment window;
@@ -305,8 +360,8 @@ rows after real work is a licensed permanent deletion.
    this way is not a failed deletion, so do not count it as a retained surface in the ledger's
    defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
-   counts, register holds listed separately), and merge or fold the experiment branch per the
-   repo's normal PR flow. The register hold covers only protected rules, so before that merge run
+   counts, register holds and consequential rules sent to a watch listed separately), and merge or
+   fold the experiment branch per the repo's normal PR flow. The register hold covers only protected rules, so before that merge run
    `/review:security-review` against the pull request (if the `review` plugin is installed). Its
    instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
    enforces. Without the plugin, record in the pull request body that the retired rules got no
@@ -321,17 +376,21 @@ would not change behavior, the content is derivable, or it restates the obvious)
 a watch; `audit-instructions` clears that tier on its normal criteria. A protected-class rule
 never enters a watch. Name the class and stop.
 
-A watch runs inside an experiment. When none is open, start one for the single rule: mint an
-experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
-`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with the
-watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
+A watch is the only route to a permanent consequential deletion, whether the rule came from an
+audit or from a strip's undefended surface. It runs inside an experiment. When none is open, start
+one for the single rule: mint an experiment id, create the dedicated experiment branch, and write `manifest.json` and an empty
+`stumbles.md` under `.claude/unhobble/<experiment-id>/` as Phase 1 does (see State), with
+`phase: watch` and the watched rule as the only surface. Before any removal, record the watch in `stumbles.md`, above the
 ledger table: the rule, quoted,
 and the surface it lives on; the governed situation, stated as where its absence would show; the
 window, a count of qualifying sessions (sessions that entered that situation), not a wall-clock
 duration; and the disqualifier, any stumble attributable to the rule, which ends the watch.
 
 Present the rule, its surface, and the watch record, and wait for confirmation. Then remove the
-rule and keep it removed for the whole window. A watched rule is never kept
+rule and keep it removed for the whole window. Qualifying sessions are fresh sessions on the
+experiment branch with the rule removed, never the session that removed it. Each one that entered
+the governed situation is counted by a dated one-line entry under the watch record, committed on
+the branch; the window is met when the entries reach the recorded count. A watched rule is never kept
 loaded: a rule still in context prevents the stumble it exists to prevent, so zero attributed rows
 would say nothing about whether it can go. A disqualifying stumble ends the watch and restores the
 rule.
@@ -351,6 +410,22 @@ confirmation before the removal is kept. A closed watch with
 zero attributed rows is what clears the consequential tier. Until that citation exists, the tier
 is not clear, and silence is not a warrant.
 
+## Decide
+
+`decide` resolves the open decisions an experiment leaves (a convention unit's default, a
+consequential rule that needs a watch, a kept-or-retired call) without a new engine, script, or
+manifest schema. It composes skills that are already there:
+
+1. List the open decisions from the manifest and ledger, one line each.
+2. When the `discovery` plugin is installed, run `/discovery:research` once per decision and keep
+   one memo per decision. When it is absent, say so and ask the operator each decision as a
+   question instead; the steps below do not run.
+3. Give each decision's memo to two blind decision agents that never see each other's answer.
+4. Two agents that agree give a consensus: present it with the memo and stop for confirmation.
+   Two that disagree return to the operator as a question that states both positions.
+
+`decide` never mutates. A confirmed decision is applied by the phase that owns it.
+
 ## Cadence wiring (optional)
 
 The re-run trigger is the next frontier model release. To make that standing rather than
@@ -365,7 +440,8 @@ scheduling surfaces vary per consumer and are the operator's choice.
   measurement; strip, then start fresh sessions for real work.
 - **A plugin marketplace repo has two hats.** Running this skill in a plugin-publishing repo
   ablates that repo's *own* session surfaces only; the components it ships to consumers are its
-  product, audited by their own acceptance gates, not stripped by this experiment.
+  product, audited by their own acceptance gates, not stripped by this experiment. Phase 1 records
+  each one under `plugins/<name>/` as `unstripped-product-surface`, and changelog-parity is why.
 - **`CLAUDE_CODE_SIMPLE=1` / `--bare` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` are not part of this
   contract.** Two distinct, documented switches (official env-vars reference; binary-verified
   2026-08-17): simple mode (`CLAUDE_CODE_SIMPLE=1`, CLI flag `--bare`) disables fetches, keychain
@@ -379,10 +455,10 @@ scheduling surfaces vary per consumer and are the operator's choice.
 - **Machine-specific paths.** A committed manifest that contains an absolute host path fails the
   machine-specific-paths CI lane. This skill records none: identity is `origin_url`, `branch`, and
   `base_commit`.
-- **State writes go through Write or Edit.** The guardrails `block-hook-bypass` hook blocks shell
-  redirects and heredocs that write a file, exit 2, because those forms skip the Write and Edit
-  gates. Writing the manifest or the ledger with `cat >`, `echo >`, or a heredoc is the blocked
-  form. Use Write or Edit.
+- **State writes go through Write or Edit.** Write the manifest and the ledger with those tools,
+  never a shell redirect or heredoc: a shell write skips the Write and Edit hook gates. Where the
+  guardrails plugin's `block-hook-bypass` hook is installed it can block such a write; its README
+  states what it catches and what it exempts.
 
 ## What this skill does NOT do
 
