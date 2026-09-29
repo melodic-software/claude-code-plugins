@@ -23,8 +23,8 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
-  A plain (unquoted, non-block) `description` that contains `": "` FAILs: that is a YAML mapping
-  indicator, and the skills reference says unparsed frontmatter loads the skill with no fields set
+  A plain (unquoted, non-block) `description` that contains `": "` or a line ending in `:` on any
+  line FAILs: that is a YAML mapping indicator, and the skills reference says unparsed frontmatter loads the skill with no fields set
   (<https://code.claude.com/docs/en/skills#frontmatter-reference>). A quoted or block scalar may
   contain the indicator. `compatibility`, when present, is 1-500 characters and FAILs outside that
   (Agent Skills spec; Claude Code accepts the field and does not act on it). Absence is success:

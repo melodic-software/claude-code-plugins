@@ -4809,6 +4809,10 @@ model_case model-bedrock 'model: anthropic.claude-3-5-sonnet-20241022-v2:0' 0 "f
 model_case model-arn 'model: arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-v1:0' 0 "frontmatter model ARN with ':' and '/' passes"
 model_case model-vertex 'model: claude-sonnet-4@20250514' 0 "frontmatter model Vertex id with '@' passes"
 model_case model-empty 'model:' 1 "frontmatter model empty fails"
+model_case model-flow-seq 'model: [foo]' 1 "frontmatter model unquoted flow sequence fails"
+model_case model-flow-map 'model: {}' 1 "frontmatter model unquoted flow mapping fails"
+model_case model-bool 'model: true' 1 "frontmatter model unquoted boolean fails"
+model_case model-quoted-bool 'model: "true"' 0 "frontmatter model quoted string passes"
 
 # The colon check reads the whole plain scalar, not only its first line.
 desc_case() { # name, description block (lines inside the fences), expected rc, label
@@ -4839,6 +4843,8 @@ desc_case desc-trailing-colon 'description: Use when the user asks:
   a thing.' 1 "description first line ending in a colon fails"
 desc_case desc-plain-multi 'description: Do a thing and
   use it when the user asks.' 0 "multi-line plain description without a colon passes"
+desc_case desc-comment-colon 'description: Do a thing and
+  use it when asked # note: detail' 0 "colon-space inside a trailing YAML comment passes"
 desc_case desc-quoted-multi 'description: "Do a thing and
   use when: the user asks."' 0 "multi-line quoted description with colon-space passes"
 desc_case desc-block-multi 'description: >

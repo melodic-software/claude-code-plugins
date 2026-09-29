@@ -690,19 +690,24 @@ else
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
     if [[ -z "$CUR_MODEL" || "$CUR_MODEL" =~ [[:space:]] ]]; then
       err "frontmatter model '$CUR_MODEL' is empty or contains whitespace; use inherit or one model alias or id (characters such as ':', '/' and '@' in a provider id are allowed)"
+    elif [[ "$RAW_MODEL" != "$CUR_MODEL" ]]; then
+      : # quoted, so YAML reads a string
+    elif [[ "$CUR_MODEL" == [\[\{]* || "${CUR_MODEL,,}" =~ ^(true|false|yes|no|on|off|null|~)$ ]]; then
+      err "frontmatter model '$CUR_MODEL' is not a string: YAML reads an unquoted collection, boolean or null as a non-string value; use inherit or one model alias or id"
     fi
   fi
 
   # An unquoted ": " in a plain description scalar, or a colon ending a line, is
-  # a YAML mapping indicator, on the header line or any continuation line. A
+  # a YAML mapping indicator, on the header line or any continuation line; a
+  # trailing ` #` comment is not part of the value and is stripped first. A
   # quoted scalar or a block scalar may contain it. Claude Code's skills
   # reference: when the YAML between the markers does not parse, the skill
   # still loads with no fields set
   # (https://code.claude.com/docs/en/skills#frontmatter-reference).
   desc_lines="$(awk '
-    !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); print; next }
+    !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
     seen && /^[^[:space:]]/ { exit }
-    seen && !/^[[:space:]]*$/ { sub(/^[[:space:]]+/, ""); print }
+    seen && !/^[[:space:]]*$/ { sub(/^[[:space:]]+/, ""); sub(/(^|[[:space:]]+)#.*$/, ""); print }
   ' <<<"$FRONTMATTER")"
   desc_first="${desc_lines%%$'\n'*}"
   desc_first="${desc_first%"${desc_first##*[![:space:]]}"}"
