@@ -3,6 +3,20 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.79] - 2026-09-29
+
+### Fixed
+
+- The SessionStart prerequisite probe honors `markdown_format_enabled`: the launcher skips it when the switch is off.
+- The missing-`markdownlint-cli2` notice says it is shown on the first skip and renewed every eighth, not that it latches once per session ([#4265](https://github.com/melodic-software/claude-code-plugins/issues/4265)). A test covers the 8-fire sequence.
+- The setup skill prescribes `-s user` and defers to the plugin-reconfiguration convention instead of telling the reader to copy the scope from `claude plugin list`.
+- The check skill runs its own `jq` probe via Bash; the pre-computed row in the setup skill does not run under `/markdown-format:check`.
+
+### Changed
+
+- README: notice paragraphs are split by class, the session-start probe and `/markdown-format:check` are documented, and the reason `jq` is absent from `prerequisites.json` is stated.
+- The hook comment states that `rewrite-guard.sh` is sourced only for the gitignore helper.
+
 ## [0.11.78] - 2026-09-28
 
 ### Fixed
