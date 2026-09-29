@@ -3,6 +3,14 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5] - 2026-09-29
+
+### Changed
+
+- README: the Behavior list now states the gitignored skip and points at the `eol_normalizer_lint_gitignored` option.
+- The setup skill's rerun caveat names the plugin-reconfiguration convention's Verified-version record as its basis, with the verified release and a recheck trigger.
+- Corrected the 0.7.4, 0.7.2, 0.6.61 and 0.6.60 entries: resync-only, no behavior change.
+
 ## [0.7.4] - 2026-09-28
 
 ### Changed
