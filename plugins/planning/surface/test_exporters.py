@@ -477,11 +477,15 @@ class TestReadableResolutions(SessionCase):
             }
         }
         qs = [
-            question("Q1", commits=["One writer only", "No network"]),
+            question("Q1", commits=["One | writer; only", "No\tnetwork"]),
             question("Q2"),
             question("Q3"),
             question("Q4"),
-            question("Q5", commits=["Keep it"], archived={"why": "Off.", "at": AT}),
+            question(
+                "Q5",
+                commits=["Keep | it", "Drop; it"],
+                archived={"why": "Off.", "at": AT},
+            ),
             question(
                 "Q6",
                 waiting=True,
@@ -503,11 +507,11 @@ class TestReadableResolutions(SessionCase):
         )
         plain = [
             "accepted: Recommended answer for Q1.; note: only for v1; revisit later; "
-            "confirmed: One writer only",
+            "confirmed: One / writer; only",
             "alt a: Alt a of Q2; note: with a note",
             "free-text: Use A / B; not C",
             "deferred: after the pilot; arbiter: USER-RESERVED",
-            "archived: Off.; confirmed: Keep it",
+            "archived: Off.; confirmed: Keep / it",
             "waits on: a / lookup; later; answer: accepted: Recommended answer for Q6.; "
             "note: why; not",
             "plan proposes: new / one; was: old; two",
@@ -518,13 +522,25 @@ class TestReadableResolutions(SessionCase):
             self.assertIn(f"- {n} Short {n}: {plain[i]}\n", constraints)
         scope = brief.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn(f"- Q5 Question Q5?: {plain[4]}\n", scope)
+        self.assertIn("- One / writer; only: confirmed on Q1;", brief)
+        self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
         report = self.export("report").read_text(encoding="utf-8")
         cells = [html.unescape(c) for c in re.findall(r"<td>([^<]*)</td></tr>", report)]
         self.assertEqual(cells, plain)
+        for text in (brief, html.unescape(report)):
+            self.assertNotIn("commitments::", text)
+            self.assertNotIn("\\|", text)
         ledger = self.export("ledger")
         rows = register_rows(ledger)
         self.assertIn(
             "answer:: accepted: Recommended answer for Q1.; note:: only", rows[0]
+        )
+        self.assertTrue(
+            rows[0].endswith("; commitments:: +One \\| writer\\; only; -No\\tnetwork"),
+            rows[0],
+        )
+        self.assertTrue(
+            rows[4].endswith("; commitments:: +Keep \\| it; -Drop\\; it"), rows[4]
         )
         self.assertIn("hold:: claude a \\| lookup\\; later", rows[5])
         self.assertIn("proposal:: new \\| one; was:: old\\; two", rows[6])
@@ -1119,6 +1135,46 @@ class TestImportLedger(SessionCase):
                 (
                     "superseded-by-plan | round 1 | Who? | proposal:: x",
                     "contradictory fields 'proposal' and 'was'",
+                ),
+                (
+                    "answered | round 1 | Who? | answer:: accepted: x; note:: a; note:: b",
+                    "field 'note' repeated or out of order",
+                ),
+                (
+                    "answered | round 1 | Who? | note:: a; answer:: accepted: x",
+                    "field 'answer' repeated or out of order",
+                ),
+                (
+                    "open | round 1 | Who? | commitments:: +A; B",
+                    "unmarked commitment 'B' in field 'commitments'",
+                ),
+                (
+                    "answered | round 1 | Who? | answer:: maybe",
+                    "unreadable field 'answer' 'maybe'",
+                ),
+                (
+                    "open | round 1 | Who? | hold:: someone x",
+                    "unreadable field 'hold' 'someone x'",
+                ),
+                (
+                    "answered | round 1 | Who? | hold:: claude x; answer:: accepted: y",
+                    "contradictory fields 'hold' and 'status answered'",
+                ),
+                (
+                    "open | round 1 | Who? | aside:: accepted: y",
+                    "contradictory fields 'aside' and 'hold'",
+                ),
+                (
+                    "answered | round 1 | Who? | answer:: deferred: later",
+                    "contradictory fields 'answer' and 'status answered'",
+                ),
+                (
+                    "open | round 1 | Who? | proposal:: x; was:: y",
+                    "contradictory fields 'proposal' and 'status open'",
+                ),
+                (
+                    "answered | round 1 | Who? | answer:: free-text: x; note:: y",
+                    "contradictory fields 'answer' and 'note'",
                 ),
             ]
         ):
@@ -1860,6 +1916,32 @@ def load_state(d):
     return held_state(doc, resp)
 
 
+def resumed_state(d):
+    """held_state plus what a resumed session must get back: every commitment in order with its
+    confirmation, the withdrawal, the seeded text of an unheld row still unsettled, and the
+    register's status, arbiter and whether the decision carries the commitments."""
+    doc = json.loads((d / "questions.json").read_text(encoding="utf-8"))
+    path = d / "responses.json"
+    resp = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    events = resp.get("events") or []
+    seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+    rows = {r["q"]["id"]: r for r in exporters.register(doc, resp)}
+    state = held_state(doc, resp)
+    for q in doc["questions"]:
+        r = rows[q["id"]]
+        unsettled = r["status"] in exporters.UNSETTLED and not q.get("waiting")
+        state[q["id"]].update(
+            commits=exporters.marked_commits(q, events),
+            archived=(q.get("archived") or {}).get("why"),
+            supersededBy=q.get("supersededBy"),
+            seedText=exporters.seed_text(seeds.get(q["id"])) if unsettled else None,
+            status=r["status"],
+            reserved=r["reserved"],
+            carries=r["carries"],
+        )
+    return state
+
+
 class TestHeldRowCorpus(SessionCase):
     """Each corpus case: the ledger re-exports the same rows, the re-import holds the same state
     (a decision a user hold set aside counts on neither side), and clearing the hold on both
@@ -2378,6 +2460,255 @@ class TestLegacyLedgerFixtures(SessionCase):
             with self.subTest(shape=shape):
                 for p in self.round_trip(shape):
                     self.assertRegex(p["display"][i], r"; confirmed: [^;]")
+
+
+class TestResumedState(SessionCase):
+    """Export then import into an empty data dir restores the question state (resumed_state), not
+    only the row text: the issue's four losses, and every combination of seed, hold, decision and
+    commitment set."""
+
+    PROPOSED = "- Q1 | superseded-by-plan | round 1 | Who? | plan proposes: Postgres; was: SQLite\n"
+
+    def seed(self, row):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            f"# Interview ledger\n\n## Open-question register\n\n{row}",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        return json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+
+    def reimport(self):
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        return fresh
+
+    def round_trip(self):
+        """The state before export, after checking the import restored all of it."""
+        before = resumed_state(self.dir)
+        self.assertEqual(resumed_state(self.reimport()), before)
+        return before["Q1"]
+
+    def test_a_unconfirmed_commitments_survive(self):
+        q = question("Q1", title="Who?", commits=["One writer", "No network"])
+        self.session(
+            [q], [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")]
+        )
+        got = self.round_trip()
+        self.assertEqual(got["commits"], [(True, "One writer"), (False, "No network")])
+        self.assertEqual(got["decision"], "accept")
+
+    def test_b_an_open_seeded_row_keeps_commitments_confirmed_later(self):
+        doc = self.seed("- Q1 | open | round 1 | Who? | leaning to Postgres\n")
+        doc["questions"][0]["commits"] = ["One writer", "No network"]
+        self.session(
+            doc["questions"], [event(1, "Q1", "confirm", alt="0")], doc["meta"]
+        )
+        got = self.round_trip()
+        self.assertEqual(got["commits"], [(True, "One writer"), (False, "No network")])
+        self.assertEqual(got["seedText"], "leaning to Postgres")
+        self.assertEqual(got["status"], "open")
+
+    def test_c_an_accept_on_a_superseded_row_keeps_its_structure(self):
+        doc = self.seed(self.PROPOSED)
+        self.session(
+            doc["questions"], [event(1, "Q1", "accept", text="fine")], doc["meta"]
+        )
+        got = self.round_trip()
+        self.assertEqual((got["decision"], got["text"]), ("accept", "fine"))
+        self.assertEqual(got["said"], "accepted: Postgres")
+        self.assertEqual(got["proposal"], ("Postgres", "SQLite"))
+        self.assertEqual(got["status"], "answered")
+
+    def test_d_a_defer_on_a_superseded_row_survives(self):
+        doc = self.seed(self.PROPOSED)
+        events = [event(1, "Q1", "defer", text="after the pilot")]
+        self.session(doc["questions"], events, doc["meta"])
+        got = self.round_trip()
+        self.assertEqual((got["decision"], got["text"]), ("defer", "after the pilot"))
+        self.assertEqual(got["proposal"], ("Postgres", "SQLite"))
+        self.assertEqual(got["status"], "superseded-by-plan")
+
+    def test_an_untouched_resumed_session_names_its_unconfirmed_commitment_as_a_risk(
+        self,
+    ):
+        self.seed(
+            "- Q1 | answered | round 1 | Who? | answer:: accepted: Rec.; "
+            "commitments:: +One writer; -No network\n"
+        )
+        brief = exporters.export_brief(self.dir)
+        self.assertIn(
+            "- 1 commitments confirmed; 1 unconfirmed, carried as named risks", brief
+        )
+        self.assertIn("- One writer: confirmed on Q1; revisit if Q1 changes\n", brief)
+        self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
+
+    # Every combination: seed x hold x decision x commitment set, one question each.
+    SEEDS = {
+        None: None,
+        "proposal": {
+            "status": "superseded-by-plan",
+            "resolution": "plan proposes: Post | gres; was: SQL; ite",
+            "proposal": ["Post | gres", "SQL; ite"],
+        },
+        "superseded-text": {
+            "status": "superseded-by-plan",
+            "resolution": "moot; after | it",
+        },
+        "open-text": {"status": "open", "resolution": "leaning; to | Postgres"},
+        "deferred": {"status": "deferred", "resolution": "ask; the DBA"},
+        "reserved": {
+            "status": "deferred",
+            "resolution": "later; arbiter: USER-RESERVED",
+        },
+        "blocked": {"status": "blocked", "resolution": "waiting | on legal"},
+    }
+    HOLDS = (None, "claude", "user", "user-aside")
+    DECISIONS = (
+        None,
+        *(
+            (src, kind)
+            for src in ("page", "terminal")
+            for kind in ("accept", "alt", "own", "defer")
+        ),
+        ("terminal", "unlisted-alt"),
+        ("withdraw", "archived"),
+        ("withdraw", "superseded"),
+    )
+    COMMITS = ["One | writer; only", "No\tnetwork", "a\\;b"]
+    TICKS = {"none": (), "all": (0, 1, 2), "unconfirmed": (), "mixed": (0, 2)}
+    TEXTS = {
+        "accept": "only v1; revisit",
+        "alt": "with a | note",
+        "unlisted-alt": "kept; note",
+        "own": "Use A | B; not C",
+        "defer": "after; the pilot",
+    }
+    EARLIER = "2026-09-23T10:00:00Z"
+    LATER = "2026-09-25T10:00:00Z"
+
+    def combinations(self):
+        for seed, hold, decision, commits in (
+            (s, h, d, c)
+            for s in self.SEEDS
+            for h in self.HOLDS
+            for d in self.DECISIONS
+            for c in self.TICKS
+        ):
+            # A withdrawn row carries only its withdrawal: a hold or a seeded deferral on it
+            # does not export.
+            if (
+                decision
+                and decision[0] == "withdraw"
+                and (hold or seed in ("deferred", "reserved", "blocked"))
+            ):
+                continue
+            yield seed, hold, decision, commits
+
+    def build(self):
+        qs, events, rows = [], [], {}
+        for i, (seed, hold, decision, commits) in enumerate(self.combinations(), 1):
+            qid = f"Q{i}"
+            q = question(qid, commits=[] if commits == "none" else list(self.COMMITS))
+            if seed:
+                rows[qid] = dict(self.SEEDS[seed], round=1)
+            if seed == "proposal":
+                q["recommendation"] = "Post | gres"
+                q["alternatives"] = [{"key": "was", "text": "SQL; ite"}]
+            if seed in ("deferred", "reserved", "blocked"):
+                text = self.SEEDS[seed]["resolution"]
+                q["terminal"] = {
+                    "decision": "defer",
+                    "alt": None,
+                    "text": text,
+                    "updatedAt": self.EARLIER,
+                    "seeded": True,
+                }
+            for k in self.TICKS[commits]:
+                events.append(event(len(events) + 1, qid, "confirm", alt=str(k)))
+            src, kind = decision or (None, None)
+            if src == "withdraw" and kind == "archived":
+                q["archived"] = {"why": "Off; the | path", "at": AT}
+            elif src == "withdraw":
+                q["supersededBy"] = "Q1"
+            elif kind:
+                alt = {"alt": q["alternatives"][0]["key"], "unlisted-alt": "z"}.get(
+                    kind
+                )
+                if src == "page":
+                    events.append(
+                        event(
+                            len(events) + 1, qid, kind, alt=alt, text=self.TEXTS[kind]
+                        )
+                    )
+                else:
+                    q["terminal"] = {
+                        "decision": "alt" if alt else kind,
+                        "alt": alt,
+                        "text": self.TEXTS[kind],
+                        "updatedAt": AT,
+                    }
+            if hold:
+                q.update(waiting=True, waitsOn="vendor; answer: x | y")
+            if hold in ("user", "user-aside"):
+                q["waitingBy"] = "user"
+            if hold == "user-aside":
+                q.update(setAsideAt=self.LATER, setAsideSeq=10**6)
+            qs.append(q)
+        return (
+            qs,
+            events,
+            {"title": "Every combination", "seededFrom": {"at": AT, "rows": rows}},
+        )
+
+    def test_every_combination_round_trips_its_state(self):
+        qs, events, meta = self.build()
+        self.session(qs, events, meta)
+        before = resumed_state(self.dir)
+        self.assertEqual(
+            {s["status"] for s in before.values()},
+            {
+                "open",
+                "answered",
+                "deferred",
+                "blocked",
+                "withdrawn",
+                "superseded-by-plan",
+            },
+        )
+        rows = register_rows(self.export("ledger"))
+        fresh = self.reimport()
+        after = resumed_state(fresh)
+        combos = list(self.combinations())
+        for i, combo in enumerate(combos, 1):
+            qid = f"Q{i}"
+            with self.subTest(qid=qid, combo=combo):
+                self.assertEqual(after[qid], before[qid], rows[i - 1])
+        self.assertEqual(len(after), len(combos))
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        # Clearing every hold on both sides leaves the same state. A held row carries no seeded
+        # row but its proposal, so a text seed, its status and a seeded deferral's arbiter end
+        # at the hold; those combinations are compared only while held.
+        for d in (self.dir, fresh):
+            path = d / "questions.json"
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            for q in doc["questions"]:
+                for key in ("waiting", "waitsOn", "waitingBy"):
+                    q.pop(key, None)
+            path.write_text(json.dumps(doc), encoding="utf-8")
+        before, after = resumed_state(self.dir), resumed_state(fresh)
+        for i, combo in enumerate(combos, 1):
+            if combo[1] and combo[0] not in (None, "proposal"):
+                continue
+            with self.subTest(qid=f"Q{i}", combo=combo, cleared=True):
+                self.assertEqual(after[f"Q{i}"], before[f"Q{i}"])
 
 
 class TestNoEmojiNoSkillNames(SessionCase):
