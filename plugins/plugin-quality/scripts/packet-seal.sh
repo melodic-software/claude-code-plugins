@@ -88,9 +88,10 @@
 # when a generation exists. The seal moment never changes an exit code.
 #
 # Exit 0 = recorded, or verified with every manifest entry (and every entry of
-#          the latest generation) matching and nothing unsealed. NOT a claim the content is pristine — only that nothing
-#          changed since the seal; a rewrite before the first seal is invisible
-#          to any digest and is the read-back's job, not this script's.
+#          the latest generation) matching and nothing unsealed. NOT a claim
+#          the content is pristine, only that nothing changed since the seal;
+#          a rewrite before the first seal is invisible to any digest and is
+#          the read-back's job, not this script's.
 # Exit 1 = verify found at least one CHANGED, MISSING, GEN-CHANGED or GEN-MISSING
 #          file (altered evidence), or `record` refused to reseal over an
 #          already-divergent file or once a generation exists.
