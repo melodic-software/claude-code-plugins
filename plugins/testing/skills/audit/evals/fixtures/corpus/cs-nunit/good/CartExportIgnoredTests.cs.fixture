@@ -1,0 +1,14 @@
+// good-for: rule-zero-assertion
+// An ignored test does not run, so it is not judged.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartExportIgnoredTests
+{
+    [Test]
+    [Ignore("the CSV writer is being replaced")]
+    public void Export_WritesCsv()
+    {
+        new CartExporter().Export(new Cart());
+    }
+}

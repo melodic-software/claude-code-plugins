@@ -1,0 +1,10 @@
+// good-for: rule-zero-assertion
+// Tests inside a suite skipped by its options do not run: not judged.
+import { describe, test } from 'node:test';
+import { syncMailbox } from '../src/mail.mjs';
+
+describe('POP3', { skip: 'protocol retired' }, () => {
+  test('syncs over POP3', () => {
+    syncMailbox('pop3://localhost');
+  });
+});

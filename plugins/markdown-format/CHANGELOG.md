@@ -3,11 +3,17 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.81] - 2026-09-29
+## [0.11.82] - 2026-09-29
 
 ### Changed
 
 - The hook and test comments scope the opt-in to the per-edit hook: a repository without a markdownlint config gets no rewrite, findings or `jq` notice, but the SessionStart probe still reports a missing `markdownlint-cli2` wherever the plugin is enabled and `markdown_format_enabled` is not `false`. Comment-only, no behavior change.
+
+## [0.11.81] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
 
 ## [0.11.80] - 2026-09-29
 

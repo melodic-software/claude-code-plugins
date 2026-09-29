@@ -123,6 +123,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |
+| [`/testing:test-value`](../plugins/testing/skills/test-value/SKILL.md) | `testing` | Where expected values come from and which tests earn their keep |
 | [`/testing:write`](../plugins/testing/skills/write/SKILL.md) | `testing` | Write and place tests with TDD cadence across ecosystems |
 
 ## 6. Review

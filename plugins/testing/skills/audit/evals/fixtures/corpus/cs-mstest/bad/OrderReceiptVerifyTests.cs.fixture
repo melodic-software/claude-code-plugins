@@ -1,0 +1,16 @@
+// expect: rule-snapshot-only
+// The approved receipt file is the only oracle.
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using VerifyMSTest;
+
+[TestClass]
+public partial class OrderReceiptVerifyTests : VerifyBase
+{
+    [TestMethod]
+    public async Task Receipt_ListsTheLines()
+    {
+        var receipt = Order.Place("", 40m).Receipt();
+        await Verify(receipt);
+    }
+}

@@ -1,0 +1,9 @@
+// good-for: rule-zero-assertion
+// The repaired twin: the output is compared with a stated value.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { formatPrice } from '../src/price.mjs';
+
+test('formats cents as dollars', () => {
+  assert.equal(formatPrice(1999, 'USD'), '$19.99');
+});

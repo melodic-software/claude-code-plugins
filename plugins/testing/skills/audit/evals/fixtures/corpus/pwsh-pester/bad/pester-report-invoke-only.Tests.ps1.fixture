@@ -1,0 +1,15 @@
+# expect: rule-mock-only-oracle
+# The only check is that the mocked mailer was called; nothing checks what
+# Send-Report produced or sent.
+
+BeforeAll {
+    . $PSScriptRoot/Send-Report.ps1
+    Mock Send-MailMessage {}
+}
+
+Describe 'Send-Report' {
+    It 'mails the report to the recipient' {
+        Send-Report -To 'ops@example.com'
+        Should -Invoke Send-MailMessage -Times 1 -Exactly
+    }
+}
