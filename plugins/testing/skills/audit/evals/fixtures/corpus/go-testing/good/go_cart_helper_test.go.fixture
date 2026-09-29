@@ -1,0 +1,18 @@
+// good-for: rule-zero-assertion
+// The check lives in a helper that takes the test's t and reports through it.
+package cart
+
+import "testing"
+
+func TestCartTotal(t *testing.T) {
+	c := NewCart()
+	c.Add(Item{Price: 1999, Qty: 2})
+	wantTotal(t, c, 3998)
+}
+
+func wantTotal(t *testing.T, c *Cart, want int) {
+	t.Helper()
+	if got := c.Total(); got != want {
+		t.Fatalf("Total() = %d, want %d", got, want)
+	}
+}

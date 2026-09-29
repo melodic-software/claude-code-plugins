@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# expect: rule-constant-restatement
+# MAX_RETRIES comes from the sourced library; the check restates it.
+set -uo pipefail
+
+. "$(dirname "$0")/../lib/retry.sh"
+
+assert_eq() {
+  if [[ "$1" == "$2" ]]; then pass "$3"; else fail "$3: $1 != $2"; fi
+}
+
+assert_eq "$MAX_RETRIES" 3 "retry limit"

@@ -1,0 +1,9 @@
+// expect: rule-weak-oracle
+// toBeTruthy passes for any session object, the wrong user's included.
+import { expect, it } from 'vitest';
+import { login } from '../src/auth';
+
+it('logs the user in', async () => {
+  const session = await login('ada', 'secret');
+  expect(session).toBeTruthy();
+});

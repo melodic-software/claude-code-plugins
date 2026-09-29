@@ -1,0 +1,53 @@
+{
+  "skill_name": "test-value",
+  "evals": [
+    {
+      "id": 1,
+      "name": "expected-value-needs-a-source",
+      "prompt": "I'm testing calculateTotal. Is `const expected = items.reduce((s, i) => s + i.price, 0); expect(calculateTotal(items)).toBe(expected);` a good test?",
+      "expected_output": "Says the expected value is recomputed the way the code computes it, so the test has no independent source (rule-recomputed-derived). Replaces it with a hand-computed literal (for items priced 10 and 5, expect 15) and names that the value came from a hand computation.",
+      "expectations": [
+        "Output says the expected value repeats the algorithm under test, so it has no independent source",
+        "Output names rule-recomputed-derived and does not claim the test cannot fail",
+        "Output replaces the expectation with a hand-computed literal (15 for prices 10 and 5)"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "call-count-at-unmanaged-boundary",
+      "prompt": "Code review says never assert call counts. My test verifies the payment gateway client's Charge method was called once. Should I delete that assertion?",
+      "expected_output": "Keeps it: the payment gateway is an unmanaged, state-changing dependency, so the call is observable behavior and verifying it once is the recommended test (Khorikov). Says the same count assertion would be a defect on an internal collaborator, a managed dependency or a query call.",
+      "expectations": [
+        "Output keeps the Charge call-count assertion",
+        "Output grounds it in the payment gateway being an unmanaged, state-changing dependency",
+        "Output says the same assertion is a defect on an internal collaborator, a managed dependency or a query call"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "constant-restatement-is-a-change-detector",
+      "prompt": "Is `expect(X_POST_CHARACTER_LIMIT).toBe(280)` a tautological test that cannot fail?",
+      "expected_output": "Says it can fail (any change to the constant fails it), so it is a change detector (rule-constant-restatement), not a test that cannot fail. Recommends testing the behavior at the boundary instead (280 characters accepted, 281 rejected), and a `cant-fail-ok:` marker only when the literal is an external contract.",
+      "expectations": [
+        "Output says the test can fail and is a change detector (rule-constant-restatement), not a test that cannot fail",
+        "Output recommends testing the boundary: 280 characters accepted, 281 rejected",
+        "Output limits cant-fail-ok: to a literal fixed by an external contract"
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "db-read-back-is-state-verification",
+      "prompt": "My integration test calls createUser and then queries the users table directly and does expect(row).toBeDefined(). Is reading the database directly the problem?",
+      "expected_output": "Says the direct read after the act step is legitimate state verification against a real managed database; the weakness is the toBeDefined() oracle (rule-weak-oracle), which passes for wrong data. Recommends asserting the row's fields.",
+      "expectations": [
+        "Output says the direct read after the act step is legitimate state verification against a real managed database",
+        "Output names the toBeDefined() oracle (rule-weak-oracle) as the weakness",
+        "Output recommends asserting the row fields"
+      ],
+      "files": []
+    }
+  ]
+}
