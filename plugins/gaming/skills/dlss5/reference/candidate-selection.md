@@ -70,13 +70,9 @@ Known gaps:
 
 - **No temporal upscaler.** Most 2D, pixel-art and older titles, such as Stardew Valley. No source
   addresses 2D games directly; they fall under "no upscaler". The in-process OptiScaler route needs an
-  upscaler DLL. When `antiCheat.status` is `none-disclosed`, the community **DLSS5-Feeder** ReShade
-  add-on route can work without one; see [`feeder-route.md`](feeder-route.md) for unverified manual
-  install guidance. With `signals` or `unknown` it does not lower anti-cheat risk, so `assess` does
-  not point to it. Manifest-backed Feeder support is tracked in #4592.
+  upscaler DLL.
 - **32-bit.** NVIDIA ships no 32-bit NGX, so in-process OptiScaler NR cannot load in a 32-bit
-  process, and an upscaler mod does not change that. This covers the in-process route only:
-  `feeder-route.md` lists a separate, unverified manual 32-bit path, under the same anti-cheat gate.
+  process, and an upscaler mod does not change that.
 - **Anti-cheat.** Refused on disk and by the Steam store check; see
   `reference/anticheat-posture.md`.
 
