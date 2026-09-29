@@ -554,6 +554,20 @@ class TestReportFileVisuals(SessionCase):
         )
         return self.export("report").read_text(encoding="utf-8")
 
+    def test_archived_visuals_are_left_out(self):
+        gone = {"why": "old", "at": "2026-01-01T00:00:00Z"}
+        text = self.report(
+            {"id": "v1", "format": "markdown", "content": "kept-body"},
+            {
+                "id": "v2",
+                "format": "markdown",
+                "content": "gone-body",
+                "archived": gone,
+            },
+        )
+        self.assertIn("kept-body", text)
+        self.assertNotIn("gone-body", text)
+
     def iframes(self, text):
         class Walk(html.parser.HTMLParser):
             def __init__(self):

@@ -679,6 +679,118 @@ class TestApply(DirCase):
             self.assertIn(name, out)
 
 
+class TestVisualOps(DirCase):
+    """replace-visual, archive-visual, and the primary-per-group rule."""
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def refused(self, *ops):
+        return self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+
+    def add(self, *visuals):
+        self.apply({"op": "add-round", "visuals": list(visuals)})
+
+    def visual(self, vid, **extra):
+        return {"id": vid, "format": "markdown", "content": vid, **extra}
+
+    def live(self, vid):
+        return next(v for v in self.doc()["visuals"] if v["id"] == vid)
+
+    def test_replace_swaps_the_whole_object(self):
+        self.add(self.visual("v1", label="old", primary=True))
+        self.apply({"op": "replace-visual", "visual": self.visual("v1", label="new")})
+        self.assertEqual(self.live("v1"), self.visual("v1", label="new"))
+
+    def test_replace_unknown_id_is_refused(self):
+        out = self.refused({"op": "replace-visual", "visual": self.visual("nope")})
+        self.assertIn("unknown visual: nope", out)
+
+    def test_duplicate_add_names_replace_visual(self):
+        self.add(self.visual("v1"))
+        out = self.refused({"op": "add-round", "visuals": [self.visual("v1")]})
+        self.assertIn("replace-visual", out)
+
+    def test_archive_marks_visuals_and_keeps_them(self):
+        self.add(self.visual("v1"), self.visual("v2"))
+        self.apply({"op": "archive-visual", "ids": ["v1"], "why": "superseded"})
+        self.assertEqual(self.live("v1")["archived"]["why"], "superseded")
+        self.assertNotIn("archived", self.live("v2"))
+
+    def test_archive_unknown_id_or_blank_why_is_refused(self):
+        self.add(self.visual("v1"))
+        out = self.refused(
+            {"op": "archive-visual", "ids": ["v1", "nope"], "why": "gone"}
+        )
+        self.assertIn("unknown visual: nope", out)
+        self.refused({"op": "archive-visual", "ids": ["v1"], "why": " "})
+
+    def test_two_primaries_in_one_group_and_scope_are_refused(self):
+        self.add(self.visual("v1", scope="all", group="g", primary=True))
+        out = self.refused(
+            {
+                "op": "add-round",
+                "visuals": [self.visual("v2", scope="all", group="g", primary=True)],
+            }
+        )
+        self.assertIn("both primary", out)
+
+    def test_primaries_in_other_groups_scopes_or_archived_are_allowed(self):
+        self.add(
+            self.visual("v1", scope="all", group="g", primary=True),
+            self.visual("v2", scope="all", group="h", primary=True),
+            self.visual("v3", scope="question:Q1", group="g", primary=True),
+        )
+        self.apply({"op": "archive-visual", "ids": ["v1"], "why": "old"})
+        self.add(self.visual("v4", scope="all", group="g", primary=True))
+
+    def test_inline_visuals_count_toward_the_primary_rule(self):
+        q = question("Q9")
+        self.refused(
+            {
+                "op": "add",
+                "question": dict(
+                    q,
+                    visuals=[
+                        self.visual("i1", group="g", primary=True),
+                        self.visual("i2", group="g", primary=True),
+                    ],
+                ),
+            }
+        )
+        self.refused(
+            {
+                "op": "add-round",
+                "visuals": [
+                    self.visual("v1", scope="question:Q9", group="g", primary=True)
+                ],
+                "questions": [
+                    dict(q, visuals=[self.visual("i1", group="g", primary=True)])
+                ],
+            }
+        )
+
+    def test_replace_cannot_create_a_second_primary(self):
+        self.add(
+            self.visual("v1", scope="all", group="g", primary=True),
+            self.visual("v2", scope="all", group="g"),
+        )
+        self.refused(
+            {
+                "op": "replace-visual",
+                "visual": self.visual("v2", scope="all", group="g", primary=True),
+            }
+        )
+
+    def test_an_invalid_new_field_type_is_refused(self):
+        self.refused({"op": "add-round", "visuals": [self.visual("v1", order="x")]})
+
+
 class TestClaudeActivity(DirCase):
     """set-status, wait and activity, and one activity entry per write whose ops the user sees."""
 
