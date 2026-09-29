@@ -362,8 +362,9 @@ run_i6() {
   for file in "${files[@]}"; do
     printf '@FILE\n%s\n' "$file" >>"$i6_tmp"
     LC_ALL=C awk \
-    -v cue="^(${I6_CUE_ALT})([^[:alnum:]_]|\$)" \
+    -v cue="^(${I6_CUE_ALT})([^[:alnum:]]|\$)" \
     -v anycue="${WB_L}(${I6_CUE_ALT})${WB_R}" \
+    -v paracue="(^|[^[:alnum:]])(${I6_CUE_ALT})([^[:alnum:]]|\$)" \
     -v paired="$I6_PAIRED_ERE" \
     -v rationale="$RATIONALE_ERE" \
     -v stopwords="$I6_CLAUSE_STOPWORDS" \
@@ -371,7 +372,10 @@ run_i6() {
     function flush(   low, len, i, start, ch, nx, s) {
       if (n == 0) return
       low = tolower(para)
-      if (low ~ anycue) {
+      # Underscore counts as a boundary here so `_Never_` and `__Do not__`
+      # emphasis reach the sentence gate; anycue keeps the raw count on the
+      # boundaries of the per-line rule.
+      if (low ~ paracue) {
         len = length(para); start = 1
         for (i = 1; i <= len; i++) {
           ch = substr(para, i, 1)
@@ -436,6 +440,9 @@ run_i6() {
       if (g ~ rationale) return
       line = lines[1]
       for (k = 1; k <= n; k++) if (starts[k] <= off) line = lines[k]
+      # One row per line, however many prohibition sentences open on it.
+      if (line in emitted) return
+      emitted[line] = 1
       print "@HIT"
       print line
     }
@@ -464,9 +471,18 @@ run_i6() {
         next
       }
       if (infence) next
+      # A setext underline turns the pending paragraph into a heading, which
+      # is never read. After a list item or blockquote, or with nothing
+      # pending, the line is a thematic break or stray text: it only ends
+      # the paragraph.
+      if (text ~ /^ ? ? ?(==*|--*)[ \t]*$/) {
+        if (n > 0 && first !~ /^[ \t]*([-*+]|[0-9]+[.)]|>)/) { n = 0; para = "" }
+        else flush()
+        next
+      }
       if (text ~ /^[ \t]*$/ || text ~ /^[ \t]*\|/ || text ~ /\|[ \t]*$/ || text ~ /^[ \t]*#/ || text ~ /^[ \t]*<!--/) { flush(); next }
       if (text ~ /^[ \t]*([-*+]|[0-9]+[.)])[ \t]/) flush()
-      if (n == 0) { para = text; n = 1; starts[1] = 1; lines[1] = NR }
+      if (n == 0) { para = text; first = text; n = 1; starts[1] = 1; lines[1] = NR }
       else { para = para " "; n++; starts[n] = length(para) + 1; lines[n] = NR; para = para text }
     }
     END { flush(); print "@RAW"; print (raw + 0) }

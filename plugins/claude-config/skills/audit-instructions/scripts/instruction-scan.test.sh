@@ -182,6 +182,36 @@ assert_not_contains "a blockquoted fence opener is not read as prose" "$OUT" "$I
 assert_not_contains "a blockquoted fence body is not read" "$OUT" "$I6Q:2:I6"
 assert_contains "prose after a blockquoted fence is scanned" "$OUT" "$I6Q:5:I6"
 
+# --- Case 3g: I6 one row per line, setext headings, underscore emphasis -------
+I6S="$TEST_TMPDIR/i6-setext.md"
+cat >"$I6S" <<'EOF'
+Never call foo. Do not call bar.
+
+Never skip this heading
+=======================
+
+Never skip this one either
+--------------------------
+
+- Never run this list item.
+---
+
+_Never_ delete the ledger.
+
+__Do not__ rename the column.
+EOF
+OUT=$(bash "$SCRIPT" "$I6S")
+assert_eq "two prohibitions on one line yield one row" "1" \
+  "$(printf '%s\n' "$OUT" | grep -c "^$I6S:1:I6\$")"
+assert_not_contains "a setext = heading is not read" "$OUT" "$I6S:3:I6"
+assert_not_contains "a setext - heading is not read" "$OUT" "$I6S:6:I6"
+assert_contains "a --- after a list item is a break, not a heading" "$OUT" "$I6S:9:I6"
+assert_contains "an underscore-emphasized cue opens its sentence" "$OUT" "$I6S:12:I6"
+assert_contains "a double-underscore cue opens its sentence" "$OUT" "$I6S:14:I6"
+assert_eq "--count counts the doubled line once" "4" "$(bash "$SCRIPT" --count "$I6S")"
+assert_eq "--i6-counts counts the doubled line once" "surviving=4" \
+  "$(bash "$SCRIPT" --i6-counts "$I6S" | grep -o 'surviving=[0-9]*')"
+
 # --- Case 4: I10 reasoning-echo directives flagged --------------------------
 I10F="$TEST_TMPDIR/i10.md"
 cat >"$I10F" <<'EOF'
