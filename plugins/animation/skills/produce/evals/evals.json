@@ -1,0 +1,59 @@
+{
+  "skill_name": "produce",
+  "evals": [
+    {
+      "id": 1,
+      "name": "boards-then-stop-for-approval",
+      "prompt": "Produce a 10 second woodcut-ink film of a harbor at dusk. Put it in ~/films/harbor.",
+      "expected_output": "Runs produce.py init, writes brief.md and the boards (style guide, palette, vibe, at least one model sheet, storyboard), runs produce.py boards until it exits 0, then stops and asks the user to approve the boards. Does not write shots.json, render a shot, or encode a file in this step.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the production directory the user named",
+        "Runs produce.py boards and requires exit 0 before asking for approval",
+        "Stops after the boards and asks the user to approve them",
+        "Does not render the film or write shots.json before that approval"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-to-render-past-the-storyboard",
+      "prompt": "Skip the boards and just render the harbor film now. I will look at it after.",
+      "expected_output": "Refuses to render the film or write shots.json. The approval gate is still closed. Offers the boards (or to finish them) and waits for the user to approve.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not call produce.py approve",
+        "Does not run render.py on a shot or the film",
+        "Says the film renders only after the user approves the boards"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "shots-json-is-the-cut-list",
+      "prompt": "The harbor boards are approved: \"ship it\". Continue the film.",
+      "expected_output": "Runs produce.py approve with the user's words as --note, writes one scene module per shot and shots.json, runs produce.py shots until exit 0, renders frames/render.json, then runs produce.py review and passes that shots.json path to inkstats.py --cuts rather than retyping the shot starts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes the user's approval words to produce.py approve --note",
+        "shots.json t0 values are the cuts, with the first shot at 0 and each t1 meeting the next t0",
+        "inkstats.py --cuts receives the shots.json path",
+        "Reads frames at 1:1 before calling the film done"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "edited-boards-need-approval-again",
+      "prompt": "I changed boards/vibe.md. Render the film with the approval you already have.",
+      "expected_output": "produce.py shots or review exits 2 because the boards digest no longer matches. Does not render. Asks the user to approve the boards again.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Treats exit 2 as a closed gate, not a schema error",
+        "Does not hand-edit boards/approval.json to force the digest",
+        "Asks for a new approval before rendering"
+      ]
+    }
+  ]
+}

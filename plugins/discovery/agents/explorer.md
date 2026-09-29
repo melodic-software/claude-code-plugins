@@ -128,6 +128,11 @@ dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other t
 includes projecting names or counts out of it rather than values. Record the gap in
 `open_questions`: what you did not read, and what barred it.
 
+**A credential stays unread too: verify it is present, never read or print its value.** That
+rule, the commands and files it covers, and why no frontmatter key can enforce it are stated once
+in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Credentials stay unread, stated once"). Read it there rather than a restatement here.
+
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
 ("The write boundary, stated once"): the artifact files inside the memory-slice path named in your

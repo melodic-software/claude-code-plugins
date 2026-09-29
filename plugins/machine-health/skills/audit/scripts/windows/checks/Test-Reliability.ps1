@@ -12,7 +12,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'reliability'
 $category = 'reliability'
 $commands = @(
@@ -20,7 +19,9 @@ $commands = @(
     "Get-CimInstance Win32_ReliabilityRecords -Filter `"TimeGenerated > '<7d ago>'`""
 )
 
-try {
+$FailureSummary = 'Reliability check failed.'
+$PassThru = $false
+$CheckBody = {
     # Win32_ReliabilityStabilityMetrics returns one row per day with a
     # SystemStabilityIndex in 0-10 (10 = most stable). Not deprecated on
     # Windows 11 26200, but the RAC (Reliability Analysis Component) task
@@ -128,9 +129,5 @@ try {
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Reliability check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

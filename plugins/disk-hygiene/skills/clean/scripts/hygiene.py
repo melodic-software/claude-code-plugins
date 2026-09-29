@@ -32,6 +32,10 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
+# The temp-zone size walk runs on every scan whose target overlaps the temp
+# directory, including the gated large-target probe, so it stays well below
+# the inventory cap.
+TEMP_ZONE_ENTRY_CAP = 100_000
 # The tier vocabulary is declared with the command grammar so `--confirm-tier`
 # and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
@@ -355,7 +359,9 @@ def consumer_path_protected(path: Path, target: Path, globs: Iterable[Any]) -> b
     A relative glob matches the path relative to the scan target. A glob that
     starts with ``/`` or a drive letter matches ``path.as_posix()``, so a
     standing overlay can protect a tree regardless of which parent is scanned.
-    Object entries contribute their ``glob`` field.
+    An absolute glob also matches with ``\\`` read as ``/``, so a native
+    Windows spelling covers the forward-slash subject. Object entries
+    contribute their ``glob`` field.
     """
     try:
         relative = path.relative_to(target).as_posix()
@@ -366,8 +372,12 @@ def consumer_path_protected(path: Path, target: Path, globs: Iterable[Any]) -> b
         pattern = protection_glob_pattern(entry)
         if not pattern:
             continue
-        subject = absolute if protection_glob_is_absolute(pattern) else relative
-        if glob_matches(subject, pattern):
+        if protection_glob_is_absolute(pattern):
+            if glob_matches(absolute, pattern) or glob_matches(
+                absolute, pattern.replace("\\", "/")
+            ):
+                return True
+        elif glob_matches(relative, pattern):
             return True
     return False
 
@@ -721,10 +731,16 @@ def baseline_policy() -> dict[str, Any]:
     baseline = load_json(BASELINE_POLICY)
     if baseline.get("version") != SCHEMA_VERSION:
         raise HygieneError("unsupported baseline policy version")
+    threshold = baseline.get("os_temp_recommendation_threshold_bytes")
+    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
+        raise HygieneError(
+            "baseline os_temp_recommendation_threshold_bytes must be a positive integer"
+        )
     return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "policy_sources": ["baseline"],
@@ -1288,7 +1304,111 @@ def windows_storage_sense_state() -> dict[str, Any]:
     return state
 
 
-def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
+def measure_temp_zone(temp_root: Path) -> dict[str, Any]:
+    """Sum regular-file logical sizes under the OS temp directory, read-only.
+
+    Links and reparse points are counted as entries but never followed. The
+    walk stops after TEMP_ZONE_ENTRY_CAP entries, so ``logical_bytes`` is exact
+    only when ``complete`` is true and is a floor otherwise.
+    """
+    total = 0
+    entries = 0
+    complete = True
+    pending = [temp_root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as iterator:
+                for entry in iterator:
+                    if entries >= TEMP_ZONE_ENTRY_CAP:
+                        complete = False
+                        pending.clear()
+                        break
+                    entries += 1
+                    try:
+                        info = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        complete = False
+                        continue
+                    # A placeholder's size is remote, not local occupancy.
+                    if is_linkish_stat(info) or is_cloud_placeholder_stat(info):
+                        continue
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(Path(entry.path))
+                    elif stat.S_ISREG(info.st_mode):
+                        total += info.st_size
+        except OSError:
+            complete = False
+    return {
+        "path": str(temp_root),
+        "logical_bytes": total,
+        "entry_count": entries,
+        "complete": complete,
+    }
+
+
+def format_gib(value: int) -> str:
+    return f"{value / 1024**3:.1f} GiB"
+
+
+def storage_sense_state_text(state: dict[str, Any]) -> str:
+    enabled = {True: "on", False: "off"}.get(state["enabled"], "not detected")
+    cadence = state["cadence_days"]
+    if cadence is None:
+        schedule = "schedule not detected"
+    elif cadence <= 0:
+        schedule = "runs only during low free disk space"
+    elif cadence == 1:
+        schedule = "runs every day"
+    else:
+        schedule = f"runs every {cadence} days"
+    scope = {True: "on", False: "off"}.get(
+        state["temporary_files_cleanup"], "not detected"
+    )
+    return (
+        f"Storage Sense detected: {enabled}, {schedule}, "
+        f"temporary-files cleanup {scope}."
+    )
+
+
+def storage_sense_size_recommendation(
+    state: dict[str, Any], zone: dict[str, Any], threshold: int
+) -> str:
+    size = format_gib(zone["logical_bytes"])
+    if not zone["complete"]:
+        size = f"at least {size}"
+    lead = (
+        f"The user temp directory ({zone['path']}) holds {size}, above the "
+        f"{format_gib(threshold)} baseline-policy threshold. "
+        f"{storage_sense_state_text(state)} "
+    )
+    run_now = "Settings > System > Storage > Storage Sense > Run Storage Sense now"
+    if state["enabled"] is True and state["temporary_files_cleanup"] is True:
+        if (state["cadence_days"] or 0) > 0:
+            return lead + (
+                "The schedule is not keeping up with this zone. Recommend "
+                f"running Storage Sense now ({run_now}) instead of "
+                "hand-cleaning it here."
+            )
+        return lead + (
+            f"Recommend running Storage Sense now ({run_now}) and setting a "
+            "scheduled cadence instead of hand-cleaning it here."
+        )
+    if state["enabled"] is True:
+        return lead + (
+            "Recommend turning on temporary-files cleanup in Storage Sense and "
+            f"running it now ({run_now}) instead of hand-cleaning it here."
+        )
+    return lead + (
+        "Recommend enabling Storage Sense with temporary-files cleanup on a "
+        "scheduled cadence (Settings > System > Storage > Storage Sense). A "
+        f"manual run is available either way ({run_now})."
+    )
+
+
+def os_autoclean_advisory(
+    target: Path, policy: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Report-only: name the OS auto-clean mechanism that should own this zone.
 
     Mirrors the managed-state rule for products: when the OS already ships a
@@ -1304,24 +1424,35 @@ def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
     if not covers_target:
         return None
     if sys.platform == "win32":
+        threshold = (policy or baseline_policy())[
+            "os_temp_recommendation_threshold_bytes"
+        ]
         state = windows_storage_sense_state()
+        zone = measure_temp_zone(temp_root)
         effective = (
             state["enabled"] is True
             and state["temporary_files_cleanup"] is True
             # Cadence 0 = "during low free disk space", which may never fire.
             and (state["cadence_days"] or 0) > 0
         )
-        return {
-            "mechanism": "windows-storage-sense",
-            "state": state,
-            "recommendation": None
-            if effective
-            else (
+        if zone["logical_bytes"] >= threshold:
+            recommendation = storage_sense_size_recommendation(state, zone, threshold)
+        elif zone["complete"] or effective:
+            recommendation = None
+        else:
+            # An incomplete measurement below the threshold proves nothing
+            # about the size, so only the configuration speaks.
+            recommendation = (
                 "This zone includes the user temp directory, which Windows "
                 "Storage Sense can clean automatically. Recommend enabling "
                 "temporary-file cleanup on a scheduled cadence (Settings > "
                 "System > Storage) instead of hand-cleaning it here."
-            ),
+            )
+        return {
+            "mechanism": "windows-storage-sense",
+            "state": state,
+            "temp_zone": {**zone, "threshold_bytes": threshold},
+            "recommendation": recommendation,
         }
     if sys.platform.startswith("linux"):
         configured = any(
@@ -4023,7 +4154,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
-            advisory = os_autoclean_advisory(target)
+            advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
             if root_children_mode:
                 admitted, skipped = enumerate_root_children(

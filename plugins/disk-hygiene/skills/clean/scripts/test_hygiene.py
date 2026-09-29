@@ -26,7 +26,7 @@ from contextlib import (
     redirect_stderr,
     redirect_stdout,
 )
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from unittest import mock
 
@@ -386,6 +386,21 @@ class HygieneTests(unittest.TestCase):
         self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
         self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))
         self.assertFalse(hygiene.protection_glob_is_absolute("client-deliverables/**"))
+
+    def test_backslash_drive_letter_glob_covers_forward_slash_path(self) -> None:
+        path = PurePosixPath("C:/Legal/contract.docx")
+        target = PurePosixPath("C:/Legal")
+        self.assertTrue(
+            hygiene.consumer_path_protected(path, target, ["C:\\Legal\\**"])
+        )
+        self.assertTrue(
+            hygiene.consumer_path_protected(
+                path, target, [{"glob": "c:\\legal\\*", "reason": "hold"}]
+            )
+        )
+        self.assertFalse(
+            hygiene.consumer_path_protected(path, target, ["C:\\Other\\**"])
+        )
 
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
@@ -3845,6 +3860,207 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
         else:
             expected = "not-detected"
         self.assertEqual(expected, advisory["mechanism"])
+
+
+class StorageSenseTempThresholdTests(unittest.TestCase):
+    WEEKLY_ON = {"enabled": True, "temporary_files_cleanup": True, "cadence_days": 7}
+
+    def windows_advisory(
+        self,
+        temp_root: Path,
+        state: dict[str, object],
+        threshold: int,
+        target: Path | None = None,
+    ) -> dict[str, object]:
+        with (
+            mock.patch.object(hygiene.sys, "platform", "win32"),
+            mock.patch.object(
+                hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+            ),
+            mock.patch.object(
+                hygiene, "windows_storage_sense_state", return_value=dict(state)
+            ),
+        ):
+            advisory = hygiene.os_autoclean_advisory(
+                target or temp_root,
+                {"os_temp_recommendation_threshold_bytes": threshold},
+            )
+        assert advisory is not None
+        return advisory
+
+    @staticmethod
+    def temp_fixture(base: Path) -> Path:
+        temp_root = base / "Temp"
+        (temp_root / "nested").mkdir(parents=True)
+        (temp_root / "a.tmp").write_bytes(b"x" * 3000)
+        (temp_root / "nested" / "b.tmp").write_bytes(b"y" * 2000)
+        return temp_root
+
+    def test_baseline_policy_ships_the_threshold(self) -> None:
+        threshold = hygiene.baseline_policy()["os_temp_recommendation_threshold_bytes"]
+        self.assertIsInstance(threshold, int)
+        self.assertGreater(threshold, 0)
+
+    def test_above_threshold_with_storage_sense_on_recommends_running_it_now(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, self.WEEKLY_ON, 4096)
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertTrue(advisory["temp_zone"]["complete"])
+        self.assertEqual(4096, advisory["temp_zone"]["threshold_bytes"])
+        recommendation = advisory["recommendation"]
+        self.assertIsInstance(recommendation, str)
+        self.assertIn("Run Storage Sense now", recommendation)
+        self.assertIn("Settings > System > Storage", recommendation)
+        self.assertIn("runs every 7 days", recommendation)
+        self.assertIn("temporary-files cleanup on", recommendation)
+
+    def test_recommendation_reports_detected_non_weekly_schedule(self) -> None:
+        state = {**self.WEEKLY_ON, "cadence_days": 30}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("runs every 30 days", recommendation)
+        self.assertNotIn("every 7 days", recommendation)
+        self.assertIn("Run Storage Sense now", recommendation)
+
+    def test_above_threshold_with_storage_sense_off_recommends_enabling_and_manual_run(
+        self,
+    ) -> None:
+        state = {"enabled": False, "temporary_files_cleanup": False, "cadence_days": 0}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        recommendation = advisory["recommendation"]
+        self.assertIn("Recommend enabling Storage Sense", recommendation)
+        self.assertIn("manual run is available either way", recommendation)
+        self.assertIn("Storage Sense detected: off", recommendation)
+        self.assertIn("temporary-files cleanup off", recommendation)
+
+    def test_above_threshold_with_temp_cleanup_off_recommends_turning_it_on(
+        self,
+    ) -> None:
+        state = {**self.WEEKLY_ON, "temporary_files_cleanup": False}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            advisory = self.windows_advisory(temp_root, state, 4096)
+        self.assertIn("turning on temporary-files cleanup", advisory["recommendation"])
+
+    def test_below_threshold_stays_null_whatever_the_configuration(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            for state in (self.WEEKLY_ON, off):
+                advisory = self.windows_advisory(temp_root, state, 1024**3)
+                self.assertIsNone(advisory["recommendation"])
+                self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+
+    def test_home_target_measures_the_temp_directory_itself(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            temp_root = self.temp_fixture(home / "AppData" / "Local")
+            (home / "outside.bin").write_bytes(b"z" * 9000)
+            advisory = self.windows_advisory(
+                temp_root, self.WEEKLY_ON, 4096, target=home
+            )
+        self.assertEqual(5000, advisory["temp_zone"]["logical_bytes"])
+        self.assertIsNotNone(advisory["recommendation"])
+
+    def test_capped_measurement_is_a_floor(self) -> None:
+        off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            # Cap 2 counts both top-level entries in any scandir order, so
+            # a.tmp's bytes always land, and still stops before nested/b.tmp.
+            with mock.patch.object(hygiene, "TEMP_ZONE_ENTRY_CAP", 2):
+                over = self.windows_advisory(temp_root, self.WEEKLY_ON, 1)
+                under = self.windows_advisory(temp_root, off, 1024**3)
+        self.assertFalse(over["temp_zone"]["complete"])
+        self.assertIn("holds at least", over["recommendation"])
+        self.assertFalse(under["temp_zone"]["complete"])
+        self.assertIn("Recommend enabling", under["recommendation"])
+
+    def test_linked_directory_in_temp_is_not_followed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            elsewhere = base / "elsewhere"
+            elsewhere.mkdir()
+            (elsewhere / "big.bin").write_bytes(b"w" * 50_000)
+            try:
+                (temp_root / "link").symlink_to(elsewhere, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(5000, zone["logical_bytes"])
+
+    def test_cloud_placeholder_in_temp_is_not_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            with mock.patch.object(
+                hygiene, "is_cloud_placeholder_stat", return_value=True
+            ):
+                zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(0, zone["logical_bytes"])
+
+    def test_recommendation_leaves_scan_eligibility_unchanged(self) -> None:
+        real_advisory = hygiene.os_autoclean_advisory
+
+        def snapshot_entries(threshold: int) -> tuple[object, object]:
+            def windows_advisory(target, _policy=None):
+                with (
+                    mock.patch.object(hygiene.sys, "platform", "win32"),
+                    mock.patch.object(
+                        hygiene,
+                        "windows_storage_sense_state",
+                        return_value=dict(self.WEEKLY_ON),
+                    ),
+                ):
+                    return real_advisory(
+                        target, {"os_temp_recommendation_threshold_bytes": threshold}
+                    )
+
+            output = io.StringIO()
+            with (
+                mock.patch.object(
+                    hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+                ),
+                mock.patch.object(
+                    hygiene, "os_autoclean_advisory", side_effect=windows_advisory
+                ),
+                redirect_stdout(output),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(temp_root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            payload = json.loads(output.getvalue())
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            return payload["os_autoclean"]["recommendation"], snapshot["entries"]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            temp_root = self.temp_fixture(base)
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            recommended, entries_over = snapshot_entries(1)
+            silent, entries_under = snapshot_entries(1024**3)
+        self.assertIsNotNone(recommended)
+        self.assertIsNone(silent)
+        self.assertEqual(entries_under, entries_over)
 
 
 class LeastObservableEnginePathTests(unittest.TestCase):

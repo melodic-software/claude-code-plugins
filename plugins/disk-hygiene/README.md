@@ -257,6 +257,22 @@ advisory naming the OS mechanism that should own it (Windows Storage Sense, syst
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
 hand-cleaning the zone.
 
+On Windows the advisory also sums the user temp directory's regular-file sizes in a read-only walk
+that follows no links and stops after 100,000 entries. The result is reported as `temp_zone`, and
+the size is a floor when `complete` is false. The recommendation then depends on size against
+`os_temp_recommendation_threshold_bytes` in `skills/clean/reference/baseline-policy.json` (1 GiB by
+default):
+
+| Temp directory size | Storage Sense | `recommendation` |
+|---|---|---|
+| At or above the threshold | On, temporary-files cleanup on | Run Storage Sense now (Settings > System > Storage > Storage Sense) |
+| At or above the threshold | On, temporary-files cleanup off | Turn on temporary-files cleanup and run it now |
+| At or above the threshold | Off or not detected | Enable it on a schedule; a manual run is available either way |
+| Below the threshold | Any | `null` |
+
+The text quotes the detected on/off state, schedule, and temporary-files scope. The advisory never
+runs Storage Sense, and it changes nothing about what the engine may delete in that directory.
+
 ## Volume-root coverage
 
 `--root-children` on an OS-managed volume root never walks the root itself. Immediate children are

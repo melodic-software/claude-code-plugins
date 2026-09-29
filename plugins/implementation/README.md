@@ -18,7 +18,7 @@ orchestrator root's model:
 | Agent | What it does |
 |---|---|
 | `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
-| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash remains for inspection; to narrow it, see Configuration), and it is bound never weaker than the implementer it checks. |
+| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Configuration), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
 
@@ -83,8 +83,13 @@ self-verification, but installing the companion plugins restores the full former
 
 Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
 (see the topic-docs seam above); each lifecycle plugin's own setup (`/discovery:setup`,
-`/planning:setup`, `/verification:setup`) interviews for and persists it. This plugin
-declares no userConfig options.
+`/planning:setup`, `/verification:setup`) interviews for and persists it.
+
+`implement_dispatch_wave_cap` sets how many worker rows of one plan phase
+`/implementation:implement-dispatch` runs at once. Unset, the skill keeps its internal 3–5
+wave default. A `--wave-cap` argument from a chaining caller, such as `/work-items:work`
+threading its own `work_dispatch_concurrency_cap`, takes precedence for that invocation. The
+Options reference lists the key.
 
 Testing cadence is project policy. TDD remains the fallback when the consuming project's
 `CLAUDE.md` or rules do not declare another cadence. To opt out, add an explicit project
@@ -121,12 +126,87 @@ A Bash rule matches the command text, not the program: `Bash(git push *)` does n
 the usual invocation, not a security boundary; use sandboxing for enforcement that does not depend
 on command text.
 
+The verifier also holds `PowerShell`, which a Bash rule does not cover. Deny the same commands as
+`PowerShell(...)` rules (for example `"PowerShell(git push *)"`) where the PowerShell tool is
+available.
+
 Basis: the Claude Code sub-agents page ("Control subagent capabilities": `disallowedTools`
 specifiers and Bash deny rules; "Choose the subagent scope": fields ignored for plugin
 subagents) and the permissions page ("What a Bash rule doesn't match"), at
 <https://code.claude.com/docs/en/sub-agents> and
 <https://code.claude.com/docs/en/permissions>, verified 2026-09-27. Recheck when a release note
 touches subagent tool restrictions or Bash permission-rule matching.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under the default worker commit authority still run one at a time. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively.** Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure implementation@<marketplace>`.
+2. **Headless.** Repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install implementation@<marketplace> -s <scope> --config implement_dispatch_wave_cap=<value>
+   ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior. A check run in the old session
+   still reports the old value, and that is not a failed write.
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "implementation@<marketplace>": {
+         "options": {
+           "implement_dispatch_wave_cap": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 
