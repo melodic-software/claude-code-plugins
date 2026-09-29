@@ -1,0 +1,3 @@
+def build_digest(rows):
+    lines = [f"- {row['body']}" for row in rows]
+    return "Your weekly summary\n" + "\n".join(lines)

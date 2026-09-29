@@ -25,7 +25,9 @@ files suppress both that note and the scan-of-nothing note.
 `no-manifest` is the state when knip has no `package.json` root, or gopls has no `go.mod` root.
 `files=` is the real language count, which is zero only when no such file is in scope. A source
 file that sits outside every manifest root of its language is uncovered with `no manifest root`
-even when some other root ran. `skipped` stays the missing-or-uninvocable binary state.
+even when some other root ran, unless another lane took it. The grep lane takes JS/TS that no
+`package.json` root owns, so a full run covers it and only `--lane knip` leaves it listed.
+`skipped` stays the missing-or-uninvocable binary state.
 
 Source files with no lane are the extensions `dc_lang_of_path` classifies as `nolane` (Rust, .NET,
 JVM, Ruby, C and C++, and the other extensions named there). Docs, JSON, YAML, and other
@@ -125,20 +127,34 @@ non-source paths are not in the coverage total.
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
 
-### grep: shell and PowerShell
+### grep: shell, PowerShell, and standalone JS/TS
 
 - **The portable floor is `grep -w -F -f <names>`** over the repository's tracked files. `-F` is
   **mandatory**: without it `core.ts` matches `coreXts`. None of `-w`, `-F`, `-f` is a GNU-only
   construct, so the lane runs on a BSD userland unchanged.
-- **Extractor set:** shell function definitions (`name() {`, `function name`) and PowerShell
-  `function Name`. Names shorter than three characters are dropped. At that length the reference
-  search is noise rather than evidence.
+- **Extractor set:** shell function definitions (`name() {`, `function name`), PowerShell
+  `function Name`, and, in JS/TS files that no `package.json` root owns, `function`, `class`,
+  `const`, `let` and `var` declarations with or without `export` (`async` and `default` allowed).
+  Names shorter than three characters are dropped. At that length the reference search is noise
+  rather than evidence. A file inside a `package.json` root is knip's and is never extracted here,
+  so no export is reported twice.
 - **Precision over recall, deliberately.** 4/4 true positives and 0 false positives over 546 `.sh`
   files and 177,793 lines, at 3.1s; shellcheck found **0** of the same 4.
 - **The known false-**alive** classes.** `$`, `-`, and `.` are non-word characters, so `foo` matches
   inside `$foo`, `foo-bar`, and `foo.bar`. A hit like that reads as a reference and quietly saves a
   symbol that may in fact be dead. The cost is **missed** dead code, never condemned live code,
   which is acceptable for a read-only skill and the reason the lane ships as high-precision/low-recall.
+- **JS/TS symbols use the same referenced-anywhere rule** (a name whose only repository-wide hits
+  are its own definition sites is a candidate) and emit `ts-unreferenced-symbol` at tier 2.
+  Measured on 2026-09-29 over the trap corpus (`ts-entry.ts`, `ts-used.ts`, `ts-orphan.ts`,
+  `dead-and-dynamic.ts`) plus `standalone.mjs`, with no `package.json`: 3 candidates, 2 true
+  (`parseLegacyManifest`, `renderLegacyRow`) and 1 false (`main`, an entry-point export nothing
+  imports), so **66.7% precision**. Of the 3 dead symbols in the corpus it found 2, so **66.7%
+  recall**: `formatLegacyRow` is saved because the fixture header comment spells its name. A name
+  in a string literal (`renderPanel`) is saved too, and a name assembled at run time is a
+  candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
+  and an export used only by an outside consumer reads as unreferenced. A symbol used only inside
+  its own file counts as referenced and stays unreported.
 - **A hit adjacent to `$`, `-`, or `.` is never an automatic `alive`** during adjudication: inspect
   it before crediting it as a reference.
 - **`unreferenced-file` reuses this search** on two keys per source file: the basename and the
