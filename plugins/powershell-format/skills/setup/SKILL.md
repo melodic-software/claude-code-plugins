@@ -66,9 +66,9 @@ restores the FAIL semantics.
    prerequisites.
 4. **`pwsh` (PowerShell 7+).** Probe read-only:
    `pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'`. INFO,
-   not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and stays quiet when
-   it is absent. A machine without PowerShell is not-applicable by design. Report the version
-   when present.
+   not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and the edit hook stays
+   quiet when it is absent, while the `SessionStart` probe reports it once per session. A machine
+   without PowerShell is not-applicable by design. Report the version when present.
 5. **PSScriptAnalyzer module.** Probe **only when `pwsh` resolved** (chain behind step 4 so
    the probe never errors on a pwsh-less box):
    `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`.
