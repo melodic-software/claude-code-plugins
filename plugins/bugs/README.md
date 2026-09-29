@@ -105,7 +105,7 @@ project or local settings, and changes route through Claude Code's own configura
 (and the user-global and local overlay layers) concatenates after the bundled gotchas when
 `/bugs:scan` or `/bugs:write` loads. Repo-specific lines stay in the layer; a line that is not
 repo-specific is filed as an issue on this marketplace (`melodic-software/claude-code-plugins`), so
-the shipped skill carries it for every consumer. It is layered per the marketplace's
+the shipped skill carries it for every consumer. The config is layered per the marketplace's
 config-cascade convention, a user-global file, this tracked team file, and a gitignored local
 overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
 default lanes. Keys, defaults, layer order, and per-key merge semantics live in
