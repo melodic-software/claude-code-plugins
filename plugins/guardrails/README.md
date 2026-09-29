@@ -542,7 +542,7 @@ The three report-only rows stay synchronous.
 - **As of**: 2026-09-28.
 - **Recheck trigger**: that section changes when async output is delivered beside the tool result, when `-p` waits for a running async hook, or when `timeout` applies to one.
 
-**0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
+**0.38.0, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
 en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the
 whole row: 10 KB **7.23 s -> 132 ms**, 16 KB (just under the ceiling)
 **12.6 s -> 203 ms**, ~70 KB **still running at 120 s -> 64 ms**. The shared
