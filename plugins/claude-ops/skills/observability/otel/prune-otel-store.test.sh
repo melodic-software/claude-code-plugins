@@ -191,7 +191,7 @@ if [[ -d "$S/cold" ]]; then
 else
   pass "--dry-run creates no cold dir"
 fi
-[[ -e "$S/.last-prune" ]] && fail "--dry-run writes no last-prune stamp" "absent" "present" || pass "--dry-run writes no last-prune stamp"
+if [[ -e "$S/.last-prune" ]]; then fail "--dry-run writes no last-prune stamp" "absent" "present"; else pass "--dry-run writes no last-prune stamp"; fi
 
 # --- 4. footgun: OLD timeUnixNano + RECENT observedTimeUnixNano -> counted DROPPED ---
 S="$(new_store footgun-log)"

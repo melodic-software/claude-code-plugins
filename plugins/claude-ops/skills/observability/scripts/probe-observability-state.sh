@@ -223,7 +223,7 @@ case "$MODE" in
   stamp="${stamp%$'\r'}"
   stamp_epoch=""
   if [[ -n "$stamp" ]]; then
-    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)"
+    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)"  # portability-ok: BSD date -j fallback on the same line
   fi
   if [[ -n "$stamp_epoch" ]]; then
     age=$(($(date +%s) - stamp_epoch))
