@@ -23,7 +23,7 @@ Pass the repositories about to be cleaned as ROOTs. With no ROOT the scope is th
 
 **Output contract:**
 
-- `RUNTIME_PROCS:` runtime process lines scoped to the ROOTs, or empty. A process is in scope when its working directory or command line is at or under a ROOT. Each line ends `[repo: <ROOT>]` (the longest matching ROOT), and at most 5 print. On Windows (no `/proc`) the list is machine-wide and marked `(unscoped)`.
+- `RUNTIME_PROCS:` runtime process lines scoped to the ROOTs, or empty. A process is in scope when its working directory or command line is at or under a ROOT; a relative path in the command line resolves against the process's working directory. The invoking process chain (this script and its ancestors) is never listed or counted. Each line ends `[repo: <ROOT>]` (the longest matching ROOT), and at most 5 print. Without `/proc` (Windows, macOS) the list is machine-wide and marked `(unscoped)`.
 - `RECENT_BUILD:` `project.assets.json` paths touched in last 10 minutes under the ROOTs, or empty
 - `IDE_OPEN:` IDE process lines, or empty. Always machine-wide (`tasklist`, Windows only), marked `(unscoped)` when non-empty.
 - `RUNTIME_PROCS_UNATTRIBUTED:` count of runtime-process matches elsewhere on the machine, or `n/a (unscoped)` on Windows. These are not risks to the scanned repositories and do not trigger the verdict; a process whose working directory cannot be read counts here.

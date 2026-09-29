@@ -36,7 +36,8 @@ Usage:
 
 RECENT_BUILD scans each ROOT; with none, the invoking repository. RUNTIME_PROCS keeps only
 processes under a ROOT (via /proc); RUNTIME_PROCS_UNATTRIBUTED counts the rest. Without
-/proc, RUNTIME_PROCS and IDE_OPEN are machine-wide and marked (unscoped).
+/proc, RUNTIME_PROCS and IDE_OPEN are machine-wide and marked (unscoped). The invoking process
+chain is never listed.
 
 Exit: always 0.
 EOF
@@ -94,7 +95,12 @@ if command -v pgrep >/dev/null 2>&1 && [[ -d /proc/$$ ]]; then
     cmd="${cmd% }"
     [[ -n "$cmd" ]] || continue
     root="$(owner_root "$cwd ")"
-    cmd_root="$(owner_root "$cmd ")"
+    abs_cmd=""
+    for tok in $cmd; do
+      [[ "$tok" != /* && "$tok" == */* && -n "$cwd" ]] && tok="$cwd/$tok"
+      abs_cmd+="$tok "
+    done
+    cmd_root="$(owner_root "$abs_cmd")"
     ((${#cmd_root} > ${#root})) && root="$cmd_root"
     if [[ -n "$root" ]]; then
       count=$((count + 1))
@@ -105,6 +111,9 @@ if command -v pgrep >/dev/null 2>&1 && [[ -d /proc/$$ ]]; then
   done < <(pgrep -af 'dotnet|aspire|node.*mcp-server' 2>/dev/null)
   RUNTIME_PROCS="${scoped%$'\n'}"
   UNATTRIBUTED="$unattributed match(es) outside the scanned repositories"
+elif command -v pgrep >/dev/null 2>&1; then
+  RUNTIME_PROCS="$(pgrep -af 'dotnet|aspire|node.*mcp-server' 2>/dev/null | head -5 || true)"
+  [[ -z "$RUNTIME_PROCS" ]] || RUNTIME_PROCS+=" (unscoped)"
 elif command -v tasklist >/dev/null 2>&1; then
   RUNTIME_PROCS="$(tasklist 2>/dev/null | grep -iE '^(dotnet|aspire|node|devenv|rider64?|fleet)\.exe' | head -5 || true)"
   [[ -z "$RUNTIME_PROCS" ]] || RUNTIME_PROCS+=" (unscoped)"
