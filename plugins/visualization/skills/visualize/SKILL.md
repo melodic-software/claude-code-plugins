@@ -1,5 +1,5 @@
 ---
-description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. When the bundled design skill resolves in your session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium. Routes chart craft and artifact-design fundamentals to those capabilities when installed; does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium. Routes chart craft and artifact-design fundamentals to those capabilities when installed; does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
 user-invocable: true
 disable-model-invocation: false
@@ -264,7 +264,7 @@ round-trip controls), never a hand-built imitation of the explorer.
 The **design canvas** is the bundled `design` skill, a native surface this skill overlaps on
 hand-tweakable layouts. It drafts artboards on a persistent, versioned, shareable canvas that the
 user edits by hand; this skill's page paths are throwaway or plain-static. **Routing:** when the
-skill resolves in your session with the canvas description and Step 3's medium permits
+skill resolves in this session with the canvas description and Step 3's medium permits
 publishing, offer the canvas as an explicit alternative and invoke it only on the user's choice;
 render this skill's rich page otherwise. **Mutation gate:** the canvas publishes a persistent
 Artifact under the user's account, so it is never a silent default and nothing tracked in a

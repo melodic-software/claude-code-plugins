@@ -3,7 +3,7 @@ name: implementer
 description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early unless the brief reserves commit authority to the orchestrator, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
 skills:
   - implementation:report
-tools: "Read, Edit, Write, Grep, Glob, Bash, WebFetch, WebSearch, Skill, Agent"
+tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
 model: opus
 effort: high
 ---
@@ -26,7 +26,11 @@ adds no permissions beyond the brief and never overrides it; when the brief and 
 conflict, STOP and report the conflict.
 
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
-search, shell, web research (so a consuming project's fresh-docs obligations stay satisfiable),
+search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
+directly rather than launching pwsh through Bash; where the PowerShell tool is not available the
+entry resolves to nothing and Bash remains, since launch fails only when no entry in the list
+resolves to a tool, per <https://code.claude.com/docs/en/sub-agents>, verified 2026-09-28; recheck
+when that page changes how unresolved `tools` entries are handled), web research (so a consuming project's fresh-docs obligations stay satisfiable),
 skill invocation, and nested dispatch for skills that fan out their own workers. Nothing else is
 granted. The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
 from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent

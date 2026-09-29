@@ -60,7 +60,8 @@ load-time machinery, no user turn, no unresolved target.
   why the problem was worth solving, why this design beat the alternatives argued at the time, why
   the thing still exists. Intent is what decides which one is wanted. Answer the wrong one and
   both sides get a well-formed artifact about a question nobody asked.
-- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth
+  as `low`, `medium`, or `full` (parent contract, "`Budget:` vocabulary");
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
   reserve your last turns" below). A value above that default is ignored and noted in
@@ -137,6 +138,11 @@ and tracker CLIs where the session has them, and local extractors.
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
 includes projecting names or counts out of it rather than values. Record the gap in
 `open_questions`: what you did not read, and what barred it.
+
+**A credential stays unread too: verify it is present, never read or print its value.** That
+rule, the commands and files it covers, and why no frontmatter key can enforce it are stated once
+in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+("Credentials stay unread, stated once"). Read it there rather than a restatement here.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)

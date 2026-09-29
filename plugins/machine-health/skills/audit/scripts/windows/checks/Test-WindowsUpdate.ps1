@@ -12,7 +12,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'windows-update'
 $category = 'updates'
 $commands = @(
@@ -46,7 +45,9 @@ function Test-PfroPending {
     }
 }
 
-try {
+$FailureSummary = 'Windows Update check failed.'
+$PassThru = $false
+$CheckBody = {
     $recentHotfixes = @()
     try {
         $recentHotfixes = @(Get-HotFix -ErrorAction Stop |
@@ -164,9 +165,5 @@ try {
         -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
         -NeedsAdmin $false -RanSuccessfully $true `
         -Notes $pendingUpdatesNote
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Windows Update check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

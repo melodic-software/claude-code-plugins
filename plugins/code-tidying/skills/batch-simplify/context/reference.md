@@ -49,7 +49,7 @@ Final cross-ecosystem verification: PASS/FAIL
 
 ## Deferred items resolved in-run
 
-- <path>: <what> (resolution wave; in repo mode add: commit <sha>)
+- <path>: <what> (resolution wave; in repo mode add: commit <sha>, or `staged` under `in-place`)
 - ...
 ```
 

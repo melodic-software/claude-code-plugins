@@ -292,7 +292,7 @@ class DescriptionExtractionTests(unittest.TestCase):
     def test_a_phrase_wrapped_across_a_block_scalar_is_still_found(self):
         frontmatter = (
             "\ndescription: >\n  When the bundled skill resolves in\n"
-            "  your session, prefer it.\n"
+            "  this session, prefer it.\n"
         )
         self.assertIn(overlap.GATE_TOKEN, self.extract(frontmatter))
 
@@ -451,7 +451,7 @@ class SelfCheckTests(unittest.TestCase):
             "demo-audit",
             "description: >-\n"
             "  When the bundled doctor skill resolves in\n"
-            "  your session, prefer it for the quick pass.",
+            "  this session, prefer it for the quick pass.",
         )
         self.assertEqual(self.repo.self_check(), 0)
 
@@ -470,7 +470,7 @@ class SelfCheckTests(unittest.TestCase):
         self.repo.write_skill_raw(
             "demo",
             "orphan",
-            "description: |\n  When the bundled thing resolves in\n  your session, prefer it.",
+            "description: |\n  When the bundled thing resolves in\n  this session, prefer it.",
         )
         self.assertEqual(self.repo.self_check(), 1)
 
@@ -1411,7 +1411,7 @@ class PresenceMentionTests(unittest.TestCase):
             "demo",
             "demo-audit",
             description=(
-                "When the bundled doctor skill resolves in your session, prefer it for the "
+                "When the bundled doctor skill resolves in this session, prefer it for the "
                 "quick pass."
             ),
             extra=BOUNDARY_EXTRA,
@@ -1548,7 +1548,7 @@ class SuggestAndNativeStepParityTests(unittest.TestCase):
             "demo-audit",
             extra="\n## Boundary, the bundled `doctor` skill\n\nDetail.\n\n"
             "## Native step: doctor (bundled skill)\n\n"
-            "When it resolves in your session, invoke it.\n",
+            "When it resolves in this session, invoke it.\n",
         )
         self.assertEqual(self.repo.self_check(), 0)
 
