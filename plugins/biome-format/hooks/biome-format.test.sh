@@ -25,6 +25,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/biome-format.sh"
+HOOKS_JSON="$HOOK_DIR/hooks.json"
 
 PASS=0
 FAIL=0
@@ -76,6 +77,96 @@ else
   fail "biome-absent second run not silent: $OUT_NB2"
 fi
 rm -rf "$NB_WORK"
+
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest has exactly one tool, biome,
+# and the hook's missing-binary notice call and local-bin walk state that tool's
+# name, check, install and local_bin, verbatim.
+MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.tools | length) == 1 and .tools[0].name == "biome" and .tools[0].local_bin == "node_modules/.bin/biome"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: exactly one tool, biome, at node_modules/.bin/biome"
+  else
+    fail "manifest: expected one tool named biome with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
+  fi
+  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
+  NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to BIOME_NOTICE/,/[^\\]$/p' "$HOOK")"
+  WALK_FN="$(sed -n '/^biome_local_bin_here()/,/^}/p' "$HOOK")"
+  # assert_hook_states <field> <needle> <haystack>
+  assert_hook_states() {
+    if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$3"; then
+      ok "manifest binding: hook states the manifest's $1 ($2)"
+    else
+      fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
+    fi
+  }
+  assert_hook_states name "'$MF_NAME'" "$NOTICE_CALL"
+  assert_hook_states check "$MF_CHECK" "$NOTICE_CALL"
+  assert_hook_states install "$MF_INSTALL" "$NOTICE_CALL"
+  assert_hook_states local_bin "$MF_LOCAL" "$WALK_FN"
+else
+  fail "manifest binding needs jq and $MANIFEST"
+fi
+
+# --- SessionStart probe honors biome_format_enabled ---------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no biome. The gate is `--run-if-unset-or-true` in
+# exec-bash.mjs, so a row without it prints the notice for a disabled plugin.
+# Needs no real Biome. A missing node fails the suite instead of skipping the
+# cases: every hook row launches through it.
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != biome && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+
+  # run_probe <value|__unset__> -> run the row with biome_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: biome_format_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: biome_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="biome_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="biome_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $PG_NAME, $PG_CHECK and the install line"
+    else
+      fail "probe-gate: $label should print the missing-biome notice (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+  rm -rf "${PG_WORK:?}"
+fi
 
 # Resolve a real Biome binary. node_modules/.bin/biome shims in each fixture
 # forward to this. Skip the suite when none is available.
@@ -457,7 +548,6 @@ rm -f "$TELS"
 # The command must be the plugin's own script by either quoting placement,
 # with no prefix, suffix or argument. What this does not reach is a
 # registration outside hooks/hooks.json.
-HOOKS_JSON="$HOOK_DIR/hooks.json"
 BEGIN_LINE="$(awk '
   /^hook::begin[[:space:]]/ {
     line = $0
@@ -478,14 +568,15 @@ EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
   # The one row outside this gate is the SessionStart prerequisite probe, exec
-  # form, which is asserted on its own here.
+  # form behind the biome_format_enabled launcher gate, which is asserted on its
+  # own here.
   ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, $probe])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BIOME_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BIOME_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh"
+    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true BIOME_FORMAT_ENABLED"
   else
-    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row, found $PROBE_COUNT"
+    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true BIOME_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
