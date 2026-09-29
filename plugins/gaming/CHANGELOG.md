@@ -3,6 +3,25 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-09-29
+
+### Fixed
+
+- `assess` names the DLSS5-Feeder route for a no-upscaler game only when `antiCheat.status` is
+  `none-disclosed`; with `signals` or `unknown` it says the route does not lower anti-cheat risk and
+  points nowhere. `reference/feeder-route.md` gains an anti-cheat and multiplayer section and drops
+  the stale wrong-dx12-heuristic instruction.
+- The 32-bit text in `SKILL.md`, `candidate-selection.md` and `feeder-route.md` states one rule: the
+  dead end covers the in-process OptiScaler route only.
+- `ErrorPath` in `Invoke-Dlss5Mod.ps1` drops a branch that returned the same value as the line after
+  it.
+
+### Changed
+
+- `reference/feeder-route.md` carries a verification record for its third-party claims and marks
+  single-reporter claims as unverified. The dlss5 evals cover the gated Feeder pointer.
+- The 0.8.1 and 0.8.2 entries state what those releases shipped.
+
 ## [0.8.2] - 2026-09-28
 
 ### Changed
