@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **PR-linkage MCP gate** also matches plugin-bundled GitHub servers (`mcp__plugin_*_github__create_pull_request` and `update_pull_request`).
 - **Nesting-invariant heading** is renamed "The nesting invariant, dated measurement", and its expired marker is time-bound.
 - **Promotion-evidence plan** is marked proposed and cites its basis; `config-resolution.md` cites ADR 0039 by filename instead of restating its merge modes.
-- **Config-root resolver** moves into `lib/config-root.sh` (`classify`), which `commit`, `pull-request` and `setup` call before reading team or overlay layers, with two setup evals for the home-root check and apply.
+- **Config-root resolver** moves into `lib/config-root.sh` (`classify`), which `commit` and `pull-request` call before reading team or overlay layers, and which `parse-branch-issue.sh` sources; `setup` keeps its own inline rule, with two setup evals for the home-root check and apply.
 - **Docs:** `babysit-loop` points at the background-launch caveat, the README lists `worktree-create.sh --existing-branch`, and duplicated argument hints are dropped.
 - **Tests:** `worktree-root-doctor.test.sh` and `worktree-add-containment-gate.test.sh` skip with a counted host line on Windows Git Bash.
 

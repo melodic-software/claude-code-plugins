@@ -24,7 +24,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OWNER_REL="skills/worktree/SKILL.md"
 SELF_REL="skills/worktree/nesting-invariant-ssot.test.sh"
 
-# How long the owner's dated "expired, pending re-probe" marker is honoured. Past
+# How long the owner's dated "expired, pending re-probe" marker is honored. Past
 # this the suite fails until the re-probe refreshes the stamp or the marker is
 # re-dated on purpose.
 MARKER_MAX_AGE_DAYS=30
@@ -153,11 +153,11 @@ iso_day_number() {
   echo $((era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468))
 }
 
-# nesting_invariant_marker_honoured <marker-YYYY-MM-DD> <today-YYYY-MM-DD>
+# nesting_invariant_marker_honored <marker-YYYY-MM-DD> <today-YYYY-MM-DD>
 # <max-age-days>: return 0 while the marker is at most max-age days old. One day
 # of future skew is tolerated (a marker dated in a timezone ahead of UTC); a
-# marker dated further ahead is not honoured.
-nesting_invariant_marker_honoured() {
+# marker dated further ahead is not honored.
+nesting_invariant_marker_honored() {
   local age=$(($(iso_day_number "$2") - $(iso_day_number "$1")))
   ((age >= -1 && age <= $3))
 }
@@ -165,13 +165,13 @@ nesting_invariant_marker_honoured() {
 # An expired stamp is acceptable only while the owner's dated marker is fresh. The
 # marker is the honest state between an arm firing and an authenticated re-probe
 # landing; undated, it would turn both arms from fail to pass forever, so it
-# carries its date and stops being honoured MARKER_MAX_AGE_DAYS later.
+# carries its date and stops being honored MARKER_MAX_AGE_DAYS later.
 today="$(date -u +%Y-%m-%d)"
 marker_pattern='\*\*Stamp status: expired, pending re-probe, marked ([0-9]{4}-[0-9]{2}-[0-9]{2})\.\*\*'
 stamp_marked_expired=false
 if [[ "$owner_text" =~ $marker_pattern ]]; then
   marker_date="${BASH_REMATCH[1]}"
-  if nesting_invariant_marker_honoured "$marker_date" "$today" "$MARKER_MAX_AGE_DAYS"; then
+  if nesting_invariant_marker_honored "$marker_date" "$today" "$MARKER_MAX_AGE_DAYS"; then
     stamp_marked_expired=true
     pass "expired-stamp marker (marked $marker_date) is within $MARKER_MAX_AGE_DAYS days of today ($today)"
   else
@@ -184,30 +184,30 @@ elif [[ "$owner_text" == *"Stamp status: expired"* ]]; then
     "**Stamp status: expired, pending re-probe, marked YYYY-MM-DD.**" "undated or malformed marker"
 fi
 
-# Red path: a synthetic today past the marker's age must not be honoured, nor a
+# Red path: a synthetic today past the marker's age must not be honored, nor a
 # marker dated far ahead of today, and the boundary must be exact across a month,
 # a leap day and a year end. A check nobody has exercised is the same class of
 # defect as the static marker this replaced.
-if nesting_invariant_marker_honoured "2026-09-27" "2099-01-01" "$MARKER_MAX_AGE_DAYS"; then
-  fail "marker age check rejects a synthetic today past the marker's age" "not honoured" "honoured"
+if nesting_invariant_marker_honored "2026-09-27" "2099-01-01" "$MARKER_MAX_AGE_DAYS"; then
+  fail "marker age check rejects a synthetic today past the marker's age" "not honored" "honored"
 else
   pass "marker age check rejects a synthetic today past the marker's age"
 fi
-if nesting_invariant_marker_honoured "2099-01-01" "$today" "$MARKER_MAX_AGE_DAYS"; then
-  fail "marker age check rejects a marker dated far in the future" "not honoured" "honoured"
+if nesting_invariant_marker_honored "2099-01-01" "$today" "$MARKER_MAX_AGE_DAYS"; then
+  fail "marker age check rejects a marker dated far in the future" "not honored" "honored"
 else
   pass "marker age check rejects a marker dated far in the future"
 fi
-if nesting_invariant_marker_honoured "2026-01-01" "2026-01-31" 30 &&
-  ! nesting_invariant_marker_honoured "2026-01-01" "2026-02-01" 30 &&
-  nesting_invariant_marker_honoured "2028-02-28" "2028-03-29" 30 &&
-  ! nesting_invariant_marker_honoured "2028-02-28" "2028-03-30" 30 &&
-  nesting_invariant_marker_honoured "2026-12-15" "2027-01-14" 30 &&
-  ! nesting_invariant_marker_honoured "2026-12-15" "2027-01-15" 30; then
+if nesting_invariant_marker_honored "2026-01-01" "2026-01-31" 30 &&
+  ! nesting_invariant_marker_honored "2026-01-01" "2026-02-01" 30 &&
+  nesting_invariant_marker_honored "2028-02-28" "2028-03-29" 30 &&
+  ! nesting_invariant_marker_honored "2028-02-28" "2028-03-30" 30 &&
+  nesting_invariant_marker_honored "2026-12-15" "2027-01-14" 30 &&
+  ! nesting_invariant_marker_honored "2026-12-15" "2027-01-15" 30; then
   pass "marker age check is exact at the boundary across month, leap-day and year ends"
 else
   fail "marker age check is exact at the boundary across month, leap-day and year ends" \
-    "30 days honoured, 31 not" "boundary off"
+    "30 days honored, 31 not" "boundary off"
 fi
 
 # nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0

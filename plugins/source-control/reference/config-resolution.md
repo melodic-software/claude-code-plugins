@@ -377,10 +377,11 @@ repository` on stderr. A team or overlay path that physically equals the user-gl
 is skipped even when the root is not home. `/source-control:setup apply layer=team`
 and `layer=local` refuse in that state; `layer=user` still writes.
 
-`lib/config-root.sh` is the one resolver: `resolve`, `classify` (`repo`, `non-repo`, or `home`),
-and `same` (physical path equality). Four readers apply the rule: `parse-branch-issue.sh` sources
-the resolver, `commit` and `pull-request` (`create.md`) run `classify` before reading the team or
-overlay layer, and `setup` applies the same rule in its `check` and `apply` steps.
+`lib/config-root.sh` is the resolver for the scripts and skills that call it: `resolve`, `classify`
+(`repo`, `non-repo`, or `home`), and `same` (physical path equality). `parse-branch-issue.sh`
+sources it, and `commit` and `pull-request` (`create.md`) run `classify` before reading the team
+or overlay layer. `setup` does not call it: its `check` and `apply` steps apply the same rule
+inline (`skills/setup/reference/apply-convention.md`).
 
 Layers, in resolution order, where a later layer refines an earlier one:
 

@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
-# Windows Git Bash fails 9 cases here (measured 2026-08-23, issue 3138). The
+# Windows Git Bash fails 9 cases here (#3138, measured 2026-08-23). The
 # failing cases cannot be identified without a Windows host, so the guard skips
 # the whole suite. SOURCE_CONTROL_TEST_UNAME overrides the probe so Linux can
 # exercise the skip path.
@@ -26,6 +26,7 @@ case "${SOURCE_CONTROL_TEST_UNAME:-$(uname -s 2>/dev/null)}" in
   MINGW* | MSYS* | CYGWIN*)
     skip_suite "host: Windows Git Bash, known failures, issue 3138 (9 cases fail here)"
     ;;
+  *) ;;
 esac
 
 TEST_TMPDIR="$(mktemp -d)"
