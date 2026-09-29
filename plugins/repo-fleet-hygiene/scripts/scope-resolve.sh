@@ -60,7 +60,7 @@ scope_resolve_fallback() {
   for _ in 1 2 3 4; do
     dir="$(dirname "$dir")"
     count=0
-    for child in "$dir"/*/; do
+    for child in "$dir"/*/ "$dir"/.[!.]*/ "$dir"/..?*/; do
       [[ -e "${child}.git" ]] && count=$((count + 1))
     done
     if [[ "$count" -ge 2 ]]; then

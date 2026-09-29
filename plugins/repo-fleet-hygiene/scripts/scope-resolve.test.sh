@@ -96,6 +96,17 @@ else
   fail "cwd at a checkout root resolves its sibling fleet as ancestor" "$out"
 fi
 
+# Dot-prefixed sibling checkouts count toward the ancestor, as the shared walker traverses them.
+mkdir -p "$TMP/hidden"
+git -C "$TMP/hidden" init -q -b main "$TMP/hidden/.one"
+git -C "$TMP/hidden" init -q -b main "$TMP/hidden/.two"
+out="$(SCOPE_CWD="$TMP/hidden/.one" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
+if [[ "$out" == "root"$'\t'"$TMP/hidden"$'\n'"provenance"$'\t'"ancestor" ]]; then
+  pass "dot-prefixed sibling checkouts qualify a parent as the ancestor"
+else
+  fail "dot-prefixed sibling checkouts qualify a parent as the ancestor" "$out"
+fi
+
 # 4 directories below the checkout top: counting from the working directory would stop inside the checkout.
 mkdir -p "$TMP/fleet/one/a/b/c/d"
 out="$(SCOPE_CWD="$TMP/fleet/one/a/b/c/d" REPO_FLEET_GHQ_BIN=/nonexistent scope_resolve_fallback)"
