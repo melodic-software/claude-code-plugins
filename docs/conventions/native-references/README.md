@@ -241,6 +241,10 @@ at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
 | `session-skill` | `route` only |
 | verdict `defer` | `route`, and this wins over the class, including a model-disabled bundled skill. Nothing is baked from a defer row |
 
+A `suggest` row on a `bundled-skill` carrying `model-invocation-disabled` carries no description phrase
+(`baked.description_phrase` false): the body's suggest sentence is the only baked line, and the
+`claude-ops:audit-native-overlap` self-check fails the combination.
+
 A `wrap` or `suggest` row carries an evidence line naming the observed invocation mode. Skill-tool
 reach is per surface; the class rules are a floor.
 
