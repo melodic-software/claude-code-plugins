@@ -332,6 +332,8 @@ Who wins and which merge form each surface uses, so an operator does not have to
 Implementers row from scratch. The engines stay separate (#3575): this table is an index, not a
 unification. The Implementers row remains the contract for path, layers, and conformance.
 
+<!-- BEGIN GENERATED: config-cascade semantics. Edit the Implementers table, then run scripts/sync-config-cascade-semantics.py -->
+
 | Surface | Who wins | Merge form |
 |---|---|---|
 | `source-control` | later layer; team on the merge-rung; fail-closed on a bad `branch_issue_pattern` | per-key |
@@ -340,7 +342,7 @@ unification. The Implementers row remains the contract for path, layers, and con
 | `bugs` | later layer | lanes concatenate; `## Gotchas` concatenates; `filing_posture` nearest-wins |
 | `github` | team on write-posture keys; later layer otherwise | per-key (`routing.yaml`); concatenate (`conventions.md`) |
 | `autonomy` | later layer except security axes | declared |
-| `standards` | team on conflict (policy-floor) | add/tighten |
+| `standards` (`planning`, `review`) | team on conflict (policy-floor) | add/tighten |
 | `disk-hygiene` | team over user-global; `--policy` replaces both | additive standing layers |
 | `ai-briefing` | team only | no overlay |
 | `code-tidying` | team only; residual wholesale if no `## Merge semantics` | per-section when declared |
@@ -358,6 +360,8 @@ unification. The Implementers row remains the contract for path, layers, and con
 | `authoring-formats` | team via pointer line | convention doc |
 | `instruction-placement` | team on conflict (policy-floor) | per-key |
 | `overengineering` | team on conflict for protected keys | per-key |
+
+<!-- END GENERATED: config-cascade semantics -->
 
 A generated table off the Implementers rows, and a one-line "who wins" in each setup `check`, stay
 out of this change. Either would unify presentation without unifying engines; file that as its own
