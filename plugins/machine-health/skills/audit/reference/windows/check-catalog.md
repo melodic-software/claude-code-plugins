@@ -10,14 +10,21 @@
 - [6. winget app updates](#6-winget-app-updates)
 - [7. Battery + power report](#7-battery--power-report)
 - [8. Driver inventory](#8-driver-inventory)
+- [9. Reliability monitor](#9-reliability-monitor)
+- [10. Scheduled tasks](#10-scheduled-tasks)
+- [11. Defender exclusions](#11-defender-exclusions)
+- [12. Cert expiry](#12-cert-expiry)
+- [13. Container disk usage](#13-container-disk-usage)
+- [14. SDK versions](#14-sdk-versions)
+- [15. TPM, BitLocker](#15-tpm-bitlocker)
+- [16. DNS health](#16-dns-health)
 - [17. Claude Code temp root](#17-claude-code-temp-root)
 - [18. Environment and PATH health](#18-environment-and-path-health)
 - [19. Drive-root litter](#19-drive-root-litter)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
-pointers. Sections 9–16 have not been written yet; their catalog entries point at anchors that
-do not resolve.
+pointers.
 
 Each section documents:
 
@@ -285,6 +292,233 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **Notes:** Full driver inventory goes in the report appendix, alongside the CodeIntegrity events
   that set the severity. The finding body should show only drivers that moved severity (unsigned drivers by name, or the oldest 5 signed drivers).
+
+---
+
+## 9. Reliability monitor
+
+- **Script:** `scripts/windows/checks/Test-Reliability.ps1`
+- **Category:** `reliability`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  Get-CimInstance Win32_ReliabilityStabilityMetrics | Sort-Object TimeGenerated -Descending | Select-Object -First 7
+  Get-CimInstance Win32_ReliabilityRecords -Filter "TimeGenerated > '<7d ago>'"
+  ```
+
+- **Severity rubric:** the first matching row wins.
+  - `CRIT`: the lowest `SystemStabilityIndex` of the last 7 daily rows is below 3.
+  - `CRIT`: any record in the last 7 days whose `SourceName` matches
+    `hardware|disk|memory|bugcheck|kernel-power|WER-SystemErrorReporting`.
+  - `WARN`: the average `SystemStabilityIndex` of the last 7 daily rows is below 7.
+  - `WARN`: any `ProductName` has 5 or more records in the last 7 days.
+  - `INFO`: any record in the last 7 days, or neither the stability table nor the records
+    populated.
+  - `OK`: no record in the last 7 days and the stability average is 7 or higher.
+
+- **Notes:** The hardware match is on `SourceName`, a structured provider identifier. `ProductName`
+  is the crashing application's display name, so matching it would classify ordinary Windows
+  component records (a `Windows Explorer` hang has `ProductName` `Windows`) as hardware failures.
+  When both queries return nothing the check reports `INFO`, not `UNKNOWN`: the Reliability
+  Analysis Component task may be disabled, or the host has under a day of data. The `notes` field
+  then carries `schtasks /Run /TN "\Microsoft\Windows\RAC\RacTask"`. A query that throws is
+  treated as empty. The 7-day record window is filtered client-side after the CIM query.
+
+---
+
+## 10. Scheduled tasks
+
+- **Script:** `scripts/windows/checks/Test-ScheduledTasks.ps1`
+- **Category:** `reliability`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  Get-ScheduledTask | Get-ScheduledTaskInfo | Where-Object { $_.LastTaskResult -ne 0 }
+  ```
+
+- **Severity rubric:**
+  - `WARN`: at least one in-scope task has a non-zero `LastTaskResult` and has run before.
+  - `OK`: no such task.
+  - Never `CRIT` or `INFO`.
+
+- **Notes:** In scope are tasks in state `Ready` whose `TaskPath` does not match `\Microsoft\*`;
+  that tree is OS housekeeping. A task counts as never run, and is skipped, when
+  `LastTaskResult` is 267011 (`SCHED_S_TASK_HAS_NOT_RUN`) or `LastRunTime` is missing or before
+  2000-01-01 (a zero FILETIME). 267014 (`SCHED_S_TASK_TERMINATED`) is deliberately not filtered:
+  termination is a real event. A task whose info query throws is skipped. `detail.failed_tasks`
+  lists at most 20.
+
+---
+
+## 11. Defender exclusions
+
+- **Script:** `scripts/windows/checks/Test-DefenderExclusions.ps1`
+- **Category:** `security`
+- **Needs admin:** yes. Non-elevated, `Get-MpPreference` returns a literal `N/A: Must be
+  administrator...` string in the exclusion fields, so the check gates on elevation first.
+- **Commands:**
+
+  ```powershell
+  Get-MpPreference | Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess
+  ```
+
+- **Severity rubric:**
+  - `WARN`: at least one path exclusion matches none of the known-safe patterns.
+  - `INFO`: exclusions exist and every path exclusion matches a known-safe pattern. Extension and
+    process exclusions never raise the level above `INFO`.
+  - `OK`: no path, extension or process exclusions.
+  - `UNKNOWN`: not elevated (`needs_admin`), or `Get-MpPreference` fails, as with a third-party
+    antivirus. `ran_successfully` is false and the admin-gated fields (`exclusion_path_count`,
+    `exclusion_extension_count`, `exclusion_process_count`, `unexpected_path_count`) are
+    withheld.
+  - Never `CRIT`.
+
+- **Known-safe path patterns:** matched with PowerShell `-like`: `*\NuGetScratch*`,
+  `*\node_modules*`, `*\.dotnet*`, `*\dotnet-install*`, `*\.cache*`,
+  `*\Visual Studio\Packages*`. The list is a dev-machine allowlist in the script.
+
+- **Notes:** With no exclusions `Get-MpPreference` returns `$null` per property, and `@($null)` is a
+  one-element array, so null and blank entries are dropped before counting. A pattern may match
+  anywhere in the path, so any path containing one of those segments is treated as expected.
+  `detail.unexpected_paths` lists at most 20.
+
+---
+
+## 12. Cert expiry
+
+- **Script:** `scripts/windows/checks/Test-CertExpiry.ps1`
+- **Category:** `security`
+- **Needs admin:** no. The store read is `Cert:\CurrentUser\My`.
+- **Commands:**
+
+  ```powershell
+  Get-ChildItem Cert:\CurrentUser\My | Select-Object Subject, Issuer, NotAfter
+  ```
+
+- **Severity rubric:** `days_left` is `floor((NotAfter - now).TotalDays)`.
+  - `CRIT`: any certificate already expired (`days_left` below 0), or expiring in 7 days or fewer.
+  - `WARN`: no `CRIT` certificate, and any expires in 8 to 30 days.
+  - `INFO`: no `CRIT` or `WARN` certificate, and any expires in 31 to 90 days.
+  - `OK`: no certificate expires within 90 days, or the store is empty.
+
+- **Notes:** Certificates whose subject contains `DO_NOT_TRUST` or `CN=localhost` (development
+  certificates) are excluded before counting. A certificate with no `NotAfter` is treated as
+  never expiring. Only the current user's personal store is read; machine stores and trusted root
+  stores are out of scope. `detail.expiring_soon` lists the first 20 of the `CRIT`, `WARN` and
+  expired certificates. The `INFO` tier is counted but not listed.
+
+---
+
+## 13. Container disk usage
+
+- **Script:** `scripts/windows/checks/Test-ContainerDiskUsage.ps1`
+- **Category:** `storage`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  docker system df --format '{{json .}}'
+  wsl --list --verbose
+  ```
+
+- **Severity rubric:**
+  - `WARN`: Docker usage above 50 GB, or WSL virtual disks above 30 GB.
+  - `INFO`: either figure was measured and neither limit is exceeded.
+  - `OK`: neither `docker` nor `wsl` produced a figure.
+  - No `CRIT`: the data is reclaimable and has no security consequence, the same reasoning as
+    section 17.
+
+- **Notes:** Docker usage is the sum of the `Size` column across every row `docker system df`
+  prints (images, containers, volumes, build cache), parsed from strings such as `12.3GB`. A row
+  whose size does not parse adds nothing. WSL usage is the summed length of every file named
+  `ext4.vhdx` found up to 3 levels under `%LOCALAPPDATA%\Packages`, so a virtual disk with another
+  name or location is not counted. `wsl --list --verbose` only probes that WSL responds; its
+  output is not parsed. Failures are appended to `notes`.
+
+---
+
+## 14. SDK versions
+
+- **Script:** `scripts/windows/checks/Test-SdkVersions.ps1`
+- **Category:** `updates`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  dotnet --list-sdks
+  node --version
+  python --version
+  ```
+
+- **Severity rubric:** each detected runtime version is compared to
+  `reference/shared/sdk-eol-table.json`.
+  - `CRIT`: any detected version has an end-of-life date in the past.
+  - `WARN`: no version is past end of life, and any reaches end of life within 90 days.
+  - `INFO`: at least one runtime was detected and none is past end of life or within 90 days. The
+    summary names the runtime whose end-of-life date is earliest, with unknown dates last.
+  - `OK`: no runtime was detected.
+
+- **Notes:** Versions are keyed as `major.minor` for .NET and Python (each distinct installed .NET
+  `major.minor` counts once) and as `major` for Node.js. A version missing from the table has
+  `state: unknown_eol` and never raises severity. If the table file is absent, every version is
+  `unknown_eol`. Python is `python`, falling back to `python3`. The table is data: it needs an
+  update when a vendor changes a support boundary.
+
+---
+
+## 15. TPM, BitLocker
+
+- **Script:** `scripts/windows/checks/Test-TpmBitLocker.ps1`
+- **Category:** `security`
+- **Needs admin:** yes. Non-elevated runs return `UNKNOWN` with `needs_admin` and withhold
+  `tpm_owned`, `tpm_enabled` and `bitlocker_protection_status`.
+- **Commands:**
+
+  ```powershell
+  Get-Tpm
+  Get-BitLockerVolume
+  ```
+
+- **Severity rubric:** the first matching row wins.
+  - `WARN`: `Get-Tpm` returned nothing.
+  - `WARN`: the TPM is not owned or not enabled.
+  - `INFO`: the TPM is owned and enabled and no `OperatingSystem` volume is listed.
+  - `WARN`: an `OperatingSystem` volume exists and none has `ProtectionStatus` `On`.
+  - `OK`: the TPM is owned and enabled and an operating-system volume is protected.
+  - Never `CRIT`.
+
+- **Notes:** A `Get-BitLockerVolume` failure yields an empty volume list, which reads as the `INFO`
+  row when the TPM is healthy. Only operating-system volumes drive severity; the per-volume
+  list is in `detail.bitlocker_volumes` for the report. `bitlocker_protection_status` reports the
+  first operating-system volume.
+
+---
+
+## 16. DNS health
+
+- **Script:** `scripts/windows/checks/Test-DnsHealth.ps1`
+- **Category:** `network`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  Resolve-DnsName microsoft.com -Type A -DnsOnly -QuickTimeout
+  Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Test-Connection -TargetName {_.NextHop}
+  ```
+
+- **Severity rubric:** the first matching row wins.
+  - `CRIT`: the default gateway is known and one ICMP probe (1-second timeout) gets no reply.
+  - `WARN`: `microsoft.com` or `github.com` fails to resolve an A record. The summary adds
+    `(gateway unknown)` when no gateway state was obtained.
+  - `INFO`: both names resolve and the gateway state is unknown.
+  - `OK`: both names resolve and the gateway replies.
+
+- **Notes:** The gateway is the lowest-metric `0.0.0.0/0` route. A `NextHop` of `0.0.0.0` (on-link
+  route) or a route lookup failure leaves the gateway state unknown. DNS failures are tested
+  before the unknown-gateway `INFO` so a real resolution problem is not under-reported when the
+  gateway state is missing. A gateway that drops ICMP reads as unreachable, hence `CRIT`.
 
 ---
 
