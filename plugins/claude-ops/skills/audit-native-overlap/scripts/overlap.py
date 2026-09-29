@@ -406,17 +406,32 @@ def load_components(repo: Path) -> list[discover.Component]:
 def native_surfaces(lane_payloads: dict[str, Any]) -> list[discover.Surface]:
     """Every scorable native surface. An `internal` registration is skipped:
     it is plumbing the product never offers anyone to type or call."""
+    plugin_backed = lane_payloads.get("plugin_backed") or {}
     surfaces: list[discover.Surface] = []
+    seen: set[str] = set()
     for lane, payload in lane_payloads.items():
+        if lane == "plugin_backed":
+            continue
         for name, entry in payload.items():
-            if lane == "plugin_backed":
-                registrations = [{"name": name, "plugin_name": entry}]
-            else:
-                registrations = registrations_of(entry)
+            seen.add(name)
+            registrations = registrations_of(entry)
             if not registrations or any(r.get("internal") for r in registrations):
                 continue
+            # A plugin-backed name the extractor enriched in this lane is one
+            # surface, scored once, under the plugin-backed class.
+            klass, source = (
+                (CLASS_OF_LANE["plugin_backed"], "plugin_backed")
+                if name in plugin_backed
+                else (CLASS_OF_LANE[lane], lane)
+            )
+            surfaces.append(discover.Surface.build(name, klass, source, registrations))
+    for name, plugin in plugin_backed.items():
+        if name not in seen:
+            registrations = [{"name": name, "plugin_name": plugin}]
             surfaces.append(
-                discover.Surface.build(name, CLASS_OF_LANE[lane], lane, registrations)
+                discover.Surface.build(
+                    name, CLASS_OF_LANE["plugin_backed"], "plugin_backed", registrations
+                )
             )
     return surfaces
 
@@ -701,6 +716,14 @@ def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
                 f"{label}: a bundled skill marked `model-invocation-disabled` "
                 "takes `integration` `suggest` (a route phrase on a surface the "
                 "model never lists is dead text)"
+            )
+        baked = row.get("baked")
+        if isinstance(baked, dict) and baked.get("description_phrase") is True:
+            problems.append(
+                f"{label}: a `suggest` row for a bundled skill marked "
+                "`model-invocation-disabled` never bakes a description phrase "
+                "(the model never lists the surface, so a route phrase is dead "
+                "text)"
             )
     elif klass in ROUTE_OR_WRAP_CLASSES:
         if integration not in ("route", "wrap"):
@@ -1230,9 +1253,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
                 name, {"class": CLASS_OF_LANE[lane], "entry": entry}
             )
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
+        # The extractor enriches a same-named command or skill with the plugin;
+        # reclassify that registration rather than replace it with a bare one.
+        enriched = native_index.get(name)
         native_index[name] = {
             "class": "plugin-backed-builtin",
-            "entry": {"name": name, "plugin_name": plugin},
+            "entry": enriched["entry"]
+            if enriched
+            else {"name": name, "plugin_name": plugin},
         }
 
     store_verdicts = _store_verdicts(Path(args.store))

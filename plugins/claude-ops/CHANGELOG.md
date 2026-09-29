@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.66.0] - 2026-09-29
+## [0.67.0] - 2026-09-29
 
 ### Added
 
@@ -19,7 +19,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
   both.
 
-## [0.65.0] - 2026-09-29
+## [0.66.0] - 2026-09-29
 
 ### Added
 
@@ -46,7 +46,39 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   constant-named commands resolve. Validated against 2.1.284.
 - **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
   instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
-  cannot stall the parser on regex backtracking.
+  cannot stall the parser on regex backtracking. A body truncated after its headers
+  (`http.client.HTTPException`) degrades the block instead of raising.
+- **`audit-native-overlap detect` scores a plugin-backed command once**, under its plugin-backed
+  class and with the description the extractor enriched it with, instead of adding a bare second
+  surface.
+- **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
+  rule that rejects `wrap` on a bundled-workflow row.
+
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
+  directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
+  `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
+  removal stays with `/disk-hygiene:clean`. A missing or unparsable registry yields an empty list
+  and a note, so an empty list reads as "not checked". The report schema is now
+  `claude-install-state/3`, and `content_read_paths` lists only the registry and markers actually
+  opened. Marker reads refuse symlinks and non-regular files.
+- **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
+  can name the previous version's path after an update until the session restarts.
+
+## [0.64.3] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+- **The three `doctor` registry rows drop the budget caveat and the evidence that assumed a baked
+  phrase**, so the registry no longer describes a routing phrase that does not exist.
 
 ## [0.64.2] - 2026-09-29
 

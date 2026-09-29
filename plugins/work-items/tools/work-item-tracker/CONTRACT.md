@@ -163,7 +163,7 @@ user-global layer.
   is and where its contract lives, so the root dotfile explains itself to a teammate who
   finds it. `/work-items:setup` writes it by default; the seam never reads it.
 - Owner/repo are NEVER recorded in the binding. They are derived at runtime from the working
-  directory's git remote (`gh repo view --json owner,name`). Verbs that need a repo
+  directory's git remote (`gh api repos/{owner}/{repo}`). Verbs that need a repo
   context accept an explicit `--repo <owner>/<repo>` override (conformance, cross-repo
   tooling).
 - No binding found → exit `3` and stderr points here; the seam runs no inline wizard. The

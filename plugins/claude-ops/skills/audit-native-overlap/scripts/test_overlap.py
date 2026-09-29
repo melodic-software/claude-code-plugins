@@ -694,6 +694,22 @@ class SelfCheckTests(unittest.TestCase):
         ]
         self.assertEqual(overlap.validate_row(row, 0), [])
 
+    def test_model_disabled_suggest_row_rejects_description_phrase(self):
+        row = deep_copy(BASE_ROW)
+        row["native"]["markers"] = ["gated", "model-invocation-disabled"]
+        row["integration"] = "suggest"
+        row["baked"]["boundary_section"] = False
+        row["evidence"] = [
+            "invocation mode: model-invocation-disabled (disableModelInvocation)"
+        ]
+        row["baked"]["description_phrase"] = False
+        self.assertEqual(overlap.validate_row(row, 0), [])
+        row["baked"]["description_phrase"] = True
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(
+            any("never bakes a description phrase" in problem for problem in problems)
+        )
+
     def test_defer_overrides_model_disabled_and_takes_route(self):
         # design-sync is both defer and model-invocation-disabled. The
         # confirmed verdict table records route; defer wins because nothing
@@ -1338,7 +1354,7 @@ class DetectTests(unittest.TestCase):
             report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
         )
 
-    def test_an_inventory_without_lanes_keeps_the_old_behaviour(
+    def test_an_inventory_without_lanes_keeps_the_old_behavior(
         self,
     ):  # identifier, not prose # spellchecker:disable-line
         self.write_inventory()
@@ -1707,6 +1723,7 @@ class DiscoveryScoringTests(unittest.TestCase):
         self.assertEqual(rec("bundled-skill", "user-only"), "suggest")
         self.assertEqual(rec("bundled-skill", "model+user"), "route-or-wrap")
         self.assertEqual(rec("builtin-command", "model+user"), "route")
+        self.assertEqual(rec("bundled-workflow", "model+user"), "route")
         self.assertIsNone(rec("bundled-skill", "unknown"))
 
 
@@ -1968,6 +1985,28 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertEqual(candidate["native"]["invocable_by"], "model+user")
         self.assertEqual(candidate["native"]["markers"], [])
         self.assertEqual(candidate["recommended_integration"], "route-or-wrap")
+
+
+class PluginBackedSurfaceTests(unittest.TestCase):
+    def test_an_enriched_command_is_one_plugin_backed_surface(self) -> None:
+        payloads = {
+            "builtin_commands": {
+                "scan": {
+                    "name": "scan",
+                    "description": "Scan the branch for vulnerabilities",
+                    "plugin_name": "scanner",
+                }
+            },
+            "plugin_backed": {"scan": "scanner"},
+        }
+        surfaces = overlap.native_surfaces(payloads)
+        self.assertEqual([s.name for s in surfaces], ["scan"])
+        self.assertEqual(surfaces[0].klass, overlap.CLASS_OF_LANE["plugin_backed"])
+        self.assertTrue(surfaces[0].described)
+
+    def test_a_bare_plugin_backed_name_still_scores(self) -> None:
+        surfaces = overlap.native_surfaces({"plugin_backed": {"scan": "scanner"}})
+        self.assertEqual([s.name for s in surfaces], ["scan"])
 
 
 if __name__ == "__main__":

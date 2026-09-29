@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Render states.json as one mermaid stateDiagram-v2.
 #
-# status other than drawn exits 3, writes nothing, and prints the reason.
-# Two entities without --entity exit 3 and name the ids. A compacted record
-# exits 1. The picture is a state diagram. C4 has no state-diagram type, so
-# this script does not take --dialect and does not read landscape_dialect.
+# status other than drawn exits 3, writes nothing, and prints the reason on
+# stderr; a refusal prints no summary line. Two entities without --entity exit 3
+# and name the ids, and an --entity that is not in the record exits 3. A
+# compacted record exits 1. The picture is a state diagram. C4 has no
+# state-diagram type, so this script does not take --dialect and does not read
+# landscape_dialect.
 #
-# Summary: states: entity=<id> states=<n> transitions=<n> findings=<n> confidence=<c>
+# Summary, on stdout when a diagram is written:
+#   states: status=drawn reason=<reason|none> confidence=<c> entity=<id> states=<n>
+#   transitions=<n> unreachable=<n> dead_ends=<n> terminal_inferred=<n> missing_guards=<n>
 # Exit: 0 written; 1 bad record; 2 usage; 3 refused or needs --entity.
 set -uo pipefail
 
@@ -80,7 +84,7 @@ if [[ -z "$entity" ]]; then
 fi
 printf '%s\n' "$ids" | grep -F -x -q -- "$entity" || die "refused: entity not in the record: $entity" 3
 
-OUT="$outdir/states.md" ENTITY="$entity" awk -f - "$record" <<'AWK'
+OUT="$outdir/states.md" ENTITY="$entity" REASON="$reason" awk -f - "$record" <<'AWK'
 function jstr(line, key,    pat, i, rest, out, c, n) {
   pat = "\"" key "\""
   i = index(line, pat)
@@ -100,7 +104,7 @@ function jstr(line, key,    pat, i, rest, out, c, n) {
   return out
 }
 function emit(s) { print s > out }
-BEGIN { out = ENVIRON["OUT"]; entity = ENVIRON["ENTITY"] }
+BEGIN { out = ENVIRON["OUT"]; entity = ENVIRON["ENTITY"]; reason = ENVIRON["REASON"] }
 /"confidence"[[:space:]]*:/ { conf = jstr($0, "confidence") }
 /^[[:space:]]*\{"id":/ { if (jstr($0, "id") == entity) { initial = jstr($0, "initial"); library = jstr($0, "library"); evidence = jstr($0, "evidence") } }
 /^[[:space:]]*\{"state":/ { if (jstr($0, "entity") == entity) { ns++; sname[ns] = jstr($0, "name"); sfinal[ns] = jstr($0, "final") } }
@@ -109,7 +113,7 @@ BEGIN { out = ENVIRON["OUT"]; entity = ENVIRON["ENTITY"] }
 END {
   emit("# States")
   emit("")
-  emit("Entity: " entity ". Library: " library ". Confidence: " conf ".")
+  emit("Entity: " entity ". Library: " library ". Confidence: " conf (reason != "" ? " (" reason ")" : "") ".")
   emit("Evidence: " evidence ".")
   emit("Picture: mermaid stateDiagram-v2. A state diagram is not a C4 diagram type (system context, container, component, code, system landscape, dynamic, deployment), so landscape_dialect is not read and no dialect key is added.")
   emit("")
@@ -128,12 +132,7 @@ END {
   emit("")
   if (nf == 0) emit("No findings.")
   for (i = 1; i <= nf; i++) emit("- " fkind[i] ": " fstate[i] " (" fdet[i] ")")
-  unr = 0
-  dead = 0
-  for (i = 1; i <= nf; i++) {
-    if (fkind[i] == "unreachable") unr++
-    if (fkind[i] == "dead_end") dead++
-  }
-  printf "states: status=drawn reason=none confidence=%s entity=%s states=%d transitions=%d unreachable=%d dead_ends=%d\n", conf, entity, ns + 0, nt + 0, unr, dead
+  for (i = 1; i <= nf; i++) count[fkind[i]]++
+  printf "states: status=drawn reason=%s confidence=%s entity=%s states=%d transitions=%d unreachable=%d dead_ends=%d terminal_inferred=%d missing_guards=%d\n", (reason != "" ? reason : "none"), conf, entity, ns + 0, nt + 0, count["unreachable"] + 0, count["dead_end"] + 0, count["terminal_inferred"] + 0, count["missing_guard"] + 0
 }
 AWK
