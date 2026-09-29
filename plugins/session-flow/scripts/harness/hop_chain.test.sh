@@ -44,6 +44,8 @@ if ! "$PY" -X utf8 -c '
 import hop_chain
 assert not hop_chain.is_write_indicator("python3 /p/scripts/save_point.py memory-root")
 assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py new --topic x --no-previous")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py memory-root && python3 /p/mutate.py")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py validate x\npython3 /p/mutate.py")
 print("ok")
 '; then
   echo "FAIL: is_write_indicator save_point"

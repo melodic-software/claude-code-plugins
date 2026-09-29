@@ -128,7 +128,7 @@ store session transcripts locally under `~/.claude/projects/` for 30 days by def
 `cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
 release note names `cleanupPeriodDays`.
 
-If /export is available in your session (gate basis: **Verification record: `/export`** below), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never runs `/export`; it is reserved for the person to run. **`unattended`:** record the suggestion in output; do not ask.
+If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
 
 ## Verification record: `/export`
 

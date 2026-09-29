@@ -58,7 +58,7 @@ output, do not ask); remote artifacts are always created without prompting, as s
    The conversation itself is another machine-local, non-durable item:
    transcripts live only in this machine's `~/.claude` tree and are
    retention-swept besides. When the session is worth keeping:
-   If /export is available in your session (gate basis: **Verification record: `/export`** below), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never runs `/export`; it is reserved for the person to run. **`unattended`:** record the suggestion in output; do not ask.
+   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
    That destination is machine-local, so when the machine may go away, also
    surface copying the export off the machine as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR

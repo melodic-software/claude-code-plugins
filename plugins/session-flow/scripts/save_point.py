@@ -1312,7 +1312,7 @@ def _plugin_data_root() -> Path | None:
     where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
     than a letter, digit, ``_`` or ``-`` replaced by ``-``. Any other layout
     (``--plugin-dir``, a source checkout) has no derivable id: None.
-    ponytail: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
+    Caveat: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
     env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
     if env:
         return Path(env).expanduser()

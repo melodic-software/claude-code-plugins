@@ -99,6 +99,7 @@ INTERPRETER_RE = re.compile(
 # The three read-only save_point.py subcommands. A resuming hop legitimately runs
 # `validate` over its predecessor before invoking the skill.
 READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit|memory-root)\b")
+COMMAND_SEPARATOR_RE = re.compile(r"[;|&\n]+")
 
 
 def shell_command_text(tool_input: dict, serialized: str) -> str:
@@ -116,11 +117,13 @@ def shell_command_text(tool_input: dict, serialized: str) -> str:
 def is_write_indicator(command: str) -> bool:
     if WRITE_INDICATOR_RE.search(command) or WRITE_CMDLET_RE.search(command):
         return True
-    # A read-only save_point.py call with no redirect and no write verb writes
+    # A read-only save_point.py segment with no redirect and no write verb writes
     # nothing, whatever interpreter launched it, so it falls to the note branch.
-    if READ_ONLY_SAVE_POINT_RE.search(command):
-        return False
-    return bool(INTERPRETER_RE.search(command))
+    # Judged per segment so a chained second interpreter call is still seen.
+    return any(
+        INTERPRETER_RE.search(segment) and not READ_ONLY_SAVE_POINT_RE.search(segment)
+        for segment in COMMAND_SEPARATOR_RE.split(command)
+    )
 
 
 SKILL_NAME = "session-flow:handoff"
