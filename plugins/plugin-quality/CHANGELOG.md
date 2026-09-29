@@ -5,6 +5,44 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- **`packet-seal.sh` records the seal moment ([#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867)).**
+  `record` and each `--acknowledge-divergence` generation write a first line
+  `# sealed-at <UTC ISO-8601>`, and `verify` prints `sealed-at=<value>` (and
+  `gen-sealed-at=<value>` when a generation exists) before the summary. The value is
+  self-attested and unsigned. A manifest without the header verifies as before and reports
+  `sealed-at=unknown`.
+
+### Fixed
+
+- **`verify` reads the latest generation manifest ([#3357](https://github.com/melodic-software/claude-code-plugins/issues/3357)).**
+  It still grades `packet.sha256` as before, then grades every entry of the highest-numbered
+  `packet.sha256.<n>` as `GEN-MATCH`, `GEN-CHANGED` or `GEN-MISSING`, prints
+  `ACKNOWLEDGED generation=<n>` so the incident stays visible, and no longer reports a
+  generation manifest as `UNSEALED`. Exit codes are unchanged.
+- **`record --acknowledge-divergence` no longer dead-ends after a restore.** With a
+  generation in place it writes the next generation over the current bytes instead of exiting 2,
+  so notes added after the altered file is restored can be sealed. An ordinary `record` is still
+  refused once a generation exists, and its message says later notes are sealed into a
+  generation. A symlinked generation manifest, or one whose number is past 18 digits, exits 2
+  instead of being read or wrapped. A look-alike name such as `packet.sha256.2x` is now sealed, and a file the previous
+  generation sealed that has since been deleted is reported as `GEN-MISSING`.
+
+### Changed
+
+- **The write-once and seal-time doctrine has one owner**:
+  `skills/audit/reference/evidence-packet.md` "What a sealed packet asserts".
+  `agents/auditor.md`, `skills/audit/SKILL.md` and `recurring-concerns.md` point at it, and the
+  retention note names `item*.md` to match `packet-prune.sh`.
+- **`auditor` records the basis for its `claude plugin validate --json` floor** (Claude Code
+  2.1.259, from the Claude Code changelog), with an as-of date and a recheck trigger.
+- **Declared corrections to released entries.** 0.7.28 no longer describes the repo script
+  `scripts/validate-plugins.sh`, which is not part of the plugin. 0.7.29 was byte-identical to
+  0.7.28 and shipped no plugin change; its entry now says so.
+
 ## [0.7.33] - 2026-09-28
 
 ### Changed
@@ -55,15 +93,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.7.29] - 2026-09-28
 
-### Changed
-
-- **`auditor` runs `claude plugin validate --json`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The report's per-file `errors` and `warnings` are the reading. The repo script `scripts/validate-plugins.sh` renders that same object and falls back to text output when the CLI does not emit it. The flag needs Claude Code 2.1.259 or later.
+0.7.29 carries no plugin change. It recorded the #4027 closure only ([#5162](https://github.com/melodic-software/claude-code-plugins/pull/5162)).
 
 ## [0.7.28] - 2026-09-28
 
 ### Changed
 
-- **`auditor` runs `claude plugin validate --json`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The report's per-file `errors` and `warnings` are the reading. The repo script `scripts/validate-plugins.sh` renders that same object and falls back to text output when the CLI does not emit it. The flag needs Claude Code 2.1.259 or later.
+- **`auditor` runs `claude plugin validate --json`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The report's per-file `errors` and `warnings` are the reading. The flag needs Claude Code 2.1.259 or later.
 
 ## [0.7.27] - 2026-09-28
 
