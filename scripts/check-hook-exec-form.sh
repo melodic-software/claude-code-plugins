@@ -148,11 +148,13 @@ fi
 #     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
 #     which names a shell. The gate-legal route is the `node` launcher above,
 #     not an allowlist entry for `bash`.
-#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields" and
-#     "Exec form and shell form"; the EFTYPE and WSL-relay spawns observed in
-#     (#3708); upstream https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form `args`
-#     dropped, the hook still routed through bash.exe) open.
-#   As of: 2026-09-28.
+#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields", the
+#     `shell` row, verbatim: "Ignored when `args` is set". "Exec form and shell
+#     form" resolves `command` on PATH and, on Windows, to a real executable.
+#     https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form
+#     `args` dropped, the hook still routed through bash.exe): open, last
+#     updated 2026-08-29.
+#   As of: 2026-09-29.
 #   Recheck: the hooks reference adds a shell or interpreter placeholder for
 #     exec form, or stops ignoring `shell` when `args` is set; or #90495 closes.
 EXEC_NAME_ALLOWLIST=(node)

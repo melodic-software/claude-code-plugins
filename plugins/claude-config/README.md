@@ -111,8 +111,8 @@ Audits instruction *content* against current model capability, a different quest
 sibling audits (config-file correctness) and from `skill-quality:check` (structural lint) or
 `docs-hygiene:compress` (token brevity). It sweeps the locally-owned surfaces (user + project
 `CLAUDE.md`, a natively read `AGENTS.md`, `.claude/rules`, skill bodies, agent definitions, hook
-instruction text, output styles) against a sixteen-check catalog cited to current official prompting and harness doctrine, running
-a fresh read-only subagent per surface, then a fresh-context verify pass that re-judges every removal
+instruction text, output styles) against a check catalog cited to current official prompting and harness doctrine, running
+plugin-atomic, token-budgeted read-only lanes (see Lane sizing in `skills/audit-instructions/SKILL.md`), then a fresh-context verify pass that re-judges every removal
 proposal before it is surfaced. Findings are tiered mechanical vs behavioral and delivered as a
 report plus proposed diffs, report-only and never auto-applied. On memory-layer surfaces it runs only
 the model-era checks and routes hygiene findings to the `claude-memory` plugin's `audit` skill (with
@@ -129,6 +129,9 @@ pass alone, so a scheduled hygiene routine can compose it on its own token budge
 /claude-config:audit-instructions skills       # one surface (claude-md|rules|skills|agents|hooks|output-styles)
 /claude-config:audit-instructions conflicts    # the cross-surface conflict pass only
 /claude-config:audit-instructions --opinion    # also run the default-off OPINION-tier checks
+/claude-config:audit-instructions --unattended # nobody to answer: disclose the ~20-dispatch cost instead of asking
+/claude-config:audit-instructions --resume     # continue the latest run, re-running only incomplete or changed lanes
+/claude-config:audit-instructions --persist-findings  # also write I28-I33 findings as a review-findings file for review:fanout fix
 ```
 
 ### audit-pass
@@ -184,7 +187,9 @@ phases:
 
 The canonical trigger
 is a frontier model release. Instructions written for the previous generation are the experiment's
-subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DATA}` for resume.
+subject. Human-gated at every mutation; the manifest and stumbles log live in the repo under
+`.claude/unhobble/<experiment-id>/`, and `${CLAUDE_PLUGIN_DATA}` holds only `backups/` (see State in
+`skills/unhobble/SKILL.md`).
 
 ```shell
 /claude-config:unhobble            # guided full flow
@@ -246,7 +251,9 @@ automatically. If you used `/claude-config-audit:memory-health`, install it expl
 No `userConfig`. One tracked consumer-project file, `audit-pass`'s suppression record, above.
 Persistent plugin state: `audit-pass` writes its run reports and manifests under
 `${CLAUDE_PLUGIN_DATA}`, which resolves under `~`, outside a target below the home directory and
-inside one at or above it. A run never *scans* what it wrote: where the resolved report path is
+inside one at or above it. `audit-instructions` keeps its run files under
+`${CLAUDE_PLUGIN_DATA}/audit-instructions/runs`, and `unhobble` keeps pre-strip `backups/` under
+`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/`. A run never *scans* what it wrote: where the resolved report path is
 contained in the target, the run excludes that path before writing and says so.
 Network: `audit` fetches official docs pages and each registered marketplace's `marketplace.json`
 from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
