@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** The split-lines file is removed on exit, so the gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
 ## [0.62.23] - 2026-09-29
 
 ### Fixed

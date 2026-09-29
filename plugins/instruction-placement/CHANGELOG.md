@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.23] - 2026-09-29
+
+### Fixed
+
+- **Test suites put every fixture under one trapped temp root.** The `discover`, `render-index`, `detect`, and `glob-tools` tests remove their fixtures on exit, including after an assertion abort.
+
 ## [0.15.22] - 2026-09-29
 
 ### Fixed
