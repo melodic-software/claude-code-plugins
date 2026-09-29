@@ -66,7 +66,7 @@ this repository's own spec board (#2933) had to be published through MCP tools w
 blocking edges as body text, because the publishing session had no `gh`.
 
 **A too-old `gh` degrades differently from an absent one.** Where the binary is present but
-below 2.94, only the native-surface paths above are refused; the lease trio, `get-item`,
+below 2.94, only the native-surface paths above are refused; the lease verbs, `get-item`,
 and a `create-item` with no gated flags still run, so such a session can file a plain
 item and hold a race-safe claim even though it cannot attach sub-issue or dependency
 edges or derive a frontier. Selection has to come from elsewhere (an operator-named item,

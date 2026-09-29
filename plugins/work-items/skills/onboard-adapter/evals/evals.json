@@ -19,11 +19,11 @@
       "id": 2,
       "name": "declares-false-rather-than-emulating-a-lease",
       "prompt": "/work-items:onboard-adapter\n\nMy tracker has no atomic assignment — whoever writes last wins. Can we just emulate the claim lease with comments so the work-loop works?",
-      "expected_output": "Refuses to declare a lease capability the provider cannot arbitrate. features.leases and the three lease verbs (claim, renew-lease, reclaim) are all declared false, so the core answers them with exit 6 — an explicit, permanent degradation callers can route around. The reason is recorded. An emulated lease over last-write-wins loses races SILENTLY, which is worse than not having one.",
+      "expected_output": "Refuses to declare a lease capability the provider cannot arbitrate. features.leases and the lease verbs (claim, renew-lease, reclaim, and release) are all declared false, so the core answers them with exit 6 — an explicit, permanent degradation callers can route around. The reason is recorded. An emulated lease over last-write-wins loses races SILENTLY, which is worse than not having one.",
       "expectations": [
-        "Declares features.leases=false and claim/renew-lease/reclaim=false rather than emulating",
+        "Declares features.leases=false and claim/renew-lease/release/reclaim=false rather than emulating",
         "Explains that exit 6 is an honest degradation the caller can route around, and that a silent lost race is worse",
-        "Keeps the three lease verbs consistent with features.leases (the generator refuses the incoherent combination)",
+        "Keeps the lease verbs consistent with features.leases (the generator refuses the incoherent combination; release may stay false even when leases is true)",
         "Records the limitation in the adapter README rather than leaving it implied",
         "Does not fabricate a comment-based lease the provider does not arbitrate"
       ]

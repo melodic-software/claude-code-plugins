@@ -297,7 +297,7 @@ closed.
 ## Delivery
 
 **`in-place` replaces the branch, PR, and commit rules below.** The run stays on the current
-branch (refuse the default branch), creates no branch, opens no PR, merges no base, and posts no
+branch (refuse the default branch, and stop when `git diff --cached --quiet` finds staged changes, so the staged set handed back or committed is the run's edits alone), creates no branch, opens no PR, merges no base, and posts no
 PR comment. Each group's verified edits are staged, not committed; `in-place=commit` makes one
 commit of the whole run at the end, its message naming every group. The Phase 8 report goes to the
 user as usual, carrying what the PR would have. Every other rule in this file holds, the

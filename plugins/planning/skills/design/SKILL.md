@@ -56,6 +56,13 @@ reason: <one line, e.g. single-file bugfix, docs-only>
 Optional: type sketch pointer if tier B, linking to type-inventory.md
 ```
 
+## Gates
+
+These hold after a compaction re-attach. Later sections say how to carry them out.
+
+- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds (Key behaviors).
+- **Every recommendation carries a `Basis:` line**: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented; one research cannot settle is withheld, recorded as a `deferred` thread whose research tag names the evidence that would settle it rather than presented as a recommendation.
+
 ## Action Router
 
 Parse `$ARGUMENTS` for scope and action:
@@ -231,8 +238,8 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 
 ## Key behaviors
 
-- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds. Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
-- **Ground and label every recommendation.** Each carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if installed); one research cannot settle is withheld, recorded as a `deferred` thread whose research tag names the evidence that would settle it rather than presented as a recommendation. A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
+- **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
+- **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if installed). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
 - **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write. Another turn or agent may have modified them. And prefer appending or refining over wholesale rewrites
@@ -251,6 +258,10 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
 - **Product intent**. That's `/planning:prd` (problem, users, success metrics)
 - **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)
+
+## Next
+
+/planning:design-handoff gates the finished design for /planning:plan.
 
 ## Relationship to other skills
 

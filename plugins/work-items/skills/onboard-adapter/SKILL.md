@@ -178,6 +178,10 @@ carrying the same guards the bundled `jira` adapter carries, and the generated
 Do not weaken these when filling in a mapping. If a provider genuinely cannot work within
 them, that is a finding to raise, not a guard to delete.
 
+## Next
+
+`/work-items:setup` to bind the generated adapter.
+
 ## Gotchas
 
 - **The normalized item object has no `body` field.** It is `schema_version, id, title,
