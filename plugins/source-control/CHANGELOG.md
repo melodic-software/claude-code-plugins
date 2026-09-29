@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.24] - 2026-09-29
+## [0.62.25] - 2026-09-29
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
 
 ## [0.62.23] - 2026-09-29
 
