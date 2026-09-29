@@ -184,12 +184,12 @@ the inject-once claim, or the overview's runtime table changes any row.
 
 Claude Code has no flag parser: a `--flag` is a token in `$ARGUMENTS` that the model reads, and
 `argument-hint` only drives autocomplete. Shape the surface as
-`/plugin:skill [action] [--modifier ...] [<subject> ...]`, give a token a `--flag` only when it
+`/plugin:skill [action] [--modifier ...] [<subject>]` with at most one subject, give a token a `--flag` only when it
 passes the earned-flag test, read `$ARGUMENTS` whole rather than binding `$0`, `$1`, or a named
 `arguments:` entry, and write `argument-hint` in the same order and notation. The
 [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
 owns the rule, the earned-flag test, the worked fits, and the decisions to decline `arguments:`
-and to leave the shape author-enforced rather than linted.
+and to defer a `skill-quality` lint for the shape.
 
 **Record.** The convention's Record table carries the four-part record for each harness claim
 restated here, against <https://code.claude.com/docs/en/skills#available-string-substitutions>

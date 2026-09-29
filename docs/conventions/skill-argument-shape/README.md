@@ -42,7 +42,7 @@ unknown flag, checks a value, or completes one. Two further mechanics bind autho
 ## The shape
 
 ```text
-/plugin:skill [action] [--modifier ...] [<subject> ...]
+/plugin:skill [action] [--modifier ...] [<subject>]
 ```
 
 1. **Action.** At most one word, first, drawn from a closed set that the skill's Arguments or
@@ -50,9 +50,7 @@ unknown flag, checks a value, or completes one. Two further mechanics bind autho
    or auto-detection.
 2. **Modifiers.** `--flags`, each passing the [earned-flag test](#the-earned-flag-test). Their
    order among themselves carries no meaning.
-3. **Subject.** One kind of thing (a path, a slug, an issue number), last. It may repeat when every
-   occurrence is the same kind (`<path> ...`). Two positional inputs of different kinds make one of
-   them a flag.
+3. **Subject.** At most one (a path, a slug, an issue number), positional, last.
 
 The body reads `$ARGUMENTS` whole and parses it in prose. It never binds `$0`, `$1`, or `$name` to
 heterogeneous inputs: the action and the modifiers are optional, so the position of the subject
@@ -65,7 +63,7 @@ The shape is the CLI consensus with the parser removed. POSIX Issue 8 puts optio
 (Guideline 12). GNU §4.8 keeps ordinary arguments for input files and moves everything else to
 options. Cobra's "Commands represent actions, Args are things and Flags are modifiers"
 (`APPNAME VERB NOUN --ADJECTIVE`) supplies the action slot. clig.dev's rule that "two or more
-arguments for different things" signals a mistake is the one-kind subject rule. Claude Code ships
+arguments for different things" signals a mistake backs the single subject. Claude Code ships
 the same shape in its own bundled `/review`:
 `/review [low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]`.
 
@@ -79,7 +77,7 @@ A token is a `--flag` only when at least one of these holds:
    `--force`. The Agent Skills scripts guidance recommends explicit confirmation flags for
    destructive operations, and clig.dev names `-f`/`--force` as the non-interactive confirmation.
 3. **It combines orthogonally** with the skill's other modifiers.
-4. **It carries a value that has a default**, such as `--max-depth <N>` or `--since <date>`.
+4. **It is optional with a default**, such as `--max-depth <N>` or `--since <date>`.
 
 Otherwise the token is an action word. A set of mutually exclusive flags where each one selects
 what the skill does is an action set in disguise: spell it as action words.
@@ -94,7 +92,6 @@ and clarity is what grounds 2 to 4 test for.
 |---|---|---|
 | `disk-hygiene:clean` | `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>` | Every flag is `hygiene.py` argv (ground 1). `--execute` is also destructive (ground 2). One trailing subject. |
 | `repo-hygiene:clean` | `[scan\|caches\|build\|git\|…] (bare → menu or auto-detect)` (action list abridged) | Action words only; each selects a named routine, so none needs a flag. The bare form is stated. |
-| `skill-quality:check` | `[check\|validate-evals\|listing-budget] [<skill-name-or-root> ...]` | One action, then a repeatable subject of one kind. |
 
 ## `argument-hint` is bound to the shape
 
@@ -107,49 +104,19 @@ Nested or repeatable syntax on a flag, such as `[--root-children [--root-child <
 appears only when a ground-1 parser accepts that form. Without one, the hint implies a parser
 that does not exist, so write the grouping rule in words in the Arguments section instead.
 
-This binds new skills and any skill whose argument surface changes; existing hints are not swept.
-The binding is a docs-consistency decision: the hint validates nothing, so its only job is to
-agree with the Arguments section it summarizes.
+The hint validates nothing, so its only job is to agree with the Arguments section it summarizes.
 
 ## Decisions
 
+Recorded on [#4001](https://github.com/melodic-software/claude-code-plugins/issues/4001) by the
+2026-09-28 decision comment and its addendum.
+
 | Question from #4001 | Decision | Rests on |
 |---|---|---|
-| Adopt `/plugin:skill [action] [--modifiers] <subject>` with the earned-flag test? | **Adopted, refined.** The subject may repeat when it is one kind. The body tolerates any flag order and names its handling of unknown tokens. Mutually exclusive mode-selecting flags become action words. Ground 4 is narrowed to a flag that carries a value with a default. | POSIX Guidelines 9, 11, 12; GNU §4.8; Cobra; clig.dev; the bundled `/review` |
-| Adopt the `arguments:` frontmatter field? | **Declined.** Skills read `$ARGUMENTS`. | See below |
-| Bind `argument-hint` formatting? | **Adopted** for new and changed surfaces, with no sweep. | POSIX XBD 12.1 notation; the commands page's `<arg>`/`[arg]` legend |
-| Lint the shape in `skill-quality:check`? | **Declined for now.** The shape is author-enforced. | See below |
-
-**Why `arguments:` is declined.** Its names are positional aliases, and this shape makes the
-subject's position move with the optional action and modifiers, so `$subject` would bind whatever
-token happened to land in its slot. An unbound name also expands to an empty string with no error.
-The field is outside the portable Agent Skills specification, but so is `argument-hint`, so
-portability alone does not decide it; the positional mismatch does. Zero of the fleet's 281
-top-level skills declare it, so declining it retires nothing.
-
-**Why no lint yet.** Of the 251 skills with an `argument-hint`, 65 carry a `--flag`. In 30 of those
-65, none of the hinted flags appears in any source file under the skill's directory or the plugin's
-`scripts/`, `lib/`, or `bin/` (tests excluded). But the earned-flag test is a disjunction, and only
-ground 1 is decidable by a static scan. The unbacked set is full of flags that pass on grounds 2 to
-4, such as `github:audit`'s `--apply` and `machine-health:audit`'s `--dry-run`, so a
-"flag with no parser" check would mostly fire on conforming skills. A check that FAILs a declared
-`arguments:` field would be cheap and exact, but it would guard zero occurrences. The
-[invocation-mode](../invocation-mode/README.md) cross-skill phrasing rule set the same precedent:
-a rule whose decidable half is a small slice stays author-enforced. Recheck: Claude Code ships
-argument validation or a flag parser for skills, or a fleet audit finds a skill declaring
-`arguments:`. Either one reopens the lint question here.
-
-Reproduce the counts:
-
-```bash
-ls plugins/*/skills/*/SKILL.md | wc -l                               # top-level skills
-grep -l '^argument-hint:' plugins/*/skills/*/SKILL.md | wc -l        # with a hint
-grep -lE '^argument-hint:.*--' plugins/*/skills/*/SKILL.md | wc -l   # hint carries a --flag
-grep -l '^arguments:' plugins/*/skills/*/SKILL.md | wc -l            # declare arguments:
-```
-
-The figures move as the fleet grows, so re-run the commands rather than trusting the recorded set
-(281 / 251 / 65 / 0 at `9fd990ce2`, 2026-09-28).
+| Adopt `/skill[:name] [action] [--modifiers] <subject>`? | **Adopted** as proposed: the action and the subject are positional, and `--flags` are reserved for modifiers. | #4001 decision comment: POSIX Issue 8 XBD 12.2, GNU §4.8, clig.dev, Cobra, and no flag parser in Claude Code |
+| Allow more than one subject? | **Declined.** A skill takes at most one positional subject. | #4001 addendum, point 1 |
+| Adopt the `arguments:` frontmatter field? | **Declined.** Named arguments are only positional aliases, and with no flag parser the field adds no validation. | #4001 addendum, point 2 |
+| Lint the shape in `skill-quality:check`? | **Declined for now.** Revisit once the convention has settled in practice. | #4001 addendum, point 3 |
 
 ## Record
 
@@ -174,7 +141,5 @@ pages were read through the raw `.md` channel, with the slug checked against
 
 - `playbooks:skill-authoring`: the authoring-time pointer here (the guidance spoke's
   "Argument surface" section and the pre-share checklist row).
-- [`docs/conventions/invocation-mode/`](../invocation-mode/README.md): the precedent for keeping
-  a mostly undecidable rule author-enforced.
 - [`docs/conventions/upstream-drift/`](../upstream-drift/README.md): the four-part record shape
   and the raw-`.md` fetch route used here.

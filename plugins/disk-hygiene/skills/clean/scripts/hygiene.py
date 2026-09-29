@@ -32,6 +32,10 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
+# The temp-zone size walk runs on every scan whose target overlaps the temp
+# directory, including the gated large-target probe, so it stays well below
+# the inventory cap.
+TEMP_ZONE_ENTRY_CAP = 100_000
 # The tier vocabulary is declared with the command grammar so `--confirm-tier`
 # and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
@@ -220,6 +224,7 @@ def scan_complete_payload(
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
+        "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
         "policy_sources": policy["policy_sources"],
@@ -664,10 +669,16 @@ def baseline_policy() -> dict[str, Any]:
     baseline = load_json(BASELINE_POLICY)
     if baseline.get("version") != SCHEMA_VERSION:
         raise HygieneError("unsupported baseline policy version")
+    threshold = baseline.get("os_temp_recommendation_threshold_bytes")
+    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
+        raise HygieneError(
+            "baseline os_temp_recommendation_threshold_bytes must be a positive integer"
+        )
     return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "policy_sources": ["baseline"],
@@ -1226,7 +1237,111 @@ def windows_storage_sense_state() -> dict[str, Any]:
     return state
 
 
-def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
+def measure_temp_zone(temp_root: Path) -> dict[str, Any]:
+    """Sum regular-file logical sizes under the OS temp directory, read-only.
+
+    Links and reparse points are counted as entries but never followed. The
+    walk stops after TEMP_ZONE_ENTRY_CAP entries, so ``logical_bytes`` is exact
+    only when ``complete`` is true and is a floor otherwise.
+    """
+    total = 0
+    entries = 0
+    complete = True
+    pending = [temp_root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as iterator:
+                for entry in iterator:
+                    if entries >= TEMP_ZONE_ENTRY_CAP:
+                        complete = False
+                        pending.clear()
+                        break
+                    entries += 1
+                    try:
+                        info = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        complete = False
+                        continue
+                    # A placeholder's size is remote, not local occupancy.
+                    if is_linkish_stat(info) or is_cloud_placeholder_stat(info):
+                        continue
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(Path(entry.path))
+                    elif stat.S_ISREG(info.st_mode):
+                        total += info.st_size
+        except OSError:
+            complete = False
+    return {
+        "path": str(temp_root),
+        "logical_bytes": total,
+        "entry_count": entries,
+        "complete": complete,
+    }
+
+
+def format_gib(value: int) -> str:
+    return f"{value / 1024**3:.1f} GiB"
+
+
+def storage_sense_state_text(state: dict[str, Any]) -> str:
+    enabled = {True: "on", False: "off"}.get(state["enabled"], "not detected")
+    cadence = state["cadence_days"]
+    if cadence is None:
+        schedule = "schedule not detected"
+    elif cadence <= 0:
+        schedule = "runs only during low free disk space"
+    elif cadence == 1:
+        schedule = "runs every day"
+    else:
+        schedule = f"runs every {cadence} days"
+    scope = {True: "on", False: "off"}.get(
+        state["temporary_files_cleanup"], "not detected"
+    )
+    return (
+        f"Storage Sense detected: {enabled}, {schedule}, "
+        f"temporary-files cleanup {scope}."
+    )
+
+
+def storage_sense_size_recommendation(
+    state: dict[str, Any], zone: dict[str, Any], threshold: int
+) -> str:
+    size = format_gib(zone["logical_bytes"])
+    if not zone["complete"]:
+        size = f"at least {size}"
+    lead = (
+        f"The user temp directory ({zone['path']}) holds {size}, above the "
+        f"{format_gib(threshold)} baseline-policy threshold. "
+        f"{storage_sense_state_text(state)} "
+    )
+    run_now = "Settings > System > Storage > Storage Sense > Run Storage Sense now"
+    if state["enabled"] is True and state["temporary_files_cleanup"] is True:
+        if (state["cadence_days"] or 0) > 0:
+            return lead + (
+                "The schedule is not keeping up with this zone. Recommend "
+                f"running Storage Sense now ({run_now}) instead of "
+                "hand-cleaning it here."
+            )
+        return lead + (
+            f"Recommend running Storage Sense now ({run_now}) and setting a "
+            "scheduled cadence instead of hand-cleaning it here."
+        )
+    if state["enabled"] is True:
+        return lead + (
+            "Recommend turning on temporary-files cleanup in Storage Sense and "
+            f"running it now ({run_now}) instead of hand-cleaning it here."
+        )
+    return lead + (
+        "Recommend enabling Storage Sense with temporary-files cleanup on a "
+        "scheduled cadence (Settings > System > Storage > Storage Sense). A "
+        f"manual run is available either way ({run_now})."
+    )
+
+
+def os_autoclean_advisory(
+    target: Path, policy: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Report-only: name the OS auto-clean mechanism that should own this zone.
 
     Mirrors the managed-state rule for products: when the OS already ships a
@@ -1242,24 +1357,35 @@ def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
     if not covers_target:
         return None
     if sys.platform == "win32":
+        threshold = (policy or baseline_policy())[
+            "os_temp_recommendation_threshold_bytes"
+        ]
         state = windows_storage_sense_state()
+        zone = measure_temp_zone(temp_root)
         effective = (
             state["enabled"] is True
             and state["temporary_files_cleanup"] is True
             # Cadence 0 = "during low free disk space", which may never fire.
             and (state["cadence_days"] or 0) > 0
         )
-        return {
-            "mechanism": "windows-storage-sense",
-            "state": state,
-            "recommendation": None
-            if effective
-            else (
+        if zone["logical_bytes"] >= threshold:
+            recommendation = storage_sense_size_recommendation(state, zone, threshold)
+        elif zone["complete"] or effective:
+            recommendation = None
+        else:
+            # An incomplete measurement below the threshold proves nothing
+            # about the size, so only the configuration speaks.
+            recommendation = (
                 "This zone includes the user temp directory, which Windows "
                 "Storage Sense can clean automatically. Recommend enabling "
                 "temporary-file cleanup on a scheduled cadence (Settings > "
                 "System > Storage) instead of hand-cleaning it here."
-            ),
+            )
+        return {
+            "mechanism": "windows-storage-sense",
+            "state": state,
+            "temp_zone": {**zone, "threshold_bytes": threshold},
+            "recommendation": recommendation,
         }
     if sys.platform.startswith("linux"):
         configured = any(
@@ -1835,8 +1961,10 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
+    stdlib_shadowing: list[dict[str, Any]] = []
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
@@ -1883,6 +2011,7 @@ def scan_tree(
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
+        "stdlib_shadowing": stdlib_shadowing,
         "children_rollup": children_rollup(
             entries,
             unknown_paths=unknown_paths,
@@ -1899,6 +2028,109 @@ def scan_tree(
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
     return payload
+
+
+def bytecode_module_names(directory: Path) -> list[str] | None:
+    """Module names a ``__pycache__`` holds bytecode for, from one scandir.
+
+    ``None`` means the directory could not be listed, which is not the same as
+    holding no bytecode.
+    """
+    try:
+        with os.scandir(directory) as iterator:
+            names = [entry.name for entry in iterator]
+    except OSError:
+        return None
+    return sorted({name.split(".", 1)[0] for name in names if name.endswith(".pyc")})
+
+
+def annotate_stdlib_shadowing(
+    entries: list[dict[str, Any]], target: Path
+) -> list[dict[str, Any]]:
+    """Flag user-home-root ``*.py`` files whose stem is a stdlib module name.
+
+    Advisory only: the annotation never adds a hint, a confidence, or any
+    eligibility. Such a file shadows the stdlib module for a Python process
+    whose ``sys.path[0]`` is the home directory (``-c``, ``-m``, the REPL),
+    and the sibling ``__pycache__`` is rebuilt on the next import, so the
+    report should point at the source rather than the cache. The home root
+    sibling ``__pycache__`` entry gains ``bytecode_sources`` naming the
+    modules its ``.pyc`` files were compiled from.
+    """
+    home = user_home()
+    if home is None:
+        return []
+    try:
+        home_relative = home.resolve().relative_to(target.resolve()).as_posix()
+    except (OSError, ValueError):
+        return []
+    prefix = "" if home_relative == "." else f"{home_relative}/"
+    # The home prefix comes from Path.home() while entry paths come from
+    # scandir names, and on Windows the two may differ only in case.
+    fold = str.casefold if sys.platform == "win32" else str
+    folded_prefix = fold(prefix)
+    children: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        path = entry["path"]
+        if fold(path).startswith(folded_prefix) and "/" not in path[len(prefix) :]:
+            children[path[len(prefix) :]] = entry
+    # Built-in modules resolve before sys.path is searched, so sys.py or
+    # time.py in the home directory never shadows them.
+    stdlib = sys.stdlib_module_names - set(sys.builtin_module_names)
+    shadows: dict[str, dict[str, Any]] = {}
+    for name, entry in children.items():
+        stem, dot, suffix = name.rpartition(".")
+        # A case-insensitive filesystem imports Random.py for `import random`.
+        stem = fold(stem)
+        if (
+            # Python follows a symlinked module source.
+            entry.get("kind") in ("file", "link")
+            and dot
+            and fold(suffix) == "py"
+            and stem in stdlib
+        ):
+            shadows[stem] = entry
+    cache = children.get("__pycache__")
+    compiled: list[str] | None = None
+    # Compare folded names: shadows is keyed by the folded stem.
+    folded_children = {fold(name): entry for name, entry in children.items()}
+    if cache is not None and cache.get("kind") == "directory":
+        compiled = bytecode_module_names(target / cache["path"])
+        if compiled is not None:
+            cache["bytecode_sources"] = [
+                {
+                    "module": module,
+                    "source": folded_children.get(fold(f"{module}.py"), {}).get(
+                        "path"
+                    ),
+                    "shadows_stdlib": fold(module) in shadows,
+                }
+                for module in compiled
+            ]
+    folded_compiled = {fold(module) for module in compiled or []}
+    findings = []
+    for module, entry in sorted(shadows.items()):
+        has_bytecode = module in folded_compiled
+        entry["advisories"] = [
+            {
+                "id": "stdlib-module-shadow",
+                "module": module,
+                "reason": (
+                    f"Shadows the standard-library module '{module}' for Python "
+                    "started from the home directory with -c, -m, or the REPL. "
+                    "Rename or move the file; deleting its bytecode cache does "
+                    "not help, because the next import rebuilds it."
+                ),
+            }
+        ]
+        findings.append(
+            {
+                "path": entry["path"],
+                "module": module,
+                "bytecode_cache": cache["path"] if has_bytecode and cache else None,
+            }
+        )
+    return findings
 
 
 def annotate_tracked(
@@ -3965,7 +4197,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
-            advisory = os_autoclean_advisory(target)
+            advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
             if root_children_mode:
                 admitted, skipped = enumerate_root_children(

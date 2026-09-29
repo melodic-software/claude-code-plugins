@@ -17,6 +17,7 @@ the usual way one of these moves. These stamps are page reads with a date, not s
 - [Layout and files](#layout-and-files)
 - [Report-file write guardrail (packet filenames)](#report-file-write-guardrail-packet-filenames)
 - [Packet files are write-once evidence (sibling hooks rewrite them in place)](#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place)
+- [What a sealed packet asserts](#what-a-sealed-packet-asserts)
 
 ## Layout and files
 
@@ -98,8 +99,13 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
     a symlink pointing out of the packet). Integrity unknown: carry it forward as a stated
     limitation rather than reading it as either a pass or a failure.
 
+  Run `verify` unpiped. A pipe such as `| tail` makes `$?` report the last command's status, so an
+  altered packet (exit 1) can read as a clean pass. When a pipe is unavoidable, capture
+  `${PIPESTATUS[0]}` and use that, not `$?`.
+
   Exit **0** means nothing changed *since the seal*. It is not a claim the content is pristine,
-  because a rewrite before the first seal is invisible to any digest.
+  because a rewrite before the first seal is invisible to any digest. It is also not a claim the
+  audited world still matches; see [What a sealed packet asserts](#what-a-sealed-packet-asserts).
   When reading a packet back, probe a **closed set** of grounded-findings basenames, in this order:
   `audit-notes.md` (current), `audit-data.md` (the single documented fallback below), `findings.md`
   (older packets may carry this name). The set is closed **by design**: the
@@ -203,12 +209,79 @@ evasion.
 **Write-once is a discipline, not a filesystem guarantee (#3866).** The producing agent
 holds Write (and the main thread can Edit). Nothing makes a sealed file physically
 unwritable. `packet-seal.sh verify` reports CHANGED after the fact; `record` then refuses
-to reseal, so later files in that packet stay UNSEALED. That loss is unrecoverable for
-this packet. Mechanical chmod, or a write proxy that refuses sealed files, is unpaid.
-A sealed packet asserts bytes at seal time, not current world state (the snapshot
-question on #3867). Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`),
-never an edit of a file already on disk.
+to reseal, so later files in that packet stay UNSEALED against `packet.sha256`. That
+original manifest is never overwritten. `record --acknowledge-divergence` writes
+`packet.sha256.<n>` for the bytes as they are now and leaves `packet.sha256` in place, so
+`verify` still reports CHANGED. The generation is a forward record, not a clean bill of
+health. Mechanical chmod, or a write proxy that refuses sealed files, is unpaid.
+A sealed packet asserts bytes at seal time, not current world state; see
+[What a sealed packet asserts](#what-a-sealed-packet-asserts). Corrections go in a new file
+(`audit-notes-2.md`, `evidence-<n>.md`), never an edit of a file already on disk. If live
+state contradicts a packet claim about mutable configuration, treat that as a timeline
+question (the world may have moved since the capture), not as a correction that the packet
+was wrong.
 
 | Claim | Basis | As of | Recheck |
 |---|---|---|---|
-| Write-once is an agent discipline with after-the-fact verify. The system does not make sealed files unwritable. Breaking it is terminal for that packet. | `packet-seal.sh` record/verify (reseal refuses over a CHANGED entry); this section's three rules; `agents/auditor.md` Write grant. | 2026-09-28 | A paid slice that makes sealed packet files physically unwritable on the platforms this plugin supports without breaking the documented re-seal of `packet.sha256`, or `packet-seal.sh` gaining an `--acknowledge-divergence` path. |
+| Write-once is an agent discipline with after-the-fact verify. The system does not make sealed files unwritable. Breaking it is terminal for `packet.sha256`. `--acknowledge-divergence` writes `packet.sha256.<n>` and does not replace the original. | `packet-seal.sh` record/verify; `packet-seal.test.sh` acknowledge cases; this section's three rules; `agents/auditor.md` Write grant. | 2026-09-28 | `verify` starts treating `packet.sha256.<n>` as a replacement for `packet.sha256`, or a platform lock makes sealed files unwritable without breaking the documented re-seal of `packet.sha256`. |
+
+## What a sealed packet asserts
+
+A sealed packet is a snapshot. `verify` checks the packet's files against the manifest
+written at the last `packet-seal.sh record`; it does not show that the audited world still
+matches.
+
+- **Claim:** A sealed packet asserts the bytes of every file named in `packet.sha256` as
+  they were at the last successful `record`. `verify` exit 0 means those files still
+  match and nothing regular in the packet is unsealed. It does not mean the audited
+  component still looks like that, that the producing session stopped, or that the
+  bytes were pristine before the first seal. A later `evidence-<n>.md` or a later
+  run-nonce is a newer snapshot; the producing session has no obligation to re-seal or
+  mark an earlier packet superseded when the audited world moves. Write-once remains
+  an agent discipline with after-the-fact `verify` ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)):
+  a correction is a new file, then a re-seal, never an edit of a sealed file.
+- **Basis:** This file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
+  COVERED / NOT COVERED header and exits 0 / 1 / 2 / 3; issue
+  [#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867).
+- **As of:** 2026-09-28.
+- **Recheck:** `packet-seal.sh` grows a currency or superseded marker, a mechanical
+  write-once lock ships ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)),
+  or the Resume rule stops grouping packets by run-nonce.
+
+### Assertion list (what `verify` actually proves)
+
+| Asserts | Does not assert |
+| --- | --- |
+| Each `packet.sha256` entry still hashes to that digest (`MATCH`) | The audited plugin or component still matches the packet (currency) |
+| No regular packet file is missing from the manifest (`verify` exit 0, not 3) | Bytes were pristine before the first seal (the writer's read-back catches that) |
+| The packet held those bytes at last `record` (snapshot at seal time) | The producing session has stopped, or later flushes have not landed |
+| `CHANGED` / `MISSING` (exit 1) is altered evidence, not ground truth | A later numbered `evidence-<n>.md` is invalid; it is a newer snapshot |
+
+### How a reader tells snapshot from superseded, without the producing session
+
+- **Run identity.** `<run-nonce>` (`YYYYMMDDTHHMMSSZ`) is one run. A greater nonce in the
+  same session directory is a later run. The Resume rule already groups by nonce and
+  reports every group; a group you did not select is set aside, not superseded: it may
+  audit a different target, and nonce order alone cannot prove a legitimate successor,
+  because a planted high-sorting nonce is possible.
+- **Flush identity.** Supplementary evidence is `evidence-<n>.md` beside `evidence.md`,
+  never an append. A higher `n` in the same packet is a later flush of that snapshot
+  sequence.
+- **Unsealed files.** `verify` exit 3 names files that arrived after the last seal.
+  Their integrity is unknown. They are not a claim that the sealed files are current
+  world state.
+
+### Producer obligations after sealing
+
+- **Packet files:** write-once. Never edit a sealed file. A correction is a new file,
+  then `record` again. `record` refuses to reseal over a `CHANGED` entry;
+  `--acknowledge-divergence` writes `packet.sha256.<n>` and leaves `packet.sha256` as is.
+- **The audited world:** no obligation to re-seal, delete, or mark the packet
+  superseded when later operations change the thing the packet described. The packet
+  remains a seal-time snapshot. A same-target re-audit in a later run already gets its
+  own nonce directory.
+- **Multi-flush:** already a sequence of snapshots. Each numbered flush is a new
+  artifact. That is the whole answer to "what each asserts relative to its successors."
+
+Nothing in this plugin's surfaces may be read as "the seal proves the packet is still
+true of the world." `verify` exit 0 proves only that the current files match the current manifest.
