@@ -8,8 +8,8 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 ### Changed
 
 - README: the Behavior list now states the gitignored skip and points at the `eol_normalizer_lint_gitignored` option.
-- The setup skill's rerun caveat names the plugin-reconfiguration convention's Verified-version record as its basis, with the verified release and a recheck trigger.
-- README: Requirements declare Node.js on `PATH`, and the performance note describes the exec-form row instead of the removed shell-form row, with its measured figures dropped. The setup skill's `check` probes `node`.
+- The setup skill's rerun caveat passes `-s user` per the plugin-reconfiguration convention and names its Verified-version record as the basis, with the verified release and a recheck trigger.
+- README: Requirements declare Node.js on `PATH`, and the performance note describes the exec-form row instead of the removed shell-form row, with its measured figures dropped. The setup skill's `check` probes `node`. A missing `node` stays FAIL when the toggle is off.
 - Corrected the 0.7.4, 0.6.61 and 0.6.60 entries: resync-only, no behavior change.
 
 ## [0.7.4] - 2026-09-28
