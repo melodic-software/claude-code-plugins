@@ -134,9 +134,9 @@ configured after a best-effort secret-shape filter, so check them before sharing
 
 ## Inventory
 
-| Scope | Name | Effective | Transport | Launcher | Package | Pin | Publisher | Sandboxed |
-|-------|------|-----------|-----------|----------|---------|-----|-----------|-----------|
-| user | example | yes | stdio | npx | @scope/pkg@1.2.3 | exact | @scope | no |
+| Scope | Name | Effective | Transport | Launcher | Package | Pin | Publisher | Sandboxed | Provided by |
+|-------|------|-----------|-----------|----------|---------|-----|-----------|-----------|-------------|
+| user | example | yes | stdio | npx | @scope/pkg@1.2.3 | exact | @scope | no | - |
 
 ## Findings
 

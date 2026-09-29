@@ -9,13 +9,14 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 - **`audit-posture` marks `provided_by` as informational.** Phase 1 now says the column only lets
   the operator tell organization-provided servers (which `claude mcp remove` refuses) from
-  user-configured ones; no P1-P5 criterion reads it.
+  user-configured ones; no P1-P5 criterion reads it. The Phase 3 inventory table gains a
+  `Provided by` column so the saved report keeps it.
 
 ### Fixed
 
 - In-place correction of the released 0.5.2 entry: its `### Added` bullet repeated the 0.5.1
-  `provided_by` entry although 0.5.2 changed no files under the plugin. The body now states there
-  is no consumer-visible change.
+  `provided_by` entry although 0.5.2 made no consumer-visible or implementation change. The body
+  now says so.
 
 ## [0.5.4] - 2026-09-28
 
