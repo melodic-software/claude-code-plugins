@@ -7,7 +7,8 @@ the sweep branch, worktree, and draft PR. `S` below is `${CLAUDE_SKILL_DIR}/scri
 
 Sweeps run in worktree-isolated sessions. Call each script in `S` by its path (`S/state.sh`, not
 `bash S/state.sh`; the scripts are executable). Run each git command as its own Bash invocation,
-never combined with `&&` or other commands in one call.
+never combined with `&&` or other commands in one call. The record for these shapes is in
+`SKILL.md`.
 
 ## 1. Check for an existing sweep
 
@@ -37,8 +38,9 @@ State the repo order rule once: alphabetical from `.github`, the chezmoi dotfile
    --json state -q .state`. `CLOSED` means the skill no longer needs its override: add
    `override removable: #<n> closed` to the reason and list it at the end of the report.
 4. Resolve arguments in angle brackets (`<human-facing markdown files>`, `<eval suite paths>`,
-   `<instruction roots>`, `<lane>`) to concrete values for this repository and show them. `next`
-   resolves them again when the step runs.
+   `<instruction roots>`, `<lane>` as one lane, a comma list, or `all` expanded to lane names) to
+   concrete values for this repository and show them. `next` resolves them again when the step
+   runs.
 
 ## 3. Show and select
 

@@ -8,7 +8,8 @@ every branch name, step id, and playbook name you put in a command.
 
 Sweeps run in worktree-isolated sessions. Call each script in `S` by its path (`S/state.sh`, not
 `bash S/state.sh`; the scripts are executable). Run each git command as its own Bash invocation,
-never combined with `&&` or other commands in one call.
+never combined with `&&` or other commands in one call. The record for these shapes is in
+`SKILL.md`.
 
 ## 1. Find the sweep and gate
 
@@ -66,6 +67,10 @@ never combined with `&&` or other commands in one call.
    Follow the notes the same way.
 2. Invoke each skill in the entry's `skill` list, in order, via the Skill tool, passing only the
    entry's `args`. Skills in one entry share the session: the first one's findings feed the next.
+   **Tidy multi-lane:** when the `tidy` entry's resolved `args` is a comma-separated list or
+   `all`, invoke `/code-tidying:tidy` once per lane (strip whitespace; `all` expands to every lane
+   name that applies, except `self-update`). Carry findings forward across those invocations; do
+   not `/clear` between lanes.
 3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
    produced by running that procedure in full as the skill states it. A summary of them, or a
    skipped procedure step, does not complete the step. The user reviews them for accuracy before

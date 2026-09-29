@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.3] - 2026-09-28
+
+### Changed
+
+- **audit:** target resolution goes through `scripts/lib/resolve-targets.sh`. A bare
+  invocation, explicit paths, a directory, a paths file, and the offset window all use one
+  git listing (`core.quotePath=false`). A missing git binary and a directory outside a
+  checkout each keep their stderr line.
+
+## [0.11.2] - 2026-09-28
+
+### Changed
+
+- **audit:** config cascade reads go through `scripts/lib/cascade-read.sh`. Scalar override,
+  wholesale-replace lists, and per-slug maps each have one function. A layer jq refuses is
+  skipped whole, a CRLF-emitting jq yields the same value as LF, and an explicit empty list
+  clears the inherited list.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed

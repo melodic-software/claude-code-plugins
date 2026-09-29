@@ -30,6 +30,17 @@ Read the matching procedure file before acting. Each action runs in a fresh sess
 
 Sweeps run in worktree-isolated sessions. In procedures, call scripts by path (`S/state.sh`, not
 `bash S/state.sh`; they are executable) and run each git command as its own Bash invocation.
+File issue bodies from a path, not from stdin.
+
+**Record.** Claim: a worktree-isolated session refused `bash <script>`, a chained
+`git fetch ... && git merge --ff-only ...`, and `gh issue create --body-file -` fed from a
+heredoc whose text mentioned git; direct script paths, one git command per call, and a body file
+were accepted. Basis: observed during the melodic-software/.github sweep (PR
+melodic-software/.github#153), recorded in
+[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537); the guard's
+documented rule is <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
+(Command shape). As of: 2026-09-26. Recheck: the Command shape bullet or a release note changes
+which Bash forms an isolated session accepts. The procedure files point here for these shapes.
 
 ## Scripts
 
