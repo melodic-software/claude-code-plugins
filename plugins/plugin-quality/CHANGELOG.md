@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.0] - 2026-09-29
+## [0.10.0] - 2026-09-29
 
 ### Added
 
@@ -14,12 +14,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ledgers every component under the three categories (`reference/categories.md`), the
   `collect-categories.sh` and `collect-standards.sh` collectors cite the resolved convention home
   (an unresolved home is stated, nothing inferred), and each component-type lens gains a
-  `## Categories` section. Step 3 grades the ledger before it is presented.
+  `## Categories` section. Step 3 grades the ledger before it is presented. The standards
+  collector reports prose-graded seam-phrasing hits as `candidate` leads the auditor confirms, and
+  the ledger carries blindspots, unverified claims and doc-worthy gotchas under their own headings.
 - **Research gate on remediations.** A remediation at or above the effort tier's severity floor
   needs a research line (`/discovery:research` when installed, the manual discipline otherwise);
   one without it, or with an open question, is emitted as `needs-decision`, never `agent-ready`.
   Audit-style plugins also get their emitted-finding samples validated, and a false one is graded
   `verdict: false`.
+
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- **`/plugin-quality:audit` gains `session` and `arm` modes ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)).**
+  `session` discovers the plugins and skills the session used through the session-flow retro
+  transcript parser, confirms the list with the operator, and runs the existing pipeline over the
+  union. `arm` starts the session-flow running-retro observer at session start and records the
+  armed state. Both are operator-invoked only, with no hook.
+- **Evidence bar and research gate.** A candidate with no session artifact is listed as `unfiled`
+  with its reason and never emitted. A suggested change is labeled agent-ready only after a
+  `/discovery:research` pass with its source tiers recorded; otherwise it files as needs-decision.
+- **Review seams named by role** (adversarial re-examination, upstream conformance, the current
+  model's adaptation chapter, scope challenge), presence-gated and resolved at run time, each with an
+  absent-fallback line, plus a "What this composes" section. Detail lives in
+  `reference/session-mode.md`; five evals cover the new behavior.
 
 ## [0.8.0] - 2026-09-29
 

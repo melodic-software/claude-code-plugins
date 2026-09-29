@@ -1,6 +1,6 @@
 ---
 description: "Post-use behavioral audit of a Claude Code plugin component, a skill, agent, hook, command, or config, after using or setting it up, ending in a work item emitted to the plugin's maintainers. Covers errors, improvements, and quality of life for each audited component. Use when vetting, reviewing, stress-testing, or hardening a plugin component, when the ask is 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin (or hook) well-designed', 'find bugs or gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
-argument-hint: "<plugin>[:<component>]"
+argument-hint: "<plugin>[:<component>] | session | arm"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Behavioral audit of a plugin component ending in a maintainer work item
 ---
 
-**Arguments.** `<plugin>[:<component>]`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails).
+**Arguments.** `<plugin>[:<component>] | session | arm`. One or more plugins, or a phrase naming several (e.g. source-control:commit, or guardrails). `session` and `arm` are whole arguments, never combined with a target; see [Session mode and arm](#session-mode-and-arm-operator-invoked-only).
 
 # Plugin audit
 
@@ -152,10 +152,26 @@ prune, the context-gate re-evaluation, and the step 3 persist-check for each pac
 returns). Do not wait on one auditor before dispatching the next; the per-target audits are
 independent and share nothing but the run nonce.
 
+`session` supplies this list from the session's own transcript, after the operator confirms it.
+
 The list is what the packet layout is keyed on, never the raw argument. A natural-language phrase
 sanitizes to a slug matching no directory the run ever created, so a post-compaction resume that
 re-derives the slug from the argument concludes the findings are missing from a run that wrote
 several packets.
+
+## Session mode and arm (operator-invoked only)
+
+Two more entries to this same audit, not new skills. No hook starts either and the model never
+selects one; a model that thinks a session earns the pass offers it in one line and waits. Read
+[`reference/session-mode.md`](reference/session-mode.md) before running either.
+
+- **`arm`**, at session start: invoke `/session-flow:running-retro arm` when session-flow is
+  installed (absent: say the observer cannot be armed here and stop), then record the armed state
+  in this plugin's data directory. Nothing is audited.
+- **`session`**, at session end: run the session-flow retro transcript parser (reused, never a
+  second parser), read its `plugin_usage`, show the discovered plugin and skill list, and wait for
+  the operator to confirm it. The confirmed list is the resolved target list above; steps 1 to 6
+  then run over the union unchanged, and step 6's egress gate is untouched (unattended: rung 4).
 
 ## Evidence packet (one per resolved target, created in step 1, survives compaction)
 
@@ -268,6 +284,11 @@ runs after context loss, when the `auditor`'s return is gone and re-dispatch is 
 findings at all. This check runs at receipt, while the return is still in hand, so persisting it is
 available, and skipping it is what manufactures the resume rule's problem one compaction later.
 
+**Evidence bar.** A candidate finding is fileable only with a session artifact behind it (a report,
+an exit code, a transcript excerpt, saved in the packet and cited by file). A candidate without one
+is `unfiled`: list it with its reason in `contract.md` and in what you present, and never emit it.
+[`reference/session-mode.md`](reference/session-mode.md) "Evidence bar" defines what counts.
+
 Then present per the zone table (dumb/unknown: summary + packet pointer, no bulk re-read, the full
 list lives in the packet's grounded-findings file).
 
@@ -279,6 +300,12 @@ target repo for the emit. Write the locked contract into the packet
 (`contract.md`), then re-seal it. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>`, so the contract is
 covered rather than left as an unsealed file a later `verify` can only report as ungraded. This is
 where the human's judgment enters the audit. Do not skip it.
+
+**Research gate (readiness label).** A suggested change is labeled `agent-ready` only after a
+`/discovery:research` pass, with its source tiers recorded in the item. Every other suggested
+change files as `needs-decision`, and research that is absent, declined, or empty means
+`needs-decision`, never `agent-ready` ([`reference/session-mode.md`](reference/session-mode.md)
+"Research gate").
 
 **Autonomous invocation (no interactive user).** When this skill is invoked by a loop lane (e.g.
 `/work-items:work-loop`), by another agent, or in any other unattended context, there is nobody to
@@ -294,7 +321,7 @@ Applied to the five contract-lock decisions:
 
 | Decision | Unattended resolution |
 |---|---|
-| Scope (which findings are in) | The dispatching item's own acceptance criteria and out-of-scope list bind it when it carries them. Absent that, **every** finding the `auditor` returned is in scope, the conservative answer, since narrowing scope is what needs a human. |
+| Scope (which findings are in) | The dispatching item's own acceptance criteria and out-of-scope list bind it when it carries them. Absent that, **every** finding the `auditor` returned that clears the evidence bar is in scope, the conservative answer, since narrowing scope is what needs a human. |
 | Severity calibration | The `auditor`'s returned severities stand as-is, marked uncalibrated. Never re-grade a severity without a human. Findings persisted through step 3's backstop are the exception to "stand as-is": that path rests on a marker-string match with the least verification of any route into the packet, so mark each such finding `backstop-persisted: unverified` in `contract.md` and never let an unattended run treat it as ground truth for anything beyond carrying it forward to a human. |
 | Severity floor | Every in-scope finding clears it. The floor only narrows the `medium` effort breadth pass; dropping findings from review is what needs a human, matching the scope decision. Record the default in `contract.md` as auto-resolved. `high` and above ignore the floor. |
 | Named assumptions | Carry forward the `auditor`'s own stated assumptions and unverified claims verbatim, plus one assumption naming the unattended invocation itself. |
@@ -327,6 +354,20 @@ runs is used when installed, with a one-line fallback when absent:
   the audited plugin's code, so this seam is usually idle. *Absent:* re-state what was written
   and show the diff to the user.
 
+Four more seams are named by **role** and resolved at run time by matching the role against the
+skills this session lists, never from a list here. They run at `high` effort and above; below that
+the write-up says they were skipped. Each is used when a skill filling the role is installed:
+
+- **Adversarial re-examination**, a blind fresh-context attempt to refute each finding. *Absent:* a
+  fresh subagent re-derives each finding from its cited artifact and reports what did not reproduce.
+- **Upstream conformance**, each harness or upstream claim checked against current official docs.
+  *Absent:* step 2's own per-topic doc check is the only one; say so in the write-up.
+- **The running model's adaptation chapter**, suggested changes read against current guidance for
+  the model in use. *Absent:* note that no model-specific guidance was consulted.
+- **Scope challenge** through the overengineering audit, each suggested change asked whether it
+  needs to exist. *Absent:* answer that question and "does a smaller change cover it" per change in
+  the item.
+
 Before any seam runs, report seam resolution in one line per seam: used, or fell back, and why
 (not installed, disabled, or not applicable). A required seam that fell back, including
 `skill-quality:check` on a skill target, is a visible degradation.
@@ -353,7 +394,7 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
    never-delete-the-deliverable rule on finding `item*.md` in the packet (`item.md`, or
    `item-<owner>.md` when one audit emits for a second owner).
 
-**Research decides the label.** A remediation with `research: open-question`, or one that did not
+**Research decides the label.** Step 4's research gate applies to the ledger: a remediation with `research: open-question`, or one that did not
 clear the research seam at this run's effort, is a decision for the maintainers, not a
 recommendation. Carry it in the item as `status: needs-decision` (or as a stated open decision
 where the sink has no labels) and never mark it autonomous-eligible (`agent-ready` by default). Only
@@ -390,6 +431,18 @@ design-failure checklist (silent bypass surfaces, enforcement scope/tiers includ
 property the producer can break, SSOT/drift, coupling, cross-platform, escape hatches,
 observability).
 
+## What this composes
+
+This audit calls, and replaces none of: `/session-flow:retro` (its transcript parser, for `session`),
+`/session-flow:running-retro` (`arm`), `/discovery:research` (the research gate), `skill-quality:check`,
+`review:fanout` / `review:quality-gate`, and the role-resolved seams of step 5. Each is used
+presence-gated with the fallback stated where it is invoked. Every one keeps its own owner and
+behavior.
+
+## Next
+
+`/work-items:work` in the audited plugin's own repository, which claims the emitted item and executes it.
+
 ## Reference index. Load on demand
 
 | File | Load when |
@@ -397,6 +450,7 @@ observability).
 | `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
 | `reference/categories.md` | Before step 2 writes findings, and before step 3 grades the ledger. |
 | `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
+| `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
 | `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
