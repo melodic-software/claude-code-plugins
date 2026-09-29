@@ -326,7 +326,7 @@ assert_not_contains "a target-typed new is not a call" "$bind_blob" '"call":"new
 assert_contains "a call on an undeclared name has an unknown receiver type" "$(hops_of "$bind_json" Where)" "$outside\"receiver-type-unknown\""
 assert_contains "a call chained on a result has an unknown receiver type" "$(hops_of "$bind_json" ToList)" "$outside\"receiver-type-unknown\""
 assert_contains "a constructor of a tree class without one is callee-not-in-tree" "$(hops_of "$bind_json" Stock)" "$outside\"callee-not-in-tree\""
-assert_contains "a var local initialised with new resolves" "$(hops_of "$bind_json" Reserve)" '"callee_file":"src/Domain/Stock.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
+assert_contains "a var local initialized with new resolves" "$(hops_of "$bind_json" Reserve)" '"callee_file":"src/Domain/Stock.cs","callee_line":"3","sync":"synchronous","resolution":"statically-resolved"'
 assert_contains "an unqualified call resolves in the enclosing class" "$(hops_of "$bind_json" Local)" '"callee_file":"src/Application/Checkout.cs","callee_line":"25","sync":"synchronous","resolution":"statically-resolved"'
 assert_contains "the enclosing class's callee is walked" "$(hops_of "$bind_json" Record)" "$outside\"external-call\""
 assert_contains "a tree interface is unresolved with mechanism interface" "$(hops_of "$bind_json" Dispatch)" "$outside\"interface\""

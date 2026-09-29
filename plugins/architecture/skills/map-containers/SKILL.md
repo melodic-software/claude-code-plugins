@@ -115,7 +115,7 @@ A `sql` store is one host, port, and database. The database comes from `Initial 
 connection that names no database is the store `database unknown`, and a shared edge between its
 owners says `same server, database unknown`. A `sql` store's `technology` is its URL scheme
 (`mongodb`, `postgres`, `mysql`), `Azure SQL` for a `database.windows.net` host, and otherwise
-`unknown`. A connection string names no scheme, so it is never labelled SQL.
+`unknown`. A connection string names no scheme, so it is never labeled SQL.
 
 Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.sh` (the awk beside it). A password,
 token, account key, or URL userinfo must not appear in the record, the diagram, or stdout. A

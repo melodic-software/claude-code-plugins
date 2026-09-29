@@ -600,7 +600,7 @@ assert_equals "technology: a mysql URL is mysql" "$(field "$(node_line "$XREC" '
 assert_equals "technology: a connection string on a plain host is unknown" "$(field "$(node_line "$XREC" 'store:sql:plain.example.com::misc')" technology)" "unknown"
 assert_equals "technology: an Azure SQL host is Azure SQL" "$(field "$(node_line "$XREC" 'store:sql:az.database.windows.net:1433:x')" technology)" "Azure SQL"
 assert_equals "technology: every one of those stays kind sql" "$(grep -c '"store_kind":"sql"' "$XREC" || true)" "5"
-assert_not_contains "technology: nothing is labelled SQL" "$xtext" '"technology":"SQL"'
+assert_not_contains "technology: nothing is labeled SQL" "$xtext" '"technology":"SQL"'
 assert_not_contains "technology: a search index is not a store kind that is read" "$xtext" "acct.search.windows.net"
 assert_not_contains "technology: a SQLite Data Source file is not a store" "$xtext" "embedded-app.db"
 assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"

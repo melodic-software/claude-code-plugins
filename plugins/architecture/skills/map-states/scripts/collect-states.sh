@@ -220,7 +220,7 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
   if (mode != "out") fail("unsupported-syntax")
 }
 function last_ident(s) { return match(s, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$/) ? trim(substr(s, RSTART)) : "" }
-function parse_stateless(path, evidence,    raw, buf, n, i, stmt, v, e, initial, cur, rest, seg, trig, dest, guard, nm, k, ment, minit, kind) {
+function parse_stateless(path, evidence,    raw, buf, n, i, stmt, v, e, initial, cur, rest, seg, trig, dest, guard, nm, k, mentity, minit, kind) {
   buf = ""
   while ((getline raw < path) > 0) { sub(/\r$/, "", raw); sub(/\/\/.*/, "", raw); buf = buf " " raw }
   close(path)
@@ -238,14 +238,14 @@ function parse_stateless(path, evidence,    raw, buf, n, i, stmt, v, e, initial,
       initial = stmt; sub(/.*\(/, "", initial); sub(/\).*/, "", initial); sub(/.*\./, "", initial); initial = trim(initial)
       if (e !~ /^[A-Za-z0-9_.]+$/ || initial !~ /^[A-Za-z0-9_]+$/) { fail("unsupported-syntax"); return }
       v = stmt; sub(/=[[:space:]]*new[[:space:]]+StateMachine<.*/, "", v)
-      nm++; ment[nm] = e; minit[nm] = initial; vent[last_ident(v)] = e
+      nm++; mentity[nm] = e; minit[nm] = initial; vent[last_ident(v)] = e
       add_state(e, initial)
       continue
     }
     if (index(stmt, ".Configure(") == 0) continue
     v = stmt; sub(/\.Configure\(.*/, "", v); v = last_ident(v)
     if (v in vent) e = vent[v]
-    else if (nm == 1) e = ment[1]
+    else if (nm == 1) e = mentity[1]
     else { fail("unsupported-syntax"); return }
     cur = stmt; sub(/.*Configure\(/, "", cur); sub(/\).*/, "", cur); sub(/.*\./, "", cur)
     add_state(e, cur)
@@ -269,7 +269,7 @@ function parse_stateless(path, evidence,    raw, buf, n, i, stmt, v, e, initial,
       else break
     }
   }
-  for (k = 1; k <= nm; k++) finish_entity(ment[k], minit[k], "stateless", evidence)
+  for (k = 1; k <= nm; k++) finish_entity(mentity[k], minit[k], "stateless", evidence)
 }
 BEGIN {
   while ((getline rel < list) > 0) {

@@ -105,7 +105,7 @@ type is a class in the tree that declares the method. Never bind a call by metho
 | `broker` | `Publish<T>` or `Send<T>`, a hand-off |
 | `dynamic-publish` | `Publish` or `Send` with no type argument, a hand-off |
 | `external-call` | the receiver's type is outside the tree: a declared type no tracked file declares (`Dictionary`, `Logger`), or a type name written at the call (`Console.WriteLine`, `string.IsNullOrWhiteSpace`) |
-| `receiver-type-unknown` | no declaration of the receiver is in reach (a lambda parameter, a `var` initialised from a call), or the call is chained on a result (`.ToList()`) |
+| `receiver-type-unknown` | no declaration of the receiver is in reach (a lambda parameter, a `var` initialized from a call), or the call is chained on a result (`.ToList()`) |
 | `callee-not-in-tree` | the receiver's type is a class in the tree, but neither it nor an in-tree base class declares the method (an external base class, an extension method, a delegate, a constructor the class does not declare) |
 | `ambiguous-method` | the type is declared more than once in the tree, or declares the method more than once (overloads) |
 
