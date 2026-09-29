@@ -422,7 +422,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `plugin enable --scope user`, and that first step drops enabled state.
   Operator opt-in outside that path is `/plugin enable`. That covers the two whose bundled MCP
   servers need `userConfig` credentials this environment has no reason to hold, `miro`
-  (`miro_api_token`) and `dometrain` (`dometrain_api_key`), set with `/plugin configure`,
+  (`miro_api_token`) and `dometrain-mcp` (`dometrain_api_key`), set with `/plugin configure`,
   alongside `songwriting`, `kindle-dedrm`, and `ai-briefing`.
 
 ### GitHub MCP tools vs the gh CLI
