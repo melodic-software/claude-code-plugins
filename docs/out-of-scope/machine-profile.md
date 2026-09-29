@@ -38,8 +38,7 @@ set `disable-model-invocation: false`. `docs/conventions/invocation-mode/README.
 still lists three classes, class (ii) among them, and the invocation-reach
 invariant (a `true` skill cannot be invoked by any other skill). No
 `machine-profile` skill or plugin under `plugins/`. `machine-health` already
-owns a `config` category for declared-configuration drift. #4240 closed
-2026-09-29 when #5096 shipped `claude-ops:prerequisites`.
+owns a `config` category for declared-configuration drift.
 **As of:** 2026-09-29.
 **Recheck:** `scripts/validate-plugin-contracts.mjs` stops requiring
 `disable-model-invocation: true` on setup skills
