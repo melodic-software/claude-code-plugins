@@ -3,6 +3,32 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0] - 2026-09-29
+
+### Added
+
+- **Node.js on PATH is a declared requirement.** Every hook row launches through `node`, so the README Requirements section names it, `/guardrails:setup check` reports a missing `node` as a FAIL row, and `prerequisites.json` lists it for `/claude-ops:prerequisites`. The README states a missing node's outcome only as far as the Claude Code hooks reference documents it: a hook that cannot start is a non-blocking error for most events, and an exec-form command absent from PATH is not documented. `/guardrails:setup` apply text follows the reconfiguration convention (`-s user`, read the command output, observe in the next session).
+
+### Fixed
+
+- **`block-windows-drive-tmp` blocks a drive-root `\tmp` on a usertemp host and judges more `curl`/`wget` shapes.** On a stock Git for Windows host where POSIX `/tmp` is the user temp, `echo x > "\tmp\x"` was allowed. It is now refused. Short-flag clusters (`curl -sSLo /c/tmp/x URL`, `wget -qO /c/tmp/a URL`), `curl --output-dir` destinations and an option after a bare `-O` (`curl -O -o /c/tmp/x URL`) are judged as writes. The usertemp mount fallback needs `usertemp` on the `/tmp` mount's own line. The suite feeds each command to the hook on stdin, so the 15 `/usr/bin` writer cases that were skipped when the payload carried the command in argv now run.
+- **`block-root-delete-target` judges a PowerShell delete after a newline or inside a block.** `if (...) { Remove-Item -Recurse -Force C:\ }`, a delete after LF, CRLF or a bare CR, and a delete inside a scriptblock, grouping or `$( )` were skipped and are now judged. A `Remove-Item` whose target is a grouping stays refused in either argument order, and a delete of a bare variable inside a scriptblock (`ForEach-Object { Remove-Item -Recurse $_ }`) is refused like `rm -rf $X`.
+- **`$env:NAME\subpath` is no longer refused as a bare variable.** `$env:TEMP\build` (and `${env:TEMP}\build`) gets the answer Bash gives `$TEMP/build`; `$env:TEMP`, `$env:TEMP\` and `$env:TEMP\*` stay refused.
+- **The stale-path and skill-reference verifiers rebuild a partly written cache.** A cache another session is still writing, or one a crash cut short, is now a miss instead of a partial list that silently dropped findings. A cache written by an earlier version is rebuilt once, and a cache in an unwritable git directory no longer prints a permission error.
+- **The PowerShell classifier keeps one untrusted-reduction flag instead of two, and skips its carriage-return scan for commands with no CR.** No verdict changes: `scripts/check-guardrails-ps-differential.sh origin/main` reports 613 commands and no cell lost. The sink-budget tests are rebuilt on four triggers plus a stuck launcher.
+
+### Changed
+
+- README: `wsl` handling is dated to 0.38.11 and the guards that re-parse a `-c` or wsl operand are the six `block-*` guards, `block-hook-bypass` included; 8.3 temp handling is dated to 0.38.6; the `.work/.gitignore` redirect is no longer attributed to session-flow's procedure; the PowerShell here-string shapes refused with no allow token are listed with their rewrite; the plugin-scoped GitHub MCP matcher is shown; the contributor to-do and tracker state are removed.
+- `reference/edit-write-guards/PLAN.md` says the "no further process can be removed" floor was shown only for the PostToolUse cold-finding path, and marks the goal an unratified draft pending a human `/performance:goal` run.
+- Tests: `wsl` regression rows in the `block-hook-bypass`, `block-noncanonical-commit` and `block-convention-violation` suites.
+- **Released entries corrected in place, no heading removed.**
+  - 0.41.7 keeps only what changed for guardrails, the vendored `hook-utils.sh` optional `prerequisite` notice class.
+  - 0.40.0 drops the instruction to measure `RUN_GUARDS_PROFILE=1` on a Windows host and the "this Linux CI checkout" wording, and links #4235 instead of calling it open.
+  - 0.38.11 lists all six wsl re-parsing guards and states that `wsl.exe -e bash -c "echo secret > ..."` blocks through `block-hook-bypass` since 0.38.9.
+  - 0.38.1 is a changelog-only-bump note; the over-length fail-closed row, parse-once replay and linear tokenizer text moved to 0.38.0, which shipped that code.
+  - 0.37.3 is reduced to "Not released as its own version; see 0.38.0."
+
 ## [0.41.8] - 2026-09-28
 
 ### Fixed
