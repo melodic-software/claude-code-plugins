@@ -1,0 +1,138 @@
+# Promotion-evidence bootstrap contract
+
+The operator-supplied surfaces the trusted seam in
+[`promotion-evidence-resolution.md`](promotion-evidence-resolution.md) reads: what each one is,
+where it may live, and why. That file owns the resolution rule and the fail-closed table; this file
+owns what an operator provides. Providing these surfaces does not enable autonomous merge. No cycle
+step invokes `check-security-binding.mjs`, so every promotable cell resolves effective-unpromoted
+with or without them, and operators keep `--merge human-only` on launch lines.
+
+## Contents
+
+- [Allowed source class](#allowed-source-class)
+- [The three surfaces](#the-three-surfaces)
+- [Value shape](#value-shape)
+- [Out of scope](#out-of-scope)
+- [Verification record](#verification-record)
+
+## Allowed source class
+
+The surfaces come only from the class the autonomy setup skill names for security resolution:
+org-level platform configuration outside repo blast radius, or the executor's trusted deployment
+config
+([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md)
+"Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
+locations through the three plugin options below. Claude Code reads plugin options from user
+settings, the `--settings` flag, and managed settings only, and ignores a project's
+`.claude/settings.json` for them
+([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
+fact 5). The lane takes them as plugin options and never from the `CLAUDE_PLUGIN_OPTION_*`
+environment mirror.
+
+Never a source, for a location or for a surface itself:
+
+- `.claude/source-control.md` at any layer.
+- Any file inside the target repository.
+- A repository's `.claude/settings.json` `env` block, or the `CLAUDE_PLUGIN_OPTION_*` variables it
+  can populate for an unset option (same document, fact 4).
+- Anything the lane or an agent working the queue can write.
+
+The options say where a surface is; they do not make it unwritable. A user settings file is
+writable by any agent running as that user, so a location kept there is only as protected as that
+file. Managed settings, or a `--settings` file the executor owns, keep the location out of the
+agent's reach too. Whether a deployment meets the requirement is the operator's to establish. This
+file states the requirement and does not certify a deployment.
+
+## The three surfaces
+
+| Option | Passed to `check-security-binding.mjs` as | What it names |
+|---|---|---|
+| `promotion_evidence_binding` | the `<binding.json>` argument | file: the security binding document |
+| `promotion_evidence_root` | `--probe-evidence-root <dir>` | directory: the protected evidence surface |
+| `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
+
+The script's `Usage:` comment, and its `usage:` error message, list all three arguments
+([`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)).
+
+### `promotion_evidence_binding`
+
+The security binding document: each cell's bound `promotion_state` and its `ratified_at`. It lives
+in the binding's own home, the settings-as-code repository or org policy home (setup skill,
+"Two-surface split"), as a copy the executor provisions on the lane's host.
+
+Agent-unwritable, because the bound state is the ceiling: an agent that can edit the document
+raises a cell's bound state, or moves `ratified_at` past a contrary event so the checker drops that
+event as pre-epoch. Outside the target repository's blast radius, because that repository is where
+the agents being governed write.
+
+### `promotion_evidence_root`
+
+The protected evidence surface. The checker resolves each L2/L3 isolation entry's `probe_evidence`
+reference against this directory only, and rejects an absolute reference, a `..` escape, and a link
+that resolves outside it.
+
+Agent-unwritable, because the directory is what turns a transcript into proof: a root an agent can
+write lets a transcript swapped in after ratification supply the claimed isolation proof. With no
+root configured the checker reports `no --probe-evidence-root configured` and treats every L2/L3
+entry as unproven. Outside the target repository's blast radius, for the same reason as the binding.
+
+### `promotion_evidence_source`
+
+The events file: a JSON array of `{cell, event, at}` records, `event` one of `gate-failure`,
+`reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant. The checker scopes the
+events to each cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode
+header comment owns the rules; they are not restated here).
+
+Publication requirements:
+
+- An operator-side publisher writes the file. The lane and any agent working in the target
+  repository read it and cannot write it.
+- It carries every contrary event since the earliest promoted cell's `ratified_at`. The checker
+  demotes only on events present in the file, so a truncated or lagging copy hides a demotion. The
+  publisher keeps it current as of each cycle's start.
+- A file the checker cannot read as a JSON array is unavailable, and every cell resolves
+  effective-unpromoted.
+
+Agent-unwritable, because an agent that can write the file can delete a `reverted-merge` event and
+keep its cell promoted. Outside the target repository's blast radius, for the same reason as the
+binding.
+
+## Value shape
+
+Each option holds one local filesystem path and has no default. Unset means the bootstrap is
+absent. A set value is compliant only when it is:
+
+- **Absolute.** A relative path resolves against the launch directory, which for a lane started in
+  a checkout is inside the target repository.
+- **Outside the target repository's checkout and every worktree the lane creates.** That includes
+  `babysit_worktree_root`, `worktree_root`, and the plugin data directory's `worktrees/`, judged
+  after symlinks resolve.
+- **Read-only to the lane.** The lane's identity can read the surface and cannot write it. That is
+  a property of the host (ownership, an ACL, a read-only mount, an executor-owned volume). A path
+  string cannot show it, so the operator establishes it in how the surface is provisioned.
+
+## Out of scope
+
+- Lowering fail-closed. An unset, unreadable, relative, or repository-inside surface never falls
+  back to a weaker read.
+- Reading promotion evidence from `.claude/source-control.md` or any other repo-local or
+  agent-writable surface.
+- Autonomous merge on promotion grounds. Operators keep `--merge human-only` on launch lines while
+  the bootstrap is absent, and while it is present until a cycle step consumes it.
+- Invoking `check-security-binding.mjs` from the lane. The phased plan is in
+  [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
+
+## Verification record
+
+- **Claim:** the checker takes the binding document, `--evidence`, and `--probe-evidence-root` on
+  one usage line. With no root, every L2/L3 entry is unproven under a reason beginning
+  `no --probe-evidence-root configured`. An evidence file that is unreadable or not a JSON array
+  resolves every cell effective-unpromoted. Plugin options are read only from user settings,
+  `--settings`, and managed settings, and a repository's `env` block can populate the
+  `CLAUDE_PLUGIN_OPTION_*` variable of an unset option.
+- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
+  `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
+  `docs/conventions/hook-config-delivery/README.md` facts 4 and 5.
+- **As of:** 2026-09-29.
+- **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
+  plugin-option read scopes.
