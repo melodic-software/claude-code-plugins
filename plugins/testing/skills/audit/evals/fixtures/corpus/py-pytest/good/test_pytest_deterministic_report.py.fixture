@@ -1,0 +1,10 @@
+# exempt: rule-recomputed-expectation
+# Two calls on one corpus must agree; a report built from an unseeded hash or
+# set order would not. The annotation on the assertion line records the
+# determinism contract, and the scan counts the finding as exempt.
+from lexical import near_dup_report
+
+
+def test_near_dup_report_is_deterministic():
+    corpus = [("a.md", "x y z"), ("b.md", "x y z")]
+    assert near_dup_report(corpus) == near_dup_report(corpus)  # cant-fail-ok: determinism contract
