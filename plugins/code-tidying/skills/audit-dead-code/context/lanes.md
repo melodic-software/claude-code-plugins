@@ -143,15 +143,21 @@ non-source paths are not in the coverage total.
   it before crediting it as a reference.
 - **`unreferenced-file` reuses this search** on two keys per source file: the basename and the
   repo-relative path. A file in a language with no lane also gets its stem as a key, because a
-  compiled unit is named by its stem (`new Widget()`, `mod widget;`), never its filename. A hit in any other tracked file saves it. That includes CI workflows,
-  settings, manifests, and docs. A hit inside the file itself does not. The input set is shell,
-  PowerShell, Python entry points (line-1 shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json`
-  root owns, and source extensions with no lane. Go stays on the gopls lane. Knip still owns
-  unused TS/JS files inside a manifest root. The shape is tier 2: a computed path, a glob,
-  `python -m`, or a build file that never spells the path can still load the file, so the
-  candidate is uncertain, not dead. `-H -o` attribute the match to a file; both are on BSD grep.
-  Precision of this shape is unmeasured beyond the fixture contract (a workflow reference saves
-  the script it names; a script named nowhere is the one candidate).
+  compiled unit is named by its stem (`new Widget()`, `mod widget;`), never its filename. A hit in
+  any other tracked file saves it. That includes CI workflows, settings, manifests, and docs. A hit
+  inside the file itself does not. The input set is shell, PowerShell, Python entry points (line-1
+  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, and
+  source extensions with no lane. Go stays on the gopls lane. Knip still owns unused TS/JS files
+  inside a manifest root. The shape is tier 2: a computed path, a glob, `python -m`, or a build
+  file that never spells the path can still load the file, so the candidate is uncertain, not
+  dead. Precision of this shape is unmeasured beyond the fixture contract (a workflow reference
+  saves the script it names; a script named nowhere is the one candidate).
+- **`-H -o` attribute each match to its file, and BSD grep has both.**
+  **Claim:** BSD grep supports `-H` (always print the filename) and `-o` (print only the match).
+  **Basis:** [FreeBSD grep(1)](https://man.freebsd.org/cgi/man.cgi?query=grep&sektion=1): "-H
+  Always print filename headers with output lines." and "-o, --only-matching Prints only the
+  matching part of the lines." **As of:** 2026-09-28. **Recheck:** the lane fails on a BSD or
+  macOS userland, or the man page drops either flag.
 
 ## Why Rust, .NET, and an LSP scanning lane are absent
 
