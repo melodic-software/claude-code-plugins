@@ -367,9 +367,9 @@ rather than tidying. The dated quotes are in `reference/sources.md`, "What shim 
 Every upstream fact the cutover turns on lives as a four-part dated record in
 [`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
 the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
-the CI canary result, and what shim removal costs. `cutover-check.sh` parses the floor, the release
-map and the canary run out of that file rather than carrying its own copy, and exits 2 on a record
-it cannot read: a fact it cannot parse is one it must not silently skip checking. Read it before
+the CI canary result, the current fleet grade, and what shim removal costs. `cutover-check.sh`
+parses the floor, the release map and the canary run out of that file rather than carrying its own
+copy, and exits 2 on a record it cannot read: a fact it cannot parse is one it must not silently skip checking. Read it before
 arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
 detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed** surface and
 cannot see an `AGENTS.md` that Claude reads directly.
