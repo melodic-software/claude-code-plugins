@@ -301,7 +301,7 @@ re-deriving a row.
 
 | Component | Stance | Rationale and constraints | Verified |
 |---|---|---|---|
-| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model` (the override lasts for the current turn and is not saved; in auto mode a model auto mode does not support is not used and the session keeps its model; with `context: fork` the value sets the forked subagent's model). `model` verified 2026-09-28 against the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck when that row changes what `model` accepts or when auto mode stops keeping the session model. | 2026-07-17 |
+| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model` (the override lasts for the current turn and is not saved; in auto mode a model auto mode does not support is not used and the session keeps its model; with `context: fork` the value sets the forked subagent's model). `model` verified 2026-09-28 against the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck when that row changes what `model` accepts or when auto mode stops keeping the session model. | 2026-09-29 |
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
@@ -698,7 +698,7 @@ not rename a sibling to match.
 
 **Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
 rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
-gap; name the reason from this list. Two reasons may appear together.
+gap; name every reason from this list that applies. One or more may hold; one is enough.
 
 1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
 2. The only install command is unpinned (`@latest`), so it is not idempotent.
@@ -708,8 +708,8 @@ gap; name the reason from this list. Two reasons may appear together.
 `go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
 refusals. They stay; they are not defects against a missing subaction.
 
-- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal uses
-  the three-reason template; the fleet is not renamed onto one spelling.
+- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal names
+  the reasons that apply from the list; the fleet is not renamed onto one spelling.
 - **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
   `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
   `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
