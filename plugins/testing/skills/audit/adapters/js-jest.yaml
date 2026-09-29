@@ -1,0 +1,80 @@
+# Jest, and the default for any JS/TS test file no other JS adapter detects.
+# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
+id: js-jest
+language: js
+block_model: brace
+files:
+  - '*.test.js'
+  - '*.test.jsx'
+  - '*.test.ts'
+  - '*.test.tsx'
+  - '*.test.mjs'
+  - '*.test.cjs'
+  - '*.spec.js'
+  - '*.spec.jsx'
+  - '*.spec.ts'
+  - '*.spec.tsx'
+  - '*.spec.mjs'
+  - '*.spec.cjs'
+detect:
+  any_regex:
+    - '@jest/globals'
+    - 'jest\.(fn|mock|spyOn)'
+test_start:
+  - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\.[[:space:]]*(only|concurrent|failing|sequential))*[[:space:]]*(\.[[:space:]]*each[[:space:]]*\([^)]*\)[[:space:]]*)?\('
+test_skip:
+  - '(^|[^A-Za-z0-9_$.])(xit|xtest)[[:space:]]*\('
+  - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\.[[:space:]]*(skip|todo)'
+suite_skip:
+  - '(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\.[[:space:]]*skip)[[:space:]]*\('  # spellchecker:disable-line
+assertion:
+  # Matched generously: any helper whose name carries one of these counts. The
+  # t.<method> entry is the AVA / node-tap vocabulary, which asserts through
+  # the test-context object.
+  calls:
+    - 'expect[[:space:]]*\('
+    - '[Aa]ssert'
+    - '[Ss]hould'  # spellchecker:disable-line
+    - '[Vv]erify'
+    - '[Tt]hrows'
+    - 'rejects'
+    - 'resolves'
+    - '[Ss]napshot'
+    - '[Cc]heck'
+    - '[Ee]nsure'
+    - '[Vv]alidate'
+    - 'fail[[:space:]]*\('
+    - '(^|[^A-Za-z0-9_$.])t[[:space:]]*\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)'  # spellchecker:disable-line
+mock:
+  create:
+    - 'jest\.(mock|fn|spyOn)'
+    - 'vi\.(mock|fn|spyOn)'
+    - 'sinon\.(stub|spy|fake|mock)'
+    - 'createMock'
+    - '\.mockReturnValue'
+    - '\.mockResolvedValue'
+    - '\.mockImplementation'
+  verify:
+    - 'toHaveBeenCalled'
+    - 'toBeCalled'
+    - 'toHaveReturned'
+    - 'toHaveBeenNth'
+    - 'toHaveBeenLast'
+    - 'sinon\.assert'
+    - 'calledOnce'
+    - 'calledTwice'
+    - 'calledThrice'
+    - 'calledWith'
+    - 'callCount'
+  # Whole mock-interaction chains, removed before deciding whether a value
+  # assertion remains. [^()]*(\([^()]*\)[^()]*)* allows one nesting level; a
+  # deeper chain survives the strip and reads as a value assertion.
+  strip:
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*not)?[[:space:]]*\.[[:space:]]*(toHaveBeenCalled|toBeCalled|toHaveReturned|toHaveBeenNth|toHaveBeenLast)[A-Za-z]*[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+    - 'sinon\.assert\.[A-Za-z]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+equality:
+  # Inequality asserts are deliberately absent: Assert.NotEqual(f(2), f(2)) is
+  # an always-fail defect, not a recomputed expectation.
+  call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]
+  receiver: [expect.toBe, expect.toEqual, expect.toStrictEqual]
+suppress_marker: 'cant-fail-ok:'
