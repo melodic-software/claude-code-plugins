@@ -8,7 +8,8 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 ### Changed
 
 - `bench/trace-probe.sh --count` reports how many processes each tee render shape spawns before the wrapped statusline runs, and `bench/bench.test.sh` asserts the non-elected renders spawn none. The bench README records the counts (0 on the render path, 5 to 12 on the elected drain, which runs once per drain interval), so the tee needed no diet ([#4676](https://github.com/melodic-software/claude-code-plugins/issues/4676)). The tee itself is unchanged.
-- Corrected the 0.8.29, 0.8.31, 0.8.34 and 0.8.35 entries: each was a hook-utils.sh sync with no change to this plugin.
+- Corrected the 0.8.29, 0.8.31, 0.8.33, 0.8.34 and 0.8.35 entries: each was a shared launcher or hook-utils.sh sync with no change to this plugin.
+- Declared Node.js as a requirement: the README lists it and `/rate-limit-guard:setup check` probes it, because the `StopFailure` hook launches through `node hooks/exec-bash.mjs` and does not run without it.
 
 ## [0.8.36] - 2026-09-28
 
@@ -32,7 +33,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.8.32] - 2026-09-28
 

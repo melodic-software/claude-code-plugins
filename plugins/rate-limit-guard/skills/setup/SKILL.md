@@ -1,5 +1,5 @@
 ---
-description: "Verify the rate-limit-guard plugin's wiring on this machine: jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), tee freshness, and the StopFailure hook. Print the exact statusline edit for the operator to apply, and install the statusline shim. Use when: 'set up rate-limit-guard', 'is the rate-limit tee working', 'wire the rate-limit statusline', the tee file is stale, or a consuming loop lane reports guard mode unknown. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/rate-limit-guard/bin/statusline-shim.sh, on explicit request)."
+description: "Verify the rate-limit-guard plugin's wiring on this machine: jq, node, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), tee freshness, and the StopFailure hook. Print the exact statusline edit for the operator to apply, and install the statusline shim. Use when: 'set up rate-limit-guard', 'is the rate-limit tee working', 'wire the rate-limit statusline', the tee file is stale, or a consuming loop lane reports guard mode unknown. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/rate-limit-guard/bin/statusline-shim.sh, on explicit request)."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -8,10 +8,11 @@ shell: bash
 
 ## Pre-computed context
 
-`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
-the tool's path when present, or `absent` when missing:
+`check`'s `jq` and `node` probes ran at load time. Read these rows instead of re-issuing them; each
+shows the tool's path when present, or `absent` when missing:
 
 - `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
@@ -21,7 +22,7 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Narrow-write setup. This plugin's **configuration** surface is three kinds of thing setup cannot
 conformingly write:
 
-- **A system tool** (`jq`). `check` probes it; installing it is the operator's.
+- **System tools** (`jq`, `node`). `check` probes them; installing it is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
   `pluginConfigs` setup must never write. Reconfigure through Claude Code's native flow, per the
   marketplace's plugin-reconfiguration convention
@@ -79,6 +80,13 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 1. **`jq`.** The pre-computed `jq` row. FAIL if absent: without it the wrapper cannot tee (it stays
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
+   Then the `node` row. FAIL if absent: the `StopFailure` row in `hooks/hooks.json` is exec form,
+   `"command": "node"` with `hooks/exec-bash.mjs` in `args`, so without `node` on `PATH` the hook
+   never launches, a launch failure is non-blocking, and no rate-limit stop is recorded. The
+   statusline tee does not need it. Remediation: install Node.js (<https://nodejs.org/en/download>).
+   Verified 2026-09-29 against <https://code.claude.com/docs/en/setup>: the native `claude` binary
+   does not ship or use Node.js. Recheck when that page says the native binary bundles Node or the
+   hook row stops using `node`.
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare
    `~/.claude/rate-limit-guard/bin/statusline-shim.sh` (the durable shim copy) against
    `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and classify per
@@ -283,7 +291,7 @@ fallback lives in the file that was just deleted.
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user or project) or any other Claude Code settings surface;
   the printed edit is the operator's to apply.
-- Install `jq` or any system package.
+- Install `jq`, `node` or any system package.
 - Write to the contract files. The wrapper and the hook own `rate-limits.json` and
   `stop-events.jsonl`, and the shim owns its own `.statusline-tee-path` cache at run time; `apply`
   owns only `bin/statusline-shim.sh`.
