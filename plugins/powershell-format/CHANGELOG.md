@@ -7,13 +7,14 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Fixed
 
-- CHANGELOG: the 0.8.5 entry claimed format hooks probe at session start and that `/claude-ops:prerequisites` reads a `prerequisites.json` here. This plugin ships neither, by design (README Requirements, `skills/setup`); the entry now states what shipped ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).
+- CHANGELOG: the 0.8.5 entry claimed format hooks probe at session start and that `/claude-ops:prerequisites` reads a `prerequisites.json` here. This plugin ships neither, by design (README Requirements, `skills/setup`); the entry now states what shipped ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). Adding the probe and manifest to the remaining binary-probing format plugins is tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
+- README Requirements and the setup `check` now declare Node.js on `PATH`: every hook row runs through `node hooks/exec-bash.mjs`, so without `node` the hooks do not launch. The hook budget table carries a dated note that its figures predate the launcher.
 
 ## [0.8.5] - 2026-09-28
 
 ### Changed
 
-- **Shared `hooks/hook-utils.sh` resynced (#4240).** `hook::notice_once` gains an optional `prerequisite` class that latches once per session and keeps its install route on renewal. No hook in this plugin passes it (`powershell-format.sh` calls `notice_once` with two arguments), and the plugin ships no `prerequisites.json` or session-start probe, so `/claude-ops:prerequisites` does not list it. `jq` is the only prerequisite, and a missing `jq` stays covered by the existing once-per-session skip notice; `pwsh`, PSScriptAnalyzer and the settings file stay quiet not-applicable.
+- **Shared `hooks/hook-utils.sh` resynced (#4240).** `hook::notice_once` gains an optional `prerequisite` class that latches once per session and keeps its install route on renewal. No hook in this plugin passes it (`powershell-format.sh` calls `notice_once` with two arguments), and the plugin ships no `prerequisites.json` or session-start probe, so `/claude-ops:prerequisites` does not list it. `jq` is the only prerequisite the hook script probes, and a missing `jq` stays covered by the existing once-per-session skip notice; `pwsh`, PSScriptAnalyzer and the settings file stay quiet not-applicable.
 
 ## [0.8.4] - 2026-09-28
 
