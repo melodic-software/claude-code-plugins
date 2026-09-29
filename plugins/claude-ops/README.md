@@ -269,19 +269,22 @@ not a per-call record: it carries the first `tool_name` and `tool_use_id` the
 payload text holds, normally the first call's. Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
-and a repo-relative file path when present. Each row is SHELL FORM and reads
-the kill switch itself, before it execs the script, so a consumer who has not
-turned it on starts nothing beyond the shell Claude Code runs the command in:
-measured on Windows Git Bash, 1 process creation per event against the 3 the
-bare script path costs (median wall 41 ms against 107 ms, n=5). The script
+and a repo-relative file path when present. Each row starts through
+`node hooks/exec-bash.mjs --require-true SESSION_EVENT_LOG_ENABLED`, which reads
+the kill switch before it resolves or spawns bash, so a consumer who has not
+turned it on starts one process (node) per event and no bash. The script
 keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
-floor on the Linux CI host). Enabled, the row execs the script and the chain is
-the same three creations as before (median 117 ms); a 2 KB payload costs about
-5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
-hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
-is still owed, and the default stays off until it is taken.
+floor on the Linux CI host). Enabled, a 2 KB payload costs about 5 ms and a
+512 KB one 36 ms. Those are serial per-event figures taken before the node
+launcher. The parallel wall, the 4 KB and 16 KB appends, `ls -t`, and the
+late-EOF stall, all through the launcher, are measured by
+[`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
+recorded in
+[`reference/hook-log-budget.md`](reference/hook-log-budget.md). The Windows
+Git Bash column there is `unmeasured` until that harness runs on Git Bash,
+and the default stays off until that capture replaces the placeholder.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
-hook, gated by the same switch in shell form, keeps the newest
+hook, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
 `session_log_pre_prune_command` hands an archiver the files about to go. The
 root carries its own `*` `.gitignore`, so nothing under it reaches

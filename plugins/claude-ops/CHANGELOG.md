@@ -11,6 +11,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   row in `/claude-ops:setup check` and a `prerequisites.json` entry (so `/claude-ops:prerequisites`
   reports it) say that every hook row starts through `node hooks/exec-bash.mjs` and that the hooks
   do not launch without it.
+- **Hook-log budget harness** ([#3757](https://github.com/melodic-software/claude-code-plugins/issues/3757)).
+  `hooks/measure-hook-log-budget.sh` times the kill-switch read, the parallel wall of 30
+  events, 4 KB and 16 KB appends, same-second `ls -t` and the late-EOF stall on the host it runs
+  on, through the registered `node exec-bash.mjs --require-true` command. It rejects an option
+  with no value instead of looping. `reference/hook-log-budget.md` keeps the Windows column
+  `unmeasured` until a capture stamped `host: windows-git-bash` is pasted there; no Windows
+  figure is claimed. The event log stays off by default. The README's event-log paragraph
+  now describes the node launcher rows instead of shell form.
 - **`audit-native-overlap` scans plugin manifest descriptions** for an ungated presence clause,
   as it does skill descriptions; the finding stays an advisory.
 
