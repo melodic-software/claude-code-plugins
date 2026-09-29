@@ -1314,9 +1314,10 @@ else
 fi
 
 # --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
-# The opt-in gate's contract is "no config, no run, no notice", and a
+# The per-edit hook's opt-in contract is "no config, no run, no notice", and a
 # prerequisite notice is still a notice: a repository that never opted into
-# Markdown formatting must not be nagged to install jq for it. The assertion
+# Markdown formatting must not be nagged to install jq for it. (The SessionStart
+# probe is outside this contract; it reports a missing markdownlint-cli2.) The assertion
 # above pins the inverse (config present + jq absent -> notice), so the pair
 # distinguishes suppression from a hook that simply stopped warning.
 PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
