@@ -362,9 +362,9 @@ run_i6() {
   for file in "${files[@]}"; do
     printf '@FILE\n%s\n' "$file" >>"$i6_tmp"
     LC_ALL=C awk \
-    -v cue="^(${I6_CUE_ALT})([^[:alnum:]]|\$)" \
+    -v cue="^(${I6_CUE_ALT})_*([^[:alnum:]_]|\$)" \
     -v anycue="${WB_L}(${I6_CUE_ALT})${WB_R}" \
-    -v paracue="(^|[^[:alnum:]])(${I6_CUE_ALT})([^[:alnum:]]|\$)" \
+    -v paracue="(^|[^[:alnum:]_])_*(${I6_CUE_ALT})_*([^[:alnum:]_]|\$)" \
     -v paired="$I6_PAIRED_ERE" \
     -v rationale="$RATIONALE_ERE" \
     -v stopwords="$I6_CLAUSE_STOPWORDS" \

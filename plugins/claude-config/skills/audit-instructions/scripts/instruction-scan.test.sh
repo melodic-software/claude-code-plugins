@@ -199,6 +199,8 @@ Never skip this one either
 _Never_ delete the ledger.
 
 __Do not__ rename the column.
+
+`never_delete_flag` controls whether files are removed.
 EOF
 OUT=$(bash "$SCRIPT" "$I6S")
 assert_eq "two prohibitions on one line yield one row" "1" \
@@ -208,6 +210,7 @@ assert_not_contains "a setext - heading is not read" "$OUT" "$I6S:6:I6"
 assert_contains "a --- after a list item is a break, not a heading" "$OUT" "$I6S:9:I6"
 assert_contains "an underscore-emphasized cue opens its sentence" "$OUT" "$I6S:12:I6"
 assert_contains "a double-underscore cue opens its sentence" "$OUT" "$I6S:14:I6"
+assert_not_contains "a snake_case identifier starting with a cue is not a cue" "$OUT" "$I6S:16:I6"
 assert_eq "--count counts the doubled line once" "4" "$(bash "$SCRIPT" --count "$I6S")"
 assert_eq "--i6-counts counts the doubled line once" "surviving=4" \
   "$(bash "$SCRIPT" --i6-counts "$I6S" | grep -o 'surviving=[0-9]*')"
