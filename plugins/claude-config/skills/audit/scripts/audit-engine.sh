@@ -15,11 +15,12 @@
 # shell calls.
 #
 # WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
-# fetches the docs index (llms.txt) over the network with curl, resolves each
-# page it needs (settings-reference, env-vars) from a link in that index, and
-# reads it verbatim into a temp directory it removes on exit (trap). A page
-# supplied through --docs-dir is read from there instead. Whether a key is
-# documented or deprecated, the accepted effortLevel and
+# asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
+# (llms.txt) and each page it needs (settings-reference, env-vars) from a link
+# in that index, verbatim, into a temp directory it removes on exit (trap). The
+# fetcher's manifest supplies each page's hash, status, content type, line count
+# and read time. A page supplied through --docs-dir is read from there instead.
+# Whether a key is documented or deprecated, the accepted effortLevel and
 # disableDeepLinkRegistration values, and the version a key requires are taken
 # from settings-reference; env-var documentation status from env-vars. A row
 # resting on a page that was not read is not-inspectable, never clean. The
@@ -278,6 +279,13 @@ if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
 fi
 # shellcheck source=../../../lib/resolve-scopes.sh
 source "$RESOLVE_SCOPES_LIB"
+
+# The upstream docs are fetched only by the plugin's shared fetcher.
+FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
+if [[ ! -r "$FETCH_DOCS" ]]; then
+  echo "ERROR: cannot read $FETCH_DOCS; the plugin's shared docs fetcher is missing" >&2
+  exit 2
+fi
 
 # Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
 PROJECT_ROOT=""
@@ -552,123 +560,56 @@ fi
 trap 'rm -rf "$DOCS_TMP"' EXIT
 
 DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
-DOCS_ORIGIN=""
-[[ "$DOCS_INDEX_URL" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*) ]] && DOCS_ORIGIN="${BASH_REMATCH[1]}"
-# Set, even to an empty or missing directory, means no network: a seam that
-# points nowhere reads as unread pages, never as a fall back to the fetch.
-DOCS_FIXTURE_SET=0
-[[ -n "${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR+x}" ]] && DOCS_FIXTURE_SET=1
-DOCS_FIXTURE="${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR:-}"
 # Every control character but tab and newline, CR included, is dropped from the
 # working copy of a page, so text quoted from it into a row or the table never
 # carries one. Byte counts are taken from the page as read.
 DOC_CNTRL='\000-\010\013-\037\177'
 
-# fetch_verbatim <url> <dest>: the whole body or nothing. A timeout or an HTTP
-# error mid-download leaves no partial file to be counted as read (return 1).
-# HTTPS only, redirects included, and a redirect that lands outside the docs
-# origin is refused after the fact (return 2): the origin check on the linked
-# URL says nothing about where a redirected body came from.
-fetch_verbatim() {
-  local effective
-  if effective="$(curl -fsSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
-    -w '%{url_effective}' -o "$2" "$1" 2>/dev/null)" && [[ -s "$2" ]]; then
-    [[ -n "$DOCS_ORIGIN" && "$effective" == "$DOCS_ORIGIN/docs/"* ]] && return 0
-    rm -f "$2"
-    return 2
+# The fetcher reads the index and every page that --docs-dir does not supply, in
+# one call, and writes a manifest; a run whose pages all come from --docs-dir
+# requests nothing. A slug the index does not list, or lists off the docs
+# origin, is unread, and so is a page that did not arrive whole as text/markdown.
+DOCS_MANIFEST="$DOCS_TMP/manifest.json"
+DOCS_WANT=()
+for slug in settings-reference env-vars; do
+  [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]] || DOCS_WANT+=("$slug")
+done
+DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
+  '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
+if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
+  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
+    echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
+    exit 2
   fi
-  rm -f "$2"
-  return 1
-}
-
-# The index is read on the first page that needs it; a run whose pages all
-# come from --docs-dir leaves it not-needed.
-INDEX_STATE=""
-INDEX_SOURCE=""
-INDEX_BYTES=0
-INDEX_REASON=""
-load_index() {
-  [[ -n "$INDEX_STATE" ]] && return 0
-  local raw=""
-  INDEX_STATE=unread
-  if [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
-    INDEX_SOURCE=fixture
-    if [[ -s "$DOCS_FIXTURE/llms.txt" ]]; then raw="$DOCS_FIXTURE/llms.txt"; else INDEX_REASON="fixture-missing"; fi
-  elif ! command -v curl >/dev/null 2>&1; then
-    INDEX_SOURCE=fetch
-    INDEX_REASON="curl-missing"
-  else
-    INDEX_SOURCE=fetch
-    fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"
-    case $? in
-    0) raw="$DOCS_TMP/llms.raw" ;;
-    2) INDEX_REASON="redirected-off-origin" ;;
-    *) INDEX_REASON="fetch-failed" ;;
-    esac
-  fi
-  [[ -n "$raw" ]] || return 0
-  INDEX_BYTES="$(wc -c <"$raw" | tr -d ' ')"
-  tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/llms.txt"
-  INDEX_STATE="read"
-}
-
-# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
-index_link() {
-  awk -v suf="/$1.md" '{
-    while (match($0, /\]\([^) \t]+\)/)) {
-      u = substr($0, RSTART + 2, RLENGTH - 3)
-      $0 = substr($0, RSTART + RLENGTH)
-      if (length(u) >= length(suf) && substr(u, length(u) - length(suf) + 1) == suf) { print u; exit }
-    }
-  }' "$DOCS_TMP/llms.txt"
-}
+  DOCS_INDEX_JSON="$(jq -c --arg url "$DOCS_INDEX_URL" \
+    '.index | {url:$url,source:(.source // ""),bytes,state,reason:(.reason // ""),sha256,content_type,lines,retrieved}' "$DOCS_MANIFEST")"
+fi
 
 declare -A PAGE_FILE=()
 DOCS_PAGES_JSON='[]'
-# acquire_page <slug>: read the page verbatim into the temp directory (control
-# characters stripped) and record where it came from, its byte count, and its state.
+# acquire_page <slug>: record where the page came from, its hash, byte and line
+# counts and state, and keep a working copy with control characters stripped.
 acquire_page() {
-  local slug="$1" src="" loc="" raw="" reason="" state=unread bytes=0
+  local slug="$1" rec raw=""
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
-    src=docs-dir
-    loc="$DOCS_DIR/$slug.md"
-    raw="$loc"
+    raw="$DOCS_DIR/$slug.md"
+    rec="$(jq -cn --arg s "$slug" --arg l "$raw" --argjson b "$(wc -c <"$raw" | tr -d ' ')" --argjson n "$(awk 'END { print NR }' "$raw")" \
+      --arg h "$(sha256_hex <"$raw")" \
+      '{slug:$s,url_or_path:$l,source:"docs-dir",bytes:$b,state:"read",reason:"",sha256:$h,content_type:null,lines:$n,retrieved:null}')"
   else
-    load_index
-    if [[ "$INDEX_STATE" != "read" ]]; then
-      reason="index-unread"
-    else
-      loc="$(index_link "$slug")"
-      if [[ -z "$loc" ]]; then
-        reason="not-in-index"
-      elif [[ -z "$DOCS_ORIGIN" || "$loc" != "$DOCS_ORIGIN/docs/"* ]]; then
-        reason="off-origin"
-      elif [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
-        src=fixture
-        if [[ -s "$DOCS_FIXTURE/$slug.md" ]]; then raw="$DOCS_FIXTURE/$slug.md"; else reason="fixture-missing"; fi
-      else
-        src=fetch
-        fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"
-        case $? in
-        0) raw="$DOCS_TMP/$slug.raw" ;;
-        2) reason="redirected-off-origin" ;;
-        *) reason="fetch-failed" ;;
-        esac
-      fi
-    fi
+    rec="$(jq -c --arg s "$slug" '(first(.pages[] | select(.slug == $s)) // {}) as $p
+      | {slug:$s,url_or_path:($p.url // ""),source:($p.source // ""),bytes:($p.bytes // 0),state:($p.state // "unread"),
+         reason:($p.reason // "fetch-failed"),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$DOCS_MANIFEST")"
+    [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then
-    bytes="$(wc -c <"$raw" | tr -d ' ')"
     tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
     PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
-    state="read"
   fi
-  DOCS_PAGES_JSON="$(jq -c --arg s "$slug" --arg l "$loc" --arg src "$src" --argjson b "$bytes" --arg st "$state" --arg r "$reason" \
-    '. + [{slug:$s,url_or_path:$l,source:$src,bytes:$b,state:$st,reason:$r}]' <<<"$DOCS_PAGES_JSON")"
+  DOCS_PAGES_JSON="$(jq -c --argjson r "$rec" '. + [$r]' <<<"$DOCS_PAGES_JSON")"
 }
 acquire_page settings-reference
 acquire_page env-vars
-[[ -n "$INDEX_STATE" ]] || INDEX_STATE=not-needed
 SR="${PAGE_FILE[settings-reference]:-}"
 EV="${PAGE_FILE[env-vars]:-}"
 
@@ -1587,7 +1528,7 @@ fi
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
-# The drift script runs whether or not curl is present: a directory-sourced
+# The drift script runs whether or not the network tools are present: a directory-sourced
 # marketplace is read from disk, and a repo-sourced one it cannot fetch comes
 # back as a skipped marketplace with its reason, reported below.
 if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f "$SCRIPT_DIR/check-plugin-drift.sh" ]]; then
@@ -1909,8 +1850,7 @@ malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORM
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
 version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
   '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
-docs_json="$(jq -c --arg url "$DOCS_INDEX_URL" --arg src "$INDEX_SOURCE" --argjson b "$INDEX_BYTES" --arg st "$INDEX_STATE" --arg r "$INDEX_REASON" \
-  '{index:{url:$url,source:$src,bytes:$b,state:$st,reason:$r},pages:.}' <<<"$DOCS_PAGES_JSON")"
+docs_json="$(jq -c --argjson idx "$DOCS_INDEX_JSON" '{index:$idx,pages:.}' <<<"$DOCS_PAGES_JSON")"
 
 # The payloads ride stdin and are slurped, rather than being bound as --argjson
 # values. The whole argv is ONE Win32 command line, and a single argument past
