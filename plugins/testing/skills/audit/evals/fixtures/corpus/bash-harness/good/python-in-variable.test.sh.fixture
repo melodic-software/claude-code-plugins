@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# A wrapper whose assertions live in the Python suite it runs through an
+# interpreter held in a variable. Shape from overlap.test.sh.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON="$(command -v python3 || command -v python)"
+SUITE="$SCRIPT_DIR/overlap_suite.py"
+"$PYTHON" "$SUITE"

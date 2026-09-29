@@ -1,0 +1,10 @@
+// expect: rule-inert-assertion
+// toBeVisible retries until it passes or times out and returns a promise;
+// unawaited, the test ends before the check runs.
+import { expect, test } from '@playwright/test';
+
+test('saving shows a confirmation', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'Save' }).click();
+  expect(page.getByText('Saved')).toBeVisible();
+});

@@ -1,0 +1,31 @@
+// good-for: rule-inert-assertion
+// good-for: rule-source-text-read
+// The repaired twins: the mismatch branch fails the test, a cleanup error is
+// only logged, and the handler is driven with a cancelled context instead of
+// being read as text.
+package api
+
+import (
+	"context"
+	"os"
+	"testing"
+)
+
+func TestSlugifyLowercases(t *testing.T) {
+	got := Slugify("Hello World")
+	want := "hello-world"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if err := os.Remove(t.TempDir() + "/scratch"); err != nil {
+		t.Logf("cleanup: %v", err)
+	}
+}
+
+func TestHandlerHonorsCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := Handle(ctx); err != context.Canceled {
+		t.Fatalf("got %v, want context.Canceled", err)
+	}
+}

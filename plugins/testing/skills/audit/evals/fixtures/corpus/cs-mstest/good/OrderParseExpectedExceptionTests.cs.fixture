@@ -1,0 +1,15 @@
+// good-for: rule-zero-assertion
+// ExpectedException makes MSTest fail the test unless Parse throws, so a
+// body with no assertion token is still checked.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderParseExpectedExceptionTests
+{
+    [TestMethod]
+    [ExpectedException(typeof(FormatException))]
+    public void Parse_RejectsAMissingSku()
+    {
+        OrderRequest.Parse("customer=42");
+    }
+}

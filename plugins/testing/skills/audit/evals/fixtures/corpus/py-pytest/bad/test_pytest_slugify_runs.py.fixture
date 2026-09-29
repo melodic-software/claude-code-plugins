@@ -1,0 +1,9 @@
+# expect: rule-zero-assertion
+# The test calls slugify and prints the result, so it passes whatever
+# slugify returns.
+from slugs import slugify
+
+
+def test_slugify_collapses_dashes():
+    result = slugify("a -- b")
+    print(result)

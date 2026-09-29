@@ -1,0 +1,9 @@
+// good-for: rule-zero-assertion
+// expect.poll retries a value until the matcher passes.
+import { expect, test } from '@playwright/test';
+
+test('order API reports shipped', async ({ request }) => {
+  await expect
+    .poll(async () => (await (await request.get('/api/orders/42')).json()).status)
+    .toBe('shipped');
+});
