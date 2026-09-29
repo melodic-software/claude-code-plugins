@@ -183,8 +183,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
 - **Severity rubric:**
   - `WARN`: any upgradable app whose winget `Id`, or a shorter `.`-prefix of it, equals a KEV
     entry's `<vendorProject>.<product>` (case-insensitive), or >10 apps behind. A KEV match is a
-    name match only: the feed carries no affected-version range and the installed version is never
-    compared, so a match against a long-patched build is common. The summary names the CVEs, each
+    name match only: the feed carries no affected-version range (see the KEV feed record below)
+    and the installed version is never compared, so a match against a long-patched build is
+    common. The summary names the CVEs, each
     match records `match_basis: name-only`, and the appendix lists every match. The check never
     reports `CRIT`; a CRIT tier needs version evidence the check does not have. The trend rule
     never raises a KEV name-match `WARN` (`kev_match_count` > 0) either. A `WARN` from >10 apps
@@ -195,6 +196,17 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
     one upgrade can match several KEV rows, counted separately as `kev_match_count`.
 
 - **Notes:** The full list goes in the report appendix. `catalog/cisa-kev.json` refreshed weekly by `scripts/windows/lib/Get-CisaKevCache.ps1` from `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`. Log the outbound URL every time. If feed fetch fails, keep the cached copy and record a `notes` entry.
+
+- **KEV feed record:**
+  - Claim: a KEV entry has no field for affected versions. Its fields are `cveID`, `vendorProject`,
+    `product`, `vulnerabilityName`, `dateAdded`, `shortDescription`, `requiredAction`, `dueDate`,
+    `knownRansomwareCampaignUse`, `forensicTriage`, `notes` and `cwes`; the first eight are
+    required.
+  - Basis: the `vulnerability` definition in the feed's JSON schema,
+    `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities_schema.json`.
+  - As of: 2026-09-29.
+  - Recheck trigger: the schema gains a version or affected-range field, or the check starts
+    comparing installed versions.
 
 ---
 
@@ -250,10 +262,26 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   - **Defender platform exclusion:** an event is dropped before counting when every image path in
     its message sits under the active Defender platform folder
     (`...\Windows Defender\Platform\<version>\`, version read from the `WinDefend` service
-    `ImagePath`). A platform rollover produces that shape routinely. An event that also names an
+    `ImagePath`). A platform rollover produces that shape routinely (see the Defender platform
+    record below). An event that also names an
     image outside the folder (a Defender process loading a foreign DLL) is kept, and nothing is
     excluded when the version cannot be read. The summary reports the excluded count, and
     `code_integrity_platform_excluded_count` and `defender_platform_version` record it.
+  - **Defender platform record:**
+    - Claim: Defender platform binaries live in
+      `%ProgramData%\Microsoft\Windows Defender\Platform\<version>`, and platform updates ship
+      monthly, so a new version folder appears on that cadence.
+    - Basis: Microsoft Learn,
+      `https://learn.microsoft.com/en-us/defender-endpoint/command-line-arguments-microsoft-defender-antivirus`
+      (folder layout) and
+      `https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-updates`
+      (monthly platform updates).
+    - As of: 2026-09-29.
+    - Recheck trigger: Defender changes where platform binaries load from, or either page stops
+      describing the platform folder or the monthly cadence.
+    - Not sourced: that the `WinDefend` service `ImagePath` names the active version folder, and
+      that a rollover makes CodeIntegrity 3001/3004 events name only paths in that folder. Both
+      were observed on one Windows 11 host (#4280 audit, 2026-09-19).
 
 - **Notes:** Full driver inventory goes in the report appendix, alongside the CodeIntegrity events
   that set the severity. The finding body should show only drivers that moved severity (unsigned drivers by name, or the oldest 5 signed drivers).
