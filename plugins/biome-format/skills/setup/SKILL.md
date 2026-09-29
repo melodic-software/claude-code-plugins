@@ -47,13 +47,16 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of formatting.
+   notice instead of formatting (README Requirements states how often the notice repeats).
 3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-local install walk (the `node_modules/.bin` path it tests, walking up from the
    edited file toward the repo root) and then `PATH`. Test only what the hook tests. A
    binary the hook would not accept must not PASS here. FAIL when nothing the hook would
    resolve is present while a Biome config governs the repo; the hook then emits a visible
-   once-per-session skip notice instead of formatting.
+   skip notice instead of formatting (README Requirements states how often it repeats). The
+   `SessionStart` probe resolves biome separately: `PATH`, then `node_modules/.bin/biome` up
+   to eight levels from the session cwd, with an `-x` test, where the hook walks to the repo
+   root with an `-f` test. A PASS here means the hook resolves it.
 4. **Consumer Biome config.** Mirror the hook's opt-in walk: it records the topmost
    governing config found walking from the edited file's directory up to the repo root, and
    deliberately accepts only the config names the hook treats as the opt-in. Read the hook:
@@ -61,10 +64,15 @@ restores the FAIL semantics.
    walk discovers, or INFO that none exists. Absence is the opt-out by design, so the
    plugin is inert (INFO, not FAIL), matching the README's "ships no rules of its own"
    stance.
-5. **Hook toggle.** Report the effective `biome_format_enabled` value:
-   `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`).
+5. **Hook toggle and gitignore option.** Report the effective `biome_format_enabled` value:
+   `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`), and the
+   effective `biome_format_lint_gitignored` value:
+   `${user_config.biome_format_lint_gitignored}` (unexpanded or empty means default `false`).
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
+   through `node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip
+   notice.
 
 ## `apply` (idempotent)
 
