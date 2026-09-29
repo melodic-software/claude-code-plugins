@@ -35,9 +35,9 @@ Read when running the update action. The update model, preservation invariants, 
                    diff old vs new help
 6. [Gate 2]        integrate upstream SKILL.md changes into ours
                    — small delta: inline-edit preserving the Preservation rules
-                   — non-trivial delta: drive the rewrite with the
-                     /skill-creator:skill-creator plugin skill if installed
-                     (passing the Preservation rules), otherwise inline-edit
+                   — non-trivial delta: drive the rewrite with the skill-creator skill of the
+                     skill-creator plugin (claude-plugins-official, not this marketplace),
+                     if installed (passing the Preservation rules), otherwise inline-edit
                    show proposed SKILL.md diff, prompt to apply
 7. Finalize        update UPSTREAM.md (date, SHA, version, previous-version for rollback)
                    run the repo's markdown + shell linters over the changed files

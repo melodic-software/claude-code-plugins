@@ -123,7 +123,7 @@ npm install -g firecrawl-cli
 
 Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login`. It writes a separate user-level config that diverges from the env-var flow.
 
-**Do NOT run `firecrawl init --all --browser`.** That command installs the `firecrawl-mcp` MCP server plus a bundled copy of the upstream skill into `~/.claude/skills/`, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. This plugin IS the maintained integration; updates arrive through `/plugin marketplace update`.
+Do not run `firecrawl init --all --browser`. That command installs the `firecrawl-mcp` MCP server plus a bundled copy of the upstream skill into `~/.claude/skills/`, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
 
 ## Updating the skill and CLI
 
