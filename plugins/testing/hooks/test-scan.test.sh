@@ -230,7 +230,8 @@ if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]]; then ok "prune: a fresh mar
 run Write "$REPO/src/derived.test.ts"
 assert_contains "(i) names rule-recomputed-derived" "$out" "rule-recomputed-derived"
 assert_contains "(i) asks for the expected value's source" "$out" "where the expected value"
-assert_contains "(i) leads with tests that cannot fail" "$out" "tests that cannot fail"
+assert_contains "(i) leads with tests that check little" "$out" "tests that check little"
+assert_not_contains "(i) does not call a derived expectation a test that cannot fail" "$out" "tests that cannot fail"
 
 # (j) a weak oracle alone can fail, so it is not called a test that cannot fail.
 run Write "$REPO/src/weak.test.ts"
