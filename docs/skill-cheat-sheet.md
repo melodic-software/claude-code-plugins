@@ -262,6 +262,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether the ruff binary is installed. Never installs. |
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
+| [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether the typos binary is installed. Never installs. |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |

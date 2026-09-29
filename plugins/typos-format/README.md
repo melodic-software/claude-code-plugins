@@ -124,7 +124,10 @@ the tools reference).
   pre-built binary). typos is never downloaded on the fly; if it is not
   present, the hook skips with a visible notice, once per session (all agents share the latch),
   renewed every eighth skip with the install route kept.
-  [Install typos](https://github.com/crate-ci/typos#install).
+  [Install typos](https://github.com/crate-ci/typos#install). A SessionStart probe reports a
+  missing `typos` once per session, from `prerequisites.json`, and the PostToolUse notice names
+  the same install route. Run `/typos-format:check` to see what resolves; it is read-only and
+  installs nothing.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while typo
