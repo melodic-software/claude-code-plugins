@@ -18,27 +18,33 @@ factual-staleness pass. The skill body enters context once and stays there.
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
 spawn the agent. A name with no description (`name-only`, budget overflow) is invoked with the
-warning "identity confirmed by name alone".
+warning "identity confirmed by name alone", except under `unattended`, where it is skipped as an
+identity mismatch and the agent runs instead.
 
-**Mutation.** Before Phase 6, fingerprint the tracked files outside the file set Phase 3 left; any
-change there afterwards is **mutation detected after a scoped invocation**, and the run exits
-degraded.
+**Mutation.** Groups the step runs over go one at a time, never in a parallel wave. Before each
+invocation, fingerprint the tracked files outside that group; any change there right after it is
+**mutation detected after a scoped invocation**, and the run exits degraded.
 
 **Skip report.** When the step does not run, the state names why: `did not resolve in this
 session`, invocation refused (the reason, never retried), or identity mismatch. Each names the axis
 line: settings or environment, plan, platform or provider, host surface; and the enable path
-(`disableBundledSkills`, `skillOverrides`).
+(`disableBundledSkills`, `skillOverrides`). When `simplify` runs but says it ran a weaker
+procedure, the state is resolved but degraded, and the report relays its disclosure instead of
+calling the group fully simplified.
 
 **Result block.** The Phase 8 report opens with this block, whichever state the step ended in:
 
 ```text
 Native step: simplify
-State: ran | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
 
-**`unattended`:** run the step when it resolves; record the result block without asking.
+**`unattended`:** run the step when it resolves and its identity is confirmed by description;
+record the result block without asking. This departs from the Native-step convention's default
+(record instead of invoking a mutating surface) because this skill's own contract already edits
+the same files unattended.
 
 ## Repository context. Gather first
 
@@ -125,8 +131,8 @@ Strip token-wise, never by substring: a substring strip mutates any argument tha
 
 ### Flag: `unattended`
 
-Runs the Native step without asking (see **Native step: simplify** above). Detected and stripped
-exactly like `docs`.
+Runs the Native step without asking when its identity is confirmed by description (see **Native
+step: simplify** above). Detected and stripped exactly like `docs`.
 
 ### Flag: `override`
 
@@ -216,7 +222,7 @@ Create one task per group using `TaskCreate`. Each task should include:
 
 **Before spawning any agents**, ground the run: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the batch scope and `/discovery:research` via the Skill tool covering idioms relevant to the dominant ecosystems in the wave; otherwise read representative files per group and do a focused inline research pass on the ecosystems' current idioms.
 
-Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies.
+Waves can run in parallel when groups touch non-overlapping files and ecosystems. Launch independent groups in a single message with multiple Agent tool calls; serialize only when groups have direct dependencies. Groups the Native step runs over are always serialized. Groups the Native step runs over are always serialized.
 
 For each group:
 

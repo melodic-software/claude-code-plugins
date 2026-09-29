@@ -32,7 +32,7 @@ Present a final report:
 ## Batch Simplify Results
 
 Native step: simplify
-State: ran | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | mutation detected after a scoped invocation
+State: ran | resolved but degraded (<disclosure>) | did not resolve in this session (<axis>) | invocation refused (<reason>) | identity mismatch | mutation detected after a scoped invocation
 Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 
