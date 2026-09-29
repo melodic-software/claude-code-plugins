@@ -105,12 +105,13 @@ When a leading action token is followed by free text, the resolver also emits a 
 | `git` | Prune stale git metadata; audit branches + stashes | Low | No | Yes |
 | `stash` | Audit and triage stashes (age, source, diffstat) | Safe | No | |
 | `tree` | Reset working tree like a fresh pull | **Destructive** | No (always dry-run first) | **Never** |
+| `scan-batch` | Show what's reclaimable across many repos (skip-list) | Safe | No | |
 | `tree-batch` | Reset many repos like a fresh pull (skip-list + dirty guard) | **Destructive** | No (always dry-run first) | **Never** |
 | `all` | Sweep caches + build + git hygiene | Medium | Yes | |
 
 Tiers cumulative: `build` includes `caches`. `all` = `build` + `git`. **Neither `tree` nor `tree-batch` is ever composed into `all`.**
 
-**Fleet (batch) forms.** Each selective tier has a multi-repo form. `caches-batch`, `build-batch`, `git-batch`, `all-batch`. That runs it across a repo set behind ONE gate (§8). `tree-batch` is the destructive tier's separate batch form (§6.5).
+**Fleet (batch) forms.** Each selective tier has a multi-repo form. `scan-batch`, `caches-batch`, `build-batch`, `git-batch`, `all-batch`. That runs it across a repo set (§8); all but `scan-batch` sit behind ONE gate. `scan-batch` is read-only and has no gate. `tree-batch` is the destructive tier's separate batch form (§6.5).
 
 Aliases (`fresh`, `inventory`, `artifacts`, `caches-fleet`, …): [context/action-router.md](context/action-router.md).
 
@@ -220,13 +221,15 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 
 **Documented boundaries.** Containment is path- and device-based (physical resolution plus a same-device check). A *same-device* `mount --bind` under the root shares the root's filesystem device, so no path-based check can detect it; closing that would require a Linux-only mount-table (`/proc/self/mountinfo`) model that would also refuse legitimate under-root mounts, so it stays out of scope for this local, dry-run-default, explicit-`--apply` tool. The unpushed-ref guard covers `refs/heads` and `refs/tags`; other locally-created namespaces (e.g. `refs/notes`) are not scanned, and auto-generated ones (`refs/prefetch/*` from git-maintenance, `refs/replace/*`) are intentionally not treated as unpushed. `--allow-unpushed` is the escape hatch for any local ref. The secret scan gates only ignored (unrecoverable) files; tracked files are git's domain (recoverable via reset/remote, and separately blocked when dirty or unpushed).
 
-### 8. Batch. Multi-repo selective tiers (`caches-batch` / `build-batch` / `git-batch` / `all-batch`)
+### 8. Batch. Multi-repo selective tiers (`scan-batch` / `caches-batch` / `build-batch` / `git-batch` / `all-batch`)
 
-`${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh --tier <caches|build|git|all>`, default `--dry-run`. Runs the §2–§5 selective tiers across a set of repos behind one gate, the selective-tier sibling of §6.5 `tree-batch`. Detail + examples: [context/clean-batch.md](context/clean-batch.md). Additive over the single-repo tiers, the batch layer runs no removal itself; each per-repo action delegates to the unchanged child (`clean-caches.sh` / `clean-build.sh` / `git-prune.sh`), preserving every child gate. **`tree` is not batched here** (use §6.5); **branch audit/deletion is not batched** (interactive per-branch deletion can't sit behind one gate). Batch `git` is prune/gc/remote-prune only, once per unique shared object store.
+`${CLAUDE_SKILL_DIR}/scripts/clean-batch.sh --tier <scan|caches|build|git|all>`, default `--dry-run`. Runs the §2–§5 selective tiers across a set of repos behind one gate, the selective-tier sibling of §6.5 `tree-batch`. Detail + examples: [context/clean-batch.md](context/clean-batch.md). Additive over the single-repo tiers, the batch layer runs no removal itself; each per-repo action delegates to the unchanged child (`clean-caches.sh` / `clean-build.sh` / `git-prune.sh`), preserving every child gate. **`tree` is not batched here** (use §6.5); **branch audit/deletion is not batched** (interactive per-branch deletion can't sit behind one gate). Batch `git` is prune/gc/remote-prune only, once per unique shared object store.
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p`; backslash paths normalized). Skip list: `--skip ENTRY` / `--skip-from FILE` (same separator-agnostic matcher as `tree-batch`).
 
 **Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). For `caches`, `build`, and `all` it also runs `preflight.sh` **once** before the repo loop (not per repo) and prints `PreflightScope: batch-repositories` plus the preflight facts, with `RECENT_BUILD` scanned across every batch repository; the git-only tier skips that. `Progress:` lines go to stderr (`N/M <path>` on dry-run, `apply N <path>` on apply) so a long fleet run is not silent. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`, `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run `preflight.sh` again before confirming. [Confirmation gate](#confirmation-gate) **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
+
+**`--tier scan` (`scan-batch`) is read-only.** It runs the unchanged `scan.sh` per repo, writes no batch plan, and takes no `--apply` or `--batch-plan` (either is a usage error, exit 2), so it needs no confirmation gate. It prints per-repo `Outcome: scanned` and `Summary: repos=N planned=0 bytes=K`, K the summed `Total reclaimable`; run `scan.sh` inside one repo for its per-path inventory.
 
 ## Integration
 
