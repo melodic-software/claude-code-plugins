@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so any row combination round-trips through export and import. The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so export followed by import restores the question state, except two held-row cases the fields cannot name (a seeded blocked row comes back deferred, and the seed text of a row whose held accept or alternative is set aside is lost). The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
 
 ## [0.46.1] - 2026-09-29
 

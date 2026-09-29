@@ -1129,6 +1129,10 @@ class TestImportLedger(SessionCase):
                     "unknown field 'arbiter'",
                 ),
                 (
+                    "open | round 1 | Who? | hld:: claude vendor; commitments:: +One",
+                    "unknown field 'hld'",
+                ),
+                (
                     "answered | round 1 | Who? | answer:: accepted: x; aside:: accepted: y",
                     "contradictory fields 'answer' and 'aside'",
                 ),
@@ -1929,6 +1933,7 @@ def resumed_state(d):
     state = held_state(doc, resp)
     for q in doc["questions"]:
         r = rows[q["id"]]
+        # A held row shows no seed text until its hold clears, when the property test compares it.
         unsettled = r["status"] in exporters.UNSETTLED and not q.get("waiting")
         state[q["id"]].update(
             commits=exporters.marked_commits(q, events),
@@ -2536,6 +2541,49 @@ class TestResumedState(SessionCase):
         self.assertEqual(got["proposal"], ("Postgres", "SQLite"))
         self.assertEqual(got["status"], "superseded-by-plan")
 
+    def test_a_held_seeded_deferral_keeps_the_plan_as_its_arbiter_once_the_hold_clears(
+        self,
+    ):
+        doc = self.seed("- Q1 | deferred | round 1 | Who? | ask the DBA\n")
+        doc["questions"][0].update(waiting=True, waitsOn="vendor")
+        self.session(doc["questions"], [], doc["meta"])
+        row = register_rows(self.export("ledger"))[0]
+        self.assertTrue(
+            row.endswith("hold:: claude vendor; answer:: deferred; note:: ask the DBA"),
+            row,
+        )
+        fresh = self.reimport()
+        path = fresh / "questions.json"
+        held = json.loads(path.read_text(encoding="utf-8"))
+        for q in held["questions"]:
+            for key in ("waiting", "waitsOn"):
+                q.pop(key)
+        path.write_text(json.dumps(held), encoding="utf-8")
+        got = resumed_state(fresh)["Q1"]
+        self.assertEqual((got["status"], got["reserved"]), ("deferred", False))
+
+    def test_a_held_seeded_text_survives_the_hold_on_an_open_or_superseded_row(self):
+        doc = self.seed(
+            "- Q1 | open | round 1 | Who? | leaning to Postgres\n"
+            "- Q2 | superseded-by-plan | round 1 | When? | moot\n"
+        )
+        for q in doc["questions"]:
+            q.update(waiting=True, waitsOn="vendor")
+        self.session(doc["questions"], [], doc["meta"])
+        rows = register_rows(self.export("ledger"))
+        self.assertTrue(rows[0].startswith("- Q1 | open |"), rows[0])
+        self.assertTrue(rows[1].startswith("- Q2 | superseded-by-plan |"), rows[1])
+        fresh = json.loads((self.reimport() / "questions.json").read_text("utf-8"))
+        seeded = fresh["meta"]["seededFrom"]["rows"]
+        self.assertEqual(
+            (seeded["Q1"]["status"], seeded["Q1"]["resolution"]),
+            ("open", "leaning to Postgres"),
+        )
+        self.assertEqual(
+            (seeded["Q2"]["status"], seeded["Q2"]["resolution"]),
+            ("superseded-by-plan", "moot"),
+        )
+
     def test_an_untouched_resumed_session_names_its_unconfirmed_commitment_as_a_risk(
         self,
     ):
@@ -2611,6 +2659,22 @@ class TestResumedState(SessionCase):
             ):
                 continue
             yield seed, hold, decision, commits
+
+    @staticmethod
+    def held_loss(combo):
+        """A combination whose state does not survive export and import once its hold clears,
+        because the grammar has no field for it: a seeded blocked row (a held row's status reads
+        open, so it comes back deferred), and the seed text of an open or superseded-by-plan row
+        whose set-aside accept or alternative keeps its own note in note."""
+        seed, hold, decision, _ = combo
+        if seed == "blocked":
+            return hold in ("claude", "user") and not decision
+        return (
+            seed in ("open-text", "superseded-text")
+            and hold == "user-aside"
+            and bool(decision)
+            and decision[1] in ("accept", "alt", "unlisted-alt")
+        )
 
     def build(self):
         qs, events, rows = [], [], {}
@@ -2693,10 +2757,8 @@ class TestResumedState(SessionCase):
                 self.assertEqual(after[qid], before[qid], rows[i - 1])
         self.assertEqual(len(after), len(combos))
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
-        # Clearing every hold on both sides leaves the same state. A held row carries no seeded
-        # row but its proposal, so a text seed with its status, and a seeded deferral with no
-        # newer decision (its arbiter, blocked against deferred), do not outlive the hold; those
-        # combinations are compared only while held.
+        # Clearing every hold on both sides leaves the same state, except for the combinations
+        # HELD_LOSSES names, which the grammar has no field for and this pins as still lost.
         for d in (self.dir, fresh):
             path = d / "questions.json"
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -2706,14 +2768,12 @@ class TestResumedState(SessionCase):
             path.write_text(json.dumps(doc), encoding="utf-8")
         before, after = resumed_state(self.dir), resumed_state(fresh)
         for i, combo in enumerate(combos, 1):
-            seed, hold, decision, _ = combo
-            if hold and (
-                seed in ("open-text", "superseded-text")
-                or (seed in ("deferred", "blocked") and not decision)
-            ):
-                continue
             with self.subTest(qid=f"Q{i}", combo=combo, cleared=True):
-                self.assertEqual(after[f"Q{i}"], before[f"Q{i}"])
+                lost = self.held_loss(combo)
+                same = after[f"Q{i}"] == before[f"Q{i}"]
+                self.assertNotEqual(
+                    same, lost, "shrink held_loss" if same else rows[i - 1]
+                )
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

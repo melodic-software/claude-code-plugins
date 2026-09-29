@@ -23,21 +23,26 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   list), `free-text: <text>`, `deferred[: <text>]`, and on a
                                   withdrawn row `archived: <why>` or `superseded by <id>`
   note:: E(note)                  an accept's or an alternative's note; on a deferred or blocked
-                                  row whose answer is a bare `deferred`, the row's text as a
-                                  ledger seeded it (written even when empty); on an unheld open
-                                  or superseded-by-plan row with no proposal, the seeded text
+                                  row, or a held row, whose answer is a bare `deferred`, the
+                                  row's text as a ledger seeded it (written even when empty);
+                                  on an open or superseded-by-plan row with no proposal, the
+                                  seeded text, but not beside a held row's accept or alternative,
+                                  whose note it is
   aside:: E(aside)                the newest decision a user hold set aside, when none counts;
                                   import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
                                   (unconfirmed) then E(text)
 A superseded-by-plan row keeps that status under a defer, whose answer carries it. A deferred row
 seeded from a ledger keeps that ledger's arbiter (ARBITER_USER when its text says USER-RESERVED,
-else ARBITER_PLAN); a deferral made on the page is ARBITER_USER.
+else ARBITER_PLAN); a deferral made on the page is ARBITER_USER. A held row keeps a seeded
+superseded-by-plan status and a seeded deferral. It does not keep a seeded blocked status (a held
+row reads open, so it comes back deferred, still USER-RESERVED), nor the seeded text of a row
+whose held accept or alternative is set aside, because that decision's note is in note.
 
-Import reads these fields by name and refuses, naming the field, an unknown field, a field out of
-order or repeated, an unmarked commitment, and a contradictory pair: answer with aside, proposal
-without was, hold or aside on a row the status settles, an answer the status contradicts, and a
-note no field above gives a meaning.
+Import reads these fields by name and refuses, naming the field, an unknown field (a leading one
+too, when a named field follows it), a field out of order or repeated, an unmarked commitment, and
+a contradictory pair: answer with aside, proposal without was, hold or aside on a row the status
+settles, an answer the status contradicts, and a note no field above gives a meaning.
 
 Every older grammar still imports, read as it always was: a held row
 `[plan proposes: E(new); was: E(old); ]waits on:: ...` or `awaiting user:: ...` with `answer:`,
@@ -89,6 +94,7 @@ TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 FIELDS = ("hold", "proposal", "was", "answer", "note", "aside", "commitments")
 NAMED = re.compile(rf"^({'|'.join(FIELDS)})::(?: |$)(.*)$", re.DOTALL)
+UNKNOWN_LEAD = re.compile(r"^([a-z][a-z ]*)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
 IMAGE_TYPES = {
     ".png": "png",
@@ -428,6 +434,7 @@ def settle(q, responses, events, seed_rows):
     fields = dict(zip(("proposal", "was"), proposal)) if proposal else {}
     rec = latest_decision(q, responses)
     decision = (rec or {}).get("decision")
+    status = seed.get("status")
     if q.get("archived"):
         fields["answer"] = f"archived: {q['archived'].get('why', '')}"
         return "withdrawn", fields, "", False
@@ -439,11 +446,20 @@ def settle(q, responses, events, seed_rows):
         fields["hold"] = f"{who} {q.get('waitsOn') or 'a lookup'}"
         kind = "answer" if rec else "aside"
         rec = rec or newest_decision(q, responses, aside=True)
-        if rec and rec.get("decision"):
+        said = (rec or {}).get("decision")
+        if kind == "answer" and rec.get("seeded") and status == "deferred":
+            # A deferral as a ledger seeded it, as below; a blocked one stays a page deferral,
+            # since a held row's status reads open and could not tell it from a deferred one.
+            fields.update(answer="deferred", note=rec.get("text") or "")
+        elif said:
             fields[kind], note = decision_fields(q, rec)
             fields["note"] = note or None
-        return ("superseded-by-plan" if proposal else "open"), fields, "", False
-    status = seed.get("status")
+        # The seeded text of a row still unsettled once the hold clears rides in note, unless
+        # the decision's own note is there.
+        if said not in ("accept", "alt") and fields.get("note") is None:
+            if kind == "aside" or status == "superseded-by-plan":
+                fields["note"] = seed_text(seed)
+        return status if status == "superseded-by-plan" else "open", fields, "", False
     if decision == "defer" and rec.get("seeded") and status in ("deferred", "blocked"):
         # A deferral as a ledger seeded it: its text rides in note, its arbiter in that text.
         text = rec.get("text") or ""
@@ -879,10 +895,14 @@ def refuse(what, where):
 
 def parse_named(res, where):
     """(fields, marked commitments) of a named-field resolution, or None for an older grammar's
-    (module docstring)."""
+    (module docstring). A leading `word::` that is no field is refused when a named field
+    follows it, which no older grammar wrote; alone it is older free text."""
     parts = split_fields(res)
     first = NAMED.match(parts[0])
     if not first:
+        unknown = UNKNOWN_LEAD.match(parts[0])
+        if unknown and any(NAMED.match(p) for p in parts[1:]):
+            refuse(f"unknown field {unknown.group(1)!r}", where)
         return None
     older = any(
         p.startswith(("note: ", "confirmed::")) or p == "arbiter: USER-RESERVED"
@@ -957,19 +977,21 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     }
     if not fits[status]:
         clash("answer", f"status {status}")
-    seeded_defer = (
-        answer == "deferred"
-        and hold is None
-        and (status == "blocked" or (status == "deferred" and note is not None))
-    )
-    residual = (
-        hold is None
-        and status in UNSETTLED
-        and "proposal" not in fields
-        and kind in (None, "defer")
+    # A bare `deferred` answer with a note is a deferral as a ledger seeded it; on a held row,
+    # whose status reads open, it is a deferred one.
+    seeded_defer = answer == "deferred" and (
+        status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
     noted = decided is not None and (
         decided.startswith("accepted: ") or bool(ALT.match(decided))
+    )
+    # Any other note on a row still unsettled is the seeded text of a row no decision counts on:
+    # on a held row, one with no counted answer or a superseded-by-plan one.
+    residual = (
+        status in UNSETTLED
+        and "proposal" not in fields
+        and not noted
+        and (answer is None or status == "superseded-by-plan")
     )
     if note is not None and not (noted or seeded_defer or residual):
         clash("answer" if answer is not None else "hold", "note")
@@ -1002,7 +1024,11 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             "proposal": [new, old],
         }
     elif status == "superseded-by-plan" or (residual and note is not None):
-        seeded[qid] = {"status": status, "round": rnd, "resolution": note or ""}
+        seeded[qid] = {
+            "status": status,
+            "round": rnd,
+            "resolution": "" if noted else note or "",
+        }
     if kind == "withdraw" and answer.startswith("archived: "):
         q["archived"] = {"why": answer[len("archived: ") :], "at": at, "seeded": True}
     elif kind == "withdraw":
@@ -1015,7 +1041,11 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             "updatedAt": at,
             "seeded": True,
         }
-        seeded[qid] = {"status": status, "round": rnd, "resolution": note or ""}
+        seeded[qid] = {
+            "status": "deferred" if status == "open" else status,
+            "round": rnd,
+            "resolution": note or "",
+        }
     elif decided is not None:
         bare = ALT.match(decided)
         if bare and bare.group(2) is None:
