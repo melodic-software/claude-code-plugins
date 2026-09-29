@@ -1,12 +1,14 @@
 ---
 description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change. Two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; intent/outcome confirmation stays with /verification:confirm."
 user-invocable: true
-argument-hint: "[performance|metrics] [baseline|compare] (e.g., /verification:measure performance, /verification:measure metrics baseline)"
+argument-hint: "[performance|metrics] [baseline|compare]"
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
   summary: Verify an improvement claim against a pre-change baseline
 ---
+
+**Arguments.** `[performance|metrics] [baseline|compare]`. e.g., /verification:measure performance, /verification:measure metrics baseline
 
 ## Purpose
 

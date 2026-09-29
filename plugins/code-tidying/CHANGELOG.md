@@ -3,11 +3,19 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.18] - 2026-09-28
+## [0.23.19] - 2026-09-28
 
 ### Fixed
 
 - **The ranking suite passes where scc is installed.** Its expectations are pygments counts, but an installed scc supplies the comment lines and counts a shebang as one, so the comment-free `plain.sh` got a nonzero score. The suite now puts a failing scc stub first on PATH, so the census falls back to pygments as it does on CI. Test-only.
+
+## [0.23.18] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `batch-simplify` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
 
 ## [0.23.17] - 2026-09-28
 

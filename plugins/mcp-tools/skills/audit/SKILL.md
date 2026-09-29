@@ -1,6 +1,6 @@
 ---
 description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic: Python (`mcp`), TypeScript, .NET. Not for: whether configured MCP servers are safe to run (/mcp-tools:audit-posture), or MCP config correctness and connection issues (/claude-config:audit)."
-argument-hint: "[path]. A directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
+argument-hint: "[path]"
 user-invocable: true
 disable-model-invocation: false
 context: fork
@@ -9,6 +9,8 @@ metadata:
   workflow-stage: review
   summary: Audit MCP tool definitions against design quality criteria
 ---
+
+**Arguments.** `[path]`. A directory to scope the audit to (e.g. a single server dir), or omit for the whole project.
 
 ## Purpose
 

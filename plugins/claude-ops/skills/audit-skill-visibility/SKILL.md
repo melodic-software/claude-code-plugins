@@ -1,6 +1,6 @@
 ---
 description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; when the bundled doctor skill resolves in this session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
-argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
+argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [budget flags]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,6 +11,8 @@ metadata:
 ## Run-start suggestion
 
 If /skill-doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
+
+**Arguments.** `[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [budget flags]`. Full form: [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
 ## Purpose
 

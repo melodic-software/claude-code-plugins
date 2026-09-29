@@ -3,11 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.7] - 2026-09-28
+## [0.41.8] - 2026-09-28
 
 ### Fixed
 
 - **The work-item-tracker suite's gh-free PATH keeps jq when jq is outside `/usr/bin`.** It links every directory on PATH (mise, Homebrew) except `gh`, not only `/usr/bin`, `/bin`, and `/usr/local/bin`. Test-only.
+
+## [0.41.7] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `ship`, `track`, `work-loop` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
 
 ## [0.41.6] - 2026-09-28
 

@@ -1,12 +1,14 @@
 ---
 description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
-argument-hint: "[phase]: snapshot|bare|observe|readd|watch|status (default: guided full flow)"
+argument-hint: "[snapshot|bare|observe|readd|watch|status]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns
 ---
+
+**Arguments.** `[snapshot|bare|observe|readd|watch|status]`. Omit the phase for the guided full flow.
 
 ## Purpose
 

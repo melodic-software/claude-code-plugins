@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.9] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `course-digest`, `docpage-digest`, `map-corpus`, `video-digest` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
 ## [0.14.8] - 2026-09-28
 
 ### Changed

@@ -1,12 +1,14 @@
 ---
 description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before behavior-changing work with ambiguous intent. Skip mechanical work."
-argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview scope, /planning:interview <topic>)"
+argument-hint: "[action] [topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: contract
   summary: Interview in frontier rounds until the task contract is locked
 ---
+
+**Arguments.** `[action] [topic]`. e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview scope, /planning:interview <topic>
 
 ## Repository context. Gather first
 

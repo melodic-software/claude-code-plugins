@@ -1,9 +1,11 @@
 ---
 description: "Map a multi-resource documentation corpus into a verified, classified slice before any digesting, then an approved queue for /knowledge:docpage-digest. Use when: 'map this corpus', 'map this docs site', 'digest this whole site', 'ingest these docs and the spec repo', 'multiple pages/URLs to digest', 'corpus mapper', or a topic plus seed URLs covering more than one page. One page routes to /knowledge:docpage-digest; books, courses, and videos to their digest skills."
-argument-hint: "<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N] [--granularity deep|section]"
+argument-hint: "<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]"
 user-invocable: true
 disable-model-invocation: false
 ---
+
+**Arguments.** `<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]`. Full form: <topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N] [--granularity deep|section]
 
 # Map Corpus
 

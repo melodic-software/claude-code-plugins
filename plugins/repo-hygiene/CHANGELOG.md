@@ -3,11 +3,19 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.56] - 2026-09-28
+## [0.10.57] - 2026-09-28
 
 ### Fixed
 
 - **The branch-audit and branch-delete suites pass with a global `tag.gpgsign=true`.** Their fixture tags use `--no-sign`; a signed tag needs a message, and the empty one aborted `git tag`. Test-only.
+
+## [0.10.56] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `clean` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
 
 ## [0.10.55] - 2026-09-28
 
