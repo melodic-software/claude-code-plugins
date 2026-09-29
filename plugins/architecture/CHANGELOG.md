@@ -3,6 +3,60 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4] - 2026-09-28
+
+### Added
+
+- Nine `map-*` skills below the landscape rung, each with a tested extractor.
+  `map-dependencies` cites .NET `ProjectReference` and `PackageReference` edges
+  into `dependency-graph.json` and renders a mermaid flowchart.
+  `portfolio-facts.sh` uses the same .NET reader.
+- `map-components` renders a C4 component view of one deployable from that
+  record. An existing `dependency-graph.json` wins; otherwise the skill runs
+  `dependency-graph.sh`, and `component-graph.sh` is the fallback when that
+  writer is absent. Optional `component_layers` groups by a declared layering.
+  `/architecture:setup` accepts that key.
+- `map-events` charts C# MassTransit publish, send, and consume topology as a
+  mermaid flowchart, with orphan findings and a finding for each dynamic send.
+- `map-flow` traces one C# entry point from cited call sites into a mermaid
+  sequence diagram.
+- `map-containers` charts deployables and the stores they bind, with credentials
+  redacted.
+- `map-context` charts one system plus the external systems named in committed
+  configuration, with credentials redacted.
+- `map-data` draws an entity-relationship diagram from declared schema in
+  `diagram_dialect.data`. It does not open a database connection.
+- `map-deployment` charts committed Docker Compose and Kubernetes topology per
+  environment, with a diff. Every emitted value, the diff included, passes the
+  shared connection redactor.
+- `map-states` draws one entity from an explicit XState or Stateless transition
+  table as a mermaid `stateDiagram-v2`.
+- `lib/resolve-diagram-dialect.sh` resolves `diagram_dialect.data` and
+  `diagram_dialect.system` from the authoring-formats topic doc.
+- `map-landscape`'s thin result and `## Next` name `/architecture:map-components`
+  for the modules inside one deployable.
+- `reference/config.md` records the operator's dialect decision from #4639: the
+  component, context, container, and deployment views read the authoring-formats
+  `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default, mermaid
+  refused) and draw no picture when it is unset. Flow, events, dependencies, and
+  states are mermaid with no key. `landscape_dialect` stays with `map-landscape`.
+
+### Fixed
+
+- `map-dependencies` and `map-landscape`'s `portfolio-facts.sh` no longer build a sed program from
+  the scan root, so a directory name cannot run a command through GNU sed's `e` flag.
+- The shared redactor treats standalone credential words in a key (`DB_PASS`, `REDIS_AUTH`,
+  `ENCRYPTION_KEY`), `key: value` and JSON credential pairs, and token-only URL userinfo as secret.
+- The containers, context, data, deployment, events, flow, and states collectors skip tracked
+  symlinks.
+
+## [0.12.3] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
 ## [0.12.2] - 2026-09-28
 
 ### Changed

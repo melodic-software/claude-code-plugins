@@ -43,8 +43,10 @@ engine plan:
    `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
 
    **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
-   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/`, and `.claude` is a protected
-   directory. A Write of `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default`
+   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/` in the default configuration,
+   and `.claude` is a protected directory. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root
+   under that directory; the protected list names `.claude`, so a directory not named that is
+   outside what this paragraph asserts. A Write of `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default`
    and `acceptEdits`, costs a classifier round trip in `auto`, and is denied in `dontAsk`. No
    `permissions.allow` rule pre-approves it. Inline `--path` writes nothing, which is one more
    reason it is the per-deletion form. When the prompt offers "Yes, and allow Claude to edit files

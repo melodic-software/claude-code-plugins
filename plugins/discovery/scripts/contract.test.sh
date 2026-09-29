@@ -298,6 +298,47 @@ else
   fail "research/SKILL.md ($hub_words words) is NOT smaller than context/discipline.md ($spoke_words words)"
 fi
 
+# 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
+# 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
+# the same phrase is not waiting in the tail. The worker procedure is the spoke.
+assert_in_slice() {
+  local label="$1" file="$2" phrase="$3" bytes slice tail
+  bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
+  slice="$(head -c 20000 "$PLUGIN_ROOT/$file")"
+  if [[ "$bytes" -gt 20000 ]]; then
+    tail="$(tail -c +20001 "$PLUGIN_ROOT/$file")"
+  else
+    tail=""
+  fi
+  if [[ "$slice" == *"$phrase"* && "$tail" != *"$phrase"* ]]; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+}
+assert_in_slice 'explore outcome gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' '## Outcome gate (before EXPLORE.md handoff)'
+assert_in_slice 'explore acceptance gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' 'Post-dispatch acceptance gate'
+assert_in_slice 'research outcome gate is inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
+assert_in_slice 'research owner column is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Owner column governs'
+if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
+  && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore and research worker procedures live in the spokes'
+else
+  fail 'explore and research worker procedures live in the spokes'
+fi
+# $ARGUMENTS is substituted only in the rendered SKILL.md, never in a spoke read from disk.
+# shellcheck disable=SC2016  # literal $ARGUMENTS
+if grep -qF 'Explore the following: $ARGUMENTS' "$PLUGIN_ROOT/skills/explore/SKILL.md" \
+  && ! grep -qF '$ARGUMENTS' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore scope substitution stays in SKILL.md'
+else
+  fail 'explore scope substitution stays in SKILL.md'
+fi
+
 # ---------------------------------------------------------------------------
 # 9. The research description routes away from research-deep (#2271 D-F9)
 #
@@ -666,6 +707,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# The credential read boundary is stated once and pointed at
+#
+# A researcher's capability probe ran `git credential fill` and captured a live
+# token. No frontmatter key can block one shell command, so the rule is
+# instruction held in one place, with every agent pointing at it.
+# ---------------------------------------------------------------------------
+cred_heading='^## Credentials stay unread, stated once$'
+assert_present 'the parent contract owns the credential read boundary' \
+  'reference/parent-contract.md' "$cred_heading"
+cred_owners="$(surface | xargs grep -lE -- "$cred_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$cred_owners" -eq 1 ]]; then
+  pass 'the credential read boundary has exactly one owner'
+else
+  fail "the credential read boundary has exactly one owner — $cred_owners files carry the heading"
+fi
+assert_present 'the credential boundary names git credential fill' \
+  'reference/parent-contract.md' '`git credential fill`'
+assert_present 'the credential boundary names the operator deny rules' \
+  'reference/parent-contract.md' '`Bash\(git credential \*\)`'
+for agent in explorer researcher intent-tracer; do
+  assert_present "agents/$agent.md points at the credential read boundary" \
+    "agents/$agent.md" '"Credentials stay unread, stated once"'
+  assert_absent_in "agents/$agent.md does not restate the credential command list" \
+    "agents/$agent.md" 'gh auth token'
+done
+
 # 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
 #
 # The post-dispatch gate's steps live in the research skill body. A parent that

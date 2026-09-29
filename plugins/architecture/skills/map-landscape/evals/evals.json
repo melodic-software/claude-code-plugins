@@ -188,13 +188,14 @@
       "id": 13,
       "name": "a-repository-that-names-nothing-reports-thin",
       "prompt": "/architecture:map-landscape\n\nThe convention home resolves to the mermaid fixture below. The current repository is a git checkout whose tracked files name no other repository: no workflow `uses:` line, no marketplace source, no module path, no citation. The operator wants to understand how this repository is put together.",
-      "expected_output": "Charts one system with no edges, and the closing report's Thin result line says yes: the subject names no other repository, so a landscape cannot answer how this repository is built inside. It points at /architecture:improve or /discovery:explore for that question and does not offer --remote as a way to get more.",
+      "expected_output": "Charts one system with no edges, and the closing report's Thin result line says yes: the subject names no other repository, so a landscape cannot answer how this repository is built inside. It points at /architecture:map-components for the modules inside one deployable, and at /architecture:improve or /discovery:explore for module design and behavior. It does not offer --remote as a way to get more.",
       "files": ["evals/fixtures/topic-doc-mermaid.md"],
       "narration": true,
       "expectations": [
         "Quotes the renderer's summary line rather than counting systems and edges by hand: `internal=1`, `edges=0`, `thin=yes`",
         "The closing report carries a `Thin result` line reading yes, with the reason that the subject names no other repository",
-        "Names `/architecture:improve` or `/discovery:explore` as the tool for how one repository is built inside",
+        "Names `/architecture:map-components` as the view of the modules inside this repository",
+        "Names `/architecture:improve` or `/discovery:explore` for module design and behavior",
         "Does NOT offer `--remote` as a remedy: it fills facts for existing nodes and adds no system and no edge",
         "Does not invent an edge or a neighboring system to make the diagram look fuller"
       ]
