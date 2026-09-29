@@ -149,6 +149,7 @@ local command**. The gap is discoverability, not a missing runner, except one ge
 | CI gate / step id | Local command | Notes |
 |---|---|---|
 | `plugin-options-docs` | `python3 scripts/sync-plugin-options-docs.py --check` | Regenerates from `plugin.json` `userConfig`. Do not hand-edit the README block. |
+| `config-cascade-semantics` | `python3 scripts/sync-config-cascade-semantics.py --check` | Regenerates the glance table from the Implementers rows; run it without `--check` after editing a row. Do not hand-edit the generated block. |
 | `typos` | `typos --config _typos.toml` | Same config CI passes to the composite. |
 | `markdown` | `markdownlint-cli2` | Config: `.markdownlint-cli2.jsonc`. |
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
