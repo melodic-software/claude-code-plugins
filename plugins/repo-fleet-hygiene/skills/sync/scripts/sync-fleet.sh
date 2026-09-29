@@ -129,17 +129,20 @@ EOF
   rm -f "$fallback"
 fi
 
+# The same package-manager cache trees audit skips: Cargo, pnpm, and uv keep
+# real git checkouts in them, and this verb would switch and pull those.
+SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget __pycache__ .tox)
+
 discover_root() {
-  local root="$1" gitdir base
+  local root="$1" gitdir name
+  local prune=()
   [[ -d "$root" ]] || return 0
+  for name in "${SKIP_NAMES[@]}"; do
+    prune+=(${prune[@]+-o} -name "$name")
+  done
   while IFS= read -r gitdir; do
-    base="$(dirname "$gitdir")"
-    case "$base" in
-    */node_modules/* | */vendor/* | */.venv/*) continue ;;
-    *) ;;
-    esac
-    REPOS+=("$base")
-  done < <(find "$root" -maxdepth 5 \( -name node_modules -o -name vendor -o -name .venv \) -prune -o -name .git -print 2>/dev/null)
+    REPOS+=("$(dirname "$gitdir")")
+  done < <(find "$root" -maxdepth 5 \( "${prune[@]}" \) -prune -o -name .git -print 2>/dev/null)
 }
 
 for root in "${ROOTS[@]}"; do
@@ -160,7 +163,10 @@ default_branch() {
   ref="${line#ref: }"
   ref="${ref%%$'\t'*}"
   ref="${ref#refs/heads/}"
-  [[ -n "$ref" ]] || return 1
+  # The remote chooses this name and it reaches git as a positional argument,
+  # so a leading dash or an invalid ref name is refused.
+  [[ -n "$ref" && "$ref" != -* ]] || return 1
+  git check-ref-format --branch "$ref" >/dev/null 2>&1 || return 1
   printf '%s\n' "$ref"
 }
 

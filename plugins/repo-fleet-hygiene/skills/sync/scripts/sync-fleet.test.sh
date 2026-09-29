@@ -82,6 +82,28 @@ else
   fail "a relative fleet.repo resolves against the config directory" "$relative"
 fi
 
+mkdir -p "$TMP/drive/.cargo/git/checkouts"
+git clone -q "$bare" "$TMP/drive/.cargo/git/checkouts/dep"
+git clone -q "$bare" "$TMP/drive/app"
+rooted="$(bash "$SCRIPT" --root "$TMP/drive")"
+if [[ "$rooted" == *"$TMP/drive/app"* && "$rooted" != *".cargo"* ]]; then
+  pass "a --root walk skips package-manager cache checkouts"
+else
+  fail "a --root walk skips package-manager cache checkouts" "$rooted"
+fi
+
+git clone -q --bare "$bare" "$TMP/evil.git"
+git -C "$TMP/evil.git" update-ref refs/heads/-evil refs/heads/main
+git -C "$TMP/evil.git" symbolic-ref HEAD refs/heads/-evil
+git clone -q "$bare" "$TMP/victim"
+git -C "$TMP/victim" remote set-url origin "$TMP/evil.git"
+evil="$(bash "$SCRIPT" --repo "$TMP/victim")"
+if [[ "$evil" == *$'skip\t'"$TMP/victim"$'\t\tls-remote'* ]]; then
+  pass "a remote default branch starting with a dash is refused"
+else
+  fail "a remote default branch starting with a dash is refused" "$evil"
+fi
+
 applied="$(bash "$SCRIPT" --repo "$clone" --apply --yes)"
 if [[ "$applied" == *$'applied\t'"$clone"* && "$(git -C "$clone" rev-parse HEAD)" == "$(git -C "$bare" rev-parse main)" ]]; then
   pass "apply --yes fast-forwards"
