@@ -33,5 +33,4 @@ everything" is not selection.
 
 `--sizes-only` as implemented: it does not ask the large-scan question, so a known-large root walks
 without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
-directories: it sums through them, read-only, and writes no entries. It has no entry cap. Whether
-that is the intended gate behavior is an open owner decision (#4009).
+directories: it sums through them, read-only, and writes no entries. It has no entry cap.

@@ -223,7 +223,7 @@ gets the relaxed directory listing.
 
 `--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
 large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
-cap; the owner decision on that is open (#4009).
+cap.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.

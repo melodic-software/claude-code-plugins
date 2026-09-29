@@ -155,7 +155,7 @@ naming what the question never presented cannot be met.
 
 **`--sizes-only`** does not ask the large-scan question, so a known-large root walks without
 `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only,
-and has no entry cap. Whether that is the intended gate behavior is an open owner decision (#4009). Detail:
+and has no entry cap. Detail:
 [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
 ## 1. Create a read-only snapshot

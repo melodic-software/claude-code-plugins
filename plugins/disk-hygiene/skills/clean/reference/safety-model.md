@@ -551,11 +551,9 @@ host where `node` is missing, or where that launcher cannot resolve Git Bash, ta
 its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
-the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
-difference from the watchdog is the engine gate's marker-free commands: they proceed unchecked with a
-once-per-session `systemMessage` and `additionalContext` notice rather than an `ask`, because a
-missing interpreter is persistent where a missed deadline is transient, and an `ask` on every
-`PowerShell(*& $*)` call would stop unrelated work. The Stop detector is kept as the end-of-turn
+the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
+marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
+`systemMessage` and `additionalContext` notice rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
@@ -665,8 +663,7 @@ invalid target.
 
 `--sizes-only`, as implemented, bypasses that gate. It does not ask the large-scan question, does
 not stop at VCS or protected directories (it sums through them, read-only, and emits no entries),
-and has no entry cap. Its snapshot is refused by disposition. Whether the bypass is intended is an
-open owner decision (#4009).
+and has no entry cap. Its snapshot is refused by disposition.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
