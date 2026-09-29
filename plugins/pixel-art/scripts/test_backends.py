@@ -232,6 +232,11 @@ class BackendTest(unittest.TestCase):
             self.assertIn("json-hash", logged)
             self.assertIn("Aseprite", buf.getvalue())
 
+    def test_confirm_comes_from_flag_or_env(self):
+        self.assertTrue(backends.confirmed(True, {}))
+        self.assertTrue(backends.confirmed(False, {"PIXEL_ART_BACKEND_CONFIRM": "1"}))
+        self.assertFalse(backends.confirmed(False, quiet_env()))
+
     def test_hosted_backends_require_confirm_then_snap(self):
         server = start_server()
         self.addCleanup(server.server_close)
