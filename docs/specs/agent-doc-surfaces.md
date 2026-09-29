@@ -91,9 +91,9 @@ corroborate the competitor paths themselves.
 - `.agents/skills/` cross-tool convention (corrected 2026-08-17, user-raised): confirmed
   directionally from multiple independent secondary pools + Cursor's own docs surfaced via
   search (vendor hosts egress-blocked here), so MEDIUM; the spec repo itself confirms it defines
-  no directory locations. Whether Claude Code reads `.agents` paths is answered by harness
-  verdict row 5 in `docs/upstream/aihero-course.md`; this spec decides nothing on adding an
-  `.agents` root.
+  no directory locations. Whether Claude Code reads `~/.agents/skills` is answered by harness
+  verdict row 5 in `docs/upstream/aihero-course.md` (REFUTED); that verdict does not cover the
+  project `.agents/skills/` path. This spec decides nothing on adding an `.agents` root.
 - Fresh-context verifier catches (recorded 2026-08-17): Roo and Aider rows are single-pool
   (vendor primary only, accepted on the same vendor-authority basis, now flagged); the AGENTS.md
   "nearest wins" nested-precedence detail is thinly corroborated (standard's FAQ only); the
