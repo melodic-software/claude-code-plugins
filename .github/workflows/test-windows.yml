@@ -194,17 +194,18 @@ jobs:
   #     no OSTYPE branch, so it stays on the Linux lane.
   # A host-gated case that cannot run must print a counted SKIP line.
   #
-  # HOST-SKIP SUITES (#3683). Two suites probe the host at run time and print a
-  # SKIP line when they cannot pin their cases, so their Windows behaviour is
-  # read from this lane's log, not asserted from a Linux run:
+  # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
+  # print a SKIP line when they cannot pin their cases, so their Windows
+  # behaviour is read from this lane's log, not asserted from a Linux run:
   #   markdown-format — four PATH-probed cases print a counted SKIP when cygpath
   #     rewrites a POSIX mktemp path. The symlink-escape case prints an uncounted
   #     SKIP line and an `ok ... SKIPPED` line that counts as PASS.
   #   cloud-bootstrap-plugins — one SKIPPED=1 for the whole suite when an
   #     extensionless node_modules/.bin/claude stub does not run.
-  #   audit_skill_visibility — NOT here yet. Two managed-scope unit tests fail on
-  #     windows-2025 (`bash exited 1 sourcing the lib` for lib/managed-scope.sh),
-  #     so the run stops before its cygpath probe (#5323).
+  #   audit_skill_visibility — its --installed fixture embeds paths in JSON that
+  #     a native Python reads verbatim, so a cygpath probe rewrites them to the
+  #     forward-slash form; it prints no SKIP line, and a green step means the
+  #     rewritten fixture resolved.
   # They stub markdownlint-cli2 and claude, so no step installs either. The
   # PASS/FAIL/SKIPPED totals in each step's log say whether the probe fired or
   # the cases ran.
@@ -275,6 +276,8 @@ jobs:
         run: bash plugins/markdown-format/hooks/markdown-format.test.sh
       - name: Test cloud-bootstrap plugin accounting on Windows
         run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
+      - name: Test the skill-visibility audit on Windows
+        run: bash plugins/claude-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
