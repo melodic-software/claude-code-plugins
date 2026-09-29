@@ -88,13 +88,13 @@ still saves a symbol.
 |---|---|
 | `ran` | the lane resolved a binary, invoked it, and read trustworthy output |
 | `skipped` | no resolvable local binary, or a located binary that failed to invoke. Nothing was fetched. No package runner is ever called |
-| `degraded` | the lane ran but its output is not trustworthy. **It emits no records**, and its line says why |
+| `degraded` | the lane ran but its output is not trustworthy. **It emits no records**, and its line says why. Its files are uncovered (`lane degraded`) |
 | `scanned-zero-files` | the lane had zero in-scope input files it **owns** (a nested project root's files belong to that root). Both detectors otherwise report this as exit 0 with no output. Indistinguishable from clean |
 | `no-manifest` | the lane's language is in scope, but no project manifest root exists (`package.json` for knip, `go.mod` for gopls). `files=` is the real in-scope count for that language. Those files are uncovered. This is not a missing binary |
 
 `files=` on a `Lane:` line is the number of files that lane took as input, including `skipped` and `no-manifest`. It is not the number of findings.
 
-A run where no lane reached `ran` and no source file is uncovered is **a scan of nothing, not a clean bill**, and the script says so. A run that leaves any in-scope source file uncovered is also not a clean bill, even when some lane ran. The clean-result note is printed only when `Summary coverage:` reports `uncovered=0`.
+A run where no lane reached `ran` and no source file is uncovered is **a scan of nothing, not a clean bill**, and the script says so. A run whose only lanes are `degraded` leaves their files uncovered and lists them instead. A run that leaves any in-scope source file uncovered is also not a clean bill, even when some lane ran. The clean-result note is printed only when `Summary coverage:` reports `uncovered=0`.
 
 ## Adjudication
 
@@ -151,12 +151,12 @@ Bounded by design. Full evidence catalogue in
 
 ## When coverage is incomplete
 
-A `skipped` lane, a `no-manifest` lane, a `scanned-zero-files` lane, or source files with no lane at
+A `skipped` lane, a `degraded` lane, a `no-manifest` lane, a `scanned-zero-files` lane, or source files with no lane at
 all are gaps, not a clean bill. After presenting the lane roster:
 
 1. **Name each gap** from `Summary coverage:` and each `Note: uncovered` line: the path and the
-   reason (`no lane for the language`, `no manifest root`, `tool not installed`, `tool could not
-   parse it`, or `lane not selected`). Rust and .NET stay a policy exclusion: they are `no lane
+   reason (`no lane for the language`, `no manifest root`, `tool not installed`, `lane degraded`,
+   `tool could not parse it`, or `lane not selected`). Rust and .NET stay a policy exclusion: they are `no lane
    for the language`, not a detector this run forgot to invoke.
 2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
    the operator to edit and submit. Do nothing unless they agree.
@@ -181,7 +181,7 @@ Finding line: 13
 Finding excerpt: formatLegacyRow
 ---
 Summary file: src/legacy/format.ts | T1=0 T2=1 T3=0
-Summary lanes: ran=3 skipped=1 degraded=6 scanned-zero-files=2 no-manifest=0
+Summary lanes: ran=3 skipped=1 degraded=0 scanned-zero-files=2 no-manifest=0
 Summary coverage: covered=19 uncovered=2
 Summary candidates: total=370 emitted=15 dropped-by-cap=355 cap=15
 Summary total: files-with-findings=15 T1=0 T2=15 T3=0
@@ -189,7 +189,7 @@ Note: uncovered scripts/standalone.mjs — no manifest root
 Note: uncovered src/main.rs — no lane for the language
 ```
 
-`Summary total: files-with-findings=` counts files that emitted at least one candidate. `Summary coverage:` counts every in-scope source file: covered by a lane in `ran` or `degraded`, or uncovered. Uncovered reasons are `no lane for the language`, `no manifest root`, `tool not installed`, `tool could not parse it`, and `lane not selected`. Extensionless scripts are not classified yet. Markdown, JSON, YAML, and other non-source files are not in that total. When `uncovered` is greater than zero the script lists each file and does not print the clean-result note or the scan-of-nothing note.
+`Summary total: files-with-findings=` counts files that emitted at least one candidate. `Summary coverage:` counts every in-scope source file: covered by a lane in `ran`, or uncovered. Uncovered reasons are `no lane for the language`, `no manifest root`, `tool not installed`, `lane degraded`, `tool could not parse it`, and `lane not selected`. Extensionless scripts are not classified yet. Markdown, JSON, YAML, and other non-source files are not in that total. When `uncovered` is greater than zero the script lists each file and does not print the clean-result note or the scan-of-nothing note.
 
 Present per file: verdict, shape, line, the evidence checked, and for `alive` what saved it.
 Close with the lane roster, the candidate count against the cap, and `n dropped by cap`.
@@ -244,7 +244,8 @@ Adjudicated `dead` verdicts are applied there. This skill only reports.
   **Recheck:** standalone `.mjs` trap fixtures produce candidates at recorded precision, or #4522
   unpark.
 - **A `degraded` lane is not a quiet lane.** knip degraded means invented findings were withheld;
-  gopls degraded means real findings were never produced. Report which one happened.
+  gopls degraded means real findings were never produced. Report which one happened. Either way the
+  lane's files are listed uncovered (`lane degraded`), so the clean-result note cannot print.
 - **`grep -w -F` is the floor and `-F` is mandatory**, without it `core.ts` matches `coreXts`. A
   hit adjacent to `$`, `-`, or `.` needs model inspection; it is never an automatic `alive`.
 - **knip runs per project root**, discovered via `package.json`. One run per root, never one run

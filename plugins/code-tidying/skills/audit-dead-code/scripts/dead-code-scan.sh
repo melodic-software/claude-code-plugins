@@ -164,9 +164,9 @@ note() {
 }
 
 # Coverage ledger. A source file is covered when a lane took it as input and
-# reached `ran` or `degraded` (the lane line names a degradation; the file is
-# not missing). `skipped` is "tool not installed". `no-manifest` is "no manifest
-# root". Anything still unmarked at the end is either `nolane` or a lane this
+# reached `ran`. `degraded` is "lane degraded": the lane line names the
+# degradation and the file was not scanned. `skipped` is "tool not installed".
+# `no-manifest` is "no manifest root". Anything still unmarked at the end is either `nolane` or a lane this
 # invocation did not select.
 declare -A DC_COVERED=()
 declare -A DC_UNCOVERED=()
@@ -192,13 +192,14 @@ dc_mark_uncovered() {
   done
 }
 
-# `ran` and `degraded` cover the file. `skipped` and `no-manifest` name why it
+# `ran` covers the file. `degraded`, `skipped` and `no-manifest` name why it
 # was not scanned. `scanned-zero-files` has nothing to account for.
 dc_account_lane_files() {
   local state="$1"
   shift
   case "$state" in
-  ran | degraded) dc_mark_covered "$@" ;;
+  ran) dc_mark_covered "$@" ;;
+  degraded) dc_mark_uncovered 'lane degraded' "$@" ;;
   skipped) dc_mark_uncovered 'tool not installed' "$@" ;;
   no-manifest) dc_mark_uncovered 'no manifest root' "$@" ;;
   *) ;;

@@ -243,7 +243,28 @@ assert_not_contains "degraded lane emits no finding at all" "$deg_out" "Finding 
 assert_not_contains "degraded lane leaks no symbol from the blob" "$deg_out" "formatLegacyRow"
 assert_contains "degraded lane counts zero candidates" "$deg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
 assert_contains "degraded lane counts zero findings" "$deg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
-assert_contains "degraded-only run is called a scan of nothing" "$deg_out" "Note: no lane ran"
+assert_contains "degraded lane leaves every TS file uncovered" "$deg_out" "Summary coverage: covered=0 uncovered=4"
+assert_contains "degraded lane names its reason per file" "$deg_out" "Note: uncovered ts-orphan.ts — lane degraded"
+assert_not_contains "degraded-only run is not called a scan of nothing" "$deg_out" "Note: no lane ran"
+assert_not_contains "degraded-only run never prints the clean-result note" "$deg_out" "Note: no candidates from the lanes that ran"
+
+# A degraded lane beside a lane that ran: only the degraded lane's files are
+# uncovered, and the clean-result note stays absent.
+DEGMIX_REPO="$TEST_TMPDIR/degraded-mixed"
+init_repo "$DEGMIX_REPO"
+printf '%s\n' '{"name":"degmix","version":"0.0.0","private":true}' >"$DEGMIX_REPO/package.json"
+mkdir -p "$DEGMIX_REPO/node_modules"
+printf 'restored\n' >"$DEGMIX_REPO/node_modules/marker"
+printf '%s\n' '#!/usr/bin/env bash' 'echo hi' >"$DEGMIX_REPO/a.sh"
+cp "$FIXTURES/ts-orphan.ts" "$DEGMIX_REPO/"
+stage_repo "$DEGMIX_REPO"
+degmix_out="$(cd "$DEGMIX_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" 2>/dev/null)"
+assert_contains "grep lane ran beside the degraded knip lane" "$degmix_out" "Lane: grep | root=. | state=ran"
+assert_contains "knip lane is degraded" "$degmix_out" "Lane: knip | root=. | state=degraded"
+assert_contains "the TS file is uncovered with reason lane degraded" "$degmix_out" "Note: uncovered ts-orphan.ts — lane degraded"
+assert_not_contains "the shell file the grep lane ran on is not uncovered" "$degmix_out" "Note: uncovered a.sh"
+assert_contains "coverage does not count the degraded file" "$degmix_out" "Summary coverage: covered=1 uncovered=1"
+assert_not_contains "a degraded lane suppresses the clean-result note" "$degmix_out" "Note: no candidates from the lanes that ran"
 
 # --- 2b. Per-root OWNERSHIP: a degraded nested root's files appear in NO record ----
 # SKILL.md: "one degraded workspace does not condemn the others." Running knip AT a root
@@ -280,7 +301,8 @@ assert_contains "the outer root counts only the files it owns" "$md_out" "Lane: 
 assert_contains "the outer root says what it dropped" "$md_out" "1 finding(s) this root does not own dropped"
 # THE ASSERTION: a degraded root's files appear in NO record, from any root.
 assert_not_contains "no record names a file inside the degraded nested root" "$md_out" "File: packages/inner"
-assert_not_contains "the degraded root's module leaks nowhere at all" "$md_out" "ts-orphan"
+assert_not_contains "the degraded root's module leaks into no record" "$(printf '%s\n' "$md_out" | grep -v '^Note: uncovered ')" "ts-orphan"
+assert_contains "the degraded root's module is listed uncovered" "$md_out" "Note: uncovered packages/inner/ts-orphan.ts — lane degraded"
 assert_not_contains "the degraded root emits no unused-file record" "$md_out" "Finding shape: ts-unused-file"
 # The other half of the contract: one degraded workspace does not condemn the
 # others — the healthy outer root still reports its own findings.
@@ -372,6 +394,9 @@ vdeg_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAK
 assert_contains "non-input stderr DOES degrade the lane" "$vdeg_out" "Lane: vulture | root=. | state=degraded"
 assert_not_contains "degraded vulture emits no records" "$vdeg_out" "Finding shape: py-unused-symbol"
 assert_contains "degraded vulture counts zero findings" "$vdeg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
+assert_contains "degraded vulture leaves its .py files uncovered" "$vdeg_out" "Note: uncovered py-entry.py — lane degraded"
+assert_contains "degraded vulture covers nothing" "$vdeg_out" "Summary coverage: covered=0 "
+assert_not_contains "degraded vulture never prints the clean-result note" "$vdeg_out" "Note: no candidates from the lanes that ran"
 
 # --- 4. vulture finding parsing and the message-verb gate --------------------------
 
@@ -447,6 +472,9 @@ assert_not_contains "degraded gopls emits no finding at all" "$godeg_out" "Findi
 assert_not_contains "degraded gopls leaks no symbol parsed before the gate" "$godeg_out" "deadHandler"
 assert_contains "degraded gopls counts zero candidates" "$godeg_out" "Summary candidates: total=0 emitted=0 dropped-by-cap=0 cap=0"
 assert_contains "degraded gopls counts zero findings" "$godeg_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
+assert_contains "degraded gopls leaves its .go file uncovered" "$godeg_out" "— lane degraded"
+assert_contains "degraded gopls covers nothing" "$godeg_out" "Summary coverage: covered=0 "
+assert_not_contains "degraded gopls never prints the clean-result note" "$godeg_out" "Note: no candidates from the lanes that ran"
 
 # The second degradation trigger: ANY byte on gopls stderr. The gate is `-s`, so
 # this is deliberately conservative — routine chatter would degrade a healthy
