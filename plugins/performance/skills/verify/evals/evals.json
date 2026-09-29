@@ -135,6 +135,32 @@
         "The config's matrix covers both modes, including the absent --mode case",
         "Reports the modes actually exercised"
       ]
+    },
+    {
+      "id": 12,
+      "name": "worktree-measured-newer-than-installed-keeps-the-measurement-verdict",
+      "prompt": "/performance:verify target was spawns <= 1 per tool call. The independent verifier reproduced 4 -> 1 on the worktree build, plugin version 0.2.9. installed_plugins.json records version 0.2.7 for the same plugin at user scope. The differential was byte-identical over every mode. Write the report.",
+      "expected_output": "The verdict follows the measurement: MET, with the counter 4 -> 1 as the headline. It is not downgraded to NOT MET because the installed copy is older. The Measured line names 0.2.9 and the Deployed line reads `differs: 0.2.7 ..., re-measure after install`, quoting the installed version and install path. An `Open follow-up:` line names installing the measured build, then `/performance:snapshot post` and `/performance:verify` again. The report uses no done, shipped, or live language.",
+      "files": [],
+      "expectations": [
+        "The verdict is MET, following the measurement, and is not downgraded to NOT MET because of the version mismatch",
+        "The Measured line names 0.2.9 and the Deployed line reads `differs` with the installed 0.2.7 and `re-measure after install`",
+        "Includes an `Open follow-up:` line naming install, then /performance:snapshot post and /performance:verify again",
+        "Does not describe the change as done, shipped, or live"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "deployed-line-is-clean-when-versions-agree-and-n-a-without-an-install-record",
+      "prompt": "/performance:verify two separate runs. Run A: target was spawns <= 1 per tool call, verifier reproduced 4 -> 1 on the worktree build 0.2.9, and installed_plugins.json records 0.2.9 for the plugin. Run B: the subject is a standalone shell script benchmarked by a colleague, target was 12 forks -> 3 forks, verifier reproduced it, and there is no plugin and no installed_plugins.json record for it. Write the Deployed line and follow-up handling for each.",
+      "expected_output": "Run A reports `Deployed: same as measured` and carries no `Open follow-up:` line. Run B reports `Deployed: n/a (no install record for this subject)` and proceeds to its verdict; the missing install record does not block the report, downgrade the verdict, or add an open follow-up. Neither run's verdict is altered by the Deployed line.",
+      "files": [],
+      "expectations": [
+        "Run A reports `Deployed: same as measured` with no `Open follow-up:` line",
+        "Run B reports `Deployed: n/a (no install record for this subject)`",
+        "Run B still reaches a verdict and is not blocked, downgraded, or given an open follow-up for lacking an install record",
+        "Neither verdict is changed by the Deployed line"
+      ]
     }
   ]
 }
