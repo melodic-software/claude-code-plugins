@@ -895,6 +895,11 @@ assert_contains "the I33 hub of a root-level spoke is the SKILL.md beside it" \
   "$(printf '%s\n' "$SURFROWS" | grep 'formats.md:3')" "loading condition: $SURFSKILL/SKILL.md, where"
 assert_contains "the I33 hub of a slice README is the nearest SKILL.md above it" \
   "$(printf '%s\n' "$SURFROWS" | grep 'slice/README.md:3')" "loading condition: $SURFSKILL/SKILL.md, where"
+SUBLANE="$TEST_TMPDIR/sub-lane.txt"
+printf '%s\n' "formats.md:3:I33" >"$SUBLANE"
+(cd "$SURFREPO/$SURFSKILL" && bash "$EMIT" --from-lane "$SUBLANE" --out "$TEST_TMPDIR/sub.md" --branch x) >/dev/null 2>&1
+assert_contains "the I33 hub is found when run from a subdirectory with a relative path" \
+  "$(grep 'formats.md:3' "$TEST_TMPDIR/sub.md" 2>/dev/null)" "loading condition: $SURFSKILL/SKILL.md, where"
 assert_contains "I31 in a file outside any skill dir is declined and counted" "$SURFOUT" \
   "Declined candidates: I31 count=1 reason=outside-rule-surfaces"
 assert_not_contains "and never emitted" "$SURFROWS" "| docs/notes.md:3 |"

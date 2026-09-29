@@ -168,10 +168,12 @@ printf '{"permissions":{"deny":"Bash(x)","defaultMode":"plan"}}\n' >"$SHAPE/home
 OUT_SCALAR_BAD=$(run_tree "$SHAPE")
 assert_contains "a string rule list is invalid-json whatever follows it" "$OUT_SCALAR_BAD" "user settings invalid-json"
 
-# A scalar key of the wrong type is a malformed scope, not a healthy one.
-printf '{"permissions":{"defaultMode":{},"allow":["Bash(ls)"]}}\n' >"$SHAPE/home/.claude/settings.json"
+# A wrong-typed scalar key must not hide the file's other keys: the file stays
+# present, so a mistyped disableAutoMode beside it is still read.
+printf '{"permissions":{"defaultMode":{}},"disableAutoMode":true}\n' >"$SHAPE/home/.claude/settings.json"
 OUT_SCALAR_OBJ=$(run_tree "$SHAPE")
-assert_contains "an object defaultMode is invalid-json" "$OUT_SCALAR_OBJ" "user settings invalid-json"
+assert_contains "an object defaultMode leaves the file present" "$OUT_SCALAR_OBJ" "user settings present"
+assert_contains "and its mistyped disableAutoMode is still read" "$OUT_SCALAR_OBJ" "conf user settings disableAutoMode true"
 
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.

@@ -330,7 +330,7 @@ LC_ALL=C awk \
   # names it. A file no skill owns (one a memory surface points at) has no hub.
   function hub_of(file, loc,   base, h, probe, probe_line) {
     base = (length(file) >= length(loc) && substr(file, length(file) - length(loc) + 1) == loc) \
-      ? substr(file, 1, length(file) - length(loc)) : ""
+      ? substr(file, 1, length(file) - length(loc)) : (repo_root_pwd != "" ? repo_root_pwd : repo_root) "/"
     h = loc
     while (sub(/\/?[^\/]+$/, "", h) && h != "") {
       probe = base h "/SKILL.md"
