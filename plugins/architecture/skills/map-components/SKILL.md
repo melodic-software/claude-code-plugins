@@ -100,9 +100,13 @@ arrays, not an empty architecture. The render says so and draws nothing.
 ## Choose one container
 
 A container is one deployable: an indegree-zero project, plus the projects
-reached by following internal edges. When exactly one deployable covers every
-project, that is the subject. When the renderer exits 3, it lists the choices
-and writes nothing. In an interactive run, ask which one and re-run with
+reached by following internal edges. A test project (the node's `test` field) is
+not a deployable: its references are not counted toward a project's indegree, so
+`Api.Tests` referencing `Api` leaves `Api` a root, and it is never listed as a
+choice. When exactly one deployable covers every project, that is the subject.
+When the renderer exits 3, it lists the choices and writes nothing. It also
+exits 3 when every project is a test project, and says so; `--container` still
+charts one on request. In an interactive run, ask which one and re-run with
 `--container`. In a non-interactive run, stop and report the list. Do not chart
 all of them.
 
@@ -110,9 +114,14 @@ all of them.
 
 `--group-by` is `directory` (the default), `namespace`, or `layer`.
 
-- `directory` groups by the project file's directory.
-- `namespace` uses a `namespace` field on the node when the graph has one, and
-  the project name otherwise.
+- `directory` groups by the parent of the project's own directory, one level up:
+  `src/Api/Api.csproj` and `src/Domain/Domain.csproj` both group under `src`.
+  A project directly under the root, or one folder down, groups under `.`.
+- `namespace` groups by the containing namespace: the node's `namespace` field
+  (`RootNamespace`, else `AssemblyName`, from the project file), else the project
+  name, with the last dotted segment dropped. `Billing.Api` and
+  `Billing.Domain` both group under `Billing`. A name with no dot is its own
+  group.
 - `layer` requires a declared layering convention: `component_layers` in the
   topic doc, or `--layers host,application,domain` ordered from outside to
   inside. A node matches a layer by a whole path segment or a dotted name
@@ -130,6 +139,7 @@ artifact. It does not drop a component or an evidence row.
   --out "<architecture_dir>" \
   --dialect "<likec4|c4-plantuml|none>" \
   --group-by directory \
+  --root "<root>" \
   --layers "<component_layers>" \
   --container "<name>" \
   --notes "<architecture_dir>/components-notes.md"
@@ -146,6 +156,11 @@ annotation as an annotation. Annotations say what a component is for.
 The renderer prints one summary line. Keep it for the report:
 
 `components: container="<name>" components=<n> edges=<n> drawn_edges=<n> violations=<n> aggregated=<yes|no> thin=<yes|no> external_collapsed=<n> unresolved=<n> dialect=<likec4|c4-plantuml|none>`
+
+`--root` lets the renderer compare the record's `generated_on` with the HEAD
+commit date of `<root>`. When they differ it writes one line, `dependency-graph.json
+was generated on <d>; HEAD commit date is <d2>`, into `components.md` and to
+stderr, and renders anyway.
 
 A thin result (`thin=yes`) is a single module with no internal edges. The
 artifact says so and names the neighboring rungs. It does not present a one-box
@@ -171,7 +186,8 @@ End every run with this block, in this order:
 - **External and unresolved**: the two counts. Unresolved targets were not
   matched by name.
 - **Graph source**: the existing `dependency-graph.json`, or the one
-  `dependency-graph.sh` wrote this run.
+  `dependency-graph.sh` wrote this run. Quote the staleness warning when the
+  renderer printed one.
 - **Dialect**: `diagram_dialect.system`, its value, and the layer: `argument`,
   `team convention doc <path>`, or `unset (no C4 view emitted)`.
 
@@ -185,6 +201,8 @@ End every run with this block, in this order:
 - Fail the run because an edge violates a declared layering.
 - Invent a home, a layering convention, or an edge.
 - Re-collect when `<architecture_dir>/dependency-graph.json` is already present.
+  Whether a stale graph should be regenerated is the caller's call; the
+  renderer's warning is how the staleness is surfaced, and it never blocks.
 - Parse source imports. Evidence is a build declaration.
 
 ## Next

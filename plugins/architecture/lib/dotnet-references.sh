@@ -29,6 +29,17 @@
 #     GlobalPackageReference, an empty Include, and a tag with no Include are
 #     counted. 0 for a file that cannot be read.
 #
+#   dotnet_project_property <file> <name>
+#     The text of the first <name>...</name> element in the file (comments
+#     dropped, whitespace trimmed), or nothing. A value that holds an MSBuild
+#     expression, $(...), is not a value this reader can evaluate and prints
+#     nothing.
+#   dotnet_is_test_project <file>
+#     Succeeds when the file sets IsTestProject to true, or has a
+#     PackageReference whose Include is Microsoft.NET.Test.Sdk, xunit*,
+#     NUnit*, MSTest*, or Microsoft.Testing.Platform*, matched
+#     case-insensitively as NuGet ids are.
+#
 # Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
 # shellcheck shell=bash
 
@@ -58,6 +69,16 @@ END {
   tag_re = "^" name_re "([[:space:]]([^>" q sq "]|" q "[^" q "]*" q "|" sq "[^" sq "]*" sq ")*)?/?>"
   attr_re = "^[[:space:]/]*[^[:space:]=/>" q sq "]+[[:space:]]*=[[:space:]]*(" q "[^" q "]*" q "|" sq "[^" sq "]*" sq ")"
   rest = strip_comments(buf)
+  if (mode == "prop") {
+    if (match(rest, "<" prop "[[:space:]]*>[^<]*</" prop "[[:space:]]*>")) {
+      v = substr(rest, RSTART, RLENGTH)
+      sub(/^<[^>]*>/, "", v)
+      sub(/<.*$/, "", v)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+      if (index(v, "$(") == 0) print v
+    }
+    exit
+  }
   unmatched = 0
   while (match(rest, open_re)) {
     rest = substr(rest, RSTART)
@@ -114,6 +135,25 @@ dotnet_reference_unmatched_count() {
     return 0
   }
   awk -v mode=count "$_dotnet_reference_awk" "$file"
+}
+
+dotnet_project_property() {
+  local file="$1"
+  [[ -r "$file" ]] || return 0
+  awk -v mode=prop -v prop="$2" "$_dotnet_reference_awk" "$file"
+}
+
+dotnet_is_test_project() {
+  local file="$1" flag
+  flag="$(dotnet_project_property "$file" IsTestProject)"
+  [[ "${flag,,}" == "true" ]] && return 0
+  dotnet_reference_records "$file" | awk -F '\t' '
+    $1 == "package" {
+      id = tolower($2)
+      if (id == "microsoft.net.test.sdk" || id ~ /^(xunit|nunit|mstest|microsoft\.testing\.platform)/) found = 1
+    }
+    END { exit !found }
+  '
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

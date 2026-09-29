@@ -125,5 +125,33 @@ unterminated="$TEST_TMPDIR/unterminated-comment.csproj"
 printf '<Project>\n<PackageReference Include="Before" />\n<!-- never closed\n<PackageReference Include="Hidden" />\n' >"$unterminated"
 assert_equals "an unterminated comment hides what follows it" "$(dotnet_reference_includes "$unterminated")" "Before"
 
+is_test() { dotnet_is_test_project "$1" && echo yes || echo no; }
+mk_proj() { printf '<Project Sdk="Microsoft.NET.Sdk">\n%s\n</Project>\n' "$2" >"$TEST_TMPDIR/$1.csproj"; }
+
+mk_proj flag '<PropertyGroup><IsTestProject> True </IsTestProject></PropertyGroup>'
+assert_equals "IsTestProject true marks a test project" "$(is_test "$TEST_TMPDIR/flag.csproj")" "yes"
+mk_proj flagoff '<PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup>'
+assert_equals "IsTestProject false is not a test project" "$(is_test "$TEST_TMPDIR/flagoff.csproj")" "no"
+mk_proj flagcomment '<!-- <IsTestProject>true</IsTestProject> -->'
+assert_equals "IsTestProject inside a comment is not read" "$(is_test "$TEST_TMPDIR/flagcomment.csproj")" "no"
+for pkg in Microsoft.NET.Test.Sdk xunit xunit.runner.visualstudio NUnit NUnit3TestAdapter MSTest.TestFramework Microsoft.Testing.Platform.MSBuild; do
+  mk_proj "pkg-$pkg" "<ItemGroup><PackageReference Include=\"$pkg\" Version=\"1.0.0\" /></ItemGroup>"
+  assert_equals "PackageReference $pkg marks a test project" "$(is_test "$TEST_TMPDIR/pkg-$pkg.csproj")" "yes"
+done
+mk_proj plain '<ItemGroup><PackageReference Include="Newtonsoft.Json" /><PackageReference Include="Moq" /></ItemGroup>'
+assert_equals "an ordinary package set is not a test project" "$(is_test "$TEST_TMPDIR/plain.csproj")" "no"
+assert_equals "a missing file is not a test project" "$(is_test "$TEST_TMPDIR/absent.csproj")" "no"
+
+# shellcheck disable=SC2016 # $(...) is literal fixture text
+mk_proj props '<PropertyGroup>
+  <RootNamespace>
+    Billing.Api
+  </RootNamespace>
+  <AssemblyName>$(MSBuildProjectName).Dll</AssemblyName>
+</PropertyGroup>'
+assert_equals "a property reads with whitespace trimmed" "$(dotnet_project_property "$TEST_TMPDIR/props.csproj" RootNamespace)" "Billing.Api"
+assert_equals "an MSBuild expression is not a value" "$(dotnet_project_property "$TEST_TMPDIR/props.csproj" AssemblyName)" ""
+assert_equals "an absent property is empty" "$(dotnet_project_property "$TEST_TMPDIR/props.csproj" Nope)" ""
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

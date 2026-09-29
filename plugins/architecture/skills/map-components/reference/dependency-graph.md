@@ -42,7 +42,8 @@ A node line's first key is `id`. An edge line's first key is `from`.
 | `message` | The reason shown for an `unknown` record. |
 | `node_threshold` | Component count above which the view aggregates. 40 when absent. |
 | node `kind` | `project` is a component. `package` is not one. |
-| node `namespace` | Optional. Namespace grouping uses it when present, else the node `name`. |
+| node `namespace` | Optional. The project file's `RootNamespace`, else its `AssemblyName`. Namespace grouping uses it when present, else the node `name`. |
+| node `test` | Optional, `"yes"` on a test project. A test project is never counted toward a project's indegree and is never offered as a deployable. |
 | edge `kind` and `status` | A `project` edge with `status` `resolved` whose two ends are charted projects is an arrow. A `project` edge with `status` `unresolved` is listed and never drawn. A `package` edge is collapsed. |
 | edge `evidence` | `<repo-relative file>: <matched declaration>`, cited in the edge table. |
 

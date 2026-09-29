@@ -96,11 +96,11 @@ render plain --graph "$TEST_TMPDIR/layers.json" --group-by directory
 plain="$(cat "$TEST_TMPDIR/plain/components.md")"
 assert_not_contains "no layers: no violation mark" "$plain" 'layer violation'
 assert_contains "no layers: says no convention was declared" "$plain" 'No layering convention was declared'
-assert_contains "directory: a directory boundary" "$plain" 'src/domain/Domain'
+assert_contains "directory: the project's parent directory is the boundary" "$plain" 'Boundary(grp_1, "src/domain", "directory")'
 
 render ns --graph "$TEST_TMPDIR/layers.json" --group-by namespace
-assert_contains "namespace: uses the namespace field" "$(cat "$TEST_TMPDIR/ns/components.md")" \
-  'Boundary(grp_0, "Billing.Application", "namespace")'
+assert_contains "namespace: groups by the containing namespace" "$(cat "$TEST_TMPDIR/ns/components.md")" \
+  'Boundary(grp_0, "Billing", "namespace")'
 
 render lc4 --graph "$TEST_TMPDIR/layers.json" --dialect likec4 --group-by layer --layers host,application,domain
 assert_equals "likec4: exits 0" "$?" "0"
@@ -158,17 +158,17 @@ cat >"$TEST_TMPDIR/wide.json" <<'JSON'
   "ecosystem": "dotnet",
   "node_threshold": 40,
   "nodes": [
-    {"id":"src/c/E.csproj","name":"E","path":"src/c/E.csproj","ecosystem":"dotnet","kind":"project"},
-    {"id":"src/a/A.csproj","name":"A","path":"src/a/A.csproj","ecosystem":"dotnet","kind":"project"},
-    {"id":"src/a/B.csproj","name":"B","path":"src/a/B.csproj","ecosystem":"dotnet","kind":"project"},
-    {"id":"src/b/C.csproj","name":"C","path":"src/b/C.csproj","ecosystem":"dotnet","kind":"project"},
-    {"id":"src/b/D.csproj","name":"D","path":"src/b/D.csproj","ecosystem":"dotnet","kind":"project"}
+    {"id":"src/c/E/E.csproj","name":"E","path":"src/c/E/E.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"src/a/A/A.csproj","name":"A","path":"src/a/A/A.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"src/a/B/B.csproj","name":"B","path":"src/a/B/B.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"src/b/C/C.csproj","name":"C","path":"src/b/C/C.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"src/b/D/D.csproj","name":"D","path":"src/b/D/D.csproj","ecosystem":"dotnet","kind":"project"}
   ],
   "edges": [
-    {"from":"src/c/E.csproj","to":"src/a/A.csproj","kind":"project","status":"resolved","evidence":"src/c/E.csproj: <ProjectReference Include=\"../a/A.csproj\" />"},
-    {"from":"src/c/E.csproj","to":"src/a/B.csproj","kind":"project","status":"resolved","evidence":"src/c/E.csproj: <ProjectReference Include=\"../a/B.csproj\" />"},
-    {"from":"src/c/E.csproj","to":"src/b/C.csproj","kind":"project","status":"resolved","evidence":"src/c/E.csproj: <ProjectReference Include=\"../b/C.csproj\" />"},
-    {"from":"src/c/E.csproj","to":"src/b/D.csproj","kind":"project","status":"resolved","evidence":"src/c/E.csproj: <ProjectReference Include=\"../b/D.csproj\" />"}
+    {"from":"src/c/E/E.csproj","to":"src/a/A/A.csproj","kind":"project","status":"resolved","evidence":"src/c/E/E.csproj: <ProjectReference Include=\"../a/A.csproj\" />"},
+    {"from":"src/c/E/E.csproj","to":"src/a/B/B.csproj","kind":"project","status":"resolved","evidence":"src/c/E/E.csproj: <ProjectReference Include=\"../a/B.csproj\" />"},
+    {"from":"src/c/E/E.csproj","to":"src/b/C/C.csproj","kind":"project","status":"resolved","evidence":"src/c/E/E.csproj: <ProjectReference Include=\"../b/C.csproj\" />"},
+    {"from":"src/c/E/E.csproj","to":"src/b/D/D.csproj","kind":"project","status":"resolved","evidence":"src/c/E/E.csproj: <ProjectReference Include=\"../b/D.csproj\" />"}
   ]
 }
 JSON
@@ -384,8 +384,8 @@ assert_not_contains "written: Worker is outside this container" "$view" 'Billing
 assert_contains "written: outside modules are named as a count" "$view" 'Modules outside this container:'
 
 render written-ns --graph "$TEST_TMPDIR/written.json" --container Billing.Api --group-by namespace
-assert_contains "written: a node with no namespace groups by its name" "$(cat "$TEST_TMPDIR/written-ns/components.md")" \
-  'Boundary(grp_0, "Billing.Api", "namespace")'
+assert_contains "written: a node with no namespace groups by its project name's parent" "$(cat "$TEST_TMPDIR/written-ns/components.md")" \
+  'Boundary(grp_0, "Billing", "namespace")'
 
 mkdir -p "$TEST_TMPDIR/written-choice"
 choice="$(bash "$SCRIPT" --dialect c4-plantuml --graph "$TEST_TMPDIR/written.json" --out "$TEST_TMPDIR/written-choice" 2>&1)"
@@ -429,6 +429,102 @@ assert_contains "unknown: says unknown" "$unk" 'ecosystem `unknown`'
 assert_contains "unknown: the writer's message names the manifest" "$unk" 'package.json'
 assert_not_contains "unknown: no diagram" "$unk" '@startuml'
 assert_contains "unknown: summary is thin" "$(cat "$TEST_TMPDIR/node-only.out")" 'thin=yes'
+
+# Test projects are not deployables. The layered fixture is the one the
+# grouping cases below use: Api <- Application <- Domain, Domain.Events beside
+# Domain, and two test projects that reference the host and the library.
+layered_proj() {
+  local dir="$1" ns="$2" refs="$3"
+  write_proj "$layered/src/$dir/$dir.csproj" "<Project Sdk=\"Microsoft.NET.Sdk\">
+  <PropertyGroup><$ns</PropertyGroup>
+  <ItemGroup>$refs</ItemGroup>
+</Project>"
+}
+layered="$TEST_TMPDIR/layered-repo"
+layered_proj Api 'RootNamespace>Billing.Api</RootNamespace>' '<ProjectReference Include="../Application/Application.csproj" />'
+layered_proj Application 'RootNamespace>Billing.Application</RootNamespace>' '<ProjectReference Include="../Domain/Domain.csproj" />'
+layered_proj Domain 'RootNamespace>Billing.Domain</RootNamespace>' '<ProjectReference Include="../Domain.Events/Domain.Events.csproj" />'
+layered_proj Domain.Events 'AssemblyName>Billing.Domain.Events</AssemblyName>' ''
+layered_proj Api.Tests 'RootNamespace>Billing.Api.Tests</RootNamespace>' '<PackageReference Include="xunit" Version="2.9.0" /><ProjectReference Include="../Api/Api.csproj" />'
+layered_proj Domain.Tests 'IsTestProject>true</IsTestProject>' '<ProjectReference Include="../Domain/Domain.csproj" />'
+collect "$layered" "$TEST_TMPDIR/layered-repo.json"
+layered_json="$(cat "$TEST_TMPDIR/layered-repo.json")"
+assert_contains "tests: the collector marks an xunit project" "$layered_json" '"id":"src/Api.Tests/Api.Tests.csproj","name":"Api.Tests","path":"src/Api.Tests/Api.Tests.csproj","ecosystem":"dotnet","kind":"project","namespace":"Billing.Api.Tests","test":"yes"'
+assert_contains "tests: the collector marks IsTestProject" "$layered_json" '"name":"Domain.Tests","path":"src/Domain.Tests/Domain.Tests.csproj","ecosystem":"dotnet","kind":"project","test":"yes"'
+assert_not_contains "tests: a production node is not marked" "$(grep '"id":"src/Api/Api.csproj"' "$TEST_TMPDIR/layered-repo.json")" '"test"'
+
+render tests --graph "$TEST_TMPDIR/layered-repo.json"
+assert_equals "tests: the host is chosen with two test projects present" "$?" "0"
+tests_out="$(cat "$TEST_TMPDIR/tests.out")"
+assert_contains "tests: Api is the container" "$tests_out" 'container="Api"'
+assert_contains "tests: the closure is the four production projects" "$tests_out" 'components=4'
+assert_not_contains "tests: no test project is charted" "$(cat "$TEST_TMPDIR/tests/components.md")" 'Tests'
+
+# Two hosts beside the test projects: the choice list still names the hosts only.
+write_proj "$layered/src/Worker/Worker.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+collect "$layered" "$TEST_TMPDIR/layered-two.json"
+mkdir -p "$TEST_TMPDIR/tests-choice"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/layered-two.json" --out "$TEST_TMPDIR/tests-choice" 2>&1)"
+assert_equals "tests: two hosts exit 3" "$?" "3"
+assert_contains "tests: the list names Api" "$choice" 'Api'
+assert_contains "tests: the list names Worker" "$choice" 'Worker'
+assert_not_contains "tests: the list names no test project" "$choice" 'Tests'
+
+# Every project a test project: refused with the reason.
+only_tests="$TEST_TMPDIR/only-tests-repo"
+write_proj "$only_tests/A.Tests/A.Tests.csproj" '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="NUnit" /></ItemGroup></Project>'
+write_proj "$only_tests/B.Tests/B.Tests.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>'
+collect "$only_tests" "$TEST_TMPDIR/only-tests.json"
+mkdir -p "$TEST_TMPDIR/only-tests"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/only-tests.json" --out "$TEST_TMPDIR/only-tests" 2>&1)"
+assert_equals "tests: all-test roots exit 3" "$?" "3"
+assert_contains "tests: the refusal names the reason" "$choice" 'every root is a test project'
+assert_contains "tests: the list still offers the projects" "$choice" 'A.Tests'
+render only-tests-explicit --graph "$TEST_TMPDIR/only-tests.json" --container A.Tests
+assert_equals "tests: --container charts a test project on request" "$?" "0"
+
+# A record with no test or namespace field (an older record) still renders.
+render old-record --graph "$TEST_TMPDIR/layers.json" --container Host
+assert_equals "old record: renders without the optional fields" "$?" "0"
+
+# Grouping, from the record dependency-graph.sh wrote: three strategies, none
+# of them one box per project.
+grouping() {
+  local name="$1" boxes="$2" md
+  shift 2
+  render "grouping-$name" --graph "$TEST_TMPDIR/layered-repo.json" --container Api "$@"
+  md="$TEST_TMPDIR/grouping-$name/components.md"
+  assert_equals "grouping $name: four components" "$(grep -c 'Component(' "$md")" "4"
+  assert_equals "grouping $name: $boxes boxes" "$(grep -c 'Boundary(grp_' "$md")" "$boxes"
+}
+grouping directory 1 --group-by directory
+grouping namespace 2 --group-by namespace
+grouping layer 3 --group-by layer --layers Api,Application,Domain
+assert_contains "grouping directory: siblings under src share a box" "$(cat "$TEST_TMPDIR/grouping-directory/components.md")" 'Boundary(grp_0, "src", "directory")'
+assert_contains "grouping namespace: Billing holds three projects" "$(cat "$TEST_TMPDIR/grouping-namespace/components.md")" 'Boundary(grp_0, "Billing", "namespace")'
+assert_contains "grouping namespace: the AssemblyName fallback nests one deeper" "$(cat "$TEST_TMPDIR/grouping-namespace/components.md")" 'Boundary(grp_1, "Billing.Domain", "namespace")'
+
+# Staleness: a graph older than HEAD warns and still renders.
+stale_repo="$TEST_TMPDIR/stale-repo"
+write_proj "$stale_repo/A/A.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+git -C "$stale_repo" init --quiet
+git -C "$stale_repo" config user.email "fixture@example.invalid"
+git -C "$stale_repo" config user.name "Fixture"
+git -C "$stale_repo" config commit.gpgsign false
+git -C "$stale_repo" add -A
+GIT_COMMITTER_DATE="2026-09-29T12:00:00Z" git -C "$stale_repo" commit --quiet --no-verify -m fixture
+mkdir -p "$TEST_TMPDIR/stale-out"
+stale_err="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/layers.json" --out "$TEST_TMPDIR/stale-out" --root "$stale_repo" 2>&1 >/dev/null)"
+assert_equals "stale graph: still exits 0" "$?" "0"
+assert_contains "stale graph: warning names both dates on stderr" "$stale_err" 'dependency-graph.json was generated on 2026-09-28; HEAD commit date is 2026-09-29'
+assert_contains "stale graph: the artifact carries the warning" "$(cat "$TEST_TMPDIR/stale-out/components.md")" 'dependency-graph.json was generated on 2026-09-28; HEAD commit date is 2026-09-29'
+assert_equals "stale graph: exactly one warning line" "$(grep -c 'HEAD commit date' "$TEST_TMPDIR/stale-out/components.md")" "1"
+sed 's/"generated_on": "2026-09-28"/"generated_on": "2026-09-29"/' "$TEST_TMPDIR/layers.json" >"$TEST_TMPDIR/fresh.json"
+fresh_err="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/fresh.json" --out "$TEST_TMPDIR/stale-out" --root "$stale_repo" 2>&1 >/dev/null)"
+assert_equals "fresh graph: no warning" "$fresh_err" ""
+assert_not_contains "fresh graph: the artifact has no warning" "$(cat "$TEST_TMPDIR/stale-out/components.md")" 'HEAD commit date'
+bash "$SCRIPT" --graph "$TEST_TMPDIR/layers.json" --out "$TEST_TMPDIR/stale-out" --root "$TEST_TMPDIR" >/dev/null 2>&1
+assert_not_contains "no checkout: nothing to compare, no warning" "$(cat "$TEST_TMPDIR/stale-out/components.md")" 'HEAD commit date'
 
 printf 'ANNOTATION\n' >"$TEST_TMPDIR/notes.md"
 render notes --graph "$TEST_TMPDIR/one.json" --notes "$TEST_TMPDIR/notes.md"

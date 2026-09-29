@@ -569,5 +569,23 @@ for v in 10 11 1.5; do
   assert_contains "schema $v names the version" "$bad" "not a schema_version 1 record"
 done
 
+fields="$(make_tree node-fields)"
+mkdir -p "$fields/Both" "$fields/Assembly" "$fields/Bare" "$fields/Expr" "$fields/Tests"
+printf '<Project><PropertyGroup><RootNamespace>Acme.Both</RootNamespace><AssemblyName>Other</AssemblyName></PropertyGroup></Project>\n' >"$fields/Both/Both.csproj"
+printf '<Project><PropertyGroup><AssemblyName>Acme.Assembly</AssemblyName></PropertyGroup></Project>\n' >"$fields/Assembly/Assembly.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$fields/Bare/Bare.csproj"
+# shellcheck disable=SC2016 # $(...) is literal fixture text
+printf '<Project><PropertyGroup><RootNamespace>$(MSBuildProjectName)</RootNamespace></PropertyGroup></Project>\n' >"$fields/Expr/Expr.csproj"
+printf '<Project><ItemGroup><PackageReference Include="MSTest.TestFramework" /></ItemGroup></Project>\n' >"$fields/Tests/Tests.csproj"
+fields_json="$(bash "$GRAPH" "$fields")"
+node_of() { printf '%s\n' "$fields_json" | grep "\"id\":\"$1\""; }
+assert_contains "namespace: RootNamespace wins over AssemblyName" "$(node_of Both/Both.csproj)" '"namespace":"Acme.Both"'
+assert_contains "namespace: AssemblyName is the fallback" "$(node_of Assembly/Assembly.csproj)" '"namespace":"Acme.Assembly"'
+assert_not_contains "namespace: omitted when neither is declared" "$(node_of Bare/Bare.csproj)" 'namespace'
+assert_not_contains "namespace: an MSBuild expression is not a namespace" "$(node_of Expr/Expr.csproj)" 'namespace'
+assert_contains "test: a test framework reference marks the node" "$(node_of Tests/Tests.csproj)" '"test":"yes"'
+assert_not_contains "test: an ordinary project has no test field" "$(node_of Bare/Bare.csproj)" '"test"'
+assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version": 1'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

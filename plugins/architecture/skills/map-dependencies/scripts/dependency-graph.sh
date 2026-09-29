@@ -45,9 +45,16 @@
 #     "findings": [ <one finding object per line> ]
 #   }
 #
-#   node     {"id","name","path","ecosystem","kind"}
+#   node     {"id","name","path","ecosystem","kind"} plus, on a project, the
+#            optional "namespace" and "test" fields.
 #            kind is "project" or "package". id of a project is its
 #            repo-relative path. id of a package is "pkg:" plus the Include.
+#            namespace is the project file's RootNamespace, else its
+#            AssemblyName, and is omitted when neither is a literal value.
+#            test is "yes" on a test project (IsTestProject true, or a
+#            reference to Microsoft.NET.Test.Sdk, xunit*, NUnit*, MSTest*, or
+#            Microsoft.Testing.Platform*) and is omitted otherwise. A record
+#            without either field is still schema_version 1.
 #   edge     {"from","to","kind","status","evidence"}
 #            kind is "project" or "package". status is "resolved" or
 #            "unresolved". evidence is the repo-relative file, a colon, and
@@ -321,8 +328,8 @@ add_finding() {
 }
 
 json_node() {
-  local id="$1" name="$2" path="$3" kind="$4"
-  local e_id e_name e_path e_kind
+  local id="$1" name="$2" path="$3" kind="$4" namespace="${5:-}" test="${6:-}"
+  local e_id e_name e_path e_kind extra=""
   json_escape "$id"
   e_id="$JSON_ESC"
   json_escape "$name"
@@ -331,8 +338,22 @@ json_node() {
   e_path="$JSON_ESC"
   json_escape "$kind"
   e_kind="$JSON_ESC"
-  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"}' \
-    "$e_id" "$e_name" "$e_path" "$e_kind"
+  if [[ -n "$namespace" ]]; then
+    json_escape "$namespace"
+    extra+=",\"namespace\":\"$JSON_ESC\""
+  fi
+  [[ -n "$test" ]] && extra+=',"test":"yes"'
+  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"%s}' \
+    "$e_id" "$e_name" "$e_path" "$e_kind" "$extra"
+}
+
+# Optional node fields, read from the project file itself: namespace is
+# RootNamespace, else AssemblyName, else absent; test is "yes" for a test project.
+node_namespace() {
+  local ns
+  ns="$(dotnet_project_property "$root/$1" RootNamespace)"
+  [[ -n "$ns" ]] || ns="$(dotnet_project_property "$root/$1" AssemblyName)"
+  printf '%s\n' "$ns"
 }
 
 json_edge() {
@@ -682,7 +703,12 @@ fi
 
 node_json=()
 for i in "${!node_ids[@]}"; do
-  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}")")
+  node_ns="" node_test=""
+  if [[ "${node_kinds[$i]}" == "project" ]] && is_proj_suffix "${node_paths[$i]}"; then
+    node_ns="$(node_namespace "${node_paths[$i]}")"
+    dotnet_is_test_project "$root/${node_paths[$i]}" && node_test=yes
+  fi
+  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "$node_ns" "$node_test")")
 done
 edge_json=()
 for i in "${!edge_from[@]}"; do
