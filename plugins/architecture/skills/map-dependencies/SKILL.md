@@ -161,7 +161,12 @@ The JVM adapter (Gradle and Maven):
   argument, a module holding a `${property}`, and a module naming a pom file not called
   `pom.xml` are `unread-manifest` findings.
 
-Other ecosystems stay unread. The message names them.
+Read: .NET, Node, Go, Python, Rust, and JVM (Gradle and Maven). Declined: Ruby (`Gemfile`) and
+PHP (`composer.json`) are detected and named in the record's `message`, never parsed. The
+unread rule: a manifest or declaration no reader handles is reported, never guessed at and
+never dropped. A tree holding only declined manifests is `unknown`; in a tree a reader ran on,
+the message still names the declined ecosystems and each skipped declaration is an
+`unread-manifest` finding.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
 above which the human diagram aggregates to directories. The JSON stays at project

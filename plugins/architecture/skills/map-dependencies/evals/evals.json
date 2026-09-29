@@ -54,6 +54,20 @@
         "The rendered diagram is a mermaid flowchart, never a C4Component or C4Container block",
         "Passes --cycles-only to render-dependencies.sh rather than deleting edges from the JSON"
       ]
+    },
+    {
+      "id": 5,
+      "name": "mixed-ecosystems-are-read-and-declined-ones-named",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a Node package a whose package.json depends on sibling package b with file:../b, a Go module c whose go.mod replaces foo with ../a, and a Gemfile at the root.",
+      "expected_output": "Runs dependency-graph.sh once. The record's ecosystem is mixed and each node carries its own ecosystem. The Node and Go edges cite their manifest and declaration. The message names the Gemfile as not read, and no Ruby edge or node is drawn.",
+      "narration": true,
+      "expectations": [
+        "result is ok and ecosystem is mixed, with node and go nodes each carrying their own ecosystem",
+        "The a to b edge cites the package.json declaration and the c to a edge cites the go.mod replace line",
+        "The message names the Gemfile as not read",
+        "No node or edge is derived from the Gemfile",
+        "Does not run the script once per ecosystem or merge records by hand"
+      ]
     }
   ]
 }
