@@ -100,6 +100,7 @@ REGISTRY=(
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
   "check-shell-portability.sh|-|-|-"
+  "check-spoke-plugin-root.sh|-|-|spoke_plugin_root"
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
   "check-skill-count-claims.sh|-|-|-"
@@ -336,6 +337,17 @@ recipe::adr_numbers() { # <clean|violation>
   capture run_in "$f" bash scripts/check-adr-numbers.sh --check
 }
 
+recipe::spoke_plugin_root() { # <clean|violation>
+  local spoke=plugins/demo/skills/audit/context/step.md
+  fixture_tree::build f --sut "$SELF_DIR/check-spoke-plugin-root.sh" --label spoke-plugin-root || return 2
+  mkdir -p "$f/${spoke%/*}"
+  printf 'run <skill-dir>/scripts/a.sh\n' >"$f/$spoke"
+  # shellcheck disable=SC2016  # the token is literal fixture text
+  [[ "$1" == violation ]] && printf 'run ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/a.sh\n' >"$f/$spoke"
+  printf '# none\n' >"$f/scripts/spoke-plugin-root-baseline.txt"
+  capture run_in "$f" bash scripts/check-spoke-plugin-root.sh --check
+}
+
 recipe::queue_front_matter() { # <clean|violation>
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
@@ -406,6 +418,7 @@ declare -A VIOLATION_NEEDLE=(
   [changelog_parity]='MISSING CHANGELOG:'
   [docs_naming]='is not lower-kebab-case'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
+  [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'
   [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
 )
 
