@@ -1,12 +1,14 @@
 ---
 description: "Construct a performance goal the data can settle: metric, command, realistic vs ideal targets, and the floor before any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front. Human-gated; never unattended. Use when: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. After /performance:target, before /performance:snapshot."
 user-invocable: true
-argument-hint: "[<target>] (e.g. /performance:goal the destructive-guard PreToolUse hook)"
+argument-hint: "[<target>]"
 disable-model-invocation: false
 metadata:
   workflow-stage: plan
   summary: Build a goal with realistic and ideal targets plus a computed floor
 ---
+
+**Arguments.** `[<target>]`. e.g. /performance:goal the destructive-guard PreToolUse hook
 
 ## Purpose
 

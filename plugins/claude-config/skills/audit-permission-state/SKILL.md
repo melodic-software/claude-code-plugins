@@ -1,12 +1,14 @@
 ---
 description: "Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
-argument-hint: "(none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced"
+argument-hint: "[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Report the permission rules actually in effect and what auto mode drops
 ---
+
+**Arguments.** `[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]`. Full form: (none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced
 
 ## Purpose
 

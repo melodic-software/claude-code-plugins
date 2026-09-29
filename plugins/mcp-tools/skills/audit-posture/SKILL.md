@@ -1,12 +1,14 @@
 ---
 description: "Audit the MCP servers configured in Claude Code for supply-chain posture, meaning whether each one is safe to run. Use when: 'is it safe to run my MCP servers', 'mcp supply chain', 'floating MCP versions', 'npx @latest MCP', 'MCP server inventory', 'mcp posture', 'unpinned MCP server', 'which MCP servers run on my host'. Reads user, local, project, managed, and passed-in config statically through a bundled inventory script and returns a dated, diffable inventory (scope, transport, launcher, package, pin state, publisher, sandboxed) with P1-P5 findings: floating versions, local stdio where a remote endpoint exists, publisher provenance, OCI image available but unused. Never runs, installs, or connects to a server and never prints env or header values. Optional arguments add config files, such as a plugin's .mcp.json. Not for: tool definition design quality (/mcp-tools:audit), or config correctness, enablement, and permissions (/claude-config:audit)."
-argument-hint: "[--config <file> ...]. Extra MCP config files to include (e.g. a plugin's .mcp.json); omit for the resolved Claude Code scopes only"
+argument-hint: "[--config <file> ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: review
   summary: Inventory configured MCP servers and flag floating versions and other supply-chain risks
 ---
+
+**Arguments.** `[--config <file> ...]`. Extra MCP config files to include (e.g. a plugin's .mcp.json); omit for the resolved Claude Code scopes only.
 
 ## Purpose
 

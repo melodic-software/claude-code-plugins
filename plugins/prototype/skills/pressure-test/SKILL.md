@@ -1,6 +1,6 @@
 ---
 description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when the question is whether a state model, reducer, or data shape holds up under real cases: 'does this state machine handle X then Y', 'sanity-check this data model', 'feel out the API'. Any question answered by driving state by hand and watching it change. Produces a portable pure logic module (liftable into production) behind a disposable shell, a terminal app by default, or a self-contained HTML demo a non-developer can drive by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions. Use /prototype:explore-directions for those."
-argument-hint: "[scope] (e.g., /prototype:pressure-test scheduling state machine)"
+argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -9,6 +9,8 @@ metadata:
   workflow-stage: plan
   summary: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model
 ---
+
+**Arguments.** `[scope]`. e.g., /prototype:pressure-test scheduling state machine
 
 ## Repository context. Gather first
 

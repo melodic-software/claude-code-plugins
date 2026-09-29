@@ -1,6 +1,6 @@
 ---
 description: "Proactively hunt a rotated lane for safe structural improvements (Beck tidyings) and ship one tight structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items."
-argument-hint: "[<lane> | <glob>... | dry-run [<lane> | <glob>...] | self-update | help] [override] [in-place[=commit]]"
+argument-hint: "[<lane>|<glob>... | dry-run [<lane>|<glob>...] | self-update | help] [override] [in-place[=commit]]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]

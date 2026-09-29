@@ -1,12 +1,14 @@
 ---
 description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written. Persisting PLAN.md for fresh-session handoff. Use when: 'plan this', 'architect this', 'how should we implement', 'implementation plan', 'write a plan for this', 'what's the approach here', 'review this plan' (audits an existing plan's completeness), or proactively before executing without a formalized plan."
-argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out)"
+argument-hint: "[task description, 'review', or 'close-out']"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: plan
   summary: Produce a structured implementation plan with an approval gate
 ---
+
+**Arguments.** `[task description, 'review', or 'close-out']`. e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out
 
 ## Repository context. Gather first
 

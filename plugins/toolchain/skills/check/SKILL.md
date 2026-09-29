@@ -2,11 +2,13 @@
 description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Go, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all. Default: auto-detect from git status)"
+argument-hint: "[ecosystem]"
 metadata:
   workflow-stage: verify
   summary: Build, test, and lint changed files across detected ecosystems
 ---
+
+**Arguments.** `[ecosystem]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all. Default: auto-detect from git status
 
 ## Repository context. Gather first
 

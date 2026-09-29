@@ -1,12 +1,14 @@
 ---
 description: "Surface the USER's unknown-unknowns before they work in unfamiliar territory and coach a sharper prompt. Use when: 'what am I missing', 'find my blindspots', 'what do I not know here', 'sharpen this prompt', 'I am new to this area', or about to work in an unfamiliar area and the goal is a better prompt, not the codebase handoff /discovery:explore produces."
-argument-hint: "[area-or-domain] (e.g., /discovery:blindspot geofencing, /discovery:blindspot payments module, /discovery:blindspot <domain-vocabulary>)"
+argument-hint: "[area-or-domain]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: explore
   summary: Surface your unknown-unknowns and sharpen the prompt before unfamiliar work
 ---
+
+**Arguments.** `[area-or-domain]`. e.g., /discovery:blindspot geofencing, /discovery:blindspot payments module, /discovery:blindspot <domain-vocabulary>
 
 ## Repository context. Gather first
 
