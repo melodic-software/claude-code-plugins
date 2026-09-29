@@ -378,7 +378,7 @@ function may_form(w, worig,   ds, dl, cs, cl) {
 # year_form(w): does this window carry a bare year, or a year and month, as a
 # date? A year is four digits standing alone: not inside a longer token
 # ("SC2034", "20260901T100000Z", "Finder_2024"), and the first number after the
-# keyword, so "verified real (Issue 9, 2025" is prose that mentions a year, not
+# keyword, so "verified real (item 9, 2025" is prose that mentions a year, not
 # a stamp. On a match RSTART is the offset of the year and RLENGTH is 4, or 7 when
 # "-MM" follows, so the classifier can tell "2026-07" from "2026". A false
 # return leaves RSTART = 0 and RLENGTH = -1. extract-breadcrumbs.sh carries the

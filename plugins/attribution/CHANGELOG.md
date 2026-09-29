@@ -18,7 +18,7 @@
   another number after the keyword (`verified real (Issue 9, 2025`), and `read` inside an identifier
   (`cache_read_input_tokens`). Both scripts carry the same test and their suites pin the shared
   count. A `2026-07` stamp now declines as `year and month only, no day` instead of `bare year, no
-  month or day`. Over 1,623 files at `14d5b0de2` on run date 2026-09-29: candidates 1,195 to
+  month or day`. Over the 1,623 files of this repository's corpus on run date 2026-09-29: candidates 1,195 to
   1,172, declined 51 to 28, `parsed` unchanged at 1,144 and `findings` unchanged at 268, so no
   parsed stamp was reclassified. The 23 lines that left are 19 session-flow fixture handoff
   paths, the SC2034, `cache_read_input_tokens` and Issue 9 lines, and one measurement line naming
