@@ -9,7 +9,7 @@ only after that version increases.
 ### Fixed
 
 - **`video-digest` CLIs run under a symlinked plugin root.** The entrypoint check compared unresolved paths, so a CLI started through a symlink or junction printed nothing and exited 0. `video-digest` and `course-digest` now share one realpath-based `isMainModule` from `@melodic/video-digestion/shared/main-module`, and the two skill-local guards are gone.
-- **Vendor package docs and scripts match the code.** The `repo-analysis` README says `node:test` instead of vitest, the `video-digestion` README describes the package as plain ESM JavaScript, and both packages run `node --test` discovery instead of hardcoded test file names.
+- **Vendor package docs and scripts match the code.** The `repo-analysis` README says `node:test` instead of vitest, the `video-digestion` README describes the package as plain ESM JavaScript, and both packages run `node --test` discovery instead of hardcoded test file names. Both READMEs say why: the vendor packages declare no test-framework dependency so they use `node:test`, and `course-digest` extraction keeps vitest.
 
 ### Changed
 

@@ -1,5 +1,5 @@
 # video-digestion
 
-Video/transcript digestion kernel (`@melodic/video-digestion`: frame sampling, media handling, transcript shaping; plain ESM JavaScript, node:test; manifest = contract). Tuning defaults: `TUNING.md`.
+Video/transcript digestion kernel (`@melodic/video-digestion`: frame sampling, media handling, transcript shaping; plain ESM JavaScript, node:test; manifest = contract). Tuning defaults: `TUNING.md`. Tests use `node:test` because the package declares no test-framework dependency; `skills/course-digest/extraction` keeps vitest.
 
 Owner: shared capability with no single skill owner; `/video-digest` and `/course-digest` jointly consume, so changing it means exercising both consumers. Consumers derive on demand via the repo dep-graph edge scan (`tools/AGENTS.md` "Vertical slices").
