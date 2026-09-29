@@ -3,8 +3,8 @@
 A Claude Code plugin for the **implementation stage** of a disciplined dev
 workflow: execute an approved plan with incremental validation, inline or via
 orchestrated worker subagents, abandoning a broken approach early instead of
-pushing it to PR review. Three skills, one concern: turning approved plans into
-verified code.
+pushing it to PR review. Two user-invocable skills and an internal return-contract skill, one
+concern: turning approved plans into verified code.
 
 | Skill | What it does |
 |---|---|
@@ -18,7 +18,7 @@ orchestrator root's model:
 | Agent | What it does |
 |---|---|
 | `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
-| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Configuration), and it is bound never weaker than the implementer it checks. |
+| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Narrowing the phase-verifier's Bash), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
 
@@ -87,7 +87,9 @@ Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern 
 
 `implement_dispatch_wave_cap` sets how many worker rows of one plan phase
 `/implementation:implement-dispatch` runs at once. Unset, the skill keeps its internal 3–5
-wave default. A `--wave-cap` argument from a chaining caller, such as `/work-items:work`
+wave default. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that
+share a worktree under the default worker authority are further serialized to one at a time,
+whatever the cap allows. A `--wave-cap` argument from a chaining caller, such as `/work-items:work`
 threading its own `work_dispatch_concurrency_cap`, takes precedence for that invocation. The
 Options reference lists the key.
 
@@ -147,7 +149,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under the default worker commit authority still run one at a time. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one. |
+| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that share a worktree under the default worker authority are further serialized to one at a time, whatever the cap allows. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one. |
 
 ### How to set these
 

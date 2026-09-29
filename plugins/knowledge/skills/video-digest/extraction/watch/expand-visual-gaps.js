@@ -6,10 +6,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { parsePromotedTimestampsSec } from "../evals/check-watch-outcomes.js";
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { readLaneJson } from "../lib/watch-frame-index.js";
 

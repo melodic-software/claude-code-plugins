@@ -16,8 +16,8 @@ metadata:
 `/repo-fleet-hygiene:audit` is read-only. `/repo-fleet-hygiene:apply` deletes merged branches.
 This skill is the sync verb: each canonical checkout switches to the remote's current default
 branch (`git ls-remote --symref origin HEAD`) and `pull --ff-only`s it. Dirty work on a
-non-default branch, and a dirty default branch, is parked in a linked worktree through
-source-control's `worktree-create.sh --existing-branch`.
+non-default branch, and a dirty default branch, is parked in a linked worktree by the
+`worktree-create.sh` helper you name with `--worktree-create`.
 
 ## Scope ladder
 
@@ -48,15 +48,24 @@ explicitly said to go ahead. This holds in non-terminal runs too: no terminal is
 Non-fast-forward, dubious ownership, and a partial stash apply are skipped and reported.
 The script does not reset a branch.
 
-Pass `--worktree-root` and `--worktree-create` when a park is planned; without a worktree root the
-plan shows that repo as `skip ... worktree-create-missing` and nothing is stashed. The create helper is
-`worktree-create.sh` in the source-control plugin. `--existing-branch` checks out the branch
-that already holds the work.
+Parking flags, not in `argument-hint`:
+
+- `--worktree-create <path>`: the helper, which this skill never looks for. Give the path of the
+  source-control plugin's `worktree-create.sh`. The file must exist and be named
+  `worktree-create.sh`, or the run exits 2. The helper is called with `--existing-branch`, which
+  checks out the branch that already holds the work.
+- `--worktree-root <dir>`: optional. Without it the helper resolves the root from each repository's
+  `worktreeroot.path` (`includeIf` applies). A repository with none makes the helper exit 3; that repo
+  is put back as it was, skipped, and the remedy quotes the helper's first message line.
+
+Without `--worktree-create`, a dirty repo is planned `skip ... worktree-create-missing` and nothing is
+stashed. Park it by hand with `/source-control:worktree create --existing-branch`, or commit or
+stash the work.
 
 Run:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" <quoted-arguments>
+${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" [--worktree-create <path>] [--worktree-root <dir>] <quoted-arguments>
 ```
 
 ## Next

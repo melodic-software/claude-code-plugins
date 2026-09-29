@@ -64,6 +64,32 @@
         "Labels counts-over-wall-clock for spawns as the plugin's own generalization, sourced only for instruction counts",
         "Acknowledges the counter-argument that execution time is what users perceive"
       ]
+    },
+    {
+      "id": 6,
+      "name": "flags-a-growing-state-candidate-in-the-ranking",
+      "prompt": "/performance:target the Stop hook that re-reads the whole session transcript on every fire; a census attributes 3 spawns per fire.",
+      "expected_output": "The ranked table includes a Growing state column set to yes for this candidate, naming the session transcript as what grows and giving the smallest realistic span of transcript sizes to measure rather than one point. States that /performance:goal will require scaling arms. Does not treat the constant 3 spawns per fire as settling the size question, since the cost of reading the transcript does not show in a spawn count.",
+      "files": [],
+      "expectations": [
+        "The ranked table has a Growing state column and it is yes for the transcript-reading Stop hook",
+        "Names the session transcript as the state that grows",
+        "Gives a span of transcript sizes to measure (at least a small and a large one), not a single point",
+        "States that /performance:goal will require scaling arms",
+        "Does not treat the constant spawn count as settling the size question"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "fixed-size-candidate-gets-no-growing-state",
+      "prompt": "/performance:target the pre-tool hook that validates each tool call against a fixed 40-line allowlist file; a census attributes 4 spawns per tool call to it.",
+      "expected_output": "The ranked table includes a Growing state column set to no for this candidate, because the state it reads is a fixed-size file that does not grow with use. Does not require scaling arms or a span of sizes for it.",
+      "files": [],
+      "expectations": [
+        "The ranked table has a Growing state column and it is no for the fixed-size allowlist hook",
+        "Gives the reason: the state read is a fixed-size file that does not grow with use",
+        "Does not require scaling arms or a span of sizes for this candidate"
+      ]
     }
   ]
 }

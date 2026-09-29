@@ -11,12 +11,23 @@
 # CHANGELOG.md is excluded throughout. A changelog is a historical record and its
 # past entries must keep their original wording — rewriting them to satisfy a
 # freshness rule would be the more serious defect.
+#
+# Environment:
+#   NESTING_INVARIANT_INSTALLED_VERSION  Installed Claude Code version (N.N.N) to
+#     check against the stamp's version arm. The suite never probes the host CLI,
+#     so the result does not depend on where it runs; unset skips that arm with a
+#     counted skip.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OWNER_REL="skills/worktree/SKILL.md"
 SELF_REL="skills/worktree/nesting-invariant-ssot.test.sh"
+
+# How long the owner's dated "expired, pending re-probe" marker is honored. Past
+# this the suite fails until the re-probe refreshes the stamp or the marker is
+# re-dated on purpose.
+MARKER_MAX_AGE_DAYS=30
 
 FAILED=0
 CASE_NUM=0
@@ -59,7 +70,7 @@ fi
 
 # 3. The owner carries what a pointer promises the reader will be there.
 assert_contains "the owner carries the anchor every pointer cites" \
-  "$owner_text" "### The nesting invariant, verified"
+  "$owner_text" "### The nesting invariant, dated measurement"
 assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-08-07**"
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
@@ -131,11 +142,73 @@ else
   fail "expiry version arm matches N.N.N shape" "N.N.N" "${expiry_version:-empty}"
 fi
 
-# An expired stamp is acceptable only when the owner says so. The marker is the
-# honest state between an arm firing and an authenticated re-probe landing.
-EXPIRED_MARKER="**Stamp status: expired, pending re-probe.**"
+# iso_day_number <YYYY-MM-DD>: days since 1970-01-01 (days-from-civil), so the
+# marker age needs neither GNU nor BSD date.
+iso_day_number() {
+  local y=$((10#${1:0:4})) m=$((10#${1:5:2})) d=$((10#${1:8:2}))
+  ((m <= 2)) && y=$((y - 1))
+  local era=$((y / 400))
+  local yoe=$((y - era * 400))
+  local doy=$(((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1))
+  echo $((era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468))
+}
+
+# nesting_invariant_marker_honored <marker-YYYY-MM-DD> <today-YYYY-MM-DD>
+# <max-age-days>: return 0 while the marker is at most max-age days old. One day
+# of future skew is tolerated (a marker dated in a timezone ahead of UTC); a
+# marker dated further ahead is not honored.
+nesting_invariant_marker_honored() {
+  local age=$(($(iso_day_number "$2") - $(iso_day_number "$1")))
+  ((age >= -1 && age <= $3))
+}
+
+# An expired stamp is acceptable only while the owner's dated marker is fresh. The
+# marker is the honest state between an arm firing and an authenticated re-probe
+# landing; undated, it would turn both arms from fail to pass forever, so it
+# carries its date and stops being honored MARKER_MAX_AGE_DAYS later.
+today="$(date -u +%Y-%m-%d)"
+marker_pattern='\*\*Stamp status: expired, pending re-probe, marked ([0-9]{4}-[0-9]{2}-[0-9]{2})\.\*\*'
 stamp_marked_expired=false
-[[ "$owner_text" == *"$EXPIRED_MARKER"* ]] && stamp_marked_expired=true
+if [[ "$owner_text" =~ $marker_pattern ]]; then
+  marker_date="${BASH_REMATCH[1]}"
+  if nesting_invariant_marker_honored "$marker_date" "$today" "$MARKER_MAX_AGE_DAYS"; then
+    stamp_marked_expired=true
+    pass "expired-stamp marker (marked $marker_date) is within $MARKER_MAX_AGE_DAYS days of today ($today)"
+  else
+    fail "expired-stamp marker is within $MARKER_MAX_AGE_DAYS days of today" \
+      "marked within $MARKER_MAX_AGE_DAYS days of $today" \
+      "marked $marker_date; run fixtures/nesting-invariant-probe.sh under an authenticated CLI and refresh SKILL.md, or re-date the marker on purpose"
+  fi
+elif [[ "$owner_text" == *"Stamp status: expired"* ]]; then
+  fail "expired-stamp marker carries its date" \
+    "**Stamp status: expired, pending re-probe, marked YYYY-MM-DD.**" "undated or malformed marker"
+fi
+
+# Red path: a synthetic today past the marker's age must not be honored, nor a
+# marker dated far ahead of today, and the boundary must be exact across a month,
+# a leap day and a year end. A check nobody has exercised is the same class of
+# defect as the static marker this replaced.
+if nesting_invariant_marker_honored "2026-09-27" "2099-01-01" "$MARKER_MAX_AGE_DAYS"; then
+  fail "marker age check rejects a synthetic today past the marker's age" "not honored" "honored"
+else
+  pass "marker age check rejects a synthetic today past the marker's age"
+fi
+if nesting_invariant_marker_honored "2099-01-01" "$today" "$MARKER_MAX_AGE_DAYS"; then
+  fail "marker age check rejects a marker dated far in the future" "not honored" "honored"
+else
+  pass "marker age check rejects a marker dated far in the future"
+fi
+if nesting_invariant_marker_honored "2026-01-01" "2026-01-31" 30 &&
+  ! nesting_invariant_marker_honored "2026-01-01" "2026-02-01" 30 &&
+  nesting_invariant_marker_honored "2028-02-28" "2028-03-29" 30 &&
+  ! nesting_invariant_marker_honored "2028-02-28" "2028-03-30" 30 &&
+  nesting_invariant_marker_honored "2026-12-15" "2027-01-14" 30 &&
+  ! nesting_invariant_marker_honored "2026-12-15" "2027-01-15" 30; then
+  pass "marker age check is exact at the boundary across month, leap-day and year ends"
+else
+  fail "marker age check is exact at the boundary across month, leap-day and year ends" \
+    "30 days honored, 31 not" "boundary off"
+fi
 
 # nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0
 # when installed is at or past the expiry version.
@@ -151,20 +224,19 @@ nesting_invariant_version_passed() {
   return 0
 }
 
-# Version arm: enforce against the installed CLI when one is present. CI may
-# have none; NESTING_INVARIANT_INSTALLED_VERSION overrides the probe.
+# Version arm: enforce against the version the caller supplies. The host CLI is
+# never probed, so the result does not depend on which Claude Code is installed.
 installed_version="${NESTING_INVARIANT_INSTALLED_VERSION:-}"
-if [[ -z "$installed_version" ]] && command -v claude >/dev/null 2>&1; then
-  installed_version="$(claude --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
-fi
-if [[ -n "$expiry_version" && -n "$installed_version" ]]; then
+if [[ -z "$installed_version" ]]; then
+  skip_case "nesting-invariant version arm: NESTING_INVARIANT_INSTALLED_VERSION is unset"
+elif [[ -n "$expiry_version" ]]; then
   if ! nesting_invariant_version_passed "$expiry_version" "$installed_version"; then
     pass "nesting-invariant stamp version arm is still fresh (installed $installed_version < $expiry_version)"
   elif $stamp_marked_expired; then
-    pass "installed $installed_version is past the $expiry_version arm and the owner is marked expired"
+    pass "installed $installed_version is past the $expiry_version arm and the owner's dated marker is fresh"
   else
-    fail "installed Claude Code is past the version arm but the owner is not marked expired" \
-      "before $expiry_version, or '$EXPIRED_MARKER' in the owner" \
+    fail "installed Claude Code is past the version arm but the owner has no fresh dated expired marker" \
+      "before $expiry_version, or a marker within $MARKER_MAX_AGE_DAYS days in the owner" \
       "installed=$installed_version — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
   fi
 fi
@@ -180,11 +252,10 @@ fi
 
 # Date arm: enforce. Inject today so the red path is exercised in-suite.
 if [[ -n "$expiry_date" ]]; then
-  today="$(date -u +%Y-%m-%d)"
   if ! nesting_invariant_expiry_date_passed "$expiry_date" "$today"; then
     pass "nesting-invariant stamp date arm is still fresh (today=$today < $expiry_date)"
   elif $stamp_marked_expired; then
-    pass "today ($today) is past the $expiry_date arm and the owner is marked expired"
+    pass "today ($today) is past the $expiry_date arm and the owner's dated marker is fresh"
   else
     fail "nesting-invariant stamp date arm is still fresh (today < $expiry_date)" \
       "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
@@ -219,11 +290,13 @@ if [[ -n "$expiry_date" ]]; then
 fi
 
 # 4. The restatements became pointers rather than being deleted outright.
-mapfile -t POINTERS < <(grep_sites "The nesting invariant, verified")
+mapfile -t POINTERS < <(grep_sites "The nesting invariant, dated measurement")
 if ((${#POINTERS[@]} >= 5)); then
   pass "the former restatement sites cite the owner by name (${#POINTERS[@]} files)"
 else
   fail "restatements were rewritten as pointers, not dropped" ">=5 files" "${#POINTERS[@]}"
 fi
 
+printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \
+  "$CASE_NUM" "$FAILED" "$SKIP_CASES" "$DISCRIMINATING_SKIP_CASES"
 [[ $FAILED -eq 0 ]] || exit 1

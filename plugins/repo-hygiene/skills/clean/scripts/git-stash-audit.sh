@@ -12,13 +12,22 @@
 # `Stash` is the volatile `stash@{n}` selector (renumbers after every drop);
 # `Commit` is the stash's stable object id — the safe handle when dropping more
 # than one stash from a single audit.
-# Exit: 0.
+# Exit: 0 (2 on a usage error).
 # Omit -e/-o pipefail: always exits 0; sub-commands are best-effort (gh may be absent).
+#
+# FLEET FORM. --repo / --repos-from select repositories and --skip / --skip-from
+# exclude some (the surface clean-batch.sh has, resolved by lib/batch-common.sh).
+# Each audited repo is this same script run from inside it, one after another,
+# printed as `Repo: <path>` then its unchanged output. A repo whose git common
+# dir (the StashStore key) was already audited is reported skipped, and a repo
+# that fails is reported without stopping the rest.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/batch-common.sh
+source "$SCRIPT_DIR/lib/batch-common.sh"
 
 usage() {
   cat <<'EOF'
@@ -26,19 +35,65 @@ git-stash-audit.sh — emit stash audit facts for the clean git tier.
 
 Usage:
   git-stash-audit.sh
+  git-stash-audit.sh [--repo DIR...]... [--repos-from FILE|-]...
+                     [--skip ENTRY]... [--skip-from FILE]...
   git-stash-audit.sh --help
 
-Never drops a stash (read-only). Exit: 0.
+  --repo DIR...      audit these repositories instead of the current one
+                     (repeatable; takes every consecutive non-flag path, so a
+                     shell glob works)
+  --repos-from FILE  newline-delimited repo paths (FILE, or - for stdin)
+  --skip ENTRY       skip a repo: absolute path, owner/repo, or repo (repeatable)
+  --skip-from FILE   newline-delimited skip entries
+
+With --repo / --repos-from the repositories are audited one after another. Each
+block is `Repo: <path>`, the output of a single-repo run, then `---`. A repo
+sharing a git common dir (the `StashStore:` key) with an audited one, such as a
+linked worktree, is reported `Outcome: skipped` so its stashes are listed once; a
+skip-listed, unresolvable, or failing repo is reported without stopping the rest;
+`FleetSummary: repos=N audited=A skipped=S duplicate=D blocked=B failed=F` closes
+the run (exit 0).
+
+Never drops a stash (read-only). Exit: 0 (2 on a usage error).
 EOF
 }
 
-case "${1:-}" in
--h | --help)
-  usage
+FLEET=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --repo | --repos-from | --skip | --skip-from)
+    if ! batch_take_selection_arg "$@"; then
+      echo "git-stash-audit.sh: $BATCH_ARG_ERROR" >&2
+      exit 2
+    fi
+    [[ "$1" == --skip* ]] || FLEET=1
+    shift "$BATCH_ARG_SHIFT"
+    ;;
+  *)
+    echo "git-stash-audit.sh: unknown arg '$1'" >&2
+    usage >&2
+    exit 2
+    ;;
+  esac
+done
+
+if [[ $FLEET -eq 0 && ${#BATCH_SKIP_INPUTS[@]} -gt 0 ]]; then
+  echo "git-stash-audit.sh: --skip / --skip-from need --repo or --repos-from" >&2
+  exit 2
+fi
+if [[ $FLEET -eq 1 ]]; then
+  if [[ ${#BATCH_REPO_INPUTS[@]} -eq 0 ]]; then
+    echo "git-stash-audit.sh: no repos given (use --repo and/or --repos-from)" >&2
+    exit 2
+  fi
+  batch_resolve_repos "${BATCH_REPO_INPUTS[@]}"
+  batch_run_fleet "$SCRIPT_DIR/git-stash-audit.sh"
   exit 0
-  ;;
-*) ;;
-esac
+fi
 
 REPO_ROOT="$(clean_repo_root)"
 if [[ -z "$REPO_ROOT" ]]; then
@@ -47,8 +102,8 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 
 # Linked worktrees share one stash ref (stored against the common git dir), so a
-# fleet sweep visiting several worktrees of the same repo must dedup on this key
-# rather than counting each worktree's identical stash list.
+# sweep visiting several worktrees of the same repo dedups on this key (the fleet
+# form does it itself) rather than counting each worktree's identical stash list.
 COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
 [[ -z "$COMMON_DIR" ]] && COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
 printf 'StashStore: %s\n' "${COMMON_DIR:-unknown}"

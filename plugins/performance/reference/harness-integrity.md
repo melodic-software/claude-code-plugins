@@ -20,6 +20,8 @@ reliable than the thing it checks.
 | 4 | discrimination check (repeat) | "NOT DISCRIMINATING" | Same trap, a second harness. Fixing the path form immediately showed FAIL-without / PASS-with. |
 | 5 | discrimination check (python) | "NOT DISCRIMINATING" | Restored via `git checkout --` while the fix under test was **uncommitted**. The restore silently reverted the fix, so the "with fix" arm ran without it, and the work was destroyed. |
 | 6 | hand-rolled interleaving harness (python) | 63 ms per sample, every sample | A bare `bash` under `subprocess` resolved by `PATH` order, per that run's own notes to WSL's `bash.exe` in the Windows `System32` directory, which cannot see a drive-letter path. Every sample exited 127 and was timed as a fast, clean run. Caught only by checking exit codes. The bundled `scripts/ab.sh` would have refused it. |
+| 7 | benchmark run through a stale harness copy (instrument identity unchecked) ([#4436](https://github.com/melodic-software/claude-code-plugins/issues/4436)) | plausible numbers, run completed | The copy was nine commits behind origin and lacked the transcript-size arm and the process counter. Nothing errored. Caught only by a missing output column. |
+| 8 | Stop-hook benchmark with stale path-selecting state ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)) | plausible numbers, run completed | A `bench.launched` marker left by an earlier run sent every sample down the rare Python path. The common skip path was never measured. Nothing errored. |
 
 None of these are knowledge gaps. They are all "the measurement was wrong in a way that looked
 right". A workflow that measures without enforcing the rules below mostly generates confident
@@ -119,13 +121,29 @@ Path spelling is behind failures 3 and 4 in the table above, and path resolution
 
 On a mixed MSYS/native host this is not an edge case. It is the default hazard.
 
+### 7. Instrument identity is verified, not assumed
+
+A harness copy that is behind its source, or a different copy from the one that took the baseline,
+produces numbers that look like measurements. Failure 7 completed with plausible values.
+
+- Record the identity of every measuring tool before timing: resolved path, revision or content
+  hash, and version when it reports one.
+- Check that the copy is not behind its upstream, from local refs only (no fetch), and that the
+  output column or field the goal's metric names is actually produced.
+- A post snapshot repeats the baseline's identity line and flags any difference in path, revision
+  or version. A before/after pair taken with two tool copies does not isolate the change, so its
+  ratio is not reported.
+
 ## Process counting on MSYS/Cygwin (Git Bash)
 
 **Claim:** On Git Bash under MSYS, many Windows-side process counters (Job Object child counts,
-Process Explorer, some hook telemetry) rise by **two** per external command the shell runs: one
-for the MSYS fork and one for the Windows `CreateProcess` the shim performs to run the real binary.
-**Basis:** Observed during Windows hook-latency work ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)); one added `tail` raised the job-object count by 2, not 1.
+Process Explorer, some hook telemetry) rise by **two** per external command the shell runs.
+**Basis:** The +2 was observed during Windows hook-latency work ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)); one added `tail` raised the job-object count by 2, not 1.
 **As-of:** 2026-09-28. **Recheck:** when the host shell or MSYS runtime changes.
+
+A likely explanation, not verified here, is one count for the MSYS fork and one for the Windows
+`CreateProcess` the shim performs to run the real binary. Treat the mechanism as a hypothesis; the
+observed +2 is the claim.
 
 This plugin's spawn census counts **PATH-shim intercepts** (external tools the subject invoked),
 not Job Object membership. A goal that expects "+1 process" from "+1 external command" on MSYS must
@@ -136,8 +154,14 @@ quote that label in the goal and snapshot report rather than re-labeling it as a
 
 - shell **builtins** (`echo`, `cd`, `test`, …)
 - **`$(<file)`** and other redirection forms that do not spawn a child to read the file
-- **command substitution** that runs no external binary (but `$(...)` wrapping an external command
-  **is** a spawn on MSYS; see below)
+
+Expected counter delta per external command, by platform:
+
+| Platform | Expected delta | Status |
+|---|---|---|
+| MSYS/Cygwin Git Bash | +2 | measured ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)) |
+| POSIX shell on Linux or macOS | not measured by this plugin | unmeasured |
+| Native Windows (`cmd`, PowerShell) | not measured by this plugin | unmeasured |
 
 When the goal's counter is a Windows-side process count, record the expected **+2 per external
 command** on MSYS in the goal's `Boundary:` or `Done when:` line, or prefer the bundled spawn census
@@ -145,8 +169,8 @@ so before/after comparisons use one accounting end to end.
 
 ## Two shell behaviors that hide a wrong number
 
-- **`$(...)` command substitution is a process spawn on MSYS.** A "builtins-only" hot path that
-  reports via stdout still costs a full process. A spawn-count harness that ignores its own
+- **`$(...)` command substitution is a process spawn on MSYS, even around builtins.** A
+  "builtins-only" hot path that reports via stdout still costs a full process. A spawn-count harness that ignores its own
   substitutions undercounts.
 - **`${var: -N}` returns the empty string when the string is shorter than N** in bash. This silently
   collapsed a per-plugin cache key onto one shared file, which a harness would read as a cache that
@@ -168,5 +192,10 @@ Before reporting any number:
       invoked by absolute path, never by bare name.
 - [ ] No sample exited 127 or 126. A timing that is fast and identical across every sample is
       failure 6's signature until the exit codes say otherwise.
+- [ ] Instrument identity is verified: the measuring tool's path, revision and version were
+      recorded, the copy is not behind its upstream, the goal's metric column is produced, and a
+      post snapshot matches the baseline's recorded tool.
+- [ ] State that selects the subject's code path was reset or recorded before each arm, and the
+      observed path matches the goal's.
 - [ ] The bundled harness in `scripts/` ran where one exists for the job (`ab.sh`,
       `run-spawn-census.sh`, `differential.py`, `discriminate.py`), rather than a reimplementation.

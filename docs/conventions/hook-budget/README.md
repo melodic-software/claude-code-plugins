@@ -109,7 +109,37 @@ recorded in the hook-performance program's DEVIATIONS log.
 
 ## Exec-form fleet sweep
 
-Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)): `"command": "node"` and `hooks/exec-bash.mjs`, then the script. Option gates that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command`. A non-Windows skip of its spawn half does not show that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is absent; if that spawn reports args dropped, the script exits 1. Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`. The four-part record is [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). No shell-form hook row remains.
+Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)) with `"command": "node"`. A row whose script is bash runs `hooks/exec-bash.mjs` (canonical copy [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)) and then the script; a row whose script is Node names that script directly. The bullets state what the sweep costs and what it needs.
+
+- **What shipped.** Every row in `plugins/*/hooks/hooks.json` and in the skill-frontmatter hooks of
+  `disk-hygiene:clean` and `repo-hygiene:clean` carries `args` and `"command": "node"`. Option gates
+  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). Two
+  scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
+  `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
+  that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is
+  absent, and if that spawn reports args dropped, the script exits 1. `scripts/check-hook-exec-form.sh`
+  rejects bare `bash` with the script in `args`. The four-part record is
+  [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe).
+- **Cost.** The table's exec-form k of 1 applies to a row that runs the program itself, such as a
+  Node script named in `args`. A bash-scripted row behind the launcher is k = 2 (node, then bash),
+  plus 1 per program the script starts. That is the shell-form line's "a script is at least 2", so
+  the sweep is not a spawn saving.
+- **Prerequisite.** Node on PATH is now required for every hook (`command` is `node`). The launcher
+  cannot detect a missing node, because the launcher is a node process; a failed launch is
+  non-blocking, so the guard then enforces nothing (the
+  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)). With node present and bash
+  unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
+  script does not run (the header of
+  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
+- **Scope.** No shell-form row remains in the shipped hook surfaces named under "What shipped".
+  Neither check script inspects a shell-form row, so no gate enforces that absence. The philosophy
+  Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
+  is this sweep's choice.
+- **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
+  the sweep. No paired before-and-after run with the launcher is recorded here, so the launcher's
+  added time is unmeasured in this doc. The operator's paired run is carried by
+  [#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686); its k and S figures
+  go into this section when it is posted.
 
 ## Rules
 
@@ -122,39 +152,13 @@ Every shipped hook row is exec form ([#3686](https://github.com/melodic-software
    on every fire. On the Windows reference host `python3 -c pass` measured about 160 ms against
    80 ms for `bash -c :`, so a Python hook costs about 2 S before its first statement.
 
-## Host defect: Windows kernel Token leak
+## Windows kernel Token leak
 
-This is an allowed host-kernel-defect exception. The leak is in Windows, and this repository
-keeps the record so hook accounting can name the floor that child-creating processes amplify.
-[#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) reduces that
-amplification and leaves this record as the host-defect note.
-
-**Claim:** On Windows 11 builds through 26200.9550, each process that creates a child can leave
-one dead primary token (pool tag `Toke`) until reboot. The public trace names the holder as
-`win32kfull!CForegroundLaunch::_CheckAllowForeground`. Leaked tokens track the child-creating
-process count one-for-one, so a hook, a statusline, or a Bash-tool call amplifies the leak by
-the number of child-creating processes that surface starts. Microsoft has published no
-acknowledgement and no fix through build 26200.9550 (KB5124010, 2026-09-22).
-
-**Basis:**
-
-- [bentoner/windows-token-leak](https://github.com/bentoner/windows-token-leak), the
-  `PsReferencePrimaryToken` trace and the `ForegroundLockTimeout` note.
-- [#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372), melo-lap-001,
-  build 26200.9457, N=300 per row: `bash -c true` leaked 0.00 with 0 child-creating processes;
-  one external leaked about 1; five externals leaked about 6, matching the child-creating count.
-  Which binary it is does not move the count.
-- [Windows 11, version 25H2 known issues](https://learn.microsoft.com/en-us/windows/release-health/status-windows-11-25h2),
-  read 2026-09-22, with no Token-leak row.
-- [KB5124010](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/09/kb5124010-windows-11-24h2-25h2-update).
-- The operator runbook in
-  `plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md`, section
-  "The host-level floor: a kernel Token-object leak".
-- `token-leak-amplification.sh` in this directory, which checks the published rows against the
-  one-for-one line and prints `fires × child-creating processes` for a fan-out.
-
-**As of:** 2026-09-28.
-
-**Recheck trigger:** a Windows build greater than 26200.9550, or a Microsoft acknowledgement of
-the Token leak (a 25H2 release-health known issue, a servicing note, or a Microsoft reply).
-Either event re-derives this record.
+Hook, statusline, and Bash-tool spawns add to a Windows kernel Token-object leak. The leak per
+spawn differs by binary and by host, so this doc states no rate. The section "The host-level floor:
+a kernel Token-object leak" of
+[known-performance-issues.md](../../../plugins/claude-ops/skills/audit-performance/reference/known-performance-issues.md#the-host-level-floor-a-kernel-token-object-leak-suspect-5-windows)
+owns the reference host's per-binary measurements, sources, and recheck triggers.
+[#4372](https://github.com/melodic-software/claude-code-plugins/issues/4372) holds the melo-lap-001
+rows, and [#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373) tracks
+per-hook fan-out reduction. The leak does not relax the budget (Rule 2).

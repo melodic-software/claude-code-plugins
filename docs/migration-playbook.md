@@ -518,20 +518,9 @@ point at the successor. It keeps an existing install from reporting
 deprecation state of its own
 ([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
 checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
-the shim like any retirement. `provenance` → `attribution` (#4589) is the first.
-
-**In-repo consumer migration after that rename (#4668).** This repository's `enabledPlugins` names
-`attribution@melodic-software`, not `provenance@melodic-software`. No `.claude/provenance*.json`
-remains. The frozen `renames` map does not gain a `provenance` → `attribution` entry: the shim
-covers the one-release window without it. Out-of-repo consumers (the fleet list, dotfiles, each
-machine's user-scope `enabledPlugins`) are not edited from this checkout.
-
-Claim: this repository's provenance consumers are migrated; `renames` stays frozen; the shim stays
-until a later retirement PR. Basis: `.claude/settings.json` `enabledPlugins` on this tree; the
-frozen-map rule in this section; #4668's constraint that writes to standards and dotfiles belong
-to those repositories. As of: 2026-09-28. Recheck: when `melodic-software/standards`
-`components/cloud-environment/fleet-plugins.json` names `attribution@melodic-software`, or when
-the next attribution release removes the `provenance` shim.
+the shim like any retirement. `provenance` → `attribution` (#4589) is the first. Consumers outside
+this repository (the fleet list, dotfiles, user-scope `enabledPlugins`) migrate from their own
+repositories.
 
 ### Same-version commit drift (directory-source marketplaces)
 
@@ -957,41 +946,6 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
-
-## Marketplace schema positions
-
-Recorded positions on upstream marketplace-schema features this catalog should not improvise
-(#3616). Verdicts are adopt / defer / reject. Gotchas that are upstream behavior, not a choice,
-are constraints to design around. Re-fetch the cited pages before acting; the as-of date is not
-authority.
-
-| Feature | Position | Rationale |
-|---|---|---|
-| `strict` per entry | adopt default (`true`; omit the field) | Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. |
-| `renames` | adopt | Already in `.claude-plugin/marketplace.json`. Frozen-historical: existing keys stay so old settings ids keep resolving; add a key only when a plugin is renamed. |
-| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. |
-| `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. |
-| Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. |
-| `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. |
-| `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. |
-| Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. |
-| `bin/` under org-managed distribution | defer | The current org-plugins page does not restate a top-level `bin/` ban. This fleet already invokes wrappers via `${CLAUDE_PLUGIN_ROOT}/bin/`, not PATH. |
-| Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. |
-
-- **Claim:** the table is the marketplace's position on each named schema feature and gotcha;
-  no `marketplace.json` field changes in this record.
-- **Basis:** #3616. Fetched 2026-09-28:
-  [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference)
-  (strict, sources, `renames`, `headersHelper`),
-  [plugin loading](https://code.claude.com/docs/en/plugins/loading) (version order, auto-update),
-  [host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)
-  (bulk/auto-update skip of `headersHelper` / command sources),
-  [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces)
-  (`claude-plugins-official` vs `claude-community`).
-- **As of:** 2026-09-28.
-- **Recheck:** those pages change strict default, relative-path resolution under a `url`
-  marketplace source, command-source bulk behavior, or the community submission bar; or a plugin
-  in this catalog is renamed (then add a `renames` key).
 
 ### Review record: `github` (ACCEPT, 2026-07-21)
 
@@ -1448,6 +1402,50 @@ upstream. **Conditions shipped, and this ACCEPT depends on all of them:** the hu
 the agent-never-executes instruction, the TTY-only fail-closed library, https-only `open_url`,
 and the hardened `.env`/gh write path. Removing or weakening any of them re-opens this review,
 as does any move to have the agent execute a generated wizard.
+
+## Marketplace schema positions
+
+Positions on upstream marketplace-schema features this catalog should not improvise (#3616).
+Verdicts are adopt / defer / reject. A row whose Position begins with the word proposed is a
+proposal that no maintainer has ratified yet; a row that begins with open is a maintainer
+decision not yet taken; every other row records what the fleet already does. Gotchas that are
+upstream behavior, not a choice, are constraints to design around. Re-fetch the cited pages
+before acting; the as-of date is not authority.
+
+| Feature | Position | Rationale |
+|---|---|---|
+| `strict` per entry | proposed: adopt default (`true`; omit the field) | Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
+| `renames` | adopt | Already in `.claude-plugin/marketplace.json`. Frozen-historical: existing keys stay so old settings ids keep resolving; add a key only when a plugin is renamed. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
+| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
+| `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
+| Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
+| `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
+| `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
+| Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
+| `bin/` under org-managed distribution | open: maintainer decision (move to `scripts/`, or record a deliberate divergence for distribution that does not use organization sync) | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". `plugins/source-control/bin` is a top-level `bin/` shipped by this fleet. Distributed through organization sync, this catalog would lose `source-control` and sync the rest. |
+| Submit plugins to `claude-community` | proposed: reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
+
+- **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.
+  Rows that begin with the word proposed are proposals awaiting maintainer ratification, the
+  row that begins with open awaits a maintainer decision, and the rest record what the fleet
+  already does; no `marketplace.json` field changes in this record.
+- **Basis:** #3616. Fetched 2026-09-28:
+  [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference)
+  (strict, sources, `renames`, `headersHelper`),
+  [plugin loading](https://code.claude.com/docs/en/plugins/loading) (version order, auto-update),
+  [host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)
+  (bulk/auto-update skip of `headersHelper` / command sources; top-level `bin/` under
+  organization settings),
+  [sync your organization's plugins](https://claude.com/docs/plugins/org-sync)
+  (`bin/` rule; fetched 2026-09-29),
+  [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces)
+  (`claude-plugins-official` vs `claude-community`).
+- **As of:** 2026-09-28; the `bin/` row and the two pages it cites, 2026-09-29.
+- **Recheck:** a Claude Code release note, or a change to a row's linked page, alters the
+  `strict` default, relative-path resolution under a `url` marketplace source, command-source
+  bulk behavior, the version rung order, the community submission bar, or the top-level `bin/`
+  rule; a maintainer ratifies or changes a proposed row or decides the `bin/` row; or a plugin in
+  this catalog is renamed (then add a `renames` key).
 
 ## Local development loop
 
