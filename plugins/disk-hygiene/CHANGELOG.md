@@ -3,6 +3,65 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-29
+
+### Added
+
+- **Protection matches are reported**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). The scan entry,
+  the preview candidate, the `handoff-verify` and emptied-container verdicts, and an `apply` skip
+  carry `protection_matches`: every covering protection entry as `{glob}` or `{glob, reason}`,
+  sorted and deduplicated. The field is absent when nothing matched; the `consumer-protected-path`
+  blocker string and `SCHEMA_VERSION` are unchanged.
+
+### Fixed
+
+- **A UNC protection glob is absolute.** A glob spelled with a leading double backslash was
+  classified as relative, so it matched nothing. The matcher now reads backslashes as separators on
+  both glob and path, so a UNC glob covers a UNC path and not a sibling share.
+- **`--root-children` keeps the strict ladder on every volume root**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). On a volume root
+  that is not OS-managed (a Windows Dev Drive) the scan fell into the relaxed listing meant for home
+  directories and offered `System Volume Information`, `$Recycle.Bin`, hidden and OS-owned names. This
+  changes the 0.27.1 behavior on such a root; a target that is not a volume root keeps the relaxed
+  directory listing.
+- **`/swap.img` is withheld as OS-owned**
+  ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). The Linux OS-owned
+  root-file set named only `swapfile` and the `vmlinuz`/`initrd.img` globs.
+- **`rollup_precision` reads `partial` when any subtree failed to scan**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). A `--sizes-only`
+  scan with an unreadable directory, a mount-state error or a not-walked entry reported `exact`.
+- **Setup and clean wording no longer contradicts itself.** The setup skill said manual handoff
+  applies only under `--execute`; it applies after an execution request and explicit approval
+  ([#4214](https://github.com/melodic-software/claude-code-plugins/issues/4214)). The clean skill said
+  never to delete outside the engine while describing the manual lane; it now says never to delete
+  without a clear `handoff-verify` verdict
+  ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)).
+
+### Changed
+
+- **`--quiet`, `--root-children`/`--root-child` and `--sizes-only` detail** moved from the `clean`
+  skill body into `reference/scan-flags.md`. The skill keeps the parse contract and one line per
+  flag; no rule changed.
+- **Documentation states current behavior.** `--sizes-only` skips the large-scan question, does not
+  stop at VCS or protected directories, and has no entry cap
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). The README, worker
+  brief and safety model separate the plugin engine gate (fires in subagents) from the skill belt
+  (reach inconsistent, [#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)),
+  describe the no-interpreter launcher behavior without history, and qualify the four-gate statements
+  with the `accept_unpublished` acknowledgement. The README's "Relationship to other tools" heading is
+  restored. The `engine_context.py` and `destructive_guard.py` docstrings match the code.
+- **Records repaired.** The safety model and skill body state #3855 as closed, drop recheck triggers
+  that can no longer fire, and remove the unsourced settings write-path claim from the
+  `extraKnownMarketplaces` record. The standing "ranking stays a model instruction" record for
+  [#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858) is removed from
+  `SKILL.md` and the safety model; the ranking question is an open owner decision.
+- **Released entries corrected in place.** 0.28.9: "Option A:" relabeled "The recorded decision:".
+  0.28.2: version-serialization sentence removed. 0.28.1: added the `kind`, `logical_size`, `mtime`
+  and `attributes` fields the entry omitted. 0.27.0: "Volume-root behavior is unchanged" replaced
+  with the non-volume scope statement. 0.26.3: version-serialization and operator-park sentences
+  removed.
+
 ## [0.28.16] - 2026-09-28
 
 ### Fixed
