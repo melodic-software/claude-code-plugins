@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
-- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park or drop, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
 
 ## [0.47.0] - 2026-09-29
 

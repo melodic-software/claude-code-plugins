@@ -1,6 +1,6 @@
 # Deferred interview page work
 
-Behaviors the interview page does not build, each with one decision: build (with its issue), park, or drop. Park keeps the entry for a later decision and is the reversible choice.
+Behaviors the interview page does not build, each marked build (with its issue), park, drop, or open when the decision is still pending. Park keeps the entry for a later decision and is the reversible choice.
 
 Reason for parking: the owner's scope guard, "we want these to be, in most cases, kind of short-lived, on the fly. We ingest them and then move on". Sessions are short-lived and the page is not a durable store.
 
@@ -10,7 +10,7 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 |---|---|
 | 1. A `hedged` decision kind on the page: the skill records a conditional accept as hedged, and the page has no such state | Build: #5471, after #4611 |
 | 2. The register gate grades a page export clean while commitments are unticked | Build: #5471, after #4611 |
-| 3. Addendum wording lint: whether the coined-term check becomes a script check | No decision recorded: awaiting the owner |
+| 3. Addendum wording lint: whether the coined-term check becomes a script check | Open: awaiting the owner |
 
 ## Deferred behaviors
 
@@ -18,7 +18,7 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 |---|---|
 | "Accept all and have agents check them": a page button that hands a round to `/planning:audit-answers` | Build: #5472 |
 | A hidden-tab title badge | Build: #5473 |
-| Mermaid rendering, which needs a vendored renderer because the page's CSP allows no network source | Decide the renderer size: #5474 |
+| Mermaid rendering, which needs a vendored renderer because the page's CSP allows no network source | Open: the renderer size is undecided, #5474 |
 | Composer extras: attachments (paste or drop images and video), link detection, markdown with code highlighting, slash autocomplete for skills and `@` for question ids, dragging a note onto a question | Park |
 | Hold sends; typed debounce | Park |
 | Server as sole writer of both files; SSE deltas with `Last-Event-ID`; a server idle exit | Park |
