@@ -3767,6 +3767,20 @@ class StdlibShadowingTests(unittest.TestCase):
             cache["bytecode_sources"],
         )
 
+    def test_builtin_module_name_is_not_flagged_and_symlink_is(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "sys.py").write_text("", encoding="utf-8")
+            (home / "real.py").write_text("", encoding="utf-8")
+            try:
+                (home / "gettext.py").symlink_to(home / "real.py")
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot, _ = self.scan(home, home)
+        self.assertEqual(
+            ["gettext.py"], [row["path"] for row in snapshot["stdlib_shadowing"]]
+        )
+
     def test_depth_cut_cache_still_names_its_sources(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)

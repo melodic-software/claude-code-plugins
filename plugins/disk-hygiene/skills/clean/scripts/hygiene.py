@@ -2074,14 +2074,17 @@ def annotate_stdlib_shadowing(
         path = entry["path"]
         if fold(path).startswith(folded_prefix) and "/" not in path[len(prefix) :]:
             children[path[len(prefix) :]] = entry
-    stdlib = sys.stdlib_module_names
+    # Built-in modules resolve before sys.path is searched, so sys.py or
+    # time.py in the home directory never shadows them.
+    stdlib = sys.stdlib_module_names - set(sys.builtin_module_names)
     shadows: dict[str, dict[str, Any]] = {}
     for name, entry in children.items():
         stem, dot, suffix = name.rpartition(".")
         # A case-insensitive filesystem imports Random.py for `import random`.
         stem = fold(stem)
         if (
-            entry.get("kind") == "file"
+            # Python follows a symlinked module source.
+            entry.get("kind") in ("file", "link")
             and dot
             and fold(suffix) == "py"
             and stem in stdlib
