@@ -1187,11 +1187,19 @@ function argumentHintMalformed(value) {
   return false;
 }
 
+// The first inline span of the body's **Arguments.** line: null when the line
+// is absent, "" when it is present without a span. Fences follow CommonMark:
+// a closer matches the opener's character and is at least as long.
 function argumentsLineSpan(text) {
-  let fenced = false;
+  let fence = null;
   for (const line of text.split(/\r?\n/)) {
-    if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced;
-    else if (!fenced && line.startsWith("**Arguments.**")) return /`([^`]+)`/.exec(line)?.[1] ?? null;
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) {
+        fence = null;
+      }
+    } else if (marker) fence = marker;
+    else if (line.startsWith("**Arguments.**")) return /`([^`]+)`/.exec(line)?.[1] ?? "";
   }
   return null;
 }
@@ -1223,7 +1231,7 @@ for (const path of argumentSkills) {
       `${relative(root, path)}: argument-hint is malformed: block scalar, em dash, parenthetical example, Default: prose, or an unspaced pipe outside brackets (${ARGUMENT_HINT_DOC})`,
     );
   }
-  const span = argumentsLineSpan(content.slice(frontmatter.length));
+  const span = argumentsLineSpan(content.slice(content.indexOf("---", 3) + 3));
   if (span !== null && span !== value) {
     warnings.push(
       `${relative(root, path)}: the **Arguments.** line does not lead with the argument-hint (${ARGUMENT_HINT_DOC})`,
