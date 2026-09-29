@@ -26,9 +26,11 @@ sql_path() {
 # visible instead of a bare "failed". A duckdb -init load also reports the expected hot-view bind
 # errors (see compact_dropped); the failing statement's error comes last.
 run_reporting() {
-  local out
+  local out label=("$@")
+  [[ "${label[0]}" == env ]] && label=("${label[@]:1}")
+  while [[ "${label[0]}" == *=* ]]; do label=("${label[@]:1}"); done
   if ! out="$("$@" 2>&1 >/dev/null)"; then
-    err "$1 failed: $out"
+    err "${label[0]} failed: $out"
     return 1
   fi
 }
