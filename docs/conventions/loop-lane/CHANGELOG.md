@@ -5,6 +5,19 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [9.4.0] - 2026-09-29
+
+Additive, minor. Section 6 records that the account-identity resolution is built on all three
+sides. No topology, escalation-contract, or tier-vocabulary change, and no §4 loop-layer invariant
+changed: the account-switch rule lives in the §6 rate-limit guard floor.
+
+- **Reader-side invalidation is built (§6).** Lanes read `.oauthAccount.emailAddress` directly from
+  `.claude.json` while paused and drop a latched pause on an account change when the new account is
+  below the pause threshold. The obligation is a MUST in the guard's reader contract.
+- **Lane-floor re-audit is satisfied.** The floor block moved to every carrier together and the
+  drift gate enforces it.
+- **Known gap narrowed.** Unattributable switches (absent tee field, unreadable state file) remain.
+
 ## [9.3.1] - 2026-09-29
 
 Patch, docs only. No topology, escalation-contract, tier-vocabulary, or loop-layer invariant changed.
