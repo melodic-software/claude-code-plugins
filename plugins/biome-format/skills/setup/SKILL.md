@@ -38,22 +38,27 @@ truth for what it requires and how it resolves things.
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
-disabled plugin is not broken. Report the probes informationally and note that re-enabling
-restores the FAIL semantics.
+When the plugin's toggle is disabled, every prerequisite absence except Node.js (probe 7)
+downgrades from FAIL to INFO. The hook exits through its enabled-gate before probing
+anything, so a deliberately disabled plugin is not broken. Report those probes
+informationally and note that re-enabling restores the FAIL semantics. Node.js stays FAIL
+when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate the gate.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of formatting.
+   notice instead of formatting (README Requirements states how often the notice repeats).
 3. **Biome binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-local install walk (the `node_modules/.bin` path it tests, walking up from the
    edited file toward the repo root) and then `PATH`. Test only what the hook tests. A
    binary the hook would not accept must not PASS here. FAIL when nothing the hook would
    resolve is present while a Biome config governs the repo; the hook then emits a visible
-   once-per-session skip notice instead of formatting.
+   skip notice instead of formatting (README Requirements states how often it repeats). The
+   `SessionStart` probe resolves biome separately: read
+   `${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh` for its walk limit and file tests
+   and compare them with the hook's, instead of assuming they match. A PASS here means the
+   hook resolves it.
 4. **Consumer Biome config.** Mirror the hook's opt-in walk: it records the topmost
    governing config found walking from the edited file's directory up to the repo root, and
    deliberately accepts only the config names the hook treats as the opt-in. Read the hook:
@@ -61,10 +66,19 @@ restores the FAIL semantics.
    walk discovers, or INFO that none exists. Absence is the opt-out by design, so the
    plugin is inert (INFO, not FAIL), matching the README's "ships no rules of its own"
    stance.
-5. **Hook toggle.** Report the effective `biome_format_enabled` value:
-   `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`).
+5. **Hook toggle and gitignore option.** Report the effective `biome_format_enabled` value:
+   `${user_config.biome_format_enabled}` (unexpanded or empty means default `true`), and the
+   effective `biome_format_lint_gitignored` value:
+   `${user_config.biome_format_lint_gitignored}` (unexpanded or empty means default `false`).
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
+   through `node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip
+   notice. Bash's `PATH` can differ from the one Claude Code resolves hook commands with (a
+   shell initializer such as nvm may add Node only to Bash; see
+   `docs/formatter-path-probes.md`), so a PASS means Node is on Bash's `PATH` only. Say
+   so, and report INFO that hook availability is not established when the hooks still fail
+   to start.
 
 ## `apply` (idempotent)
 

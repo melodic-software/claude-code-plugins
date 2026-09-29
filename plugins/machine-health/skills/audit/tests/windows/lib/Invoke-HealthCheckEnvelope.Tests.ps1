@@ -117,6 +117,9 @@ Describe 'Invoke-HealthCheckEnvelope' -Tag 'lib' {
             $text | Should -Not -Match 'New-HealthFailureResult' -Because $check.Name
             $text | Should -Not -Match 'Complete-HealthCheck' -Because $check.Name
             $text | Should -Not -Match 'Write-HealthResult -Human' -Because $check.Name
+            $dotSource = "\. \(Join-Path \`$PSScriptRoot '\.\.\\lib\\Invoke-HealthCheckEnvelope\.ps1'\)"
+            $tail = $check.Name -eq 'Test-Drivers.ps1' ? '\s*\r?\n\s*if \(\$PassThru\) \{ return \$result \}' : '\s*\z'
+            $text | Should -Match "(?m)^\s*$dotSource$tail" -Because $check.Name
         }
     }
 }
