@@ -1,5 +1,5 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers (fingerprint-confirmed, source-fetched-similar, llm-suspected, not-found); only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or four-part stamped records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Judgment verdicts stay in the human report; only a unanimous restated fact that survives refutation relays, report-only. Also flags expired stamps. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -42,8 +42,8 @@ keeps it honest where a surface must restate a specific to function.
 
 Detection is LLM-led and breadcrumb-first. The deterministic scripts do only reasoning-free work
 (path filtering, breadcrumb extraction, date arithmetic, fingerprint comparison of two concrete
-texts, file composition); every judgment about whether a passage is a copy is model work against
-[`reference/rubric.md`](reference/rubric.md).
+texts, file composition); every judgment about whether a passage is a copy, or restates a fact an
+external source owns, is model work against [`reference/rubric.md`](reference/rubric.md).
 
 ## Action router
 
@@ -77,7 +77,9 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    plus the whole directory's breadcrumb inventory, both under neutral labels per that file's
    "Neutral labels (required)". Recall-biased: a passage nomination never
    proposes can never be found. `accuracy.nomination_passes` (default 2) runs this more than
-   once and the nominations are **unioned**, never intersected.
+   once and the nominations are **unioned**, never intersected. Each nomination carries a class
+   guess (`verbatim`, `near-verbatim`, `paraphrase`, `summary`, or `restated-fact`). The guess is
+   for the report and never routes a candidate away from judgment (step 8).
 
 5. **Resolve the source**, per nomination, in order: breadcrumbs in or near the passage, then
    sibling-file breadcrumbs, then budgeted search only when no breadcrumb exists. Stop early on
@@ -116,18 +118,35 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    3 for anything that could become fix-eligible) against
    [`reference/rubric.md`](reference/rubric.md), dispatched per
    [`reference/nomination.md`](reference/nomination.md). Carve-outs are graded before criteria.
-   Judges never see the fingerprint numbers or each other's verdicts, and each case reaches
-   them under a neutral label rather than its path, per `reference/nomination.md` "Neutral
-   labels (required)". **Unanimity renders the verdict; any split routes to the human** and the
-   finding is not fix-eligible, whatever the majority said.
+   Judges never see the fingerprint numbers, the nominator's class guess, or each other's
+   verdicts, and each case reaches them under a neutral label rather than its path, per
+   `reference/nomination.md` "Neutral labels (required)". **Unanimity renders the verdict; any
+   split routes to the human** and the finding is not fix-eligible, whatever the majority said.
+
+   Name one rubric per dispatch, from the candidate and never from the nominator's class:
+   `copy` when the fingerprint matched a span above the separation rule; `restated-fact` when it
+   did not and the passage states a checkable fact an external source owns, so a paraphrase or
+   summary naming a default, limit, version pin or field list goes to that panel instead of a
+   report-only bucket; `copy` otherwise. The restated-fact panel is the same panel (blind,
+   neutral labels, lens diversity, unanimity, a split to the human) with a floor of 3 samples
+   whatever `judge_samples` says, and it needs no fetched source: a restated-fact candidate whose
+   source search ended `not-found` still goes to it.
 
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
    unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
    snapshot, reached because every live fetch failed, caps at `source-fetched-similar` and is
    never fix-eligible; the full rule is in
-   [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
-   over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
+   [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0,
+   run the review pass over copy STANDS verdicts; a veto never reassigns a tier, it forces
+   `leave-with-reason`.
+
+   A restated-fact STANDS is never `fingerprint-confirmed`, whatever the fingerprint module
+   reported, so it is never fix-eligible; a fetched source caps it at `source-fetched-similar`.
+   It takes the refutation pass (`reference/nomination.md` "Refutation") on every run, whatever
+   `review_agents` says: a fresh-context adversary told to default to refute. A REFUTED forces
+   `leave-with-reason` as a veto does; a SURVIVES makes the finding eligible for the relay and
+   changes no tier.
 
 10. **Report.** Group by file. Per finding give the tier, the class, the location, the rubric
     grades with their quoted evidence, and the source with the rung it came from. State the
@@ -226,9 +245,14 @@ fired on an identifier, a test runner exiting non-zero without failing.
 
 - **Does not fix on bare invocation.** Mutation rides only the explicit `fix` or `sweep`
   argument.
-- **Does not put judgment verdicts in the findings file.** `source-fetched-similar`,
-  `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
-  look a tier up from, and a relay row is an instruction to a remediation surface.
+- **Does not put judgment verdicts in the findings file, with one exception.** A finding at
+  `source-fetched-similar`, `llm-suspected`, or `not-found` reaches the human report only: those
+  tiers have no crosswalk row to look a tier up from, and a relay row is an instruction to a
+  remediation surface. The exception is a restated-fact finding that a unanimous panel upheld
+  and the refutation pass could not refute: it relays as
+  `attribution/audit/rule-restated-upstream-fact`, report-only and never fix-eligible, whatever
+  tier it maps to. A split panel, a refuted finding, and a restated-fact finding with no such
+  declared outcome stay withheld.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
   concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose
   `not-found` finding names no surface at all, but nothing verifies the listing is complete, so
