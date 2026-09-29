@@ -10,7 +10,8 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 - `simulation`'s argument hint no longer lists only five of its ten modes
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)). The hint is now
   `[--<mode>] [domain|board]`, and the body Arguments line names all ten modes once and states
-  which take a domain, a board URL or bounded-context name, or nothing.
+  which take a domain, a board URL or bounded-context name (`--process-model`, `--design-level`),
+  a board URL (`--value`, `--crc`, `--discover-bcs`), or nothing.
 - `simulation`'s agentic-simulation reference states the role-vocabulary corrective prompt in normal
   register, not capitals
   ([#4120](https://github.com/melodic-software/claude-code-plugins/issues/4120)). The rule is
