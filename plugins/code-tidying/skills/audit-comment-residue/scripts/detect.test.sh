@@ -461,8 +461,8 @@ assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" 
 # origin-note is tier 1, which reads "remove". A license or attribution header carries
 # text the reader may be legally required to keep, and a marker comment is tracked work,
 # so neither is an origin note however it opens. The marker test reuses
-# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a bare
-# TODO is exempt here exactly as it already is for ticket-pr-residue.
+# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a marker
+# in the TODO(#n) or TODO: form is exempt here exactly as it is for ticket-pr-residue.
 ORIGIN_EXEMPT="$TEST_TMPDIR/origin-exempt.py"
 cat >"$ORIGIN_EXEMPT" <<'EOF'
 # TODO(#123): ported from lib/x
@@ -598,6 +598,103 @@ cat >"$FEATURE_BRANCH" <<'EOF'
 EOF
 feature_branch_out="$(bash "$DETECT" "$FEATURE_BRANCH")"
 assert_contains "from the feature branch is ticket-pr-residue" "$feature_branch_out" "Finding shape: ticket-pr-residue"
+
+# --- 10. Cue coverage, word boundaries, bare repo#N, anchored marker exemption ---------
+
+# Each case is one comment line in a throwaway file, so a finding cannot be blamed on a
+# neighbour. `expect_shape` wants the shape reported; `expect_clean` wants no finding at all.
+CUE_N=0
+cue_file() {
+  CUE_N=$((CUE_N + 1))
+  local f="$TEST_TMPDIR/cue-$CUE_N.py"
+  printf '# %s\n' "$1" >"$f"
+  printf '%s' "$f"
+}
+expect_shape() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_contains "$1" "$out" "Finding shape: $3"
+}
+expect_clean() {
+  local out
+  out="$(bash "$DETECT" "$(cue_file "$2")")"
+  assert_contains "$1" "$out" "T1=0 T2=0 T3=0"
+}
+
+# Every example in SKILL.md's shapes table is a finding.
+expect_shape "example: used to" "used to buffer writes" history-narration
+expect_shape "example: no longer" "no longer needed after the rewrite" history-narration
+expect_shape "example: previously" "previously a linked list" history-narration
+expect_shape "example: renamed from" "renamed from fetchAll" history-narration
+expect_shape "example: we switched from" "we switched from polling to events" history-narration
+expect_shape "example: now returns" "now returns a copy" history-narration
+expect_shape "example: Task 2 replaces the old" "Task 2 replaces the old tokenizer" plan-reference
+expect_shape "example: as planned" "as planned" plan-reference
+expect_shape "example: in this PR" "in this PR" plan-reference
+expect_shape "example: in this commit" "in this commit" plan-reference
+expect_shape "example: in this refactor" "in this refactor" plan-reference
+expect_shape "example: per your request" "per your request" conversational-antecedent
+expect_shape "example: as you asked" "as you asked" conversational-antecedent
+expect_shape "example: like you said" "like you said" conversational-antecedent
+expect_shape "example: per our discussion" "per our discussion" conversational-antecedent
+expect_shape "example: see PR #45" "see PR #45" ticket-pr-residue
+expect_shape "example: bare repo#N" "dotfiles#647" ticket-pr-residue
+expect_shape "example: repo#N inside prose" "fixed upstream, see dotfiles#647 for details" ticket-pr-residue
+expect_shape "example: org/repo#N" "melodic-software/dotfiles#647" ticket-pr-residue
+expect_shape "example: from the feature branch" "from the feature branch" ticket-pr-residue
+expect_shape "example: JIRA-123" "JIRA-123" ticket-pr-residue
+
+# Every tier-1 cue is a whole phrase. The negatives sit one character off the cue: a longer
+# word behind it, or a longer word in front of it.
+expect_clean "used tokens is not used to" "used tokens are cached"
+expect_clean "reformerly is not formerly" "reformerly"
+expect_clean "previouslyx is not previously" "previouslyx"
+expect_clean "no longerx is not no longer" "no longerx"
+expect_clean "unchanged to is not changed to" "unchanged to the caller"
+expect_clean "changed tomorrow is not changed to" "changed tomorrow"
+expect_clean "prerenamed from is not renamed from" "prerenamed from x"
+expect_clean "unrefactored into is not refactored into" "unrefactored into modules"
+expect_clean "we switchedly is not we switched" "we switchedly"
+expect_clean "this used tokens is not this used to" "this used tokens"
+expect_clean "now doesnt is not now does" "now doesnt"
+expect_clean "now returnsx is not now returns" "now returnsx"
+expect_clean "per the planet is not per the plan" "per the planet"
+expect_clean "as plannedly is not as planned" "as plannedly"
+expect_clean "replaces the older is not replaces the old" "replaces the older"
+expect_clean "in this prior is not in this pr" "in this prior"
+expect_clean "in this committed is not in this commit" "in this committed"
+expect_clean "in this sessions is not in this session" "in this sessions"
+expect_clean "step 2 in the planet is not the plan cue" "step 2 in the planet"
+expect_clean "per your requestor is not per your request" "per your requestor"
+expect_clean "as requestedly is not as requested" "as requestedly"
+expect_clean "per our chatter is not per our chat" "per our chatter"
+expect_clean "as you askedn is not as you asked" "as you askedn"
+expect_clean "as we decidedly is not as we decided" "as we decidedly"
+expect_clean "you wantedly is not you wanted" "you wantedly"
+expect_clean "like you saidx is not like you said" "like you saidx"
+expect_clean "pull request in plain prose" "runs on every pull request before merge"
+
+# The end boundary is a boundary, not a space: punctuation after the cue still fires.
+expect_shape "cue followed by punctuation" "used to, until the rewrite" history-narration
+
+# Bare name#N needs a name of at least three characters and a non-alphanumeric character
+# before it, so language names with a sharp and a section number are not references. A
+# bare (#3126) stays uncounted.
+expect_clean "C#7 is not a reference" "C#7 records need the newer compiler"
+expect_clean "F# 3 is not a reference" "F# 3 supports type providers"
+expect_clean "A#5 is not a reference" "A#5 is a note name"
+expect_clean "see section #3 is not a reference" "see section #3"
+expect_clean "bare (#3126) is not counted" "fixes the loop (#3126)"
+
+# The marker exemption is anchored: a whole word that opens the comment or a clause and is
+# followed by `(` or `:`. A marker mentioned mid-sentence exempts nothing. A marker inside a
+# longer word (`TODOS`, `XXXL`) is no marker.
+expect_clean "TODO(#n) exempts its ticket ref" "TODO(#123): see PR #45"
+expect_clean "TODO: exempts its ticket ref" "TODO: see PR #45"
+expect_clean "clause-opening FIXME: exempts" "note; FIXME: from branch x"
+expect_shape "marker mentioned mid-sentence exempts nothing" "see PR #45 and the TODO list" ticket-pr-residue
+expect_shape "bare TODO without ( or : exempts nothing" "TODO fix, see PR #45" ticket-pr-residue
+expect_shape "marker inside a longer word exempts nothing" "TODOS: see PR #45" ticket-pr-residue
 
 # --- Final report --------------------------------------------------------------------
 

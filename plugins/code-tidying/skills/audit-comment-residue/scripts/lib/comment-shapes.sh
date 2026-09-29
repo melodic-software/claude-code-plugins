@@ -80,7 +80,8 @@ cr_comment_text() {
 
 # TODO(#issue) and its kin are the sanctioned back-reference — never flag their ticket ref.
 cr_is_sanctioned_todo() {
-  [[ "$1" =~ (TODO|FIXME|HACK|XXX) ]]
+  local re='(^[[:space:]]*|[,;:.][[:space:]]+|\([[:space:]]*)(TODO|FIXME|HACK|XXX)[(:]'
+  [[ "$1" =~ $re ]]
 }
 
 # A line whose first non-blank characters are a comment leader. A trailing comment on a code
@@ -129,27 +130,31 @@ cr_detect_shapes() {
   local lc="${ct,,}"
   local found=0
 
+  # Every tier-1 cue is a whole phrase: the start boundary keeps `formerly` out of `reformerly`
+  # and `changed to` out of `unchanged to`; the end boundary keeps `used to` out of `used tokens`.
+  local sb='(^|[^[:alnum:]])' eb='([^[:alnum:]]|$)'
+
   # history-narration (tier 1): the comment narrates what the code used to be.
-  if [[ "$lc" =~ (used[[:space:]]to|no[[:space:]]longer|previously|formerly) ]] ||
-    [[ "$lc" =~ (changed[[:space:]](from|to)|renamed[[:space:]](from|to)|refactored[[:space:]](from|to|into)) ]] ||
-    [[ "$lc" =~ (we[[:space:]](switched|changed|pivoted|migrated)|this[[:space:]](used[[:space:]]to|was[[:space:]](previously|formerly))) ]] ||
-    [[ "$lc" =~ now[[:space:]](does|returns|handles|uses|it[[:space:]]) ]]; then
+  if [[ "$lc" =~ ${sb}(used[[:space:]]to|no[[:space:]]longer|previously|formerly)${eb} ]] ||
+    [[ "$lc" =~ ${sb}(changed[[:space:]](from|to)|renamed[[:space:]](from|to)|refactored[[:space:]](from|to|into))${eb} ]] ||
+    [[ "$lc" =~ ${sb}(we[[:space:]](switched|changed|pivoted|migrated)|this[[:space:]](used[[:space:]]to|was[[:space:]](previously|formerly)))${eb} ]] ||
+    [[ "$lc" =~ ${sb}now[[:space:]]((does|returns|handles|uses)${eb}|it[[:space:]]) ]]; then
     printf '%s\n' 'history-narration'
     found=1
   fi
 
   # plan-reference (tier 1): references a work plan / session / changeset, not the code.
-  if [[ "$lc" =~ (per[[:space:]]the[[:space:]]plan|as[[:space:]]planned|replaces[[:space:]]the[[:space:]]old) ]] ||
-    [[ "$lc" =~ in[[:space:]]this[[:space:]](pr|change|refactor|commit|session)([^[:alnum:]]|$) ]] ||
-    [[ "$lc" =~ (task|plan|phase|step)[[:space:]]#?[0-9]+[[:space:]]+(of|in)[[:space:]]the[[:space:]]plan ]]; then
+  if [[ "$lc" =~ ${sb}(per[[:space:]]the[[:space:]]plan|as[[:space:]]planned|replaces[[:space:]]the[[:space:]]old)${eb} ]] ||
+    [[ "$lc" =~ ${sb}in[[:space:]]this[[:space:]](pr|change|refactor|commit|session)${eb} ]] ||
+    [[ "$lc" =~ ${sb}(task|plan|phase|step)[[:space:]]#?[0-9]+[[:space:]]+(of|in)[[:space:]]the[[:space:]]plan${eb} ]]; then
     printf '%s\n' 'plan-reference'
     found=1
   fi
 
   # conversational-antecedent (tier 1): addresses the requester / the producing conversation.
-  if [[ "$lc" =~ (per[[:space:]]your[[:space:]]request|as[[:space:]]requested|per[[:space:]]our[[:space:]](conversation|discussion|chat)) ]] ||
-    [[ "$lc" =~ as[[:space:]](you|we)[[:space:]](asked|requested|discussed|mentioned|said|wanted|decided) ]] ||
-    [[ "$lc" =~ (you[[:space:]](asked|wanted|mentioned|requested)|like[[:space:]]you[[:space:]]said) ]]; then
+  if [[ "$lc" =~ ${sb}(per[[:space:]]your[[:space:]]request|as[[:space:]]requested|per[[:space:]]our[[:space:]](conversation|discussion|chat))${eb} ]] ||
+    [[ "$lc" =~ ${sb}as[[:space:]](you|we)[[:space:]](asked|requested|discussed|mentioned|said|wanted|decided)${eb} ]] ||
+    [[ "$lc" =~ ${sb}(you[[:space:]](asked|wanted|mentioned|requested)|like[[:space:]]you[[:space:]]said)${eb} ]]; then
     printf '%s\n' 'conversational-antecedent'
     found=1
   fi
@@ -171,7 +176,7 @@ cr_detect_shapes() {
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
-    if [[ "$lc" =~ (see[[:space:]]+(pr|mr|issue)|(^|[^[:alnum:]])(pr|issue|mr)[[:space:]]*#?[0-9]|github\.com/[^[:space:]]+/(pull|issues)/[0-9]+|[a-z0-9_.-]+/[a-z0-9_.-]+#[0-9]+|from[[:space:]]+branch|from[[:space:]]+(the[[:space:]]+)?[a-z0-9][a-z0-9._/-]*[[:space:]]+branch|in[[:space:]]this[[:space:]]session) ]] ||
+    if [[ "$lc" =~ (see[[:space:]]+(pr|mr|issue)|(^|[^[:alnum:]])(pr|issue|mr)[[:space:]]*#?[0-9]|github\.com/[^[:space:]]+/(pull|issues)/[0-9]+|[a-z0-9_.-]+/[a-z0-9_.-]+#[0-9]+|(^|[^[:alnum:]_.-])[a-z0-9][a-z0-9_.-]{2,}#[0-9]+([^[:alnum:]]|$)|from[[:space:]]+branch|from[[:space:]]+(the[[:space:]]+)?[a-z0-9][a-z0-9._/-]*[[:space:]]+branch|in[[:space:]]this[[:space:]]session([^[:alnum:]]|$)) ]] ||
       [[ "$lc" =~ (ticket|issue|jira|linear)([[:space:]]#?[a-z0-9]*-?[0-9]|-[0-9]) ]]; then
       printf '%s\n' 'ticket-pr-residue'
       found=1
