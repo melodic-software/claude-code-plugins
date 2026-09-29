@@ -16,7 +16,14 @@ never combined with `&&` or other commands in one call. The record for these sha
 1. On a `chore/repo-sweep-*` branch, bring it current first: `git fetch origin '<branch>'`, then
    `git merge --ff-only 'origin/<branch>'`. A step committed on another machine is only reconciled
    when its commit is local.
-2. Run `S/state.sh` and act on its exit code:
+2. Run `S/state.sh`. If it printed `mergeable CONFLICTING` (exit 0, 12, or 13), stop before the exit
+   code handling below and before any step. GitHub runs no `pull_request` workflows on a
+   conflicting PR, so pushed step commits get no CI. Ask the user to merge the base branch into
+   the sweep branch and push, then rerun `next`. `UNKNOWN` never stops. Basis: the `pull_request`
+   section of
+   <https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows>
+   says workflows do not run on pull_request activity while the pull request has a merge conflict.
+   As of: 2026-09-29. Recheck: that section changes. Otherwise act on its exit code:
    - 10: no sweep PR. Point to `/playbooks:repo-sweep plan`. Stop.
    - 11: the sweep PR is merged or closed. Refuse to continue and point to `plan`. Stop.
    - 12: the tree is dirty and no step is in progress. Show `git status --short`, ask the user
@@ -31,15 +38,11 @@ never combined with `&&` or other commands in one call. The record for these sha
    - 15: several open sweeps. List them and ask which. Stop.
    - 1: the PR body has no checklist markers. Show the body and stop.
    - 0: continue.
-3. If `state.sh` printed `mergeable CONFLICTING` (exit 0, 12, or 13), stop before section 2 and any
-   step. GitHub runs no `pull_request` workflows on a conflicting PR, so pushed step commits get no
-   CI. Ask the user to merge the base branch into the sweep branch and push, then rerun `next`.
-   `UNKNOWN` never stops.
-4. For each `untick-committed <id> <sha> <skill@version>...` line, run `S/tick.sh <id> committed
+3. For each `untick-committed <id> <sha> <skill@version>...` line, run `S/tick.sh <id> committed
    <sha> <skill@version>...`; that step already landed. Report each `done-unverified <id>` line:
    it was ticked in the web UI and no commit backs it. Run `S/state.sh` again if you ticked
    anything.
-5. The `next <id> in-progress|pending` line names the step. `in-progress` with a dirty tree means
+4. The `next <id> in-progress|pending` line names the step. `in-progress` with a dirty tree means
    resume: the earlier session stopped partway and its changes are the step's work so far.
 
 ## 2. Prepare
