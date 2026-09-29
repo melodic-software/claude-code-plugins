@@ -96,9 +96,9 @@ WRITE_CMDLET_RE = re.compile(
 INTERPRETER_RE = re.compile(
     r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s"
 )
-# The two read-only save_point.py subcommands. A resuming hop legitimately runs
+# The three read-only save_point.py subcommands. A resuming hop legitimately runs
 # `validate` over its predecessor before invoking the skill.
-READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit)\b")
+READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit|memory-root)\b")
 
 
 def shell_command_text(tool_input: dict, serialized: str) -> str:

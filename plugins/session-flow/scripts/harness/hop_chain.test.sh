@@ -39,6 +39,17 @@ print("ok")
   status=1
 fi
 
+echo "== is_write_indicator save_point"
+if ! "$PY" -X utf8 -c '
+import hop_chain
+assert not hop_chain.is_write_indicator("python3 /p/scripts/save_point.py memory-root")
+assert hop_chain.is_write_indicator("python3 /p/scripts/save_point.py new --topic x --no-previous")
+print("ok")
+'; then
+  echo "FAIL: is_write_indicator save_point"
+  status=1
+fi
+
 echo "== hop_chain.py --dry-run"
 if ! "$PY" -X utf8 hop_chain.py --dry-run; then
   echo "FAIL: --dry-run self-test"
