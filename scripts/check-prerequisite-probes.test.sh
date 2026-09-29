@@ -16,12 +16,14 @@ trap 'rm -rf "$WORK"' EXIT
 
 # A PATH holding the system tools but none of the declared binaries.
 mapfile -t DECLARED < <(jq -r '.tools[].name' "$REPO"/plugins/*/prerequisites.json | sort -u)
+declare -A IS_DECLARED=()
+for name in "${DECLARED[@]}"; do IS_DECLARED[$name]=1; done
 mkdir -p "$WORK/sysbin" "$WORK/stubs" "$WORK/cwd"
 for dir in /usr/local/bin /usr/bin /bin; do
   for exe in "$dir"/*; do
     base="${exe##*/}"
     [[ -x "$exe" && ! -e "$WORK/sysbin/$base" ]] || continue
-    printf '%s\n' "${DECLARED[@]}" | grep -qxF "$base" && continue
+    [[ -n "${IS_DECLARED[$base]:-}" ]] && continue
     ln -s "$exe" "$WORK/sysbin/$base"
   done
 done
@@ -47,7 +49,7 @@ for probe in "${probes[@]}"; do
   else
     fail "$plugin: probe differs from ${first#"$REPO"/}"
   fi
-  if grep -qE '(npm|pnpm|yarn|go|pip|brew|winget)[[:space:]]+(i|install|add|get)\b|npx ' "$probe"; then
+  if grep -qE '(npm|pnpm|yarn|go|pip|brew|winget)[[:space:]]+(i|install|add|get)([[:space:]]|$)|npx ' "$probe"; then
     fail "$plugin: probe contains an install command"
   else
     pass "$plugin: probe contains no install command"
