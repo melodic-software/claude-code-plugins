@@ -96,7 +96,8 @@ names `reason` and writes no relationships. Shipped tiers, first present wins th
 
 A second shipped tier that disagrees becomes a mismatch row. The diagram stays on the winning tier.
 Django models, SQLAlchemy columns, EF `[ForeignKey]` annotations, an EF lambda chain, and a Prisma
-many-to-many with no `fields:` list refuse the record (`partial-read` or a named reason). A shipped
+many-to-many with no `fields:` list refuse the record (`partial-read` or a named reason), as does
+a composite foreign key with no unique column set inside it (`unknown-cardinality`). A shipped
 diagram beside an unread mechanism would be a partial read.
 
 A module is the first path segment of the declaring file, or `.` at the repository root.
@@ -145,7 +146,8 @@ End every run with this block, in this order:
 - A C4 view, or a new dialect key. The dialect is the existing `diagram_dialect.data`.
 - Adapters other than Prisma models, the EF fluent subset above, and SQL migrations. Other
   mechanisms refuse.
-- Guess a cardinality the declaration does not state. Implicit Prisma many-to-many refuses.
+- Guess a cardinality the declaration does not state. Implicit Prisma many-to-many and a composite
+  foreign key with no unique column set refuse.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop.
 
 ## Next
@@ -176,6 +178,23 @@ End every run with this block, in this order:
   uses `||--o{` for a required foreign key. That matches both Prisma and EF: the many side may be
   empty. The same EF page states there is no standard way to require a minimum number of
   dependents. Do not draw `||--|{` from a required foreign key.
+- **A foreign key covered by a unique column set is one-to-one, drawn `||--o|` or `|o--o|`.** The
+  referenced entity is on the left, so `||` says each dependent row names exactly one principal,
+  and `o|` says the principal has zero or one dependent. A required unique foreign key is
+  `||--o|`; an optional one is `|o--o|`. Never `||--||`, which would demand a dependent for every
+  principal. Uniqueness is a Prisma `@unique`, `@id`, `@@unique([..])` or `@@id([..])`, or a SQL
+  `UNIQUE`, `PRIMARY KEY`, `CREATE UNIQUE INDEX` or `ALTER TABLE ... ADD UNIQUE`, whose columns
+  lie inside the foreign-key columns. A composite foreign key with no such set has no readable
+  cardinality, so the record refuses with `unknown-cardinality` rather than drawing one-to-many.
+  Verified 2026-09-29 against <https://mermaid.js.org/syntax/entityRelationshipDiagram.html> (`|o`
+  and `o|` zero or one, `||` exactly one, `o{` zero or more) and
+  <https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-one-relations> (a 1-1
+  relation needs a `UNIQUE` constraint on the foreign key). Recheck when either page changes its
+  markers or its uniqueness rule.
+- **DBML names the referenced column the declaration names.** Prisma `references: [..]` and SQL
+  `REFERENCES t(col)` fill it, and EF `HasPrincipalKey("Col")` does. Where the declaration names
+  none, the `Ref` becomes a `//` comment that says so, because DBML needs a column on both sides;
+  the script never assumes `id`.
 - **A reformatted record reads as empty unless the reader refuses it.** Render exits 1 on any
   layout other than one object per line and writes nothing.
 - **Tracked files only.** `git ls-files` is the source list. An untracked schema is not a

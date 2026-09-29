@@ -84,6 +84,7 @@ assert_contains "prisma tier" "$record" '"source_tier": "model"'
 assert_contains "prisma tool" "$record" '"source_tool": "prisma"'
 assert_contains "prisma cardinality" "$record" '"cardinality":"||--o{"'
 assert_contains "prisma columns kept in the record" "$record" '"name":"title"'
+assert_contains "prisma entity is written in the compact form the negative controls search" "$record" '"name":"User"'
 sum="$(bash "$RENDER" --record "$out/data-model.json" --out "$out" --dialect mermaid)"
 assert_equals "prisma render exits 0" "$?" "0"
 md="$(cat "$out/data-model.md")"
@@ -154,7 +155,7 @@ bash "$COLLECT" --repo "$repo3" --out "$TEST_TMPDIR/record.json" --generated-on 
 record="$(cat "$TEST_TMPDIR/record.json")"
 assert_contains "mismatch keeps prisma as the winner" "$record" '"source_tool": "prisma"'
 assert_contains "mismatch reports optionality" "$record" '"kind":"optionality"'
-assert_not_contains "mismatch does not flip the diagram token" "$record" '"tool": "sql-migration"'
+assert_not_contains "mismatch does not flip the diagram token" "$record" '"tool":"sql-migration"'
 bash "$RENDER" --record "$TEST_TMPDIR/record.json" --out "$TEST_TMPDIR/record-out" --dialect mermaid --scope shop >/dev/null
 mismd="$(cat "$TEST_TMPDIR/record-out/data-model.md")"
 assert_contains "mismatch is on the artifact" "$mismd" "optionality"
@@ -211,7 +212,7 @@ commit_all "$repo6"
 bash "$COLLECT" --repo "$repo6" --out "$TEST_TMPDIR/both.json" --generated-on 2026-09-28
 both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "partial read refused" "$both" '"reason": "partial-read"'
-assert_not_contains "partial read has no entity" "$both" '"name": "User"'
+assert_not_contains "partial read has no entity" "$both" '"name":"User"'
 
 # --- live never reads the schema --------------------------------------------
 bash "$COLLECT" --repo "$repo" --out "$TEST_TMPDIR/live.json" --generated-on 2026-09-28 --live
@@ -247,6 +248,221 @@ bash "$RENDER" --record "$out/data-model.json" --out "$TEST_TMPDIR/dbml" --diale
 dbml="$(cat "$TEST_TMPDIR/dbml/data-model.dbml")"
 assert_contains "dbml ref" "$dbml" 'Ref: "Post"."authorId" > "User"."id"'
 assert_contains "dbml column" "$dbml" "title"
+
+# --- one-to-one and referenced columns, Prisma ------------------------------
+repo9="$TEST_TMPDIR/prisma-11"
+init_repo "$repo9"
+mkdir -p "$repo9/app"
+cat >"$repo9/app/schema.prisma" <<'EOF'
+model User {
+  id      Int      @id
+  email   String   @unique
+  posts   Post[]
+  profile Profile?
+  card    Card?
+  badge   Badge?
+  extra   Extra?
+  note    Note[]
+}
+
+model Post {
+  id          Int    @id
+  author      User   @relation(fields: [authorEmail], references: [email])
+  authorEmail String
+}
+
+model Profile {
+  id     Int  @id
+  user   User @relation(fields: [userId], references: [id])
+  userId Int  @unique
+}
+
+model Card {
+  id     Int   @id
+  user   User? @relation(fields: [userId], references: [id])
+  userId Int?
+
+  @@unique([userId])
+}
+
+model Badge {
+  user   User @relation(fields: [userId], references: [id])
+  userId Int  @id
+}
+
+model Extra {
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+
+  @@id([userId])
+}
+
+model Note {
+  id     Int    @id
+  title  String
+  user   User   @relation(fields: [userId], references: [id])
+  userId Int
+
+  @@unique([userId, title])
+}
+EOF
+commit_all "$repo9"
+bash "$COLLECT" --repo "$repo9" --out "$TEST_TMPDIR/p11.json" --generated-on 2026-09-28
+bash "$RENDER" --record "$TEST_TMPDIR/p11.json" --out "$TEST_TMPDIR/p11-out" --dialect mermaid >/dev/null
+p11md="$(cat "$TEST_TMPDIR/p11-out/data-model.md")"
+assert_contains "prisma required @unique fk is one-to-one" "$p11md" 'User ||--o| Profile'
+assert_contains "prisma optional @@unique fk is optional one-to-one" "$p11md" 'User |o--o| Card'
+assert_contains "prisma @id fk is one-to-one" "$p11md" 'User ||--o| Badge'
+assert_contains "prisma @@id fk is one-to-one" "$p11md" 'User ||--o| Extra'
+assert_contains "prisma unique over more than the fk stays one-to-many" "$p11md" 'User ||--o{ Note'
+assert_contains "prisma plain fk stays one-to-many" "$p11md" 'User ||--o{ Post'
+assert_not_contains "prisma draws no both-sides-required token" "$p11md" '||--||'
+bash "$RENDER" --record "$TEST_TMPDIR/p11.json" --out "$TEST_TMPDIR/p11-dbml" --dialect dbml >/dev/null
+p11dbml="$(cat "$TEST_TMPDIR/p11-dbml/data-model.dbml")"
+assert_contains "dbml names the referenced column" "$p11dbml" 'Ref: "Post"."authorEmail" > "User"."email"'
+assert_contains "dbml one-to-one uses the one-to-one operator" "$p11dbml" 'Ref: "Profile"."userId" - "User"."id"'
+assert_not_contains "dbml does not hardcode id for a non-id reference" "$p11dbml" '"Post"."authorEmail" > "User"."id"'
+
+repo10="$TEST_TMPDIR/prisma-composite"
+init_repo "$repo10"
+mkdir -p "$repo10/app"
+cat >"$repo10/app/schema.prisma" <<'EOF'
+model Parent {
+  a        Int
+  b        Int
+  children Child[]
+
+  @@id([a, b])
+}
+
+model Child {
+  id      Int    @id
+  parent  Parent @relation(fields: [parentA, parentB], references: [a, b])
+  parentA Int
+  parentB Int
+}
+EOF
+commit_all "$repo10"
+bash "$COLLECT" --repo "$repo10" --out "$TEST_TMPDIR/pc.json" --generated-on 2026-09-28
+pc="$(cat "$TEST_TMPDIR/pc.json")"
+assert_contains "composite fk with no unique set refuses" "$pc" '"reason": "unknown-cardinality"'
+assert_not_contains "composite fk draws no relationship" "$pc" '"cardinality"'
+cat >"$repo10/app/schema.prisma" <<'EOF'
+model Parent {
+  a        Int
+  b        Int
+  children Child[]
+
+  @@id([a, b])
+}
+
+model Child {
+  id      Int    @id
+  parent  Parent @relation(fields: [parentA, parentB], references: [a, b])
+  parentA Int
+  parentB Int
+
+  @@unique([parentA, parentB])
+}
+EOF
+commit_all "$repo10"
+bash "$COLLECT" --repo "$repo10" --out "$TEST_TMPDIR/pc2.json" --generated-on 2026-09-28
+assert_contains "composite fk with a unique set is one-to-one" "$(cat "$TEST_TMPDIR/pc2.json")" '"cardinality":"||--o|"'
+
+# --- one-to-one and referenced columns, SQL ---------------------------------
+repo11="$TEST_TMPDIR/sql-11"
+init_repo "$repo11"
+mkdir -p "$repo11/db/migrations/001"
+cat >"$repo11/db/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "User" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "email" TEXT NOT NULL UNIQUE
+);
+CREATE TABLE "Profile" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "userId" INTEGER NOT NULL,
+    CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id")
+);
+CREATE UNIQUE INDEX "Profile_userId_key" ON "Profile"("userId");
+CREATE TABLE "Card" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "userId" INTEGER,
+    CONSTRAINT "Card_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id")
+);
+CREATE UNIQUE INDEX "Card_userId_key" ON "Card"("userId");
+CREATE TABLE "Post" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "authorEmail" TEXT NOT NULL,
+    CONSTRAINT "Post_authorEmail_fkey" FOREIGN KEY ("authorEmail") REFERENCES "User"("email")
+);
+CREATE TABLE "Tag" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "userId" INTEGER NOT NULL,
+    "label" TEXT NOT NULL,
+    CONSTRAINT "Tag_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id")
+);
+CREATE UNIQUE INDEX "Tag_userId_label_key" ON "Tag"("userId", "label");
+EOF
+commit_all "$repo11"
+bash "$COLLECT" --repo "$repo11" --out "$TEST_TMPDIR/s11.json" --generated-on 2026-09-28
+s11="$(cat "$TEST_TMPDIR/s11.json")"
+assert_contains "sql tier wins when alone" "$s11" '"tool":"sql-migration"'
+assert_contains "sql references column is recorded" "$s11" '"references":"email"'
+bash "$RENDER" --record "$TEST_TMPDIR/s11.json" --out "$TEST_TMPDIR/s11-out" --dialect mermaid >/dev/null
+s11md="$(cat "$TEST_TMPDIR/s11-out/data-model.md")"
+assert_contains "sql separate unique index makes one-to-one" "$s11md" 'User ||--o| Profile'
+assert_contains "sql optional unique fk is optional one-to-one" "$s11md" 'User |o--o| Card'
+assert_contains "sql plain fk stays one-to-many" "$s11md" 'User ||--o{ Post'
+assert_contains "sql unique over more than the fk stays one-to-many" "$s11md" 'User ||--o{ Tag'
+assert_not_contains "sql draws no both-sides-required token" "$s11md" '||--||'
+bash "$RENDER" --record "$TEST_TMPDIR/s11.json" --out "$TEST_TMPDIR/s11-dbml" --dialect dbml >/dev/null
+assert_contains "sql dbml names the referenced column" "$(cat "$TEST_TMPDIR/s11-dbml/data-model.dbml")" 'Ref: "Post"."authorEmail" > "User"."email"'
+
+repo12="$TEST_TMPDIR/sql-composite"
+init_repo "$repo12"
+mkdir -p "$repo12/db/migrations/001"
+cat >"$repo12/db/migrations/001/migration.sql" <<'EOF'
+CREATE TABLE "Parent" (
+    "a" INTEGER NOT NULL,
+    "b" INTEGER NOT NULL,
+    PRIMARY KEY ("a", "b")
+);
+CREATE TABLE "Child" (
+    "id" INTEGER NOT NULL PRIMARY KEY,
+    "pa" INTEGER NOT NULL,
+    "pb" INTEGER NOT NULL,
+    FOREIGN KEY ("pa", "pb") REFERENCES "Parent"("a", "b")
+);
+EOF
+commit_all "$repo12"
+bash "$COLLECT" --repo "$repo12" --out "$TEST_TMPDIR/sc.json" --generated-on 2026-09-28
+sc="$(cat "$TEST_TMPDIR/sc.json")"
+assert_contains "sql composite fk with no unique set refuses" "$sc" '"reason": "unknown-cardinality"'
+assert_not_contains "sql composite fk draws no relationship" "$sc" '"cardinality"'
+
+# --- one-to-one, EF fluent --------------------------------------------------
+repo13="$TEST_TMPDIR/ef-11"
+init_repo "$repo13"
+mkdir -p "$repo13/src"
+cat >"$repo13/src/Map.cs" <<'EOF'
+modelBuilder.Entity<Profile>().HasOne<User>().WithOne().HasForeignKey("UserId").IsRequired();
+modelBuilder.Entity<Card>().HasOne<User>().WithOne().HasForeignKey("UserId").IsRequired(false);
+modelBuilder.Entity<Post>().HasOne<User>().WithMany().HasForeignKey("AuthorCode").HasPrincipalKey("Code").IsRequired();
+modelBuilder.Entity<Note>().HasOne<User>().WithMany().HasForeignKey("UserId").IsRequired();
+EOF
+commit_all "$repo13"
+bash "$COLLECT" --repo "$repo13" --out "$TEST_TMPDIR/ef11.json" --generated-on 2026-09-28
+bash "$RENDER" --record "$TEST_TMPDIR/ef11.json" --out "$TEST_TMPDIR/ef11-out" --dialect mermaid >/dev/null
+ef11md="$(cat "$TEST_TMPDIR/ef11-out/data-model.md")"
+assert_contains "ef required one-to-one" "$ef11md" 'User ||--o| Profile'
+assert_contains "ef optional one-to-one" "$ef11md" 'User |o--o| Card'
+assert_contains "ef one-to-many stays" "$ef11md" 'User ||--o{ Note'
+assert_not_contains "ef draws no both-sides-required token" "$ef11md" '||--||'
+bash "$RENDER" --record "$TEST_TMPDIR/ef11.json" --out "$TEST_TMPDIR/ef11-dbml" --dialect dbml >/dev/null
+ef11dbml="$(cat "$TEST_TMPDIR/ef11-dbml/data-model.dbml")"
+assert_contains "ef dbml names a declared principal key" "$ef11dbml" 'Ref: "Post"."AuthorCode" > "User"."Code"'
+assert_contains "ef dbml keeps an unknown referenced column as a comment" "$ef11dbml" '// Ref: "Note"."UserId" > "User" (referenced column not declared)'
+assert_not_contains "ef dbml does not invent an id column" "$ef11dbml" '"User"."id"'
 
 # --- reformatted record -----------------------------------------------------
 printf '%s\n' '{"schema_version":1,"entities":[]}' >"$TEST_TMPDIR/flat.json"

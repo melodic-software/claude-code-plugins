@@ -114,6 +114,13 @@ summary="$(
       if (x ~ /^[a-z][a-z0-9_]*$/) return x
       return "string"
     }
+    function dbml_cols(s,    n, k, parts, out) {
+      n = split(s, parts, ",")
+      if (n == 1) return "\"" safe(parts[1]) "\""
+      out = ""
+      for (k = 1; k <= n; k++) out = out (k > 1 ? ", " : "") "\"" safe(parts[k]) "\""
+      return "(" out ")"
+    }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
       if (line == "\"" key "\": []" || line == "\"" key "\": [],") return
@@ -145,6 +152,8 @@ summary="$(
         return "An Entity Framework fluent chain is present but not in the shipped shape (Entity<T>, HasOne<T> or HasMany<T>, HasForeignKey(\"Column\"), IsRequired or IsRequired(false)). No diagram was drawn."
       if (r == "unsupported")
         return "A Prisma schema contains a block comment or another construct this adapter does not read. No diagram was drawn."
+      if (r == "unknown-cardinality")
+        return "A composite foreign key has no unique or primary-key column set inside it, so whether the relationship is one-to-one or one-to-many is not readable. Cardinality was not guessed. No diagram was drawn."
       if (r == "unresolved-target" || r == "unreadable-relation")
         return "A Prisma relation does not name a model and foreign-key fields in the same schema file. No diagram was drawn."
       if (r == "optionality-disagrees")
@@ -212,6 +221,7 @@ summary="$(
         rel_to[i] = jget(item, "to")
         rcard[i] = jget(item, "cardinality")
         rcols[i] = jget(item, "columns")
+        rref[i] = jget(item, "references")
         ropt[i] = jget(item, "optional")
         rev[i] = jget(item, "evidence")
       }
@@ -397,11 +407,15 @@ summary="$(
           }
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            op = (ropt[ri] == "yes" ? "one-to-one" : "")
-            # kind is recovered from the token
-            if (rcard[ri] == "||--||" || rcard[ri] == "||--o|") op = "-"
-            else op = ">"
-            print "Ref: \"" safe(name_of[rfrom[ri]]) "\".\"" safe(rcols[ri]) "\" " op " \"" safe(name_of[rel_to[ri]]) "\".\"id\"" > dbml
+            # a one-to-one token ends in a bar, a one-to-many token in a brace
+            op = (rcard[ri] ~ /\|$/ ? "-" : ">")
+            target = "\"" safe(name_of[rel_to[ri]]) "\""
+            if (rref[ri] == "") {
+              # DBML needs a column on both sides, so an unnamed target column stays a comment
+              print "// Ref: \"" safe(name_of[rfrom[ri]]) "\"." dbml_cols(rcols[ri]) " " op " " target " (referenced column not declared)" > dbml
+              continue
+            }
+            print "Ref: \"" safe(name_of[rfrom[ri]]) "\"." dbml_cols(rcols[ri]) " " op " " target "." dbml_cols(rref[ri]) > dbml
           }
         }
         if (next_r > 0) {

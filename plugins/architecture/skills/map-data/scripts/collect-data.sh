@@ -43,7 +43,12 @@
 #
 # Relationship "from" is the foreign-key entity. "to" is the referenced entity.
 # cardinality is the mermaid token with the referenced entity on the left
-# (||--o{ is one referenced row to zero-or-more foreign-key rows).
+# (||--o{ is one referenced row to zero-or-more foreign-key rows). A foreign key
+# covered by a unique or primary-key column set is one-to-one: ||--o| when
+# required, |o--o| when optional. "references" is the referenced column list,
+# empty when the declaration does not name it. A composite foreign key with no
+# unique column set inside it has no readable cardinality, so the record refuses
+# with unknown-cardinality instead of drawing one-to-many.
 #
 # Portability: bash plus POSIX awk. No jq, no python, no database client.
 #
@@ -419,6 +424,11 @@ parse_prisma() {
         }
         if (inmodel && line ~ /^[ \t]*\}/) { inmodel = 0; model = ""; continue }
         if (!inmodel) continue
+        if (line ~ /^[ \t]*@@(unique|id)/) {
+          set = bracket_list(line, (line ~ /^[ \t]*@@unique/ ? "@@unique" : "@@id"))
+          gsub(/\([^)]*\)/, "", set)
+          if (set != "") { nset[model]++; mset[model, nset[model]] = set }
+        }
         if (line ~ /^[ \t]*@@/) continue
         stripped = trim(line)
         if (stripped == "" || substr(stripped, 1, 1) == "@") continue
@@ -492,13 +502,13 @@ parse_prisma() {
           printf "unreadable-relation\n" > out_flag
           exit 0
         }
+        refs = bracket_list(field_attrs[i], "references:")
         nsplit = split(cols, col, ",")
-        all_unique = 1
         any_opt = field_opt[i]
         disagree = 0
         for (c = 1; c <= nsplit; c++) {
           key = field_model[i] SUBSEP col[c]
-          if (!(key in scalar_unique) || scalar_unique[key] != 1) all_unique = 0
+          fkset[col[c]] = 1
           if (key in scalar_opt) {
             if (scalar_opt[key] != field_opt[i]) disagree = 1
             if (scalar_opt[key]) any_opt = 1
@@ -508,17 +518,31 @@ parse_prisma() {
           printf "optionality-disagrees\n" > out_flag
           exit 0
         }
-        kind = (all_unique ? "one-to-one" : "one-to-many")
-        if (kind == "one-to-one") {
-          token = (any_opt ? "||--o|" : "||--||")
-        } else {
-          token = (any_opt ? "|o--o{" : "||--o{")
+        # unique when an @id, an @unique, or a @@unique/@@id column set lies inside the foreign-key columns
+        uniq = 0
+        for (c = 1; c <= nsplit; c++) {
+          key = field_model[i] SUBSEP col[c]
+          if (scalar_unique[key] == 1 || scalar_pk[key] == 1) uniq = 1
         }
+        for (m = 1; m <= nset[field_model[i]] && !uniq; m++) {
+          nmc = split(mset[field_model[i], m], mc, ",")
+          inside = 1
+          for (c = 1; c <= nmc; c++) if (!(mc[c] in fkset)) inside = 0
+          if (inside) uniq = 1
+        }
+        for (c = 1; c <= nsplit; c++) delete fkset[col[c]]
+        if (!uniq && nsplit > 1) {
+          printf "unknown-cardinality\n" > out_flag
+          exit 0
+        }
+        kind = (uniq ? "one-to-one" : "one-to-many")
+        if (uniq) token = (any_opt ? "|o--o|" : "||--o|")
+        else token = (any_opt ? "|o--o{" : "||--o{")
         opt = (any_opt ? "yes" : "no")
         from = entity_id(module, field_model[i])
         to = entity_id(module, field_base[i])
-        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"prisma\"}\n", \
-          jesc(from), jesc(to), token, jesc(cols), opt, kind, jesc(path ":" field_line[i]) >> out_rels
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"references\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"prisma\"}\n", \
+          jesc(from), jesc(to), token, jesc(cols), jesc(refs), opt, kind, jesc(path ":" field_line[i]) >> out_rels
         for (c = 1; c <= nsplit; c++) fk_col[from SUBSEP col[c]] = 1
       }
     }
@@ -571,6 +595,18 @@ if [[ -s "$TMP/sql.txt" ]]; then
       if (first == rel) return "."
       return first
     }
+    function joined_cols(s,    n, k, parts, out) {
+      gsub(/[[:space:]]/, "", s)
+      n = split(s, parts, ",")
+      out = ""
+      for (k = 1; k <= n; k++) out = out (k > 1 ? "," : "") stripq(parts[k])
+      return out
+    }
+    function add_uniq(tab, cols) {
+      if (cols == "" || cols ~ /[()]/) return
+      nuq[tab]++
+      uq[tab, nuq[tab]] = cols
+    }
     function forget(name,    eid, i) {
       eid = entity_id(module, name)
       for (i = 1; i <= nent; i++) if (ent_id[i] == eid) ent_dead[i] = 1
@@ -620,6 +656,7 @@ if [[ -s "$TMP/sql.txt" ]]; then
         tname = stripq(tmp)
         sub(/[ \t].*/, "", tname)
         forget(tname)
+        nuq[tname] = 0
         inn = 1
         cur = tname
         eid = entity_id(module, cur)
@@ -627,6 +664,26 @@ if [[ -s "$TMP/sql.txt" ]]; then
         ent_id[nent] = eid
         ent_dead[nent] = 0
         ent_line[nent] = sprintf("{\"id\":\"%s\",\"name\":\"%s\",\"module\":\"%s\",\"evidence\":\"%s\"}", jesc(eid), jesc(cur), jesc(module), jesc(path ":" fline))
+        next
+      }
+      if (!inn && up ~ /^[ \t]*CREATE[ \t]+UNIQUE[ \t]+INDEX[ \t]/ && up !~ /[ \t]WHERE[ \t]/ && (p = index(up, " ON ")) > 0) {
+        tmp = substr(line, p + 4)
+        sub(/^[ \t]*[Oo][Nn][Ll][Yy][ \t]+/, "", tmp)
+        itab = tmp
+        sub(/[ \t]*(\(|[Uu][Ss][Ii][Nn][Gg][ \t]).*/, "", itab)
+        sub(/^[^(]*\(/, "", tmp)
+        sub(/\).*/, "", tmp)
+        add_uniq(stripq(itab), joined_cols(tmp))
+        next
+      }
+      if (!inn && up ~ /^[ \t]*ALTER[ \t]+TABLE[ \t]/ && up ~ /[ \t]ADD[ \t]+(CONSTRAINT[ \t]+[^ \t]+[ \t]+)?(UNIQUE|PRIMARY[ \t]+KEY)[ \t]*\(/) {
+        tmp = line
+        sub(/^[ \t]*[Aa][Ll][Tt][Ee][Rr][ \t]+[Tt][Aa][Bb][Ll][Ee][ \t]+([Oo][Nn][Ll][Yy][ \t]+)?/, "", tmp)
+        itab = tmp
+        sub(/[ \t].*/, "", itab)
+        sub(/^[^(]*\(/, "", tmp)
+        sub(/\).*/, "", tmp)
+        add_uniq(stripq(itab), joined_cols(tmp))
         next
       }
       if (inn && up ~ /^[ \t]*\)[ \t]*;/) { inn = 0; cur = ""; next }
@@ -650,33 +707,34 @@ if [[ -s "$TMP/sql.txt" ]]; then
         refname = rest
         sub(/[ \t]*\(.*/, "", refname)
         refname = stripq(trim(refname))
-        all_unique = 1
+        refcols = ""
+        if (index(rest, "(") > 0) {
+          refcols = rest
+          sub(/^[^(]*\(/, "", refcols)
+          sub(/\).*/, "", refcols)
+          refcols = joined_cols(refcols)
+        }
         any_opt = 0
         for (c = 1; c <= nsplit; c++) {
           ukey = cur SUBSEP col[c]
-          if (!(ukey in uniq) || uniq[ukey] != 1) all_unique = 0
           if (ukey in nulls && nulls[ukey] == 1) any_opt = 1
         }
-        kind = (all_unique ? "one-to-one" : "one-to-many")
-        if (kind == "one-to-one") token = (any_opt ? "||--o|" : "||--||")
-        else token = (any_opt ? "|o--o{" : "||--o{")
-        opt = (any_opt ? "yes" : "no")
-        from = entity_id(module, cur)
-        to = entity_id(module, refname)
         nrel++
-        rel_from[nrel] = from
-        rel_to[nrel] = to
+        rel_from[nrel] = entity_id(module, cur)
+        rel_to[nrel] = entity_id(module, refname)
         rel_dead[nrel] = 0
-        rel_line[nrel] = sprintf("{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"sql-migration\"}", jesc(from), jesc(to), token, jesc(cjoined), opt, kind, jesc(path ":" fline))
+        rel_tab[nrel] = cur
+        rel_cols[nrel] = cjoined
+        rel_refs[nrel] = refcols
+        rel_opt[nrel] = any_opt
+        rel_ev[nrel] = path ":" fline
         next
       }
-      if (up ~ /UNIQUE/ && up ~ /\(/) {
+      if (up ~ /^[ \t]*(CONSTRAINT[ \t]+[^ \t]+[ \t]+)?(UNIQUE|PRIMARY[ \t]+KEY)[ \t]*\(/) {
         tmp = line
-        sub(/.*\(/, "", tmp)
+        sub(/^[^(]*\(/, "", tmp)
         sub(/\).*/, "", tmp)
-        gsub(/[[:space:]]/, "", tmp)
-        nsplit = split(tmp, col, ",")
-        for (c = 1; c <= nsplit; c++) uniq[cur SUBSEP stripq(col[c])] = 1
+        add_uniq(cur, joined_cols(tmp))
         next
       }
       if (up ~ /^[ \t]*(CONSTRAINT|PRIMARY|CHECK|INDEX)[ \t]/) next
@@ -692,8 +750,8 @@ if [[ -s "$TMP/sql.txt" ]]; then
       nullable = "yes"
       if (up ~ /NOT[ \t]+NULL/) nullable = "no"
       pk = "no"
-      if (up ~ /PRIMARY[ \t]+KEY/) { pk = "yes"; uniq[cur SUBSEP cname] = 1 }
-      if (up ~ /UNIQUE/ && up !~ /UNIQUE[ \t]*\(/) uniq[cur SUBSEP cname] = 1
+      if (up ~ /PRIMARY[ \t]+KEY/) { pk = "yes"; add_uniq(cur, cname) }
+      if (up ~ /UNIQUE/) add_uniq(cur, cname)
       nulls[cur SUBSEP cname] = (nullable == "yes" ? 1 : 0)
       nattr++
       attr_entity[nattr] = entity_id(module, cur)
@@ -703,7 +761,25 @@ if [[ -s "$TMP/sql.txt" ]]; then
     END {
       for (i = 1; i <= nent; i++) if (!ent_dead[i]) print ent_line[i] >> ents
       for (i = 1; i <= nattr; i++) if (!attr_dead[i]) print attr_line[i] >> attrs
-      for (i = 1; i <= nrel; i++) if (!rel_dead[i]) print rel_line[i] >> rels
+      for (i = 1; i <= nrel; i++) {
+        if (rel_dead[i]) continue
+        # unique when a declared unique or primary-key column set lies inside the foreign-key columns
+        nsplit = split(rel_cols[i], col, ",")
+        for (c = 1; c <= nsplit; c++) fkset[col[c]] = 1
+        uniq = 0
+        for (m = 1; m <= nuq[rel_tab[i]] && !uniq; m++) {
+          nmc = split(uq[rel_tab[i], m], mc, ",")
+          inside = 1
+          for (c = 1; c <= nmc; c++) if (!(mc[c] in fkset)) inside = 0
+          if (inside) uniq = 1
+        }
+        for (c = 1; c <= nsplit; c++) delete fkset[col[c]]
+        if (uniq) { kind = "one-to-one"; token = (rel_opt[i] ? "|o--o|" : "||--o|") }
+        else if (nsplit > 1) { kind = "unknown"; token = "unknown" }
+        else { kind = "one-to-many"; token = (rel_opt[i] ? "|o--o{" : "||--o{") }
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"references\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"sql-migration\"}\n", \
+          jesc(rel_from[i]), jesc(rel_to[i]), token, jesc(rel_cols[i]), jesc(rel_refs[i]), (rel_opt[i] ? "yes" : "no"), kind, jesc(rel_ev[i]) >> rels
+      }
     }
   ' "$TMP/sql-replay.sql"
 fi
@@ -727,7 +803,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   IFS=';' read -r -a statements <<<"$flattened"
   for part in "${statements[@]}"; do
     [[ "$part" == *HasOne* || "$part" == *HasMany* || "$part" == *HasForeignKey* ]] || continue
-    configured="" one="" many="" fk=""
+    configured="" one="" many="" fk="" principal=""
+    [[ "$part" =~ HasPrincipalKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && principal="${BASH_REMATCH[1]}"
     [[ "$part" =~ Entity\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && configured="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasOne\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && one="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasMany\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && many="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
@@ -767,7 +844,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       break
     fi
     if [[ "$kind" == "one-to-one" ]]; then
-      token="$([[ "$optional" == "yes" ]] && printf '||--o|' || printf '||--||')"
+      token="$([[ "$optional" == "yes" ]] && printf '|o--o|' || printf '||--o|')"
     else
       token="$([[ "$optional" == "yes" ]] && printf '|o--o{' || printf '||--o{')"
     fi
@@ -782,8 +859,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
           "$esc_id" "$(json_escape "$pair")" "$(json_escape "$module")" "$(json_escape "$rel")" >>"$ENTS"
       fi
     done
-    printf '{"from":"%s","to":"%s","cardinality":"%s","columns":"%s","optional":"%s","kind":"%s","evidence":"%s","tool":"ef-fluent"}\n' \
-      "$(json_escape "$from")" "$(json_escape "$to")" "$token" "$(json_escape "$fk")" "$optional" "$kind" "$(json_escape "$rel")" >>"$RELS"
+    printf '{"from":"%s","to":"%s","cardinality":"%s","columns":"%s","references":"%s","optional":"%s","kind":"%s","evidence":"%s","tool":"ef-fluent"}\n' \
+      "$(json_escape "$from")" "$(json_escape "$to")" "$token" "$(json_escape "$fk")" "$(json_escape "$principal")" "$optional" "$kind" "$(json_escape "$rel")" >>"$RELS"
     printf '{"entity":"%s","name":"%s","type":"declared","nullable":"%s","pk":"no","fk":"yes","evidence":"%s"}\n' \
       "$(json_escape "$from")" "$(json_escape "$fk")" "$optional" "$(json_escape "$rel")" >>"$ATTRS"
   done
@@ -957,6 +1034,14 @@ awk -v winner="$winner_tool" '
   field($0, "tool") == winner { print }
 ' "$RELS" >"$TMP/rels-win.json"
 mv "$TMP/rels-win.json" "$RELS"
+
+if grep -F -q '"cardinality":"unknown"' "$RELS"; then
+  : >"$ENTS"
+  : >"$ATTRS"
+  : >"$RELS"
+  : >"$MISMATCHES"
+  refuse "unknown-cardinality"
+fi
 
 # Entities: keep those whose evidence extension matches the winner tool.
 # prisma -> .prisma, sql-migration -> .sql, ef-fluent -> .cs
