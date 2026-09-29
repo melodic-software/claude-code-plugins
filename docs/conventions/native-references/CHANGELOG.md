@@ -6,6 +6,16 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.1.0] - 2026-09-29
+
+Minor: additive guidance in the Runtime relationship section.
+
+- **A model-disabled `suggest` row carries no description phrase.** The model never lists a
+  `bundled-skill` carrying `model-invocation-disabled`, so a phrase in the component's description
+  is dead text; the body's suggest sentence is the only baked line. The overlap self-check fails a
+  row that sets `baked.description_phrase` on that combination
+  ([#5303](https://github.com/melodic-software/claude-code-plugins/issues/5303)).
+
 ## [3.0.0] - 2026-09-28
 
 Major: the canonical route-gate token changes, which the Versioning section names as a major change.
