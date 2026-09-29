@@ -3,6 +3,51 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-29
+
+### Added
+
+- **`snapshot` verifies instrument identity and the code path each arm took**
+  ([#4436](https://github.com/melodic-software/claude-code-plugins/issues/4436),
+  [#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)). Step 1b records the
+  measuring tool's path, revision and version, checks the copy is not behind its upstream from local
+  refs, and checks the goal's output column is produced. A post snapshot that differs from the
+  baseline's tool identity withholds the ratio unless a named tool-identity override is recorded.
+  Step 2b reports a per-arm `Path:` line with the state reset or recorded and an `unobserved`
+  outcome, flagged like a mismatch. `harness-integrity.md` gains rule 7, failures 7 and 8, and two
+  checklist items. New evals for identity mismatch, override and unobserved path.
+- **`goal` names the code path under test** and the observable that identifies it
+  ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)).
+- **`goal` requires a stated bound on how cost grows with state size**
+  ([#4438](https://github.com/melodic-software/claude-code-plugins/issues/4438)): flat, or a named
+  growth bound, in place of an unproven scaling claim. `goal`'s Gotchas gain a constant-counter
+  worked example with its verification record. New `target` evals cover the growing-state candidate.
+- **`verify` reports a `Deployed:` disposition and an `Open follow-up:` line**
+  ([#4441](https://github.com/melodic-software/claude-code-plugins/issues/4441)), with the
+  `installed_plugins.json` claim recorded with its basis. New evals for version mismatch,
+  agreement and no install record.
+
+### Changed
+
+- **`goal` moves the parallel-units and growing-state procedures to `techniques.md`**, keeping a
+  short rule and the `Event`, `Unit` and `Scaling` output lines
+  ([#4438](https://github.com/melodic-software/claude-code-plugins/issues/4438),
+  [#4439](https://github.com/melodic-software/claude-code-plugins/issues/4439)). `snapshot` and
+  `verify` now consume those lines.
+- **`verify` keeps the verdict on the measurement.** A version mismatch no longer forces NOT MET, so
+  MET is reachable before merge; the mismatch is carried by `Deployed:` and `Open follow-up:`
+  ([#4441](https://github.com/melodic-software/claude-code-plugins/issues/4441)).
+
+### Fixed
+
+- **`snapshot` steps 1b and 2b no longer split the paragraphs that close steps 1 and 2**, so the
+  house-rule paragraph ends step 1 and the deterministic-counter paragraph ends step 2.
+- **`harness-integrity.md` no longer lists a command substitution as a zero-process case** while
+  stating that `$(...)` is always a spawn on MSYS
+  ([#4440](https://github.com/melodic-software/claude-code-plugins/issues/4440)). A per-platform
+  delta table marks POSIX and native Windows as unmeasured, and the MSYS fork-plus-`CreateProcess`
+  mechanism is labeled a hypothesis.
+
 ## [0.2.10] - 2026-09-28
 
 ### Changed

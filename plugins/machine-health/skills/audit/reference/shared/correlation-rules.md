@@ -49,8 +49,10 @@ implementing it in `Get-CorrelationRule` and dropping its `(future)` marker.
 3. **kev-plus-old-updates** - winget-upgrades + windows-update (future)
    - When: winget-upgrades reports kev_match_count > 0 AND
      windows-update reports reboot_pending
-   - Effect: winget-upgrades severity is already CRIT; add note pointing
-     at windows-update so user addresses both in one maintenance pass.
+   - Effect: not defined yet. winget-upgrades reports WARN for a name-only
+     KEV match, never CRIT, so the rule needs re-deriving against WARN before
+     it is built. Intended narrative: point at windows-update so the user
+     addresses both in one maintenance pass.
 
 Add a rule when a pattern recurs across real reports.
 

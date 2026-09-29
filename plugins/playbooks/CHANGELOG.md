@@ -4,6 +4,50 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.0] - 2026-09-29
+
+### Added
+
+- **`repo-sweep` records a declined outcome** ([#4575](https://github.com/melodic-software/claude-code-plugins/issues/4575)).
+  `tick.sh <id> declined <n>` writes a done line ending `, findings declined (N)` for a sweep step
+  where the user declined every fix-eligible finding. `tick.sh` and `state.sh` treat the line as
+  done, and `next.md` posts the section 3.4 scope decisions as a sweep-PR comment when no commit
+  is made.
+- **`tick.sh --partial <detail>` works with `committed` and `report-only`**
+  ([#4526](https://github.com/melodic-software/claude-code-plugins/issues/4526)). Uncovered scope
+  no longer replaces a commit or a report-only count. `SKILL.md` Formats is the single list of
+  done-line forms.
+
+### Changed
+
+- **`history.sh` decides partial coverage from the newest merged sweep PR that names the step.**
+  An older `partial coverage:` line no longer forces a rerun once a newer sweep ran the step clean,
+  and neither a `, not applicable:` line nor a bare `[x]` line counts as a mention.
+- **`repo-sweep` review and next order.** `review.md` asks the user first, then dispatches the
+  reviewer, and maps the reviewer's four classes to four routing rows. `next.md` re-checks
+  applies-when before priming, skips that check when resuming, and names the prime column as
+  column 8.
+- **The hygiene catalog primes per entry.** `catalog.test.sh` covers `- prime: false` and other
+  values. Script-only detectors (`lint`, `skill-quality`, `evals-validate`, `testing-audit`) set
+  `prime: false`; `batch-simplify` and `tidy` pass `in-place`, and `extract-ssot` applies with
+  `batch --commit-mode=none`, so the #4503 and #4504 overrides are gone. Entries that prime carry
+  no rationale note: priming is the default and `prime: false` is the exception.
+- **`repo-sweep` records carry the Claude Code version they were rechecked against.** The
+  worktree-guard record names 2.1.284 and states that no live isolated session was probed; the
+  bundled-skill gotcha cites the observed bundled-skills path.
+- **`skill-authoring` points the argument guidance at the owner convention.** The "read
+  `$ARGUMENTS` whole" rule and the `arguments` field description are removed from the skill; the
+  skill argument shape convention owns them.
+- **The hygiene catalog's `residue-dissolve` note points at `dissolve-comments`** for the CI
+  workflow exclusion and its lift channels instead of restating the override instruction.
+- **`boris` eval prompts carry no em dash.** Cases 1 and 3 in `evals/evals.json` drop the
+  escaped em dashes left by the #4838 re-serialization.
+- **`boris` effort amendment re-verified.** The Opus 5.5 sentence names "one of those sources"
+  from the model-config resolution order, and `--effort` at launch counts as an explicit choice.
+- **Released-entry edits.** The 0.13.22 entry repeated 0.13.19 and 0.13.21; it now states that it
+  changed no plugin content. The 0.13.12 entry now notes that the named-slots pilot was reversed
+  in 0.13.29.
+
 ## [0.13.31] - 2026-09-28
 
 ### Changed
@@ -82,16 +126,8 @@ only after that version increases.
 
 ## [0.13.22] - 2026-09-28
 
-### Added
-
-- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
-
-### Changed
-
-- **The `$`-free pre-compute rule applies to blocks that run git**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
-  in a block that never runs git is not that check. The compose gate was already git-only.
+This release changed no plugin content. Its entries repeat 0.13.19 and 0.13.21, and versions
+0.13.18 and 0.13.20 were never released.
 
 ## [0.13.21] - 2026-09-28
 
@@ -156,7 +192,9 @@ only after that version increases.
   A remainder, a phrase, a variadic tail, or a position-independent flag stays in `$ARGUMENTS`.
   `planning:prd` and `session-flow:workflow` name their ordered slots;
   `knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` do not
-  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)). The named-slots
+  pilot on `planning:prd` and `session-flow:workflow` was reversed in 0.13.29: the convention
+  declines `arguments:`, and #5212 removed the frontmatter.
 
 ## [0.13.11] - 2026-09-28
 

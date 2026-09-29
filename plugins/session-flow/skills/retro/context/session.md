@@ -280,7 +280,7 @@ Checklist of memory saved / rules edited / items queued.
 
 ### Session health score
 
-**Calibration:** read the score history at `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md` if it
+**Calibration:** read the score history (SKILL.md "Paths", `<project-slug>.md`) if it
 exists and note trends alongside this session's scores.
 
 | Dimension | Score | Notes |
@@ -301,7 +301,7 @@ Every dimension gets a numeric score; use N/A only when truly irrelevant.
 
 ### Score tracking
 
-Append this session's scores to `${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md` (create the
+Append this session's scores to the score history (SKILL.md "Paths", `<project-slug>.md`; create the
 directory and file with a header row on first use):
 
 ```markdown

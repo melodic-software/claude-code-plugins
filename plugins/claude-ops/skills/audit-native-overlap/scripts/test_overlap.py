@@ -1402,6 +1402,24 @@ class PresenceMentionTests(unittest.TestCase):
             "viz:visualize names a native surface behind a presence condition", out
         )
 
+    def test_presence_clause_in_a_plugin_manifest_is_an_advisory(self):
+        manifest = self.repo.root / "plugins" / "viz" / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(
+            json.dumps(
+                {
+                    "name": "viz",
+                    "description": "Picks a form, or, where the bundled design skill is available, a canvas.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self.check()
+        self.assertEqual(code, 3)
+        self.assertIn(
+            "viz (plugin.json) names a native surface behind a presence condition", out
+        )
+
     def test_a_description_carrying_the_token_is_left_to_parity(self):
         row = deep_copy(BASE_ROW)
         row["baked"]["description_phrase"] = True

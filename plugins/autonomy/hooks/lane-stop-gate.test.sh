@@ -1304,6 +1304,8 @@ if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter l
 # command count. On the #3508 hosts a process creation is the unit of cost
 # (180-2,841 ms each), so the count that binds is this one.
 #
+# The trace runs `bash "$HOOK"` directly: it counts the script, not the `node`
+# launcher process hooks.json puts ahead of it.
 # Two paths are traced from the staged install:
 #   default (no gate footprint anywhere): EXACTLY 0 creations and 0 launches.
 #     The last one was the `uname -s` the managed-settings platform selection

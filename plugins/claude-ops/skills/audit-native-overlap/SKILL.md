@@ -1,5 +1,5 @@
 ---
-description: "Find where this repo's skills and agents duplicate a native Claude Code surface: built-in, bundled, plugin-backed, or session-provided. Read-only unless `apply` bakes an approved reference. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'audit native overlap', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'bake the native reference into this skill', 'which of our skills overlap bundled skills'."
+description: "Find where this repo's skills and agents duplicate a native Claude Code surface. Read-only unless `apply` bakes an approved reference. Enumerating what is invocable: /claude-ops:inventory. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'audit native overlap', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'bake the native reference into this skill', 'which of our skills overlap bundled skills'."
 argument-hint: "[report|apply <plugin>] [--store <path>] [--inventory <path>]. Bare runs the read-only report"
 user-invocable: true
 disable-model-invocation: false
@@ -239,7 +239,8 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 …"), the provenance class, and the routing split, and, when `integration` is `wrap` or
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
-measured by `bash plugins/skill-quality/scripts/check-skill.sh <skill>`; a row that would exceed
+measured by `/skill-quality:check <skill>` (when `skill-quality` is not installed, state "description
+length unmeasured. `skill-quality` not installed" and do not bake); a row that would exceed
 the cap is not baked. Every wrapped or suggesting skill declares `unattended` in its
 `argument-hint`. The
 emitted text cites nothing outside its own plugin, a shipped plugin has no copy of this

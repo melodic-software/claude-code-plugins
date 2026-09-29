@@ -3,6 +3,13 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.58] - 2026-09-29
+
+### Fixed
+
+- Setup skill, its eval expectation, and the hook comments describe the missing-`jq` notice as once per session and agent, renewed every eighth skip, matching the README. The hook test now asserts the renewal: runs 3 to 7 stay silent and run 8 emits the notice again.
+- README Requirements and the setup `check` declare Node.js on `PATH`: every hook launches through `node hooks/exec-bash.mjs`, and Claude Code's native binary does not ship Node, so without it the hook does not launch.
+
 ## [0.6.57] - 2026-09-28
 
 ### Changed
