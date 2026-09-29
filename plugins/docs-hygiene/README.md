@@ -6,12 +6,10 @@ free of decayed references. Each skill is invocable on its own; together they
 cover the flavor, noise, duplication, boundary, rename, worth, loading,
 and authoring axes of doc upkeep.
 
-The proposed plugin contract (five concerns, five boundaries, and a
-hold-the-line position on a `docs-naming` split) lives in
-[`reference/plugin-contract.md`](reference/plugin-contract.md). The charter is
-pending the owner's decision on
-[#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142);
-once ratified, a future skill is measured against it.
+The plugin contract (five concerns, five boundaries) is ratified and lives in
+[`reference/plugin-contract.md`](reference/plugin-contract.md). The file-name
+skills are slated to move to a `docs-naming` plugin, tracked in
+[#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348).
 
 ## The skills
 

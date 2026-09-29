@@ -1,0 +1,12 @@
+// good-for: rule-zero-assertion
+// A test that skips itself with t.skip() does not run, so it is not judged.
+import { test } from 'node:test';
+import { syncMailbox } from '../src/mail.mjs';
+
+test('syncs over IMAP', (t) => {
+  if (!process.env.IMAP_HOST) {
+    t.skip('needs an IMAP server');
+    return;
+  }
+  syncMailbox(process.env.IMAP_HOST);
+});

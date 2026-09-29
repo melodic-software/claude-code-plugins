@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.6] - 2026-09-29
+
+### Changed
+
+- **`code-reviewer` preloads `testing:test-value`.** Its tautological-expectation criterion keeps
+  the scan-deference logic and points to that skill for the list of independent oracle sources.
+
+## [0.33.5] - 2026-09-29
+
+### Added
+
+- **`audit-enforceability` crosswalk rows for nine `testing:audit` rules.** The rule-id table now
+  names a rung for `rule-inert-assertion` (the test-framework analyzer pack: xUnit2021,
+  `valid-expect`, SC2314, F631), `rule-only-not-forbidden` (the project's ESLint config, through
+  eslint-plugin-playwright `no-focused-test`), and seven rules the `testing:audit` detector
+  already checks deterministically: `rule-constant-restatement`, `rule-source-text-read`,
+  `rule-conditional-assertion`, `rule-recomputed-derived`, `rule-snapshot-only`,
+  `rule-weak-oracle` and `rule-flaky-passes-suite`.
+
 ## [0.33.4] - 2026-09-29
 
 ### Changed

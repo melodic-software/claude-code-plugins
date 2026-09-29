@@ -1,0 +1,23 @@
+// good-for: rule-inert-assertion
+// good-for: rule-constant-restatement
+// good-for: rule-source-text-read
+// The repaired twins: the rejection is awaited, the limit is checked through
+// the validator, and the page is rendered rather than read as text.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { loadConfig } from '../src/config.mjs';
+import { X_POST_CHARACTER_LIMIT, validatePost } from '../src/post.mjs';
+import { renderPage } from '../src/page.mjs';
+
+test('a missing config file rejects', async () => {
+  await assert.rejects(loadConfig('missing.json'), /ENOENT/);
+});
+
+test('a post over the limit is refused', () => {
+  assert.equal(validatePost('a'.repeat(X_POST_CHARACTER_LIMIT + 1)).ok, false);
+});
+
+test('the video section follows the content plan', () => {
+  const html = renderPage();
+  assert.ok(html.indexOf('<section id="videos"') > html.indexOf('<section id="plan"'));
+});

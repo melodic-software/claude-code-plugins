@@ -1,0 +1,11 @@
+// good-for: rule-zero-assertion
+// An ignored test class does not run, so none of its methods is judged.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+[Ignore("the archive store is being migrated")]
+public class OrderArchiveIgnoredClassTests
+{
+    [TestMethod]
+    public void Archive_MovesClosedOrders() => new OrderArchive(new ArchiveStore()).Run();
+}

@@ -1,0 +1,9 @@
+// good-for: rule-zero-assertion
+// A test that skips itself from its body does not run, so it is not judged.
+import { test } from '@playwright/test';
+
+test('drag and drop reorders cards', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'drag events are flaky on WebKit');
+  await page.goto('/board');
+  await page.getByText('Card A').dragTo(page.getByText('Card C'));
+});

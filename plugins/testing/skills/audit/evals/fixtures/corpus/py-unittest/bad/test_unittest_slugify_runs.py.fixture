@@ -1,0 +1,16 @@
+# expect: rule-zero-assertion
+# The test calls slugify and prints the result, so it passes whatever
+# slugify returns.
+import unittest
+
+from slugs import slugify
+
+
+class SlugifyTests(unittest.TestCase):
+    def test_slugify_handles_spaces(self):
+        result = slugify("Hello World")
+        print(result)
+
+
+if __name__ == "__main__":
+    unittest.main()

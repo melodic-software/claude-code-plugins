@@ -1,0 +1,10 @@
+# good-for: rule-recomputed-expectation
+import unittest
+
+from settings import parse_config
+
+
+class ParseConfigTests(unittest.TestCase):
+    def test_parse_config_reads_pairs(self):
+        text = "retries=3\ntimeout=30"
+        self.assertDictEqual(parse_config(text), {"retries": "3", "timeout": "30"})
