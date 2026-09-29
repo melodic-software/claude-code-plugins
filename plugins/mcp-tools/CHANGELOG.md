@@ -22,9 +22,11 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 ## [0.5.2] - 2026-09-28
 
-### Added
+### Changed
 
-- **`audit-posture` attributes `managedMcpServers`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The inventory TSV gains `provided_by`: `organization` for a `managedMcpServers` row, `managed-mcp.json` for a server from that file, and `-` otherwise. Those organization servers are the ones `claude mcp remove` refuses.
+- No consumer-visible change. The version was bumped by the
+  [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027) close-out chore;
+  the `provided_by` attribution shipped in 0.5.1.
 
 ## [0.5.1] - 2026-09-28
 

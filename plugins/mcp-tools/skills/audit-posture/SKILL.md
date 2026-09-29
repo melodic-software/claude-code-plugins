@@ -90,6 +90,10 @@ server is provided by the organization. Basis:
 2026-09-28. Recheck: that section stops attributing the servers to managed settings, or the removal
 error stops naming the organization.
 
+`provided_by` is informational: it is a reported column so the operator can tell
+organization-provided servers (which `claude mcp remove` refuses) from user-configured ones, and no
+P1-P5 criterion reads it.
+
 ### Phase 2: Evaluate P1-P5
 
 Load [reference/checklist.md](reference/checklist.md) and evaluate each row whose `effective` is
