@@ -18,6 +18,9 @@
 # components. A hooks/*.json file the manifest never references is not loaded
 # by Claude Code and is not scanned.
 #
+# Also: an exec-form `--require-true NAME` gate in those configs needs a
+# `userConfig.<name>` key in the plugin's manifest, else no user can enable it.
+#
 # Escape hatch: scripts/hook-userconfig-argv-allowlist.txt lists repo-relative
 # file paths permitted to carry the token — reserved for a ratified channel D
 # (`required:true` + argv, no unset case) adoption per the convention's
@@ -106,6 +109,28 @@ scan_file() {
   elif grep -qF "$TOKEN" < <(jq -c . "$file" 2>/dev/null); then
     flag "$file" "escaped token in decoded JSON"
   fi
+  check_require_true "$file" "$file" .
+}
+
+# check_require_true <reported path> <json file> <jq filter selecting the hook
+# config> — exec-bash.mjs reads `--require-true NAME` from
+# CLAUDE_PLUGIN_OPTION_NAME, which Claude Code sets only for a declared
+# userConfig key `name` (case-insensitive here). Without that key no user can
+# ever turn the hook on, so the gate fails.
+check_require_true() {
+  local shown="$1" src="$2" filter="$3" plugin manifest name
+  plugin="${shown#plugins/}"
+  plugin="plugins/${plugin%%/*}"
+  manifest="$plugin/.claude-plugin/plugin.json"
+  while IFS= read -r name; do
+    name="${name%$'\r'}"
+    [[ -n "$name" ]] || continue
+    if ! jq -e --arg k "$name" '(.userConfig // {}) | keys | map(ascii_downcase) | index($k | ascii_downcase)' \
+      "$manifest" >/dev/null 2>&1; then
+      echo "REQUIRE-TRUE: ${shown}: --require-true ${name} but ${manifest} declares no userConfig key ${name,,} — no user can enable the hook" >&2
+      errors=$((errors + 1))
+    fi
+  done < <(jq -r "${filter} | .. | arrays | . as \$a | range(0; length - 1) | select(\$a[.] == \"--require-true\") | \$a[. + 1] | strings" "$src" 2>/dev/null || true)
 }
 
 for plugin in plugins/*/; do
@@ -132,6 +157,7 @@ for plugin in plugins/*/; do
     if grep -qF "$TOKEN" < <(jq -c '.hooks' "$manifest" 2>/dev/null); then
       flag "$manifest" "inline hooks object"
     fi
+    check_require_true "$manifest" "$manifest" .hooks
     ;;
   *) ;; # null, absent, or unparsable manifest (manifest validity has its own gate)
   esac

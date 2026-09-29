@@ -279,4 +279,40 @@ else
 fi
 rm -rf "$f"
 
+# --- --require-true gate needs a matching userConfig key --------------------
+REQUIRE_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"]}]}]}'
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","userConfig":{"other":{}}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "--require-true with no matching userConfig key should fail, got success: $out"
+else
+  if grep -q 'REQUIRE-TRUE: plugins/alpha/hooks/hooks.json: .*FOO_ENABLED.*foo_enabled' <<<"$out"; then
+    ok "--require-true without a declared userConfig key fails, naming plugin, file and key"
+  else
+    fail "expected REQUIRE-TRUE diagnostic, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
+if run_check "$f" >/dev/null 2>&1; then
+  fail "--require-true with a manifest lacking userConfig should fail"
+else
+  ok "--require-true with a manifest lacking userConfig fails"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","userConfig":{"Foo_Enabled":{"type":"boolean"}}}'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "--require-true with the declared userConfig key passes, any case"
+else
+  fail "declared userConfig key should pass, got: $out"
+fi
+rm -rf "$f"
+
 test_harness::report
