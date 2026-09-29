@@ -14,7 +14,8 @@ only after that version increases.
   word, then `--flag` modifiers that pass the earned-flag test, then at most one subject), binds
   `argument-hint` to that order, declines the `arguments:` frontmatter field, and defers a
   `skill-quality` lint for the shape. The
-  degrees-of-freedom table no longer recommends named `arguments` for medium-freedom skills (#4001).
+  degrees-of-freedom table and the SKILL.md Arguments section no longer recommend named
+  `arguments` (#4001).
 
 ## [0.13.26] - 2026-09-28
 
