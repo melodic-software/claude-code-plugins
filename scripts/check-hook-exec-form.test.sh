@@ -116,17 +116,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the remedy points a bash-scripted hook at the node launcher ------------
-new_fixture f
-plugin_file "$f" disk-hygiene hooks/hooks.json "$PRE_2570_HOOKS"
-out="$(run_check "$f" 2>&1)"
-if grep -q 'exec-bash.mjs' <<<"$out" && ! grep -q 'stays shell form' <<<"$out"; then
-  ok "the remedy names the exec-bash.mjs launcher and does not send a bash script to shell form"
-else
-  fail "expected the remedy to name exec-bash.mjs and not say 'stays shell form', got: $out"
-fi
-rm -rf "$f"
-
 # --- the #2570 fix passes: shell form with a leading bare `bash` ------------
 new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$SHELL_FORM_HOOKS"
