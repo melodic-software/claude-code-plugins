@@ -178,6 +178,21 @@ for (const css of hostileCss) {
     styledVerdict.failures.join(","),
   );
 }
+// A browser ends style text at `</style` followed by space, slash or `>`, and
+// runs an unclosed style element to end of file.
+const evilCss = "body{background:url(//evil.example/x)}";
+for (const [label, styleBlock] of [
+  ["</style x>", `<style>${evilCss}</style x>`],
+  ["</style/>", `<style>${evilCss}</style/>`],
+  ["no close tag", `<style>${evilCss}`],
+]) {
+  const verdict = validateRenderedPage(stampPage(hand.replace("</head>", `${styleBlock}</head>`)));
+  check(
+    `resource-loading CSS is flagged with ${label}`,
+    verdict.failures.includes("style"),
+    verdict.failures.join(","),
+  );
+}
 const plainCss = validateRenderedPage(
   stampPage(hand.replace("</head>", "<style>body { color: #141413; }</style></head>")),
 );

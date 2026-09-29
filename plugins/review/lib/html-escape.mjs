@@ -161,7 +161,9 @@ function scanStructure(html, failures) {
 
   // Style text is raw CSS, which can fetch a resource with no HTML-significant
   // character. A backslash escape can spell any of these, so it is refused too.
-  const styleRe = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
+  // The capture ends where a browser ends style text: `</style` followed by
+  // whitespace, `/` or `>`, or end of input for an unclosed element.
+  const styleRe = /<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi;
   let style = styleRe.exec(html);
   while (style) {
     if (/url\(|@import|expression\(|\\/i.test(style[1])) {
