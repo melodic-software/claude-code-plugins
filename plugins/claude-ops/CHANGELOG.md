@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.1] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
