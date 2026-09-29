@@ -674,36 +674,46 @@ else
     fi
   done
 
-  # Frontmatter `model` is honored for the rest of the current turn. Accept
-  # inherit, an alias or model id, and one optional [1m] suffix. Empty, spaced,
-  # or otherwise non-scalar values are the defect. Auto mode keeping the
-  # session model when the named model is unsupported is runtime behavior,
-  # documented on the skills page, not a second finding here.
-  # Basis: https://code.claude.com/docs/en/skills#frontmatter-reference
+  # Frontmatter `model` is honored for the rest of the current turn. The
+  # defect is an empty or spaced value. The skills page says the field "accepts
+  # the same values as /model, or inherit" and defines no stricter grammar, so
+  # a provider-format id (Bedrock `anthropic.claude-...-v1:0`, an inference
+  # profile ARN, a Vertex `name@date` id) must pass and no character class is
+  # enforced. Auto mode keeping the session model when the named model is
+  # unsupported is runtime behavior, documented on the same page, not a second
+  # finding here.
+  # Claim: model accepts any non-empty token. Basis:
+  # https://code.claude.com/docs/en/skills#frontmatter-reference, the `model`
+  # row. As of: 2026-09-29. Recheck: that row defines a grammar for the value.
   if grep -qE '^model:' <<<"$FRONTMATTER"; then
     RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
-    if [[ ! "$CUR_MODEL" =~ ^(inherit|[A-Za-z0-9._-]+(\[1[mM]\])?)$ ]]; then
-      err "frontmatter model '$CUR_MODEL' is not inherit, a model alias, or a model id with an optional [1m] suffix"
+    if [[ -z "$CUR_MODEL" || "$CUR_MODEL" =~ [[:space:]] ]]; then
+      err "frontmatter model '$CUR_MODEL' is empty or contains whitespace; use inherit or one model alias or id (characters such as ':', '/' and '@' in a provider id are allowed)"
     fi
   fi
 
-  # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
-  # A quoted scalar or a block scalar may contain it. Claude Code's skills
+  # An unquoted ": " in a plain description scalar, or a colon ending a line, is
+  # a YAML mapping indicator, on the header line or any continuation line. A
+  # quoted scalar or a block scalar may contain it. Claude Code's skills
   # reference: when the YAML between the markers does not parse, the skill
   # still loads with no fields set
   # (https://code.claude.com/docs/en/skills#frontmatter-reference).
-  desc_header="$(grep -E '^description:' <<<"$FRONTMATTER" | head -n 1 || true)"
-  desc_value="${desc_header#description:}"
-  desc_value="${desc_value#"${desc_value%%[![:space:]]*}"}"
-  desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
-  case "$desc_value" in
+  desc_lines="$(awk '
+    !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); print; next }
+    seen && /^[^[:space:]]/ { exit }
+    seen && !/^[[:space:]]*$/ { sub(/^[[:space:]]+/, ""); print }
+  ' <<<"$FRONTMATTER")"
+  desc_first="${desc_lines%%$'\n'*}"
+  desc_first="${desc_first%"${desc_first##*[![:space:]]}"}"
+  case "$desc_first" in
   \"* | \'*) ;;
   \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
-  *:[[:space:]]*)
-    err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+  *)
+    if grep -qE ':([[:space:]]|$)' <<<"$desc_lines"; then
+      err "description is an unquoted plain scalar containing ': ' or a line ending in ':' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+    fi
     ;;
-  *) ;;
   esac
 
   # compatibility is optional. The Agent Skills spec says most skills do not
