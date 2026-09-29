@@ -327,7 +327,9 @@ environment.
 For each user-approved fix:
 
 1. Make the edit. Route each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json`
-   through the built-in `update-config` skill, not a direct write. In auto mode a settings edit needs
+   through the built-in `update-config` skill, not a direct write; the one exception is orphan-`false`
+   plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
+   check still runs. In auto mode a settings edit needs
    the `[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that
    fix is the consent. Done when the target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
@@ -349,9 +351,9 @@ for the after-fix summary is refused as `[Self-Modification]`. Never retry aroun
 operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
 re-run and paste its output back. Report the before/after comparison from what they return.
 
-Claim: auto mode refuses those two operations under those two category names. Basis: a
-`claude-config:audit@0.48.2` `--fix` run in melodic-software/.github PR #153, Claude Code 2.1.283,
-auto mode. As of 2026-09-27. Recheck when a Claude Code release changes auto-mode classifier
+Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
+`claude-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
+[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of 2026-09-27. Recheck when a Claude Code release changes auto-mode classifier
 categories, or a run where either refusal no longer fires.
 
 ### Fixes the skill can apply

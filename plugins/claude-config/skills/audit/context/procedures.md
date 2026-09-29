@@ -58,7 +58,8 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Rename plugins (heuristic match) | No | Yes (verify upstream rename, update key, preserve `enabled` value) |
 
 Each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json` goes through the
-built-in `update-config` skill. In auto mode it needs the `[Self-Modification]` handshake: the
+built-in `update-config` skill, except orphan-`false` plugin removal, which stays on
+`scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the `[Self-Modification]` handshake: the
 classifier asks, and the user's explicit approval of that fix is the consent. Two operations are
 refused in auto mode: writing `.claude/audit-pass.md` (`[Instruction Poisoning]`) and re-running
 `scripts/audit-engine.sh` for the after-fix summary (`[Self-Modification]`). The fallback for each is
