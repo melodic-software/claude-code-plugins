@@ -101,6 +101,15 @@ out="$(bash "$SUT" --root "$root")"
 assert_eq "a different root inventories a different tree" "0" "$(printf '%s\n' "$out" | grep -c '^OFFENDER')"
 assert_contains "the reported roots follow the configuration" "$out" "SCANNED	1	build"
 
+root="$(new_fixture)"
+jq '.file_names.roots = ["nowhere"]' "$root/.claude/docs-hygiene.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-hygiene.json"
+out="$(bash "$SUT" --root "$root" 2>"$TEST_TMPDIR/err")"
+rc=$?
+assert_eq "an empty root still exits 0" "0" "$rc"
+assert_contains "an empty root still prints the SCANNED row" "$out" "SCANNED	0	nowhere"
+assert_contains "an empty root warns on stderr" "$(cat "$TEST_TMPDIR/err")" "this is an empty root, not a clean tree"
+
 # --- an explicit --config file -----------------------------------------------
 
 root="$(new_fixture)"
