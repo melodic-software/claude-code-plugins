@@ -55,9 +55,11 @@ gh pr merge <pr_number> --squash --delete-branch
 In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: on older gh it tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote, never a hardcoded `origin`:
 
 ```bash
-gh pr merge <pr_number> --squash && [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ] && {
-  REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
-}
+if gh pr merge <pr_number> --squash; then
+  if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
+    REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
+  fi
+fi
 ```
 
 When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch. Verified 2026-09-29 against [cli/cli#14007](https://github.com/cli/cli/pull/14007), which ships in gh 2.99.0 and makes `gh pr merge --delete-branch` skip the local delete when the head is checked out in the current linked worktree; earlier gh, such as 2.98.0, fails as described. Recheck when the minimum gh this plugin supports is 2.99.0 or later, at which point the split is no longer needed.
