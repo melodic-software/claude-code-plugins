@@ -14,6 +14,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - **run-e2e:** the Boundary section and `context/bundled-run.md` match the compose decision.
 - **diagnose, plan, write, run-e2e:** Arguments are stated once.
 - **run-e2e:** the evals replace a duplicate case with one that covers the Native step.
+- **diagnose, plan, write:** the evals carry a literal em dash where a `—` escape stood; the parsed JSON is unchanged.
 
 ## [0.9.7] - 2026-09-28
 
