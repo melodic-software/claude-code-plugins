@@ -15,6 +15,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
 - **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
 
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
 ## [0.62.23] - 2026-09-29
 
 ### Fixed
