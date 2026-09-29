@@ -138,7 +138,7 @@ fi
 # test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
 #
 # `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
-# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds Git Bash
+# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds a real bash
 # and never the WSL relay. Option gates are `--require-true` and
 # `--run-if-unset-or-true` on that launcher, not a shell command line.
 #   Claim: exec form offers no portable `command` that names Git Bash. `command`
@@ -416,7 +416,7 @@ nothing (#1416: 73 recorded runs, every one a hook_non_blocking_error, while
 the guard was believed live).
 
 For a bash-scripted hook, run the script through the node launcher: `node` is
-the bare name this gate allows, and the launcher finds Git Bash itself, never
+the bare name this gate allows, and the launcher finds a real bash itself, never
 the WSL relay. The launcher comes first in `args`, then the script, then the
 script's own arguments:
 
