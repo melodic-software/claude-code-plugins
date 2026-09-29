@@ -72,13 +72,13 @@
     {
       "id": 12,
       "prompt": "Ask the laptop's WSL session named lap-wsl whether its migration finished, and wait for its answer.",
-      "expected_output": "Uses the cross-machine WSL row through the Windows OpenSSH client and the laptop's wsl-shell alias from FLEET.md. Makes the relay turn SendMessage to lap-wsl with notify_when_idle, wait for the reply and print it, because a single headless turn does not see a reply that arrives after it returns. Mentions a second turn or --resume as the fallback.",
+      "expected_output": "Uses the cross-machine WSL row through the Windows OpenSSH client and the laptop's wsl-shell alias from FLEET.md. Sends to lap-wsl with a relay turn, and does not rely on notify_when_idle from a -p sender, whose turn ends before the notice arrives. Gets the answer by polling claude agents --json in that lane until the session is idle, then reading the reply with --resume or a second relay turn.",
       "files": []
     },
     {
       "id": 13,
       "prompt": "Start a Claude session on the desktop's Windows side that other sessions can keep sending messages to.",
-      "expected_output": "Starts a named headless receiver: claude.exe -p -n <name> --settings with crossSessionInbound set to accept, with standing instructions saying what to do with messages and when to stop. Handles the JSON quoting inside an outer single-quoted remote command (escaped double quotes). States that the receiver lives only as long as its turn; for a session that must stay up, offers a background session (claude --bg --name, untested) or --resume for durable multi-turn work.",
+      "expected_output": "Starts a named headless receiver: claude.exe -p -n <name> --settings with crossSessionInbound set to accept, with standing instructions saying what to do with messages and when to stop. Handles the JSON quoting inside an outer single-quoted remote command (escaped double quotes). States that the receiver lives only as long as its turn; for a session that must stay up, offers a background session (claude --bg --name, which needs a trusted directory) or --resume for durable multi-turn work. Does not use --bare for a receiver, since a bare session binds no inbox socket.",
       "files": []
     },
     {

@@ -32,15 +32,15 @@ what each run showed.
 | # | From | To | Command shape | Status |
 |---|---|---|---|---|
 | R0 | any | same lane | Built-in `ListAgents` / `SendMessage`. Not this skill | n/a |
-| R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> < /dev/null` | tested: list, message a `-n` receiver |
-| R2 | WSL | other machine, WSL | `<ssh> <wsl-alias> 'claude <agent-args> < /dev/null'` | tested: message an interactive session across accounts |
-| R3 | WSL | other machine, Windows | `<ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | tested up to auth: needs the target's Windows lane signed in |
-| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp -- <shell> -lc 'claude <agent-args> < /dev/null'` | tested: list |
+| R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> < /dev/null` | tested: script (`powershell.exe`), list, multi-turn, message a `-n` receiver |
+| R2 | WSL | other machine, WSL | `<ssh> <wsl-alias> 'claude <agent-args> < /dev/null'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
+| R3 | WSL | other machine, Windows | `<ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | reaches `claude.exe`; needs `/login` at that machine's console |
+| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp -- <shell> -lc 'claude <agent-args> < /dev/null'` | tested: script, list (`wsl.exe` launched through interop, not from a Windows shell) |
 | R5 | Windows | other machine, WSL | `ssh.exe <wsl-alias> 'claude <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R2) |
 | R6 | Windows | other machine, Windows | `ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R3) |
 
-A script with no agent goes over the same hop with the command in place of the `claude` part.
-The exception is a Windows script on another machine, which goes over port 22 instead:
+A script with no agent goes over the same hop with the command in place of the `claude` part; on
+R1 that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. The exception is a Windows script on another machine, which goes over port 22 instead:
 `<ssh> <win-alias> '<pwsh command>'` (see [Port 22](#port-22-is-not-an-agent-lane)).
 
 Placeholders, each filled from FLEET.md or a probe, never guessed:
@@ -76,27 +76,40 @@ and no credential travels in a prompt.
 
 ## Verbs
 
-Each verb fills `<agent-args>` in a matrix row. All but the first start an agent.
+Each verb fills `<agent-args>` in a matrix row. All but the first start an agent, and each agent
+turn costs real usage (about $0.22 to $0.31 for a one-line turn, mostly SessionStart hooks and
+context loading). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | Status |
 |---|---|---|
-| Run a script | none: the command itself replaces `claude ...` over the same hop | hops tested on R1, R2, R4; port 22 untested |
+| Run a script | none: the command itself replaces `claude ...` over the same hop | tested on R1, R2, R4; port 22 untested |
 | Prompt | `-p "<prompt>"` | tested on R1, R2, R4 |
-| Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | untested |
+| Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | tested on R1, R2 |
+| One open pipe | `-p --input-format stream-json --output-format stream-json --verbose`, user messages as NDJSON on stdin | tested on R2 |
 | List sessions | `-p "List the sessions you can reach"` | tested on R1, R4 |
 | Message a session | `-p "SendMessage to <name>: <text>"` | tested on R1, R2 |
-| Query and wait | `-p "SendMessage to <name> with notify_when_idle: <question>. Wait for the reply and print it."` | untested |
-| Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>"` | tested on R1 only |
-| Background session | `--bg --name <name> "<prompt>"`, not `-p`; manage with `claude agents --json`, `logs`, `stop` | untested |
+| Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>"` | tested on R1, R2 |
+| Background session | `--bg --name <name> "<prompt>"`, not `-p`; manage with `claude agents --json --all`, `stop <id>`, `rm <id>` | tested on R2, trusted directory only |
 
 - Give every prompt the whole task: what done looks like, and what should make it stop and report.
   Nobody answers a question a headless turn asks.
-- A relay turn is one headless turn. A reply that arrives after it returns is not in its output:
-  make it wait (query and wait), or read the reply with a second turn or `--resume`.
-  `notify_when_idle` works only between sessions on one machine, which the relay turn is.
+- **Query and wait has no one-turn form.** `notify_when_idle` from a `-p` sender does not work: the
+  turn ends before the notice arrives. Send the message, then poll `claude agents --json` in that
+  lane, or `--resume` the receiver or read its output.
+- **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
+  stays open. Per-turn `--resume` survives a disconnect. `--session-id` picks the id up front, so
+  nothing parses the first turn's output; use a UUID from `/proc/sys/kernel/random/uuid` where
+  `uuidgen` is missing.
+- **Background sessions** need a trusted working directory. Anywhere else the start fails with
+  ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt`` and exit 1.
+  `claude logs` takes only the short id, not the name, and prints raw TUI output, so read a reply
+  from the transcript (`--resume <id>`), not from `logs`.
 - An interactive session in a prompting mode (default or auto) accepts inbound messages. A `-p`
-  receiver needs `crossSessionInbound: accept`, and lives only as long as its turn. `--bare` binds
-  no inbox socket, so a bare turn can neither receive nor be listed.
+  receiver needs `crossSessionInbound: accept`, and lives only as long as its turn.
+- `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive
+  messages or be listed. Use it for prompts, never for a receiver.
+- Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
+  headless recipes.
 - Session names belong to the target lane. List first, then message a name from that list.
 - `--resume` ids belong to the lane that made them. Resume against the same row. `--session-id`
   picks the id up front, so nothing has to parse the first turn's output.

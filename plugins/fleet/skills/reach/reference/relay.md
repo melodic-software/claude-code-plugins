@@ -9,6 +9,7 @@ plain prompt.
 - [Why a relay is needed at all](#why-a-relay-is-needed-at-all)
 - [The hops](#the-hops)
 - [A named receiver](#a-named-receiver)
+- [Multi-turn and the open pipe](#multi-turn-and-the-open-pipe)
 - [Background sessions](#background-sessions)
 - [Mechanisms not used here](#mechanisms-not-used-here)
 - [Getting a reply back](#getting-a-reply-back)
@@ -75,29 +76,55 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
   quote. Double-quote it with escaped inner quotes instead:
   `<ssh> <wsl-alias> 'claude -p -n <name> --settings "{\"crossSessionInbound\":\"accept\"}" "<instructions>" < /dev/null'`.
-- It ends when its turn ends, and over ssh probably when the hop closes. For a session that must
+- It ends when its turn ends. The tested receiver kept its turn open (a standing instruction to
+  wait, then print what arrived) and ran under `nohup ... &` on the target. For a session that must
   stay up, use a [background session](#background-sessions) instead.
+- Do not start it with `--bare`: a bare session binds no inbox socket and receives nothing.
 
-For durable multi-turn work with no live messaging, prefer `--resume`: each turn is a fresh
-headless call on the same lane, and nothing has to stay running. Pass `--session-id <uuid>` on the
-first turn to choose the id instead of parsing it from JSON output.
+## Multi-turn and the open pipe
+
+Per-turn resume survives a disconnect. Choose the id up front so nothing parses output:
+
+```console
+<ssh> <wsl-alias> 'cd <dir> && claude -p --session-id <uuid> "<prompt>" < /dev/null'
+<ssh> <wsl-alias> 'cd <dir> && claude -p --resume <uuid> "<prompt>" < /dev/null'
+```
+
+Take `<uuid>` from `uuidgen`, or `/proc/sys/kernel/random/uuid` where `uuidgen` is missing.
+
+One open pipe keeps a single process and its context for as long as the connection stays open,
+with user messages as NDJSON lines on stdin:
+
+```console
+<producer of NDJSON user messages> | <ssh> <wsl-alias> 'claude -p --input-format stream-json --output-format stream-json --verbose'
+```
+
+Two turns sent this way came back under one session id with the first turn's context. The CLI
+docs do not specify the stdin message schema; the Agent SDK's `SDKUserMessage` type is the de facto
+one. Losing the connection ends the process, so resume by its session id afterwards.
 
 ## Background sessions
 
-For a session that outlives the hop, the target lane's own supervisor can host it (untested):
+For a session that outlives the hop, the target lane's own supervisor hosts it:
 
 ```console
-<ssh> <wsl-alias> 'claude --bg --name <name> "<prompt>" < /dev/null'
-<ssh> <wsl-alias> 'claude agents --json'
-<ssh> <wsl-alias> 'claude logs <id>'
-<ssh> <wsl-alias> 'claude stop <id>'
+<ssh> <wsl-alias> 'cd <trusted-dir> && claude --bg --name <name> "<prompt>" < /dev/null'
+<ssh> <wsl-alias> 'claude agents --json --all'
+<ssh> <wsl-alias> 'claude stop <id> && claude rm <id>'
 ```
 
-- `--bg` cannot be combined with `-p`, and a script cannot answer the trust dialog: the workspace
-  must be trusted interactively once, or the command exits with `Workspace not trusted`.
-- A running background session binds an inbox socket, so a later relay turn in that lane can list
-  and message it. `claude --resume <id> --bg "<prompt>"` continues a finished one.
-- `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the hop.
+- The directory must be trusted: run `claude` there interactively once and accept the prompt.
+  Anywhere else the start fails with ``Workspace not trusted. Run `claude` in <dir> once and accept
+  the trust prompt, then retry.`` and exit 1.
+- `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
+  example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
+- `claude logs` takes only the short `id`, not the name (`No job matching '<name>'`), and prints the
+  raw ANSI TUI stream. Read a reply from the transcript with `--resume <id>` instead.
+- `--bg` cannot be combined with `-p`. A running background session binds an inbox socket, so a
+  later relay turn in that lane can list and message it. `claude --resume <id> --bg "<prompt>"`
+  continues a finished one.
+- `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
+  hop. Untested.
 - Agent view is a research preview. Basis: <https://code.claude.com/docs/en/agent-view>, fetched
   2026-09-29 against 2.1.284; recheck when a release note names `--bg` or `claude agents`.
 
@@ -107,7 +134,9 @@ Each fails the fleet's per-lane account split or needs a human; see the linked p
 reconsidering one. Fetched 2026-09-29 against 2.1.284; recheck when a release note names the
 mechanism.
 
-- **Remote Control and cross-machine `SendMessage`**: same claude.ai account only.
+- **Remote Control and cross-machine `SendMessage`**: same claude.ai account only, and
+  interactive only: `claude -p --remote-control` does not connect (the flag takes the next word as
+  a session name, and the turn shows no bridge event).
   <https://code.claude.com/docs/en/cross-session-messaging#message-sessions-on-other-machines>
 - **Cloud sessions** (`claude -p "<msg>" --cloud <id>`): same account, and no CLI read-back of the
   reply. <https://code.claude.com/docs/en/claude-code-on-the-web>
@@ -123,12 +152,16 @@ mechanism.
 
 A relay turn returns when it is done; a peer's answer that arrives later is not in its output.
 
-- **Query and wait.** Ask the relay turn to send with `SendMessage` and `notify_when_idle`, wait
-  for the peer's reply, and print it. One round trip. Prefer this when the answer is the point.
-  `notify_when_idle` is refused for any target beyond the sender's machine; the relay turn runs on
-  the target's machine, so its target is local. Untested.
-- **Second turn.** Make another relay turn, or `--resume` the first by its `session_id`, and read
-  what came back.
+There is no one-turn query and wait. A `-p` relay turn that sends with `notify_when_idle` ends
+before the notice arrives: in the test the message was delivered, and the relay returned after 18
+seconds still saying it was waiting. Instead:
+
+- **Poll.** Send the message, then poll `claude agents --json --all` in that lane until the
+  receiver is idle.
+- **Read the receiver.** `--resume` the receiver by its id and ask what it answered, or read its
+  output (a `-p` receiver's stdout log).
+- **Ask directly.** When no live session needs the question, skip messaging: a multi-turn
+  `--resume` on the target is the query, and its output is the answer.
 
 ## Signed-out Windows lane
 
@@ -162,13 +195,15 @@ fetched 2026-09-29 against 2.1.284. Recheck when a release note names any of tho
 |---|---|
 | Same machine, WSL and Windows lanes | Each lane's `ListAgents` shows only its own lane |
 | Remote Control across accounts | `ListAgents` shows nothing remote while Remote Control is connected |
-| R1 WSL to this machine's Windows | `claude.exe -p` listed the Windows sessions; a second `claude.exe -p` messaged the receiver `claude.exe -p -n win-relay-target`, which acknowledged mid-turn |
-| R2 WSL to other machine's WSL | `ssh.exe <wsl-alias> 'claude -p "SendMessage to <name> ..." < /dev/null'` delivered to an interactive session, across accounts |
-| R3 WSL to other machine's Windows | Reached the target's `claude.exe`, which failed on auth (signed-out lane) |
-| R4 Windows to this machine's WSL | `wsl.exe -d <distro> --cd /tmp -- zsh -lc 'claude -p ...'` listed the WSL sessions |
+| R1 WSL to this machine's Windows | `powershell.exe -NoProfile -Command` ran a script. `claude.exe -p` listed the Windows sessions; `--session-id` then `--resume` recalled a word from the first turn; a second `claude.exe -p` messaged the receiver `claude.exe -p -n win-relay-target`, which acknowledged mid-turn |
+| R2 WSL to other machine's WSL | A plain command ran over ssh. `claude -p "SendMessage to <name> ..."` delivered to an interactive session and to a `-p -n` receiver with `crossSessionInbound: accept`, across accounts. `--session-id` then `--resume` recalled a word. One stream-json pipe ran two turns under one session id. `--bg` started in a trusted directory and failed in an untrusted one; `agents --json --all`, `stop` and `rm` worked; `logs` accepted only the id |
+| R3 WSL to other machine's Windows | Reached the target's `claude.exe`: `auth status` reported `loggedIn: false`, and `-p` failed with the OAuth expired error |
+| R4 Windows to this machine's WSL | `wsl.exe -d <distro> --cd /tmp -- zsh -lc` ran a script and a `claude -p` that listed the WSL sessions. `wsl.exe` was launched through interop from WSL, not from a Windows shell |
 | R5, R6 from a Windows origin | Untested; same far-side hop as R2 and R3 |
 | Port 22 script hop | Not probed in this pass |
-| Multi-turn, query and wait, background sessions | Untested |
+| `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
+| `-p --remote-control` | Did not connect; Remote Control is interactive only |
+| Cost | Each one-line `-p` turn cost about $0.22 to $0.31, mostly SessionStart hooks and context loading |
 
 ## What the relay does not change
 

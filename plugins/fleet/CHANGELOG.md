@@ -12,16 +12,19 @@ All notable changes to the `fleet` plugin are documented here. Format follows
   `wsl.exe -l -q`.
 - A route matrix at the top of `reach`: every origin lane against every target lane, each row
   carrying its command shape and whether it was tested.
-- A Verbs section: run a script, prompt, multi-turn with `--resume`, list sessions, message a
-  session, query and wait with `notify_when_idle`, and a named headless receiver (`-n <name>` with
-  `crossSessionInbound: accept`). Every verb but running a script starts an agent and prompts under
-  auto mode. Multi-turn picks its id up front with `--session-id`, and background sessions
-  (`claude --bg --name`) host a session that outlives the hop. Each verb is marked tested or
-  untested.
+- A Verbs section: run a script, prompt, multi-turn (`--session-id` then `--resume`), one open
+  stream-json pipe, list sessions, message a session, a named headless receiver (`-n <name>` with
+  `crossSessionInbound: accept`), and background sessions (`claude --bg --name`, trusted directory
+  only). Each verb is marked tested or untested. Every verb but running a script starts an agent,
+  prompts under auto mode, and costs about $0.22 to $0.31 per one-line turn, so a script is
+  preferred where it does the job; `--bare` cuts the cost but cannot receive messages.
+- Query and wait polls `claude agents --json` or reads the receiver: `notify_when_idle` from a `-p`
+  sender does not arrive before its turn ends. Remote Control stays out of headless recipes, since
+  `-p --remote-control` does not connect.
 - `reference/relay.md` lists the mechanisms the skill does not use (Remote Control, cloud sessions,
-  Channels, the raw inbox socket, agent teams) and why, and documents the signed-out Windows lane check (`Failed to authenticate: OAuth
-  session expired`, fixed by `/login` at that console), the receiver's nested quoting and lifetime,
-  and a verification record for each route.
+  Channels, the raw inbox socket, agent teams) and why, and documents the signed-out Windows lane
+  check (`Failed to authenticate: OAuth session expired`, fixed by `/login` at that console), the
+  receiver's nested quoting and lifetime, and a verification record for each route.
 - Evals for the cross-lane routes, query and wait, the named receiver, the signed-out lane, and the
   run-a-script verb.
 
