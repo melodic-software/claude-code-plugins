@@ -42,10 +42,11 @@
 # 0 examined TEST files is unchanged, and a config-only tree neither gates nor
 # persists them.
 #
-# Ecosystems v1: JS/TS (*.test.* / *.spec.*), Python (test_*.py / *_test.py),
-# C# (*Test.cs / *Tests.cs). Bash *.test.sh is deliberately out of scope: the
-# repo-level incumbent scripts/check-discriminating-test-skips.sh owns the
-# can't-fail shape that matters there (a skip vacating a discriminating case).
+# Ecosystems: whatever the adapters/*.yaml files claim by their files: globs
+# (JS/TS, Python, C#, Bash, bats, Pester, Go). An adapter marked advisory
+# (bash-harness) never gates --check without --strict. For bash *.test.sh this
+# scan owns assertions only; scripts/check-discriminating-test-skips.sh keeps
+# the skip-vacating shape.
 #
 # Skipped tests (it.skip/x-prefixed/@skip/[Fact(Skip=…)]/[Ignore…]) are not
 # judged — a test that does not run is the skip gate's concern, not this
@@ -231,7 +232,7 @@ if ! awk -f "$LOADER" "$ADAPTER_DIR"/*.yaml >"$ADAPTER_TABLE"; then
   exit 2
 fi
 adapter_ids=()
-declare -A a_lang=() a_globs=() a_detect=()
+declare -A a_lang=() a_globs=() a_detect=() a_advisory=()
 while IFS=$'\t' read -r id key val; do
   [[ -n "${a_lang[$id]+x}" ]] || {
     adapter_ids+=("$id")
@@ -241,6 +242,7 @@ while IFS=$'\t' read -r id key val; do
   language) a_lang[$id]="$val" ;;
   files) a_globs[$id]+="$val"$'\n' ;;
   detect.any_regex) a_detect[$id]+="$val"$'\n' ;;
+  advisory) [[ "$val" == true ]] && a_advisory[$id]=1 ;;
   *) ;;
   esac
 done <"$ADAPTER_TABLE"
@@ -293,7 +295,8 @@ collect_files() {
 
 # The walk takes the union of every adapter's files: globs. Each file is then
 # bucketed by its adapter's language, and the buckets scan in the fixed order
-# js, python, cs, so finding order does not depend on adapter file names.
+# js, python, cs, bash, pwsh, go, so finding order does not depend on adapter
+# file names.
 name_args=()
 declare -A glob_seen=()
 for id in "${adapter_ids[@]}"; do
@@ -307,6 +310,9 @@ done
 js_files=()
 py_files=()
 cs_files=()
+sh_files=()
+ps_files=()
+go_files=()
 declare -A file_adapter=()
 while IFS= read -r f; do
   [[ -n "$f" ]] || continue
@@ -316,6 +322,9 @@ while IFS= read -r f; do
   js) js_files+=("$f") ;;
   python) py_files+=("$f") ;;
   cs) cs_files+=("$f") ;;
+  bash) sh_files+=("$f") ;;
+  pwsh) ps_files+=("$f") ;;
+  go) go_files+=("$f") ;;
   *) ;;
   esac
 done < <(collect_files "${name_args[@]}")
@@ -333,6 +342,9 @@ mapfile -t cfg_files < <(collect_files \
 enum_js="${#js_files[@]}"
 enum_py="${#py_files[@]}"
 enum_cs="${#cs_files[@]}"
+enum_sh="${#sh_files[@]}"
+enum_ps="${#ps_files[@]}"
+enum_go="${#go_files[@]}"
 examined=0
 unreadable=0
 blocks=0
@@ -348,6 +360,7 @@ f_rule=()
 f_loc=()
 f_detail=()
 n_cf1=0
+n_adv=0
 n_cf2=0
 n_cf3=0
 x_cf1=0
@@ -376,6 +389,8 @@ scan_one() {
       f_rule+=("$slug")
       f_loc+=("$rel:$line")
       f_detail+=("$detail")
+      # An advisory adapter's findings of the two gating rules stay out of the gate.
+      [[ -n "${a_advisory[${file_adapter[$file]}]:-}" && "$slug" != mock-only-oracle ]] && n_adv=$((n_adv + 1))
       case "$slug" in
       zero-assertion) n_cf1=$((n_cf1 + 1)) ;;
       recomputed-expectation) n_cf2=$((n_cf2 + 1)) ;;
@@ -458,7 +473,8 @@ scan_config() {
   done < <(awk -f "$MASK_AWK" -f "$CONFIG_AWK" "$file" 2>>"$WALK_ERR")
 }
 
-for f in ${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"}; do
+for f in ${js_files[@]+"${js_files[@]}"} ${py_files[@]+"${py_files[@]}"} ${cs_files[@]+"${cs_files[@]}"} \
+  ${sh_files[@]+"${sh_files[@]}"} ${ps_files[@]+"${ps_files[@]}"} ${go_files[@]+"${go_files[@]}"}; do
   scan_one "$f"
 done
 
@@ -485,13 +501,13 @@ for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
 done
 
 cfg_findings=$((n_cfg1 + n_cfg2))
-advisory=$((n_cf3 + cfg_findings))
+advisory=$((n_cf3 + cfg_findings + n_adv))
 total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings))
-gating=$((n_cf1 + n_cf2))
-[[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings))
+gating=$((n_cf1 + n_cf2 - n_adv))
+[[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
 walk_errors="$(awk 'NF { n++ } END { print n + 0 }' "$WALK_ERR" 2>/dev/null)"
 [[ -n "$walk_errors" ]] || walk_errors=0
-enumerated=$((enum_js + enum_py + enum_cs))
+enumerated=$((enum_js + enum_py + enum_cs + enum_sh + enum_ps + enum_go))
 fired_blocks=$((n_cf1 + n_cf3 + x_cf1 + x_cf3))
 declined_cf1=$((blocks - n_cf1 - x_cf1))
 declined_cf3=$((blocks - n_cf3 - x_cf3))
@@ -553,8 +569,8 @@ confidence_of() {
 }
 
 surfaces_line() {
-  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d]. Returned no result: [%s].\n' \
-    "$examined" "$enum_js" "$enum_py" "$enum_cs" "$blocks" \
+  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d]. Returned no result: [%s].\n' \
+    "$examined" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$blocks" \
     "$n_cf1" "$n_cf2" "$n_cf3" "$declined_cf1" "$declined_cf3" "$exempted" \
     "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable" \
     "$n_cfg1" "$n_cfg2" "$d_cfg1" "$d_cfg2" "$x_cfg1" "$x_cfg2" \
@@ -568,8 +584,8 @@ surfaces_line() {
 coverage_block() {
   printf '\nScan coverage (the denominator — what this run actually read):\n'
   printf '  root: %s (resolved from %s)\n' "$ROOT" "$ROOT_SOURCE"
-  printf '  test files: %d examined of %d enumerated (js/ts %d, python %d, csharp %d); %d unreadable\n' \
-    "$examined" "$enumerated" "$enum_js" "$enum_py" "$enum_cs" "$unreadable"
+  printf '  test files: %d examined of %d enumerated (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d); %d unreadable\n' \
+    "$examined" "$enumerated" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$unreadable"
   if [[ -n "$FILE" ]]; then
     printf '  adapter: %s\n' "${file_adapter[$FILE]:-none (no adapter claims this file)}"
   fi
@@ -582,7 +598,7 @@ coverage_block() {
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
   fi
   printf '  walk/read/engine error lines: %d\n' "$walk_errors"
-  printf '  never in scope here: skipped/ignored tests, bash *.test.sh (owned by the discriminating-skip gate), test files of other ecosystems, evals/fixtures corpora, and pruned dependency/build/memory dirs\n'
+  printf '  never in scope here: skipped/ignored tests, test files of other ecosystems, evals/fixtures corpora, and pruned dependency/build/memory dirs; a skip that vacates a discriminating case in a bash *.test.sh is scripts/check-discriminating-test-skips.sh'"'"'s, not this scan'"'"'s\n'
   if [[ "$examined" -eq 0 ]]; then
     printf '  NOTE: 0 test files examined — this run has no denominator. It is a scan of nothing, not a clean bill.\n'
   fi
@@ -603,8 +619,8 @@ advisory_note() {
   # mock-only-oracle and both config rules together, so the note counts them
   # apart and names the switch.
   if [[ "$strict" -eq 0 && "$advisory" -gt 0 ]]; then
-    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d.\n' \
-      "$advisory" "$n_cf3" "$cfg_findings"
+    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (bash-harness) %d.\n' \
+      "$advisory" "$n_cf3" "$cfg_findings" "$n_adv"
   fi
 }
 

@@ -13,8 +13,18 @@
 #   - block list items `- value`, one-line flow lists `[a, 'b']`
 #   - plain or single-quoted scalars ('' is a literal quote), # comments
 # Every list field is a list of EREs except files (basename globs),
-# equality.call2 (helper names matched as substrings) and equality.receiver
-# (<wrapper>.<matcher>, as in expect.toBe).
+# equality.call2 (helper names matched as substrings), equality.receiver
+# (<wrapper>.<matcher>, as in expect.toBe) and equality.pipeline (literal
+# matchers after a pipe, as in `Should -Be`; a space matches any run of blanks).
+#
+# language picks the lexer: js, cs, python, bash, pwsh or go. block_model is
+# indent for python, brace or file for bash (file: the whole file is one test,
+# for harnesses with no per-case marker), and brace for the rest. advisory:
+# true keeps the adapter's findings out of the --check gate unless --strict.
+# test_skip matches the start line (or a decorator or attribute above it);
+# body_skip matches inside the body, as in t.Skip. assertion.idioms and
+# delegation match RAW text, strings and comments included, over a window of
+# three consecutive body lines, so `echo "FAIL"` then `exit 1` counts.
 # No double quotes, flow maps, anchors, aliases, tags, block scalars or
 # document markers. A trailing \r is stripped, so CRLF files load.
 #
@@ -23,16 +33,16 @@
 # intervals, which mawk 1.3.3 does not implement.
 
 BEGIN {
-  split("id extends language block_model suppress_marker", t, " ")
+  split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip suite_skip additional_test_blocks assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
   split("detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip suite_skip assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
+  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms delegation mock.create mock.verify mock.strip snapshot suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
-  split("additional_test_blocks delegation equality.pipeline", t, " ")
+  split("additional_test_blocks", t, " ")
   for (i in t) RESERVED[t[i]] = 1
   nf = 0; nr = 0
 }
@@ -102,6 +112,7 @@ function add(key, v) {
   if (KIND[key] == "m") die(key " is a map, not a value")
   if (index(v, "\t") > 0) die("tab in value of " key)
   if (key in RESERVED) die(key " is reserved and not implemented yet")
+  if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
   if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
     die("equality.receiver entries are <wrapper>.<matcher>, got: " v)
   if (key in IS_RE) portable_ere(v)
@@ -220,9 +231,10 @@ END {
       if (R_K[j] == "test_start") hts = 1
     }
     # A claimed file with no test matcher parses zero blocks and reads clean.
-    if (hf && !hts) die_file(fi, "claims files but has no test_start")
-    if (lang !~ /^(js|cs|python)$/) die_file(fi, "language must be js, cs or python, got: " lang)
-    if (bm != "" && bm != (lang == "python" ? "indent" : "brace"))
+    # The file model makes the whole file one block, so it needs no matcher.
+    if (hf && !hts && bm != "file") die_file(fi, "claims files but has no test_start")
+    if (lang !~ /^(js|cs|python|bash|pwsh|go)$/) die_file(fi, "language must be js, cs, python, bash, pwsh or go, got: " lang)
+    if (bm != "" && bm != (lang == "python" ? "indent" : "brace") && !(lang == "bash" && bm == "file"))
       die_file(fi, "block_model " bm " is not supported for language " lang)
   }
   for (fi = 1; fi <= nf; fi++)

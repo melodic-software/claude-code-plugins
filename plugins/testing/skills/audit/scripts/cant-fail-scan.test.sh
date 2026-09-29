@@ -375,7 +375,7 @@ assert_not_contains "the scaffold's forbidOnly idiom passes (an expression is pr
 assert_contains "the projects[] spread sits below depth 1 and does not decline the config" "$out" "rule-flaky-passes-suite"
 assert_contains "smoke.spec.ts is the examined test file of the scaffold tree" "$out" "test files: 1 examined of 1 enumerated"
 assert_contains "config findings are advisory in --check" "$out" "advisory in --check (use --strict"
-assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1."
+assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1, advisory adapters (bash-harness) 0."
 assert_contains "coverage reports the config denominator" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 assert_contains "an advisory-only config finding still passes the gate" "$out" "PASS: no gating findings"
@@ -865,9 +865,9 @@ assert_exit "every shipped adapter loads (exit 0)" 0 "$rc"
 for id in js-jest js-vitest py-pytest cs-xunit; do
   assert_contains "shipped adapter $id loads" "$out" "$id${TAB}language${TAB}"
 done
-load_yaml rs.yaml $'id: rs\nlanguage: js\ndelegation: [x]\n'
+load_yaml rs.yaml $'id: rs\nlanguage: js\nadditional_test_blocks: [x]\n'
 assert_exit "loader rejects a reserved, unimplemented field (exit 2)" 2 "$rc"
-assert_contains "loader says the field is reserved" "$err" "delegation is reserved"
+assert_contains "loader says the field is reserved" "$err" "additional_test_blocks is reserved"
 load_yaml nt.yaml $'id: nt\nlanguage: js\nfiles: [a]\n'
 assert_exit "loader rejects an adapter that claims files with no test_start (exit 2)" 2 "$rc"
 assert_contains "loader says test_start is missing" "$err" "nt.yaml: claims files but has no test_start"
@@ -876,6 +876,12 @@ rc=0
 out="$(awk -f "$LOAD" "$ADIR/empty.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
 assert_exit "loader rejects an empty test_start overriding an inherited one (exit 2)" 2 "$rc"
 assert_contains "loader names the adapter left without a matcher" "$out" "empty.yaml: claims files but has no test_start"
+load_yaml fm.yaml $'id: fm\nlanguage: js\nblock_model: file\n'
+assert_exit "loader rejects the file model outside bash (exit 2)" 2 "$rc"
+assert_contains "loader names the unsupported model" "$err" "block_model file is not supported for language js"
+load_yaml ad.yaml $'id: ad\nlanguage: bash\nadvisory: yes\n'
+assert_exit "loader rejects an advisory value other than true or false (exit 2)" 2 "$rc"
+assert_contains "loader states the advisory values" "$err" "advisory is true or false"
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
 assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
@@ -908,6 +914,68 @@ run_file --file "$PREC/plain.test.ts"
 assert_contains "no detect match falls back to the first adapter in load order" "$out" "adapter: js-jest"
 run_file --file "$SCRIPT_DIR/cant-fail-scan.sh"
 assert_contains "an unclaimed file names no adapter" "$out" "adapter: none"
+
+# --- bash lexer: the masker keeps sync, or the file reports nothing -----------
+# A desynced masker hides every later assertion, which under the file model is
+# a false zero-assertion; each case would fire if the masker got it wrong.
+SH="$TMP_ROOT/sh"
+mkdir -p "$SH"
+printf 'cat <<EOF\npass is only text here\nEOF\necho done\n' >"$SH/heredoc.test.sh"
+run_file --file "$SH/heredoc.test.sh"
+assert_finding_count "a heredoc body is text, not an assertion" 1
+printf 'cat <<-'"'"'EOF'"'"'\n\tpass is only text here\n\tEOF\necho done\n' >"$SH/heredoc-dash.test.sh"
+run_file --file "$SH/heredoc-dash.test.sh"
+assert_finding_count "a quoted <<- heredoc ends at its tab-indented terminator" 1
+printf '[ $# -eq 0 ] || fail "takes no arguments"\n' >"$SH/argc.test.sh"
+run_file --file "$SH/argc.test.sh"
+assert_finding_count "\$# is not a comment" 0
+printf 'echo "never closed\necho done\n' >"$SH/open.test.sh"
+run_file --file "$SH/open.test.sh"
+assert_finding_count "a string still open at end of file reports nothing" 0
+printf 'echo done\n' >"$SH/none.test.sh"
+run_file --file "$SH/none.test.sh"
+assert_finding_count "a harness with no assertion reports zero-assertion" 1
+run_file --file "$SH/none.test.sh" --check
+assert_exit "bash-harness findings are advisory in --check" 0 "$rc"
+assert_contains "the advisory note counts the advisory adapter" "$out" "advisory adapters (bash-harness) 1."
+run_file --file "$SH/none.test.sh" --check --strict
+assert_exit "--strict gates bash-harness findings" 1 "$rc"
+
+# --- corpus: one test per file, exact rule sets --------------------------------
+# Each file is stored as <real name>.fixture so no test runner, linter or
+# enumerator treats a planted defect as a real suite; the loop scans a copy
+# under the real name. A bad file's `expect: <rule-id>` lines are the exact
+# rule set --file must report; a good file must report none. The adapter
+# that claims the copy must be the one its directory names.
+CORPUS="$FIX/corpus"
+corpus_files=(
+  bash-harness/bad/prints-only.test.sh.fixture
+  bash-harness/bad/sort-against-itself.test.sh.fixture
+  bash-harness/good/fail-and-exit.test.sh.fixture
+  bash-harness/good/sort-against-literal.test.sh.fixture
+)
+on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
+listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
+if [[ "$on_disk" == "$listed" ]]; then
+  pass "every corpus file is listed, and every listed file exists"
+else
+  fail "corpus list matches disk" "$(diff <(printf '%s\n' "$listed") <(printf '%s\n' "$on_disk"))"
+fi
+for rel in "${corpus_files[@]}"; do
+  base="${rel##*/}"
+  copy="$TMP_ROOT/corpus/${rel%/*}/${base%.fixture}"
+  mkdir -p "${copy%/*}"
+  cp "$CORPUS/$rel" "$copy"
+  run_file --file "$copy"
+  assert_contains "corpus $rel: claimed by ${rel%%/*}" "$out" "adapter: ${rel%%/*}"
+  want="$(sed -n 's/.*expect: \(rule-[a-z-]*\).*/\1/p' "$copy" | sort -u | paste -sd, -)"
+  got="$(printf '%s\n' "$out" | sed -n 's|^finding \[testing/audit/\(rule-[a-z-]*\)\].*|\1|p' | sort -u | paste -sd, -)"
+  if [[ "$got" == "$want" ]]; then
+    pass "corpus $rel: reports exactly [${want}]"
+  else
+    fail "corpus $rel: exact rule set" "want [$want], got [$got]"
+  fi
+done
 
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.
