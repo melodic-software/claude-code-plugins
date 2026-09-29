@@ -319,9 +319,19 @@ differ.
 ### ai-slop
 
 - skill: ai-slop:audit
-- args: audit fix .
+- args: audit .
 - applies-when: repo has tracked markdown
 - checked: true
+
+#### Notes
+
+Run the audit, then `fix` on the findings the user approves. `audit fix` chains both in one
+invocation and would rewrite prose before the review.
+
+Claim: ai-slop:audit `audit fix` chains audit then fix in one invocation while `audit` is
+read-only and `fix` is an explicit separate action. Basis: `ai-slop` 0.11.4 `skills/audit/SKILL.md`
+(Action Router `fix [target]` row and the `Does not fix on bare invocation` line). As of:
+2026-09-29. Recheck: `audit` starts applying fixes, or `audit fix` stops chaining.
 
 ## Phase 6: checks
 

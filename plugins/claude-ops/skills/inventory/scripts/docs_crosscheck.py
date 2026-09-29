@@ -10,6 +10,7 @@ Python 3.11+, standard library only.
 
 from __future__ import annotations
 
+import http.client
 import re
 import sys
 import urllib.error
@@ -75,7 +76,13 @@ def fetch_text(url: str, timeout: float = 20.0) -> tuple[str | None, str | None]
             if len(body) > _FETCH_MAX:
                 return None, f"response exceeds {_FETCH_MAX} bytes"
             return body.decode("utf-8", "replace"), None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+    except (
+        urllib.error.URLError,
+        http.client.HTTPException,
+        TimeoutError,
+        OSError,
+        ValueError,
+    ) as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 

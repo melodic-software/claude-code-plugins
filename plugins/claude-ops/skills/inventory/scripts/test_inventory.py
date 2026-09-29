@@ -1078,6 +1078,26 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertNotIn("not-a-row", self.rows)
         self.assertEqual(self.rows["code-review"]["args"], "[low|high] [--fix]")
 
+    def test_a_truncated_response_degrades_instead_of_raising(self) -> None:
+        import http.client
+        import urllib.request
+        from unittest import mock
+
+        class Truncated:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self, _n):
+                raise http.client.IncompleteRead(b"partial")
+
+        with mock.patch.object(urllib.request, "urlopen", return_value=Truncated()):
+            body, error = self.dc.fetch_text("https://example.invalid/x")
+        self.assertIsNone(body)
+        self.assertIn("IncompleteRead", error or "")
+
     def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
         import time
 

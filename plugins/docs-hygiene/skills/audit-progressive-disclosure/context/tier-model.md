@@ -30,7 +30,8 @@ color only.
 **Grading rule per tier**: always-loaded content must apply broadly, in every session. The
 per-line test: "Would removing this cause Claude to make a mistake?" Invocation-loaded content carries the
 same conciseness bar as CLAUDE.md once triggered. On-demand content is free until pulled, so
-depth belongs there.
+depth belongs there. A recorded reason to stay always-loaded overrides the test, and upstream
+ownership overrides the local treatment (the finding stays): see [Boundaries this audit honors](#boundaries-this-audit-honors).
 
 ## Size guidance (all advisory: targets and tips, not validation errors)
 
@@ -131,3 +132,7 @@ reference-follow → make the link more explicit.
   `deep-nesting` shape enforces.
 - The 500/200 numbers are **ceilings, not targets**: a 300-line SKILL.md is not a finding by
   size alone; "approaching the cap" plus tier-inappropriate or mixed content is what fires.
+- **A recorded reason to stay always-loaded satisfies the "apply broadly, in every session" test**:
+  an ADR or decision doc, or a need for sessions without the plugin or with a synced copy to see
+  the content. A file owned upstream (synced, vendored, generated) is never a local-edit target;
+  its finding routes to the owner, per the Ownership check hard rule in `SKILL.md`.

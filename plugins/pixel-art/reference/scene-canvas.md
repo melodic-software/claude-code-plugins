@@ -105,9 +105,11 @@ brackets; "(judgment)" marks a rule no source states.
   `window.__pixelScene.audioStream` are mixed in when the scene provides them
   ([MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static),
   [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)).
-  The WebM is video only unless the scene exposes a gesture-free `audioStream` aligned to the seek
-  clock. The campfire example does not: its audio starts only on a click that `capture.py` never
-  sends, so its WebM is silent.
+  `audioStream` is the live `MediaRecorder` path and is not aligned to `seek`.
+- `window.__pixelScene.audio` is an optional WAV URL (the scene's inlined `data:audio/wav` URL). It
+  starts at scene time 0 and loops. When `audioStream` supplies no track, `capture.py` loops it
+  from scene time 0 under the recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the WebM is video
+  only and `capture.py` prints a note.
 - Exit 3 from `capture.py` means no browser tool was present. The scene is visually unreviewed
   (judgment). Do not describe the picture as reviewed.
 

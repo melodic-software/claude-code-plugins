@@ -4,15 +4,16 @@
     {
       "id": 1,
       "name": "stateless-table-matches",
-      "prompt": "/architecture:map-states\n\narchitecture_dir is docs/architecture. The checkout has one Stateless machine: new StateMachine<OrderState, OrderTrigger>(OrderState.New), Configure/Permit from New to Paid, and a reachable state with no outgoing permit. A declared state is never a target. This is a non-interactive run.",
-      "expected_output": "Runs collect-states.sh and render-states.sh. Writes states.json and states.md. Confidence is high. The unreachable state and the dead-end are findings. The diagram is a mermaid stateDiagram-v2.",
+      "prompt": "/architecture:map-states\n\narchitecture_dir is docs/architecture. The checkout has one Stateless machine: new StateMachine<OrderState, OrderTrigger>(OrderState.New), Configure/Permit from New to Paid. Paid is targeted and has no outgoing permit. A state Archived is declared with Configure and is never a target. This is a non-interactive run.",
+      "expected_output": "Runs collect-states.sh and render-states.sh. Writes states.json and states.md. Confidence is high. Archived is an unreachable finding. Paid is a terminal_inferred finding, not a dead_end. The diagram is a mermaid stateDiagram-v2.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-states.sh rather than composing the diagram by hand",
         "Writes states.json before rendering, then runs render-states.sh to produce states.md",
         "The Permit transition cites the declaring file",
-        "An unreachable state and a dead-end state are both findings",
+        "The never-targeted state is an unreachable finding",
+        "The targeted state with no outgoing permit is a terminal_inferred finding and is not reported as a dead-end",
         "states.md contains stateDiagram-v2 and states that landscape_dialect is not read",
         "Does not add a dialect key"
       ]
@@ -21,13 +22,13 @@
       "id": 2,
       "name": "ad-hoc-assignments-refuse",
       "prompt": "/architecture:map-states\n\narchitecture_dir is docs/architecture. The only evidence is order.Status = OrderStatus.Shipped. The operator wants a diagram anyway.",
-      "expected_output": "The record is a refusal. states.md draws no transitions and says so.",
+      "expected_output": "The record is a refusal with reason ad-hoc. render-states.sh exits 3, prints the reason on stderr and no summary line, and no states.md is written.",
       "files": [],
       "narration": true,
       "expectations": [
         "Does not draw a transition from the status assignment",
-        "The artifact states the refusal",
-        "Must not present an unlabeled diagram"
+        "Reports the refusal and its reason from the renderer's exit-3 message",
+        "Writes no states.md and does not present a diagram"
       ]
     },
     {
