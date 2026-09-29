@@ -740,7 +740,7 @@ class TestEvidenceVocabulary(unittest.TestCase):
     """Every new claim shape names its evidence with a vocabulary word, never a bare string."""
 
     def test_the_schema_is_bumped_for_the_new_sections(self) -> None:
-        self.assertEqual(engine.SCHEMA, "claude-install-state/2")
+        self.assertEqual(engine.SCHEMA, "claude-install-state/3")
 
     def test_the_extended_vocabulary_is_named(self) -> None:
         self.assertEqual(engine.DOCUMENTED, "documented")
@@ -1242,6 +1242,39 @@ class TestUnreferencedVersions(unittest.TestCase):
             )
             with self.assertRaises(engine.SecretReadRefused):
                 engine.read_text_guarded(root, "plugins/cache/mkt/plug/1.0.0/payload")
+
+    def test_a_symlinked_marker_is_not_followed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outside = root / "outside.txt"
+            outside.write_text("123", encoding="utf-8")
+            self._cache(root, ("1.0.0", None, 10))
+            marker = root / "plugins/cache/mkt/plug/1.0.0/.orphaned_at"
+            marker.symlink_to(outside)
+            self._registry(root)
+            with self.assertRaises(OSError):
+                engine.read_text_guarded(
+                    root, "plugins/cache/mkt/plug/1.0.0/.orphaned_at"
+                )
+            found, _note = self._run(root)
+            self.assertIsNone(found[0]["orphaned_at"])
+
+    def test_content_read_lists_only_files_that_were_opened(self) -> None:
+        def read_paths(root: Path) -> list[str]:
+            return [p for e in _scan(root)["entries"] for p in e["content_read_paths"]]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cache(root, ("1.0.0", self._ms(30), 10))
+            self.assertEqual(read_paths(root), [])
+            self._registry(root)
+            self.assertEqual(
+                sorted(read_paths(root)),
+                [
+                    "plugins/cache/mkt/plug/1.0.0/.orphaned_at",
+                    "plugins/installed_plugins.json",
+                ],
+            )
 
 
 if __name__ == "__main__":

@@ -154,8 +154,8 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 `unreferenced_versions` lists each `plugins/cache/<marketplace>/<plugin>/<version>/` directory that
 no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
 `.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
-days or more). A directory with no marker has `orphaned_at: null` and is never past the window:
-nothing will sweep it. When the registry is missing, unparseable, or belongs to another root, the
+days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
+sweep is documented as starting from the marker, so it has no removal date. When the registry is missing, unparseable, or belongs to another root, the
 list is empty and `unreferenced_versions_note` says why; an empty list then means "not checked",
 not "none". The list is a report, not a deletion list, and removing anything stays with
 `/disk-hygiene:clean`. That skill treats the cache as managed state and leaves version directories
@@ -163,9 +163,14 @@ to the product's own sweep; do not remove them by hand.
 
 A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
 the previous version's path after an update. Restart the session to pick up the new version; the
-old path is expected, not a defect. Upstream behavior and its recheck trigger: the mid-session update
-note in the `/claude-ops:plugins` gotchas and
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference).
+old path is expected, not a defect.
+
+Basis for the 14-day window, the marker, and the running-session behavior: the plugin caching
+section of <https://code.claude.com/docs/en/plugins/loading> ("removes that directory in a
+background cleanup 14 days later, so a session that already loaded the old version keeps running").
+Verified 2026-09-29 against Claude Code 2.1.285 and that page as fetched that day. Recheck when the
+page changes the window, the marker name, or the sweep condition, or a release note names plugin
+cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `scripts/install_state.py`.
 
 ## Phase 4. Numeric names and liveness
 

@@ -72,8 +72,9 @@ EVIDENCE_VOCABULARY = frozenset(
 
 # Bumped whenever a section is added or a field's meaning changes. /2 added the
 # environment block, size attribution, the report header, shaped unknown samples,
-# grouped PID rows, the content_read flags and the sentinels block.
-SCHEMA = "claude-install-state/2"
+# grouped PID rows, the content_read flags and the sentinels block. /3 added
+# unreferenced_versions and its note.
+SCHEMA = "claude-install-state/3"
 
 # --------------------------------------------------------------------------
 # Secrets: paths whose CONTENTS are never opened by this engine.
@@ -140,7 +141,14 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
     """
     if is_never_read(relpath) or not may_read_content(relpath):
         raise SecretReadRefused(relpath)
-    return (root / relpath).read_text(encoding="utf-8", errors="replace")[:limit]
+    path = root / relpath
+    if relpath not in CONTENT_READ_ALLOWLIST and (
+        path.is_symlink() or not path.is_file()
+    ):
+        # A cached plugin controls these paths; never follow a link out of the audited root.
+        raise OSError(f"{relpath} is not a regular file")
+    with path.open(encoding="utf-8", errors="replace") as fh:
+        return fh.read(limit)
 
 
 # --------------------------------------------------------------------------
@@ -951,8 +959,13 @@ def rollup(
     rows: list[FileRow],
     retention_days: int,
     authored_threshold: int,
+    opened: frozenset[str] = frozenset(),
 ) -> list[dict]:
-    """Group per top-level entry, splitting listed surfaces from rolled-up bulk."""
+    """Group per top-level entry, splitting listed surfaces from rolled-up bulk.
+
+    `opened` holds the relpaths a later read step actually opened; the registry and
+    the per-version markers count as read only when they are in it.
+    """
     groups: dict[str, list[FileRow]] = {}
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
@@ -992,7 +1005,12 @@ def rollup(
         # surface: `settings.json` stays AUTHORED and the two sentinels stay
         # unclassified; the flag records the engine's own behavior, so the
         # retention section and this table agree about what was read.
-        read_paths = sorted(m.relpath for m in members if may_read_content(m.relpath))
+        read_paths = sorted(
+            m.relpath
+            for m in members
+            if m.relpath in opened
+            or (m.relpath in CONTENT_READ_ALLOWLIST and m.relpath != INSTALLED_PLUGINS)
+        )
         entry = {
             "entry": name,
             "surface": surface,
@@ -1627,7 +1645,10 @@ def _resolved(path: str | Path) -> Path | None:
 
 
 def unreferenced_versions(
-    root: Path, rows: list[FileRow], now: float | None = None
+    root: Path,
+    rows: list[FileRow],
+    now: float | None = None,
+    opened: set[str] | None = None,
 ) -> tuple[list[dict], str | None]:
     """Plugin cache version directories that no `installPath` references, largest first.
 
@@ -1635,8 +1656,10 @@ def unreferenced_versions(
     candidate's `.orphaned_at` marker, and never writes. When the registry cannot
     vouch for the cache (missing, unparseable, or no path in it lands under this
     root's cache), the result is an empty list and a note: a missing registry is
-    not evidence that every directory is unreferenced.
+    not evidence that every directory is unreferenced. Each file it opens is added
+    to `opened` when given.
     """
+    opened = set() if opened is None else opened
     sizes: dict[tuple[str, str, str], int] = {}
     for row in rows:
         parts = row.relpath.split("/")
@@ -1646,7 +1669,9 @@ def unreferenced_versions(
     if not sizes:
         return [], None
     try:
-        data = json.loads(read_text_guarded(root, INSTALLED_PLUGINS))
+        text = read_text_guarded(root, INSTALLED_PLUGINS)
+        opened.add(INSTALLED_PLUGINS)
+        data = json.loads(text)
     except (OSError, ValueError) as exc:
         return (
             [],
@@ -1669,7 +1694,9 @@ def unreferenced_versions(
             continue
         rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
         try:
-            epoch_ms = int(read_text_guarded(root, f"{rel}/.orphaned_at").strip())
+            marker = read_text_guarded(root, f"{rel}/.orphaned_at")
+            opened.add(f"{rel}/.orphaned_at")
+            epoch_ms = int(marker.strip())
             orphaned_at, age = iso(epoch_ms / 1000), (now - epoch_ms / 1000) / 86400
         except (OSError, ValueError, OverflowError):
             orphaned_at, age = None, None
@@ -1801,14 +1828,15 @@ def scan(
         for name in counts:
             counts[name].add(resample.get(name, 0))
 
-    entries = rollup(rows, days, authored_threshold)
+    opened: set[str] = set()
+    versions, versions_note = unreferenced_versions(root, rows, opened=opened)
+    entries = rollup(rows, days, authored_threshold, frozenset(opened))
     for entry in entries:
         entry["file_count_sampled"] = counts[entry["entry"]].as_dict(
             entry["entry"] in VOLATILE_DIRS
         )
 
     numeric = summarize_numeric(rows, self_pids=self_pids)
-    versions, versions_note = unreferenced_versions(root, rows)
 
     return {
         "schema": SCHEMA,
