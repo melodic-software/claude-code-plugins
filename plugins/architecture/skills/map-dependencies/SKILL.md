@@ -124,8 +124,27 @@ The Python adapter:
   are dynamic dependencies, a uv `workspace = true` source, a multi-line inline table, and
   an include that is missing or outside the root.
 
-Other ecosystems stay unread. The message names them. Rust and JVM adapters are not this
-skill yet.
+The Rust adapter:
+
+- Every `Cargo.toml` is a project node, id its repo-relative path.
+- A `path =` dependency in `[dependencies]`, `[dev-dependencies]` or `[build-dependencies]`
+  is an internal project edge when it names a folder inside the root holding a
+  `Cargo.toml`, and the evidence cites the declaration. A missing or out-of-root path is
+  `unresolved`.
+- A `[workspace]` `members` glob, minus `exclude`, is an internal project edge from the
+  workspace root to each `Cargo.toml` it matches; a literal member holding none is
+  `unresolved`.
+- A dependency written `workspace = true` takes its source from the nearest ancestor
+  `[workspace.dependencies]`: a `path =` entry is an internal edge, any other entry an
+  external one, and the evidence cites both declarations. A workspace entry no member
+  inherits draws no edge.
+- Every other dependency is an external edge to `pkg:rust:<name>`.
+- Any `[target.*]` dependency table, a `path =` under `[patch]` or `[replace]`, a
+  `workspace = true` with no workspace entry to resolve it, a multi-line inline table, and
+  a members glob the reader cannot resolve are `unread-manifest` findings.
+
+Other ecosystems stay unread. The message names them. The JVM adapter is not this skill
+yet.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
 above which the human diagram aggregates to directories. The JSON stays at project

@@ -890,5 +890,110 @@ pymix_json="$(bash "$GRAPH" "$pymix")"
 assert_contains "python beside go: ecosystem is mixed" "$pymix_json" '"ecosystem": "mixed"'
 assert_contains "python beside go: each node keeps its own ecosystem" "$pymix_json" '"id":"app/requirements.txt","name":"requirements.txt","path":"app/requirements.txt","ecosystem":"python"'
 
+# Rust: path dependencies are internal, crates are external, target tables are unread.
+rstree="$(make_tree rstree)"
+put "$rstree/Cargo.toml" '[package]
+name = "app"
+[dependencies]
+serde = "1"
+local = { path = "crates/local" }
+gone = { path = "crates/gone" }
+away = { path = "../../elsewhere" }
+[dev-dependencies]
+Tokio_Rt = { version = "1" }
+[target.'"'"'cfg(unix)'"'"'.dependencies]
+libc = "0.2"'
+put "$rstree/crates/local/Cargo.toml" '[package]
+name = "local"
+[build-dependencies]
+cc = { path = "../cc" }
+[dependencies.sub]
+path = "../sub"'
+put "$rstree/crates/cc/Cargo.toml" '[package]
+name = "cc"'
+put "$rstree/crates/sub/Cargo.toml" '[package]
+name = "sub"'
+put "$TEST_TMPDIR/elsewhere/Cargo.toml" '[package]
+name = "escape"'
+rs_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$rstree")"
+assert_contains "rust: ecosystem rust" "$rs_json" '"ecosystem": "rust"'
+assert_contains "rust: a Cargo.toml is a project node named by [package] name" "$rs_json" '{"id":"crates/local/Cargo.toml","name":"local","path":"crates/local/Cargo.toml","ecosystem":"rust","kind":"project"}'
+assert_contains "rust: a path dependency is an internal edge citing the declaration" "$rs_json" '{"from":"Cargo.toml","to":"crates/local/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: local = { path = \"crates/local\" }"}'
+assert_not_contains "rust: a path dependency is not also external" "$rs_json" '"to":"pkg:rust:local"'
+assert_contains "rust: a missing path is unresolved and keeps the declared path" "$rs_json" '"to":"crates/gone","kind":"project","status":"unresolved"'
+assert_contains "rust: a path outside the root is unresolved" "$rs_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "rust: the outside crate is never matched" "$rs_json" 'elsewhere/Cargo.toml'
+assert_contains "rust: a build-dependency path is an internal edge" "$rs_json" '{"from":"crates/local/Cargo.toml","to":"crates/cc/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/local/Cargo.toml: cc = { path = \"../cc\" }"}'
+assert_contains "rust: a [dependencies.name] table path is an internal edge" "$rs_json" '{"from":"crates/local/Cargo.toml","to":"crates/sub/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/local/Cargo.toml: [dependencies.sub] path = \"../sub\""}'
+assert_contains "rust: a crate is an external edge" "$rs_json" '{"from":"Cargo.toml","to":"pkg:rust:serde","kind":"package","status":"resolved","evidence":"Cargo.toml: serde = \"1\""}'
+assert_contains "rust: a crate name folds case and underscores" "$rs_json" '"to":"pkg:rust:tokio-rt"'
+assert_contains "rust: a target-specific table is an unread-manifest finding" "$rs_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: [target.'"'"'cfg(unix)'"'"'.dependencies]"}'
+assert_not_contains "rust: a target-specific dependency draws no edge" "$rs_json" 'pkg:rust:libc'
+rs_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rstree")"
+assert_equals "rust: two runs are byte-identical" "$rs_again" "$rs_json"
+
+# Rust workspace: members expand against the Cargo.toml files found; workspace = true resolves.
+rsws="$(make_tree rsws)"
+put "$rsws/Cargo.toml" '[workspace]
+members = ["crates/*", "tools/cli", "missing/one", "pkgs/{a,b}", "."]
+exclude = ["crates/old"]
+[workspace.dependencies]
+core = { path = "crates/core" }
+anyhow = "1"
+unused = { path = "crates/unused" }'
+put "$rsws/crates/core/Cargo.toml" '[package]
+name = "core"'
+put "$rsws/crates/old/Cargo.toml" '[package]
+name = "old"'
+put "$rsws/crates/unused/Cargo.toml" '[package]
+name = "unused"'
+put "$rsws/crates/app/Cargo.toml" '[package]
+name = "app"
+[dependencies]
+core = { workspace = true }
+anyhow.workspace = true
+nope = { workspace = true }'
+put "$rsws/crates/app/inner/Cargo.toml" '[package]
+name = "inner"'
+put "$rsws/tools/cli/Cargo.toml" '[package]
+name = "cli"'
+put "$rsws/loose/Cargo.toml" '[package]
+name = "loose"
+[dependencies]
+core = { workspace = true }'
+rsws_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$rsws")"
+assert_contains "rust: a members glob is an internal edge citing the declaration" "$rsws_json" '{"from":"Cargo.toml","to":"crates/app/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: members \"crates/*\""}'
+assert_contains "rust: a literal member is an internal edge" "$rsws_json" '"from":"Cargo.toml","to":"tools/cli/Cargo.toml","kind":"project","status":"resolved"'
+assert_not_contains "rust: an exclude removes the member" "$rsws_json" '"to":"crates/old/Cargo.toml"'
+assert_not_contains "rust: a single-star glob does not cross folders" "$rsws_json" '"to":"crates/app/inner/Cargo.toml"'
+assert_contains "rust: a literal member with no Cargo.toml is unresolved" "$rsws_json" '"to":"missing/one","kind":"project","status":"unresolved"'
+assert_not_contains "rust: the . member draws no edge" "$rsws_json" '"to":"."'
+assert_contains "rust: a member glob the reader cannot resolve is unread" "$rsws_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: members \"pkgs/{a,b}\""}'
+assert_contains "rust: workspace = true with a workspace path is internal and cites both declarations" "$rsws_json" '{"from":"crates/app/Cargo.toml","to":"crates/core/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/app/Cargo.toml: core = { workspace = true } via Cargo.toml: core = { path = \"crates/core\" }"}'
+assert_contains "rust: dotted workspace = true with a workspace version is external" "$rsws_json" '"from":"crates/app/Cargo.toml","to":"pkg:rust:anyhow","kind":"package","status":"resolved","evidence":"crates/app/Cargo.toml: anyhow.workspace = true via Cargo.toml: anyhow = \"1\""'
+assert_contains "rust: workspace = true with no workspace entry is unread" "$rsws_json" '{"kind":"unread-manifest","path":"crates/app/Cargo.toml","evidence":"crates/app/Cargo.toml: nope = { workspace = true }"}'
+assert_contains "rust: a workspace path entry is resolved against the workspace root folder" "$rsws_json" '{"from":"loose/Cargo.toml","to":"crates/core/Cargo.toml"'
+assert_not_contains "rust: a workspace entry no member inherits draws no edge" "$rsws_json" '"to":"crates/unused/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: unused'
+rsws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rsws")"
+assert_equals "rust: workspace runs are byte-identical" "$rsws_again" "$rsws_json"
+
+# workspace = true with no [workspace] ancestor at all is unread.
+rsorph="$(make_tree rsorph)"
+put "$rsorph/Cargo.toml" '[package]
+name = "orphan"
+[dependencies]
+core = { workspace = true }'
+rsorph_json="$(bash "$GRAPH" "$rsorph")"
+assert_contains "rust: workspace = true with no workspace root is unread" "$rsorph_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: core = { workspace = true }"}'
+
+# Rust beside Python is one mixed record.
+rsmix="$(make_tree rsmix)"
+put "$rsmix/svc/Cargo.toml" '[package]
+name = "svc"'
+put "$rsmix/app/requirements.txt" 'click'
+rsmix_json="$(bash "$GRAPH" "$rsmix")"
+assert_contains "rust beside python: ecosystem is mixed" "$rsmix_json" '"ecosystem": "mixed"'
+assert_contains "rust beside python: each node keeps its own ecosystem" "$rsmix_json" '"id":"svc/Cargo.toml","name":"svc","path":"svc/Cargo.toml","ecosystem":"rust"'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

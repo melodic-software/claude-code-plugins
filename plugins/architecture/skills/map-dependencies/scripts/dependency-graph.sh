@@ -172,6 +172,29 @@
 # 2026-09-29. Recheck when any page changes what a dependency string, a
 # requirements line, or a path source may hold.
 #
+# The Rust adapter (lib/rust-references.sh): every Cargo.toml is a project node
+# whose id is its repo-relative path, named by [package] name else its folder.
+# A path = dependency in [dependencies], [dev-dependencies] or
+# [build-dependencies] naming a folder inside the root that holds a Cargo.toml
+# is an internal project edge citing the declaration; a missing or out-of-root
+# path is status "unresolved". Every other dependency is an external edge to
+# "pkg:rust:<lower-case name, _ as ->". A [workspace] members glob (minus
+# exclude) is an internal project edge from the workspace root to each
+# Cargo.toml it matches under the root's folder; a literal member holding none
+# is "unresolved". A dependency written workspace = true takes its source from
+# the nearest ancestor Cargo.toml with a [workspace] table: a
+# [workspace.dependencies] path = entry gives an internal edge, any other entry
+# an external one, and the evidence cites both declarations. A
+# [workspace.dependencies] entry no member inherits draws no edge. Unread: any
+# [target.*] dependency table, a path = under [patch] or [replace], workspace =
+# true with no [workspace.dependencies] entry to resolve it, a dependency value
+# that is neither a string nor an inline table, an inline table split across
+# lines, and a members glob node_glob_regex refuses.
+# Basis: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html
+# https://doc.rust-lang.org/cargo/reference/workspaces.html Verified
+# 2026-09-29. Recheck when either page changes what a dependency entry or a
+# members entry may hold.
+#
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
 # resolution either way. The diagram is render-dependencies.sh.
@@ -201,6 +224,8 @@ source "$SCRIPT_DIR/../../../lib/node-references.sh"
 source "$SCRIPT_DIR/../../../lib/go-references.sh"
 # shellcheck source=../../../lib/python-references.sh
 source "$SCRIPT_DIR/../../../lib/python-references.sh"
+# shellcheck source=../../../lib/rust-references.sh
+source "$SCRIPT_DIR/../../../lib/rust-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -562,6 +587,7 @@ gowork_files=()
 py_files=()
 req_files=()
 setup_files=()
+cargo_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -582,7 +608,7 @@ for rel in "${files[@]+"${files[@]}"}"; do
   setup.py) setup_files+=("$rel") ;;
   go.mod) go_files+=("$rel") ;;
   go.work) gowork_files+=("$rel") ;;
-  Cargo.toml) OTHER[rust]="$rel" ;;
+  Cargo.toml) cargo_files+=("$rel") ;;
   pom.xml | build.gradle*) OTHER[jvm]="$rel" ;;
   Gemfile) OTHER[ruby]="$rel" ;;
   composer.json) OTHER[php]="$rel" ;;
@@ -597,7 +623,7 @@ done
 # it is the key a manifest gets in OTHER above once a reader ships. READERS
 # lists the shipped readers, in the order they run. A reader parses in its own
 # file, lib/<name>-references.sh, sourced above.
-READERS=(dotnet node go python)
+READERS=(dotnet node go python rust)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
@@ -1135,6 +1161,139 @@ read_python() {
   for rel in "${req_files[@]+"${req_files[@]}"}"; do
     seen=()
     py_read_req "$rel" "$(py_owner "$rel")"
+  done
+}
+
+has_rust() { [[ ${#cargo_files[@]} -gt 0 ]]; }
+
+read_rust() {
+  local -A is_cargo=() recs=() has_ws=() wdep=()
+  local rel dir name label rec kind a b c d us=$'\x1f'
+
+  for rel in "${cargo_files[@]}"; do is_cargo[$rel]=1; done
+
+  # An edge from project $1 for the path $3 written relative to file $2, with
+  # the citation $4.
+  rust_path_edge() {
+    local n id
+    if n="$(normalize_within_root "$(proj_dir_of "$2")" "$3")" && [[ -n "${is_cargo[${n:+$n/}Cargo.toml]+x}" ]]; then
+      id="${n:+$n/}Cargo.toml"
+      [[ "$id" == "$1" ]] || add_edge "$1" "$id" "project" "resolved" "$4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$4"
+    fi
+  }
+
+  rust_pkg_edge() {
+    add_node "pkg:rust:$2" "$2" "" "package"
+    add_edge "$1" "pkg:rust:$2" "package" "resolved" "$3"
+  }
+
+  # Every Cargo.toml is one project node; its id is its repo-relative path.
+  for rel in "${cargo_files[@]}"; do
+    recs[$rel]="$(rust_manifest_records "$root/$rel")"
+    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+
+  # Direct dependencies. [workspace.dependencies] entries are kept for the
+  # workspace = true lookup below and draw no edge of their own.
+  for rel in "${cargo_files[@]}"; do
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c d <<<"$rec"
+      case "$kind" in
+      workspace) has_ws[$rel]=1 ;;
+      path) rust_path_edge "$rel" "$rel" "$a" "$rel: $b" ;;
+      pkg) rust_pkg_edge "$rel" "$a" "$rel: $b" ;;
+      wpath) wdep[$rel$us$c]="p$us$a$us$b" ;;
+      wpkg) wdep[$rel$us$a]="k$us$b$us$c" ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+  done
+
+  # workspace = true: the entry in the nearest ancestor (or own) Cargo.toml
+  # with a [workspace] table. No entry to resolve it is unread.
+  local wroot cur entry
+  for rel in "${cargo_files[@]}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == inherit$'\t'* ]] || continue
+      IFS=$'\t' read -r _ a b <<<"$rec"
+      wroot=""
+      cur="$(proj_dir_of "$rel")"
+      while :; do
+        if [[ -n "${has_ws[${cur:+$cur/}Cargo.toml]+x}" ]]; then
+          wroot="${cur:+$cur/}Cargo.toml"
+          break
+        fi
+        [[ -n "$cur" ]] || break
+        cur="$(proj_dir_of "$cur")"
+      done
+      entry=""
+      [[ -z "$wroot" ]] || entry="${wdep[$wroot$us$a]-}"
+      if [[ -z "$entry" ]]; then
+        add_unread_manifest "$rel" "$b"
+        continue
+      fi
+      IFS=$us read -r kind c d <<<"$entry"
+      if [[ "$kind" == p ]]; then
+        rust_path_edge "$rel" "$wroot" "$c" "$rel: $b via $wroot: $d"
+      else
+        rust_pkg_edge "$rel" "$c" "$rel: $b via $wroot: $d"
+      fi
+    done <<<"${recs[$rel]}"
+  done
+
+  # A [workspace] members glob names the Cargo.toml files this run found in the
+  # folders it matches, under the workspace root's folder. An exclude removes
+  # the folders it matches. A glob node_glob_regex refuses is unread. A literal
+  # member holding no Cargo.toml is an unresolved edge.
+  local wdir glob decl re cand cdir under ex hit m
+  local -a excl mems
+  for rel in "${cargo_files[@]}"; do
+    [[ -n "${has_ws[$rel]+x}" ]] || continue
+    wdir="$(proj_dir_of "$rel")"
+    excl=()
+    mems=()
+    while IFS=$'\t' read -r kind glob decl; do
+      case "$kind" in
+      exclude)
+        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
+        ;;
+      member) mems+=("$glob$us$decl") ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    for m in "${mems[@]+"${mems[@]}"}"; do
+      glob="${m%%"$us"*}"
+      decl="${m#*"$us"}"
+      [[ "$glob" == . || "$glob" == ./ ]] && continue
+      if ! re="$(node_glob_regex "$glob")"; then
+        add_unread_manifest "$rel" "$decl"
+        continue
+      fi
+      hit=0
+      for cand in "${cargo_files[@]}"; do
+        cdir="$(proj_dir_of "$cand")"
+        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
+        if [[ -z "$wdir" ]]; then
+          under="$cdir"
+        else
+          [[ "$cdir" == "$wdir"/* ]] || continue
+          under="${cdir#"$wdir"/}"
+        fi
+        [[ "$under" =~ $re ]] || continue
+        hit=1
+        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      done
+      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
+        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
+      fi
+    done
   done
 }
 
