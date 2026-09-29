@@ -3,6 +3,18 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.14] - 2026-09-29
+
+### Fixed
+
+- **An unset token no longer shows as a plugin error** ([#5208](https://github.com/melodic-software/claude-code-plugins/issues/5208)):
+  `miro_api_token` drops `required: true` (still `sensitive`), and the server starts without a
+  token instead of exiting. Each tool call then returns one error naming the option and the fix,
+  `/plugin configure miro@melodic-software`. A missing variable, an empty string, and the literal
+  unexpanded `${user_config.miro_api_token}` all count as unset. With a token set, behavior is
+  unchanged. `dist/index.min.js` is regenerated from source. README and the `setup` skill no longer
+  say the token is required or that the server exits at startup.
+
 ## [0.4.13] - 2026-09-28
 
 ### Added

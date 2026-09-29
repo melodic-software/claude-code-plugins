@@ -18,10 +18,13 @@ with `claude plugin enable miro` or the `/plugin` interface, and provide a token
 
 | Option | Storage | Purpose |
 |---|---|---|
-| `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. Required. The server exits at startup without it. |
+| `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. The server starts without it; until it is set, every Miro tool call returns an error that names the option and the configure command. |
 
-Get a token from <https://miro.com/app/settings/user-profile/apps>. Claude Code prompts
-for it at enable time (masked input). Sensitive values use the macOS Keychain, or
+Get a token from <https://miro.com/app/settings/user-profile/apps>. Claude Code does not prompt for it
+at install, and an unset token does not put the plugin in the `/plugin` Errors view. Enter it
+with `/plugin configure miro@melodic-software` (masked input); until then each tool call fails
+with that instruction. Setting `MIRO_API_TOKEN` in the server's environment also works, and an
+empty value or the unexpanded `${user_config.miro_api_token}` text counts as unset. Sensitive values use the macOS Keychain, or
 `~/.claude/.credentials.json` on platforms where no supported keychain is available;
 the token is substituted into the server's
 `MIRO_API_TOKEN` environment variable at launch.
@@ -64,11 +67,11 @@ you can keep `miro_api_token` out of Claude Code's secure credential storage and
 hand the token to the server at launch instead. This is entirely opt-in. Skip it and the plugin
 behaves exactly as described above.
 
-`miro_api_token` is `required: true`, so the plugin still needs *some* value to enable it. Enter a
-non-secret placeholder (for example, `vault-exec-managed`) at the enable-time prompt; it is never
-read, because the recipe below launches a different server process entirely.
+Leave `miro_api_token` unset. The plugin's own server then starts without a token and answers every
+tool call with the configure instruction, which is why the recipe below disables it per project
+and launches a different server process instead.
 
-1. Enable the plugin with the placeholder, as above.
+1. Enable the plugin.
 2. Locate this plugin's cached server bundle. Claude Code copies an installed plugin into a
    version-keyed cache directory,
    `~/.claude/plugins/cache/<marketplace>/miro/<resolved-version>/server/dist/index.min.js`. The
@@ -158,7 +161,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `miro_api_token` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive**: stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required, because the bundled MCP server exits at startup without it. Stored by Claude Code in secure credential storage, never settings.json. |
+| `miro_api_token` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive**: stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Until it is set, every Miro tool call returns an error that names this option and the configure command. Stored by Claude Code in secure credential storage, never settings.json. |
 
 ### How to set these
 

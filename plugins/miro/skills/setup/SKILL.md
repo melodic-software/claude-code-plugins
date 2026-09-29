@@ -8,8 +8,10 @@ disable-model-invocation: true
 ## Purpose
 
 Guide the user through Claude Code's native configuration flow and verify that the bundled Miro MCP
-server is available without reading, printing, or writing the sensitive token. Claude Code prompts for
-the required `miro_api_token` when the plugin is enabled and owns its secure credential storage.
+server is available without reading, printing, or writing the sensitive token. The `miro_api_token`
+option is optional in the manifest: the server starts without it, and a Miro tool call without a
+token returns an error that says to run `/plugin configure miro@<marketplace>`. Claude Code
+owns the secure credential storage.
 
 Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's entire
 configuration surface is the native sensitive `userConfig` token, so `check` (default and only
@@ -29,11 +31,13 @@ Official contracts:
    current tool inventory. Do not inspect settings files, environment variables, process arguments,
    debug logs, credential stores, or the token itself.
 2. When the plugin is disabled, direct the user to enable `miro` through the `/plugin` interface or
-   `claude plugin enable miro`. Claude Code's native prompt collects the required token. Do not run
+   `claude plugin enable miro`. The token is entered afterward with `/plugin configure miro@<marketplace>`. Do not run
    either command for the user and do not hand-edit `pluginConfigs`. For a non-interactive install
    (CI, a fleet bootstrap, a scripted machine setup), point to the headless path below instead.
 3. When the plugin is enabled but its tools are absent, report that startup or configuration failed.
-   Direct the user to the `/plugin` Errors view, then to the native configuration prompt for `miro`.
+   Direct the user to the `/plugin` Errors view and `/mcp`. An unset token is not a startup
+   failure: the server runs and each tool call returns the configure instruction, so absent tools
+   point to a different cause.
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
 4. When the scoped Miro tools are present, report that the server started and the token was supplied;
    do not claim that the token has valid API access merely from tool discovery.
@@ -41,7 +45,8 @@ Official contracts:
    never offer it as an in-flow question): call the read-only `miro_list_boards` tool with
    `limit: 1`. Never create, update, or delete a board during setup.
    - Success verifies API access; report only the count returned, not board names, IDs, or URLs.
-   - Authentication failure directs the user back to Claude Code's native configuration prompt.
+   - A tool error saying the token is not set, or an authentication failure, directs the user to
+     `/plugin configure miro@<marketplace>`.
    - Network, rate-limit, or service failure is reported as a distinct degraded state; do not tell the
      user to replace a credential unless the response identifies authentication as the cause.
 
