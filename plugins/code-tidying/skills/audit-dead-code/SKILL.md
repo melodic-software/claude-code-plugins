@@ -1,5 +1,5 @@
 ---
-description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Orphaned files are any source language. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
+description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Orphaned files: recognised source extensions only. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,11 +33,11 @@ Every figure in the Measured character column comes from this plugin's own trap 
 `evals/fixtures/`, as recorded on 2026-08-23. Recheck trigger: a major version bump in any lane's
 detector, or a change to the fixture corpus. Re-measure before quoting one to a user.
 
-Orphaned-**file** coverage is language-agnostic. The grep lane emits `unreferenced-file` at tier 2
+Orphaned-**file** coverage spans source files with a recognised extension; the extension list is closed. The grep lane emits `unreferenced-file` at tier 2
 when a source file's basename and its repo-relative path (plus its stem, for a language with no
 lane) have no literal reference in any other tracked file. That set is shell, PowerShell, Python entry points (a line-1 shebang, a
 `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, and source files in languages with no
-lane. Knip still reports unused TS/JS files inside a `package.json` root. A reference in a CI
+lane. Files with an unlisted extension (for example `.s`, `.sol`) and extensionless scripts are not classified. Knip still reports unused TS/JS files inside a `package.json` root. A reference in a CI
 workflow, settings file, manifest, or doc saves the file. A computed path or a glob does not, so
 the candidate is **uncertain, not dead**. Rust and .NET stay out of the build-based detectors; an
 unreferenced file there is still this candidate, because those builds do not spell every path.

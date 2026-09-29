@@ -698,6 +698,19 @@ assert_not_contains "settings reference saves the script" "$evid_out" "File: scr
 assert_not_contains "doc reference saves the script" "$evid_out" "File: scripts/from-docs.sh"
 assert_not_contains "manifest reference saves the script" "$evid_out" "File: scripts/from-manifest.sh"
 
+TAB_REPO="$TEST_TMPDIR/unref-tab"
+init_repo "$TAB_REPO"
+mkdir -p "$TAB_REPO/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'echo t' >"$TAB_REPO/scripts/a"$'\t'"b.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo o' >"$TAB_REPO/scripts/plain-orphan.sh"
+stage_repo "$TAB_REPO"
+tab_exit=0
+tab_out="$(cd "$TAB_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || tab_exit=$?
+assert_exit "tab-in-path scan exits 0" 0 "$tab_exit"
+assert_equal "only the plain orphan is a candidate" "1" "$(count_shape "$tab_out" "Finding shape: unreferenced-file")"
+assert_contains "the plain orphan is reported" "$tab_out" "File: scripts/plain-orphan.sh"
+assert_not_contains "the tab-named file yields no candidate" "$tab_out" "b.sh"
+
 BASE_REPO="$TEST_TMPDIR/unref-basename"
 init_repo "$BASE_REPO"
 mkdir -p "$BASE_REPO/scripts"

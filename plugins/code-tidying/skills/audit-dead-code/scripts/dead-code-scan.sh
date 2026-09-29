@@ -782,6 +782,8 @@ emit_unreferenced_files() {
   : >"$WORK/filekeys.txt"
   for f in ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
+    # A tab or newline in a path would split its owners.tsv row.
+    [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
     base="${f##*/}"
     # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
     # `#include "util.h"` spells the name), so a no-lane file is also keyed on

@@ -49,7 +49,7 @@ Six skills, one capability:
   nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
   symbols, and a portable grep lane for shell and PowerShell symbols plus
-  unreferenced source files in any language). Every
+  unreferenced source files with a recognised extension). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
   writes nothing and deletes nothing.
