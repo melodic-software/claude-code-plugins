@@ -3,6 +3,27 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-09-29
+
+### Added
+
+- **test-value:** new model-invoked skill stating where each expected value must come from, when
+  call-count checks (unmanaged, state-changing boundaries) and direct database reads are
+  legitimate, the EF Core `DbContext` carve-out, refactoring inside the TDD loop, and the can't-fail
+  and change-detector taxonomy keyed to `testing:audit` rule ids. `write`, `plan` and `diagnose`
+  point to it and each gains a `## Next` section.
+
+### Changed
+
+- **write:** the per-cycle checklist points to `testing:test-value` instead of listing oracle
+  sources, and keeps the round-trip caution. "Verify through the interface" now calls a direct
+  read of a managed database after the act step state verification, and flags only a read of an
+  internal table when a public read path exists.
+- **audit, hooks:** `rule-recomputed-derived` reports at SUGGESTION, not IMPORTANT: a derived
+  expectation can fail, but passes when the test and the code share a mistake. `test-scan` leads
+  such a finding with "check little", not "cannot fail". It stays report-only.
+- **README:** documents the two `userConfig` options and the hooks they gate, and lists seven skills.
+
 ## [0.11.0] - 2026-09-29
 
 ### Added
