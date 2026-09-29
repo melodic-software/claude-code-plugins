@@ -1,0 +1,27 @@
+// expect: rule-zero-assertion
+// The ignore covers only the fixture it decorates: the next fixture runs, and
+// its test refunds a cart without looking at the result.
+using NUnit.Framework;
+
+[TestFixture, Ignore("the payment sandbox is down")]
+public class CartRefundSandboxTests
+{
+    [Test]
+    public void Refund_CallsTheSandbox()
+    {
+        new PaymentSandbox().Refund(new Cart());
+    }
+}
+
+[TestFixture]
+public class CartRefundTests
+{
+    [Test]
+    public void Refund_EmptiesTheCart()
+    {
+        var cart = new Cart();
+        cart.Add(new Item("pen", 2m));
+
+        cart.Refund();
+    }
+}
