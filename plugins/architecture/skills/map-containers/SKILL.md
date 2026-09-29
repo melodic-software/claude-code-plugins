@@ -1,5 +1,5 @@
 ---
-description: "Chart one software system as a C4 container diagram: deployables, and the stores and brokers they bind in tracked configuration. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
+description: "Chart one software system as a C4 container diagram: deployables, the stores and brokers they bind in tracked configuration, and the edges their configured endpoints resolve to. Use when: 'map containers', 'container diagram', 'what actually runs', 'deployables and databases', 'modular monolith', 'which services bind to which broker'. Skip when: which repositories exist (map-landscape), what is inside one deployable (map-components), or environment topology."
 argument-hint: "[system] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -102,12 +102,26 @@ Finding lines, in an optional `findings` array, start with `{"kind":`. A deploya
 `web`, `api`, `worker`, `cli`, `function`, or `process`. A store `kind` is `store`. `technology` is
 a runtime, framework, or image, or the literal `unknown`. An edge `kind` is `uses` or
 `shared-infrastructure`. A store with three owners is three `shared-infrastructure` edges, one per
-pair of owners, and each cites the config keys of both.
+pair of owners, and each cites the config keys of both. A `uses` edge runs from a deployable to
+another deployable and cites the config key that names the endpoint and the fact that resolved it.
 
 The store kinds read are `sql` (a relational or document database), `storage` (a blob storage
-account), `broker` (a message broker), and `cache`. A compose service whose image is postgres,
-mysql, mariadb, mssql, mongo, redis, rabbitmq, nats, or kafka is a store of the matching kind. Search
-indexes and any other kind of store are not read, so none is drawn.
+account), `broker` (a message broker), `cache`, and `search` (a search index service). A compose
+service whose image is postgres, mysql, mariadb, mssql, mongo, redis, rabbitmq, nats, kafka,
+elasticsearch, or opensearch is a store of the matching kind. Any other kind of store is not read,
+so none is drawn.
+
+A `search` store's `technology` is `Azure AI Search`, `OpenSearch`, `Elasticsearch`, or `unknown`,
+chosen from the host by `store_technology` in `collect-containers.sh`; a compose service's is its
+image. A search store is drawn as a database element.
+
+An endpoint is an `http` or `https` URL a deployable's own configuration names. It is an edge only
+when it resolves to exactly one other deployable through a cited fact: a compose service whose
+build context is that deployable's directory (the URL host is the service name and any declared
+port equals the URL's), or a `launchSettings.json` `applicationUrl` on that deployable (host
+`localhost` or `127.0.0.1`, same port). A name's resemblance to a deployable resolves nothing. An
+endpoint that resolves to no deployable or to several draws no edge and is an `external-endpoint`
+finding carrying its redacted host. A deployable naming itself draws no edge.
 
 A `sql` store is one host, port, and database. The database comes from `Initial Catalog` or
 `Database` in a connection string, or the first path segment of a `postgres://`, `postgresql://`,
@@ -165,8 +179,11 @@ End every run with this block, in this order, filled from the record and the scr
 - **Focal**: the system name, and that it is the repository being charted.
 - **Deployables**: the summary's `deployables=` count, and that kind came from output type, host
   builder, Dockerfile, or process manifest.
-- **Stores**: the summary's `stores=` count, and that the kinds read are sql, storage, broker, and
-  cache. Every store cites a file and a config key.
+- **Stores**: the summary's `stores=` count, and that the kinds read are sql, storage, broker,
+  cache, and search. Every store cites a file and a config key.
+- **Edges**: the summary's `edges=` count, which includes `uses` and `shared-infrastructure` edges,
+  and the count of `external-endpoint` findings. Each `uses` edge cites the config key and the
+  resolving fact.
 - **Modules**: the summary's `modules=` count. A modular monolith is one container.
 - **Shared**: the summary's `shared=` count. Each shared-infrastructure edge is one pair of owners
   and cites the config keys of both.
@@ -192,9 +209,9 @@ End every run with this block, in this order, filled from the record and the scr
   `containers.json` and `containers.md` under the resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
-- Treat two projects in one repository as an edge. An edge needs a cited store binding.
-  Deployable-to-deployable edges from configured endpoints are not extracted, so the diagram shows
-  none.
+- Treat two projects in one repository as an edge. An edge needs a cited store binding or a
+  configured endpoint that resolves to a charted deployable. An endpoint that resolves to none is
+  an `external-endpoint` finding, not an edge.
 
 ## Next
 
@@ -225,10 +242,20 @@ End every run with this block, in this order, filled from the record and the scr
   <https://likec4.dev/dsl/model/>, <https://likec4.dev/dsl/views/>, and
   <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
   validate` exiting 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
-  (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`), which
+  (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`, `containers-endpoints.c4`), which
   `collect-containers.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages
   changes that syntax or a newer `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the
   test to re-run the CLI.
+- **A search store is read from a host or a compose image.** Claim: an Azure AI Search endpoint is
+  `https://<service-name>.search.windows.net`, so a host with that suffix is labeled
+  `Azure AI Search`. Basis:
+  <https://learn.microsoft.com/en-us/azure/search/search-create-service-portal>. As of: 2026-09-29.
+  Recheck when that page changes the endpoint form or the service moves to another domain. The
+  other hosts the collector labels are listed in `store_technology`; a search service on any other
+  host is labeled `unknown`.
+- **An endpoint is not an edge until it resolves.** A `localhost` URL with no `applicationUrl` on a
+  charted deployable, a service name with no compose build context, and a URL naming an external
+  service are all `external-endpoint` findings. A `uses` edge is one per ordered pair.
 - **Directory names are not deployables.** `Microsoft.NET.Sdk.Web` in a directory named Worker is a
   web host. A class library in a directory named Api is a module. Host-builder usage is read only
   for a project that is already an entry point (web SDK, worker SDK, functions, or `OutputType` Exe).
