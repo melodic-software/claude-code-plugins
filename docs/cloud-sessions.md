@@ -212,7 +212,8 @@ when a marketplace is declared, enabled, **and installed**. `.claude/settings.js
 marketplace and carries this repo's deltas, the fleet list baked into the snapshot turns the
 catalog on, and the cloud bootstrap installs from the two together (see
 [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
-[extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)):
+[extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) /
+[enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)):
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
