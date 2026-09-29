@@ -115,17 +115,9 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
    before naming anything in the bullets below.
    - No upscaler: the game ships no DLSS, FSR 2+ or XeSS, so the **in-process OptiScaler route**
      has nothing to hook. Tell the user plainly. Wiki-listed upscaler mods remain another path
-     (`reference/candidate-selection.md`). Name **DLSS5-Feeder** only when `antiCheat.status` is
-     `none-disclosed`: point to the manual path in
-     [`reference/feeder-route.md`](reference/feeder-route.md) as unverified, say `apply` does not
-     install it (#4592), repeat the `note`, and tell the user to play modded only solo or offline.
-     When the status is `signals` or `unknown`, do not point to it: say the Feeder route does not
-     lower anti-cheat risk (its verification record in `feeder-route.md` holds the basis), and never
-     suggest bypassing or disabling an anti-cheat.
+     (`reference/candidate-selection.md`). Never suggest bypassing or disabling an anti-cheat.
    - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so in-process OptiScaler NR cannot
-     load in the game process. Tell the user plainly; an upscaler mod does not change this. That
-     dead end covers the in-process route only: `feeder-route.md` lists a separate unverified
-     manual 32-bit path, which `assess` names only under the same `none-disclosed` condition.
+     load in the game process. Tell the user plainly; an upscaler mod does not change this.
 4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
 5. `eligible`: report the launcher, the game name and the anti-cheat status with every signal and
    every `unchecked` line. `none-disclosed` carries its `note`: say it means no kernel anti-cheat
