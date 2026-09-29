@@ -1187,8 +1187,18 @@ function argumentHintMalformed(value) {
   return false;
 }
 
+function argumentsLineSpan(text) {
+  let fenced = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced;
+    else if (!fenced && line.startsWith("**Arguments.**")) return /`([^`]+)`/.exec(line)?.[1] ?? null;
+  }
+  return null;
+}
+
 for (const path of argumentSkills) {
-  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const content = read(path);
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
   const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
   if (!hint) continue;
   // A trailing YAML comment is not part of the value: `"" # none` is empty.
@@ -1211,6 +1221,12 @@ for (const path of argumentSkills) {
   if (argumentHintMalformed(value)) {
     warnings.push(
       `${relative(root, path)}: argument-hint is malformed: block scalar, em dash, parenthetical example, Default: prose, or an unspaced pipe outside brackets (${ARGUMENT_HINT_DOC})`,
+    );
+  }
+  const span = argumentsLineSpan(content.slice(frontmatter.length));
+  if (span !== null && span !== value) {
+    warnings.push(
+      `${relative(root, path)}: the **Arguments.** line does not lead with the argument-hint (${ARGUMENT_HINT_DOC})`,
     );
   }
 }
