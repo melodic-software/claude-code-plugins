@@ -198,7 +198,8 @@ Never pad a quiet run by re-listing standing findings to look useful.
 
 ## Next
 
-`/instruction-placement:realign`. It applies the moved findings the operator accepts.
+- Findings moved: `/instruction-placement:realign`. It applies the moved findings the operator accepts.
+- Quiet run: none. Nothing moved, so there is nothing to apply.
 
 ## Gotchas
 
