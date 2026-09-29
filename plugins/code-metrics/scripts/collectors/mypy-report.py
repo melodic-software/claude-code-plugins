@@ -9,7 +9,10 @@ a fixed-width table with the columns Name, Anys, Exprs, Coverage, one row per
 module it was given, and a `Total` row. This adapter prints one row per scope
 file whose module mypy listed (`file` set, `function` null) and one lane row
 (`file` null, label `lane-total`) whose values are the sum of those file rows,
-so a change-scoped run reports the scope's own coverage. The report directory
+so a change-scoped run reports the scope's own coverage. The lane row also
+carries `partial` when files were held out (see below), so its labels read
+`lane-total, partial` and, when mypy exited non-zero, `lane-total, partial,
+mypy-reported-errors`. File rows are unlabeled. The report directory
 is a temporary one, created and removed here, because mypy overwrites the
 whole directory.
 
@@ -64,7 +67,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   groups the scope by derived name, the first file of each group (scope order,
   the one mypy itself keeps) is measured, and the rest are named in the
   partial reason, which makes the run row `partial` rather than
-  `unavailable`. A duplicate the derivation did not predict (mypy's
+  `unavailable` and adds `partial` to the lane row's labels. A duplicate the derivation did not predict (mypy's
   `__init__.py` naming mode below) is held out from mypy's own message and the
   run repeats, once per held-out file at most. mypy accepts the flag only while namespace
   packages are on (its default), so when the consumer's config turns them off
@@ -321,7 +324,11 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     notes: list[str] = [naming_note] if naming_note else []
     if result.returncode != 0:
         notes.append(error_note(result.stdout))
-    labels = ["lane-total"] + (["mypy-reported-errors"] if result.returncode else [])
+    labels = [
+        "lane-total",
+        *(["partial"] if held_out else []),
+        *(["mypy-reported-errors"] if result.returncode else []),
+    ]
     by_path = {path: name for name, path in matched.items()}
     # File rows in scope order, whatever order the names matched in.
     file_rows = [_row(lane, p, modules[by_path[p]], []) for p in scope if p in by_path]

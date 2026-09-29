@@ -132,8 +132,8 @@ the collectors.
   identifier, so two same-named files under two hyphenated directories (`my-pkg/mod.py`,
   `other-pkg/mod.py`) derive one module name. The collector measures the first of them (scope
   order, the one mypy itself keeps) and every other file, holds the rest out, and the run row
-  reads `partial` with each held-out file named in its reason; no percentage is given for a file
-  it held out. mypy accepts the flag only while namespace packages are on (its default), so a
+  reads `partial` with each held-out file named in its reason; the lane row is labeled `partial`
+  too, and no percentage is given for a file it held out. mypy accepts the flag only while namespace packages are on (its default), so a
   consumer config that turns them off makes the run repeat without it, in mypy's own naming
   (packages from `__init__.py` files), and the run row's reason says so; a file that collides in
   that mode is held out the same way. Any other blocking mypy error (a usage or config error)
