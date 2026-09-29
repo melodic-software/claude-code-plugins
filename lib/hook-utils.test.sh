@@ -3378,6 +3378,14 @@ case "$p" in
   esac
   p="$d:$rest"
   ;;
+/tmp/*/src/*)
+  # Disagree with the directory's conversion on purpose, so a helper that
+  # trusts cygpath alone degrades to the basename.
+  p="D:/diverged/${p#/tmp/}"
+  ;;
+/tmp/*)
+  p="C:/users/temp/${p#/tmp/}"
+  ;;
 *) ;;
 esac
 printf '%s\n' "$p"
@@ -3464,6 +3472,39 @@ rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b
 # drive-letter case degrades exactly as the nocyg control does.
 rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
 rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
+# Trailing separator, drive-letter case, and a cygpath that disagrees with
+# itself. Each one came back as the basename on Windows Git Bash (#4527).
+rrp_case cyg "a trailing slash on the root still strips" 'C:/repo/src/run.sh' 'C:/repo/' src/run.sh 0
+rrp_case cyg "drive-letter case does not matter" 'C:/Repo/src/run.sh' 'c:/repo' src/run.sh 0
+rrp_case cyg "cygpath disagreement falls back to the caller's spelling" /tmp/repo/src/run.sh /tmp/repo src/run.sh 0
+rrp_case nocyg "a trailing slash on a POSIX root still strips" /repo/src/run.sh /repo/ src/run.sh 0
+rrp_case cygposix "a POSIX backslash is a filename character, not a separator" '/repo\outside/secret.txt' /repo secret.txt 1
+
+# physical_path_to on Windows with realpath and readlink absent must stay
+# UNRESOLVED even when cygpath answers: cygpath does not follow symlinks, and
+# block-hook-bypass `_bbh_physical_path` and secret-pattern-detection step 7
+# refuse their temp exemption only because this returns 1. The target is a
+# temp symlink pointing into a repository, the #3727 bypass shape.
+mkdir -p "$RRP_DIR/repo" "$RRP_DIR/temp"
+ln -s "$RRP_DIR/repo" "$RRP_DIR/temp/to-repo"
+PHYS_PROBE=$(
+  # shellcheck disable=SC2016  # the child's $1 is its own positional, quoted on purpose
+  PATH="$RRP_DIR/cyg" "$BASH" -c '
+    OSTYPE=msys
+    # shellcheck source=hook-utils.sh
+    source "$1"
+    _out=""
+    hook::physical_path_to _out "$2"
+    printf "%s\n%s\n" "$?" "$HOOK_PHYSICAL_PATH_UNRESOLVED"
+  ' _ "$HOOK_DIR/hook-utils.sh" "$RRP_DIR/temp/to-repo"
+)
+PHYS_RC="${PHYS_PROBE%%$'\n'*}"
+PHYS_FLAG="${PHYS_PROBE#*$'\n'}"
+if [[ "$PHYS_RC" == 1 && "$PHYS_FLAG" == 1 ]]; then
+  ok "physical_path_to: msys temp symlink with only cygpath stays unresolved"
+else
+  fail "physical_path_to msys cygpath-only: rc=$PHYS_RC flag=$PHYS_FLAG"
+fi
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
