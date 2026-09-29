@@ -62,13 +62,6 @@ personal `~/.claude/<surface>` as the team layer.
   `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
   ladder without reading every conformance cell. Engines stay per-surface.
   No `contract_version` bump: no layering rule changed.
-- **Location outliers ruled (#3577).** `standards` layer location outside `.claude/`
-  (default `docs/standards/`) is ratified, the axis #649 left open. `work-items`
-  recurring schedule stays at `.github/recurring-schedule.json` (team-only, no
-  overlay). `songwriting` prompt-template overrides stay at
-  `songwriting/templates/pat-pattison/` (team-only, not a cascade). Relocating any
-  of the three under `.claude/` was rejected. The `work-items` binding at repo
-  root was already ADR 0015. No contract rule change, so no version bump.
 - **`code-metrics` `.claude/code-metrics.yaml` (#3847).** The table gains the surface the plugin already ships: all three layers, per-key override, keys owned by `plugins/code-metrics/reference/config.md`. No contract rule change, so no version bump.
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
   gains the surface's divergence from the degrade-soft rule (resolution step 5 after #4672): a layer whose
