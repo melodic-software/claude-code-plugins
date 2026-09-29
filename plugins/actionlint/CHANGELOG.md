@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- `/actionlint:setup apply` tells the operator to pass `-s user` when reconfiguring headlessly and not to copy a scope from `claude plugin list`, matching the plugin-reconfiguration convention. The setup eval expectation follows.
+
 ## [0.10.0] - 2026-09-29
 
 ### Changed

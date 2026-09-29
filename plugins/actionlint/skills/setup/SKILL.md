@@ -90,13 +90,14 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
   `/plugin configure actionlint@<marketplace>` any time, or headless
-  `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
+  `claude plugin install actionlint@<marketplace> -s user --config actionlint_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
-  `project` or `local` scope run from that project's directory, so the rerun matches the existing
-  install record; from the home directory pass `user`. A rejected value prints a warning yet
+  to its manifest default. Pass `-s user`: `-s` places the install record and the `enabledPlugins` entry, and the option
+  value lands in user settings whichever scope is passed. Do not copy a scope from
+  `claude plugin list`: a rerun at another scope adds a second install record and enables the
+  plugin there. A rejected value prints a warning yet
   exits 0, so read the output. This skill never writes user settings or `pluginConfigs`.
   Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
