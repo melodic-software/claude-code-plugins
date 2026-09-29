@@ -447,14 +447,14 @@ assert_not_contains "blind: nothing was left unread" "$blind_json" "unread-refer
 # makes a project reference itself; a props file with no known importer is
 # counted, not drawn.
 props="$(make_tree props)"
-for d in app tools shared; do mkdir -p "$props/src/$d"; done
+for d in app tools common; do mkdir -p "$props/src/$d"; done
 printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/app/App.csproj"
 printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/tools/Tools.csproj"
-printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/shared/Shared.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/common/Common.csproj"
 cat >"$props/src/Directory.Build.props" <<'PROPS'
 <Project>
   <ItemGroup>
-    <ProjectReference Include="..\shared\Shared.csproj" />
+    <ProjectReference Include="..\common\Common.csproj" />
     <PackageReference Include="Analyzers.Everywhere" Version="1.0.0" />
   </ItemGroup>
 </Project>
@@ -472,8 +472,8 @@ cat >"$props/Directory.Packages.props" <<'PROPS'
 PROPS
 printf '<Project><ItemGroup><ProjectReference Include="x.csproj" /><ProjectReference Include="y.csproj" /></ItemGroup></Project>\n' >"$props/Shared.props"
 props_json="$(bash "$GRAPH" "$props")"
-assert_contains "props: Directory.Build.props gives a project an edge" "$props_json" '"from":"src/app/App.csproj","to":"src/shared/Shared.csproj","kind":"project","status":"resolved","evidence":"src/Directory.Build.props: <ProjectReference Include=\"..\\shared\\Shared.csproj\" />"'
-assert_not_contains "props: a project never references itself through props" "$props_json" '"from":"src/shared/Shared.csproj","to":"src/shared/Shared.csproj"'
+assert_contains "props: Directory.Build.props gives a project an edge" "$props_json" '"from":"src/app/App.csproj","to":"src/common/Common.csproj","kind":"project","status":"resolved","evidence":"src/Directory.Build.props: <ProjectReference Include=\"..\\common\\Common.csproj\" />"'
+assert_not_contains "props: a project never references itself through props" "$props_json" '"from":"src/common/Common.csproj","to":"src/common/Common.csproj"'
 assert_contains "props: a package in Directory.Build.props is an edge" "$props_json" '"from":"src/tools/Tools.csproj","to":"pkg:Analyzers.Everywhere"'
 assert_contains "props: Directory.Build.targets applies to the projects below it" "$props_json" '"from":"src/tools/nested/Nested.csproj","to":"pkg:OnlyForTools"'
 assert_not_contains "props: Directory.Build.targets does not apply to a sibling" "$props_json" '"from":"src/app/App.csproj","to":"pkg:OnlyForTools"'
