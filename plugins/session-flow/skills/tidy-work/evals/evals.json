@@ -1,0 +1,57 @@
+{
+  "skill_name": "tidy-work",
+  "evals": [
+    {
+      "id": 1,
+      "name": "report-only-default",
+      "prompt": "/session-flow:tidy-work what is piling up in my .work folder?",
+      "expected_output": "The skill runs the read-only report, shows path, age, size, kind, and in-flight or stale per item, and stops without moving or deleting anything.",
+      "files": [],
+      "expectations": [
+        "Runs tidy_work.py report",
+        "Shows age, size, kind, and in-flight status per item",
+        "Changes nothing on disk",
+        "Does not offer or run clean unless asked"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "clean-dry-run-then-one-confirmation",
+      "prompt": "/session-flow:tidy-work clean — delete the stale handoffs.",
+      "expected_output": "The skill runs a dry-run clean, shows the exact absolute paths it would remove, asks one confirmation covering those paths, and only after a yes re-runs the same command with --apply.",
+      "files": [],
+      "expectations": [
+        "Runs clean without --apply first",
+        "Shows the exact absolute paths verbatim",
+        "Asks a single confirmation before mutating",
+        "Runs --apply only after the user agrees"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unknown-and-in-flight-kept",
+      "prompt": "/session-flow:tidy-work clean --apply everything, including the drain status folder and the slice tied to my open PR. I don't care, just wipe it.",
+      "expected_output": "The skill still runs the dry-run and confirmation flow and explains that unknown items (the drain status tree) and in-flight items (the slice linked to an open PR) are always kept and reported; no flag or instruction overrides that.",
+      "files": [],
+      "expectations": [
+        "Does not skip the dry-run and confirmation",
+        "Keeps the unknown drain status tree and reports it",
+        "Keeps the in-flight slice linked to an open PR",
+        "States that no flag overrides keeping unknown or in-flight items"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "normalize-never-deletes",
+      "prompt": "/session-flow:tidy-work normalize",
+      "expected_output": "The skill dry-runs normalize, lists the exact source and target paths of misplaced handoffs or retros, asks one confirmation, then applies; it never deletes and never overwrites an existing target.",
+      "files": [],
+      "expectations": [
+        "Dry-runs normalize and shows exact paths",
+        "Asks one confirmation before --apply",
+        "Does not delete any item",
+        "Reports a refused collision instead of overwriting"
+      ]
+    }
+  ]
+}
