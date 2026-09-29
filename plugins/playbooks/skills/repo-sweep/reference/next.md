@@ -85,7 +85,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
    edit them here, and ask whether to draft an issue in the source repository, filed only when
    the user asks. When the agreed fix lives in another repository, file the issue there after the
-   user approves, then tick `filed <issue-url>`, never `no-findings`. Do not run `/planning:interview` for this. Record each question and answer for
+   user approves and keep the issue URL; section 4 ticks `filed <issue-url>`, never `no-findings`. Do not run `/planning:interview` for this. Record each question and answer for
    the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
@@ -110,7 +110,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    step 4 questions and answers. Write them to `W/scope-decisions.md`, its body starting
    `repo-sweep scope decisions: <id>`, post them with `gh pr comment --body-file
    W/scope-decisions.md` (this session's own sweep PR only), then tick `declined <n>` where
-   `<n>` is the number of declined findings, never `no-findings`. Otherwise count findings the
+   `<n>` is the number of declined findings, never `no-findings`. When the agreed fix was filed in another repository (section 3 step 4), the outcome is `filed <issue-url>`. Otherwise count findings the
    skill marks report-only (tiers the procedure says never edit in this pass, such as
    `source-fetched-similar` or `not-found`). When that count is greater than zero, tick
    `report-only <n>` where `<n>` is that count. When there are zero findings of any kind, tick

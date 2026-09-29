@@ -93,8 +93,8 @@ line is one base outcome, then an optional partial suffix, or the separate not-a
 - Base outcomes: `committed <short-sha>`, `no findings`, `no fix-eligible findings (N
   report-only)` when the skill produced report-only tiers the user reviewed and nothing was edited,
   `filed <issue-url>` when the step's only findings were fixed in another repository and filed
-  there (`history.sh` does not recommend a rerun for it; the operator decides when the upstream
-  issue closes), or `findings declined (N)` when the user declined every fix-eligible finding shown. No commit
+  there (`history.sh` adds no rerun path for it, so only a changed skill version recommends one;
+  the operator decides when the upstream issue closes), or `findings declined (N)` when the user declined every fix-eligible finding shown. No commit
   carries the scope decisions of a declined step, so they live in a `repo-sweep scope decisions:
   <id>` comment on the sweep PR.
 - Suffix `, partial coverage: <detail>` (one line, no commas) when the skill ran but did not
