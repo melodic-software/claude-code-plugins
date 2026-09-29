@@ -21,8 +21,12 @@
 // Empty and relative PATH entries are skipped, so the working directory
 // never supplies a bash.
 //
-// Exit 1 when bash cannot be resolved or the usage is wrong. That is a
-// hook error, not a guard block. A guard's own exit 2 passes through.
+// A launcher failure (no bash, spawn error, wrong usage, child killed by a
+// signal) exits 1 after one stderr line that names the script and what the
+// failure means for the hook, built by failureLine. Nothing goes to stdout:
+// Claude Code ignores the exit code when stdout holds a JSON object, and
+// the hook would no longer be reported as an error. Exit 1 is a hook error,
+// not a guard block. A guard's own exit 2 passes through.
 
 import { spawn } from "node:child_process";
 import { statSync } from "node:fs";
@@ -71,7 +75,7 @@ export function parseLaunchArgs(argv) {
     if (flag !== "--require-true" && flag !== "--run-if-unset-or-true") break;
     const name = argv[i + 1];
     if (!name || name.startsWith("-") || !/^[A-Z0-9_]+$/.test(name)) {
-      return { error: `${flag} needs the CLAUDE_PLUGIN_OPTION_ suffix (A-Z, digits, underscore)` };
+      return { error: `usage: ${flag} needs the CLAUDE_PLUGIN_OPTION_ suffix (A-Z, digits, underscore)` };
     }
     gates.push({ flag, name });
     i += 2;
@@ -137,21 +141,42 @@ export function resolveBash(env, platform, exists) {
   return firstExisting([...pathCandidates(env, platform), "/bin/bash", "/usr/bin/bash"], platform, exists);
 }
 
-function fail(message) {
-  process.stderr.write(`exec-bash: ${message}\n`);
+const WINDOWS_FIX =
+  "Set CLAUDE_CODE_GIT_BASH_PATH to Git's bash.exe (System32\\bash.exe is the WSL relay and is never used).";
+
+const NOT_RUN = ({ name }) => `exec-bash: ${name} did not run, so this hook enforces nothing:`;
+
+const FAILURE_LINES = {
+  "no-bash": (c) =>
+    `${NOT_RUN(c)} no bash found. ${c.platform === "win32" ? WINDOWS_FIX : "Install bash or put bash on PATH."}`,
+  spawn: (c) => `${NOT_RUN(c)} could not start ${c.bash}: ${c.detail}`,
+  signal: (c) =>
+    `exec-bash: ${c.name} was killed by ${c.detail} before it finished, so it enforced nothing for this call.`,
+  usage: (c) => `exec-bash: the launcher itself was called wrongly, so no hook ran: ${c.detail}`,
+};
+
+// The one stderr line for a launcher failure. Claude Code shows only the
+// first stderr line, so the script and the consequence come first. detail is
+// the error message for "spawn", the signal name for "signal", and the parse
+// error for "usage", which has no script.
+export function failureLine(kind, { script = "", bash = "", platform = "", detail = "" } = {}) {
+  const name = script.split(/[\\/]/).pop();
+  return FAILURE_LINES[kind]({ name, bash, platform, detail }).replace(/\s+/g, " ").trim();
+}
+
+function fail(line) {
+  process.stderr.write(`${line}\n`);
   process.exit(1);
 }
 
 function main() {
   const parsed = parseLaunchArgs(process.argv.slice(2));
-  if (parsed.error) fail(parsed.error);
+  if (parsed.error) fail(failureLine("usage", { detail: parsed.error }));
   if (!optionGateOpen(parsed.gates, process.env)) process.exit(0);
-  const bash = resolveBash(process.env, process.platform, isFile);
-  if (!bash) {
-    fail(
-      "no bash resolved. On Windows set CLAUDE_CODE_GIT_BASH_PATH to Git's bash.exe. System32\\bash.exe is the WSL relay and is not used.",
-    );
-  }
+  const { platform } = process;
+  const bash = resolveBash(process.env, platform, isFile);
+  const ctx = { script: parsed.script, bash, platform };
+  if (!bash) fail(failureLine("no-bash", ctx));
   const child = spawn(bash, [parsed.script, ...parsed.args], {
     stdio: "inherit",
     windowsHide: true,
@@ -162,11 +187,9 @@ function main() {
   };
   process.on("SIGTERM", () => forward("SIGTERM"));
   process.on("SIGINT", () => forward("SIGINT"));
-  child.on("error", (err) => {
-    fail(`failed to spawn ${bash}: ${err.message}`);
-  });
+  child.on("error", (err) => fail(failureLine("spawn", { ...ctx, detail: err.message })));
   child.on("exit", (code, signal) => {
-    if (signal) process.exit(1);
+    if (signal) fail(failureLine("signal", { ...ctx, detail: signal }));
     process.exit(code ?? 1);
   });
 }
