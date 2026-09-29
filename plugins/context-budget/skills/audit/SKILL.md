@@ -46,6 +46,29 @@ Two rules govern everything this skill says, per the plugin's
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `claude-config` plugin, if installed.
 
+## Boundary, the bundled `explain-usage` skill
+
+One native surface also answers "what is using my tokens", and the two get conflated when a
+session feels crowded:
+
+- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
+  After the fact, it explains where the current session's tokens went, with one simple chart in
+  plain language. The model and the person can both invoke it where it resolves.
+- **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
+  session per item, including the built-in tool pools `/context` reports as lump sums, and keeps a
+  before/after ledger for every lever the operator toggles.
+
+**Routing.** When the bundled `explain-usage` skill resolves in this session, prefer it for a
+plain-language account of where this session's tokens went. Prefer this skill for what a session
+costs before any work starts, per-tool attribution, and whether a settings change saved anything.
+
+**Mutation gate.** `explain-usage`'s description names an explanation, not a write. This skill is read-only unless
+`fix` is passed; never chain into one on the other's behalf.
+
+**Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
+and host; this section states what to do when it resolves, never that it is present. The four-part
+records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
+
 ## Declared scope
 
 This skill measures **the local Claude Code CLI, in a headless session**. On cloud or web surfaces
