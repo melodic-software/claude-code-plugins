@@ -63,9 +63,9 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 - **Single-plugin artifact in a shared repo.** A committed file only one plugin reads is inert (and
   confusing) for everyone else. Make it self-describing, or make its location configurable, or
   derive it from an existing shared source.
-- **Hardcoded consumer specifics.** A reusable plugin must not bake in one machine's paths, one
-  org's repo names, or one project's conventions. Those belong in the consumer's own config
-  layers.
+- **Hardcoded consumer specifics.** Detection cue: does this component ship a machine path, org name,
+  or another repo's layout as if it were universal? **Doctrine owner:** `docs/plugin-philosophy.md`
+  § Design boundary → **Hardcoded consumer specifics** (do not restate the rule here).
 
 ## 6. Cross-platform
 

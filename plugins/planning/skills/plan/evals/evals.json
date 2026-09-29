@@ -114,6 +114,19 @@
         "Does not self-approve silently: the approval basis is recorded rather than implied",
         "Does not treat the standing mandate as clearing listed displaced answers, which stay uncleared"
       ]
+    },
+    {
+      "id": 10,
+      "name": "outcome-gate-runs-script-and-catches-machine-path",
+      "prompt": "/planning:plan migrate the dotfiles into chezmoi. [The drafted PLAN.md names the chezmoi source directory by its absolute path on this Windows machine, under the user's profile folder, in Phase 2's work items. Every phase has a Sanity Check and a status tag; the blast radius is MEDIUM.]",
+      "files": [],
+      "expected_output": "At Step 4.7 it runs scripts/check-plan-outcome.sh against the draft PLAN.md rather than self-grading the mechanical criteria. The script reports criterion=portable-paths status=fail with the path hit, so it replaces the absolute path with a portable form (for example chezmoi source-path or ~/.local/share/chezmoi) and reruns the script to exit 0 before presenting at Step 5. It still checks scope-item mapping by reading, since the script does not claim that criterion.",
+      "expectations": [
+        "Runs check-plan-outcome.sh on the draft PLAN.md at Step 4.7",
+        "Treats the portable-paths failure as a FAIL and fixes the path before presenting",
+        "Reruns the script and requires exit 0",
+        "Checks scope-item-to-phase mapping by reading rather than claiming the script covers it"
+      ]
     }
   ]
 }

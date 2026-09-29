@@ -34,3 +34,52 @@ Describe 'ConvertFrom-WingetTextOutput' -Tag 'lib' {
         $items[0].available_version | Should -Be ''
     }
 }
+
+Describe 'Get-WingetPackageUpdate CLI fallback' -Tag 'lib' {
+    It 'passes upgrade flags as separate argv entries' {
+        Mock Get-Module { $null }
+        Mock Invoke-NativeCommand {
+            [pscustomobject]@{
+                status    = 'Ok'
+                source    = 'winget'
+                exit_code = 0
+                output    = @(
+                    'Name                 Id                 Version    Available  Source'
+                    '-------------------- ------------------ ---------- ---------- ------'
+                    'Git                  Git.Git            2.45.1     2.46.0     winget'
+                ) -join "`n"
+                error     = $null
+            }
+        } -ParameterFilter { $Name -eq 'winget' }
+
+        $result = Get-WingetPackageUpdate
+        $result.error | Should -BeNullOrEmpty
+        @($result.upgrades).Count | Should -Be 1
+        $result.upgrades[0].id | Should -Be 'Git.Git'
+
+        Should -Invoke Invoke-NativeCommand -Times 1 -ParameterFilter {
+            $Name -eq 'winget' -and
+            @($ArgumentList).Count -eq 3 -and
+            @($ArgumentList)[0] -eq 'upgrade' -and
+            @($ArgumentList)[1] -eq '--include-unknown' -and
+            @($ArgumentList)[2] -eq '--accept-source-agreements'
+        }
+    }
+
+    It 'reports the CLI missing when winget is not on PATH' {
+        Mock Get-Module { $null }
+        Mock Invoke-NativeCommand {
+            [pscustomobject]@{
+                status    = 'Absent'
+                source    = 'absent'
+                exit_code = $null
+                output    = ''
+                error     = $null
+            }
+        } -ParameterFilter { $Name -eq 'winget' }
+
+        $result = Get-WingetPackageUpdate
+        $result.upgrades | Should -BeNullOrEmpty
+        $result.error | Should -Match 'not on PATH'
+    }
+}

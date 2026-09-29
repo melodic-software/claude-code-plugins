@@ -11,6 +11,8 @@ SCRIPT="$SELF_DIR/check-fleet-audit-doc-grammar.sh"
 . "$SELF_DIR/lib/test-harness.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
+# shellcheck source=lib/changed-files.sh
+. "$SELF_DIR/lib/changed-files.sh"
 
 # The builder assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-vars here is what tells it (SC2154) the names are written.
@@ -243,7 +245,7 @@ rm -rf "$repo"
 
 # Historical proof: a6be07f9's SKILL.md + audit-fleet.sh must go red,
 # naming the missing bare positional form.
-if git rev-parse --verify --quiet "a6be07f9^{commit}" >/dev/null 2>&1; then
+if changed_files::verify_base a6be07f9; then
   fixture_tree::build hist --sut "$SCRIPT"
   mkdir -p "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts"
   git show a6be07f9:plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh \
