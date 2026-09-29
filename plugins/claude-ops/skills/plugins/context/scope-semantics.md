@@ -472,10 +472,15 @@ milliseconds) into the version directory, and the marker survived the marketplac
 removed only once it holds no directory or symlink. So a removed marketplace's tree is swept on the
 same clock as any other orphaned version, marketplace folder included, provided the machine keeps
 any plugin installed. The page says nothing about marketplace removal itself; the marker is the
-observation that connects the two. That the sweep actually removes a marked tree under a removed
-marketplace is inferred from the documented rule, not yet observed. **Recheck trigger:** any Claude
-Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
-the cache layout.
+observation that connects the two. The sweep does visit a removed marketplace's cache folders: the
+Claude Code 2.1.270 debug log (2026-09-14, recorded on
+[#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
+folder-retention pass logging `Keeping <cache>/<marketplace>: it still holds a directory, a
+symlink, a versioned archive or an entry of unknown type` for two removed marketplaces. That the
+sweep removes a marked version directory under a removed marketplace at 14 days is inferred from
+the documented rule, not yet observed; both probes that would show it were lost before a reading.
+**Recheck trigger:** any Claude Code release note or `plugins-reference` change touching
+marketplace removal, the orphan sweep, or the cache layout.
 
 **That observation was taken after an `uninstall`, with no install record left for the removal to
 find.** With plugins from the marketplace still installed, the same command deletes their records at

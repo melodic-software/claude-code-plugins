@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test transcript/manual-caption-clean.test.js transcript/vtt-parser.test.js"
+    "test": "node --test"
   },
   "description": "Shared video transcript and frame-processing library",
   "exports": {
@@ -14,6 +14,7 @@
     "./frames/scene-detect": "./frames/scene-detect.js",
     "./media/ffprobe-duration": "./media/ffprobe-duration.js",
     "./shared/logger": "./shared/logger.js",
+    "./shared/main-module": "./shared/main-module.js",
     "./shared/media-artifacts": "./shared/media-artifacts.js",
     "./shared/process": "./shared/process.js",
     "./shared/progress": "./shared/progress.js",

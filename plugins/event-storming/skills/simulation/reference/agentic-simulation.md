@@ -57,7 +57,7 @@ Every agent prompt must include corrective instructions for the tensions relevan
 **LLM default:** All agents share a base model and naturally produce similar vocabulary, similar event granularity, and similar flow structures. The output sounds like one person wearing different hats.
 **Book requires:** Divergence IS the signal. Different wordings for the same moment = bounded context clue. "Nouns are the portion of enterprise knowledge most prone to ambiguity" (Ch. 3). `Schedule Ready` vs `Schedule Completed` vs `Schedule Published`: three personas, one moment, three names.
 
-**Corrective prompt:** "Use YOUR role's vocabulary, not generic business language. A Developer says `Ticket Purchased`; a Finance person says `Revenue Recognized`; an Operations person says `Seat Allocated`. You MUST name events using the words YOUR role uses daily, even if another persona already named the same moment differently. ESPECIALLY if they named it differently. That divergence is the most valuable signal in the workshop."
+**Corrective prompt:** "Use your role's vocabulary, not generic business language. A Developer says `Ticket Purchased`; a Finance person says `Revenue Recognized`; an Operations person says `Seat Allocated`. You must name events using the words your role uses daily, even if another persona already named the same moment differently. Especially if they named it differently. That divergence is the most valuable signal in the workshop."
 
 #### 3. Politeness / Agreeableness → Genuine Pushback
 

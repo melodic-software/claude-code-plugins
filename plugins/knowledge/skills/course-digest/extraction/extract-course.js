@@ -27,13 +27,13 @@ import { join } from "node:path";
 
 import { extractSceneFrames } from "@melodic/video-digestion/frames/scene-detect";
 import { createLogger } from "@melodic/video-digestion/shared/logger";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { createTracker } from "@melodic/video-digestion/shared/progress";
 
 import { createAdapter } from "./adapters/adapter-contract.js";
 import { createRunStats, runLessonExtraction } from "./extract-course-run.js";
 import { resolveAuthStatePath } from "./lib/auth-store.js";
 import { checkAuthAge, closeBrowser, launchBrowser } from "./lib/browser.js";
-import { invokedAsCli } from "./lib/cli-main.js";
 import { courseBaseUrl, loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
 let args;
@@ -310,7 +310,7 @@ async function main() {
   log.info(`  Run report: ${join(courseDir, "run-report.json")}`);
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     log.error("Fatal error:", e);
     process.exit(1);

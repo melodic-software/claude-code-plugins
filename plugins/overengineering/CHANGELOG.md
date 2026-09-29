@@ -3,6 +3,27 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.19] - 2026-09-29
+
+### Fixed
+
+- **Custody grouping in the `audit` inline report no longer contradicts the rules beside it.**
+  Protected items and FLAG-FOR-HUMAN rows are listed individually and first whatever their
+  custody, out-of-repo findings collapse to one row per owner only when the findings artifact was
+  written, and in-repo findings shown in full still respect the inline cap. A run with no branch
+  identity emits every finding. The rule now lives once, in `context/report-template.md`; the
+  `Arguments` section of `SKILL.md` no longer carries a copy or a Claim/Basis stamp. Evals 13 and 14
+  cover it.
+- **The unattended write-path probe names its delete route.** The probe deletes exactly the second
+  neutral path with the file-write tool's delete where the harness offers one, else one shell
+  removal of that path. A refused write, rename, or delete tries no other route: it names the
+  refusal and every probe path left on disk, then stops before the walk. Eval 12 covers it.
+
+### Changed
+
+- `audit` and `delta` no longer repeat the argument form on the `Arguments` line.
+- The 0.4.15 entry below is redated 2026-09-27, the day it merged.
+
 ## [0.4.18] - 2026-09-28
 
 ### Changed
@@ -30,7 +51,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   to 1,731 characters. `audit` and `realign` leave `scripts/skill-description-cap-baseline.txt`.
   No skill is renamed or merged.
 
-## [0.4.15] - 2026-09-28
+## [0.4.15] - 2026-09-27
 
 ### Changed
 

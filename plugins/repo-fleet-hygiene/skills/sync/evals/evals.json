@@ -16,10 +16,12 @@
     {
       "id": 2,
       "name": "non-fast-forward-is-skipped-not-reset",
-      "prompt": "/repo-fleet-hygiene:sync --root ~/repos --apply --yes\n\nOne checkout's local main has a commit the remote main does not, so its history diverged.",
-      "expected_output": "That checkout is reported as skipped (non-fast-forward). The skill does not reset, rebase, or force the branch; the other checkouts still fast-forward.",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos\n\nOne checkout's local main has a commit the remote main does not, so its history diverged. The dry-run plan has already been shown and the user replied: go ahead and apply it.",
+      "expected_output": "The skill runs sync-fleet.sh without --apply and shows the plan, the user gives an explicit go-ahead, then it runs sync-fleet.sh --apply --yes. The diverged checkout is reported as skipped (non-fast-forward). The skill does not reset, rebase, or force the branch; the other checkouts still fast-forward.",
       "files": [],
       "expectations": [
+        "Runs sync-fleet.sh without --apply first and shows the dry-run plan",
+        "Passes --apply --yes only after the user's explicit go-ahead on that plan",
         "Reports the diverged checkout as skipped with a non-fast-forward reason",
         "Does not reset or force-update the branch",
         "Still applies the plan to the other checkouts"
@@ -40,12 +42,13 @@
     {
       "id": 4,
       "name": "dirty-branch-is-parked-in-worktree",
-      "prompt": "/repo-fleet-hygiene:sync --repo ~/repos/widget --apply --yes --worktree-root ~/worktrees --worktree-create <source-control worktree-create.sh>\n\nwidget is on branch feat/x with uncommitted edits.",
-      "expected_output": "The dirty work on feat/x is parked: stashed, the checkout switches to the default branch, a linked worktree is created for feat/x through worktree-create.sh --existing-branch, and the stash is applied there. The canonical checkout is then fast-forwarded. The branch is not deleted.",
+      "prompt": "/repo-fleet-hygiene:sync --repo ~/repos/widget --apply --yes --worktree-create /path/to/worktree-create.sh\n\nwidget is on branch feat/x with uncommitted edits, and its git config sets worktreeroot.path.",
+      "expected_output": "The dirty work on feat/x is parked: stashed, the checkout switches to the default branch, a linked worktree is created for feat/x by the helper the operator named with --worktree-create, called with --existing-branch and without --root, and the stash is applied there. The canonical checkout is then fast-forwarded. The branch is not deleted.",
       "files": [],
       "expectations": [
         "Parks the dirty non-default branch in a linked worktree rather than discarding it",
-        "Uses worktree-create.sh with --existing-branch for the park",
+        "Uses only the helper path given with --worktree-create, with --existing-branch, and does not search for a helper",
+        "Does not pass --worktree-root, so the helper resolves the root from the repository's worktreeroot.path",
         "Fast-forwards the canonical checkout on the default branch afterwards",
         "Does not delete the feature branch"
       ]
@@ -60,6 +63,32 @@
         "Reports the exit-3 no-scope stop and the rungs it names",
         "Does not treat the project directory as an implicit repository",
         "Does not invent a root to sync"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "dirty-branch-without-helper-is-skipped",
+      "prompt": "/repo-fleet-hygiene:sync --repo ~/repos/widget --apply --yes\n\nwidget is on branch feat/x with uncommitted edits. No --worktree-create was given, and the source-control plugin is installed.",
+      "expected_output": "The script does not look for the source-control plugin's helper. widget is skipped as worktree-create-missing with a remedy naming --worktree-create and /source-control:worktree create --existing-branch, nothing is stashed, and the run exits 1. The skill reports the skip and does not locate or pass a helper on its own.",
+      "files": [],
+      "expectations": [
+        "Reports widget as skipped with the reason worktree-create-missing",
+        "Changes nothing in widget: no stash, no branch switch",
+        "Does not search for the source-control plugin's worktree-create.sh or add --worktree-create itself",
+        "Relays the remedy: pass --worktree-create <path>, or park by hand with /source-control:worktree create --existing-branch"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "yes-needs-a-shown-plan-and-a-go-ahead",
+      "prompt": "/repo-fleet-hygiene:sync --root ~/repos --apply --yes\n\nNo dry-run plan has been shown in this session and the user has not said to go ahead.",
+      "expected_output": "The skill does not pass --yes on the strength of the command line alone. It runs sync-fleet.sh without --apply, shows the plan (repos count and each repo's action row), and asks the user to confirm. It runs --apply --yes only after an explicit go-ahead. A run with no terminal is not consent.",
+      "files": [],
+      "expectations": [
+        "Does not run sync-fleet.sh with --yes before a dry-run plan has been shown",
+        "Shows the dry-run plan (the repos count and each action row) first",
+        "Asks the user for an explicit go-ahead before applying",
+        "Treats the --yes typed in the command as not being the go-ahead for a plan the user has not seen"
       ]
     }
   ]

@@ -10,9 +10,9 @@
  * verdicts) stay inline in the skill session — they are NOT part of this orchestrator.
  */
 
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { isMainModule } from "../lib/cli-entrypoint.js";
 import { mergeTriageJson } from "./merge-triage-json.js";
 import { renderKeyFramesManifest } from "./render-key-frames-manifest.js";
 import { renderQualityAudit } from "./render-quality-audit.js";

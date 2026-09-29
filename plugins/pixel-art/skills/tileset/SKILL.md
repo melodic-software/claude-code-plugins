@@ -14,25 +14,21 @@ Produce a tileset or parallax layer the target engine can load, and show it.
 
 ## 1. Brief
 
-Pin down, from the request or by asking (ask only for what changes the output):
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
+does, including the `brief.md` file, the one-line defaults, and the presence-gated
+`/planning:interview` offer. Then add:
 
-- **Subject**: terrain, water, wall, building, or a background, and the mood.
 - **Set**: seamless single tile, blob-47, 16-tile corner, RPG Maker quarter-tile block, or parallax layers.
 - **Tile size and sheet**: the engine cell and which file (A2, B, a Godot atlas, a plain strip). Read
   [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md) and
   [`craft-tiles.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-tiles.md). Do not restate their tables.
-- **Palette**: a color count or a short list. Fewer colors read better.
-
-Vague request: pick defaults, state them in one line, proceed.
-
-Write `brief.md` beside the spec before the first render, with 2 to 6 done criteria, as
-[`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) describes. A later run that finds it there
-reads it and does not ask again. Every review round lists each done criterion as pass or fail.
 
 ## 2. Choose the backend
 
-Same rule as `/pixel-art:sprite`: [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native`
-is the default. A missing configured backend is named in one line and the render falls back to native.
+Same rule as `/pixel-art:sprite`: read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md).
+`native` is the default and always available. Honor `${user_config.backend}` when it names another
+backend, and pass no `--confirm` until the user accepts a paid call. Generative backends fit tile
+grids poorly, so stay on native unless the request or that setting names another.
 
 ## 3. Author
 
@@ -48,9 +44,13 @@ sheet is `${CLAUDE_PLUGIN_ROOT}/examples/tileset/a2_ground.py`. Keep the palette
 ## 4. Render
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render.py" <spec.json> --out <dir> --scale 4
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 4
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
+
+`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
+names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
+relying on the environment to carry it.
 
 Output location resolves as in `/pixel-art:sprite`. Keep the spec and the generator beside the output.
 

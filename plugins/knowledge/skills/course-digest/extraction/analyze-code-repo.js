@@ -27,8 +27,8 @@ import {
   parseGitHubUrl,
 } from "@melodic/repo-analysis";
 import { createLogger } from "@melodic/video-digestion/shared/logger";
+import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 
-import { invokedAsCli } from "./lib/cli-main.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
 
 let args;
@@ -226,6 +226,6 @@ function main() {
   log.info(`  README: ${join(codeOutputDir, "README.md")}\n`);
 }
 
-if (invokedAsCli(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main();
 }

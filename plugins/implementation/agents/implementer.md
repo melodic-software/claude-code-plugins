@@ -27,12 +27,19 @@ conflict, STOP and report the conflict.
 
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
-directly rather than launching pwsh through Bash; where the PowerShell tool is not available the
-entry resolves to nothing and Bash remains, since launch fails only when no entry in the list
-resolves to a tool, per <https://code.claude.com/docs/en/sub-agents>, verified 2026-09-28; recheck
-when that page changes how unresolved `tools` entries are handled), web research (so a consuming project's fresh-docs obligations stay satisfiable),
-skill invocation, and nested dispatch for skills that fan out their own workers. Nothing else is
-granted. The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
+directly rather than launching pwsh through Bash), web research (so a consuming project's
+fresh-docs obligations stay satisfiable), skill invocation, and nested dispatch for skills that fan
+out their own workers. Nothing else is granted.
+
+Claim: where the PowerShell tool is unavailable, the `PowerShell` entry resolves to nothing and
+Bash remains, so the launch succeeds. Basis: the sub-agents page
+(<https://code.claude.com/docs/en/sub-agents>) says "If no entry in the list resolves to a tool,
+the subagent usually fails to launch with an error naming the entries" and "Before v2.1.208, that
+subagent launched with no tools"; "usually" is the page's hedge, and a launch failure needs every
+entry to be unresolved. As of: 2026-09-29. Recheck: that page changes how unresolved `tools`
+entries are handled or drops "usually". The `phase-verifier` cage relies on this record.
+
+The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
 from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent
 "does its delegated work itself and returns one summary"
 (<https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10; recheck when a Claude Code
