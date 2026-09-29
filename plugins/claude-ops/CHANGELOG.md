@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`audit-native-overlap` learns from dismissals.** A new `overlap.py dismiss` subcommand records
+  a human's ruling that a candidate pair is not an overlap, with its reason, the Claude Code
+  version it was ruled against, the date, and a fingerprint of each side's description. `detect`
+  suppresses a dismissed pair and counts it under `discovery.suppressed` until either description
+  changes, then lists it again flagged "resurfaced: description changed". A pair with a verdict
+  row never resurfaces. Every candidate now carries both fingerprints.
+- **The store takes an optional `dismissals` list.** The self-check validates each dismissal and
+  rejects one beside a verdict row for the same pair; `generate` renders a Dismissed section in
+  the registry view.
+- **Eval cases** for `inventory` answering "is /foo real" under a degraded lane and classifying a
+  command the docs mark removed, and for `audit-native-overlap` recommending `suggest` for a
+  user-only surface and suppressing then resurfacing a dismissed pair.
+
 ## [0.64.1] - 2026-09-29
 
 ### Added

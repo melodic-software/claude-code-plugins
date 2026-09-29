@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.26] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` carries a Boundary section for the built-in command `/autofix-pr`.** The
+  command watches one PR from a cloud session; this skill runs the fleet pass under its gates. The
+  model offers the person-run command for a PR to be watched after the session ends.
+- **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
+  also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
+
 ## [0.62.22] - 2026-09-29
 
 ### Added
