@@ -1874,5 +1874,297 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertEqual(candidate["recommended_integration"], "route-or-wrap")
 
 
+def make_dismissal(**overrides):
+    entry = {
+        "native": {"name": "commit", "class": "bundled-skill"},
+        "component": {"plugin": "source-control", "skill": "commit", "kind": "skill"},
+        "reason": "shared word only",
+        "as_of": "2.1.284",
+        "date": "2026-09-29",
+        "fingerprint": {"native": "0" * 16, "component": "1" * 16},
+    }
+    entry.update(overrides)
+    return entry
+
+
+class DismissalValidationTests(unittest.TestCase):
+    def store(self, dismissals, rows=()):
+        store = make_store(list(rows))
+        store["dismissals"] = dismissals
+        return store
+
+    def test_a_well_formed_dismissal_has_no_problems(self):
+        self.assertEqual(overlap.validate_store(self.store([make_dismissal()])), [])
+
+    def test_a_store_without_dismissals_stays_valid(self):
+        self.assertEqual(overlap.validate_store(make_store([BASE_ROW])), [])
+
+    def test_each_required_field_is_checked(self):
+        for field, bad in (
+            ("reason", " "),
+            ("as_of", "latest"),
+            ("date", "yesterday"),
+            ("fingerprint", {"native": "abc"}),
+        ):
+            with self.subTest(field=field):
+                problems = overlap.validate_store(
+                    self.store([make_dismissal(**{field: bad})])
+                )
+                self.assertTrue(any(f"`{field}`" in p for p in problems), problems)
+
+    def test_dismissals_must_be_a_list(self):
+        store = make_store([])
+        store["dismissals"] = {}
+        self.assertIn(
+            "store `dismissals` must be a list when present",
+            overlap.validate_store(store),
+        )
+
+    def test_a_duplicate_dismissal_is_a_problem(self):
+        problems = overlap.validate_store(self.store([make_dismissal()] * 2))
+        self.assertTrue(any("duplicate dismissal" in p for p in problems))
+
+    def test_a_dismissal_never_coexists_with_a_verdict_row(self):
+        row = deep_copy(BASE_ROW)
+        dismissal = make_dismissal(
+            native={"name": "doctor", "class": "bundled-skill"},
+            component=deep_copy(BASE_ROW["component"]),
+        )
+        problems = overlap.validate_store(self.store([dismissal], rows=[row]))
+        self.assertTrue(any("coexists with a verdict row" in p for p in problems))
+
+    def test_self_check_breaks_on_a_dismissal_beside_its_verdict_row(self):
+        repo = TempRepo()
+        self.addCleanup(repo.cleanup)
+        store = make_store([BASE_ROW])
+        store["dismissals"] = [
+            make_dismissal(
+                native={"name": "doctor", "class": "bundled-skill"},
+                component=deep_copy(BASE_ROW["component"]),
+            )
+        ]
+        repo.write_store(store)
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(repo.self_check(), 1)
+
+
+class DismissalRenderTests(unittest.TestCase):
+    def test_an_empty_store_renders_an_empty_dismissed_section(self):
+        block = overlap.render_block([deep_copy(BASE_ROW)])
+        self.assertIn("## Dismissed", block)
+        self.assertIn("No dismissals recorded.", block)
+
+    def test_a_dismissal_renders_as_a_table_row(self):
+        block = overlap.render_block(
+            [deep_copy(BASE_ROW)],
+            [make_dismissal(reason="shared | word")],
+        )
+        self.assertIn("| Native surface | Class | Component |", block)
+        self.assertIn(
+            "| `commit` | bundled-skill | `source-control:commit` | shared \\| word "
+            "| 2.1.284 | 2026-09-29 |",
+            block,
+        )
+
+    def test_generate_check_tracks_dismissals(self):
+        repo = TempRepo()
+        self.addCleanup(repo.cleanup)
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(repo.generate(), 0)
+            store = make_store([BASE_ROW])
+            store["dismissals"] = [make_dismissal()]
+            repo.write_store(store)
+            self.assertEqual(repo.generate(["--check"]), 1)
+            self.assertEqual(repo.generate(), 0)
+            self.assertEqual(repo.generate(["--check"]), 0)
+        self.assertIn("`source-control:commit`", repo.view_path.read_text("utf-8"))
+
+
+class DismissalDetectTests(unittest.TestCase):
+    """Dismiss, then detect: suppression and resurfacing."""
+
+    # The discovery harness, borrowed without inheriting its tests.
+    setUp = DiscoveryDetectTests.setUp
+    write_inventory = DiscoveryDetectTests.write_inventory
+    detect = DiscoveryDetectTests.detect
+    discovered = DiscoveryDetectTests.discovered
+
+    def dismiss(self, *extra, native="commit", component="source-control:commit"):
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            return overlap.main(
+                [
+                    "dismiss",
+                    "--repo",
+                    str(self.repo.root),
+                    "--store",
+                    str(self.repo.store_path),
+                    "--inventory",
+                    str(self.inventory_path),
+                    "--native",
+                    native,
+                    "--component",
+                    component,
+                    "--reason",
+                    "shared word only",
+                    "--date",
+                    "2026-09-29",
+                    *extra,
+                ]
+            )
+
+    def stored_dismissals(self):
+        return json.loads(self.repo.store_path.read_text("utf-8"))["dismissals"]
+
+    def test_dismiss_records_both_fingerprints_and_the_version(self):
+        self.write_inventory(integrity={"status": "ok", "cli_version": "2.1.284"})
+        self.assertEqual(self.dismiss(), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(entry["as_of"], "2.1.284")
+        self.assertEqual(entry["native"], {"name": "commit", "class": "bundled-skill"})
+        self.assertEqual(
+            entry["fingerprint"]["native"], overlap.fingerprint("Create a git commit")
+        )
+        self.assertEqual(
+            entry["fingerprint"]["component"],
+            overlap.fingerprint("Create a git commit with a trailer."),
+        )
+
+    def test_dismiss_refreshes_rather_than_duplicates(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.assertEqual(self.dismiss("--as-of", "2.1.285"), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(entry["as_of"], "2.1.285")
+
+    def test_dismiss_refuses_a_pair_with_a_verdict_row(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        self.repo.write_store(make_store([row]))
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 1)
+
+    def test_dismiss_refuses_a_surface_absent_from_the_extraction(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284", native="nope"), 1)
+
+    def test_dismiss_refuses_without_a_version(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss(), 1)
+
+    def test_a_dismissed_pair_is_suppressed_and_counted(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertEqual(self.discovered(report), [])
+        [suppressed] = report["discovery"]["suppressed"]
+        self.assertEqual(suppressed["native"], "commit")
+        self.assertEqual(suppressed["reason"], "shared word only")
+        self.assertEqual(report["discovery"]["resurfaced"], 0)
+
+    def test_a_native_description_change_resurfaces_the_pair(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a signed git commit",
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["resurfaced"]["flag"], overlap.RESURFACED)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["native"])
+        self.assertTrue(
+            any(e.startswith(overlap.RESURFACED) for e in candidate["evidence"])
+        )
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
+    def test_a_component_description_change_resurfaces_the_pair(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.repo.write_skill(
+            "source-control", "commit", description="Create a git commit and push it."
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["component"])
+
+    def test_whitespace_reflow_does_not_resurface(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.write_inventory(
+            bundled_skills={
+                "commit": {"name": "commit", "description": "Create  a git\ncommit"}
+            }
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+
+    def test_a_dismissed_seed_is_suppressed_too(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        pair = {
+            "native": {"name": "commit", "class": "bundled-skill"},
+            "component": {"plugin": "source-control", "skill": "commit"},
+        }
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": [pair]}), encoding="utf-8"
+        )
+        _code, report = self.detect()
+        self.assertEqual(report["candidates"], [])
+        self.assertEqual(len(report["discovery"]["suppressed"]), 1)
+
+    def test_a_verdict_row_never_resurfaces(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        store = make_store([row])
+        # Even beside a (malformed-by-policy) dismissal whose fingerprints no
+        # longer match, the verdict row wins: the pair stays under `existing`.
+        store["dismissals"] = [make_dismissal()]
+        self.repo.write_store(store)
+        self.write_inventory()
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        [existing] = report["discovery"]["existing"]
+        self.assertEqual(existing["store_verdict"], "complementary")
+
+    def test_every_candidate_carries_fingerprints(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(
+            candidate["fingerprints"],
+            {
+                "native": overlap.fingerprint("Create a git commit"),
+                "component": overlap.fingerprint("Create a git commit with a trailer."),
+            },
+        )
+        self.assertIsNone(candidate["resurfaced"])
+
+
 if __name__ == "__main__":
     unittest.main()

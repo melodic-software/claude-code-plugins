@@ -871,4 +871,10 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** the upstream repository's default branch moves past the pinned commit with changes under plugins/playground, or the playground plugin is renamed, removed, or absorbed into the CLI as a bundled skill (verified 2026-09-01)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 
+## Dismissed
+
+Pairs a human ruled are not an overlap. `detect` suppresses each one until either side's description fingerprint changes, then lists it again flagged "resurfaced: description changed".
+
+No dismissals recorded.
+
 <!-- native-surfaces:end -->
