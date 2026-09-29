@@ -57,21 +57,35 @@
 #   bash packet-seal.sh verify <packet-dir>
 #   bash packet-seal.sh --help
 #
-# The manifest is `packet.sha256` inside the packet directory, in the standard
-# `<digest>  <name>` coreutils format, one line per non-manifest regular file
-# anywhere under the packet, named by its path RELATIVE to the packet. Coverage
-# is recursive on purpose: a packet holds raw artifacts as well as the markdown
-# files, and content the manifest silently said nothing about is exactly the
-# content a reader would trust on the strength of a manifest that never covered
-# it. The manifest's own name is outside the .md class, so neither known sibling
-# formatter matches it (markdown-format filters to `*.md|*.mdc`; typos leaves a
-# hex digest alone).
+# The manifest is `packet.sha256` inside the packet directory: a first line
+# `# sealed-at <UTC ISO-8601>`, then `<digest>  <name>` lines (the coreutils
+# format), one per non-manifest regular file anywhere under the packet, named by
+# its path RELATIVE to the packet. Coverage is recursive on purpose: a packet
+# holds raw artifacts as well as the markdown files, and content the manifest
+# silently said nothing about is exactly the content a reader would trust on the
+# strength of a manifest that never covered it. The manifest's own name is
+# outside the .md class, so neither known sibling formatter matches it
+# (markdown-format filters to `*.md|*.mdc`; typos leaves a hex digest alone).
+#
+# SEAL MOMENT — `record` writes the `# sealed-at` line, and so does each
+# generation manifest, so a later reader can tell how old a seal is. The value
+# is SELF-ATTESTED: this script wrote it from the local clock, it is unsigned,
+# and anyone who can write the manifest can edit it. It says when the packet
+# claims to have been sealed, not proof of when it was. Every reader of a
+# manifest here skips lines starting with `#`; a real entry starts with a hex
+# digest, so the two cannot clash. A manifest written before the header existed
+# has no seal moment and verifies as before, reporting `unknown`. The reverse
+# fails closed: a verify from a version of this script older than the header
+# reads that line as a sealed name, reports it MISSING, and exits 1. That is
+# loud, not silent, and acceptable.
 #
 # Output (stdout, greppable): per-file `<verdict> <name>` lines for verify
 # (MATCH / CHANGED / MISSING, then GEN-MATCH / GEN-CHANGED / GEN-MISSING for the
 # latest generation, then UNSEALED), `ACKNOWLEDGED generation=<N>` when a
-# generation exists, then a summary line that gains gen-matched / gen-changed /
-# gen-missing counters only when a generation exists.
+# generation exists, `sealed-at=<value>` (`unknown` without a header) and, when
+# a generation exists, `gen-sealed-at=<value>` for the latest generation, then a
+# summary line that gains gen-matched / gen-changed / gen-missing counters only
+# when a generation exists. The seal moment never changes an exit code.
 #
 # Exit 0 = recorded, or verified with every manifest entry (and every entry of
 #          the latest generation) matching and nothing unsealed. NOT a claim the content is pristine — only that nothing
@@ -133,6 +147,21 @@ is_manifest_name() {
   [[ "$1" == "$MANIFEST_NAME" || "$1" =~ ^packet\.sha256\.[0-9]+$ ]]
 }
 
+# The first line of every manifest this script writes: the self-attested seal
+# moment (see the header comment). `date -u` with this format is the same on
+# GNU and BSD.
+seal_header() {
+  printf '# sealed-at %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
+# The seal moment a manifest states, or `unknown` when its first line is not a
+# `# sealed-at` header (a manifest written before the header existed).
+seal_moment() {
+  local moment
+  moment="$(sed -n '1s/^# sealed-at \([^ ]*\).*/\1/p' "$1")"
+  printf '%s' "${moment:-unknown}"
+}
+
 # The highest generation number in the packet, compared numerically (10 sorts
 # after 9), or empty when there is none. `10#` keeps a leading zero from being
 # read as octal.
@@ -156,7 +185,7 @@ latest_generation() {
 note_divergence() {
   local line prev_digest prev_name now_digest
   while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
+    [[ -n "$line" && "$line" != "#"* ]] || continue
     prev_digest="${line%% *}"
     prev_name="${line#* }"
     prev_name="${prev_name# }"
@@ -280,7 +309,7 @@ if [[ "$action" == record ]]; then
       done
       gen_manifest="$packet/packet.sha256.$generation"
       gen_tmp="$gen_manifest.tmp.$$"
-      : >"$gen_tmp" || {
+      seal_header >"$gen_tmp" || {
         echo "error: cannot write the generation manifest in: $packet" >&2
         exit 2
       }
@@ -318,7 +347,7 @@ if [[ "$action" == record ]]; then
   fi
 
   tmp="$manifest.tmp.$$"
-  : >"$tmp" || {
+  seal_header >"$tmp" || {
     echo "error: cannot write the manifest in: $packet" >&2
     exit 2
   }
@@ -374,7 +403,7 @@ verify_manifest() {
   v_changed=0
   v_missing=0
   while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
+    [[ -n "$line" && "$line" != "#"* ]] || continue
     expected="${line%% *}"
     name="${line#* }"
     name="${name# }"
@@ -441,6 +470,9 @@ while IFS= read -r name; do
     unsealed=$((unsealed + 1))
   fi
 done < <(packet_files "$packet")
+
+echo "sealed-at=$(seal_moment "$manifest")"
+[[ -z "$latest" ]] || echo "gen-sealed-at=$(seal_moment "$packet/packet.sha256.$latest")"
 
 summary="matched=$matched changed=$changed missing=$missing unsealed=$unsealed"
 if [[ -n "$latest" ]]; then

@@ -339,6 +339,152 @@ else
   fail "generation 3 still lists the deleted file"
 fi
 
+# --- the seal moment is recorded and printed --------------------------------
+#
+# The manifest's first line is `# sealed-at <UTC ISO-8601>`. The value is
+# self-attested (written by this script, unsigned, editable by whoever can write
+# the manifest), so these cases pin what the packet says, not that it is true.
+# A header is never a manifest entry: it must not be sealed, graded, or reported
+# as UNSEALED or MISSING, and a manifest written before it existed still verifies.
+
+iso_header='^# sealed-at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+
+# has_line <exact-line> <label> - the last run's output carries <exact-line> on a line of its own.
+has_line() {
+  if printf '%s\n' "$last_out" | grep -qxF -- "$1"; then
+    pass "$2"
+  else
+    fail "$2 — output was: $last_out"
+  fi
+}
+
+# fake_clock <stamp> - every later `date` in this suite prints <stamp>, so two
+# seals of one packet differ without a sleep. real_clock removes the stand-in.
+fake_clock() {
+  mkdir -p "$WORK/fakebin"
+  printf '#!/bin/sh\necho %s\n' "$1" >"$WORK/fakebin/date"
+  chmod +x "$WORK/fakebin/date"
+  case ":$PATH:" in
+  *":$WORK/fakebin:"*) ;;
+  *) PATH="$WORK/fakebin:$PATH" ;;
+  esac
+}
+real_clock() { rm -f "$WORK/fakebin/date"; }
+
+# header_of <manifest> - the manifest's first line.
+header_of() { head -n 1 "$1"; }
+
+# Real `date`: the value has the documented shape.
+packet="$(fresh_packet)"
+run 0 "record stamps the seal moment" record "$packet"
+first="$(header_of "$packet/packet.sha256")"
+if [[ "$first" =~ $iso_header ]]; then
+  pass "the first manifest line is a UTC ISO-8601 sealed-at header"
+else
+  fail "the first manifest line is not a sealed-at header: $first"
+fi
+if [[ "$(grep -c '^#' "$packet/packet.sha256")" -eq 1 && "$(grep -cE '^[0-9a-f]{64}  ' "$packet/packet.sha256")" -eq 2 ]]; then
+  pass "the header is the only comment line and the entries follow it"
+else
+  fail "the manifest has stray comment lines or the wrong entry count"
+fi
+has "sealed=2" "the header is not counted as a sealed file"
+stamp="${first#\# sealed-at }"
+run 0 "verify passes with the header present" verify "$packet"
+has_line "sealed-at=$stamp" "verify prints the recorded seal moment on its own greppable line"
+lacks "gen-sealed-at" "no generation seal moment appears without a generation"
+lacks "MISSING" "the header is not read as a missing entry"
+lacks "UNSEALED" "the header is not read as an unsealed file"
+has "matched=2 changed=0 missing=0 unsealed=0" "the header adds nothing to the summary"
+
+# A manifest written before the header existed still verifies, as unknown.
+packet="$(fresh_packet)"
+run 0 "record before stripping the header" record "$packet"
+sed 1d "$packet/packet.sha256" >"$WORK/old-format.sha256"
+mv -f "$WORK/old-format.sha256" "$packet/packet.sha256"
+if ! grep -q '^#' "$packet/packet.sha256"; then
+  pass "the hand-made old-format manifest carries no header"
+else
+  fail "the old-format manifest still has a comment line"
+fi
+run 0 "an old-format manifest still verifies" verify "$packet"
+has_line "sealed-at=unknown" "an old-format manifest reports an unknown seal moment"
+has "matched=2 changed=0 missing=0 unsealed=0" "an old-format manifest keeps its summary"
+has "sealed files intact" "an old-format manifest keeps its verdict"
+run 0 "record over an old-format manifest reseals" record "$packet"
+first="$(header_of "$packet/packet.sha256")"
+if [[ "$first" =~ $iso_header ]]; then
+  pass "the reseal writes the header"
+else
+  fail "the reseal did not write the header: $first"
+fi
+
+# A record after a new note updates the value and keeps the entries.
+packet="$(fresh_packet)"
+fake_clock 2026-01-01T00:00:00Z
+run 0 "record at the first moment" record "$packet"
+entries_before="$(sed 1d "$packet/packet.sha256")"
+printf 'a later note\n' >"$packet/audit-notes-2.md"
+fake_clock 2026-02-02T03:04:05Z
+run 0 "record after a new note reseals" record "$packet"
+has "sealed=3" "the new note is sealed"
+if [[ "$(header_of "$packet/packet.sha256")" == "# sealed-at 2026-02-02T03:04:05Z" ]]; then
+  pass "the reseal replaces the seal moment"
+else
+  fail "the seal moment was not updated: $(header_of "$packet/packet.sha256")"
+fi
+if [[ "$(sed 1d "$packet/packet.sha256" | grep -vF 'audit-notes-2.md')" == "$entries_before" ]]; then
+  pass "the earlier entries are kept unchanged"
+else
+  fail "the reseal changed the earlier entries"
+fi
+run 0 "verify after the reseal" verify "$packet"
+has_line "sealed-at=2026-02-02T03:04:05Z" "verify prints the updated seal moment"
+lacks "2026-01-01" "the superseded seal moment is gone"
+
+# An acknowledged generation carries its own header, and verify prints both.
+packet="$(fresh_packet)"
+fake_clock 2026-01-01T00:00:00Z
+run 0 "record before acknowledging" record "$packet"
+printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
+printf 'a later note\n' >"$packet/audit-notes-2.md"
+fake_clock 2026-03-03T06:07:08Z
+run 0 "acknowledge writes generation 2" record --acknowledge-divergence "$packet"
+if [[ "$(header_of "$packet/packet.sha256.2")" == "# sealed-at 2026-03-03T06:07:08Z" ]]; then
+  pass "generation 2 carries its own seal moment"
+else
+  fail "generation 2 has no sealed-at header: $(header_of "$packet/packet.sha256.2")"
+fi
+if [[ "$(header_of "$packet/packet.sha256")" == "# sealed-at 2026-01-01T00:00:00Z" ]]; then
+  pass "the original manifest keeps its own seal moment"
+else
+  fail "acknowledge changed the original seal moment"
+fi
+run 1 "verify still exits 1 on the original divergence" verify "$packet"
+has_line "sealed-at=2026-01-01T00:00:00Z" "verify prints the original seal moment"
+has_line "gen-sealed-at=2026-03-03T06:07:08Z" "verify prints the generation's own seal moment"
+lacks "GEN-MISSING" "a generation header is not read as a missing entry"
+has "matched=1 changed=1 missing=0 unsealed=0 gen-matched=3 gen-changed=0 gen-missing=0" "the headers add nothing to the summary"
+
+fake_clock 2026-04-04T09:10:11Z
+run 0 "a second acknowledge writes generation 3" record --acknowledge-divergence "$packet"
+has "acknowledged=1 generation=3" "the previous generation's header is not counted as a divergence"
+lacks "GEN-MISSING" "the previous generation's header is not named as missing"
+run 1 "verify against generation 3" verify "$packet"
+has_line "gen-sealed-at=2026-04-04T09:10:11Z" "verify prints the latest generation's seal moment"
+lacks "2026-03-03" "the earlier generation's seal moment is not printed"
+
+# Manifests from before the header still grade, each reporting unknown.
+sed 1d "$packet/packet.sha256.3" >"$WORK/old-generation"
+mv -f "$WORK/old-generation" "$packet/packet.sha256.3"
+sed 1d "$packet/packet.sha256" >"$WORK/old-format.sha256"
+mv -f "$WORK/old-format.sha256" "$packet/packet.sha256"
+run 1 "verify grades header-less manifests" verify "$packet"
+has_line "sealed-at=unknown" "a header-less original reports unknown"
+has_line "gen-sealed-at=unknown" "a header-less generation reports unknown"
+has "matched=1 changed=1 missing=0 unsealed=0 gen-matched=3 gen-changed=0 gen-missing=0" "header-less manifests keep the summary"
+real_clock
+
 # --- symlinks are visible, and escaping ones are refused --------------------
 #
 # `-type f` cannot see a symlink, so an all-symlink packet enumerated as EMPTY
