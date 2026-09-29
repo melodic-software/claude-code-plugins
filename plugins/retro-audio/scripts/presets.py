@@ -4,7 +4,7 @@ Parameter names follow the sfxr synthesizer model. jsfxr, a JavaScript port of
 that model, is Unlicense (GitHub license field on chr15m/jsfxr and
 grumdrig/jsfxr, read 2026-09-28; recheck if either repository's license field
 changes). This package does not copy either program. Pulse duties are 12.5%,
-25%, 50%, and 75%.
+25%, 50%, and 75%, shared across the three chips.
 """
 
 CHIPS = {

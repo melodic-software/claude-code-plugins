@@ -322,17 +322,6 @@ is the correction path if compaction is ever observed earlier. Claude Code 2.1.2
 default" for native 1M models, re-fetched 2026-09-28 from model-config "Default auto-compact
 thresholds".
 
-## Prompt-cache miss cause
-
-The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
-`plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
-payload and prints the cause names. The tee snapshot still copies `context_window` and does not
-copy `prompt_cache`; pass the live payload to the script. Claim: `last_miss_cause.causes` holds
-names such as `tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, and
-`likely_server_side`, and the object is null when no cause was identified. Basis:
-<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck: that
-section renames the object or its cause names.
-
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated", so the value is as-of the last API response, not
 the next request; and with `autoCompactEnabled: false` no compaction ever fires (the session
@@ -401,6 +390,17 @@ Opus 4.7-era, and the Opus 5 prompting guide (verified 2026-08-08) states the 1M
 instruction following, tool calling, and reasoning "stay consistent throughout the window", which
 removes the degradation premise for that specific figure. A lowered window remains a legitimate
 cost and compaction-timing choice on its own terms.
+
+## Prompt-cache miss cause
+
+The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
+`plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
+payload and prints the cause names. The tee snapshot still copies `context_window` and does not
+copy `prompt_cache`; pass the live payload to the script. Claim: `last_miss_cause.causes` holds
+names such as `tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, and
+`likely_server_side`, and the object is null when no cause was identified. Basis:
+<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck: that
+section renames the object or its cause names.
 
 ## Zones (machine-scope tuning, optional)
 

@@ -107,14 +107,23 @@ the tools reference).
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash.
+  Claude Code can run it under Git Bash. If `/typos-format:setup` fails to load on
+  native Windows, Git Bash is missing: install Git for Windows and rerun
+  ([skills docs](https://code.claude.com/docs/en/skills#how-injected-commands-run), checked
+  2026-09-29: a `shell: bash` skill fails before any command runs when Git Bash is not found).
+- **Node.js** on `PATH`. The hook row runs `node hooks/exec-bash.mjs`, which finds Bash and
+  runs the script. Claude Code's native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), checked 2026-09-29), so without `node`
+  the hook does not launch and spelling is not checked. A missing `node` is a hook launch
+  error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session and agent, renewed every eighth skip.
+  present, the hook skips with a visible notice, once per session (all agents share the latch),
+  renewed every eighth skip with the install route kept.
   [Install typos](https://github.com/crate-ci/typos#install).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
@@ -125,7 +134,7 @@ fixing still runs.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
-where `typos` finds nothing is the figure that counts. Each row is interleaved trials against an
+where `typos` finds nothing is the figure that counts. Each row of the first table is interleaved trials against an
 interleaved `bash -c :` floor on Windows 11 under Git Bash:
 
 | Event | Fires | Spawn-equivalents | Measured | What changed |
@@ -133,9 +142,27 @@ interleaved `bash -c :` floor on Windows 11 under Git Bash:
 | PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
 | PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
 
-The 18.7 row is the current figure for this host class. Releases after 0.6.55 have not been
-measured on Windows; see [Hook cost accounting](#hook-cost-accounting) for a same-method Linux
-comparison through 0.6.62.
+Linux wall time for 0.7.6, from `hyperfine -N --warmup 3 --runs 30` on a clean `.md` `Write`
+payload (Linux x86_64, bash 5.3, node 24, `typos` 1.49, 2026-09-29, three repeats):
+
+| PostToolUse `Write`, clean `.md` | Mean wall time | What it is |
+| --- | --- | --- |
+| Hook enabled, launcher plus script | 84 to 120 ms | `node hooks/exec-bash.mjs` spawns the script's bash: one `node` process on top of the script's own |
+| Script alone | 58 to 73 ms | `bash hooks/typos-format.sh` |
+| Hook disabled, launcher only | 37 to 45 ms | the launcher exits before bash, but the `node` process itself still starts |
+| `bash -c :` floor | 1 to 2 ms | |
+
+The host was loaded (load average near 30) and the repeats spread by about 40%, so read these as
+ranges and as a launcher cost of roughly 35 to 45 ms, not as absolute figures.
+
+The 0.7.6 table is wall time on a Linux host, not spawn-equivalents: the floor there is about
+1 ms, so a ratio to it says little, and no `strace` was available for a kernel census. The
+Windows rows are the last spawn-equivalent figures. Releases after 0.6.55 have not been measured
+on Windows, and the 0.6.35 and 0.6.55 figures and the 0.6.48 census below predate the launcher
+and the current `hooks/hook-utils.sh`, so they do not describe the 0.7.6 process shape.
+Reproduce the Linux table with `hyperfine -N --input <payload.json>` over the command in
+`hooks/hooks.json`, with `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false` exported for the
+disabled row.
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
@@ -295,19 +322,7 @@ expansions, and the jq that copies `notebook_path` onto `file_path` now runs onl
 for a payload that carries one, which no `Write` or `Edit` does.
 
 **Later figures.** A plugin-quality audit on 2026-09-19 measured **18.7** on
-0.6.55 with the same method on the Windows host (n=8). On 2026-09-27 the same
-method ran on Linux x86_64 (bash 5.2, git 2.43, jq 1.7, typos 1.42.1), with 24
-trials interleaved across three releases in each round:
-
-| Release | Median spawn-equivalents (Linux) | p25 to p75 |
-| --- | --- | --- |
-| 0.6.35 | 35.7 | 31.9 to 37.3 |
-| 0.6.55 | 31.2 | 28.6 to 32.5 |
-| 0.6.62 | 25.0 | 24.1 to 26.0 |
-
-The Linux floor is about 1 ms, so its ratios are noisier than the Windows
-host's and do not compare to its rows. What carries over is the relative
-change: 0.6.62 runs about 30 percent below 0.6.35 on the same host.
+0.6.55 with the same method on the Windows host (n=8).
 
 **Residual, and why it stays.** The dominant single cost is the `typos` binary's
 own startup, which is the point of the hook. On the measuring host it resolves
@@ -315,7 +330,7 @@ through a WinGet Links shim, an indirection this hook cannot remove. Of the
 remaining twelve processes, eight to ten belong to the shared
 `hooks/hook-utils.sh`: payload validation, the `file_path` read and its
 project-membership scoping, and the repository-root lookup. That file is a
-registered byte-identical cross-plugin cluster, so changing it is a nine-plugin
+registered byte-identical cross-plugin cluster, so changing it is a fleet-wide
 change and not this plugin's to make. Two `cygpath` calls resolve the
 repository-relative argument `typos` runs on, which the tool needs to apply the
 repository's own exclude rules.
@@ -326,14 +341,14 @@ by the write-mode allowlist would stop reporting typos in `Dockerfile`,
 `Makefile`, `.gitignore` and every extensionless file. That is a behavior
 change, not a saving.
 
-**A disabled hook costs one shell.** The `hooks/hooks.json` row reads
-`typos_format_enabled` itself and exits before the script starts, so the harness's
-shell is the only process a disabled hook creates. Measured in two runs on a Windows
-Git Bash host under different load, 15 interleaved trials each with the switch off, the old row cost 2.5 to 4.0
-times the `bash -c :` floor and the new row about 1.0 times it (medians: 96.1 ms
-against 23.7 ms on a 24.0 ms floor, and 157.6 ms against 62.4 ms on a 61.9 ms floor).
-With the switch on the row `exec`s the script in place of its own shell, so the
-process count is unchanged.
+**A disabled hook costs a `node` process; an enabled edit costs `node` plus bash.** The
+`hooks/hooks.json` row runs `node hooks/exec-bash.mjs --run-if-unset-or-true TYPOS_FORMAT_ENABLED`
+(0.7.1). With `typos_format_enabled` off the launcher exits before it resolves or spawns bash, so
+`node` is the only process the hook creates. With it on, `node` spawns bash for the script, so the
+edit path carries one more process than the pre-0.7.1 row, which `exec`'d the script in place of
+its own shell. The 2026-09-29 Linux run in Hook budget accounting measured 37 to 45 ms disabled and
+84 to 120 ms enabled, against 58 to 73 ms for the script alone. The earlier Windows figures for a disabled
+row describe a row that no longer exists and are not repeated.
 
 ### Why the row stays synchronous (#4677)
 
@@ -354,7 +369,7 @@ per-edit critical path, but it gives up more than it saves:
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session and agent, renewed every eighth skip) that `typos` is not on `PATH`. An async hook's
+  mode) and for the notice (once per session, shared by all agents, renewed every eighth skip with the install route kept) that `typos` is not on `PATH`. An async hook's
   `systemMessage` is not shown to you, so that notice would reach only Claude, once, and the skip
   would be invisible to the person who can install the binary.
 

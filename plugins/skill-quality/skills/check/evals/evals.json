@@ -105,9 +105,9 @@
       "expected_output": "It is check 25, a FAIL — the skill did not pass. It flags a factual-consistency defect in the listing surface: the description lead (or the leaf verb) tells a read-only story while the skill advertises or performs mutation, or the reverse. Hand-verify the lead against the Naming verb contract and the body. --fix in the description is the compliant override shape (claude-config:audit [--fix]). Do not treat the failure as a mandate to add a --fix path or rename the skill — both are out of scope for this check. Fix the listing or add the compliant override before shipping.",
       "files": [],
       "expectations": [
-        "Output identifies the line as an advisory WARN (not a FAIL) that does not block shipping the skill",
+        "Output identifies the line as check 25, a FAIL that blocks shipping the skill until the listing is corrected or the compliant --fix override is added",
         "Output explains the mismatch is between the description/verb contract (read-only vs mutate) and is a factual-consistency defect in the listing surface",
-        "Output does NOT treat the WARN as a mandate to add a --fix path or rename the skill"
+        "Output does NOT tell the user to add a --fix path or rename the skill as the fix (correct the listing or use the compliant override)"
       ]
     },
     {

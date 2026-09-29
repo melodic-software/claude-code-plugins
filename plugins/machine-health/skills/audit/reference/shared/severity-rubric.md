@@ -68,6 +68,8 @@ Before finalizing a severity on a threshold boundary, orchestrator must:
    - The check's trend metric worsened by 5 or more against the last run where the check ran (e.g., disk +5pp).
    - `drivers` saw CodeIntegrity events in this run and in the last run where it ran, with a newer event since
      (`check-catalog.md` §8). One run's events stay WARN.
+   - Not a `winget-upgrades` WARN that name-matches the CISA KEV list: that match is name-only evidence, so a count
+     trend never raises it. A `winget-upgrades` WARN from >10 apps behind with no KEV match is raised like any other.
 4. Write trend annotation into the finding (`"trend": { "last_run": "...", "delta": "...", "adjusted_from": "..." }`) so the human can see the reasoning.
 
 Severity never moves down. No rule demotes a reading that crossed a threshold and later reverted, so a check's own

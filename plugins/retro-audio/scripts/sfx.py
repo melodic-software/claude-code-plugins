@@ -22,6 +22,8 @@ import wav  # noqa: E402
 
 
 def render_sfx(params, rate=44100):
+    if not isinstance(params, dict):
+        raise ValueError("params must be a JSON object")
     wave_name = params.get("wave", "square")
     if wave_name not in ("square", "saw", "sine", "noise", "pulse"):
         raise ValueError(f"wave {wave_name!r} is not square, saw, sine, or noise")
@@ -104,7 +106,7 @@ def main(argv=None):
             raw = args.params.strip()
             params = json.loads(raw) if raw.startswith("{") else json.loads(Path(raw).read_text())
         samples = render_sfx(params, args.rate)
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"sfx.py: {exc}", file=sys.stderr)
         return 1
     seconds = wav.write_wav(args.out, samples, args.rate)

@@ -8,7 +8,7 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-**Arguments.** `[layer ...] [unattended]`. Full form: [layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
+**Arguments.** `[layer ...] [unattended]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 
