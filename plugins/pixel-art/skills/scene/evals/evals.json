@@ -19,7 +19,7 @@
       "id": 2,
       "name": "triggers-on-ambient-loop-with-audio",
       "prompt": "animated pixel background, an ambient loop of rain on a city street, use ./audio/rain.wav for sound",
-      "expected_output": "Fires /pixel-art:scene. Loads the named WAV with WebAudio, starts it on the first click because browsers block autoplay, and ties cues to the same timeline as the visuals. The scene loops.",
+      "expected_output": "Fires /pixel-art:scene. Puts a WAV token in the template so embed.py inlines a data URL, loads it with WebAudio, starts it on the first click because browsers block autoplay, rewinds the scene clock on that click, and loops the scene.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -33,12 +33,13 @@
       "id": 3,
       "name": "reviews-over-localhost-or-states-unreviewed",
       "prompt": "title screen for my game 'Moss Knight' with a parallax forest and falling leaves",
-      "expected_output": "Fires /pixel-art:scene. With a browser automation tool present it serves the output directory over 127.0.0.1 in the background and captures screenshots at several timeline points, because browser tools may refuse file: URLs. Without one it says the scene is unreviewed visually, checks the script parses, and asks the user to open it and describe what they see.",
+      "expected_output": "Fires /pixel-art:scene. Runs the bundled capture command once. When a browser is present that command serves the output over 127.0.0.1, seeks the scene clock, and writes a PNG at more than one timeline point. Exit 3 means no browser tool: the skill says the scene is visually unreviewed, does not claim the picture looks right, checks the script parses, and asks the user to open the file.",
       "files": [],
       "expectations": [
+        "Runs the bundled capture command as the one review step",
         "Reviews through a localhost server, not a file: URL, when a browser tool is present",
         "Captures and reads screenshots at more than one timeline point",
-        "When no browser tool is present, says the scene is visually unreviewed instead of claiming it looks right"
+        "When capture.py exits 3, says the scene is visually unreviewed instead of claiming it looks right"
       ]
     },
     {

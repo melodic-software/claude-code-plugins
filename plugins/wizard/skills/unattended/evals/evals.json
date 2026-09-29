@@ -1,0 +1,40 @@
+{
+  "skill_name": "unattended",
+  "evals": [
+    {
+      "id": 1,
+      "name": "privilege-boundary-not-interactive-wizard",
+      "prompt": "The operator has to run the machine configuration elevated. Every step is scriptable. Write the script I will launch. Do not walk me through clicks.",
+      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It copies template.ps1, leaves the library above # STAGES unchanged, and writes the procedure in the -Stages block of the Invoke-UnattendedRun call below # STAGES, with Assert-Elevation -Mode Required and no per-step confirmation. It prints the # STAGES block for approval, names the result-latest.json path (cutover.result/1) the agent will read back, and does not run the script.",
+      "expectations": [
+        "Chooses unattended rather than the interactive generate wizard",
+        "Authors PowerShell from template.ps1 without editing the library above # STAGES",
+        "Demands elevation with Assert-Elevation -Mode Required",
+        "Names the result-latest.json path the agent will read back",
+        "Does not execute the script"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "wsl-restart-runs-on-windows-host",
+      "prompt": "Write the unattended script that shuts down and restarts my WSL distro Ubuntu, then unregisters the old distro OldUbuntu.",
+      "expected_output": "The skill emits PowerShell to run on the Windows host, not a script inside the distro, and guards it with Assert-NotInside -Name Ubuntu. The unregister step is wrapped in Confirm-Irreversible, so the human types the name before it runs; the rest of the script stays unattended.",
+      "expectations": [
+        "Emits PowerShell for the Windows host rather than a script run inside the distro",
+        "Guards the run with Assert-NotInside naming the distro",
+        "Wraps wsl --unregister in Confirm-Irreversible",
+        "Does not add per-step prompts to the non-irreversible steps"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "dashboard-stays-on-generate",
+      "prompt": "I have to click through the Stripe dashboard and paste an API key. Build me the unattended script.",
+      "expected_output": "The skill refuses the unattended shape for a dashboard click and routes to /wizard:generate, because a human is the actor, not only the privilege boundary.",
+      "expectations": [
+        "Does not emit an unattended script for a dashboard click",
+        "Routes that procedure to /wizard:generate"
+      ]
+    }
+  ]
+}
