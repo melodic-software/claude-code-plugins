@@ -1,73 +1,63 @@
 # Classification rubric for CC changelog items
 
-P1/P2/P3 criteria for triaging Claude Code changelog items.
+Every changelog item gets one action lens per owner surface it touches. A lens says what the repo should do about a component, not how important the item is. Surfaces to check are listed in `repo-surfaces.md`.
 
-## Three-tier classification
+## Lenses
 
-### P1: Requires update
+| Lens | Meaning | Row | Outcome |
+|---|---|---|---|
+| **correct** | A component states something now false. Covers scripts and fixtures that encode a claim, not only prose. | Decision row stating the false-versus-true pair | Fix the component |
+| **replace** | A custom component where Claude Code now ships a native surface. Widened: a harness behavior that overlaps a component with no routable native surface also counts. | Decision row stating the problem the component solves | Nominate the native surface; with no routable native surface, keep the component and re-rationalize it |
+| **adopt** | The item solves a problem a component works around or lacks. | Decision row stating the problem solved | Adopt, decline, or defer pending probe |
+| **note** | Worth knowing, changes no component. | One line in the read summary | None |
+| **skip** | Cosmetic, internal, or irrelevant to the repo. | None. Counts toward the read | None |
 
-Repo already uses this CC feature or surface, and the changelog changes behavior, adds capability, or fixes a bug that affects our configuration/documentation.
+A skip item leaves no row and no line; only the count in the read summary shows it was seen.
 
-**Signals:**
+### correct
 
-- Grep finds the feature name in repo rules/config (already adopted)
-- Behavioral change to something we depend on (hook event schema, permission engine, frontmatter field)
-- Bug fix for a field we read (hook stdin fields, transcript tokens, cache metrics)
-- Breaking change or deprecation of something we use
-- Existing quirks entry becomes stale (bug fixed upstream)
-- Existing recheck trigger fires
+- Grep finds the item's feature, field, event or flag in a component, and the item changes what is true about it
+- A bug the component documents as a quirk is fixed upstream, or a deprecation or removal hits something the component uses
+- A recheck trigger on a component fires
 
-**Action:** Update affected files. Document behavioral change.
+The row names the claim as the component states it (false) and as the item states it (true). A row without both halves is not a correct row.
 
-### P2: Worth considering
+### replace
 
-New capability the repo does NOT currently use but SHOULD evaluate for adoption.
+- A component reimplements what a native command, skill, setting, hook event or frontmatter field now does
+- A harness behavior now overlaps a component that no native surface can replace one-for-one. The outcome is keep, and the row re-rationalizes the component against the new behavior
 
-**Signals:**
+The row names the problem the component solves, so the reader can judge whether the native surface solves the same one. A run never edits or removes the component: a replace candidate is nominated to `/claude-ops:audit-native-overlap`, which owns the decision.
 
-- New frontmatter field that could enforce existing prose conventions mechanically
-- New hook event enabling observability we currently lack
-- New CLI flag solving a pain point documented in quirks or rate-limit workflow
-- New setting enabling automation we currently do manually
-- Platform improvement making a deferred feature tractable
+### adopt
 
-**Action:** Research capability, evaluate fit, recommend adopt/defer with rationale. Do NOT skip because "we don't use it yet". That's exactly why it needs evaluation.
+- A new frontmatter field, hook event, flag or setting removes a workaround the repo carries or supplies something it lacks
+- A platform improvement makes a deferred feature tractable
 
-### P3: No action
+The row names the problem solved. "We do not use it yet" is never a reason to skip; the problem the component works around is the test.
 
-UI/cosmetic fix, internal refactoring, or feature entirely irrelevant to repo.
+An adopt row may read **defer pending probe** when the item's behavior is not yet established. The evidence bar for leaving defer is one of:
 
-**Signals:**
+- a documentation page states the behavior, or
+- a live probe shows it
 
-- Purely visual change (spinner text, markdown rendering, table borders)
-- Bug fix for feature we don't use and have no plans to use
-- Platform-specific fix for OS we don't target
-- Internal performance optimization with no user-visible behavior change
+A changelog line alone does not meet the bar.
 
-**Action:** None. List in summary for completeness.
+### note and skip
 
-## Edge cases
+- Security fixes and model-specific changes are never skip. Check the repo's trust posture and model-routing docs; the result is correct, adopt or note
+- A fix for a feature the repo does not use is skip, unless it unblocks something the repo declined for lack of that fix, which is adopt
+- A deprecation of something the repo does not use is skip
+- An experimental feature is note unless it solves a problem a component works around, which is adopt with defer pending probe
+- Plugin-system changes are checked against `enabledPlugins` in settings.json
 
-| Situation | Classification | Rationale |
-|---|---|---|
-| Bug fix for feature we don't use but MIGHT adopt | P2 | Fix may unblock adoption |
-| New feature behind experimental flag | P2 | Worth tracking even if not adoptable yet |
-| Deprecation of something we don't use | P3 | Unless we planned to adopt it |
-| Security fix | P1 always | Security fixes affect trust posture regardless of direct usage |
-| Model-specific change (e.g., "<model> now...") | P1 if we use that model | Check any model-routing/tiering docs the repo keeps |
-| Plugin-system change | P1 if we use plugins | Check `enabledPlugins` in settings.json |
+## Source precedence
 
-## Item categories
+The changelog is the newer statement of behavior. The documentation page stays the authority for syntax and shape until a live probe settles it.
 
-Changelog items fall into categories that predict which surfaces to check:
+A correct row that rests on a changelog line the docs do not yet state:
 
-| Category | Typical surfaces (see `repo-surfaces.md`) | Examples |
-|---|---|---|
-| **Hook/event** | Hook scripts, hook-related rules/docs | New event types, schema changes, reliability fixes |
-| **Skill/frontmatter** | `.claude/skills/**/SKILL.md`, skill-authoring docs | New fields, discovery changes |
-| **Settings/permission** | `.claude/settings*.json`, settings-related docs | New keys, permission engine changes |
-| **CLI** | `CLAUDE.md` CLI references, command cheat-sheets | New flags, command changes |
-| **Model/rate-limit** | Model-routing/usage docs | Pricing, limits, model behavior |
-| **Agent/subagent** | `.claude/agents/*.md`, agent conventions docs | Agent frontmatter, isolation changes |
-| **UI/cosmetic** | (none usually) | Visual fixes, spinner text |
-| **Bug fix** | Depends on affected surface | Fix for reported issue |
+1. cites the newer source (the changelog entry)
+2. names the disagreement with the docs page
+
+The changelog-versus-docs pair also goes to the docs-lag section of the read. That section is handed to `/claude-ops:known-issues` when that skill is installed; a docs-lag entry is never a decision row.
