@@ -34,11 +34,7 @@ presence-gated with its fallback stated:
   permission plane as it is *in effect*: the merged allow/ask/deny set with per-rule provenance,
   what auto mode drops on entry, configuration written where nothing reads it, and which managed
   intents are enforced versus loosenable. It takes an **action flag and no target**, so it is
-  **exactly one lane** covering all of that. It is a **blocking fork** (`context: fork`,
-  `background: false`): the Skill-tool call waits for the lane report in this turn, so result
-  timing and the pass's one human gate stay unchanged. Do not dispatch it as a backgrounded
-  fork. Rubric:
-  [invocation-context](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
+  **exactly one lane** covering all of that.
 
   **Its managed-scope reads belong to the pass's read-only managed inventory, not to a project lane.**
   It reads managed policy on every OS and never writes anywhere, in any scope, under any flag, so it

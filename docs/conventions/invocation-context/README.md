@@ -12,7 +12,8 @@ model-invoked and forked. Fork does not change listing eligibility.
 
 Provenance: 2026-08-31 fleet skills audit
 ([#3545](https://github.com/melodic-software/claude-code-plugins/issues/3545)); operator decision
-2026-09-27 to run a two-skill blocking-fork pilot and to record the anti-candidate classes here.
+2026-09-27 to run a blocking-fork pilot and to record the anti-candidate classes here. The pilot
+is `mcp-tools:audit` alone; `claude-config:audit-permission-state` was struck from it (see Pilot).
 
 ## Official semantics
 
@@ -79,23 +80,26 @@ skill is still running; those are harness fallbacks, not a reason to omit the ke
 
 ## Pilot (2026-09-27)
 
-Two skills, both `context: fork` and `background: false`, both `agent` omitted (general-purpose):
+One skill, `context: fork` and `background: false`, `agent` omitted (general-purpose):
 
 | Skill | Why it pays | Orchestration |
 |---|---|---|
-| `claude-config:audit-permission-state` | Read-only, argument-scoped, no human gate, long deterministic reader over every settings scope | `audit-pass` *does* Skill-tool-invoke it as a lane. Blocking fork is the composition posture: the pass waits for the lane report. `--oracle` is never dispatched from the pass. |
 | `mcp-tools:audit` | Read-only, optional path argument, no human gate, heavy per-tool file reading | Not an `audit-pass` lane. User-invoked and Skill-tool-invoked callers both wait for the scorecard. |
 
-Evaluate the pilot on (a) whether the returned report is complete without parent history, (b)
-whether `audit-pass`'s permission-state lane still lands in the same turn with the one-gate
-intact, and (c) whether a user who types `/claude-config:audit-permission-state` still sees the
-report before the turn ends. Do not flip further skills until those three hold.
+Evaluate the pilot on (a) whether the returned report is complete without parent history and (b)
+whether a user who types `/mcp-tools:audit` still sees the scorecard before the turn ends. Do not
+flip further skills until both hold.
+
+**Deferred: `claude-config:audit-permission-state`.** It is otherwise a good candidate (read-only,
+argument-scoped, no human gate, a long reader over every settings scope), but `audit-pass`
+Skill-tool-invokes it as a lane. It stays inline until a recorded composition run shows that a
+blocking fork keeps `audit-pass`'s result timing and its single human gate.
 
 Next-tier candidates, only after that evaluation: `claude-config:audit-permission-grants`,
 `claude-ops:inventory`, `claude-ops:audit-install-state`, `skill-quality:check`,
 `code-tidying:audit-dead-code`, `docs-hygiene:audit-progressive-disclosure`, `testing:audit`.
-Each still has to clear the four tests above and, if `audit-pass` or another orchestrator
-Skill-tool-invokes it, take `background: false`.
+Each still has to clear the four tests above. One that `audit-pass` or another orchestrator
+Skill-tool-invokes waits, like `audit-permission-state`, for a recorded composition run first.
 
 ## Anti-candidate classes
 
@@ -126,7 +130,7 @@ anti-candidate wins.
   strip; the default `general-purpose` is the pilot's choice.
 - State in the body that the run has no parent history, so `$ARGUMENTS` and the working tree are
   the whole input.
-- Re-read this doc before flipping a next-tier candidate. The pilot is two skills, not a pattern
+- Re-read this doc before flipping a next-tier candidate. The pilot is one skill, not a pattern
   to copy.
 
 ## Cross-references
@@ -136,4 +140,3 @@ anti-candidate wins.
   in-fleet use).
 - [invocation-mode](../invocation-mode/README.md): whether the model may invoke the skill; orthogonal.
 - `playbooks:skill-authoring`: authoring-time pointer here.
-- `claude-config:audit-pass` lane catalog: the permission-state lane is a blocking fork.

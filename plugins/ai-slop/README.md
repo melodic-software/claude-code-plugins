@@ -72,14 +72,15 @@ apostrophes spelled `.` (the detector's phrase convention), metacharacters live.
 replaces wholesale per config layer, like `vocab_add`. A fragment that is not a valid ERE, or
 an empty one, is skipped with a stderr note rather than allowed to flood the rule or silently
 disable it; removing every shipped phrase leaves the rule inert. `phrase_remove` matches the
-shipped fragments verbatim (the shipped roster is listed by `--show-config`). Replacement is
-keyed on the key being present: an explicit `"phrase_add": []` in a later layer clears an
-inherited list, and a config layer that fails to parse whole (for example one caught
-mid-write) is refused rather than partially applied.
+shipped fragments verbatim (the shipped roster is listed by `--show-config`). Every list key
+(the path lists, `disabled_rules`, `vocab_*`, `phrase_*`) replaces keyed on the key being
+present: an explicit `[]` in a later layer clears an inherited list, and a config layer that
+fails to parse whole (for example one caught mid-write) is refused rather than partially applied.
 
 `rule_allowed_paths` exempts ONE rule on the named globs and counts the file as declined for
 that rule. It is the proportionate closure when a whole document legitimately trips a single
-rule (a density verdict especially, which no line marker can quiet). `em_dash_allowed_paths`
+rule (a density verdict especially, which no line marker can quiet). A later layer replaces one
+rule's globs at a time, and an explicit `[]` for a rule clears it. `em_dash_allowed_paths`
 is the older spelling of the same thing for `rule-em-dash` and stays supported.
 
 Every path-list key takes shell case-match globs, matched against the absolute path and the

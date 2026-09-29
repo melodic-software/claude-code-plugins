@@ -89,7 +89,20 @@ Agent content, schema files, and a fleet-wide bare organization name are **not g
 deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
 The independent `portability-lint` job stages a related publisher-token class in
 `scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
-`org-agnosticism-tokens.txt` rather than invent a third set.
+`org-agnosticism-tokens.txt` rather than invent a third set. CI enforces that alignment via
+`scripts/check-publisher-token-alignment.sh`.
+
+### Hardcoded consumer specifics
+
+A reusable plugin must not bake in one machine's paths, one org's repo names, or one project's
+layout. Values that genuinely vary per environment, operator, or consumer belong in the consumer's
+own config layers (`melodic-software/standards` `conventions/engineering/shareable-artifact-design.md`
+§ externalized configuration). This subsection is
+the doctrine owner; component-scoped audits cite it instead of restating the rule:
+
+- `plugin-quality:audit` recurring-concerns (per-component detection cues).
+- `coupling:reduce` remediation catalog (code and document altitude).
+- `claude-config:audit-permission-grants` (concrete home paths in permission grants only).
 
 Keep plugins horizontally decoupled:
 

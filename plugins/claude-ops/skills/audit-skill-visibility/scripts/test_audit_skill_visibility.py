@@ -518,6 +518,36 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "unknown")
         self.assertEqual(reach["evidence"], paths["project"])
 
+    # --- a non-Boolean enabledPlugins value rejects its file -----------------
+    #
+    # A fixture probe on Claude Code 2.1.280: a user settings file holding
+    # `"yes"` for one key read its `true` sibling disabled in `claude plugin
+    # list --json`, `claude doctor` listed the value under "Invalid settings",
+    # and the other scopes still decided. The engine follows the product.
+
+    def test_a_true_key_beside_a_non_boolean_one_is_hidden(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp, user={"alpha@mkt": True, "beta@mkt": "yes"}
+            )
+        self.assertEqual(reach["value"], "hidden")
+        self.assertIs(self.enablement["value"], False)
+        self.assertEqual(reach["causes"], ["settings-file-rejected"])
+        self.assertIn(paths["user"], reach["evidence"])
+        self.assertIn("'beta@mkt' is 'yes'", reach["evidence"])
+        self.assertIn("true or false", reach["remedy"])
+        self.assertEqual(reach["provenance"], engine.REJECTED_FILE_PROVENANCE)
+
+    def test_a_lower_scope_still_decides_under_a_rejected_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp,
+                user={"alpha@mkt": True},
+                project={"alpha@mkt": False, "beta@mkt": "yes"},
+            )
+        self.assertEqual(reach["value"], "model-reachable")
+        self.assertEqual(self.enablement, {"value": True, "evidence": paths["user"]})
+
     def test_never_enabled_evidence_names_the_scopes_not_read(self):
         """The flag scope is never observable and the stubbed managed scope
         was not enumerated, so neither is claimed as absent."""
@@ -624,13 +654,44 @@ class EnabledPluginsMergeTest(unittest.TestCase):
             {"value": False, "evidence": engine.NEVER_ENABLED},
         )
 
-    def test_a_non_boolean_value_is_left_out_and_named(self):
+    def test_a_non_boolean_value_disables_its_boolean_siblings_too(self):
+        """Claude Code 2.1.280 rejects the file: `claude plugin list --json`
+        read a `true` sibling of a `"yes"` value disabled."""
         merged = engine.merge_enabled_plugins(
-            [self._layer("user", "/u", {"enabledPlugins": {"a@m": "yes"}})]
+            [self._layer("user", "/u", {"enabledPlugins": {"a@m": "yes", "b@m": True}})]
         )
-        self.assertNotIn("a@m", merged["plugins"])
+        self.assertEqual(merged["plugins"], {})
         self.assertEqual(len(merged["ignored"]), 1)
-        self.assertIn("a@m", merged["ignored"][0])
+        self.assertIn("'a@m'", merged["ignored"][0])
+        self.assertNotIn("'b@m'", merged["ignored"][0])
+        for key in ("a@m", "b@m"):
+            with self.subTest(key=key):
+                state = engine.enablement_for(merged, key)
+                self.assertIs(state["value"], False)
+                self.assertTrue(state["evidence"].startswith(engine.REJECTED_FILE))
+                self.assertIn("/u", state["evidence"])
+                self.assertIn("'a@m' is 'yes'", state["evidence"])
+
+    def test_a_rejected_file_falls_through_to_the_other_scopes(self):
+        """The rejected file contributes nothing, as if absent: its `false`
+        does not outrank a lower scope's `true`."""
+        merged = engine.merge_enabled_plugins(
+            [
+                self._layer("user", "/u", {"enabledPlugins": {"a@m": True}}),
+                self._layer(
+                    "project", "/p", {"enabledPlugins": {"a@m": False, "b@m": 1}}
+                ),
+            ]
+        )
+        self.assertEqual(merged["plugins"]["a@m"], {"value": True, "evidence": "/u"})
+        self.assertTrue(
+            engine.enablement_for(merged, "b@m")["evidence"].startswith(
+                engine.REJECTED_FILE
+            )
+        )
+        self.assertEqual(
+            engine.enablement_for(merged, "c@m")["evidence"], engine.NEVER_ENABLED
+        )
 
     def test_unread_scopes_without_a_file_do_not_poison_the_merge(self):
         """The flag scope and an unenumerable managed scope carry no file
@@ -904,6 +965,28 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertTrue(row["provenance"].endswith("settings.local.json"))
         # The other key is untouched by scopes that do not define it.
         self.assertEqual(merged["skillListingBudgetFraction"]["provenance"], "default")
+
+    def test_a_rejected_file_contributes_no_listing_settings(self):
+        """Claude Code skips a file whose enabledPlugins holds a non-Boolean
+        value, so its listing keys must not reach the budget either."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp,
+                user={"skillListingBudgetFraction": 0.02},
+                project={
+                    "skillListingBudgetFraction": 0.05,
+                    "skillListingMaxDescChars": 200,
+                    "enabledPlugins": {"a@m": "yes"},
+                },
+            )
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        self.assertEqual(merged["skillListingBudgetFraction"]["value"], 0.02)
+        self.assertEqual(merged["skillListingMaxDescChars"]["provenance"], "default")
+        self.assertEqual(len(merged["ignored"]), 1)
+        self.assertIn("'a@m' is 'yes'", merged["ignored"][0])
 
     def test_a_key_absent_everywhere_reports_default_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:

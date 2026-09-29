@@ -47,19 +47,6 @@
         "Output does not claim any scope was checked"
       ],
       "files": []
-    },
-    {
-      "id": 5,
-      "name": "blocking-fork-has-no-parent-history",
-      "prompt": "I already told you which scopes to skip in the last message. Run the permission-state audit using that.",
-      "expected_output": "The skill does not use prior conversation: it is a blocking fork with no parent history. It runs from $ARGUMENTS and the working tree only, and if the last message's skip list was not passed as arguments it audits every read-only stage rather than inventing a remembered filter.",
-      "files": [],
-      "narration": true,
-      "expectations": [
-        "Output does not treat prior conversation as input",
-        "Output runs from $ARGUMENTS and the working tree only",
-        "Output identifies the skill as a blocking fork (context: fork, background: false)"
-      ]
     }
   ]
 }
