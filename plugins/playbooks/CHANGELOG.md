@@ -13,6 +13,16 @@ only after that version increases.
   another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
   `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
 
+## [0.14.7] - 2026-09-29
+
+### Changed
+
+- **`repo-sweep` next step 3.4 runs `/planning:interview scope` for the scope questions**
+  ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)). The step no
+  longer forbids the interview. The returned decisions go into the step commit's
+  `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
+  of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
 ## [0.14.6] - 2026-09-29
 
 ### Fixed

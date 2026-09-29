@@ -87,14 +87,20 @@ never combined with `&&` or other commands in one call. The record for these sha
    anything is fixed. Read the skill's own coverage statement (for example audit skills' `Lane:`
    lines or `Summary coverage:`) and show any uncovered scope alongside the findings. Do not tick
    the step, including a `no findings` tick, until this review finishes.
-4. Ask the scope questions the findings raise as one short numbered list in chat (which
-   findings to fix, how far to go). A file synced from another repository is overwritten by the
+4. Settle the scope questions the findings raise (which findings to fix, how far to go) by
+   running `/planning:interview scope` through the Skill tool; it writes no `PLAN.md` and returns
+   a `Scope decisions:` section. A file synced from another repository is overwritten by the
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
-   edit them here, and ask whether to draft an issue in the source repository, filed only when
-   the user asks. When the agreed fix lives in another repository, file the issue there after the
-   user approves and keep the issue URL; section 4 ticks `filed <issue-url>`, never `no-findings`. Do not run `/planning:interview` for this. Record each question and answer for
-   the commit.
+   edit them here, and put the question of whether to draft an issue in the source repository
+   to the interview, filed only when the user asks. When the agreed fix lives in another
+   repository, file the issue there after the user approves and keep the issue URL; section 4
+   ticks `filed <issue-url>`, never `no-findings`. Copy the returned lines (answer lines,
+   `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
+   section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
+   that question before step 5, then record the user's answer beside that line in the section.
+   When the planning plugin is not installed, ask the questions as one short numbered list
+   in chat and record each question and answer for the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
 ## 4. Guard, commit, tick
