@@ -3,6 +3,13 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports never-PR and closed-unmerged remote branches, and `apply --remote-branches` deletes them one branch at a time** ([#5322](https://github.com/melodic-software/claude-code-plugins/issues/5322)).
+  A remote head with no pull request ever, or only closed unmerged pull requests with one at the live tip, is a `HIGH` `unmerged-remote-branch` finding (class `never-pr` or `closed-unmerged`). `MEDIUM` `unmerged-remote-branch-unverified` and `unmerged-remote-branch-review` rows are never deletion candidates. The flag is opt-in: without it `delete-remote-branches` plan rows are skipped and no remote is contacted. With it, each branch gets its own prompt that `--yes` never answers, a session without a terminal deletes nothing, the live tip is re-read first, and the tip goes to `<plan-file>.tip-ledger` with a restore command before a lease-guarded push. Branches with a merged pull request stay out of scope.
+
 ## [0.24.2] - 2026-09-29
 
 ### Fixed

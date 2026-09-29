@@ -1066,7 +1066,7 @@ assert_not_contains_file "remote head with a merged PR at another tip is not an 
 assert_contains_file "null any-state payload is an evidence gap, never never-pr" \
   "returned no PR count for one or more remote heads" "$unmerged_out"
 assert_contains_file "remote-branch handoff names the gated apply path" \
-  "apply --plan-file <path> --remote-branches, one confirmation per branch" "$unmerged_out"
+  "apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch" "$unmerged_out"
 if python3 - "$unmerged_plan" "$TMP/canonical-a" <<'PY'; then
 import json, sys
 plan, canonical = json.load(open(sys.argv[1])), sys.argv[2]

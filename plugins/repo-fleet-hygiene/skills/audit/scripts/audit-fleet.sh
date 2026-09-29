@@ -1456,6 +1456,8 @@ else:
                 )
         print("   note: re-derive OIDs at execution time; do not trust plan tips")
         print()
+if any(a.get("remote_branches") for _i, a in ordered):
+    print("Remote branch rows are outside that gate: apply-plan.sh --remote-branches prompts once per branch in an interactive terminal and --yes does not answer it.")
 print("Mutations: none; this invocation only renders the approval artifact.")
 PY
   exit $?
@@ -2615,7 +2617,7 @@ classify_unmerged_remote_branches() {
     fi
     emit_finding unmerged-remote-branch "$target" \
       "$evidence; ls-remote confirmed refs/heads/$name at $live_oid" \
-      "Gated: /repo-fleet-hygiene:apply --plan-file <path> --remote-branches confirms each branch and deletes it only at expected tip $live_oid; apply without --remote-branches never deletes remote branches. Preview: git -C $canonical push --delete --dry-run $canonical_remote $name"
+      "Gated: apply-plan.sh --plan-file <path> --apply --remote-branches, run in your own terminal, prompts for each branch and deletes it only at expected tip $live_oid; /repo-fleet-hygiene:apply --remote-branches from a session without a terminal only previews, and apply without --remote-branches never deletes remote branches. Preview: git -C $canonical push --delete --dry-run $canonical_remote $name"
     RB_TARGET+=("$target")
     RB_REMOTE+=("$canonical_remote")
     RB_BRANCH+=("$name")
@@ -3535,7 +3537,7 @@ else
 fi
 printf 'Handoff: approve this plan once, then run /repo-fleet-hygiene:apply --plan-file <path> (or --apply-plan for a read-only preview)\n'
 if [[ ${#RB_TARGET[@]} -gt 0 ]]; then
-  printf 'Remote branches: delete-remote-branches runs only under /repo-fleet-hygiene:apply --plan-file <path> --remote-branches, one confirmation per branch at its expected_oid; apply never runs it by default\n'
+  printf 'Remote branches: delete-remote-branches runs only when apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch at its expected_oid; a session without a terminal only previews, and apply never runs it by default\n'
 fi
 
 # --- Machine-readable plan artifact ----------------------------------------

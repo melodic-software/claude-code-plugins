@@ -12,6 +12,8 @@ The currently shipped audit reports:
   `delete_branch_on_merge` is not enabled or was blocked. Enabling that setting is complementary to
   this visibility rather than a substitute for it, and this plugin never changes repository
   settings;
+- remote heads with no pull request ever, or only closed unmerged pull requests, as gated deletion
+  candidates (see [Remote branch deletion](#remote-branch-deletion));
 - merged-PR, missing, prunable, or administratively mismatched worktree registrations;
 - linked worktrees that do not conform to the configured worktree root (or placement when unset); and
 - GitHub repositories whose configured remote resolves to a different owner or name.
@@ -19,7 +21,7 @@ The currently shipped audit reports:
 The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:audit` never fetches,
 prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
 confidence, disposition, and exact target. Two verbs mutate, each only behind `--apply` and one
-confirmation: `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes]` consumes the audit's
+confirmation: `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes] [--remote-branches]` consumes the audit's
 action-plan JSON (see [Fleet cleanup plan](#fleet-cleanup-plan)), and `/repo-fleet-hygiene:sync`
 fast-forwards canonical checkouts (see [Sync](#sync)). Per-repository owners remain available for
 interactive work:
@@ -129,6 +131,30 @@ The apply verb:
 
 Audit remains read-only. A `HIGH` finding is never itself permission to delete; only `:apply
 --apply` after confirmation (or `--yes`) mutates. Do not add an execute flag to `audit-fleet.sh`.
+
+### Remote branch deletion
+
+Remote deletion is off by default: plain apply never contacts a remote, and a plan's
+`delete-remote-branches` rows are skipped. The audit plans such rows only for `unmerged-remote-branch`
+findings of class `never-pr` (no pull request ever used the branch) or `closed-unmerged` (every pull
+request closed unmerged, one at the live tip). A branch whose pull request merged
+(`merged-remote-branch`) is never planned for deletion.
+
+```text
+apply-plan.sh --plan-file <path-from-audit> --apply --remote-branches
+```
+
+- Each branch has its own `[y/N]` prompt naming repository, remote, branch, class, and tip. `--yes`
+  never answers it, and a session without a terminal deletes nothing at all, local rows included.
+  `/repo-fleet-hygiene:apply --remote-branches` runs without a terminal, so from the skill it only
+  previews; run the script in your own terminal to delete.
+- The live tip is re-read with `git ls-remote` first. Drift, an already-gone head, or the remote's
+  default branch skips the row.
+- The tip is appended to `<plan-file>.tip-ledger` before the push, with a restore command
+  (`git -C <repo> push <remote> <tip>:refs/heads/<branch>`). The push carries a lease on that exact
+  tip. The restore command works while the tip object is still in the local repository; after a
+  delete it is unreachable, so `git gc` removes it once `gc.pruneExpire` (two weeks by default)
+  passes.
 
 ## Configuration
 
