@@ -124,8 +124,16 @@ is verified 2026-09-06 against Claude Code 2.1.263 and
 [Data usage](https://code.claude.com/docs/en/data-usage#data-retention), which states that clients
 store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
 `cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
-release note names `cleanupPeriodDays`. When the
-If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
+release note names `cleanupPeriodDays`.
+
+If /export is available in your session (gate basis: **Verification record: `/export`** below), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). **`unattended`:** record the suggestion in output; do not ask.
+
+## Verification record: `/export`
+
+- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu, and one their organization's policy disables answers with its own message.
+- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
 
 ## What this skill does NOT do
 
