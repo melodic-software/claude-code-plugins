@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.18] - 2026-09-29
+
+### Fixed
+
+- **`audit-progressive-disclosure` checks upstream ownership before proposing a treatment.** A new
+  hard rule greps the repo for synced, vendored, generated or upstream markers on the target and
+  reads `docs/adr/` and `docs/decisions/` for a recorded tier or owner. On a hit the finding
+  stays, its treatment is `file with the owner, citing the decision`, and its disposition is
+  `upstream`. A Tier 3 row never carries a treatment. `tier-model.md` states the recorded-reason
+  and upstream-owner exemptions, and a synced-rule eval covers the routing
+  ([#5173](https://github.com/melodic-software/claude-code-plugins/issues/5173)).
+
 ## [0.23.17] - 2026-09-29
 
 ### Fixed

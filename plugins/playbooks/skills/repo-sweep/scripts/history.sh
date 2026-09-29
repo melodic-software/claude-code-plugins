@@ -40,7 +40,7 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
     /^<!-- repo-sweep:begin / { inb = 1; next }
     /^<!-- repo-sweep:end -->/ { inb = 0; next }
     inb && /^- \[[xX]\] / {
-      if ($0 ~ /, not applicable:/) next
+      if (substr($0, index($0, ": ") + 2) ~ /^not applicable: / || $0 ~ /, not applicable: /) next
       rest = substr($0, 7); i = index(rest, ": ")
       if (i) {
         eid = substr(rest, 1, i - 1)
