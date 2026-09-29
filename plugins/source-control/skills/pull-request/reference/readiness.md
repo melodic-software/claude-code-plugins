@@ -10,7 +10,7 @@ Monitor must discover and track every actor that participates in PRs. Actors fal
 
 | Category | How they report | How to discover | Timing |
 |----------|----------------|-----------------|--------|
-| **Check-run actors** | `gh pr checks` status/conclusion fields | Poll `gh pr checks <pr_number>` until all reach terminal state | Deterministic: GitHub triggers them on push |
+| **Check-run actors** | `gh pr checks` status/conclusion fields | Poll with the [monitor.md](monitor.md) §3.0.1 REST read until all reach terminal state (`gh pr checks <pr_number>` is a one-off read only) | Deterministic: GitHub triggers them on push |
 | **Check-run + comment actors** | Both a check run AND a PR comment | Poll checks AND comments | Check run arrives first, comment follows |
 | **Comment-only actors** | PR comments only, no check run | Poll `gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100"` | Non-deterministic: arrives at an unpredictable time |
 

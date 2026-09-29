@@ -11,7 +11,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
-EXPECTED_CASES=14
+EXPECTED_CASES=18
 
 pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: %s\n' "$1"; }
 fail() {
@@ -60,6 +60,28 @@ if worktree_reason_is_ours "$plain_reason" sess-other; then
 else
   pass "foreign session is not the owner"
 fi
+
+# `-z` emits the lock reason raw: quotes and backslash sequences are text, not escapes.
+quoted_reason='"quoted reason"'
+backslash_reason='a\nb\\c'
+git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/quoted" -b quoted
+git -C "$TEST_TMPDIR/repo" worktree lock --reason "$quoted_reason" "$TEST_TMPDIR/quoted"
+git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/backslash" -b backslash
+git -C "$TEST_TMPDIR/repo" worktree lock --reason "$backslash_reason" "$TEST_TMPDIR/backslash"
+list_out="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo")"
+git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
+worktree_facts_parse_z "$por"
+quoted_got="" backslash_got=""
+for i in "${!WT_FACT_PATH[@]}"; do
+  [[ "${WT_FACT_PATH[$i]}" == "$TEST_TMPDIR/quoted" ]] && quoted_got="${WT_FACT_LOCKED[$i]}"
+  [[ "${WT_FACT_PATH[$i]}" == "$TEST_TMPDIR/backslash" ]] && backslash_got="${WT_FACT_LOCKED[$i]}"
+done
+assert_eq "a reason wrapped in double quotes round-trips unchanged" "$quoted_got" "$quoted_reason"
+assert_eq "a literal backslash-n and backslash pair round-trip unchanged" "$backslash_got" "$backslash_reason"
+assert_eq "list prints the raw quoted reason in the lock_reason column" \
+  "$(awk -F'\t' -v p="$TEST_TMPDIR/quoted" '$1 == p { print $7 }' <<<"$list_out")" "$quoted_reason"
+assert_eq "list prints the raw backslash reason in the lock_reason column" \
+  "$(awk -F'\t' -v p="$TEST_TMPDIR/backslash" '$1 == p { print $7 }' <<<"$list_out")" "$backslash_reason"
 
 # Bare hub.
 git init --bare -q "$TEST_TMPDIR/hub.git"

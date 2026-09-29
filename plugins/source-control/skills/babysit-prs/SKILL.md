@@ -10,7 +10,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[worker|autopilot|help] [owner/repo | #n | owner/repo#n]`. Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
+**Arguments.** Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
 
 ## Pre-computed context
 
@@ -138,6 +138,12 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 **Dependency hold-merge:** a dependency-manager-authored PR (Dependabot/Renovate-class) is
 never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
 which is passed only on an explicit user instruction to merge that specific PR.
+
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
+the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
+adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
+hyphenated label name in a body is not a hold.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
