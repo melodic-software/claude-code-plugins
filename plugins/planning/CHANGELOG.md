@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.1] - 2026-09-29
+
+### Changed
+
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a partial reviewer return (the subagent stopped at `maxTurns`) as incomplete instead of as a finished review ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+
 ## [0.46.0] - 2026-09-29
 
 ### Added
