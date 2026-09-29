@@ -1005,6 +1005,22 @@ class DetectTests(unittest.TestCase):
         self.write_inventory(schema=2)
         self.assertEqual(self.detect(), 1)
 
+    def test_unwritable_out_is_reported_not_raised(self):
+        self.write_inventory()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = self.detect(self.repo.root / "missing" / "candidates.json")
+        self.assertEqual(rc, 1)
+        self.assertIn("cannot write --out", err.getvalue())
+
+    def test_out_status_line_goes_to_stderr(self):
+        self.write_inventory()
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(self.detect(self.repo.root / "candidates.json"), 0)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("wrote ", err.getvalue())
+
     def test_degraded_integrity_propagates_as_exit_three(self):
         self.write_inventory(
             integrity={

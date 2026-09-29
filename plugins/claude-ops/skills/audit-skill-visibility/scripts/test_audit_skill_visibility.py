@@ -2870,5 +2870,54 @@ class CollectInstalledTest(unittest.TestCase):
         self.assertEqual(resolution["not_applicable"][0]["plugin"], "beta")
 
 
+class CliInputErrorTest(unittest.TestCase):
+    """A bad path or instant is an operator mistake: one stderr line, exit 2, no traceback."""
+
+    def _run(self, argv):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            try:
+                rc = engine.main(argv)
+            except SystemExit as exc:
+                rc = exc.code
+        return rc, err.getvalue()
+
+    def test_missing_fixture(self):
+        rc, err = self._run(["--fixture", "/nonexistent/bundle.json"])
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot read --fixture", err)
+
+    def test_malformed_now(self):
+        rc, err = self._run(["--now", "garbage"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--now must be an RFC3339 instant", err)
+
+    def test_unwritable_write_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = os.path.join(tmp, "bundle.json")
+            _write_json(
+                bundle,
+                {
+                    "now": "2026-01-01T00:00:00+00:00",
+                    "denominator": [_skill("p:one")],
+                },
+            )
+            blocker = os.path.join(tmp, "file")
+            with open(blocker, "w", encoding="utf-8") as handle:
+                handle.write("x")
+            rc, err = self._run(
+                [
+                    "--fixture",
+                    bundle,
+                    "--write",
+                    os.path.join(blocker, "sub"),
+                    "--state-key",
+                    "k",
+                ]
+            )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write under --write", err)
+
+
 if __name__ == "__main__":
     unittest.main()

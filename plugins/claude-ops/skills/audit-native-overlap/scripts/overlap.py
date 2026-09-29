@@ -1472,8 +1472,12 @@ def cmd_detect(args: argparse.Namespace) -> int:
     }
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.out:
-        Path(args.out).write_text(text, encoding="utf-8")
-        print(f"wrote {args.out}")
+        try:
+            Path(args.out).write_text(text, encoding="utf-8")
+        except OSError as exc:
+            _fail(f"cannot write --out {args.out}: {exc}")
+            return 1
+        print(f"wrote {args.out}", file=sys.stderr)
     else:
         sys.stdout.write(text)
     if status == "broken":
@@ -1526,8 +1530,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
             return 1
         print(f"{view_path} is in sync with {store_path} ({len(rows)} row(s))")
         return 0
-    view_path.parent.mkdir(parents=True, exist_ok=True)
-    view_path.write_text(text, encoding="utf-8")
+    try:
+        view_path.parent.mkdir(parents=True, exist_ok=True)
+        view_path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        _fail(f"cannot write {view_path}: {exc}")
+        return 1
     print(f"wrote {view_path} ({len(rows)} row(s))")
     return 0
 

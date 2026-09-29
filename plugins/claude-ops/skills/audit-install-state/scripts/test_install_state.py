@@ -1277,5 +1277,28 @@ class TestUnreferencedVersions(unittest.TestCase):
             )
 
 
+class TestCsvWriteFailure(unittest.TestCase):
+    def test_unwritable_csv_is_a_clean_usage_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = engine.main(
+                    [
+                        "--root",
+                        str(root),
+                        "--samples",
+                        "1",
+                        "--sample-interval",
+                        "0",
+                        "--csv",
+                        str(root / "missing" / "out.csv"),
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write --csv", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2561,7 +2561,11 @@ def main(argv: list[str] | None = None) -> int:
 
     text = json.dumps(report, indent=1, sort_keys=True)
     if args.out:
-        Path(args.out).write_text(text, encoding="utf-8")
+        try:
+            Path(args.out).write_text(text, encoding="utf-8")
+        except OSError as exc:
+            print(f"error: cannot write --out {args.out}: {exc}", file=sys.stderr)
+            return 2
         print(f"wrote {args.out}", file=sys.stderr)
     else:
         print(text)

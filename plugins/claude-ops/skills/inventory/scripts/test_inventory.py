@@ -1200,5 +1200,28 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual(block["status"], "unavailable")
 
 
+class TestOutFailure(unittest.TestCase):
+    def test_unwritable_out_is_a_clean_usage_error(self) -> None:
+        import contextlib
+        import io
+
+        with tempfile.TemporaryDirectory() as d:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = inv.main(
+                    [
+                        "--disk-only",
+                        "--config-dir",
+                        d,
+                        "--project-dir",
+                        d,
+                        "--out",
+                        str(pathlib.Path(d) / "missing" / "inventory.json"),
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write --out", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

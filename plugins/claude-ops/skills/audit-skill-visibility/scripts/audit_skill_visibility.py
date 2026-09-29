@@ -754,8 +754,10 @@ def read_churn(repo_root: str, rel_path: str, follow: bool = True) -> dict | Non
         args.append("--follow")
     args += ["--", rel_path]
     try:
-        result = subprocess.run(args, capture_output=True, text=True, check=False)
-    except OSError:
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False, timeout=15
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
@@ -2776,10 +2778,21 @@ def main(argv: list[str] | None = None) -> int:
         help="repo-identity/worktree-discriminator, from lib/state-key.sh",
     )
     args = parser.parse_args(argv)
+    if args.now:
+        try:
+            _parse_ts(args.now)
+        except ValueError:
+            parser.error(f"--now must be an RFC3339 instant, got {args.now!r}")
 
     resolution: dict | None = None
     if args.fixture:
-        bundle = _load_fixture(args.fixture)
+        try:
+            bundle = _load_fixture(args.fixture)
+        except (OSError, ValueError) as exc:
+            print(
+                f"error: cannot read --fixture {args.fixture}: {exc}", file=sys.stderr
+            )
+            return 2
         clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
         horizons = {k: _parse_ts(v) for k, v in bundle.get("horizons", {}).items()}
         events = [dict(e, ts=_parse_ts(e["ts"])) for e in bundle.get("events", [])]
@@ -2892,21 +2905,28 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(model, handle, indent=2)
-        # One file per run PLUS an appended history line: a rolling latest.json
-        # would hand any future scheduled run an overwrite defect on day one.
-        append_history(
-            os.path.join(os.path.dirname(path), "history.jsonl"),
-            {
-                "stamp": stamp,
-                "tier": model["tier"],
-                "skills": len(model["skills"]),
-                "withheld": len(model["withheld"]),
-                "overflow_chars": model["listing"]["overflow_chars"],
-            },
-        )
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(model, handle, indent=2)
+            # One file per run PLUS an appended history line: a rolling latest.json
+            # would hand any future scheduled run an overwrite defect on day one.
+            append_history(
+                os.path.join(os.path.dirname(path), "history.jsonl"),
+                {
+                    "stamp": stamp,
+                    "tier": model["tier"],
+                    "skills": len(model["skills"]),
+                    "withheld": len(model["withheld"]),
+                    "overflow_chars": model["listing"]["overflow_chars"],
+                },
+            )
+        except OSError as exc:
+            print(
+                f"error: cannot write under --write {args.write}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
         print(path)
         return 0
 
