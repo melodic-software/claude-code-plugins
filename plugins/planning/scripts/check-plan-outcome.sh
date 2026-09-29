@@ -13,14 +13,27 @@
 #                   `| Decision | What it changes ...` table has at least one row
 #   blast-radius    a Blast radius heading or line names LOW, MEDIUM, HIGH or CRITICAL
 #   portable-paths  no drive-letter path (C:\ or C:/) and no /Users/<name> or
-#                   /home/<name> path, unless the line carries <!-- path-example -->
+#                   /home/<name> path, unless the line carries <!-- path-example -->.
+#                   /Users and /home count only where they begin a path: at the start
+#                   of a line or right after whitespace, a quote, a backtick, ( or =,
+#                   so a repo folder such as Domain/Users/ or src/home/ passes
 #
 # "Every brief scope-item maps to a phase" is judgment and stays in the skill's
 # prose; this gate does not claim it.
 #
-# Headings inside fenced code blocks are ignored. The path check reads every
-# line, fenced or not, because a committed PLAN.md is read on other machines
+# Headings inside fenced code blocks are ignored. A fence closes only on the same
+# character with at least the opening length and no info string, so a three-backtick
+# block quoted inside a four-backtick block stays inside it. The path check reads
+# every line, fenced or not, because a committed PLAN.md is read on other machines
 # either way.
+#
+# The default run is the Step 4.7 draft gate and does not look at the `Approval:`
+# line, which is written only after approval. `--approval-only` runs that one
+# check after the line is written:
+#
+#   approval        an `Approval:` line exists and its value is non-empty and is
+#                   neither the template placeholder (angle-bracket text) nor TBD.
+#                   Presence only: whether the recorded mandate is adequate is judgment.
 #
 # Exit 0 = every criterion passes
 # Exit 1 = at least one criterion fails
@@ -28,11 +41,13 @@
 #
 # Usage:
 #   bash check-plan-outcome.sh <PLAN.md>
+#   bash check-plan-outcome.sh --approval-only <PLAN.md>
 #   bash check-plan-outcome.sh --help
 #
 # Output (stdout, greppable): one `criterion=<name> status=<pass|fail> ...` line
 # per criterion, each failing path hit as `path-hit=<line>:<text>`, then a
-# closing `phases=<n> status=<ok|fail>` line.
+# closing `phases=<n> status=<ok|fail>` line. `--approval-only` prints the single
+# `criterion=approval status=<pass|fail>` line.
 
 set -uo pipefail
 
@@ -46,11 +61,16 @@ die() {
 }
 
 plan=""
+approval_only=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
     usage
     exit 0
+    ;;
+  --approval-only)
+    approval_only=1
+    shift
     ;;
   -*)
     die "unknown option: $1"
@@ -67,6 +87,20 @@ done
 [[ -f "$plan" ]] || die "not a file: $plan"
 [[ -r "$plan" ]] || die "not readable: $plan"
 
+if [[ "$approval_only" -eq 1 ]]; then
+  value="$(
+    tr -d '\r' <"$plan" |
+      sed -nE 's/^[[:space:]]*(\*\*)?Approval:(\*\*)?[[:space:]]*(.*[^[:space:]])?[[:space:]]*$/\3/p' |
+      grep -vE '^(<.*>|[Tt][Bb][Dd]\.?)?$' | head -n 1
+  )"
+  if [[ -n "$value" ]]; then
+    echo "criterion=approval status=pass"
+    exit 0
+  fi
+  echo "criterion=approval status=fail (no 'Approval:' line with a recorded value; empty, placeholder and TBD do not count)"
+  exit 1
+fi
+
 # One awk pass decides the structural criteria. CRLF is stripped so a plan
 # saved on Windows grades the same as one saved elsewhere.
 structural="$(
@@ -75,7 +109,14 @@ structural="$(
       if (in_phase && !phase_sanity) missing_sanity = missing_sanity " " phase_name
     }
     { sub(/\r$/, "") }
-    /^[ \t]*(```|~~~)/ { in_fence = !in_fence; next }
+    match($0, /^[ \t]*(```+|~~~+)/) {
+      fence = substr($0, RSTART, RLENGTH)
+      sub(/^[ \t]*/, "", fence)
+      bare = (substr($0, RSTART + RLENGTH) ~ /^[ \t]*$/)
+      if (!in_fence) { in_fence = 1; fence_ch = substr(fence, 1, 1); fence_len = length(fence); next }
+      if (substr(fence, 1, 1) == fence_ch && length(fence) >= fence_len && bare) in_fence = 0
+      next
+    }
     in_fence { next }
     /^#+[ \t]/ {
       heading = $0
@@ -178,9 +219,11 @@ else
   report blast-radius fail "level=missing (no Blast radius line naming LOW, MEDIUM, HIGH or CRITICAL)"
 fi
 
+# /Users and /home must begin a path: line start, or whitespace, quote, backtick, ( or =.
+sq="'"
 path_hits="$(
   tr -d '\r' <"$plan" |
-    grep -nE '(^|[^A-Za-z])[A-Za-z]:[\\/]|/(Users|home)/[A-Za-z0-9_]' |
+    grep -nE "(^|[^A-Za-z])[A-Za-z]:[\\\\/]|(^|[[:space:]\"${sq}\`(=])/(Users|home)/[A-Za-z0-9_]" |
     grep -v '<!-- path-example -->'
 )"
 if [[ -z "$path_hits" ]]; then
