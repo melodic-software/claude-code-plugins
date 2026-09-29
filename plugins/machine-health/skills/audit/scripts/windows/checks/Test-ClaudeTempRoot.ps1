@@ -140,7 +140,6 @@ function Measure-SessionTree {
     }
 }
 
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'claude-temp-root'
 $category = 'storage'
 $commands = @(
@@ -149,7 +148,9 @@ $commands = @(
     'Get-ChildItem -LiteralPath $root -Directory -Force | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Directory -Force } | Measure-Object'
 )
 
-try {
+$FailureSummary = 'Claude Code temp-root check failed.'
+$PassThru = $false
+$CheckBody = {
     $root = Resolve-ClaudeTempRoot
 
     if (-not $root.Exists) {
@@ -294,9 +295,5 @@ try {
                 -NeedsAdmin $false -RanSuccessfully $true
         }
     }
-} catch {
-    $result = New-HealthFailureResult -Id $id -Category $category `
-        -Summary 'Claude Code temp-root check failed.' -Commands $commands -ErrorRecord $_
 }
-
-Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
+. (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

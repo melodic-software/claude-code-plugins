@@ -10,8 +10,7 @@ Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ff
 | `/animation:rotoscope <clip> <work dir>` | Copies a reference clip drawing by drawing: traces each distinct drawing to vector paths, renders them through the ink.js brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, edge-band SSIM, paper color), fits per-shot brush overrides, and reviews 1:1 crops. Each run appends to a learnings file, and a retro step promotes recurring findings into the defaults. |
 | `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: every prerequisite is external. |
 | `/animation:learn-style <work dir> <pack dir>` | Measures a rotoscope work directory into a style pack: palette and tone ramp, the seven style knobs, and statistic bands (edge softness, stroke and gap widths, edge roughness, gray inside the ink, boil of the frame and caption, holds on 1s/2s/3s). Then proves the pack by authoring a new scene with ink.js and checking its render against the bands. |
-
-Planned next: `produce` (brief, boards for approval, shots, render, review).
+| `/animation:produce <production dir>` | From a brief and one or more style packs, writes pre-production boards and stops for approval. After that, a shot list, scenes, rendered frames, a delivered file, and a review against the pack. `shots.json` is the cut list `inkstats.py --cuts` reads. |
 
 ## Style packs
 
@@ -31,7 +30,7 @@ named by `?scene=`), `render.py` (the one render entry point: serves a scene, ca
 or every frame at a given fps through `capture.mjs`, writes `render.json`, and encodes), `decode.py`
 (reads a video, a frame folder or a work dir back into frames), `prereq.py` (the prerequisite
 probe), and `inkstats.py` (style statistics of any film, a video, a frame folder or a rotoscope work
-dir, with `--pack` to check it against a style pack).
+dir, with `--pack` to check it against a style pack; `--cuts` takes a comma list or a produce `shots.json`), and `produce.py` (the production directory: boards, the approval digest, `shots.json`, and the review command).
 
 ## Requirements
 

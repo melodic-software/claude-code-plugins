@@ -31,8 +31,11 @@ metadata:
 
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
-primary objective; reclaimed bytes are secondary.** Read
-[the safety model](reference/safety-model.md) before the optional execution lane.
+primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
+full: there is no emergency lane and no rule that yields under pressure. The recorded Option A
+(no proportionality, no regenerable-at-a-cost engine signal) lives in
+[the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
+optional execution lane.
 
 ## Arguments and boundaries
 
@@ -210,7 +213,10 @@ coverage gaps, not clean results.
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
 report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring the managed-state
-rule below.
+rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) and fills
+`recommendation` when that size reaches the baseline policy's
+`os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
+own. A `null` recommendation with a `complete` measurement means the zone is below the threshold.
 
 ## 2. Establish evidence and ownership
 
