@@ -133,6 +133,15 @@ def _as_list(value: Any) -> list[Any]:
     return cast(list[Any], value) if isinstance(value, list) else []
 
 
+_TYPED_COMMAND = re.compile(r"<command-name>/([^:\s<]+:[^:\s<]+)</command-name>")
+
+
+def _count_typed_plugin_skill(text: str, metrics: dict[str, Any]) -> None:
+    """Count a user-typed `/<plugin>:<skill>`, which never reaches the Skill tool."""
+    for match in _TYPED_COMMAND.finditer(text):
+        metrics["plugin_skills"][match.group(1)] += 1
+
+
 def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) -> None:
     """Single-pass: count tool uses and extract file paths from Write/Edit."""
     for raw_item in content:
@@ -254,11 +263,13 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
 
                     if isinstance(content_raw, str):
                         metrics["human_messages"] += 1
+                        _count_typed_plugin_skill(content_raw, metrics)
                         continue
 
                     for raw_item in _as_list(content_raw):
                         if isinstance(raw_item, str):
                             metrics["human_messages"] += 1
+                            _count_typed_plugin_skill(raw_item, metrics)
                             continue
                         if not isinstance(raw_item, dict):
                             continue
@@ -277,6 +288,9 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
                                     )
                             case "text":
                                 metrics["human_messages"] += 1
+                                _count_typed_plugin_skill(
+                                    str(item.get("text", "")), metrics
+                                )
 
                 case "system":
                     match event.get("subtype", ""):
@@ -678,6 +692,7 @@ def build_multi_session_output(
 
     sessions_out: list[dict[str, Any]] = []
     agg_tools: Counter[str] = Counter()
+    agg_plugin_skills: Counter[str] = Counter()
     agg_subagents: list[dict[str, Any]] = []
     agg_models: set[str] = set()
     agg_branches: set[str] = set()
@@ -698,6 +713,7 @@ def build_multi_session_output(
             transcripts_present += 1
             data = result["data"]
             agg_tools.update(data["tools"]["usage"])
+            agg_plugin_skills.update(data["plugin_usage"]["skills"])
             subagents = data["subagents"]
             agg_models.update(data["session"]["models"])
             agg_branches.update(data["session"]["git_branches"])
@@ -781,6 +797,7 @@ def build_multi_session_output(
             "total_compactions": total_compactions,
             "total_tool_rejections": total_rejections,
             "all_tools": dict(agg_tools.most_common()),
+            "all_plugin_skills": dict(agg_plugin_skills.most_common()),
             "all_subagents": agg_subagents,
             "all_models": sorted(agg_models),
             "all_branches": sorted(agg_branches),

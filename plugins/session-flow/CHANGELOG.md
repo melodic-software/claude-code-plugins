@@ -4,7 +4,7 @@
 
 ### Added
 
-- **The retro transcript parser emits `data.plugin_usage`** ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)): each plugin skill invoked in the session with a count. Hook events are not attributed to a plugin: a transcript records a plugin hook command unexpanded. Existing keys are unchanged.
+- **The retro transcript parser emits `data.plugin_usage`** ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)): each plugin skill invoked in the session with a count, from the model's Skill tool calls and the operator's typed `/<plugin>:<skill>` commands. A multi-session run sums it into `aggregate.all_plugin_skills`. Hook events are not attributed to a plugin: a transcript records a plugin hook command unexpanded. Existing keys are unchanged.
 - **`workflow` wrap-up offers `/plugin-quality:audit session`** in one line when the session invoked at least one plugin skill. The offer is presence-gated on `plugin-quality`; the run stays operator-gated.
 
 ## [0.38.29] - 2026-09-29

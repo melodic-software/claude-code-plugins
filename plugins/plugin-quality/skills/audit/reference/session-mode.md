@@ -26,18 +26,18 @@ existing pipeline; none adds a step.
 
 Run at session start. It audits nothing.
 
-1. Invoke `/session-flow:running-retro arm` when the session-flow plugin is installed. Absent:
+1. If `<plugin-data-dir>/armed/<session_id>.json` already exists, report it and stop before any
+   launch; never start a second observer for one session. `<plugin-data-dir>` and `<session_id>`
+   resolve exactly as the evidence packet's layout resolves them.
+2. Invoke `/session-flow:running-retro arm` when the session-flow plugin is installed. Absent:
    say the observer cannot be armed here and stop. Do not build a substitute observer.
-2. If `<plugin-data-dir>/armed/<session_id>.json` already exists, report it and stop; never launch
-   a second observer for one session. `<plugin-data-dir>` and `<session_id>` resolve exactly as
-   the evidence packet's layout resolves them.
 3. When the launcher reports the observer armed, write that file with `armed_at` (UTC),
    `session_id`, and the launcher's one-line result verbatim. The directory sits beside
    `evidence/`, never under it, so retention and the resume rule never read it as a packet.
 4. If the launcher reports it did not arm, write nothing and relay its message.
 
-The observer files its findings into the session's running-retro ledger after the session ends;
-`session` reads that ledger as evidence.
+The observer files its findings into the session's running-retro ledger only after the session
+ends, so a `session` run inside the live session does not find them from the observer.
 
 ## `session`
 
@@ -45,16 +45,18 @@ Run at session end, over what the session used.
 
 1. **Locate the parser (reuse, no second parser).** `parse_transcript.py` is owned by
    `/session-flow:retro`. It sits at `skills/retro/scripts/parse_transcript.py` inside the
-   session-flow plugin. Find the installed copy by searching the `plugins/` tree of the Claude
-   config directory for that relative path under a `session-flow` directory, newest version
-   first, and confirm it with `<python> <path> --help` (exit 0; the parser needs Python 3.10+).
+   session-flow plugin. Find the installed copy by searching the installed plugins for that
+   relative path under a `session-flow` directory (the install layout is Claude Code's, so this
+   states no path), taking the highest version when several match, and confirm it with
+   `<python> <path> --help` (exit 0; the parser needs Python 3.10+).
    No hit, or a non-zero exit: say the parser is absent and stop; the operator can still run
    `/plugin-quality:audit <plugin>:<component>` by name.
 2. **Parse this session.** `<python> <path> <session_id> <session-data-dir>`, with the session
    data directory resolved as `/session-flow:retro` "Paths" resolves it. Read
-   `data.plugin_usage`: `skills` maps `<plugin>:<skill>` to an invocation count. Discovery is by Skill
-   invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot be
-   attributed to a plugin. A missing `plugin_usage` key means the found parser predates it: say
+   `data.plugin_usage`: `skills` maps `<plugin>:<skill>` to an invocation count, from the
+   model's Skill tool calls and the operator's typed `/<plugin>:<skill>` commands. Discovery is by
+   skill invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot
+   be attributed to a plugin. A missing `plugin_usage` key means the found parser predates it: say
    so and stop.
 3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. Drop
    this audit's own row unless the operator adds it back. A plugin whose hooks ran but whose
@@ -64,8 +66,11 @@ Run at session end, over what the session used.
    applied unconfirmed while an operator is present.
 5. **Feed the pipeline.** The confirmed list is the resolved target list of the SKILL's Target
    resolution: one packet per target, steps 1 to 3 per target, steps 4 to 6 once over the union.
-   If `<plugin-data-dir>/armed/<session_id>.json` exists, add the session's running-retro ledger
-   (found by `session_id`) to each target's step-1 evidence as a source of transcript excerpts.
+   When the session's running-retro ledger (found by `session_id`) exists, add it to each
+   target's step-1 evidence as a source of transcript excerpts. An armed observer writes it only
+   after the session ends, so a run inside the live session has it only from an in-session
+   `/session-flow:running-retro` checkpoint. The audit never waits for the ledger and never
+   fabricates one; without it the evidence is the transcript itself.
 
 Unattended, the discovered list stands as the confirmed list. Record it in `evidence.md` as
 auto-resolved with its source (the parser run), the same treatment step 4 gives a safe default.

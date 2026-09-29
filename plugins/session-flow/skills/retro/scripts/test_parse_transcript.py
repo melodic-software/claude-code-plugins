@@ -983,3 +983,37 @@ def test_plugin_usage_counts_plugin_skills_only(tmp_path):
     result.check_returncode()
     usage = json.loads(result.stdout)["data"]["plugin_usage"]
     assert usage == {"skills": {"plugin-quality:audit": 2}}
+
+
+def test_plugin_usage_counts_user_typed_commands(tmp_path):
+    """A typed `/<plugin>:<skill>` never reaches the Skill tool but still counts."""
+
+    def typed(name):
+        return (
+            f"<command-message>x</command-message>\n<command-name>{name}</command-name>"
+        )
+
+    def user(content):
+        return {"type": "user", "message": {"content": content}}
+
+    events = [
+        user(typed("/session-flow:keep-going")),
+        user([{"type": "text", "text": typed("/session-flow:keep-going")}]),
+        user(typed("/clear")),
+        user(typed("discovery:research")),
+    ]
+    result = _run_events(tmp_path, events)
+    result.check_returncode()
+    usage = json.loads(result.stdout)["data"]["plugin_usage"]
+    assert usage == {"skills": {"session-flow:keep-going": 2}}
+
+
+def test_multi_session_aggregates_plugin_skills(tmp_path):
+    """--sessions sums plugin_usage across the chain into aggregate."""
+    block = {"type": "tool_use", "name": "Skill", "input": {"skill": "a:b"}}
+    event = {"type": "assistant", "message": {"content": [block]}}
+    for sid in ("sid-curr", "sid-prev"):
+        (tmp_path / f"{sid}.jsonl").write_text(json.dumps(event) + "\n")
+    result = _run_multi(["--sessions", "sid-curr", "sid-prev", "--base", str(tmp_path)])
+    result.check_returncode()
+    assert json.loads(result.stdout)["aggregate"]["all_plugin_skills"] == {"a:b": 2}
