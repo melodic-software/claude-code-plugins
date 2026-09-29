@@ -1194,4 +1194,55 @@ else
 fi
 rm -rf "$repo"
 
+# ---------------------- --check-bump repeated body -------------------------
+# The body of an ADDED entry must not repeat another entry's body once it is
+# MIN_REPEATED_BODY characters long. Pre-existing repeats and short one-liners
+# stay legal.
+long_body="- $(printf 'x%.0s' {1..130})"
+short_body='- Shared launcher sync; no change to this plugin behavior.'
+
+# repeated_body_case <base-changelog-body-block> <new-body>
+# Base carries 1.0.0 (and any extra entries in the block); head bumps to 1.1.0
+# with <new-body>. Prints "rc<TAB>output".
+repeated_body_case() {
+  local base_entries="$1" new_body="$2"
+  mk_repo repo
+  git_init_test_repo "$repo"
+  mk_plugin "$repo" alpha 1.0.0 yes
+  printf '# Changelog\n\n%s' "$base_entries" >"$repo/plugins/alpha/CHANGELOG.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  local base
+  base="$(git -C "$repo" rev-parse HEAD)"
+  printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+  printf '# Changelog\n\n## [1.1.0]\n\n%s\n\n%s' "$new_body" "$base_entries" >"$repo/plugins/alpha/CHANGELOG.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+  out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  rm -rf "$repo"
+}
+
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n' "$long_body"
+if [[ $rc -eq 1 && "$out" == *"REPEATED CHANGELOG BODY"*"[1.1.0]"*"[1.0.0]"* ]]; then
+  ok "added entry repeating a long body fails --check-bump"
+else
+  fail "long repeated body not caught: rc=$rc out='$out'"
+fi
+
+repeated_body_case $'## [1.0.0]\n\n'"$short_body"$'\n' "$short_body"
+if [[ $rc -eq 0 ]]; then ok "added entry repeating a short body passes --check-bump"; else fail "short repeat wrongly failed: rc=$rc out='$out'"; fi
+
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n' "- $(printf 'y%.0s' {1..130})"
+if [[ $rc -eq 0 ]]; then ok "added entry with a distinct long body passes --check-bump"; else fail "distinct body wrongly failed: rc=$rc out='$out'"; fi
+
+# Repeats already on the base are not judged: only the added 1.1.0 entry is.
+repeated_body_case $'## [1.0.1]\n\n'"$long_body"$'\n\n## [1.0.0]\n\n'"$long_body"$'\n' "- $(printf 'z%.0s' {1..130})"
+if [[ $rc -eq 0 ]]; then ok "pre-existing repeated bodies pass --check-bump"; else fail "pre-existing repeat wrongly failed: rc=$rc out='$out'"; fi
+
+# Fenced content is part of the body: same prose with a different command differs.
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n\n```sh\nrun one\n```\n' "$long_body"$'\n\n```sh\nrun two\n```'
+if [[ $rc -eq 0 ]]; then ok "same prose with different fenced content passes --check-bump"; else fail "differing fence wrongly failed: rc=$rc out='$out'"; fi
+
+repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n\n```sh\nrun one\n```\n' "$long_body"$'\n\n```sh\nrun one\n```'
+if [[ $rc -eq 1 ]]; then ok "same prose with identical fenced content fails --check-bump"; else fail "identical fence not caught: rc=$rc out='$out'"; fi
+
 test_harness::report

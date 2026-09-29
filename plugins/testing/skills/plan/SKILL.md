@@ -8,8 +8,6 @@ metadata:
   summary: Classify changes by required test type and coverage gaps
 ---
 
-**Arguments.** `[range or scope]`. e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -37,6 +35,8 @@ Coverage-gap analysis: what needs testing, at what level, and in what priority. 
 ## Arguments
 
 `$ARGUMENTS`, optional diff range or scope description. Default: uncommitted changes plus the current branch's commits vs the default branch.
+
+Examples: /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module.
 
 ## Process
 
@@ -114,6 +114,14 @@ Present the test plan to the user. Then suggest:
 - `/testing:write` for identified unit/integration gaps. **For HIGH/CRITICAL coverage gaps**, the `advisor`-tool checkpoint (when available in the session) applies after the new tests land
 - `/testing:run-e2e` for UI/API verification scenarios
 - `/testing:write organize` if new test projects are needed
+
+For each planned test, name where its expected value will come from: `testing:test-value` (if installed).
+
+## Next
+
+/testing:write
+
+Writes the tests the plan names.
 
 ## What this skill does NOT do
 

@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "upstream-citation-and-task-list-are-skipped",
-      "prompt": "/work-items:scan-todos \u2014 we have 'see org/repo#12' in a comment and a markdown [TODO] task list. File those.",
+      "prompt": "/work-items:scan-todos: we have 'see org/repo#12' in a comment and a markdown [TODO] task list. File those.",
       "expected_output": "Skips the external upstream citation and the structured task-list grammar. It does not create tracker items for either, and it still sweeps real TODO/FIXME/HACK/XXX comment markers.",
       "files": [],
       "narration": true,
@@ -30,15 +30,16 @@
     },
     {
       "id": 3,
-      "name": "work-flag-files-through-track-add",
-      "prompt": "/work-items:scan-todos --work \u2014 this TODO is real unfinished work. File it.",
-      "expected_output": "Classifies the marker as file-a-work-item-plus-remove-marker and creates the item through /work-items:track add, then removes the marker. It does not keep an actionable TODO in merged production code.",
+      "name": "work-flag-auto-selects-smallest-group",
+      "prompt": "/work-items:scan-todos --work",
+      "expected_output": "Presents the groups sorted smallest-first, then auto-selects the smallest group without asking and starts resolving its markers. A marker that is significant work is filed through /work-items:track add and its inline marker removed; no actionable TODO stays in merged production code.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Creates the work item via /work-items:track add rather than a raw gh issue create",
-        "Removes the marker after filing",
-        "Does not leave the actionable TODO in the source"
+        "Presents the groups, then auto-selects the smallest group instead of asking the user to pick one",
+        "Starts resolving the selected group's markers, classifying each one",
+        "Files a significant marker via /work-items:track add rather than a raw gh issue create, and removes the marker",
+        "Does not leave an actionable TODO in the source"
       ]
     }
   ]

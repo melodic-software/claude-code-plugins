@@ -3,13 +3,28 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8] - 2026-09-29
+
+### Fixed
+
+- **`teach` `**Arguments.**` line leads with the argument hint,** so the hint and the line list the same actions.
+
+## [0.11.7] - 2026-09-29
+
+### Fixed
+
+- **`teach` argument hint** lists the closed action set (`topic`, `codebase`, `mission`, `glossary`, `resources`, `explain`, `primer`, `exercise`, `assess`, `resume`, `status`) instead of `<action>`, still inside the 100-character house style.
+- **Eval `quiz-me` case 9** is self-contained: it lists a small auth-middleware diff fixture (public-path guard, rate-limit-before-auth ordering, invalid-token failure path) in `files`, so the sandbox has a change to quiz on ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+- **Eval `setup` case 3** prompt no longer carries an escaped em dash.
+- In-place corrections to released entries: `[0.11.6]` reworded to say only that the examples moved into the skill body; `[0.11.3]` issue reference linked.
+
 ## [0.11.6] - 2026-09-28
 
 ### Changed
 
 - **Argument hints** on `teach` stay inside the 100-character house style
   ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
-  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+  The examples moved into the skill body.
 
 ## [0.11.5] - 2026-09-28
 
@@ -27,7 +42,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 ### Fixed
 
-- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked (#4119).
+- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
 
 ## [0.11.2] - 2026-09-27
 

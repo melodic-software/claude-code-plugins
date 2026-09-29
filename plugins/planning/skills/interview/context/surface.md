@@ -184,10 +184,10 @@ Rules R-A to R-K:
 | R-E | Flag a note that ends mid-sentence and ask the user to finish it | skill, finished-screen loose ends |
 | R-F | Correct an obvious speech-to-text error openly, never silently | skill |
 | R-G | Any skill can open the surface; the stage is a tag; a mid-implementation pause opens a session seeded with `import-ledger` | skill, `import-ledger` |
-| R-H | Mirror terminal answers onto the page with `record-terminal` | skill |
-| R-K | When the session records or revises a ledger decision, mirror it onto the page with `record-terminal` in the same wake | skill |
+| R-H | Mirror terminal answers onto the page with `record-terminal`; session-recorded decisions follow R-K | skill |
 | R-I | Every question has at least two distinct alternatives | `add`, `add-round`, `apply` |
 | R-J | Emoji markers follow the plugin's emoji option on the page too | page, from `meta.emojiMarkers` |
+| R-K | When the session records or revises a ledger decision, mirror it onto the page with `record-terminal` in the same wake | skill |
 
 ## Wording lint
 

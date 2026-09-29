@@ -58,7 +58,7 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable). Config equivalent: repeatable `fleet.skipAppend`. Same bare-name validation.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
-  It is **not** a scope fallback. A run with no scope fails rather than auditing it.
+  It is **not** a scope fallback; see the no-scope ladder below.
 - `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
   only).
 - `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
@@ -72,10 +72,11 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
-shared ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current working
-directory when it is a Git checkout, else exit 3 naming every rung. The project directory is not a
-rung. Pass that guidance through rather than re-deriving a root yourself. Config
-resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
+shared no-scope ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current
+working directory when it is a Git checkout, else exit 3 naming every rung. A Git checkout in the
+working directory is a rung; the session project directory is not one on its own. Pass that guidance
+through rather than re-deriving a root yourself. Config resolution is the script's own ladder. Do not
+pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
 `~/.claude/repo-fleet-hygiene.conf` (user-global, a machine-scoped fleet config placed there is
@@ -203,7 +204,9 @@ Default output is screen-scale:
 
 1. Fleet header (config, scope, discovery counts).
 2. **Repository rollup**. One row per repository with `CLEAN` / `N candidates` /
-   `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
+   `BLOCKED (evidence gap)`, plus counts by finding kind. Every UNKNOWN kind except the
+   disclosure-only `discovery-skip` and `discovery-symlink-skip` makes a repository, and so the fleet,
+   BLOCKED. Fleet-level findings (stale config,
    duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
 3. **Fleet action plan**. Recommended skill invocations **once per repository** (not once per
    finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
@@ -216,7 +219,8 @@ same-named branches across repositories.
 `ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly
 as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
 candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
-repository, not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
+repository (`discovery-skip` and `discovery-symlink-skip` are disclosure-only and do not count), not
+"GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
@@ -257,7 +261,7 @@ Related fleet contracts that remain separate:
 - Git missing or too old: stop before scanning and give the prerequisite error.
 - Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
   the exact invalid input and stop; never silently fall back.
-- No scope given and the project directory is not a Git working tree: stop, and relay the script's
+- No scope given and no rung of the no-scope ladder resolves (exit 3): stop, and relay the script's
   remedy block verbatim. The operator did not choose that path, so the rejection alone is not
   actionable.
 - A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
@@ -266,16 +270,18 @@ Related fleet contracts that remain separate:
   subsequent run until the config is edited).
 - A path discovered under `--root` that is unreadable or not a Git working tree (despite a `.git`
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
-  rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
+  rest of the fleet is still audited. The finding is disclosure-only: it does not make the fleet
+  BLOCKED. An explicitly named `--repo` that is not a working tree still
   hard-fails.
 - A directory that itself carries a `.git` marker (directory or file) is treated as a nested
   repository: discovery `add_target`s it and **returns without descending into its children**. A
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
-- A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
-  the discovery-skips header line. Windows directory
-  junctions test as symlinks under Git Bash, so they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
-  (configured).
+- A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed
+  as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
+  Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. Windows
+  directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
+  discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.

@@ -8,8 +8,6 @@ metadata:
   summary: Write and place tests with TDD cadence across ecosystems
 ---
 
-**Arguments.** `[task]`. e.g., /testing:write, /testing:write the new handler, /testing:write organize
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -37,6 +35,8 @@ Authoring discipline for tests: what to test, how to name it, which test type fi
 
 `$ARGUMENTS`, optional task description. `organize` (or a placement-shaped question) routes to the placement guidance; anything else is authoring.
 
+Examples: /testing:write, /testing:write the new handler, /testing:write organize.
+
 ## Step 0: Route
 
 | Signal | Context file |
@@ -58,6 +58,7 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 - **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Every test scores well on all four
 - **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). The forms below are illustrative (.NET/xUnit). Adapt casing/separators to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
 - When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative Beck/Khorikov guidance
+- Where each expected value comes from and which tests earn their keep: `testing:test-value` (if installed)
 
 ## Handoff
 
@@ -71,6 +72,12 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 - **Does not run test commands**. `/toolchain:check` is SSOT for CLI invocation
 - **Does not diagnose failures**. `/testing:diagnose`
 - **Does not replace the project's testing conventions**, the consuming project's rules are the source of truth for frameworks, naming, organization; this skill defers to them
+
+## Next
+
+/testing:audit
+
+Checks the new tests for assertions that cannot fail.
 
 ## Gotchas
 

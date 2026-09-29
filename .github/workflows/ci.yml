@@ -200,6 +200,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
+              plugins/docs-hygiene/skills/generate-file-name-gate/**
+              .claude/docs-hygiene.json
             node:
               .github/**
               scripts/**
@@ -362,26 +364,19 @@ jobs:
           # exclusion, so the exemption lives on the caller.
           exclude: plugins/*/skills/*/vendor/**
 
-      # scan-mode git in ci-workflows (through v0.29.1) passes --log-opts=--all,
-      # which walks every ref in the clone. checkout-with-base unshallows, so a
-      # finding on one branch fails this step on every other branch (#3599).
-      # gitleaks-action Scan() scopes pull_request and push to
-      # --no-merges --first-parent <base>^..<head>, and a same-ref push to -1
-      # (src/gitleaks.js, read 2026-09-28). This step uses that range. The pin
-      # below is the composite's gitleaks 8.30.1 asset, verified by SHA-256.
+      # `log-opts` is unset on purpose: the composite scopes the scan by event. A
+      # pull request scans only its own commits (<base>..HEAD), so a finding on
+      # another branch cannot fail it (#3599). A push to main scans main's full
+      # history (HEAD). A manual dispatch scans every ref present in the clone
+      # (--all). This step is pinned ahead of the other composites (v0.27.1)
+      # because only its event-scoped scan is wanted from v0.30.0.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
-          PUSH_AFTER: ${{ github.sha }}
-          GITLEAKS_CONFIG: .gitleaks.toml
-          GITLEAKS_VERSION: "8.30.1"
-          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-        run: bash scripts/gitleaks-scoped-scan.sh
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@35880dcbb2f174aac90159e276dc7eddf1bc20b9 # v0.30.1
+        with:
+          config: .gitleaks.toml
+          scan-mode: git
 
       - name: Check editorconfig conformance
         id: editorconfig
@@ -735,12 +730,7 @@ jobs:
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
-      # understands the syntax.
-      # Claim: keep the self-repository ignores; do not rewrite to `$/` until
-      # actionlint parses it. Basis: actionlint v1.7.12 (2026-03-30) is still
-      # latest; the pin is ci-workflows actionlint@4610c31e (v0.27.1). As of:
-      # 2026-09-28. Recheck: an actionlint release accepts `uses: $/...` and
-      # the ci-workflows action is repinned to a version that carries it.
+      # understands the syntax (#4130).
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -1692,7 +1682,9 @@ jobs:
         with:
           python-version-file: .python-version
           cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+          cache-dependency-path: |
+            .github/requirements-ci.txt
+            .github/requirements-ci-animation.txt
       - name: Install and verify ShellCheck toolchain
         if: needs.changes.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
@@ -1727,9 +1719,15 @@ jobs:
       - name: Install locked plugin test toolchains
         if: needs.changes.outputs.run_tests == 'true'
         run: |
+          # Dependabot's /.github pip entry bumps the animation wheels here but cannot reach the
+          # plugin's own pins, so a one-sided bump fails here instead of merging as drift.
+          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) \
+               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
+            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.txt pin different versions; bump the two together"; exit 1; }
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
-            --requirement .github/requirements-ci.txt
+            --requirement .github/requirements-ci.txt \
+            --requirement .github/requirements-ci-animation.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       # The claude-ops observability suites (prune-otel-store, hook-latency) query
@@ -1795,6 +1793,8 @@ jobs:
           # Empty on every event but a dispatch that asked for the lanes, which
           # is what the gate in the bench suite reads as "stay deferred".
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
+          # The animation suites fail on a missing numpy or opencv here instead of skipping green.
+          ANIMATION_REQUIRE_DEPS: '1'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
@@ -1840,6 +1840,10 @@ jobs:
                 echo "::warning::$summary Falling back to the full contract corpus."
                 printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
                 scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
+                # Same fixed pair the push path runs once on leg 3 (#3703).
+                if [ "$LEG" = 3 ]; then
+                  scripts/run-outside-node-suites.sh
+                fi
               else
                 exit 1
               fi
@@ -1919,6 +1923,13 @@ jobs:
         run: |
           [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/read-list.test.sh
+      # This suite ties each plugins/*/hooks/probe-prerequisite.sh to that
+      # plugin's prerequisites.json; run-plugin-tests.sh does not discover scripts/.
+      - name: Run prerequisite-probe manifest tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 2 ] || exit 0
+          bash scripts/check-prerequisite-probes.test.sh
       # scripts/lib/test-harness.sh is the ok/fail/report contract the
       # scripts/*.test.sh suites share. A recorded failure that still exits 0
       # is the false-green this library exists to refuse (#3160).
@@ -2550,9 +2561,8 @@ jobs:
           # tell a full-run re-run apart from a contract-only sibling, so a
           # body edit while a failed full run is being re-run can read the old
           # failure at once and go red. That wait-loop fix belongs in
-          # ci-workflows (the pin below), then every `uses:` SHA here moves
-          # together. Until then: when `ci-lanes` on this SHA is already
-          # success, re-run the red contract-only `ci` run; do not empty-commit.
-          # When `ci-lanes` is failure or missing, re-run the full workflow.
+          # ci-workflows (the pin below).
+          # Operator remedy: docs/ci-runner-routing.md, section Contract-only
+          # ci-status. #4670 tracks the upstream fix and the repin.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}

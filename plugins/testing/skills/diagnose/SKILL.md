@@ -8,8 +8,6 @@ metadata:
   summary: Root-cause failing tests, never retry blindly
 ---
 
-**Arguments.** `[failure]`. e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop
-
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
@@ -41,6 +39,8 @@ Diagnosis surfaces commands, test output, stack traces, and CI logs. Redact ever
 
 `$ARGUMENTS`, optional failure description or `loop` to enter the fix cycle directly for an already-diagnosed bug.
 
+Examples: /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop.
+
 ## Step 0: Route
 
 | Signal | Phase | Context file |
@@ -57,6 +57,8 @@ Default entry is **investigate**; it chains into **loop** once the root cause is
 | `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` |
 | `loop` | `/verification:confirm fix` (when the `verification` plugin is installed) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
 
+The regression test takes its expected value from the bug report, not from the fixed code: `testing:test-value` (if installed).
+
 ## Integration with /implementation:implement
 
 When `/implementation:implement` hits a test failure during its TDD cadence it chains here for the reproduce→fix→retest cycle, then resumes after the loop exits green. Invoked standalone, the loop drives the full cycle including code edits and suggests `/verification:confirm` afterwards.
@@ -65,6 +67,12 @@ When `/implementation:implement` hits a test failure during its TDD cadence it c
 
 - **Does not run the suite wholesale**. `/toolchain:check` is SSOT for CLI invocation; this skill runs targeted reproductions
 - **Does not author new feature tests**. `/testing:write` (the loop's reproduce step writes only the failing test capturing the bug)
+
+## Next
+
+/testing:write
+
+Writes the feature tests the diagnosis showed were missing.
 
 ## Gotchas
 

@@ -44,6 +44,9 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
   that draws with primitives (rects, ellipses, lines) onto a material grid, then applies shading
   and outlining passes and emits the spec JSON. Materials map to color ramps (highlight, base,
   shadow, line), which keeps the palette locked and makes recolors one-line edits.
+  For a full-body humanoid character, adapt `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py` instead of
+  writing that machinery: it draws down, left, and up and mirrors for right, and one `down` frame
+  is a static character. Portraits and faces stay hand-authored grids.
 
 The spec `palette` may be an inline object, a bundled preset name, or a path to a project palette
 file ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). When the project has

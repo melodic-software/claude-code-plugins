@@ -1,0 +1,12 @@
+// source: pocock M7-weak
+// expect: rule-weak-oracle
+// Verbatim from tests.md. The weak oracle is the rule's part: toBeDefined on a
+// query result passes whatever row came back. The side channel (reading the
+// database instead of the module's own API) stays a judge case.
+
+// BAD: Bypasses interface to verify
+test("createUser saves to database", async () => {
+  await createUser({ name: "Alice" });
+  const row = await db.query("SELECT * FROM users WHERE name = ?", ["Alice"]);
+  expect(row).toBeDefined();
+});

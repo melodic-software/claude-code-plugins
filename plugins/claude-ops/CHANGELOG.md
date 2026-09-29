@@ -3,6 +3,108 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:changelog diff` emits decisions grouped by owner surface, not a triage of items.**
+  Each row carries one of five action lenses (`correct`, `replace`, `adopt`, `note`, `skip`) and
+  the sentence its lens requires: the false-versus-true pair for `correct`, the problem solved for
+  `replace` and `adopt`. `skip` items leave no row and count toward the read. A docs-lag section
+  lists where the changelog and the docs page disagree, with the changelog cited as the newer
+  source.
+- **Decisions have named homes.** Corrections go in the owning plugin's CHANGELOG, replace
+  candidates are nominated to the `audit-native-overlap` gate and never written by a run, and
+  adoptions, declines and the read marker live in `docs/upstream/claude-code.md`.
+- **`diff` saves its working set** under `<memory_dir>/claude-code-changelog/<range>/`, and `apply`
+  reads it back, re-fetching only what a recheck trigger names.
+- **New `context/decisions.md` spoke** for decision rows, decision homes, the fan-out shape and
+  persistence. An eval covers decisions grouped by owner surface, with a fixture release and
+  owner-surface list.
+
+### Changed
+
+- **The classification rubric is the five action lenses** in place of the P1/P2/P3 priority tiers.
+  `adopt` gains a defer-pending-probe outcome with an evidence bar, and `replace` covers a harness
+  behavior that overlaps a component with no routable native surface.
+
+## [0.63.36] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.63.35] - 2026-09-29
+
+### Added
+
+- **Node.js on PATH is declared as a requirement.** The README Requirements section, a `node`
+  row in `/claude-ops:setup check` and a `prerequisites.json` entry (so `/claude-ops:prerequisites`
+  reports it) say that every hook row starts through `node hooks/exec-bash.mjs` and that the hooks
+  do not launch without it.
+- **Hook-log budget harness** ([#3757](https://github.com/melodic-software/claude-code-plugins/issues/3757)).
+  `hooks/measure-hook-log-budget.sh` times the kill-switch read, the parallel wall of 30
+  events, 4 KB and 16 KB appends, same-second `ls -t` and the late-EOF stall on the host it runs
+  on, through the registered `node exec-bash.mjs --require-true` command. It rejects an option
+  with no value instead of looping. `reference/hook-log-budget.md` keeps the Windows column
+  `unmeasured` until a capture stamped `host: windows-git-bash` is pasted there; no Windows
+  figure is claimed. The event log stays off by default. The README's event-log paragraph
+  now describes the node launcher rows instead of shell form. It exits 2 with a bash 5
+  requirement message when `EPOCHREALTIME` is unset (macOS `/bin/bash` 3.2).
+- **`audit-native-overlap` scans plugin manifest descriptions** for an ungated presence clause,
+  as it does skill descriptions; the finding stays an advisory.
+
+### Fixed
+
+- **The prerequisites check reads enablement from `claude plugin list --json`** when `claude`
+  is on PATH, keeping user and managed rows and only the project and local rows for the current
+  project, with the most specific scope winning per plugin; it calls `claude` directly when
+  `timeout` is not installed. The settings-merge fallback now skips
+  a whole file whose `enabledPlugins` holds a non-Boolean value, as Claude Code does. The Next
+  section drops its placeholder bullet and names the three model-invocable formatter checks; a
+  check that a setup skill owns is human-only, so the person types it and the model relays it.
+- **The `audit-skill-visibility` test runs the `--installed` contract on cygpath hosts** instead
+  of skipping it with an exit-0 block on Git Bash.
+
+### Changed
+
+- **`--permission-prompts none` denial is stated as unprobed.** The lanes Record, the primitives
+  paragraph and the launcher comment say the flag is documented for print mode and unattended
+  runs, that `--bg` accepts it, and that denial in a `--bg` lane has not been probed. Launcher
+  behavior is unchanged. The lanes skill keeps the `--resume <id> --bg` record; the
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` and `/advisor` declines are ledgered in
+  `docs/upstream/claude-code.md`.
+- **The `/doctor` claim in `audit-performance` is narrowed:** the engine reads no transcripts,
+  and whether `/doctor` prints a per-hook history is not established. The suggest sentences in
+  `audit-install-state`, `audit-performance` and `audit-skill-visibility` carry their own
+  four-part records inline.
+- **Argument hints** on `observability` and `audit-skill-visibility` use tokens their Full form
+  defines, `audit-install-state` moves its root default and `--csv` rule into an Arguments line,
+  and the three audit skills state that `unattended` is consumed by the skill and never passed
+  to the engine.
+- **`audit-native-overlap` names `/skill-quality:check`** in its Apply step, and sibling
+  pointers are restored.
+- **`scope-semantics.md` records the partial orphan-sweep observation.** The 2.1.270 debug log
+  shows the sweep visiting removed marketplaces' cache folders; removal of the marked version
+  directory stays unobserved.
+- **`canonical-pairs.json` no longer carries the sandbox-mask-file nomination** in the `doctor`
+  and `audit-install-state` `why`; `docs/upstream/claude-code.md` holds it.
+- **CHANGELOG history:** duplicate entries collapsed, false claims corrected and missing
+  headings restored in earlier entries.
+
+## [0.63.34] - 2026-09-29
+
+### Fixed
+
+- **The OTEL prune trims the store on Windows
+  ([#5232](https://github.com/melodic-software/claude-code-plugins/issues/5232)).** A
+  backslash `CC_OTEL_STORE` (as Machine-scope env delivers it) is normalized to forward
+  slashes, since `awk -v` stripped the backslashes and the trim could not write its temps.
+  Cold compaction of log records emitted without tracing no longer fails: `cc_logs_from`
+  reads `traceId`/`spanId` through a by-name struct cast that yields NULL when the key is
+  absent, which also fixes the `cc_logs` view on a store with no traced records. A failing
+  duckdb or jq step now prints its stderr instead of aborting silently.
+
 ## [0.63.33] - 2026-09-28
 
 ### Fixed
@@ -91,7 +193,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- **audit-install-state**, **audit-skill-visibility**, **audit-performance:** bake person-invoked `/doctor` and `/skill-doctor` suggest sentences with the `unattended` argument; store rows record `baked.suggest_sentence` ([#4050](https://github.com/melodic-software/claude-code-plugins/issues/4050)). Full `integration` axis parity waits on #4049.
+- **audit-install-state**, **audit-skill-visibility**, **audit-performance:** bake person-invoked `/doctor` and `/skill-doctor` suggest sentences with the `unattended` argument; store rows record `baked.suggest_sentence` ([#4050](https://github.com/melodic-software/claude-code-plugins/issues/4050)). The suggest sentence sits at the end of `audit-install-state` and `audit-performance`, and in `audit-skill-visibility` once at run start (`/skill-doctor`) and once at run end (`/doctor`). Under `unattended` the suggestion is recorded in the report instead of asked.
 
 ## [0.63.22] - 2026-09-28
 
@@ -101,29 +203,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ## [0.63.17] - 2026-09-28
 
-### Fixed
+### Changed
 
-- **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
-- **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+- **`audit-native-overlap` `canonical-pairs.json`:** the `doctor` / `audit-install-state` pair's `why` text is reworded. It records that the stale sandbox-mask warning was nominated for a human store verdict, that the audit neither reimplements the warning nor grows a pattern for the mask path, and that the file writes no `records.json` row ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
 
 ## [0.63.16] - 2026-09-28
 
 ### Changed
 
-- **Unattended lanes and three changelog decisions**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  `lane-launcher.sh` adds `--permission-prompts none` beside `--permission-mode auto` when
-  `claude --version` is at least 2.1.259, so the classifier stays and only a prompting call is
-  denied. The lanes skill records three declines against the pages read on 2026-09-28:
-  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (it ignores definition `model` pins), `/advisor` (documented
-  for `-p`, not a lane default), and `claude --resume <id> --bg` (the combination is not on the
-  cli-reference). `/reload-plugins` is recorded as running in `-p` and SDK sessions from 2.1.260;
-  reaching a loop whose skill body is already in context stays unprobed.
-  Observability routes a session's likely prompt-cache miss cause to `/usage` and
-  `prompt_cache.last_miss_cause` (2.1.260). `audit-install-state` separates a managed settings
-  file that refuses startup from a user settings file that pauses the retention sweep, and
-  nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
-  a store row.
+- **`lanes` and `lane-launcher.sh`:** the `--permission-prompts none` record now says the flag denies whatever would still fall through to a prompt, including `AskUserQuestion`, while auto mode keeps deciding. Older CLIs reject the flag, so the launcher omits it there. The launcher comment says the flag is documented for print mode and that the `--bg` form was accepted on Claude Code 2.1.282 ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
 
 ## [0.63.15] - 2026-09-28
 
@@ -155,7 +243,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto --permission-prompts none`. Auto mode still decides. A prompt that would have asked a person is denied. Probed on Claude Code 2.1.282: the flag is accepted together with `--bg`.
+- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto`, and adds `--permission-prompts none` when `claude --version` is at least 2.1.259. Auto mode still decides. The flag is documented for print mode and unattended runs; a probe on Claude Code 2.1.282 showed `--bg` accepts it. Denial behavior under `--bg` is not probed.
 - **`/reload-plugins` in headless sessions.** `plugins` `context/scope-semantics.md` records that the command runs in `-p`, the Agent SDK, and the desktop app from Claude Code 2.1.260, only on input typed into the session, and that it does not apply plugin MCP server changes there.
 
 ### Changed
@@ -195,8 +283,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
   ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
   Python unit tests pass, the contract that a two-scope install collapses to one plugin
-  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
-  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+  prints a counted `SKIP (host: ...)` and exits 0 whenever `cygpath` rewrites a POSIX mktemp
+  path. No Windows run showed that rewrite to be the cause. Linux CI is unchanged.
 
 ## [0.62.15] - 2026-09-28
 
@@ -263,6 +351,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ## [0.62.6] - 2026-09-27
 
+### Changed
+
 - **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the
   `claude --version` and `command -v jq` probes on one line, and `observability` renders the
   `--hook-events` and `--pipeline --observed` calls of `probe-observability-state.sh` on one line.
@@ -270,6 +360,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   calls.
 
 ## [0.62.5] - 2026-09-27
+
+### Changed
 
 - `audit-performance` names the no-execution route to per-hook Stop timings: the harness's `stop_hook_summary` transcript record carries a `hookInfos` array of `{"command", "durationMs"}`. The Gotchas entry "Never time a hook by running it" gives the operator a `jq` filter that extracts those records alone, labeled undocumented and unstable with a dated recheck trigger, and "Reading the report" item 2 points at it beside the warning against summing hook cost. The skill itself still reads no transcript.
 

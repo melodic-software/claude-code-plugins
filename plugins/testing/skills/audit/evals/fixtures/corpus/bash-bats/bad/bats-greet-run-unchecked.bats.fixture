@@ -1,0 +1,18 @@
+#!/usr/bin/env bats
+# expect: rule-inert-assertion
+# run always returns 0, so a run nothing checks passes whatever greet did; and
+# a ! command fails a bats test only as its last line (ShellCheck SC2314).
+
+setup() {
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet records the greeting" {
+  run greet world
+  [ -f "$BATS_TEST_TMPDIR/greeted" ]
+}
+
+@test "greet rejects an empty name" {
+  ! greet ''
+  [ ! -f "$BATS_TEST_TMPDIR/greeted" ]
+}

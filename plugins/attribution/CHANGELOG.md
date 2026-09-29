@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.2] - 2026-09-29
+
+### Fixed
+
+- `audit` pre-computed `--show-config` probes stay plain invocations (worktree-isolated sessions
+  accept them), and the `detector unavailable` guard from 0.1.1 is restored inside `list-corpus.sh`
+  and `check-stamps.sh`: with `--show-config` and an unloadable `lib.sh` each prints
+  `detector unavailable` and exits 0, and without it each exits 2. SKILL.md says an empty config
+  line or `detector unavailable` means the detector did not run. A script file that is missing
+  entirely cannot print anything, so that case shows as an empty line and is covered by the SKILL.md
+  sentence, not by the script (#4580).
+- `audit` rubric carve-out 4 marks its Basis `judgment` with a recheck trigger, since no source
+  shows the carve-out behavior (#4577).
+- `check-stamps.sh` and `extract-breadcrumbs.sh` stop reading four digits that are not a date as a
+  stamp year: a year inside a longer token (`SC2034`, `20260901T100000Z`, `Finder_2024`) or behind
+  another number after the keyword (`verified real (Issue 9, 2025`), and `read` inside an identifier
+  (`cache_read_input_tokens`; an emphasized `_read_` still counts). Both scripts carry the same test and their suites pin the shared
+  count. A `2026-07` stamp now declines as `year and month only, no day` instead of `bare year, no
+  month or day`. Over the 1,623 files of this repository's corpus on run date 2026-09-29: candidates 1,195 to
+  1,172, declined 51 to 28, `parsed` unchanged at 1,144 and `findings` unchanged at 268, so no
+  parsed stamp was reclassified. The 23 lines that left are 19 session-flow fixture handoff
+  paths, the SC2034, `cache_read_input_tokens` and Issue 9 lines, and one measurement line naming
+  Cyberpunk 2077 after `15.2`. The `2026-07` billing and Kindle lines, and two changelog
+  fragments quoting `2026-08-`, now carry the corrected reason (Refs #3465).
+
 ## [0.6.1] - 2026-09-28
 
 ### Fixed

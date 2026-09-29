@@ -222,6 +222,17 @@ print_field() {
   printf '\n'
 }
 
+# Remedy sentence naming the exact setup command that skips a discovered directory by name. Empty
+# unless the target's basename is a bare directory name made only of printable ASCII, so an
+# unvalidated path segment is never interpolated into a copy-paste command.
+skip_setup_remedy() {
+  local name="${1##*/}" quoted
+  local LC_ALL=C
+  [[ -n "$name" && "$name" != . && "$name" != .. && "$name" != *\\* && "$name" != *[![:print:]]* ]] || return 0
+  printf -v quoted '%q' "$name"
+  printf 'To skip this directory name in every later run: /repo-fleet-hygiene:setup apply --extend-skip %s' "$quoted"
+}
+
 # Fail closed before executing either external state reader. The allowlists constrain command,
 # option order, arity, and dynamic operand shape; caller-controlled global options, aliases, config
 # injection, write-capable API methods, and all other Git/gh subcommands are rejected.
@@ -2300,7 +2311,10 @@ repo_verdict() {
     kind="${F_KIND[$i]}"
     target="${F_TARGET[$i]}"
     if [[ "$conf" == "UNKNOWN" ]]; then
-      unknown=$((unknown + 1))
+      case "$kind" in
+      discovery-skip | discovery-symlink-skip) ;;
+      *) unknown=$((unknown + 1)) ;;
+      esac
     elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
       array_contains "$target" "${cand_targets[@]:-}" || cand_targets+=("$target")
     fi
@@ -3009,17 +3023,19 @@ done
 # Discovery-sourced husks/unreadable paths with a .git marker; same visibility rule as stale config.
 for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); do
   printf '\n'
+  skip_remedy="$(skip_setup_remedy "${DISCOVERY_SKIP_PATHS[$skip_index]}")"
   emit_finding discovery-skip "${DISCOVERY_SKIP_PATHS[$skip_index]}" \
     "${DISCOVERY_SKIP_REASONS[$skip_index]}" \
-    "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun"
+    "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun${skip_remedy:+. $skip_remedy}"
 done
 
 # Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
 for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
   printf '\n'
+  skip_remedy="$(skip_setup_remedy "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}")"
   emit_finding discovery-symlink-skip "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}" \
     "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
-    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
+    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory${skip_remedy:+. $skip_remedy}"
 done
 
 # Bare repositories that still have working-tree content or linked worktrees (#2602). Reported
@@ -3144,8 +3160,9 @@ for ((ri = 0; ri < ${#R_DISCOVERED[@]}; ri++)); do
 done
 
 # Fleet-level findings (stale config, discovery skips/symlinks, duplicate-checkout)
-# get their own rollup row. Their UNKNOWN gaps must also move the overall Fleet
-# verdict off CLEAN — repo_verdict -1 already classifies them; count that here.
+# get their own rollup row. Their evidence gaps (all UNKNOWN kinds except the disclosed
+# discovery skips) must also move the overall Fleet verdict off CLEAN — repo_verdict -1
+# already classifies them; count that here.
 fleet_level_count=0
 for ((i = 0; i < ${#F_KIND[@]}; i++)); do
   [[ "${F_REPO_IDX[$i]}" == "-1" ]] && fleet_level_count=$((fleet_level_count + 1))

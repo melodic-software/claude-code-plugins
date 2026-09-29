@@ -1,0 +1,11 @@
+// source: pocock S4
+// expect: rule-recomputed-expectation
+// "A constant asserted equal to itself."
+import { describe, expect, it } from 'vitest';
+import { LIMIT } from '../src/limits';
+
+describe('limits', () => {
+  it('keeps the limit', () => {
+    expect(LIMIT).toBe(LIMIT);
+  });
+});

@@ -16,10 +16,11 @@ const entrypoints = [
   "validate-extraction.js",
 ];
 
-function run(script, args = []) {
-  return spawnSync(process.execPath, [path.join(dir, script), ...args], {
+function run(script, args = [], { env, nodeArgs = [] } = {}) {
+  return spawnSync(process.execPath, [...nodeArgs, path.join(dir, script), ...args], {
     encoding: "utf8",
     timeout: 20000,
+    env: env ? { ...process.env, ...env } : process.env,
   });
 }
 
@@ -75,13 +76,17 @@ describe("build-course-json argv", () => {
   it("creates the output directory from argv before the browser step", () => {
     const out = mkdtempSync(path.join(tmpdir(), "cli-out-"));
     const dest = path.join(out, "course");
-    const result = run("build-course-json.js", [
-      "--course-url",
-      "https://example.test/courses/enrolled/2518872",
-      "--output-dir",
-      dest,
-    ]);
-    expect(result.status).not.toBe(0);
+    const pluginData = mkdtempSync(path.join(tmpdir(), "cli-data-"));
+    const result = run(
+      "build-course-json.js",
+      ["--course-url", "https://example.test/courses/enrolled/2518872", "--output-dir", dest],
+      {
+        env: { CLAUDE_PLUGIN_DATA: pluginData },
+        nodeArgs: ["--import", pathToFileURL(path.join(dir, "test-support", "register-playwright-stub.mjs")).href],
+      },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("playwright stub: chromium.launch blocked in tests");
     expect(existsSync(dest)).toBe(true);
     expect(existsSync(path.join(dest, "course.json"))).toBe(false);
   });
@@ -127,7 +132,7 @@ describe("artifacts written through argv", () => {
     const result = run("validate-extraction.js", ["--course-dir", root]);
     const report = JSON.parse(readFileSync(path.join(root, "validation-report.json"), "utf8"));
     expect(report.course).toBe("CLI Course");
-    expect(result.status === 0 || result.status === 1).toBe(true);
+    expect(result.status).toBe(0);
   });
 
   it("analyze-code-repo --skip-clone writes analysis.json", () => {
@@ -158,7 +163,7 @@ describe("artifacts written through argv", () => {
       expect(result.status).toBe(1);
       expect(`${result.stdout}${result.stderr}`).toContain("missing required 'platform'");
       expect(() => readFileSync(path.join(root, "run-report.json"))).toThrow();
-      expect(() => readFileSync(path.join(root, "resource-report.json"))).toThrow();
+      expect(() => readFileSync(path.join(root, "discovery-report.json"))).toThrow();
     }
   });
 });

@@ -23,7 +23,10 @@ it cannot infer, and every landed change is reviewable per
   layers carry an `org_policy_home` pointer: fetch the org binding via the host CLI with the
   consumer's own auth and fold it in at its ladder position. Report what is bound, what is
   missing, and which layer or rung contributes each value; an unreachable org-policy home is
-  warned as not-considered, never silently omitted. No writes.
+  warned as not-considered, never silently omitted. Also report whether `node` resolves on PATH
+  (`command -v node` through the Bash tool, so the probe works without the hook launcher): every
+  hook row runs through `node hooks/exec-bash.mjs`, so without it the hooks do not launch and
+  are not enforced. No writes.
 - **`apply`** (idempotent): run discovery, then write or update the project binding. Re-running
   reads the existing binding and proposes deltas; it never overwrites blind and never touches
   unrelated user content. All project paths anchor at the project root. Resolve

@@ -63,6 +63,9 @@ resolve_token() {
   tree-batch | batch | fleet | multi-repo | reset-all)
     printf 'tree-batch'
     ;;
+  scan-batch | scan-fleet | inventory-batch)
+    printf 'scan-batch'
+    ;;
   caches-batch | caches-fleet | cache-batch)
     printf 'caches-batch'
     ;;

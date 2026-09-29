@@ -1,14 +1,13 @@
 # Test-value guards: stop tautological AI-written tests
 
 Status: APPROVED by Kyle Sexton 2026-09-28; amendment A1-A14 approved 2026-09-28 and re-approved
-2026-09-29 ([Approval](#approval)). Phase 1 is on main (#5205). Phases 2 and 3 are implemented on
-branch `feat/testing-test-scan-hook`, rebased onto `origin/main` (`32163c726`), which has no PR
-yet. Phases 4a to 8 and Releases 2 and 3 have not started; this document is their approved plan,
-and its user gates still hold. It graduated here from the task branch's `docs/topics/tautological-tests/` contract slice
-(`PLAN.md` and `design/design-resolution.md`). Paths below under `docs/topics/tautological-tests/`
-name working files on an implementing branch; their outcomes graduate into this spec before that
-branch merges. Plugin versions are stated relative to main: "one patch above main at merge" means
-the number is picked when the PR merges, not here.
+2026-09-29 ([Approval](#approval)). Phase 1 is on main (#5205). Phases 2 to 6 ship in #5334,
+Phase 7 and Phase 8 in their own pull requests after it; Releases 2 and 3 have not started, and
+their user gates still hold. The probe and precision-run records live beside this file in
+[`tautological-tests/probes.md`](tautological-tests/probes.md) and
+[`tautological-tests/precision-run.md`](tautological-tests/precision-run.md). Plugin versions are
+stated relative to main: "one patch above main at merge" means the number is picked when the PR
+merges, not here.
 
 ## Contents
 
@@ -202,8 +201,9 @@ that names that lexer and a block model. A new lexer or block model needs a plug
   Python). The loader's header comment (`scripts/adapter-load.awk`) is the schema of record.
 - Fields: `id`, `extends`, `language`, `block_model`, `advisory`, `files`, `detect.any_regex`,
   `test_start`, `test_skip`, `body_skip`, `suite_skip`, `assertion.calls`, `assertion.idioms`,
+  `assertion.async`, `assertion.inert`, `assertion.weak`, `assertion.count`, `assertion.fail`,
   `delegation`, `mock.create`, `mock.verify`, `mock.strip`, `snapshot`, `equality.call2`,
-  `equality.receiver`, `equality.pipeline`, `suppress_marker`.
+  `equality.receiver`, `equality.pipeline`, `property_markers`, `rules_off`, `suppress_marker`.
   - `language` names the lexer: `js`, `cs`, `python`, `bash`, `pwsh`, `go`.
   - `block_model` is `brace`, `indent` (Python only) or `file` (Bash only: the whole file is one
     test, for a harness with no per-case marker). C# `brace` uses the attribute-then-signature
@@ -215,18 +215,35 @@ that names that lexer and a block model. A new lexer or block model needs a plug
     window of three consecutive body lines. The other regex fields match masked code.
   - Every list field is a list of EREs, except `files` (basename globs), `equality.call2` (helper
     names matched as substrings; for `bash` and `pwsh` also the command form `fn A B`),
-    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`) and `equality.pipeline`
+    `equality.receiver` (`<wrapper>.<matcher>`, as in `expect.toBe`), `rules_off` (rule slugs) and `equality.pipeline`
     (literal matchers after a pipe, as in `A | Should -Be B`).
   - `extends: <id>` inherits every field the adapter does not set. When several adapters claim a
     file, the first in load order (sorted file names) whose `detect.any_regex` matches wins;
-    otherwise the first claimant in load order, whether or not it has a `detect` list.
-- `additional_test_blocks`, `delegation` and `equality.pipeline` are reserved: the loader rejects
-  each until engine code reads it, so a value is never dropped silently. `delegation` unreserves
-  when Phase 3 merges; no phase unreserves `equality.pipeline` yet. The semantics above describe
-  each field once it is unreserved.
-- `advisory` and `body_skip` are planned, not yet in the loader: `adapter-load.awk` rejects each as
-  an unknown key. The phase that first relies on one adds it to the loader schema in the same
-  change.
+    otherwise the first claimant with no `detect` list, and failing that the first claimant.
+- `additional_test_blocks` is reserved: the loader rejects it until engine code reads it, so a
+  value is never dropped silently.
+- `assertion.async` matches the start of a statement that asserts nothing unless it is awaited or
+  returned (an unawaited `expect(p).resolves`, a Playwright web-first matcher, `Assert.ThrowsAsync`
+  in xUnit). `assertion.inert` matches the start of a statement that looks like an assertion and
+  never asserts (Python `m.called_once_with(`, a bare `.Should();`). Both feed
+  `rule-inert-assertion`; language-syntax forms (the Python tuple assert, bats `run` and `!`) stay
+  in the engine.
+- `assertion.weak` and `snapshot` match a whole assertion call: a block whose only assertions they
+  cover has a weak or a snapshot oracle (`rule-weak-oracle`, `rule-snapshot-only`). Two snapshot
+  forms need their library in reach, which the engine checks as language syntax: C# `Verify(`
+  counts only in a file that imports `VerifyXunit`, `VerifyNUnit`, `VerifyMSTest` or `VerifyTests`
+  (or carries `[UsesVerify]`) and declares no `Verify` method of its own; Python `== snapshot`
+  counts only when `snapshot` is a parameter of the test (the syrupy fixture).
+  For `rule-recomputed-derived`, an input read only as a length (`.length`, `.Length`, `.Count`,
+  `.size`, `len()`) or copied whole by a `{ ...x }` or `{**x}` spread is not an input.
+  `assertion.count` matches a length or count check, which clears `rule-conditional-assertion` for
+  a loop; `assertion.fail` matches a call that fails the test outright, which is the assertion of
+  the `if` or `catch` around it.
+- `property_markers` match any raw line of a file whose tests derive expected values on purpose
+  (Hypothesis `@given`, fast-check, FsCheck, `testing/quick`); such a file never reports
+  `rule-recomputed-derived`. `rules_off` lists rule slugs an adapter never reports:
+  `js-playwright` turns off `recomputed-derived` (seed data), and the C#, Go and Pester adapters
+  turn off `constant-restatement` (their constants need a declaration lookup).
 - `astgrep_rules` is reserved and not implemented. It is research switch SW1: an optional
   ast-grep backend for one rule, added only when the fixture corpus shows awk missing
   argument-structure cases.
@@ -243,17 +260,27 @@ Java/Kotlin and Go testify.
   are generated from that union by `scripts/gen-hook-filters.sh`. A `--check` mode fails CI when the
   two drift. No bare `test/` or `tests/` folder pattern is allowed (Q6).
 - `.claude/testing.yaml` resolves through the config-cascade layers: `~/.claude/testing.yaml`, then
-  `${CLAUDE_PROJECT_DIR}/.claude/testing.yaml`, then `.claude/testing.local.yaml`. Merge semantics
+  `<root>/.claude/testing.yaml`, then `<root>/.claude/testing.local.yaml`, where `<root>` is the
+  scanned file's git toplevel, else `CLAUDE_PROJECT_DIR`, so a sibling worktree uses its own config. A
+  UTF-8 byte-order mark is accepted, and a leading `~/` in `adapter_dirs` is the home directory. Merge semantics
   are additive: lists concatenate, and a scalar in a later layer overrides an earlier one. The
   resolver is a plugin-local script modeled on `plugins/docs-hygiene/scripts/resolve-config.sh`. It
   is not imported from that plugin (shell-test-helpers convention: no cross-plugin imports).
 - Keys: `adapters.enable`, `adapters.disable`, `paths.include`, `paths.exclude`, `extend.<adapter>.<field>`,
-  `adapter_dirs`, `rules.<rule-id>: off | warn | error`.
+  `adapter_dirs`, `rules.<rule-id>: off | warn | error`. `adapters.enable` is an allowlist and
+  `adapters.disable` wins over it. `paths.include` walks past the scanner's directory prunes (never
+  `.git` or `node_modules`), and an included file still needs an adapter that claims it.
+  `rules.<rule-id>` takes `testing/audit/rule-<slug>` or `rule-<slug>`. A glob that starts with `*`
+  is single-quoted, because a bare leading `*` is YAML alias syntax.
 - Removals (`adapters.disable`, `paths.exclude`) apply inside the script, so hook and audit go silent
-  with no plugin change.
-- Additions (`paths.include`, consumer adapters with new globs) reach the audit at once. They reach
+  with no plugin change. A file whose adapter is off, or outside an `enable` allowlist, is not scanned;
+  it is never handed to another adapter that claims its name. An invalid config makes the audit exit
+  2 naming the file and line, and makes `test-scan` return that message as context.
+- Additions reach the audit at once. Consumer adapters and `extend.<id>.files` globs reach
   the hook only through a consumer hook entry that `/testing:setup check` prints for pasting (Q6).
-  The audit report lists any consumer glob that no hook filter covers, so a skip is never silent.
+  The audit report lists any such glob that no hook filter covers, so a skip is never silent.
+  `paths.include` never needs a hook entry: it adds no basename, and the hook rows match basenames
+  in any directory.
 
 ### 4. New scanner rules (release 1)
 
@@ -266,7 +293,7 @@ rule are in the Phase 4a table.
 
 | Rule | Detects | Category |
 |---|---|---|
-| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited or never-evaluated async matcher, `expect` only inside `catch`, bats `run` with no status check, Python mock attributes that are not assertions | blocking tier: eligible to gate `--check` in a later minor version after 0 false positives in Phase 8 (D4, A13) |
+| `rule-inert-assertion` | Python tuple assert, bare `.Should()`, unawaited or never-evaluated async matcher, bats `run` with no status check, Python mock attributes that are not assertions | blocking tier: eligible to gate `--check` in a later minor version after 0 false positives in Phase 8 (D4, A13) |
 | `rule-constant-restatement` | expected value equals a literal defined in the production module the test imports, or a local literal tested with no call | change-detector |
 | `rule-source-text-read` | test reads a tracked, non-test production source file as text (`readFileSync`, `open(...).read()`, `File.ReadAllText`, `Get-Content`, `cat`) | change-detector |
 | `rule-conditional-assertion`, `rule-weak-oracle`, `rule-snapshot-only`, `rule-recomputed-derived` | Phase 4b | advisory |
@@ -281,8 +308,8 @@ failure.
 
 | Hook | Event | Input | Output |
 |---|---|---|---|
-| `test-scan` | PostToolUse `Write\|Edit\|MultiEdit` | written file path; for Edit, the new hunk | findings whose test block overlaps the changed hunk (hook-precision rule 1), fed back through `additionalContext`. For a doubtful hit it asks the agent to state where the expected value comes from, in the same turn (Q7 tier 2). The first test-file write per file per session also injects the rules-skill note (Q2). |
-| `test-weaken` | PreToolUse `Edit\|MultiEdit\|Write` | `old_string` and `new_string`, or the old file versus the new content | removed assertion, added skip, removed test block, or changed expected value. Release 1: allow and inject context that asks the agent for its reason. After the precision run, deleted or skipped tests may deny with a reason, and the agent retries with a `test-change: <reason>` marker (D5). |
+| `test-scan` | PostToolUse `Write\|Edit` | written file path; for Edit, the new hunk | findings whose test block overlaps the changed hunk (hook-precision rule 1), fed back through `additionalContext`. For a doubtful hit it asks the agent to state where the expected value comes from, in the same turn (Q7 tier 2). The first test-file write per file per session also injects the rules-skill note (Q2). |
+| `test-weaken` | PreToolUse `Write\|Edit` | `old_string` and `new_string`, or the old file versus the new content | removed assertion, added skip, removed test block, or changed expected value. Release 1: allow and inject context that asks the agent for its reason. After the precision run, deleted or skipped tests may deny with a reason, and the agent retries with a `test-change: <reason>` marker (D5). |
 
 Once-per-session state lives under `${CLAUDE_PLUGIN_DATA}`, keyed by `session_id`, `agent_id` and
 the normalized file path. The marker is a file created with bash `noclobber` (`O_EXCL`), not `mkdir`, which is not atomic under uutils coreutils; markers older than 7 days are pruned.
@@ -423,9 +450,9 @@ test file and feeds findings back.
 - Add `userConfig.test_guards_enabled` (boolean, default `false`) to `plugins/testing/.claude-plugin/plugin.json`.
 - Copy `hooks/exec-bash.mjs` in through `scripts/sync-exec-bash.sh` and register it there.
 - Add `plugins/testing/hooks/hooks.json`: an exec-form `test-scan` on PostToolUse
-  `Write|Edit|MultiEdit`, with `--require-true TEST_GUARDS_ENABLED` and `if` rows generated by
+  `Write|Edit` (MultiEdit dropped: no `if` row can name it usefully), with `--require-true TEST_GUARDS_ENABLED` and `if` rows generated by
   `gen-hook-filters.sh`. The generator deduplicates globs, and no two rows may match one path.
-- Live probe, recorded in `docs/topics/tautological-tests/probes.md` with the Claude Code version.
+- Live probe, recorded in `docs/specs/tautological-tests/probes.md` with the Claude Code version.
   One `claude -p --debug` run confirms:
   - a non-matching path spawns nothing;
   - basename globs (`test_*.py`, `*_test.go`, `*Tests.cs`, `*.Tests.ps1`) match;
@@ -459,7 +486,7 @@ test file and feeds findings back.
 | [x] `scripts/sync-exec-bash.sh` | no change: it finds copies by glob |
 | [x] `plugins/testing/hooks/test-scan.sh` + `test-scan.test.sh` | CREATE |
 | [x] `plugins/testing/scripts/gen-hook-filters.sh` + `gen-hook-filters.test.sh` | CREATE |
-| [x] `docs/topics/tautological-tests/probes.md` | CREATE |
+| [x] `docs/specs/tautological-tests/probes.md` | CREATE |
 
 **Sanity Check:**
 
@@ -473,7 +500,7 @@ test file and feeds findings back.
   - (g) the doubtful-hit prompt appears for a recomputed expectation.
 - `bash plugins/testing/scripts/gen-hook-filters.sh --check` exits 0. Its test asserts that every row has an `if`, that no glob matches `src/app.ts`, and that no two rows match one path.
 - `bash scripts/sync-exec-bash.sh --check`, `bash scripts/check-hook-exec-form.sh`, `bash scripts/check-hook-userconfig-argv.sh`, `bash scripts/check-hooks-description.sh` and `bash scripts/check-hook-wiring-liveness.sh` exit 0.
-- `grep -c 'p95' docs/topics/tautological-tests/probes.md` is at least 2 (WSL and Windows), at most 150 ms on WSL and 1 s on Windows.
+- `grep -c 'p95' docs/specs/tautological-tests/probes.md` is at least 2 (WSL and Windows), at most 150 ms on WSL and 1 s on Windows.
 
 ### Phase 3: Wave-1 adapters for every fleet language [IMPLEMENTED, not on main]
 
@@ -498,7 +525,7 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 - Bash false-positive ceiling, measured now rather than in Phase 8:
   - Scan every `*.test.sh` in this repo and classify each zero-assertion finding.
   - Every false positive becomes a good fixture and an adapter fix.
-  - The phase closes at 0 known false positives on this repo, recorded in a "This repo, Bash" section of `docs/topics/tautological-tests/precision-run.md`, which this phase creates.
+  - The phase closes at 0 known false positives on this repo, recorded in a "This repo, Bash" section of `docs/specs/tautological-tests/precision-run.md`, which this phase creates.
 - `bash-harness` findings stay advisory in Release 1. They sit beside
   `scripts/check-discriminating-test-skips.sh`, which keeps skip-vacating; this scanner owns
   assertions. The coverage text says so.
@@ -510,10 +537,15 @@ Implemented on branch `feat/testing-test-scan-hook`, which has no PR yet.
 - `ls plugins/testing/skills/audit/adapters/*.yaml | wc -l` returns 13.
 - `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh` and `bash scripts/check-orphaned-fixtures.sh --check` exit 0.
 - `bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --file plugins/knowledge/skills/docpage-digest/scripts/check-fences-exact.test.sh` reports 0 findings.
-- `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-zero-assertion.*\.test\.sh'` equals the true-positive count recorded in `docs/topics/tautological-tests/precision-run.md` "This repo, Bash".
+- `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-zero-assertion.*\.test\.sh'` equals the true-positive count recorded in `docs/specs/tautological-tests/precision-run.md` "This repo, Bash".
 - `bash plugins/testing/scripts/gen-hook-filters.sh --check` exits 0.
 
-### Phase 4a: Pocock mapping, planted split, first three rules [TODO]
+### Phase 4a: Pocock mapping, planted split, first three rules [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. `rule-constant-restatement` is `n/a` for
+`cs-xunit`, `cs-nunit`, `cs-mstest`, `go-testing` and `pwsh-pester`: their constants are not
+SCREAMING_SNAKE, so a finding needs a declaration lookup the engine does not have. NUnit
+`Assert.ThrowsAsync` is not in `assertion.async`, because it returns a Task only from NUnit 5.
 
 Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping),
 `.work/tautological-tests/pocock-critique/RESEARCH.md` with its `RESEARCH-gaps.md` (G1-G11) and
@@ -566,7 +598,7 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 | `rule-constant-restatement` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
 | `rule-source-text-read` | SUGGESTION (change-detector: can fail) | already deterministic: keep the `testing:audit` detector | 4a |
 | `rule-conditional-assertion` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
-| `rule-recomputed-derived` | IMPORTANT (can't fail) | already deterministic: keep the `testing:audit` detector | 4b |
+| `rule-recomputed-derived` | SUGGESTION (checks little: can fail) | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-snapshot-only` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-weak-oracle` | SUGGESTION | already deterministic: keep the `testing:audit` detector | 4b |
 | `rule-flaky-passes-suite` (existing) | unchanged | already deterministic: keep the `testing:audit` detector; no analyzer pack reads Playwright `retries` against `failOnFlakyTests` (judgment) | 4b |
@@ -585,7 +617,7 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
   `rule-recomputed-expectation`. Extend it to `rule-constant-restatement`, with a
   `test-scan.test.sh` case. Phase 4b adds `rule-recomputed-derived` the same way.
 - Source-text precision: scan this repo and record the `rule-source-text-read` true positives in a
-  "This repo, source-text read" section of `docs/topics/tautological-tests/precision-run.md`.
+  "This repo, source-text read" section of `docs/specs/tautological-tests/precision-run.md`.
 - Commit 4a on its own.
 
 **Sanity Check:**
@@ -607,7 +639,14 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 - `CANT_FAIL_SCAN_ROOT=. bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh | grep -c 'rule-source-text-read'` equals the count recorded in `precision-run.md` "This repo, source-text read".
 - `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-### Phase 4b: Remaining rules, crosswalk rows, audit docs [TODO]
+### Phase 4b: Remaining rules, crosswalk rows, audit docs [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. All four rules are `n/a` for `bash-bats` and
+`bash-harness`: shell `if` and `for` close with `fi` and `done`, derived and golden-file
+provenance is invisible, and a shell check has no weak-matcher vocabulary. `rule-snapshot-only` is
+`n/a` for `pwsh-pester` (a golden file read with `Get-Content`). NUnit `Assert.That(x,
+Is.EqualTo(y))` is not parsed as an equality yet, so the NUnit derived pair uses
+`ClassicAssert.AreEqual`.
 
 - Advisory rules, report-only in Release 1 (A2, A4, A5):
   - `rule-conditional-assertion`: assertions only inside `if`, `catch` or a loop, with no length
@@ -657,7 +696,11 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 - `for r in inert-assertion constant-restatement source-text-read conditional-assertion recomputed-derived snapshot-only weak-oracle; do bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --help | grep -q "rule-$r" || echo "$r"; done` prints nothing, and so does the same loop over `plugins/testing/skills/audit/SKILL.md`.
 - `bash plugins/testing/skills/audit/scripts/check-corpus-grid.sh`, `bash scripts/check-orphaned-fixtures.sh --check`, `bash scripts/check-detector-findings-crosswalk.sh --check`, `bash scripts/check-detector-eval-coverage.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-### Phase 5: Config cascade and `/testing:setup` [TODO]
+### Phase 5: Config cascade and `/testing:setup` [IMPLEMENTED, not on main]
+
+Implemented on branch `feat/testing-test-scan-hook`. The test-scan p95 with a config file present
+was measured only under load (181-196 ms at load 22-27, where the pre-change code measured 164-189
+ms); the idle re-measure against the 150 ms budget moves to Phase 8.
 
 - `plugins/testing/scripts/resolve-config.sh` merges `~/.claude/testing.yaml`,
   `.claude/testing.yaml` and `.claude/testing.local.yaml` additively. It is modeled on
@@ -668,7 +711,11 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
   are normalized first.
 - Probe whether a consumer settings hook receives `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_OPTION_*`.
   Record the result in `probes.md`. If it does not, the printed consumer entry passes `--enabled` and
-  locates the plugin through a stable shim `[FALLBACK]`.
+  locates the plugin through a stable shim `[FALLBACK]`. Taken: Claude Code 2.1.284 gives a settings
+  hook only `CLAUDE_PROJECT_DIR` (probes.md), so the entry passes `--enabled` and runs the highest major.minor.patch version of
+  `cache/<marketplace>/testing/*/hooks/test-scan.sh`, pinned to the marketplace setup runs from (else a
+  `<marketplace>` placeholder). It runs only a copy that takes `--enabled`, otherwise prints one
+  stderr line and exits 0, and it shares the plugin hook's marker directory. No shim script was needed.
 - New `plugins/testing/skills/setup/SKILL.md`, `check | apply`, with
   `disable-model-invocation: true` (modeled on `plugins/mutation-testing/skills/setup`). `check`
   prints:
@@ -684,21 +731,27 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 **Sanity Check:**
 
 - `bash plugins/testing/scripts/resolve-config.test.sh` exits 0. It covers layer order, list concatenation, `**` matching and a Windows-style path.
-- A `cant-fail-scan.test.sh` case writes `.claude/testing.yaml` containing an `exclude` list with `**/*.test.ts`. It asserts 0 findings from the scanner and no `test-scan.sh` output for a bad `.test.ts` fixture.
+- A `cant-fail-scan.test.sh` case writes `.claude/testing.yaml` containing an `exclude` list with `'**/*.test.ts'`. It asserts 0 findings from the scanner and no `test-scan.sh` output for a bad `.test.ts` fixture.
 - A setup test runs `check` and a scripted `apply` in a temp repo and asserts that no file named `CLAUDE.md` or `AGENTS.md` changed.
-- `grep -c 'CLAUDE_PLUGIN_ROOT' docs/topics/tautological-tests/probes.md` is at least 1.
+- `grep -c 'CLAUDE_PLUGIN_ROOT' docs/specs/tautological-tests/probes.md` is at least 1.
 - `bash scripts/check-changed-skills.sh origin/main` exits 0.
 
-### Phase 6: `test-weaken` hook [TODO]
+### Phase 6: `test-weaken` hook [IMPLEMENTED, not on main]
 
-- PreToolUse on `Edit|MultiEdit|Write`, with the same option gate, filters and precision rules as `test-scan`.
+Implemented on branch `feat/testing-test-scan-hook`. Detection reads a new scanner mode,
+`cant-fail-scan.sh --file <path> --inventory <text>...`, so no token list is copied. Changed
+expected literals are also read from Go `if got != 3 {` and bats `[ "$output" = "3" ]`. p95 was measured only under load (194-219
+ms at load 33-36); the idle re-measure moves to Phase 8.
+
+- PreToolUse on `Write|Edit`, with the same option gate, filters and precision rules as `test-scan`.
 - Compares old and new content to detect a removed assertion, an added skip marker (adapter
   `test_skip`), a removed test block, or a changed expected literal.
 - Release 1 output: `additionalContext` asking for the reason, with no `permissionDecision` field
   (`allow` would skip the user's permission prompt).
 - The deny path for deleted or skipped tests sits behind `rules.test-weaken-block: error`, which is
   off by default and stays off in Release 1 (D4, D5). With it on, an edit carrying a
-  `test-change: <reason>` marker is allowed.
+  `test-change: <reason>` marker gets context only, with no decision. The key is
+  `rules.test-weaken-block` (or `rule-test-weaken-block`), and only `error` changes behavior.
 - Known limitation, stated in the skill: the agent can write that marker itself. The marker makes
   the reason visible to reviewers; it does not prove the reason.
 
@@ -715,7 +768,8 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
 Starts after PR B merges ([Execution shape](#execution-shape)).
 
 - New model-invoked `plugins/testing/skills/test-value/SKILL.md`, kept to at most 120 lines because
-  every preload carries it (the figure is judgment). It ends with `## Next`. It covers (A6):
+  every preload carries it (the figure is judgment). Its `## Next` sits before its last H2, per
+  `.claude/rules/skill-bodies-state-current-rules.md`. It covers (A6):
   - the expected value names its independent source (literal, worked example, spec, bug report,
     hand-computed value); no independent source means no unit test;
   - call-count or interaction checks are legitimate at unmanaged, state-changing boundaries
@@ -765,7 +819,7 @@ Starts after PR B merges ([Execution shape](#execution-shape)).
 - Pre-check which wave-1 languages each candidate repo holds. Run the scanner over the whole tree of
   `melodic-software/claude-code-plugins`, `melodic-software/medley` and `melodic-software/ci-runner`,
   read-only, together covering every wave-1 language in real use.
-- Classify every finding as true or false positive in `docs/topics/tautological-tests/precision-run.md`.
+- Classify every finding as true or false positive in `docs/specs/tautological-tests/precision-run.md`.
   The report shows examined-file counts per adapter. A rule with 0 findings in a language where its
   forms never occur is marked "unmeasured" there, not "qualifies".
 - Each false positive becomes a good corpus fixture before it is fixed. The PR checklist enforces
@@ -779,8 +833,8 @@ Starts after PR B merges ([Execution shape](#execution-shape)).
 
 **Sanity Check:**
 
-- `grep -cE '^\| (claude-code-plugins|medley|ci-runner) \|' docs/topics/tautological-tests/precision-run.md` returns 3.
-- `grep -c 'examined' docs/topics/tautological-tests/precision-run.md` is at least 1, and no rule is marked "qualifies" for a language where the report marks it "unmeasured".
+- `grep -cE '^\| (claude-code-plugins|medley|ci-runner) \|' docs/specs/tautological-tests/precision-run.md` returns 3.
+- `grep -c 'examined' docs/specs/tautological-tests/precision-run.md` is at least 1, and no rule is marked "qualifies" for a language where the report marks it "unmeasured".
 - `bash scripts/run-plugin-tests.sh` exits 0.
 - `bash scripts/check-changelog-parity.sh --check` and `bash scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
@@ -919,4 +973,4 @@ User-approval gates that still hold:
 - Phase 2 and Phase 8: running on a Windows fleet machine through `/fleet:reach`.
 - Phase 8: scanning `medley` and `ci-runner`, read-only.
 - Phase 4a: any Pocock example that fits neither a rule nor the acceptance criterion 1 judge list.
-- Phase 5 `[FALLBACK]`: the consumer-entry shim, if the probe shows plugin variables are missing.
+- Phase 5 `[FALLBACK]`: taken; the probe showed a settings hook gets no plugin variables.

@@ -1,0 +1,42 @@
+# good-for: rule-inert-assertion
+# good-for: rule-constant-restatement
+# good-for: rule-source-text-read
+# The repaired twins: the assert carries its message without a tuple, the
+# mock is checked through assert_called_once_with, the limit and the fixture
+# feed code under test, and the only file read is one the test wrote itself.
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.cart import total
+from app.limits import LIMIT, validate
+from app.notify import notify
+from app.orders import order_total
+from app.render import render_view
+
+
+def test_total_sums_prices():
+    assert total([1, 2]) == 3, "total should add the prices"
+    assert (total([2, 2]) == 4), "parenthesized comparison, not a tuple"
+
+
+def test_notify_mails_the_owner():
+    mailer = MagicMock()
+    assert notify(mailer, "owner@example.com") is True
+    mailer.send.assert_called_once_with("owner@example.com")
+
+
+def test_limit_rejects_one_over():
+    with pytest.raises(ValueError):
+        validate("a" * (LIMIT + 1))
+
+
+def test_order_total():
+    order = {"id": 7, "lines": [10, 5]}
+    assert order_total(order) == 15
+
+
+def test_render_writes_a_view(tmp_path):
+    out = tmp_path / "view.py"
+    out.write_text(render_view())
+    assert "def view" in out.read_text()

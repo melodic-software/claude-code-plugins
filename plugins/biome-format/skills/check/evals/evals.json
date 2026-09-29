@@ -37,6 +37,31 @@
         "On a PASS, does not suggest /biome-format:setup apply",
         "Modifies no file"
       ]
+    },
+    {
+      "id": 4,
+      "name": "check-runs-its-own-probes-including-node",
+      "prompt": "/biome-format:check\n\nnode is not on PATH here, though biome is installed.",
+      "expected_output": "Runs the jq, node and biome probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "files": [],
+      "expectations": [
+        "Runs the jq, node and biome probes via Bash instead of expecting pre-computed rows",
+        "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
+        "Notes the SessionStart probe resolves biome separately from the hook's walk, and that a PASS means the hook resolves it",
+        "Installs nothing and stops after the table"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-reports-the-gitignore-option",
+      "prompt": "/biome-format:check\n\nFormatting never happens in a gitignored folder.",
+      "expected_output": "Reports the effective biome_format_lint_gitignored value beside biome_format_enabled, an unexpanded or empty value meaning the default false, and does not treat the untouched gitignored file as a defect.",
+      "files": [],
+      "expectations": [
+        "Reports the effective biome_format_lint_gitignored value alongside biome_format_enabled",
+        "Treats an unexpanded or empty value as the default false",
+        "Does not call the untouched gitignored file a defect and does not change any setting"
+      ]
     }
   ]
 }

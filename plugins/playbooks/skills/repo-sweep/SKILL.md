@@ -20,7 +20,7 @@ default checked state, and override text; changing a sweep means editing the cat
 |---|---|---|
 | `/playbooks:repo-sweep plan` | Recommend per entry, open the selection page, create the sweep branch and draft PR | [reference/plan.md](reference/plan.md) |
 | `/playbooks:repo-sweep next` | Run the first unticked step: audit, review findings with the user, fix, one commit, tick | [reference/next.md](reference/next.md) |
-| `/playbooks:repo-sweep review` | Dispatch an independent reviewer on the last step, merge with user report, audit and file each problem after approval | [reference/review.md](reference/review.md) |
+| `/playbooks:repo-sweep review` | Ask the user what went wrong, dispatch an independent reviewer on the last step, merge both lists, audit and file each problem after approval | [reference/review.md](reference/review.md) |
 
 No argument: run `${CLAUDE_SKILL_DIR}/scripts/state.sh` (below). Exit 10 or 11 means `plan`; exit 0
 means `next`. Say which you chose.
@@ -37,10 +37,16 @@ File issue bodies from a path, not from stdin.
 heredoc whose text mentioned git; direct script paths, one git command per call, and a body file
 were accepted. Basis: observed during the melodic-software/.github sweep (PR
 melodic-software/.github#153), recorded in
-[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537); the guard's
-documented rule is <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
-(Command shape). As of: 2026-09-26. Recheck: the Command shape bullet or a release note changes
-which Bash forms an isolated session accepts. The procedure files point here for these shapes.
+[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). Rechecked against
+Claude Code 2.1.284 on 2026-09-29: the Command shape bullet of
+<https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> and the changelog
+after 2.1.259 through 2.1.284 name none of the three forms. Changelog 2.1.257 stopped refusing
+heredocs that never touch git and 2.1.259 stopped refusing loops, xargs pipelines and
+launcher-wrapped commands that cannot reach the main checkout; 2.1.274 refused more nested
+expansions. Status: all three forms unverified, so the conservative procedure stays. Not
+re-probed in a live isolated session. As of: 2026-09-29. Recheck: the Command shape bullet or a
+release note changes which Bash forms an isolated session accepts, or a live isolated session
+runs the three forms. The procedure files point here for these shapes.
 
 ## Scripts
 
@@ -56,7 +62,7 @@ error everywhere; codes 10 and up carry the meanings below; any other non-zero c
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
 | `state.sh` | `key value` lines: `pr`, `branch`, `pr-state`, `playbook`, `dirty`, `untick-committed <id> <sha> <skill@version>...`, `done-unverified <id>`, `next <id> in-progress\|pending`, `sweep <n> <branch>` | 0 next step found; 1 no markers; 10 no sweep PR; 11 PR merged or closed; 12 dirty tree, step pending; 13 all done; 14 one open sweep on another branch; 15 several open sweeps |
-| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `partial <detail> <skill@version>...` / `not-applicable <evidence> <skill@version>...` / `report-only <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
+| `tick.sh <id> in-progress` / `[--partial <detail>] committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `partial <detail> <skill@version>...` / `not-applicable <evidence> <skill@version>...` / `[--partial <detail>] report-only <n> <skill@version>...` / `[--partial <detail>] declined <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
 | `guard.sh <base-sha> <pr-snapshot-file>` | Checks a step stayed on the branch and opened no PR | 10 stop (prints `branch-changed`, `base-not-ancestor`, `new-pr` lines); 11 prints `squash git reset --soft <base-sha>` |
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
@@ -81,12 +87,23 @@ Arguments in angle brackets are resolved per repo before the step runs.
 <!-- repo-sweep:end -->
 ```
 
-`[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done with
-`committed <short-sha>`, `no findings`, `no findings, partial coverage: <detail>` when the
-skill ran but did not cover the whole repo, or `no fix-eligible findings (N report-only)` when
-the skill produced report-only tiers and the user reviewed them but nothing was edited.
-`history.sh` recommends `rerun` after partial coverage. The next step is the first `[~]`, else
-the first `[ ]`.
+`[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done. A done
+line is one base outcome, then an optional partial suffix, or the separate not-applicable form:
+
+- Base outcomes: `committed <short-sha>`, `no findings`, `no fix-eligible findings (N
+  report-only)` when the skill produced report-only tiers the user reviewed and nothing was edited,
+  or `findings declined (N)` when the user declined every fix-eligible finding shown. No commit
+  carries the scope decisions of a declined step, so they live in a `repo-sweep scope decisions:
+  <id>` comment on the sweep PR.
+- Suffix `, partial coverage: <detail>` (one line, no commas) when the skill ran but did not
+  cover the whole repo. It follows any base outcome, so partial never hides a commit or a
+  report-only count. `tick.sh <id> partial <detail>` is the shorthand for `no findings` plus the
+  suffix; `--partial <detail>` right after `<id>` adds it to `committed`, `report-only`, and `declined`.
+  `history.sh` recommends `rerun` after partial coverage.
+- `not applicable: <evidence>` replaces the base outcome. `history.sh` ignores such a line for
+  version history.
+
+The next step is the first `[~]`, else the first `[ ]`.
 A `Not run:` list outside the markers records entries left unchecked at plan time.
 
 **Step commit** ends with a `Scope decisions:` section, then one final trailer paragraph:
@@ -123,9 +140,11 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   A same-named personal or project skill replaces the bundled one and is stamped `@personal` or
   `@project` instead ([skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name),
   fetched 2026-09-27). The Claude Code version standing in for a bundled skill's version is an
-  inference from the 2.1.280 binary, which keys its bundled-skills directory on its own version;
-  no docs page states it. Recheck when that docs table changes or a Claude Code release note
-  gives bundled skills their own versions.
+  inference from the observed path: a bundled skill loaded from
+  `/tmp/claude-1000/bundled-skills/2.1.283/...` while `claude --version` printed 2.1.283
+  ([#4601](https://github.com/melodic-software/claude-code-plugins/issues/4601)); no docs page
+  states it. As of 2026-09-29, from that observation. Recheck when that docs table changes or a
+  Claude Code release note gives bundled skills their own versions.
 - A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
   `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
   reports the installed version, which may never have run; `next` passes each skill's loaded
@@ -138,9 +157,10 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
-- An override exists because the skill hardcodes its own branch, PR, or commit structure. State
-  it as your own instruction before invoking the skill; never append it to the skill's arguments.
-  `plan` flags an override whose tracking issue has closed so it can be removed from the catalog.
+- An override exists only while a skill hardcodes its own branch, PR, or commit structure and
+  offers no flag for the caller to set them. State it as your own instruction before invoking the
+  skill; never append it to the skill's arguments. `plan` flags an override whose tracking issue
+  has closed so it can be removed from the catalog.
 - A skill that commits anyway is squashed into the one step commit by `guard.sh` exit 11. A skill
   that switches branch or opens a PR stops the step (exit 10); run `review` to file it.
 - `review` never reuses the session that ran the step: dispatch a separate reviewer with procedure

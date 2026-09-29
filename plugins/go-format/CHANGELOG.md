@@ -3,6 +3,25 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.4.6] - 2026-09-29
+
+### Fixed
+
+- The session-start prerequisite probe honors `go_format_enabled`: with the kill switch off, no `goimports was not found` notice appears.
+
+### Changed
+
+- README and the setup skill state the `go_format_lint_gitignored` exemption (gitignored files are skipped by default; a tracked file matching an ignore pattern stays in scope) and no longer describe the hook as unconditional. The setup `check` action reports the option's effective value, with a matching eval.
+- The setup skill's toggle-off step prints the reconfiguration convention's short form: pass `-s user` (not a scope copied from `claude plugin list`), never uninstall to reconfigure, next-session observation, read the output rather than the exit code.
+- README Requirements and the setup `check` action declare Node.js: every hook row launches through `node hooks/exec-bash.mjs`, so without node the hooks do not start. A missing `node` stays a FAIL when the toggle is off, and a PASS on the shell probe does not establish that hooks launch.
+- Corrected released entries, declared here: 0.3.62, 0.3.63, 0.4.2 and 0.4.3 now read "Shared launcher/library sync; no change to this plugin's behavior", since they describe shared code this plugin never calls (or, for 0.4.2, hook rows an earlier entry already changed); 0.4.1 drops the sentence that a row needing a shell stays shell form, which no longer holds.
+
 ## [0.4.5] - 2026-09-28
 
 ### Changed
@@ -19,19 +38,19 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 
 ### Fixed
 
-- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.4.2] - 2026-09-28
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.4.1] - 2026-09-28
 
 ### Changed
 
-- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`.
 
 ## [0.4.0] - 2026-09-28
 
@@ -43,13 +62,13 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 
 ### Changed
 
-- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.3.62] - 2026-09-27
 
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.3.61] - 2026-09-27
 

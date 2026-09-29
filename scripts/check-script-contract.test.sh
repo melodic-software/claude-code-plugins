@@ -252,6 +252,7 @@ recipe::exec_form_windows_probe() { # <clean|violation>
   [[ "$1" == violation ]] && body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","args":["a"]}]}]}}'
   fixture_tree::build f \
     --sut "$SELF_DIR/check-exec-form-windows-probe.sh" \
+    --sut "$SELF_DIR/check-hook-exec-form.sh" \
     --sut "$SELF_DIR/check-hook-exec-form-frontmatter.py" --plugins || return 2
   mkdir -p "$f/plugins/alpha/hooks" "$f/.github"
   cp "$REPO_ROOT/.github/requirements-ci.txt" "$f/.github/requirements-ci.txt"

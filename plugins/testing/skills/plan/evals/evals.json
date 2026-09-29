@@ -10,7 +10,7 @@
     {
       "id": 2,
       "name": "clean-tree-says-so-and-does-not-invent-gaps",
-      "prompt": "/testing:plan \u2014 working tree is clean and this branch matches the default branch. What needs testing?",
+      "prompt": "/testing:plan — working tree is clean and this branch matches the default branch. What needs testing?",
       "expected_output": "Reads git status and the diff range, reports that there are no changed files to classify, and does not invent coverage gaps or a test list for unmodified code.",
       "files": [],
       "expectations": [

@@ -5,9 +5,9 @@
 #
 # Last version run per skill, first source holding the skill wins:
 #   1. Merged sweep PRs (head branch chore/repo-sweep-*), newest merge first: the done lines
-#      ("- [x] <id>: <skill@version, ...>, ...") between the repo-sweep markers. Survives
-#      squash merges.
+#      (SKILL.md Formats) between the repo-sweep markers. Survives squash merges.
 #   2. Playbook-Step trailers on the default branch (origin/HEAD, else HEAD), newest first.
+# Partial coverage counts only from the newest merged sweep PR that ran the step.
 # gh absent, unauthenticated, or failing: trailers only, with a warning on stderr.
 # Current versions come from skill-version.sh (same env overrides).
 #
@@ -44,7 +44,10 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
       rest = substr($0, 7); i = index(rest, ": ")
       if (i) {
         eid = substr(rest, 1, i - 1)
-        if ($0 ~ /partial coverage:/) print eid > partialf
+        if (!(eid in seen) && $0 ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$/) {
+          seen[eid] = 1
+          if ($0 ~ /partial coverage:/) print eid > partialf
+        }
       }
       n = split(substr($0, index($0, ": ") + 2), t, /, */)
       for (i = 1; i <= n; i++) if (t[i] ~ /^[^ @]+@[^ @]+$/) print t[i]

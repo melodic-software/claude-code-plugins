@@ -1,0 +1,16 @@
+// expect: rule-recomputed-expectation
+// Both sides of the diff run the same parse, so the diff is always empty.
+package query
+
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
+
+func TestParseQuery(t *testing.T) {
+	raw := "page=2&sort=name"
+	if diff := cmp.Diff(ParseQuery(raw), ParseQuery(raw)); diff != "" {
+		t.Errorf("ParseQuery() mismatch (-want +got):\n%s", diff)
+	}
+}

@@ -20,16 +20,9 @@ Authorize the candidate-count consent gate for the whole repo. Tag any `alive` n
 ### batch-simplify
 
 - skill: code-tidying:batch-simplify
-- args: repo docs
+- args: repo docs in-place
 - applies-when: repo has source code
 - checked: true
-- issue: #4503
-
-#### Override
-
-Stay on the current branch. Do not create a branch or a pull request, and do not commit per
-group; leave all changes uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4503.
 
 ### residue-dissolve
 
@@ -41,11 +34,10 @@ melodic-software/claude-code-plugins#4503.
 #### Notes
 
 One step: the residue audit's Tier 1 rows are the dissolve pass's input, so run both in the same
-session without `/clear` between them. `dissolve-comments` does not edit CI workflows unless the
-operator lifts that exclusion by hand (for example `dissolve-comments override
-.github/workflows/ci.yml`). Findings on files synced from another repository are fixed upstream,
-never in this sweep; filter them out before fixing. When the only commented in-scope paths are CI
-workflows, pass `dissolve-comments override <path>` for each workflow the operator wants edited.
+session without `/clear` between them. CI workflows stay excluded unless the operator lifts them
+by hand, for example `dissolve-comments override .github/workflows/ci.yml`; the skill's Hard rules
+section owns the exclusion and its lift channels. Findings on files synced from another repository
+are fixed upstream, never in this sweep; filter them out before fixing.
 
 ### testing-audit
 
@@ -73,28 +65,23 @@ needs tracked work in the step's `Scope decisions:` instead.
 - args: <lane> | <lane1>,<lane2>,... | all
 - applies-when: repo has source code or prose that at least one tidy lane covers
 - checked: false
-- issue: #4503
 
 #### Notes
 
 `code-tidying:tidy` runs one lane per invocation. When the sweep should tidy more than one lane,
 resolve `args` to a comma-separated lane list or `all` (every lane in the union of bundled and
 `.claude/tidy-lanes/*.md` names that applies to this repo, excluding the maintainer-only
-`self-update` lane). `next` invokes tidy once per lane in that list inside this single step. Present findings from every lane together for review; one step
-commit covers all lanes. Ad hoc globs with no lane file still need a project lane definition or a
-separate manual tidy outside repo-sweep.
+`self-update` lane). `next` invokes tidy once per lane in that list inside this single step.
+Present findings from every lane together for review; one step commit covers all lanes. Pass
+`in-place` on every tidy invocation: it stays on the current branch, opens no branch or PR, and
+leaves the changes staged for the step commit. Glob scope runs through tidy's `<glob>...` row.
 
 Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
-bundled lanes, and `self-update` is maintainer-only. Basis: `code-tidying` 0.23.11
-`skills/tidy/SKILL.md` (argument-hint, lane resolution, `self-update` row). As of: 2026-09-28.
-Recheck: tidy accepts several lanes in one call, or changes where it reads lanes from; prefer the
-lane list tidy's own `help` prints over this note when they differ.
-
-#### Override
-
-Stay on the current branch. Do not create a branch or a pull request, and do not commit per
-tidying; leave all changes uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4503.
+bundled lanes, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
+Basis: `code-tidying` 0.23.20 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
+`in-place`, and `self-update` rows). As of: 2026-09-29. Recheck: tidy accepts several lanes in one
+call, changes where it reads lanes from, or renames `in-place`; prefer the lane list tidy's own
+`help` prints over this note when they differ.
 
 ## Phase 2: existence and copies
 
@@ -242,13 +229,11 @@ Accept its offered repo-wide tracked run rather than passing `.`.
 - args: identify
 - applies-when: repo has tracked markdown
 - checked: true
-- issue: #4504
 
-#### Override
+#### Notes
 
-Apply with `batch` or `--fix` after `identify`. Do not commit per wave; leave all changes
-uncommitted, repo-sweep makes the step commit. Tracking issue:
-melodic-software/claude-code-plugins#4504.
+Apply the identified clusters with `batch --commit-mode=none`, which makes no commits and leaves the
+migrations in the working tree for the step commit.
 
 ### instruction-placement
 
@@ -329,15 +314,29 @@ Run only on files the be-concise step did not edit.
 ### lint
 
 - skill: toolchain:lint
-- args: --fix
+- args: all --fix
 - applies-when: always
+- prime: false
 - checked: true
+
+#### Notes
+
+`--fix` runs only each ecosystem's format-only `fix-cmd`. After it, run `/toolchain:lint all` in
+check mode so every ecosystem's `check-cmd` also covers the whole repository, and report its
+failures.
+
+Claim: `toolchain:lint` with `--fix` runs only each ecosystem's format-only `fix-cmd`, check mode
+runs `check-cmd`, and the `all` filter widens the file list to the whole repository. Basis:
+`toolchain` 0.13.18 `skills/lint/SKILL.md` (Mode flags table, command-selection table, and the
+`all` filter rule). As of: 2026-09-29. Recheck: `--fix` also runs `check-cmd`, the check-mode
+default changes, or `all` stops widening the file list.
 
 ### skill-quality
 
 - skill: skill-quality:check
 - args: check
 - applies-when: repo has skills
+- prime: false
 - checked: true
 
 ### evals-validate
@@ -345,6 +344,7 @@ Run only on files the be-concise step did not edit.
 - skill: evals:validate
 - args: <eval suite paths>
 - applies-when: repo has plugin eval suites
+- prime: false
 - checked: true
 
 ### verify

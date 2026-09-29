@@ -1,5 +1,7 @@
 """Worked sheets for tileset, ui, and vfx match the engine grids they target."""
 import importlib.util
+import contextlib
+import io
 import json
 import pathlib
 import struct
@@ -9,6 +11,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import backends  # noqa: E402
 import render  # noqa: E402
 from test_render import read_png  # noqa: E402
 
@@ -95,6 +98,37 @@ class ExampleSheetTest(unittest.TestCase):
             self.assertEqual(meta["frames"]["fx0"]["frame"], {"x": 0, "y": 0, "w": 192, "h": 192})
             self.assertEqual(meta["frames"]["fx2"]["frame"], {"x": 384, "y": 0, "w": 192, "h": 192})
             self.assertEqual(meta["meta"]["frameTags"][0]["name"], "spark")
+
+
+ROUTED = (
+    ("a2_ground", "examples/tileset/a2_ground.py", 4),
+    ("window_mz", "examples/ui/window_mz.py", 4),
+    ("spark_mz", "examples/vfx/spark_mz.py", 2),
+)
+
+
+class BackendRoutingTest(unittest.TestCase):
+    def test_native_backend_matches_render_for_tileset_ui_vfx(self):
+        for name, relative, scale in ROUTED:
+            with self.subTest(example=name), tempfile.TemporaryDirectory() as tmp:
+                module = load(name, relative)
+                direct, routed = pathlib.Path(tmp) / "direct", pathlib.Path(tmp) / "routed"
+                expected = render.render(module.build(), direct, scale)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    written = backends.run(module.build(), routed, "native", scale, None, {}, False)
+                self.assertEqual(sorted(written), sorted(expected))
+                self.assertEqual((routed / "sheet.png").read_bytes(), (direct / "sheet.png").read_bytes())
+
+    def test_missing_aseprite_notice_then_native_artifact_for_tileset(self):
+        module = load("a2_ground", "examples/tileset/a2_ground.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "out"
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                backends.run(module.build(), out, "aseprite", 1, None, {"PATH": tmp}, False)
+            self.assertEqual(buf.getvalue().strip(), backends.NOTICES["aseprite-missing"])
+            self.assertTrue((out / "sheet.png").is_file())
+            self.assertFalse((out / "source.aseprite").exists())
 
 
 if __name__ == "__main__":

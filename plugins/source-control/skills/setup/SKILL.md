@@ -264,6 +264,14 @@ the step UNKNOWN with remediation, never green.
 
    The remediation is always the operator's to apply, never write settings from this skill.
 
+### Hook launcher
+
+Report whether `node` resolves on PATH (`command -v node` through the Bash tool, so the probe works
+without the hook launcher): PASS when it does, FAIL when it does not. Every hook row runs through
+`node hooks/exec-bash.mjs`, so without it the hooks do not launch and the PR-linkage and worktree
+gates are not enforced. Remediation: install Node.js on PATH
+(<https://nodejs.org/en/download>).
+
 ## `apply` (idempotent)
 
 Run `check` first. Then write the convention (surface 1) and walk the sanctioned babysit
