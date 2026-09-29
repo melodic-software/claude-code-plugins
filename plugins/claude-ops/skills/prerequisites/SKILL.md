@@ -28,7 +28,7 @@ With no arguments and a `claude` executable on PATH, the script reads the enable
 
 ## Next
 
-- A formatter binary is missing: /biome-format:check, /go-format:check or /markdown-format:check
+- A formatter binary is missing: /bash-format:check, /biome-format:check, /go-format:check, /markdown-format:check, /powershell-format:check, /ruff-format:check or /typos-format:check
 - The fleet's versions, a different question: /claude-ops:plugins audit
 
 ## Gotchas
