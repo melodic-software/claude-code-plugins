@@ -1,5 +1,5 @@
 ---
-description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
+description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Orphaned files are any source language. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -27,14 +27,21 @@ report that presents them as equals is wrong even when every finding in it is ri
 | **knip** | TS/JS: unused files, exports, types, enum members. **Not** class members. Knip 6 rejects `--include classMembers` outright | **60% precision / 100% recall** on trap fixtures | Unrestored, it **manufactures false positives** (a failed config load produced 2 phantom "unused files"). Its `ERROR:` line goes to stderr, which the JSON reporter discards |
 | **vulture** | Python: unused function / class / method / variable / attribute, plus unreachable code | **16.7% precision / 100% recall**. All five trap classes false-positived at 100% | High recall, low precision **by construction**. Read its output as a worklist, never as a verdict |
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`). That is the lane's declared coverage, not a defect | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**. False **NEGATIVES**, the opposite of knip. Never describe the two degradations with one shared phrase |
-| **grep** | Shell and PowerShell: function definitions with no reference anywhere | **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4 | High precision, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead |
+| **grep** | Shell and PowerShell function definitions, plus unreferenced source files (`unreferenced-file`, tier 2) | Symbol extractor: **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4. `unreferenced-file` precision is unmeasured | High precision on symbols, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead. A file miss is tier 2 because a computed path or glob is invisible |
 
 Every figure in the Measured character column comes from this plugin's own trap fixtures under
 `evals/fixtures/`, as recorded on 2026-08-23. Recheck trigger: a major version bump in any lane's
 detector, or a change to the fixture corpus. Re-measure before quoting one to a user.
 
-Orphaned-**file** coverage is **TS/JS only**. Rust and .NET are permanently out of scope: their
-detectors build the project. Per-lane invocation, flags, and degradation detail live in
+Orphaned-**file** coverage is language-agnostic. The grep lane emits `unreferenced-file` at tier 2
+when a source file's basename and its repo-relative path (plus its stem, for a language with no
+lane) have no literal reference in any other tracked file. That set is shell, PowerShell, Python entry points (a line-1 shebang, a
+`__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, and source files in languages with no
+lane. Knip still reports unused TS/JS files inside a `package.json` root. A reference in a CI
+workflow, settings file, manifest, or doc saves the file. A computed path or a glob does not, so
+the candidate is **uncertain, not dead**. Rust and .NET stay out of the build-based detectors; an
+unreferenced file there is still this candidate, because those builds do not spell every path.
+Per-lane invocation, flags, and degradation detail live in
 [context/lanes.md](context/lanes.md) "Lane reference".
 
 ## Candidate shapes and default tiers
@@ -52,6 +59,7 @@ from the measured precision of the lane that produced it.
 | `py-unreachable` | vulture | 1 |
 | `go-unused-unexported` | gopls | 1 |
 | `unreferenced-symbol` | grep | 1 |
+| `unreferenced-file` | grep | 2 |
 | `detector-drift` | any | 3 |
 
 Consumers with their own conventions can refine these defaults in their repo's `CLAUDE.md` /
@@ -102,7 +110,8 @@ Bounded by design. Full evidence catalogue in
    has no confidence field at all.
 3. **Adjudicate each candidate to `dead`, `uncertain`, or `alive`**, checking the dynamic-usage
    patterns the detectors cannot see. String-name dispatch, DI/serialization, reflection, decorator
-   and route registration, test-only entry points, public API surface, generated code.
+   and route registration, test-only entry points, public API surface, generated code. An
+   `unreferenced-file` loaded by a computed path or a glob is `uncertain`, not `dead`.
 4. **Every `alive` cites the specific evidence that saved it.** An unevidenced `alive` is a guess.
 5. Fan out to fresh-context subagents in batches when the set is large; if spawn depth is
    exhausted, say so and adjudicate inline at the same cap rather than silently shrinking the set.
@@ -141,8 +150,8 @@ all are gaps, not a clean bill. After presenting the lane roster:
 
 1. **Name each gap** from `Summary coverage:` and each `Note: uncovered` line: the path and the
    reason (`no lane for the language`, `no manifest root`, `tool not installed`, `tool could not
-   parse it`, or `lane not selected`). Rust and .NET stay a policy exclusion: they are `no lane for the language`, not a
-   detector this run forgot to invoke.
+   parse it`, or `lane not selected`). Rust and .NET stay a policy exclusion: they are `no lane
+   for the language`, not a detector this run forgot to invoke.
 2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
    the operator to edit and submit. Do nothing unless they agree.
 3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for the
@@ -217,13 +226,15 @@ Adjudicated `dead` verdicts are applied there. This skill only reports.
 
 - **No `package.json` means knip does not scan `.js`/`.mjs`/`.cjs`.** Those extensions are routed to
   knip. With no manifest root the lane is `no-manifest`, `files=` is the real count, and each file
-  is listed uncovered (`no manifest root`). The lane still emits no dead-code candidates for them.
-  A file that sits outside every `package.json` root is uncovered the same way, even when some other
-  root ran. A grep-lane fallback or knip-without-manifest scan for those files is **deferred**
+  is listed uncovered (`no manifest root`). A file that sits outside every `package.json` root is
+  uncovered the same way, even when some other root ran. The grep lane still reports such a file as
+  `unreferenced-file` when nothing names its basename or path, but unused exports inside it stay
+  invisible. A symbol-level grep fallback or knip-without-manifest scan is **deferred**
   ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
-  **Claim:** dead JS/TS outside any `package.json` root has no detector that emits candidates until
-  trap-measured extractors ship. Coverage accounting lists the files; it does not scan them.
-  **Basis:** #4522 and #4521. **As of:** 2026-09-28.
+  **Claim:** symbol-level dead JS/TS outside any `package.json` root has no extractor until
+  trap-measured work ships. Coverage accounting lists the files; file-level misses are
+  `unreferenced-file` at tier 2.
+  **Basis:** #4522, #4521 and #4523. **As of:** 2026-09-28.
   **Recheck:** standalone `.mjs` trap fixtures produce candidates at recorded precision, or #4522
   unpark.
 - **A `degraded` lane is not a quiet lane.** knip degraded means invented findings were withheld;
