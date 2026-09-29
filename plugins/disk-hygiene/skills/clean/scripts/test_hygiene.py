@@ -5360,7 +5360,7 @@ class HandoffVerifyTests(unittest.TestCase):
     def test_skill_requires_handoff_verify_and_loss_warning(self) -> None:
         text = " ".join((SCRIPT_DIR.parent / "SKILL.md").read_text("utf-8").split())
         for phrase in (
-            "never delete it outside the engine",
+            "never delete it without a clear `handoff-verify` verdict",
             "run `handoff-verify`, and delete only on a `clear` verdict",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",

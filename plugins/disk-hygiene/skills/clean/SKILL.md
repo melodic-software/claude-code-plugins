@@ -94,7 +94,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the
   only exception, and it never applies to linked worktrees whose common Git directory is outside the
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
-  remote, untracked files, no commits), never delete it outside the engine. Record
+  remote, untracked files, no commits), never delete it without a clear `handoff-verify` verdict. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
   `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict through the §6
   manual handoff lane: every other contest reason must be gone. Preview and apply keep VCS
