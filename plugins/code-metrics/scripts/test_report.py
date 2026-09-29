@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -15,12 +16,15 @@ SCRIPT = SCRIPT_DIR / "report.py"
 DEFAULTS = SCRIPT_DIR / "config-defaults.json"
 
 
-def run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
+def run(
+    *args: str, stdin: str | None = None, cwd: str | None = None
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         capture_output=True,
         text=True,
         input=stdin,
+        cwd=cwd,
         check=False,
     )
 
@@ -130,7 +134,7 @@ class AssembleTests(unittest.TestCase):
             ],
             [self.THRESHOLD],
         )
-        self.assertEqual(doc["schema"], "code-metrics/v1")
+        self.assertEqual(doc["schema"], "code-metrics/v2")
         self.assertEqual(doc["status"], "complete")
         self.assertEqual(doc["measures"][0]["over_reference"], ["file_lines"])
         self.assertEqual(doc["measures"][1]["over_reference"], [])
@@ -525,7 +529,7 @@ class AssembleTests(unittest.TestCase):
 class RenderTests(unittest.TestCase):
     def test_empty_status_headline_and_tables(self) -> None:
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "change", "base": "abc", "files": 0, "excluded": 0},
@@ -561,7 +565,7 @@ class RenderTests(unittest.TestCase):
 
     def test_an_empty_all_scope_carries_no_widening_hint(self) -> None:
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "all", "base": None, "files": 0, "excluded": 0},
@@ -577,7 +581,7 @@ class RenderTests(unittest.TestCase):
 
     def _size_doc(self, rows: list[dict]) -> dict:
         return {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "all", "base": None, "files": len(rows), "excluded": 0},
@@ -819,7 +823,7 @@ class RenderTests(unittest.TestCase):
 
     def test_measures_table_lists_value_keys_and_over_reference(self) -> None:
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0},
@@ -905,7 +909,7 @@ class RenderTests(unittest.TestCase):
         ]
         measures = filler + files + [null_crap, top]
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-coverage",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
@@ -977,7 +981,7 @@ class RenderTests(unittest.TestCase):
         # cause. A coverage document carries the reason forward on its crap row
         # with no collector column, so the label comes from the reason instead.
         base = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
             "thresholds": [],
             "measures": [],
@@ -1051,7 +1055,7 @@ class RenderTests(unittest.TestCase):
         # The JSON document is untouched, and a run that read an artifact, even
         # a partial one, carries no such line.
         base = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-coverage",
             "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
             "thresholds": [],
@@ -1154,7 +1158,7 @@ class CloneGroupRowTests(unittest.TestCase):
 
     def test_render_shows_instances_and_the_duplicated_total(self) -> None:
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-duplication",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
@@ -1286,7 +1290,7 @@ def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) 
 
 def duplication_doc(measures: list[dict], **overrides: object) -> dict:
     doc = {
-        "schema": "code-metrics/v1",
+        "schema": "code-metrics/v2",
         "skill": "audit-duplication",
         "status": "complete",
         "scope": {"mode": "all", "base": None, "files": 4, "excluded": 0},
@@ -1585,7 +1589,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
     def test_a_size_document_renders_as_before(self) -> None:
         doc = {
-            "schema": "code-metrics/v1",
+            "schema": "code-metrics/v2",
             "skill": "audit-size",
             "status": "partial",
             "scope": {"mode": "all", "base": None, "files": 1, "excluded": 0},
@@ -1644,7 +1648,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
 def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
     return {
-        "schema": "code-metrics/v1",
+        "schema": "code-metrics/v2",
         "skill": "audit-complexity",
         "status": "partial",
         "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0, **scope},
@@ -1811,6 +1815,227 @@ class JoinedRenderTests(unittest.TestCase):
             out,
         )
         self.assertIn("Excluded by scope.exclude: `**/build/**` 4.", out)
+
+
+def cwd_relative_doc() -> dict:
+    """A document as a run from `<root>/sub` leaves it: paths relative to `sub`."""
+    return {
+        "schema": "code-metrics/v2",
+        "skill": "audit-coverage",
+        "status": "partial",
+        "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
+        "run": [
+            {
+                "lane": "python",
+                "measure": "coverage",
+                "collector": "lcov",
+                "status": "partial",
+                "reason": "partial, 1 of 3 scope files present in the artifacts"
+                "; missing: inner.py, ../lib/b.py",
+                "missing": ["inner.py", "../lib/b.py"],
+            },
+            {
+                "lane": "python",
+                "measure": "crap",
+                "collector": "lcov",
+                "status": "partial",
+                "reason": "partial, 1 of 3 scope files present in the artifacts"
+                "; missing: inner.py, ../lib/b.py",
+            },
+        ],
+        "thresholds": [],
+        "measures": [
+            {"file": "inner.py", "function": "f", "values": {}, "over_reference": []},
+            {"file": "../lib/a.py", "function": None, "values": {}},
+            {"file": None, "lane": "python", "values": {}, "labels": ["lane-total"]},
+            {
+                "file": "../lib/c.py",
+                "function": "g",
+                "values": {},
+                "replicas": {"count": 2, "files": ["../lib/c.py", "../lib2/c.py"]},
+            },
+            {
+                "lane": "python",
+                "file": None,
+                "values": {"lines": 6},
+                "instances": [
+                    {"file": "inner.py", "start_line": 1, "end_line": 6},
+                    {"file": "../lib/a.py", "start_line": 1, "end_line": 6},
+                ],
+            },
+        ],
+        "summary": {"files": 0, "functions": 0, "over_reference": {}},
+        "excluded": [
+            {
+                "registry": "r.txt",
+                "line": 1,
+                "path": "x",
+                "instances": [{"file": "../lib/x.py", "start_line": 1, "end_line": 5}],
+            }
+        ],
+        "unavailable": [],
+    }
+
+
+class AnchorTests(unittest.TestCase):
+    """`anchor` makes measured paths relative to a recorded root."""
+
+    def anchor(self, doc: dict, root: str, cwd: str, kind: str = "repository") -> dict:
+        result = run(
+            "anchor", "--root", root, "--kind", kind, stdin=json.dumps(doc), cwd=cwd
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def layout(self, tmp: str) -> tuple[str, str]:
+        root = Path(tmp).resolve()
+        (root / "sub").mkdir()
+        return str(root), str(root / "sub")
+
+    def test_every_measured_path_field_becomes_root_relative(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            doc = self.anchor(cwd_relative_doc(), root, sub)
+        rows = doc["measures"]
+        self.assertEqual(rows[0]["file"], "sub/inner.py")
+        self.assertEqual(rows[1]["file"], "lib/a.py")
+        self.assertIsNone(rows[2]["file"])
+        self.assertEqual(rows[3]["replicas"]["files"], ["lib/c.py", "lib2/c.py"])
+        self.assertEqual(
+            [i["file"] for i in rows[4]["instances"]], ["sub/inner.py", "lib/a.py"]
+        )
+        self.assertEqual(
+            [i["file"] for i in doc["excluded"][0]["instances"]], ["lib/x.py"]
+        )
+        self.assertEqual(doc["run"][0]["missing"], ["lib/b.py", "sub/inner.py"])
+
+    def test_the_missing_note_in_every_reason_follows_the_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            doc = self.anchor(cwd_relative_doc(), root, sub)
+        for row in doc["run"]:
+            self.assertTrue(
+                row["reason"].endswith("; missing: lib/b.py, sub/inner.py"),
+                row["reason"],
+            )
+
+    def test_the_note_keeps_its_cap_and_count_of_the_rest(self) -> None:
+        missing = [f"../lib/m{n}.py" for n in range(7)]
+        doc = cwd_relative_doc()
+        note = "; missing: " + ", ".join(missing[:5]) + ", +2 more in the JSON"
+        doc["run"][0]["missing"] = missing
+        doc["run"][0]["reason"] = "partial" + note
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            anchored = self.anchor(doc, root, sub)
+        self.assertEqual(
+            anchored["run"][0]["reason"],
+            "partial; missing: lib/m0.py, lib/m1.py, lib/m2.py, lib/m3.py, "
+            "lib/m4.py, +2 more in the JSON",
+        )
+
+    def test_the_note_cap_is_the_coverage_joins(self) -> None:
+        sys.path.insert(0, str(SCRIPT_DIR))
+        modules = {}
+        for name, path in (
+            ("join", SCRIPT_DIR.parent / "skills/audit-coverage/scripts/join.py"),
+            ("report", SCRIPT),
+        ):
+            spec = importlib.util.spec_from_file_location(f"{name}_module", path)
+            assert spec is not None and spec.loader is not None
+            modules[name] = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(modules[name])
+        self.assertEqual(
+            modules["report"]._MISSING_SHOWN, modules["join"].MISSING_SHOWN
+        )
+
+    def test_root_and_scan_root_are_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            from_sub = self.anchor(cwd_relative_doc(), root, sub)
+            from_root = self.anchor({"measures": [], "run": []}, root, root)
+            directory = self.anchor({"measures": [], "run": []}, sub, sub, "directory")
+        self.assertEqual(from_sub["root"], {"kind": "repository", "path": root})
+        self.assertEqual(from_sub["scan_root"], "sub")
+        self.assertEqual(from_root["scan_root"], ".")
+        self.assertEqual(directory["root"], {"kind": "directory", "path": sub})
+        self.assertEqual(directory["scan_root"], ".")
+
+    def test_paths_do_not_depend_on_where_the_run_started(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            from_sub = self.anchor(cwd_relative_doc(), root, sub)
+            at_root = cwd_relative_doc()
+            at_root["measures"][0]["file"] = "sub/inner.py"
+            at_root["measures"][1]["file"] = "lib/a.py"
+            from_root = self.anchor(at_root, root, root)
+        self.assertEqual(
+            [row["file"] for row in from_sub["measures"]][:2],
+            [row["file"] for row in from_root["measures"]][:2],
+        )
+        self.assertEqual(from_sub["root"], from_root["root"])
+        self.assertNotEqual(from_sub["scan_root"], from_root["scan_root"])
+
+    def test_a_second_anchor_changes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            once = self.anchor(cwd_relative_doc(), root, sub)
+            twice = self.anchor(once, root, root)
+            again = self.anchor(once, sub, sub, "directory")
+        self.assertEqual(once, twice)
+        self.assertEqual(once, again)
+
+    def test_the_summary_is_recomputed_from_the_anchored_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            doc = self.anchor(cwd_relative_doc(), root, sub)
+        summary = doc["summary"]
+        self.assertEqual(summary["files"], 4)
+        self.assertEqual(summary["clone_groups"], 1)
+        self.assertEqual(summary["duplicated_lines"], 6)
+        self.assertEqual(summary["by_directory"]["sub"]["groups"], 1)
+        self.assertEqual(summary["files_excluded_only"], 1)
+
+    def test_a_total_exclusion_keeps_its_zero_floor(self) -> None:
+        doc = cwd_relative_doc()
+        doc["measures"] = []
+        doc["summary"] = {
+            "files": 0,
+            "functions": 0,
+            "over_reference": {},
+            "duplicated_lines": 0,
+            "clone_groups": 0,
+            "by_lane": {},
+            "by_directory": {},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            anchored = self.anchor(doc, root, sub)
+        summary = anchored["summary"]
+        self.assertEqual(summary["duplicated_lines"], 0)
+        self.assertEqual(summary["clone_groups"], 0)
+        self.assertEqual(summary["by_lane"], {})
+        self.assertEqual(summary["by_directory"], {})
+        self.assertEqual(summary["files_excluded_only"], 1)
+
+    def test_a_document_without_clone_groups_gains_no_duplication_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            doc = self.anchor({"measures": [], "run": []}, root, sub)
+        self.assertEqual(
+            doc["summary"], {"files": 0, "functions": 0, "over_reference": {}}
+        )
+
+    def test_the_rendering_says_what_the_paths_are_relative_to(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, sub = self.layout(tmp)
+            doc = self.anchor(cwd_relative_doc(), root, sub)
+        out = run("render", stdin=json.dumps(doc)).stdout
+        self.assertIn(f"Paths are relative to the repository root `{root}`.", out)
+
+    def test_an_unknown_kind_is_a_usage_error(self) -> None:
+        result = run("anchor", "--root", "/r", "--kind", "scan", stdin="{}")
+        self.assertEqual(result.returncode, 2)
 
 
 if __name__ == "__main__":
