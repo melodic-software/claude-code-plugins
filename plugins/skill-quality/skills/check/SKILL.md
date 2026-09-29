@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -110,13 +110,14 @@ Parse `$ARGUMENTS`:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines). In root
      mode that exit code is the AGGREGATE over every skill, so the per-skill verdict is that
      skill's own `CHECK-SKILL <name>: PASS` or `CHECK-SKILL <name>: FAIL` line instead.
-   - The `FAIL:` lines verbatim (each is an actionable defect).
+   - The `FAIL:` lines verbatim (each is an actionable defect). A description/verb-contract polarity
+     mismatch is a FAIL that blocks; fix it by correcting the listing, or use `--fix` in the
+     description as the compliant override.
    - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
      base ref, missing gotchas surface, action-router without evals, orphan
      spokes, an injection with no `shell:` whose commands only *look* portable, an injected
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
-     declaration or a stale exemption directive, and a description/verb-contract polarity
-     mismatch). A dropped-trigger warning is a review item: confirm the description still names
+     declaration or a stale exemption directive). A dropped-trigger warning is a review item: confirm the description still names
      the intent each dropped phrase carried, or restore the phrase.
 4. For a multi-skill run, the script's own last line is the rollup `N passed, M failed`. Surface it
    verbatim. The action is complete when every `FAIL:` line and that rollup are reported.

@@ -82,7 +82,7 @@ the reviewer to confirm the description still names that intent, or to restore t
   no observable done-condition token.
 - Explicit invocation mode. Marketplace plugin skills must state
   `disable-model-invocation`; elsewhere a missing key warns.
-- Description/verb-contract polarity (advisory). The description lead contradicts the
+- Description/verb-contract polarity (`FAIL:`, blocking). The description lead contradicts the
   Naming verb contract or the body (read-only vs mutate). `--fix` in the listing is the
   compliant override shape.
 - Long spoke files carry a table of contents (advisory). A markdown file under `reference/`,
