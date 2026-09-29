@@ -26,6 +26,10 @@
 #   check-enter <path> [--repo-dir DIR] [--session-id ID]
 #     Before writing: surface a foreign live claim and stop; report unclaimed;
 #     allow only when the reason names this session.
+#   release <path> [--repo-dir DIR] [--session-id ID]
+#     Inverse of claim: unlock a linked worktree whose reason names this
+#     session. An unlocked tree is a no-op; a foreign or reasonless lock is
+#     never removed (reason printed).
 #
 # Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
 # closed with exit 5 and a message naming the floor and the installed version.
@@ -34,21 +38,23 @@
 #   0  report: no unclaimed linked worktrees
 #      claim: locked, or already claimed by this session
 #      check-enter: our claim, or path is not a linked worktree
+#      release: unlocked this session's lock, or the tree was already unlocked
 #   1  report: one or more linked worktrees have no lock reason
-#   2  usage
+#   2  usage (release: main worktree, or no session id to prove ownership)
 #   3  check-enter: the worktree is unclaimed (no lock reason)
 #   4  check-enter: foreign live claim (reason printed)
 #      claim: path already has a reason that is not this session's
+#      release: the lock is foreign or carries no session (reason printed)
 #   5  environment: not a git repository, or path is not a registered worktree
 #
-# Session identity (claim / check-enter):
+# Session identity (claim / check-enter / release):
 #   1. --session-id
 #   2. CLAUDE_SESSION_ID when set and not the unexpanded `${CLAUDE_SESSION_ID}`
 #      token
 #   3. claim only: a generated host+pid+random token so two concurrent
 #      invocations on one host still produce different reasons
 #   check-enter without a session id cannot prove ownership: any lock reason
-#   is treated as foreign.
+#   is treated as foreign. release without one exits 2.
 set -uo pipefail
 
 PROG=${0##*/}
@@ -75,6 +81,7 @@ Usage:
   $PROG claim <path> [--repo-dir DIR] [--session-id ID]
   $PROG claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
+  $PROG release <path> [--repo-dir DIR] [--session-id ID]
 EOF
   exit "$EX_USAGE"
 }
@@ -271,7 +278,7 @@ if [[ -n "$session_id" ]] && ! valid_session_id "$session_id"; then
 fi
 
 case "$cmd" in
-report | claim | check-enter) ;;
+report | claim | check-enter | release) ;;
 *)
   printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
   usage
@@ -290,6 +297,14 @@ if [[ "$cmd" == "claim" ]]; then
 fi
 if [[ "$cmd" == "check-enter" && -z "$path" ]]; then
   printf '%s: check-enter requires a path\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ "$cmd" == "release" && -z "$path" ]]; then
+  printf '%s: release requires a path\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ "$cmd" == "release" && -z "$session_id" ]]; then
+  printf '%s: release needs --session-id or CLAUDE_SESSION_ID to prove ownership\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
 if [[ "$cmd" == "report" && -n "$path" ]]; then
@@ -438,6 +453,33 @@ do_check_enter() {
   return "$EX_FOREIGN"
 }
 
+do_release() {
+  local idx wt reason
+  if ! idx="$(find_worktree_index "$path")"; then
+    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
+    return "$EX_ENV"
+  fi
+  wt="${WT_PATHS[idx]}"
+  if ((WT_IS_LINKED[idx] == 0)); then
+    printf '%s: refusing to release the main worktree: %s\n' "$PROG" "$wt" >&2
+    return "$EX_USAGE"
+  fi
+  reason="${WT_REASONS[idx]}"
+  if [[ -z "$reason" ]]; then
+    printf '%s: not locked: %s\n' "$PROG" "$wt" >&2
+    return "$EX_OK"
+  fi
+  if ! worktree_reason_is_ours "$reason" "$session_id"; then
+    printf '%s: not released, the lock is not this session'\''s: %s\n' "$PROG" "$reason" >&2
+    return "$EX_FOREIGN"
+  fi
+  if ! git_unlocated -C "$repo_dir" worktree unlock "$wt" >&2; then
+    printf '%s: git worktree unlock failed for %s\n' "$PROG" "$wt" >&2
+    return "$EX_ENV"
+  fi
+  printf 'released %s\n' "$wt"
+}
+
 case "$cmd" in
 report)
   do_report
@@ -453,6 +495,10 @@ claim)
   ;;
 check-enter)
   do_check_enter
+  exit $?
+  ;;
+release)
+  do_release
   exit $?
   ;;
 # Unknown verbs already exited above, where the verb was validated.

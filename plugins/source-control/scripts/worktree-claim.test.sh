@@ -243,6 +243,41 @@ else
   fi
 fi
 
+# --- release: the inverse of claim --------------------------------------------
+
+git -C "$REPO" worktree add -q "$EXT/wt-rel" -b feat/rel
+run_claim claim "$EXT/wt-rel" --repo-dir "$REPO" --session-id rel-own
+run_claim release "$EXT/wt-rel" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of this session's lock succeeds" 0 "$?"
+assert_not_contains "own lock is gone after release" "$(stanza_for wt-rel)" "locked"
+
+run_claim release "$EXT/wt-rel" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of an unlocked tree is a no-op (exit 0)" 0 "$?"
+assert_contains "no-op release says the tree is not locked" "$ERR" "not locked"
+
+git -C "$REPO" worktree add -q "$EXT/wt-rel-foreign" -b feat/rel-foreign
+run_claim claim "$EXT/wt-rel-foreign" --repo-dir "$REPO" --session-id rel-other
+run_claim release "$EXT/wt-rel-foreign" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of a foreign lock is refused (exit 4)" 4 "$?"
+assert_contains "refusal prints the foreign reason" "$ERR" "session rel-other since"
+assert_contains "foreign lock is still in place" "$(stanza_for wt-rel-foreign)" "locked"
+
+git -C "$REPO" worktree add -q "$EXT/wt-rel-helper" -b feat/rel-helper
+git -C "$REPO" worktree lock --reason "$HELPER_REASON" "$EXT/wt-rel-helper"
+run_claim release "$EXT/wt-rel-helper" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of a helper-reason lock is refused (exit 4)" 4 "$?"
+assert_contains "helper-reason lock is still in place" "$(stanza_for wt-rel-helper)" "locked"
+
+CLAUDE_SESSION_ID='' run_claim release "$EXT/wt-rel-foreign" --repo-dir "$REPO"
+assert_exit "release without a session id is usage (exit 2)" 2 "$?"
+assert_contains "foreign lock survives an id-less release" "$(stanza_for wt-rel-foreign)" "locked"
+
+run_claim release "$REPO" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of the main worktree is usage (exit 2)" 2 "$?"
+
+run_claim release "$UNRELATED" --repo-dir "$REPO" --session-id rel-own
+assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
+
 # --- usage / environment ------------------------------------------------------
 
 run_claim
