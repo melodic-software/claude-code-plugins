@@ -7,7 +7,7 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **Shared `hooks/hook-utils.sh` resynced (#4240).** `hook::notice_once` gained an optional `prerequisite` notice class that latches once per session and keeps its install route on renewal; ruff-format does not pass it. ruff-format ships no session-start probe, no `prerequisites.json` and no model-invocable check. Its missing-Ruff notice stays the ordinary once-per-session-and-agent PostToolUse notice.
 
 ## [0.7.4] - 2026-09-28
 
