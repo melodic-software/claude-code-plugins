@@ -32,6 +32,7 @@ turn() {
 read_of() { printf '{"type":"tool_use","name":"Read","input":{"file_path":"%s"}}' "$1"; }
 read_part() { printf '{"type":"tool_use","name":"Read","input":{"file_path":"%s","offset":5,"limit":9}}' "$1"; }
 edit_of() { printf '{"type":"tool_use","name":"Edit","input":{"file_path":"%s"}}' "$1"; }
+notebook_edit_of() { printf '{"type":"tool_use","name":"NotebookEdit","input":{"notebook_path":"%s"}}' "$1"; }
 grep_of() { printf '{"type":"tool_use","name":"Grep","input":{"pattern":"x","path":"%s"}}' "$1"; }
 handback_of() { printf '{"type":"tool_use","name":"SubagentHandback","input":{"message":"x"}}'; }
 bash_of() { printf '{"type":"tool_use","name":"Bash","input":{"command":"%s"}}' "$1"; }
@@ -74,6 +75,12 @@ turn "$E" 1 "$(read_of /repo/a.md)"
 turn "$E" 2 "$(edit_of /repo/a.md)"
 turn "$E" 3 "$(read_of /repo/a.md)"
 expect "read, edit, read is not a REREAD" "$E" '^REREAD count: 0$'
+
+N="$WORK/read-notebook-edit-read.jsonl"
+turn "$N" 1 "$(read_of /repo/a.ipynb)"
+turn "$N" 2 "$(notebook_edit_of /repo/a.ipynb)"
+turn "$N" 3 "$(read_of /repo/a.ipynb)"
+expect "read, NotebookEdit, read is not a REREAD" "$N" '^REREAD count: 0$'
 
 H="$WORK/handback-tool.jsonl"
 turn "$H" 1 "$(read_of /repo/a.md)"

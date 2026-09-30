@@ -111,7 +111,9 @@ def collect(path: str) -> tuple[list[tuple[int, str, str, str]], dict[int, str],
                 inp = inp if isinstance(inp, dict) else {}
                 if name == "SubagentHandback":
                     text_of[turn] = text_of.get(turn, "") + "\nstatus: handback"
-                target = inp.get("file_path") or inp.get("path")
+                target = (
+                    inp.get("file_path") or inp.get("path") or inp.get("notebook_path")
+                )
                 has_target = isinstance(target, str)
                 if name == "Read" and has_target:
                     if "offset" not in inp and "limit" not in inp:
