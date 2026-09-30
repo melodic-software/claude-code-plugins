@@ -117,7 +117,8 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
 .qbtn.archived{opacity:.45;filter:grayscale(1)}
-.qid{font:600 13px var(--mono);grid-row:span 3;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qid{font:600 13px var(--mono);grid-row:1;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
 .qtitle{font-size:13.5px;line-height:1.35}
 .qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
 .qmeta .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3;max-width:100%}
@@ -141,7 +142,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .s-need{color:var(--warn);background:var(--warn-soft)}
 .qbtn.st-wait{border-left:3px solid var(--res)}
 .qbtn.st-need{border-left:3px solid var(--warn)}
-.qprev{grid-column:2;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qprev{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .waitban{border-left:3px solid var(--res);background:var(--res-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 .waitban.need{border-color:var(--warn);background:var(--warn-soft)}
 .sec.fresh{outline:2px solid var(--chg);outline-offset:3px;border-radius:6px}
@@ -648,15 +649,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
-    if (carry[q.id]) chips.push('<span class="chip hot">open ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     if (lastEventSeq(q.id) && !isHandled(lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
     return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
-      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
-      '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") +
+      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
+      '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span>" +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
   }
   function treeHtml(clickable){
@@ -1486,7 +1487,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function confirmCommit(id, i){ // records only this commitment; idempotent
     const q = Q[id]; if (!q || S.busy || !accepted(q) || confirmed(q).has(String(i))) return false;
-    if (await sendFree("confirm", "", {id: q.id, alt: String(i)})) { toast("Confirmed on " + q.id + "."); renderAll(); return true; }
+    if (await sendFree("confirm", "", {id: q.id, alt: String(i), contentRev: q.contentRev || 0})) { toast("Confirmed on " + q.id + "."); renderAll(); return true; }
     return false;
   }
   async function confirmAll(){ // one confirm event per unconfirmed commitment

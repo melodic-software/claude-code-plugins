@@ -2,8 +2,8 @@
 # existed. One basename under docs/adr/ per line; a `#` starts a comment. Every
 # file carrying a duplicated number must be listed for that number to pass.
 # Stale-guarded: an entry whose file is gone or whose number no longer collides
-# fails the gate. Never add a new pair here: give the new record the next free
-# number instead.
+# fails the gate. Only pairs merged before the gate landed belong here; every new
+# record takes the next free number.
 0018-express-team-shared-conventions-as-consumer-convention-docs.md
 0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md
 0025-adopt-the-rendered-views-doctrine-with-a-cascade-carried-preference.md

@@ -296,7 +296,7 @@ TRACKED_FILES=""
 TRACKED_BUILT=0
 ensure_tracked_files() {
   if ((TRACKED_BUILT == 0)); then
-    local out git_dir="" index="" cache=""
+    local out git_dir="" index="" cache="" n
     local -a cached_lines=()
     # Reuse the list only while the cache is strictly newer than the index, so
     # a same-tick index rewrite is not trusted.
@@ -305,17 +305,37 @@ ensure_tracked_files() {
       cache="$git_dir/guardrails-ls-files"
     fi
     if [[ -n "$cache" && -f "$cache" && -f "$index" && "$cache" -nt "$index" ]]; then
+      # One path per line, then `end <count>`. A parallel fire can be rewriting
+      # this file, and two writers that both truncate leave a mix of their bytes,
+      # so a file that is not exactly that shape is a miss. The count must equal
+      # the lines read, and a second sentinel-shaped line marks a mix.
       mapfile -t cached_lines <"$cache"
-      local IFS=$'\n'
-      TRACKED_FILES="${cached_lines[*]-}"
-      TRACKED_BUILT=1
-      return 0
+      n=$((${#cached_lines[@]} - 1))
+      if ((n >= 0)) && [[ "${cached_lines[n]}" == "end $n" ]]; then
+        local IFS=$'\n'
+        out="${cached_lines[*]:0:n}"
+        if [[ $'\n'"$out" != *$'\n'"end "[0-9]* ]]; then
+          TRACKED_FILES=$out
+          TRACKED_BUILT=1
+          return 0
+        fi
+      fi
     fi
     if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
       TRACKED_FILES=${out//$'\r'/}
       TRACKED_BUILT=1
       if [[ -n "$cache" ]]; then
-        printf '%s\n' "$TRACKED_FILES" >"$cache" 2>/dev/null || :
+        # The whole file goes out in one printf, sentinel included, built in
+        # memory: a temp file plus mv would add a process to every cold write.
+        # mapfile counts the lines; `${x//[!$'\n']/}` is quadratic in bash.
+        n=0
+        out=""
+        if [[ -n "$TRACKED_FILES" ]]; then
+          mapfile -t cached_lines <<<"$TRACKED_FILES"
+          n=${#cached_lines[@]}
+          out=$TRACKED_FILES$'\n'
+        fi
+        printf '%send %d\n' "$out" "$n" 2>/dev/null >"$cache" || :
       fi
     fi
   fi
@@ -646,7 +666,7 @@ build_deleted_set() {
   # An unborn HEAD has no history to walk. The sha keys the on-disk set so a
   # later edit at the same commit does not walk again. The redirect sits on the
   # group: inside the substitution it would bill a second process for one git.
-  local head_sha="" git_dir="" common="" cache="" p
+  local head_sha="" git_dir="" common="" cache="" p n torn
   local -a cached_lines=()
   { head_sha=$(git -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
   head_sha=${head_sha//$'\r'/}
@@ -663,18 +683,31 @@ build_deleted_set() {
       SHALLOW=1
       return 0
     fi
-    # `<sha>\nok\n` plus one deleted path per line. A failed walk is not
-    # cached, so the next fire retries it.
+    # `<sha>\nok\n`, one deleted path per line, then `end <count>`. A failed walk
+    # is not cached, so the next fire retries it. A parallel fire can be
+    # rewriting this file, and two writers that both truncate leave a mix of
+    # their bytes: a header and a partial list would pass as a whole cache and
+    # every finding in the missing part would go silent. So the count must equal
+    # the lines read, and a second sentinel-shaped line marks a mix. Anything
+    # else is a miss and the walk below rebuilds it.
     if [[ -f "$cache" ]]; then
       mapfile -t cached_lines <"$cache"
-      if [[ "${cached_lines[0]-}" == "$head_sha" && "${cached_lines[1]-}" == ok ]]; then
-        if ((${#cached_lines[@]} > 2)); then
-          for p in "${cached_lines[@]:2}"; do
+      n=$((${#cached_lines[@]} - 3))
+      if [[ "${cached_lines[0]-}" == "$head_sha" && "${cached_lines[1]-}" == ok ]] &&
+        ((n >= 0)) && [[ "${cached_lines[n + 2]}" == "end $n" ]]; then
+        torn=0
+        if ((n > 0)); then
+          for p in "${cached_lines[@]:2:n}"; do
+            if [[ "$p" == "end "[0-9]* ]]; then
+              torn=1
+              break
+            fi
             [[ -n "$p" ]] || continue
             DELETED["$p"]=1
           done
         fi
-        return 0
+        ((torn)) || return 0
+        DELETED=()
       fi
     fi
   elif [[ "$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
@@ -714,14 +747,15 @@ build_deleted_set() {
   done
 
   if [[ -n "$cache" ]]; then
-    {
-      printf '%s\n' "$head_sha" ok
-      if ((${#DELETED[@]} > 0)); then
-        for p in "${!DELETED[@]}"; do
-          printf '%s\n' "$p"
-        done
-      fi
-    } >"$cache" 2>/dev/null || :
+    # Built in memory and written by one printf, sentinel last: a temp file plus
+    # mv would add a process to every cold write.
+    local body=$head_sha$'\n'ok$'\n'
+    if ((${#DELETED[@]} > 0)); then
+      for p in "${!DELETED[@]}"; do
+        body+=$p$'\n'
+      done
+    fi
+    printf '%send %d\n' "$body" "${#DELETED[@]}" 2>/dev/null >"$cache" || :
   fi
 }
 

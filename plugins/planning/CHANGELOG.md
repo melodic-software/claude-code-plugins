@@ -7,7 +7,31 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
-- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
+
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
+
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
 
 ## [0.47.2] - 2026-09-29
 

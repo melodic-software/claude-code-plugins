@@ -1,9 +1,9 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers (fingerprint-confirmed, source-fetched-similar, llm-suspected, not-found); only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -124,8 +124,8 @@ texts, file composition); every judgment about whether a passage is a copy is mo
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
    unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
-   snapshot, reached because every live fetch failed, caps at `source-fetched-similar` and is
-   never fix-eligible; the full rule is in
+   snapshot, reached because every live fetch failed, caps at the report-only `vendored-snapshot`
+   tier and is never fix-eligible; the full rule is in
    [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
    over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
 
@@ -183,24 +183,31 @@ an explicit neutral outcome**, never when the interesting ones are done. Write e
 the sweep ledger at `.work/<topic-slug>/sweep-ledger.md` in the run's memory slice, so an
 interrupted sweep resumes without re-deciding closed files and the closure count is a fact rather
 than a memory. The entry's required fields are in
-[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure".
+[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure". Like `fix`, it applies
+dispositions to hand-written markdown only: a file whose head carries a generated-output marker is
+reported and routed to the human, and its finding names the generator's input as the fix site.
 
-**Nothing writes or reads that ledger for you.** No script in this plugin creates it, parses it,
-or checks an entry for completeness. It is a file the run keeps by hand, and every resume rule
-below holds only as far as the run kept it honestly.
+**`${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh --topic <topic-slug>` keeps that ledger:** `init`
+(creates it under a sweep id, or reports that it exists on a resume), `close <file>`, `spend <n>`,
+`cache-add`, `cache-check`, and `status`, which lists the closed files a resume skips. It checks an entry's shape and the spend's arithmetic, and nothing
+more. It cannot tell whether a disposition is right or whether every finding in a file is
+accounted for, so each field stays the run's own claim.
 
 **The fetch ceiling and the response cache are scoped to the sweep, not to one invocation.**
-`corpus_fetch_ceiling` is spent across the whole sweep, so carry the running spend into the
-ledger beside each closure and, on resume, read it back and continue from that number instead of
-starting again at zero. The cache is per-sweep for the same reason: record which sources the
-sweep holds and when each was fetched, and on resume re-validate an entry before you reuse it,
-because a page fetched before the interruption may have changed since. Reusing an entry unseen
-means reporting on a body nobody in this sweep read.
+`corpus_fetch_ceiling` is spent across the whole sweep. Record each batch of fetches with `spend`
+as you make them: `close` stamps the running total on every closure, and on a resume `status`
+reads the total back, so you continue from it instead of starting again at zero, and it exits
+non-zero once spend reaches the ceiling. The cache is per-sweep for the same reason: `cache-add`
+each fetched source with its sha256, and on a resume `cache-check` reports the entry for
+re-validation, never as something to reuse. Fetch it again, compare the hash, and spend that
+fetch, because a page fetched before the interruption may have changed since. Reusing an entry
+unseen means reporting on a body nobody in this sweep read.
 
 **The ledger is checkout-local.** It lives under this checkout's `.work/` and is never tracked,
-so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: it
-carries no closures, no spend, and no cache, and it says so in its report rather than presenting
-itself as a continuation.
+so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: `status`
+there says so, it carries no closures, no spend, and no cache, and the report says so rather than
+presenting itself as a continuation. The ledger names the sweep id and the checkout it started
+in, so a copy carried to another checkout is refused (exit 3) rather than resumed.
 
 ## Configuration
 
@@ -226,8 +233,8 @@ fired on an identifier, a test runner exiting non-zero without failing.
 
 - **Does not fix on bare invocation.** Mutation rides only the explicit `fix` or `sweep`
   argument.
-- **Does not put judgment verdicts in the findings file.** `source-fetched-similar`,
-  `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
+- **Does not put judgment verdicts in the findings file.** `vendored-snapshot`,
+  `source-fetched-similar`, `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
   look a tier up from, and a relay row is an instruction to a remediation surface.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
   concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose

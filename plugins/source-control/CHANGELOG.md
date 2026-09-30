@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+
+## [0.63.0] - 2026-09-29
+
+### Added
+
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
+
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes to the bundled `commit` skill
+  only when none of its contract (convention, trailer, surgical staging, pre-checks) is wanted, and
+  a commit-push-PR request to the built-in `/commit-push-pr` command, when either resolves in the
+  session; it keeps every other commit. `pull-request` routes a one-shot PR with no draft, body
+  contract, or later ready, monitor or merge step to the bundled `pr` skill when the work is
+  committed, to `/commit-push-pr` only when the whole working tree belongs in the commit, and
+  keeps everything else. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
+
+## [0.62.29] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` carries a Boundary section for the built-in command `/autofix-pr`.** The
+  command watches one PR from a cloud session; this skill runs the fleet pass under its gates. The
+  model offers the person-run command for a PR to be watched after the session ends.
+- **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
+  also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
+
 ## [0.62.28] - 2026-09-29
 
 ### Added

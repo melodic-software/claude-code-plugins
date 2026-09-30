@@ -872,6 +872,16 @@ class Hub:
                 qid = event["id"]
             elif kind == "confirm-understanding":
                 event["contentRev"] = msg["contentRev"]
+            elif (
+                kind == "confirm"
+                and qid in qs
+                and msg.get("contentRev") is not None
+                and msg["contentRev"] != (qs[qid].get("contentRev") or 0)
+            ):
+                # A tab holding an old commitments list would otherwise confirm the new one by index.
+                raise Conflict(
+                    {"error": "stale", "contentRev": qs[qid].get("contentRev") or 0}
+                )
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
                 if msg.get("contentRev") != current:
