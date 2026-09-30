@@ -76,11 +76,34 @@ gate_entry::require_base() {
 # GE_PATHS is the file list in paths mode. Returns 2 on a usage error and
 # does not exit, so the caller can print its own usage line. An unresolvable
 # base ref exits 2 from this shell. --all and --paths do not call git.
+#
+# A gate with its own flag modes sets GE_FLAGS before the call, one entry per
+# mode: "--check" takes no ref, "--check-bump:ref" takes one <base-ref>. Only
+# the declared flags are accepted then, not <base>, --all, or --paths. GE_MODE
+# is the flag, GE_REF the ref. GE_BAD_REF_MSG, when set, replaces the shared
+# diagnostic for an unresolvable ref.
 gate_entry::classify() {
   GE_MODE=""
   GE_REF=""
   GE_PATHS=()
   if (($# == 0)); then
+    return 2
+  fi
+  if [[ -n "${GE_FLAGS[*]-}" ]]; then
+    local _ge_spec
+    for _ge_spec in "${GE_FLAGS[@]}"; do
+      [[ "${_ge_spec%:ref}" == "$1" ]] || continue
+      GE_MODE="$1"
+      shift
+      if [[ "$_ge_spec" != *:ref ]]; then
+        (($# == 0)) || return 2
+        return 0
+      fi
+      (($# == 1)) || return 2
+      GE_REF="$1"
+      gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
+      return 0
+    done
     return 2
   fi
   case "$1" in
@@ -109,7 +132,7 @@ gate_entry::classify() {
       return 2
     fi
     GE_MODE=base
-    gate_entry::require_base "$GE_REF"
+    gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
     ;;
   esac
   return 0
