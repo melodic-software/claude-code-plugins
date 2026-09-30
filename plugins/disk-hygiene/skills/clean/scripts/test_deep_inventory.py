@@ -197,6 +197,15 @@ class RunningPathsTest(TempTree):
             {"/opt/tool/1.0/bin", "/var/app", "/opt/tool/2.0/bin", "/srv"},
         )
 
+    def test_open_descriptors_count_as_use(self) -> None:
+        proc = self.mkdir("proc")
+        fd = self.mkdir("proc/10/fd")
+        os.symlink("/tmp/pytest-of-x/log", fd / "3")
+        os.symlink("socket:[123]", fd / "4")
+        self.assertEqual(
+            di.running_paths(proc), {"/tmp/pytest-of-x/log", "socket:[123]"}
+        )
+
     def test_unreadable_proc_root_is_none_not_empty(self) -> None:
         self.assertIsNone(di.running_paths(self.root / "absent"))
         self.assertEqual(di.running_paths(self.mkdir("proc")), set())

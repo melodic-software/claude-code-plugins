@@ -51,7 +51,7 @@ restores the FAIL semantics.
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
    exactly what this check exists to surface.
 3. **`node`.** The pre-computed `node` row. FAIL if absent, with the README Requirements
-   remediation: every hook row starts through `hooks/exec-bash.mjs`, so no guard starts
+   remediation: every guard row starts through `hooks/exec-bash.mjs`, so no guard starts
    without it. The README records what Claude Code documents about a hook that cannot start.
 4. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per
    guard, so the user sees the live guard surface at a glance. The effective value is the

@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.37.0] - 2026-09-30
+## [0.38.0] - 2026-09-30
 
 ### Added
 
@@ -17,8 +17,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
   A superseded version a symlink points at is kept, a release outranks its own prerelease, a
   plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
-  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. `skills/clean/SKILL.md` and its references
-  document the attended workflow.
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
 
 ## [0.36.0] - 2026-09-30
 

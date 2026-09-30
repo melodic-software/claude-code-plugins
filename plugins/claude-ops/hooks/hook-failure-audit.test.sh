@@ -664,4 +664,16 @@ assert_contains "injected failure names the hook on stderr" "$abort_err" \
 abort_lines=$(printf '%s\n' "$abort_err" | grep -c . || true)
 assert_eq "injected failure writes one stderr line" "1" "$abort_lines"
 
+# --- the Stop row is shell form: a launcher through node could not report a missing node ---
+row="$(jq -c '[.hooks.Stop[].hooks[] | select((.command // "") | contains("hook-failure-audit.sh"))]' "$HOOK_DIR/hooks.json")"
+assert_eq "one hook-failure-audit Stop row" "1" "$(jq 'length' <<<"$row")"
+assert_eq "the row is shell-form bash with no args and no node" "true" \
+  "$(jq '.[0] | .type == "command" and .shell == "bash" and (has("args") | not) and (.command | contains("node") | not)' <<<"$row")"
+row_cmd="$(jq -r '.[0].command' <<<"$row")"
+row_rc=0
+printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \
+  | CLAUDE_PLUGIN_ROOT="$(dirname "$HOOK_DIR")" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/row-data" \
+    bash -c "$row_cmd" >/dev/null 2>&1 || row_rc=$?
+assert_exit "the registered command line runs the hook and exits 0" 0 "$row_rc"
+
 report

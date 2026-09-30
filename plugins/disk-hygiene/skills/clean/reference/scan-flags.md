@@ -58,7 +58,7 @@ files beneath it. Named categories: `superseded-version` (sibling entries, direc
 under a parent that holds two or more dotted version names), `plugin-cache-version` (cache versions
 no installed plugin references), `tmp-producer` (`/tmp` entries by producer prefix),
 `transcript-dir` (project transcript directories whose source path is gone), `dangling-symlink`,
-and `not-walked` (an unreadable or mounted subtree, one `UNKNOWN` row). Every other entry is
+and `not-walked` (an unreadable subtree, or a mount point including a bind mount, one `UNKNOWN` row). Every other entry is
 `unclassified`.
 
 `superseded-version` keeps the newest version (a release outranks its own prerelease), a version a
@@ -76,7 +76,9 @@ target is `/tmp` or contains it, so a home inventory has none: run `--deep /tmp`
 target. It runs only where `/tmp` is an ordinary directory a target can name (Linux): macOS rejects
 `/tmp` (a link) and `/private/tmp` (an OS-managed root), so the category has no rows there.
 
-`superseded-version` and `tmp-producer` also keep an entry a running process uses; where `/proc`
+`superseded-version` and `tmp-producer` also keep an entry a running process uses (its executable,
+working directory or an open file; another user's process is not readable, so its use is not seen);
+where `/proc`
 cannot be read (macOS, Windows), a row that would be a `CANDIDATE` on that basis is `UNKNOWN`,
 because nothing checked the process table. Other read-only listings that
 need the same columns reuse this schema instead of defining their own

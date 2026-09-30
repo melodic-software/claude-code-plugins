@@ -15481,6 +15481,30 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual("CANDIDATE", rows[str(cache / "1.0.0")]["disposition"])
         self.assertEqual("KEEP", rows[str(cache / "2.0.0")]["disposition"])
 
+    def test_mount_point_on_the_same_device_is_not_entered(self) -> None:
+        self.write("bind/inside.txt")
+        self.write("plain/file.txt")
+        mounted = {self.target / "bind"}
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(mounted, None)
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        self.assertEqual("not-walked", rows[str(self.target / "bind")]["category"])
+        self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
+        self.assertIn(str(self.target / "plain" / "file.txt"), rows)
+
+    def test_an_interrupted_walk_leaves_no_partial_report(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene.deep_inventory, "inventory_rows", side_effect=OSError("gone")
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertNotEqual(0, code, summary)
+        self.assertNotIn("rows", summary)
+        self.assertEqual([], list((self.data_root / "inventory").iterdir()))
+
     def test_report_inside_the_target_is_not_listed(self) -> None:
         self.data_root = self.target / "data"
         self.data_root.mkdir()

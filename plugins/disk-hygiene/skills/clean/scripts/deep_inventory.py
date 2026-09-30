@@ -122,7 +122,8 @@ def _owner(uid: int) -> str:
     return str(uid)
 
 
-def _tree_size(path: Path) -> int:
+def _tree_size(path: Path, mounts: frozenset[str] = frozenset()) -> int:
+    """Bytes under ``path``, links not followed and mount points in ``mounts`` not entered."""
     total, stack = 0, [path]
     while stack:
         current = stack.pop()
@@ -130,7 +131,8 @@ def _tree_size(path: Path) -> int:
             with os.scandir(current) as entries:
                 for entry in entries:
                     if entry.is_dir(follow_symlinks=False):
-                        stack.append(Path(entry.path))
+                        if entry.path not in mounts:
+                            stack.append(Path(entry.path))
                     else:
                         try:
                             total += entry.stat(follow_symlinks=False).st_size
@@ -202,12 +204,14 @@ def _child_dirs(parent: Path) -> list[Path]:
 
 
 def running_paths(proc_root: Path = Path("/proc")) -> set[str] | None:
-    """Resolved executable and working-directory targets of every process under ``proc_root``.
+    """Resolved executable, working-directory and open-descriptor targets of every process under ``proc_root``.
 
-    A deleted executable reads ``<path> (deleted)``; the suffix is dropped so the
-    superseded directory it came from still matches. None means the process table
-    could not be read (no ``/proc``, as on macOS and Windows), which is not the
-    same as an empty set: nothing was checked.
+    A deleted target reads ``<path> (deleted)``; the suffix is dropped so the
+    superseded directory it came from still matches. Descriptors that are not
+    paths (``socket:[1]``, ``pipe:[1]``) never match an entry. A process another
+    user owns is unreadable here and contributes nothing. None means the process
+    table could not be read (no ``/proc``, as on macOS and Windows), which is not
+    the same as an empty set: nothing was checked.
     """
     found: set[str] = set()
     try:
@@ -215,9 +219,14 @@ def running_paths(proc_root: Path = Path("/proc")) -> set[str] | None:
     except OSError:
         return None
     for pid in pids:
-        for link in ("exe", "cwd"):
+        links = [pid / "exe", pid / "cwd"]
+        try:
+            links += [Path(e.path) for e in os.scandir(pid / "fd")]
+        except OSError:
+            pass
+        for link in links:
             try:
-                found.add(os.readlink(pid / link).removesuffix(" (deleted)"))
+                found.add(os.readlink(link).removesuffix(" (deleted)"))
             except OSError:
                 pass
     return found
@@ -685,14 +694,16 @@ def inventory_rows(
     now: float,
     running: Iterable[str] | None = (),
     skip: frozenset[str] = frozenset(),
+    mounts: frozenset[str] = frozenset(),
 ) -> Iterable[dict[str, Any]]:
     """Yield one row per entry of ``target``, the target itself last.
 
     ``deep`` lists every level, each directory after its contents with the
     sum of their sizes; otherwise only the immediate children, each directory
     sized by its own walk. A category row replaces the unclassified row at its
-    path. A directory that cannot be read, or that is another filesystem's
-    mount point, is one UNKNOWN row and is not entered. Paths in ``skip`` (the
+    path. A directory that cannot be read, or that is a mount point (another
+    device, or a path in ``mounts``, which also catches a bind mount on the
+    same device), is one UNKNOWN row and is not entered. Paths in ``skip`` (the
     report being written) are left out. ``running`` is the process table; None
     means it was not read, so rows that rest on it are UNKNOWN.
     """
@@ -765,7 +776,9 @@ def inventory_rows(
             }
             continue
         # Windows DirEntry stats carry st_dev 0, so only a real device id compares.
-        if _descends(st) and st.st_dev and st.st_dev != root_st.st_dev:
+        if _descends(st) and (
+            str(path) in mounts or (st.st_dev and st.st_dev != root_st.st_dev)
+        ):
             yield not_entered(path, st, "another filesystem is mounted here")
             continue
         if deep and _descends(st):
@@ -774,7 +787,7 @@ def inventory_rows(
             except OSError as exc:
                 yield not_entered(path, st, f"unreadable ({type(exc).__name__}: {exc})")
             continue
-        size = _tree_size(path) if _descends(st) else st.st_size
+        size = _tree_size(path, mounts) if _descends(st) else st.st_size
         total[0] += size
         yield row(path, st, size)
 
