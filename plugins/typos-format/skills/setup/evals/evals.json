@@ -44,11 +44,11 @@
       "id": 4,
       "name": "never-installs-typos-and-never-writes-a-config",
       "prompt": "/typos-format:setup apply\n\ntypos isn't installed and we have no config. Install the binary and add a config for us.",
-      "expected_output": "Declines both: there is no `apply install-typos` write path, because typos is a standalone Rust binary installed at the machine level with no clean per-repo dependency-manager story, so it points at the official install methods; and a minimal config is created only when explicitly asked.",
+      "expected_output": "Declines both: there is no `apply install-typos` write path, because every typos install is machine-level and the tool publishes several official install methods, so it prints those methods for the consumer to choose from; and a minimal config is created only when explicitly asked.",
       "files": [],
       "expectations": [
         "Does not install typos — it surfaces the platform-appropriate official install method (cargo, Homebrew, Conda, pacman, or a pre-built binary) for the consumer to choose",
-        "Gives the reason there is no install write path here, contrasting with the sibling plugins that do have one: typos has no per-repo dependency-manager story and is never a project dependency",
+        "Names both applicable refusal reasons: every install is machine-level rather than a dependency recorded through the repo's package manager, and typos publishes several official install methods so the choice is the consumer's",
         "Does not create a config unless explicitly asked, because the plugin imposes no rules of its own",
         "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
       ]

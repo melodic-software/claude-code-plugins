@@ -10,12 +10,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Investigated entries are recorded in a catalog**
   ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
   `catalog` command writes investigated entries, each keyed by scan target, path and identity,
-  from a findings file or an operator answers file. The scan only reads the catalog and annotates a scan entry that
-  matches a record with `prior_disposition`. An operator's keep answer is stored with the record,
+  from a findings file or an operator answers file. The scan only reads the catalog and annotates
+  a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored with the record,
   so a later scan reports the entry's prior conclusion instead of asking again, and the report
   leads with new or changed entries. A malformed record or a subtree the scan did not walk is
   skipped, never treated as a conclusion. The investigation procedure and research escalation are
   not part of this slice.
+
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
 
 ## [0.29.0] - 2026-09-29
 
