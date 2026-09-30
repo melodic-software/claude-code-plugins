@@ -4,7 +4,7 @@
 
 - [The config surface](#the-config-surface)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
-- [Deferred: babysit-prs repository-policy keys (#4572)](#deferred-babysit-prs-repository-policy-keys-4572)
+- [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys)
 - [The three layers](#the-three-layers)
 - [Merge semantics: per-key override](#merge-semantics-per-key-override)
 - [Drafting vs enforcement](#drafting-vs-enforcement)
@@ -12,17 +12,24 @@
 - [Failure modes](#failure-modes)
 
 How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
-surface carries two key families: the tracked commit-subject / PR-title convention keys, read by
-`/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, and the
-loop-lane keys, read by `/source-control:babysit-loop`. Every consumer reads this one document; none
-bakes its own layering rules, and the three layers and per-key merge below govern both families.
+surface carries three key families: the tracked commit-subject / PR-title convention keys, read by
+`/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, the
+loop-lane keys, read by `/source-control:babysit-loop`, and the babysit-prs repository-policy keys,
+read by `/source-control:babysit-prs`. Every consumer reads this one document; none bakes its own
+layering rules, and the three layers and per-key merge below govern the first two families. The
+repository-policy keys resolve per target repository under their own section.
 
 Implements the tracked-rich-config extensibility contract in
 [`docs/migration-playbook.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/migration-playbook.md).
 
 ## The config surface
 
-Markdown, one `## <key>` H2 per key, the value as the section body:
+Markdown, one `## <key>` H2 per key, the value as the section body. Seven babysit-prs
+repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
+`babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
+`babysit_skip_downgrade_logins`, `babysit_review_gate_context`,
+`babysit_ci_gateway_context`) live on this surface too; their values and merge modes are in
+[babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys). The convention keys:
 
 - `subject_pattern`: required; the literal keyword `Conventional Commits`, or an anchored regex
   (`^…`-style). Exactly one value, never a list and never a plain-language description. A convention
@@ -301,65 +308,76 @@ reconciles the two, and every rule below is fail-closed:
   close-linked item with a recorded classification, and still faces the C4 diff veto, the rung
   comparison, and every other withholding in the partition.
 
-## Deferred: babysit-prs repository-policy keys (#4572)
+## babysit-prs repository-policy keys
 
-Ten `/source-control:babysit-prs` `userConfig` keys describe **repository tooling** (merge method,
-hold lists, review triggers, CI/review gate contexts). They still resolve from `pluginConfigs`
-(one value per machine) until a dedicated resolver ships. Identity and trust keys stay in
-`userConfig` permanently; `branch_issue_pattern` already moved to this surface. The split and
-rationale are in
+Seven `/source-control:babysit-prs` keys describe **repository tooling**: merge method, hold lists,
+and the CI and review gate contexts. `/source-control:babysit-prs` resolves them
+**per target repository, on every fleet cycle**, from that repository's tracked
+`.claude/source-control.md` on its **default branch**, read through the contents API
+(`gh api repos/<owner>/<repo>/contents/.claude/source-control.md`) with no `ref`. It never reads the
+launching checkout's working tree, the user-global layer, or the local overlay, so the layers of
+"The three layers" below do not apply to these keys: the repository's default-branch file is the one
+repository layer, and the plugin's `userConfig` value (the matching `babysit-prs` CLI flag) is a
+deprecated fallback merged per key as below. One `## <key>` H2 per key, the value as the section
+body; list values are `- <item>` bullets (a comma-separated line is also accepted).
+
+A file that is absent (HTTP 404 while the repository root listing, `contents/`, is readable)
+contributes nothing, and the fallback stands alone. A 404 with an unreadable root may be a hidden
+file, so it is an error like any other failure. Any other failure to fetch or parse the file
+(another HTTP status, a timeout, a malformed section, an invalid value) is a repository config
+error: the merge gate and `request_review` refuse for that repository, and the snapshot marks its
+PRs unclassified with an `errors` entry, never merge-ready. Identity and trust keys stay in
+`userConfig` permanently, and `branch_issue_pattern` resolves through the three layers below. The
+split and its rationale are in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
-Issue [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572) is open and owns
-the implementation.
 
-### Decision record
+| Key | Value | Merge mode against the `userConfig` fallback |
+|---|---|---|
+| `babysit_merge_block_labels` | bullet list of labels | hold list: add-only union |
+| `babysit_extra_dependency_manager_logins` | bullet list of logins | hold list: add-only union |
+| `babysit_approval_downgrade_logins` | bullet list of logins | hold list: add-only union |
+| `babysit_review_bot_logins` | bullet list of logins | `userConfig`-only; a repository declaration is ignored |
+| `babysit_review_settle_minutes` | number of minutes, at least one second | `userConfig`-only; a repository declaration is ignored |
+| `babysit_review_trigger_phrase` | the review-request comment text | `userConfig`-only; a repository declaration is ignored |
+| `babysit_skip_downgrade_logins` | bullet list of logins | remove-only |
+| `babysit_merge_method` | `squash`, `merge`, or `rebase` | repository value wins |
+| `babysit_review_gate_context` | a check-context name | repository value wins |
+| `babysit_ci_gateway_context` | a check-context name | repository value wins |
 
-- **Claim:** These ten keys cannot move to the cascade until `/source-control:babysit-prs` resolves
-  each **target repository** independently, on every fleet cycle, from that repository's tracked
-  `.claude/source-control.md` on its **default branch** (`gh api` contents), never from the
-  launching checkout's working tree or from a single machine-wide substitute.
-- **Basis:** the `babysit_loop_trusted_internal_bot_logins` precedent in this
-  document ("team-tracked layer only, target repository, default branch, always"); issue
-  [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).
-- **As of:** 2026-09-28.
+Merge modes:
 
-### Keys in scope (#4572)
+- **Hold lists** are the union of the repository list and the fallback list. Either side can add an
+  entry and neither can drop one, so a repository-writable file never shortens a hold or removes a
+  veto label. The autopilot merge tier is fail-closed on the union: it refuses when the effective
+  block labels are empty, so a repository that declares `babysit_merge_block_labels` enables the tier
+  with the fallback flag unset.
+- **The review pair** is `userConfig`-only: a repository that declares either key is ignored with a
+  note on stderr, and the `userConfig` pair applies unchanged. The merge gate clears the settle hold
+  as soon as ANY listed reviewer has reviewed the live head, so a repository-writable reviewer list
+  that adds a login lets that login clear the hold before the operator's reviewer has reviewed,
+  and one that replaces the list can swap the operator's reviewer out. Either shortens or removes a
+  hold, so a repository does not supply the pair until the maintainer rules on how its pair
+  combines with the operator's.
+- **`babysit_review_trigger_phrase`** is `userConfig`-only: a repository that declares it is ignored
+  with a note on stderr, and the `userConfig` phrase is the text `request_review` posts. The comment
+  is posted under the operator's account, so the repository it lands on does not choose what it
+  says.
+- **`babysit_skip_downgrade_logins`** is remove-only. When the repository declares the key, the
+  effective set is the fallback set intersected with the repository list, so a repository can narrow
+  the set and can never add a login. The fallback remains the only way to add one, which is why its
+  use raises no deprecation note.
+- **Plain overrides** take the repository default-branch value when the repository declares one and
+  the fallback otherwise. `babysit_review_gate_context` and `babysit_ci_gateway_context` name the
+  checks that must pass before the loop posts the review trigger, so anyone who can write the
+  default branch can redirect them; they are read from the default branch only.
 
-Each key's merge mode is set in
-[0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md),
-not restated here.
-
-- `babysit_merge_method`
-- `babysit_merge_block_labels`
-- `babysit_extra_dependency_manager_logins`
-- `babysit_approval_downgrade_logins`
-- `babysit_skip_downgrade_logins`: unclassified, needs the maintainer's decision (issue 4572)
-- `babysit_review_trigger_phrase`
-- `babysit_review_bot_logins`
-- `babysit_review_settle_minutes`
-- `babysit_review_gate_context`
-- `babysit_ci_gateway_context`
-
-Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit_self_logins`,
-`babysit_intended_write_identity`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
-`babysit_extra_bot_logins`.
-
-### Required resolver behavior (implementation checklist)
-
-1. **Per-target-repo resolution.** Substitute `${user_config.*}` once at skill load today; the
-   resolver must read each PR's repository default-branch cascade per key, per cycle, following the
-   trusted-internal-bot login read above.
-2. **Deprecation window.** Keep each `userConfig` value as a fallback (union member for hold
-   lists) with one stderr deprecation note when used; remove in a later minor release with a
-   CHANGELOG `Removed` entry, no earlier than 90 days after the resolver ships.
-3. **Tests.** Resolver cases for each merge mode, default-branch-only reads, precedence against the
-   deprecated fallback, and a fleet run over two repositories with different values.
-4. **Security review.** Mandatory on the implementing pull request; any design that lets a
-   repo-writable layer shorten a hold, drop a veto label, or replace a hold list under plain
-   per-key override loosens merge safety and needs explicit operator approval.
-
-Until that resolver lands, operators with several identity domains on one machine leave these keys
-unset or launch the lane with a per-domain `--settings` file, as for the identity keys in the ADR cited above.
+Each of the six keys other than the review pair, the trigger phrase and
+`babysit_skip_downgrade_logins` prints one deprecation note on stderr per process, naming the
+cascade key, whenever its fallback value is used. That fallback is removed in a later minor release,
+with a CHANGELOG `Removed` entry, no earlier than 90 days after the release that introduced this
+resolver. Until then an operator with several identity domains on one machine can leave those
+fallback flags unset and declare the keys in each repository. The `userConfig` values of the review
+pair, the trigger phrase and `babysit_skip_downgrade_logins` are not deprecated and raise no note.
 
 ## The three layers
 
