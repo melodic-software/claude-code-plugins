@@ -1083,6 +1083,103 @@ run_pwsh "PS: all-variable staged positional call (allowed — outside scope, #2
 run_pwsh "PS: pipeline into & \$w computed operand (still blocked — #2848)" \
   "\$data | & \$w \$out" 2
 
+# --- #4234: a call variable assigned a single-quoted non-writer literal earlier
+# in the same command is a literal target; the positional arm skips that site.
+# Every other shape keeps the block.
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, bare subcommand positionals (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh x.sh record dir' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted operands (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh "$r/packet-seal.sh" record "$s/d"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target inside a foreach body (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; foreach ($t in '"'"'a'"'"','"'"'b'"'"') { & $sh "$r/seal.sh" record "$s/$t"; "seal $t=$LASTEXITCODE" }; & $sh "$r/prune.sh" --root $b' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, pipeline into the call (allowed — #4234)" \
+  '$py='"'"'python3'"'"'; $data | & $py tool.py' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted with one root variable (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; $r='"'"'C:/s'"'"'; & $sh "$r/packet-seal.sh" record "$r/out"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a computed value (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; $sh=$x; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted target stays unresolved (blocked — #4234)" \
+  '$sh="bash.exe"; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assigned after the call, three positionals (blocked — #4234)" \
+  '& $sh a b c; $sh='"'"'bash.exe'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: another variable is the call target (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer name (blocked — #4234)" \
+  '$w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is the sc alias (blocked — #4234)" \
+  '$w='"'"'sc'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a module-qualified writer (blocked — #4234)" \
+  '$w='"'"'Microsoft.PowerShell.Management\Set-Content'"'"'; & $w f.txt x' 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer script path (blocked — #4234)" \
+  '$w='"'"'C:/tools/Out-File.ps1'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted assignment (blocked — #4234)" \
+  '$sh="bash"; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: concatenated literal assignment (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'+'"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal with a method call (blocked — #4234)" \
+  '$w='"'"'bash'"'"'.Replace('"'"'bash'"'"','"'"'Set-Content'"'"'); & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment only after the call (blocked — #4234)" \
+  '& $sh x.sh record dir; $sh='"'"'bash'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a writer (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned by a compound operator (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'; $w+='"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment inside a script block (blocked — #4234)" \
+  '& { $sh='"'"'bash'"'"' }; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $script:w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & $script:w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & ${w} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Set-Variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; sv w '"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: set alias of Set-Variable by name (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $n='"'"'Set-Content'"'"'; set w $n; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: foreach loop variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; foreach ($w in '"'"'Set-Content'"'"') { & $w f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: automatic variable rebound by the pipeline (blocked — #4234)" \
+  '$_='"'"'bash'"'"'; '"'"'Set-Content'"'"' | % { & $_ f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a splat (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a redirect (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh x > f.txt' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: one resolved call does not exempt another variable (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh a b; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: variable names are case-insensitive (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $W='"'"'Set-Content'"'"'; & $w f.txt x' 2
+
 # Quoted `>` / `-value` text must not trip the write-signal probes.
 run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
   "& \$tool -Message \"CPU > 90%\"" 0
@@ -1187,7 +1284,7 @@ run_pwsh "PS: fd-dup on a non-leftmost call site (blocked — #2927)" \
   "& \$w; & \$w2 2>&1 f.txt x" 2
 # The deliberately ACCEPTED behavior change: once the merge is stripped, one
 # literal positional before it and one after it read as the Path+Value pair. That
-# is consistent with `& $py script.py arg`, which already blocked, so the class is
+# is consistent with `& $py script.py arg` (an unassigned target blocks), so the class is
 # narrow — it needs BOTH sides of the merge to carry a positional.
 # shellcheck disable=SC2016
 run_pwsh "PS: positional on each side of an fd-dup (blocked — accepted #2927 change)" \
@@ -1413,6 +1510,30 @@ assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
 $MSG_USE
 $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
+# The positional-operand arm names its own rule and gives no Write/Edit advice: the
+# fix is a literal call target or a flag, not a different tool.
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool f.txt x' -- "${MSG_ENV[@]}"
+assert_exit "message: computed positional call blocks" 2 "$GUARD_RC"
+assert_contains "message: computed positional names the rule" "$GUARD_ERR" \
+  "with 2+ positional operands is read as Set-Content <path> <value>"
+assert_contains "message: computed positional names the literal-path rewrite" "$GUARD_ERR" \
+  "call the program by a literal quoted path"
+assert_absent "message: computed positional gives no Write/Edit advice" "$GUARD_ERR" "Use the Write or Edit tool"
+assert_absent "message: computed positional gives no write-cmdlet verdict" "$GUARD_ERR" "PowerShell file-write cmdlet/redirect"
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool -Value x f.txt' -- "${MSG_ENV[@]}"
+assert_contains "message: computed -Value arm keeps the write verdict" "$GUARD_ERR" \
+  "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+TEL_POS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_POS="$(make_sink "cat >\"$TEL_POS\"")"
+env HOOK_TELEMETRY_SINK="$SINK_POS" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(jq -cn --arg c '& $tool f.txt x' '{tool_name:"PowerShell",tool_input:{command:$c}}')" >/dev/null 2>&1 || true
+if wait_for_sink "$TEL_POS"; then
+  assert_eq "telemetry: computed positional form" "powershell-computed-positional" "$(jq -r '.data.form' "$TEL_POS" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a computed positional block"
+fi
 guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \
@@ -2757,7 +2878,7 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe-bearing string (blocked
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 2
 # Double-quoted operands are expandable (about_Quoting_Rules) but still
 # present. A `$`-free double-quoted pair is two visible literals, same as the
-# unquoted `& $py script.py arg` already blocked by the #2722 signal.
+# unquoted `& $py script.py arg` with an unassigned target, blocked by the #2722 signal.
 # shellcheck disable=SC2016
 run_pwsh "PS: unquoted two-positional computed call (blocked — #2722 control for #2906)" \
   "& \$py script.py arg" 2

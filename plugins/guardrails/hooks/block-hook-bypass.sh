@@ -1379,8 +1379,10 @@ _bbh_exempt_roots() {
 block_bypass() {
   local form="$1" reason="$2" noun=target code
   echo "BLOCKED: $reason" >&2
-  echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  [[ "$form" == powershell-computed-positional ]] ||
+    echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
   case "$form" in
+  powershell-computed-positional) ;;
   cat-redirect | echo-redirect | staged-write-move)
     [[ "$form" == staged-write-move ]] && noun="move destination"
     code="$_BBH_SCRATCH_REFUSAL"
@@ -1576,8 +1578,13 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
-  if ps::write_bypass "$COMMAND" && ! _bbh_ps_write_exempt "$COMMAND"; then
-    block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+  if ps::write_bypass "$COMMAND"; then
+    if [[ "$PS_WRITE_BYPASS_ARM" == computed-positional ]]; then
+      block_bypass "powershell-computed-positional" "a call through a variable (& \$var) with 2+ positional operands is read as Set-Content <path> <value>; call the program by a literal quoted path (& 'C:/path/tool.exe' args) or put a flag before the positional operands"
+    fi
+    if ! _bbh_ps_write_exempt "$COMMAND"; then
+      block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+    fi
   fi
   # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
   # around Write/Edit whichever tool launches them, and ps::write_bypass models only
