@@ -21,6 +21,16 @@
     "Dropbox (*)",
     "OneDrive - *"
   ],
+  "disk_image_name_globs": [
+    "*.vhd",
+    "*.vhdx",
+    "*.avhd",
+    "*.avhdx",
+    "*.vmdk",
+    "*.vdi",
+    "*.qcow2",
+    "*.img"
+  ],
   "os_temp_recommendation_threshold_bytes": 1073741824,
   "hints": [
     {

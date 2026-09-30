@@ -2510,7 +2510,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    if command_kind in {"scan", "preview", "handoff-verify", "catalog"}:
         return _settle(
             command,
             tool_name,
@@ -2537,7 +2537,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         "kill-switch-disabled-apply"
         if denied_by_kill_switch
         else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, handoff-verify, and catalog invocations are permitted."
         if denied_by_kill_switch
         else _bash_denial_guidance(authority),
     )
