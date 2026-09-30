@@ -1725,7 +1725,7 @@ for d in "${latch_path_dirs[@]}"; do
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$LATCH_NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$LATCH_NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "latch: could not build a PATH without jq"
 else
   LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"
@@ -2240,8 +2240,8 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
     # The harness hands out its scratchpad in TEMP's own spelling, which on a
     # volume that generates short names is the 8.3 one (#4678). Under Cygwin
     # bash, where TEMP reads `/tmp`, this case depends on the cygpath drive
-    # spellings in the temp candidates and is unverified there; a failure here
-    # belongs to #4678.
+    # spellings in the temp candidates. The Windows lane runs it on a runner
+    # whose TEMP carries RUNNER~1.
     run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
       "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
     run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \

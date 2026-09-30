@@ -9,7 +9,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - `block-windows-drive-tmp` skips its `cygpath` probe for a command that names no tmp path, removing two process forks from every benign Bash command on Windows.
 - **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
-- The `block-hook-bypass`, `secret-pattern-detection` and `run-guards` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+- The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
 
 ## [0.42.5] - 2026-09-30
 
