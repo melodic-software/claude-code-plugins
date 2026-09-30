@@ -16,6 +16,7 @@ readonly POLL_MAX_TRIES=40 # 40 * 0.25s = 10s
 
 # Trap state (script-level so the EXIT trap sees them).
 OWN_SENTINEL=false
+STAMP_DIR=""
 STOPPED=false
 SENTINEL=""
 
@@ -127,6 +128,8 @@ cleanup() {
       if ((original_rc == 0)); then original_rc=1; fi
     fi
   fi
+  # The probe reads the stamp as proof of a completed run, so write it only after a clean restart.
+  if ((original_rc == 0)) && [[ -n "$STAMP_DIR" ]]; then stamp_last_prune "$STAMP_DIR"; fi
   # Release last: the sentinel covers the complete stop -> mutate -> restart lifecycle, including
   # a failed restart attempt. The next operator run may then retry recovery explicitly.
   if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then

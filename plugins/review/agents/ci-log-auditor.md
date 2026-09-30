@@ -3,7 +3,7 @@ name: ci-log-auditor
 description: "CI run auditor, read-only over the reviewed code by instruction. Detects masked failures, silently-skipped jobs, suspicious 'success' steps, performance outliers, retry loops, and stderr drift, issues NOT raised as ##[error] markers. Use for 'audit run X', 'thorough CI review', 'why did this pass when something looks off', or after a green run the user doubts."
 tools: "Read, Grep, Glob, Bash"
 model: sonnet
-effort: high
+effort: medium
 maxTurns: 25
 memory: local
 ---

@@ -1,13 +1,17 @@
 # Re-runnable machine profile for setup skills
 
-Recorded park for
+Record for
 [#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666),
 a proposed host-fact store that would drive every plugin `setup` skill.
 
 ## Decision
 
-**Park. Do not build.** No `machine-profile` skill in `claude-ops`, and no new
-plugin.
+**Superseded in part.** The design is now
+[machine-profile-design](../specs/machine-profile-design.md) and the placement is
+[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md): a skill in
+`claude-ops`. Building the skill and any setup-contract or invocation-mode change stay
+undecided until the owner rules on that design. Until then, no `machine-profile` skill
+exists, no new plugin is added, and the rest of this record stands.
 
 - **Option 1 (declined):** orchestrate by instruction. The profile would emit
   `/<plugin>:setup check` lines for the operator to type. That respects class
@@ -18,7 +22,7 @@ plugin.
 - **Option 3 (declined):** relax `disable-model-invocation` on `check` only.
   Same effect as option 2 with less structure.
 
-**Claim:** a re-runnable machine profile that discovers host facts once and
+**Claim (original park, before the design document):** a re-runnable machine profile that discovers host facts once and
 drives the fleet's setup skills is not implementable without amending
 invocation-mode class (ii) and touching every setup skill; do not build it
 until #4240 records that unblock. Host discovery stays inside each plugin's
