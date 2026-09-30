@@ -634,7 +634,7 @@ class RepoSettlePairReachesEvaluate(unittest.TestCase):
             ),
         )
 
-    def test_repo_pair_replaces_the_flag_reviewer_but_never_shortens_the_window(
+    def test_repo_pair_adds_to_the_flag_reviewer_and_never_shortens_the_window(
         self,
     ) -> None:
         _, settle = self._run(
@@ -645,7 +645,8 @@ class RepoSettlePairReachesEvaluate(unittest.TestCase):
         self.assertEqual(
             settle,
             merge.ReviewSettleConfig(
-                reviewer_logins=frozenset({"repo-reviewer"}), settle_seconds=600
+                reviewer_logins=frozenset({"repo-reviewer", REVIEWER}),
+                settle_seconds=600,
             ),
         )
 

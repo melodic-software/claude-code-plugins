@@ -335,7 +335,7 @@ surface earlier. The split and its rationale are in
 | `babysit_merge_block_labels` | bullet list of labels | hold list: add-only union |
 | `babysit_extra_dependency_manager_logins` | bullet list of logins | hold list: add-only union |
 | `babysit_approval_downgrade_logins` | bullet list of logins | hold list: add-only union |
-| `babysit_review_bot_logins` | bullet list of logins | one pair with the settle minutes |
+| `babysit_review_bot_logins` | bullet list of logins | one pair with the settle minutes; adds to the fallback reviewers |
 | `babysit_review_settle_minutes` | number of minutes, at least one second | one pair with the review bot logins, never shorter than the fallback settle |
 | `babysit_skip_downgrade_logins` | bullet list of logins | remove-only |
 | `babysit_merge_method` | `squash`, `merge`, or `rebase` | repository value wins |
@@ -348,10 +348,11 @@ Merge modes:
 - **Hold lists** are the union of the repository list and the fallback list. Either side can add an
   entry and neither can drop one, so a repository-writable file never shortens a hold or removes a
   veto label.
-- **The review pair** binds as one unit from one source. A repository pair applies only when it
-  declares both halves; a half-declared repository pair is ignored with a note on stderr and the
-  fallback pair applies unchanged. When the fallback settle window is set, the effective window is
-  never shorter than it.
+- **The review pair** applies from the repository only when it declares both halves; a
+  half-declared repository pair is ignored with a note on stderr and the fallback pair applies
+  unchanged. The repository's reviewer logins add to the fallback reviewers and never replace them,
+  and when the fallback settle window is set, the effective window is never shorter than it, so the
+  repository can lengthen the hold and never narrow it.
 - **`babysit_skip_downgrade_logins`** is remove-only. When the repository declares the key, the
   effective set is the fallback set intersected with the repository list, so a repository can narrow
   the set and can never add a login. The fallback remains the only way to add one, which is why its

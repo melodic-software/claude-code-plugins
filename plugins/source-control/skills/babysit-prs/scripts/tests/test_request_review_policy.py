@@ -47,12 +47,12 @@ def _quiet_stderr():
 
 
 class TriggerConfigPerRepository(unittest.TestCase):
-    def test_repo_phrase_and_reviewer_pair_win_over_the_flags(self) -> None:
+    def test_repo_phrase_wins_and_repo_reviewers_add_to_the_flags(self) -> None:
         RepoConfigFake({"owner/repo": REPO_FILE}).install(self)
         with _quiet_stderr():
             config = request_review.build_trigger_config(_args(), "owner/repo")
         self.assertEqual(config.trigger_phrase, "@repo-bot review")
-        self.assertEqual(config.reviewer_logins, {"repo-bot"})
+        self.assertEqual(config.reviewer_logins, {"repo-bot", "flag-bot"})
 
     def test_flags_apply_when_the_repo_declares_nothing(self) -> None:
         RepoConfigFake({}).install(self)

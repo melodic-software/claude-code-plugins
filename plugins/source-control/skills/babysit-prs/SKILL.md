@@ -310,7 +310,7 @@ Ten rows are repository policy: `babysit_merge_method`, `babysit_merge_block_lab
 `.claude/source-control.md` on the default branch, and the flag on its row is the deprecated
 fallback, merged per key by the modes in
 [config-resolution.md](../../reference/config-resolution.md#babysit-prs-repository-policy-keys):
-hold lists union, the review pair binds as one unit and never shortens the fallback settle window,
+hold lists union, the review pair adds reviewers to the fallback and never shortens its settle window,
 `babysit_skip_downgrade_logins` is remove-only, and the rest take the repository value first. A
 repository whose file cannot be read is refused by the merge gate and `request_review`, and its PRs
 are never merge-ready in the snapshot. The unset behavior above applies when neither source sets the

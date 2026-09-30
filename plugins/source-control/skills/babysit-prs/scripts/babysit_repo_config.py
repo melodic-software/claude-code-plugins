@@ -186,10 +186,11 @@ def merge_repo_config(
 
     - Hold lists (`UNION_KEYS`): add-only union, so neither side drops an entry.
     - Review pair (`babysit_review_bot_logins` + `babysit_review_settle_minutes`):
-      bound as one unit from one source. The repository pair wins only when both
-      halves are declared, and its settle window is floored at the `userConfig`
-      settle when that is set. A half-declared repository pair is ignored with a
-      note, and the `userConfig` pair passes through unchanged.
+      the repository pair applies only when both halves are declared. Its
+      reviewer logins add to the `userConfig` reviewers (never replace them) and
+      its settle window is floored at the `userConfig` settle, so the repository
+      can lengthen the hold and never narrow it. A half-declared repository pair
+      is ignored with a note, and the `userConfig` pair passes through unchanged.
     - `babysit_skip_downgrade_logins`: remove-only. When the repository declares
       the key, the effective set is the `userConfig` set intersected with it; a
       repository can never add a login. The `userConfig` value stays the key's
@@ -221,7 +222,9 @@ def merge_repo_config(
     bots = _fallback_set(fallback, REVIEW_BOTS) if REVIEW_BOTS in fallback else None
     settle = fallback_settle
     if repo_bots is not None and repo_settle is not None:
-        bots, settle = repo_bots, repo_settle
+        bots, settle = repo_bots | (bots or frozenset()), repo_settle
+        if bots != repo_bots:
+            used.add(REVIEW_BOTS)
         if fallback_settle is not None:
             floor = _settle_seconds(fallback_settle)
             if floor is None:

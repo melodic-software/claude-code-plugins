@@ -84,7 +84,7 @@ class MergeModeTests(unittest.TestCase):
             rc.merge_repo_config(repo, {}).merge_block_labels, {"wait[bot]"}
         )
 
-    def test_whole_repo_review_pair_wins(self) -> None:
+    def test_whole_repo_review_pair_adds_reviewers_and_wins_settle(self) -> None:
         repo = rc.parse_repo_config(
             "## babysit_review_bot_logins\n- repo-reviewer\n\n"
             "## babysit_review_settle_minutes\n`20`\n"
@@ -96,9 +96,34 @@ class MergeModeTests(unittest.TestCase):
                 "babysit_review_settle_minutes": "10",
             },
         )
-        self.assertEqual(eff.review_bot_logins, {"repo-reviewer"})
+        self.assertEqual(eff.review_bot_logins, {"repo-reviewer", "mine"})
         self.assertEqual(eff.review_settle_minutes, "20")
-        self.assertFalse({rc.REVIEW_BOTS, rc.REVIEW_SETTLE} & eff.fallback_keys_used)
+        self.assertNotIn(rc.REVIEW_SETTLE, eff.fallback_keys_used)
+        self.assertIn(rc.REVIEW_BOTS, eff.fallback_keys_used)
+
+    def test_repo_pair_never_drops_a_userconfig_reviewer(self) -> None:
+        repo = rc.parse_repo_config(
+            "## babysit_review_bot_logins\n- other\n\n"
+            "## babysit_review_settle_minutes\n30\n"
+        )
+        eff = rc.merge_repo_config(
+            repo,
+            {
+                "babysit_review_bot_logins": "a, b[bot]",
+                "babysit_review_settle_minutes": "10",
+            },
+        )
+        self.assertEqual(eff.review_bot_logins, {"a", "b", "other"})
+
+    def test_repo_pair_stands_alone_when_userconfig_pair_is_unset(self) -> None:
+        repo = rc.parse_repo_config(
+            "## babysit_review_bot_logins\n- other\n\n"
+            "## babysit_review_settle_minutes\n30\n"
+        )
+        eff = rc.merge_repo_config(repo, {})
+        self.assertEqual(eff.review_bot_logins, {"other"})
+        self.assertEqual(eff.review_settle_minutes, "30")
+        self.assertFalse(eff.fallback_keys_used)
 
     def test_repo_pair_settle_is_never_shorter_than_userconfig(self) -> None:
         repo = rc.parse_repo_config(
@@ -112,7 +137,7 @@ class MergeModeTests(unittest.TestCase):
                 "babysit_review_settle_minutes": "15",
             },
         )
-        self.assertEqual(eff.review_bot_logins, {"repo-reviewer"})
+        self.assertEqual(eff.review_bot_logins, {"repo-reviewer", "mine"})
         self.assertEqual(eff.review_settle_minutes, "15")
         self.assertIn(rc.REVIEW_SETTLE, eff.fallback_keys_used)
 
