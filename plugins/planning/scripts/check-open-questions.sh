@@ -345,15 +345,16 @@ while IFS= read -r line; do
 
   registered=$((registered + 1))
 
-  # Fields after the id: status | round | question | resolution. A question
-  # containing `|` shifts the resolution, which can only turn a missing one into
-  # a present one, never fail a row that has one.
+  # Fields after the id: status | round | question | resolution. The resolution
+  # is the text after the last `|`, so a `|` inside the question cannot make an
+  # empty resolution look filled; a row with no question and resolution
+  # fields has none.
   after_status="${rest#*|}"
   round_field="${after_status%%|*}"
   round_field="${round_field#"${round_field%%[![:space:]]*}"}"
   round_field="${round_field%"${round_field##*[![:space:]]}"}"
   resolution="${after_status#*|}"
-  if [[ "$resolution" == *"|"* ]]; then resolution="${resolution#*|}"; else resolution=""; fi
+  if [[ "$resolution" == *"|"* ]]; then resolution="${resolution##*|}"; else resolution=""; fi
   resolution="${resolution#"${resolution%%[![:space:]]*}"}"
   resolution="${resolution%"${resolution##*[![:space:]]}"}"
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
@@ -462,6 +463,26 @@ if [[ "$procedure_on" -eq 1 ]]; then
   done
 
   if [[ "$brief_named" -eq 1 ]]; then
+    # A PLAN.md holds `## Brief` + `## Plan`: a heading under `## Plan` must not
+    # satisfy a template section the Brief lacks, so grade only the lines from
+    # the `## Brief` heading to the next level-2 heading. A file with no
+    # `## Brief` heading is graded whole.
+    brief_lo=0
+    brief_hi=999999999
+    brief_h2="$(heading_matches '^##[[:space:]]' "$brief")"
+    brief_h2_status=$?
+    if [[ "$brief_h2_status" -eq 4 ]]; then
+      die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+    elif [[ "$brief_h2_status" -ne 0 ]]; then
+      die_ungradeable "could not read the headings of: $brief"
+    fi
+    brief_lo="$(printf '%s\n' "$brief_h2" | awk -F'\t' 'tolower($2) ~ /^##[[:space:]]+brief[[:space:]]*$/ { print $1; exit }')"
+    if [[ -n "$brief_lo" ]]; then
+      brief_hi="$(printf '%s\n' "$brief_h2" | awk -F'\t' -v lo="$brief_lo" '$1 > lo { print $1; exit }')"
+      brief_hi="${brief_hi:-999999999}"
+    else
+      brief_lo=0
+    fi
     for section_pattern in 'tl;?dr' 'goal' 'constraints' 'acceptance criteria' \
       'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
       section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
@@ -471,6 +492,7 @@ if [[ "$procedure_on" -eq 1 ]]; then
       elif [[ "$section_status" -ne 0 ]]; then
         die_ungradeable "could not read the headings of: $brief"
       fi
+      section_matches="$(printf '%s\n' "$section_matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
       [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
     done
   fi

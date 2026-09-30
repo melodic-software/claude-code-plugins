@@ -700,6 +700,18 @@ EOT
 )"
 expect_exit "--procedure missing resolution field -> 1" 1 --ledger "$proc_nofield" --procedure
 expect_exit "empty resolution without --procedure -> 0" 0 --ledger "$proc_nofield"
+proc_pipe="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Which output | JSON or XML? |
+EOT
+)"
+expect_exit "--procedure pipe in question with empty resolution -> 1" 1 --ledger "$proc_pipe" --procedure
+proc_pipe_ok="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Which output | JSON or XML? | JSON
+EOT
+)"
+expect_exit "--procedure pipe in question with a resolution -> 0" 0 --ledger "$proc_pipe_ok" --procedure
 
 # 52. An open row has no resolution yet; --procedure does not fail it, and status stays open.
 proc_open="$(
@@ -748,6 +760,9 @@ expect_exit "--procedure --brief with every section -> 0" 0 --ledger "$proc_reti
 expect_exit "--procedure --brief missing Out-of-scope -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_short" --procedure
 if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_short" --procedure)" == *"out[- ]of[- ]scope"* ]]; then pass "--procedure names the missing Brief section"; else fail "--procedure names the missing Brief section"; fi
 expect_exit "Brief missing a section without --procedure -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_short"
+proc_brief_plan="$TMP/proc-brief-plan.md"
+{ cat "$proc_brief_short"; printf '\n### Out-of-scope\n- x\n'; } >"$proc_brief_plan"
+expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure
 
 # 54. Ungradeable stays exit 2 and reports procedure=unchecked.
 expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure

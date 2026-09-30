@@ -225,6 +225,10 @@ Apply the reviewer rule under Planning Process before blast radius or presentati
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
    sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
    lower per invocation (the verification record in `agents/plan-reviewer.md`).
+   When the reviewer stops at its `maxTurns` limit its output may be marked partial, and older
+   clients do not mark it. A complete report ends with its `### Summary` counts, or is the literal
+   `No plan gaps found.` for a clean pass; treat any other return without that section as
+   incomplete whether or not a marker is present: resume it (or re-dispatch with a narrowed brief); never treat a partial table as a clean pass.
 4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
 5. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 

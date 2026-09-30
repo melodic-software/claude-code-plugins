@@ -58,7 +58,9 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-Every skip notice below appears once per session and agent, renewed every eighth skip.
+The `jq` notice appears once per session and agent, renewed every eighth skip. The `shellcheck`
+and `shfmt` notices appear once per session, shared by all agents, renewed every eighth skip
+with the install route kept.
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
@@ -78,6 +80,12 @@ Every skip notice below appears once per session and agent, renewed every eighth
   to opt in). Absent while the repo opts in: the format pass skips with a
   visible notice. Without the `.editorconfig` opt-in the
   format pass stays quiet. The repo chose not to format.
+
+A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
+`prerequisites.json`, and the PostToolUse notices name the same install route. The probe and the
+PostToolUse notice for a tool share one latch, so the probe's notice counts as the first and the
+first PostToolUse notice stays silent until the renewal. Run `/bash-format:check` to see which
+binaries resolve; it is read-only and installs nothing.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)
 and the other still runs.
