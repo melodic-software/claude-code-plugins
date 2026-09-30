@@ -93,7 +93,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
-  never eligible for this engine, even when a native dry-run calls it eligible.
+  never eligible for this engine, even when a native dry-run calls it eligible. A registry match: §4.
 - Never install a dependency, close another process's handle, or disable a retention mechanism.
 - While the scan output's `elevation` is `never` (the default), never elevate or trigger UAC/sudo.
   Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
