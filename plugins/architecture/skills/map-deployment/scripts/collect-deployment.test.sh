@@ -284,17 +284,17 @@ catrec="$(cat "$TEST_TMPDIR/cat.json")"
 assert_contains "api placed" "$catrec" '"catalog":"api","placed":"yes"'
 assert_contains "batch unplaced" "$catrec" '"catalog":"batch","placed":"no"'
 
-# terraform plus compose is a partial read
+# bicep plus compose is a partial read
 repo2="$TEST_TMPDIR/both"
 init_repo "$repo2"
 mkdir -p "$repo2/deploy"
 printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repo2/deploy/compose.yaml"
-printf 'resource "azurerm_linux_web_app" "api" {\n  name = "api"\n}\n' >"$repo2/main.tf"
+printf "resource web 'Microsoft.Web/sites@2022-03-01' = {\n  name: 'api'\n}\n" >"$repo2/main.bicep"
 commit_all "$repo2"
 bash "$COLLECT" --repo "$repo2" --out "$TEST_TMPDIR/both.json" --generated-on 2026-09-28
 both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "partial read" "$both" '"reason": "partial-read"'
-assert_contains "names terraform" "$both" '"name":"terraform"'
+assert_contains "names bicep" "$both" '"name":"bicep"'
 assert_contains "names compose" "$both" '"name":"compose"'
 bash "$RENDER" --record "$TEST_TMPDIR/both.json" --out "$TEST_TMPDIR/both-out" --dialect likec4 >/dev/null
 bothmd="$(cat "$TEST_TMPDIR/both-out/deployment.md")"
@@ -308,7 +308,8 @@ printf 'resource "azurerm_virtual_network" "vnet" {\n  name = "vnet"\n}\n' >"$re
 commit_all "$repo3"
 bash "$COLLECT" --repo "$repo3" --out "$TEST_TMPDIR/tf.json" --generated-on 2026-09-28
 tf="$(cat "$TEST_TMPDIR/tf.json")"
-assert_contains "adapter not shipped" "$tf" '"reason": "adapter-not-shipped"'
+assert_contains "terraform with no container resource is drawn" "$tf" '"status": "drawn"'
+assert_contains "terraform is a shipped tool" "$tf" '"name":"terraform","shipped":"yes"'
 assert_not_contains "no invented node" "$tf" "vnet"
 
 # live
@@ -722,9 +723,7 @@ check_declines() {
   assert_contains "$label beside compose is a partial read" "$(cat "$TEST_TMPDIR/decl.json")" '"reason": "partial-read"'
 }
 check_declines "an ARM template" arm infra/main.json "{\"\$schema\": \"$arm_schema\", \"resources\": []}"
-check_declines "a tfvars file" terraform infra/prod.tfvars 'region = "westeurope"'
-check_declines "a tf.json file" terraform infra/main.tf.json '{"resource": {}}'
-check_declines "a module-only main.tf" terraform main.tf 'module "net" { source = "./net" }'
+check_declines "a Bicep file" bicep infra/main.bicep "param location string = 'westeurope'"
 declining_fixture "$TEST_TMPDIR/notarm" package.json "$(printf '{"%sschema": "https://json.schemastore.org/package.json"}' '$')"
 bash "$COLLECT" --repo "$TEST_TMPDIR/notarm" --out "$TEST_TMPDIR/notarm.json" --generated-on 2026-09-28
 assert_contains "an unrelated json schema is not ARM" "$(cat "$TEST_TMPDIR/notarm.json")" '"reason": "no-declared-iac"'
@@ -895,6 +894,265 @@ nkmd="$(cat "$TEST_TMPDIR/nodes-k8s-out/deployment.md")"
 assert_contains "rendered diff lists the Ingress row" "$nkmd" "prod.example.com -> stage.example.com"
 assert_contains "rendered diff lists the network row" "$nkmd" "network present only in prod"
 assert_not_contains "a node diff is not an empty diff" "$nkmd" "No differences of these kinds"
+
+# Terraform: <env>.tfvars environments over one root, .tf and .tf.json alike.
+repoT="$TEST_TMPDIR/tf-envs"
+init_repo "$repoT"
+mkdir -p "$repoT/infra"
+cat >"$repoT/infra/variables.tf" <<'EOF'
+variable "api_tag" {
+  type    = string
+  default = "1.0.0"
+}
+variable "replicas" {
+  default = 1
+}
+EOF
+cat >"$repoT/infra/main.tf" <<'EOF'
+# The cluster the service runs on.
+resource "aws_ecs_cluster" "main" {
+  name = "acme"
+}
+
+resource "aws_ecs_task_definition" "api" {
+  family = "api"
+  container_definitions = jsonencode([
+    {
+      name         = "api"
+      image        = "ghcr.io/acme/api:${var.api_tag}"
+      portMappings = [{ containerPort = 8080 }]
+      environment = [
+        { name = "LOG_LEVEL", value = "info" },
+        { name = "REGION", value = local.region }
+      ]
+    },
+    {
+      name  = "sidecar"
+      image = "ghcr.io/acme/proxy:2"
+    }
+  ])
+}
+
+resource "aws_ecs_service" "api" {
+  name            = "api"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.replicas
+}
+
+resource "aws_ecs_service" "legacy" {
+  name            = "legacy"
+  task_definition = "arn:aws:ecs:eu-west-1:000000000000:task-definition/legacy:3"
+}
+
+resource "aws_ecs_task_definition" "batch" {
+  family                = "batch"
+  container_definitions = <<DEFS
+[
+  {"name": "batch", "image": "ghcr.io/acme/batch:1", "environment": [{"name": "MODE", "value": "nightly"}]}
+]
+DEFS
+}
+EOF
+cat >"$repoT/infra/k8s.tf" <<'EOF'
+resource "kubernetes_deployment" "web" {
+  metadata {
+    name = "web"
+  }
+  spec {
+    replicas = 2
+    template {
+      metadata {
+        labels = { app = "web" }
+      }
+      spec {
+        container {
+          name  = "web"
+          image = var.web_image
+        }
+      }
+    }
+  }
+}
+EOF
+cat >"$repoT/infra/run.tf.json" <<'EOF'
+{
+  "resource": {
+    "google_cloud_run_v2_service": {
+      "worker": {
+        "name": "worker",
+        "template": {
+          "containers": [
+            {"image": "ghcr.io/acme/worker:${var.api_tag}", "ports": {"container_port": 9090}}
+          ],
+          "scaling": {"min_instance_count": 2}
+        }
+      }
+    }
+  }
+}
+EOF
+# An auto-loaded file outranks terraform.tfvars, and neither is an environment.
+printf 'api_tag = "0.1.0"\n' >"$repoT/infra/terraform.tfvars"
+printf 'api_tag = "1.0.0"\n' >"$repoT/infra/common.auto.tfvars"
+printf 'replicas = 1\n' >"$repoT/infra/staging.tfvars"
+printf 'api_tag  = "1.4.0"\nreplicas = 3\n' >"$repoT/infra/prod.tfvars"
+commit_all "$repoT"
+bash "$COLLECT" --repo "$repoT" --out "$TEST_TMPDIR/tf-envs.json" --generated-on 2026-09-28
+assert_equals "terraform collect exits 0" "$?" "0"
+tfrec="$(cat "$TEST_TMPDIR/tf-envs.json")"
+assert_contains "terraform record is drawn" "$tfrec" '"status": "drawn"'
+assert_contains "terraform is shipped" "$tfrec" '"name":"terraform","shipped":"yes"'
+assert_contains "a tfvars file is an environment" "$tfrec" '"environment":"prod","tool":"terraform"'
+assert_contains "the other tfvars file is an environment" "$tfrec" '"environment":"staging","tool":"terraform"'
+assert_contains "an ECS cluster is a compute node" "$tfrec" '"id":"prod/aws_ecs_cluster.main","env":"prod","tool":"terraform","kind":"compute","name":"acme","detail":"aws_ecs_cluster"'
+assert_contains "a task definition container is placed on its service's cluster" "$tfrec" '"container":"api","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.main","compute":"prod/aws_ecs_cluster.main","image":"ghcr.io/acme/api:1.4.0","replicas":"3","ports":"8080"'
+assert_contains "the variable default fills the other environment" "$tfrec" '"container":"api","env":"staging","tool":"terraform","node":"staging/aws_ecs_cluster.main","compute":"staging/aws_ecs_cluster.main","image":"ghcr.io/acme/api:1.0.0","replicas":"1"'
+assert_contains "a second container of the task is its own placement" "$tfrec" '"container":"sidecar","env":"prod"'
+assert_contains "a local is recorded as unresolved" "$tfrec" '"parameter":"REGION","env":"prod","tool":"terraform","container":"api","value":"unresolved:local.region"'
+assert_contains "a heredoc container definition is read" "$tfrec" '"container":"batch","env":"prod","tool":"terraform","node":"prod","compute":"","image":"ghcr.io/acme/batch:1","replicas":"undeclared"'
+assert_contains "a heredoc environment entry is a parameter" "$tfrec" '"parameter":"MODE","env":"prod","tool":"terraform","container":"batch","value":"nightly"'
+assert_contains "an undeclared variable is unresolved, not evaluated" "$tfrec" '"container":"web","env":"prod","tool":"terraform","node":"prod/kubernetes_deployment.web","compute":"prod/kubernetes_deployment.web","image":"unresolved:var.web_image","replicas":"2"'
+assert_contains "a tf.json Cloud Run service is placed" "$tfrec" '"container":"worker","env":"prod","tool":"terraform","node":"prod","compute":"","image":"ghcr.io/acme/worker:1.4.0","replicas":"2","ports":"9090"'
+assert_contains "terraform image diff" "$tfrec" '"change":"image","left":"prod","right":"staging","tool":"terraform","container":"api","detail":"ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"'
+assert_contains "terraform replicas diff" "$tfrec" '"change":"replicas","left":"prod","right":"staging","tool":"terraform","container":"api","detail":"3 -> 1"'
+assert_contains "a service whose task definition is not declared keeps the reference unresolved" "$tfrec" '"container":"legacy","env":"prod","tool":"terraform","node":"prod","compute":"","image":"unresolved:arn:aws:ecs:eu-west-1:000000000000:task-definition/legacy:3"'
+assert_not_contains "a tfvars file is not a container" "$tfrec" '"container":"replicas"'
+assert_not_contains "an auto-loaded tfvars file is not an environment" "$tfrec" '"environment":"common.auto"'
+assert_not_contains "terraform.tfvars is not an environment" "$tfrec" '"environment":"terraform"'
+bash "$RENDER" --record "$TEST_TMPDIR/tf-envs.json" --out "$TEST_TMPDIR/tf-envs-out" --dialect likec4 --env prod >/dev/null
+tfmd="$(cat "$TEST_TMPDIR/tf-envs-out/deployment.md")"
+assert_contains "likec4 runs the ECS container inside the cluster" "$tfmd" $'= node \'acme\' \'compute aws_ecs_cluster\' {\n      instanceOf c'
+bash "$RENDER" --record "$TEST_TMPDIR/tf-envs.json" --out "$TEST_TMPDIR/tf-envs-puml" --dialect c4-plantuml >/dev/null
+assert_contains "plantuml runs the ECS container inside the cluster" "$(cat "$TEST_TMPDIR/tf-envs-puml/deployment.md")" $'"acme", "compute", "aws_ecs_cluster") {\n    Container('
+
+# Terraform: a module-only root per envs/<env>/ directory follows a local module source.
+repoM="$TEST_TMPDIR/tf-modules"
+init_repo "$repoM"
+mkdir -p "$repoM/envs/staging" "$repoM/envs/prod" "$repoM/modules/app"
+printf 'module "app" {\n  source = "../../modules/app"\n  image  = "ghcr.io/acme/web:1"\n}\n' >"$repoM/envs/staging/main.tf"
+printf 'module "app" {\n  source = "../../modules/app"\n  image  = var.web_image\n}\n' >"$repoM/envs/prod/main.tf"
+printf 'variable "web_image" {\n  default = "ghcr.io/acme/web:2"\n}\n' >"$repoM/envs/prod/variables.tf"
+cat >"$repoM/modules/app/main.tf" <<'EOF'
+variable "image" {}
+
+resource "azurerm_container_app_environment" "env" {
+  name = "acme-env"
+}
+
+resource "azurerm_container_app" "web" {
+  name                         = "web"
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  template {
+    min_replicas = 1
+    container {
+      name  = "web"
+      image = var.image
+      env {
+        name  = "MODE"
+        value = "web"
+      }
+      env {
+        name        = "DB_URL"
+        secret_name = "db-url"
+      }
+    }
+  }
+  ingress {
+    target_port = 80
+  }
+}
+EOF
+commit_all "$repoM"
+bash "$COLLECT" --repo "$repoM" --out "$TEST_TMPDIR/tf-modules.json" --generated-on 2026-09-28
+tmrec="$(cat "$TEST_TMPDIR/tf-modules.json")"
+assert_contains "a module-only root is drawn" "$tmrec" '"status": "drawn"'
+assert_contains "an envs directory names the environment" "$tmrec" '"environment":"prod","tool":"terraform"'
+assert_not_contains "a module directory is not an environment" "$tmrec" '"environment":"app"'
+assert_contains "a module environment resource is a compute node" "$tmrec" '"id":"prod/module.app.azurerm_container_app_environment.env","env":"prod","tool":"terraform","kind":"compute","name":"acme-env"'
+assert_contains "a module argument that is a root variable resolves" "$tmrec" '"container":"web","env":"prod","tool":"terraform","node":"prod/module.app.azurerm_container_app_environment.env","compute":"prod/module.app.azurerm_container_app_environment.env","image":"ghcr.io/acme/web:2","replicas":"1","ports":"80"'
+assert_contains "a literal module argument resolves" "$tmrec" '"container":"web","env":"staging","tool":"terraform","node":"staging/module.app.azurerm_container_app_environment.env","compute":"staging/module.app.azurerm_container_app_environment.env","image":"ghcr.io/acme/web:1"'
+assert_contains "a container app secret reference is a redacted parameter" "$tmrec" '"parameter":"DB_URL","env":"prod","tool":"terraform","container":"web","value":"","redacted":"yes"'
+assert_contains "the module image differs between environments" "$tmrec" '"detail":"ghcr.io/acme/web:2 -> ghcr.io/acme/web:1"'
+assert_equals "each module resource is drawn once per environment" "$(grep -c '"container":"web","env":"[a-z]*","tool":"terraform","node"' "$TEST_TMPDIR/tf-modules.json")" "2"
+
+# Terraform: a remote module source, or a local one with no tracked files, refuses the record by name.
+repoR="$TEST_TMPDIR/tf-remote"
+tf_refusal() {
+  local label="$1" reason="$2" file="$3" content="$4" rec
+  rm -rf "$repoR"
+  init_repo "$repoR"
+  mkdir -p "$repoR/$(dirname "$file")"
+  printf '%s\n' "$content" >"$repoR/$file"
+  printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoR/compose.yaml"
+  commit_all "$repoR"
+  bash "$COLLECT" --repo "$repoR" --out "$TEST_TMPDIR/tf-remote.json" --generated-on 2026-09-28
+  rec="$(cat "$TEST_TMPDIR/tf-remote.json")"
+  assert_contains "$label refuses by name" "$rec" "\"reason\": \"$reason\""
+  assert_not_contains "$label draws nothing from compose either" "$rec" "ghcr.io/acme/api"
+  bash "$RENDER" --record "$TEST_TMPDIR/tf-remote.json" --out "$TEST_TMPDIR/tf-remote-out" --dialect likec4 >/dev/null
+  assert_not_contains "$label renders no diagram" "$(cat "$TEST_TMPDIR/tf-remote-out/deployment.md")" '```'
+  TF_REFUSAL_REC="$rec$(cat "$TEST_TMPDIR/tf-remote-out/deployment.md")"
+}
+tf_refusal "a remote git module" "terraform-module-unread:infra/main.tf:module.net" infra/main.tf \
+  "$(printf 'module "net" {\n  source = "git::https://deploy:%s@github.com/acme/net.git"\n}' "$(gh_tok R)")"
+assert_not_contains "a remote module source never reaches the record" "$TF_REFUSAL_REC" "$(gh_tok R)"
+assert_not_contains "a remote module source host is not printed" "$TF_REFUSAL_REC" "github.com/acme/net"
+tf_refusal "a registry module" "terraform-module-unread:main.tf:module.vpc" main.tf \
+  "$(printf 'resource "aws_ecs_cluster" "main" {\n  name = "acme"\n}\nmodule "vpc" {\n  source = "terraform-aws-modules/vpc/aws"\n}')"
+tf_refusal "a local module with no tracked files" "terraform-module-unread:main.tf:module.net" main.tf 'module "net" { source = "./net" }'
+tf_refusal "an unbalanced block" "terraform-unreadable:main.tf" main.tf "$(printf 'resource "aws_ecs_cluster" "main" {\n  name = "acme"\n')"
+tf_refusal "an unterminated heredoc" "terraform-unreadable:main.tf" main.tf "$(printf 'resource "aws_ecs_task_definition" "x" {\n  container_definitions = <<EOF\n[]\n}\n')"
+tf_refusal "a tfvars file with no configuration" "terraform-orphan-tfvars:infra/prod.tfvars" infra/prod.tfvars 'region = "westeurope"'
+
+# Terraform no-leak: a secret in a tfvars file that a container env references, a sensitive
+# variable, and literal secrets in container_definitions.
+repoTL="$TEST_TMPDIR/tf-leaks"
+init_repo "$repoTL"
+cat >"$repoTL/main.tf" <<EOF
+variable "upstream" {}
+variable "cs_sql" {}
+variable "opaque" {
+  sensitive = true
+}
+resource "aws_ecs_task_definition" "api" {
+  family = "api"
+  container_definitions = jsonencode([{
+    name  = "api"
+    image = "ghcr.io/acme/api:1"
+    environment = [
+      { name = "UPSTREAM_A", value = var.upstream },
+      { name = "CS_SQL", value = var.cs_sql },
+      { name = "OPAQUE", value = var.opaque },
+      { name = "UPSTREAM_B", value = "$(gh_pat L)" },
+      { name = "CS_BUS", value = "Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKey=${fake}-SAKL" },
+      { name = "LOG_LEVEL", value = "info" }
+    ]
+    secrets = [{ name = "API_KEY", valueFrom = "arn:aws:ssm:eu-west-1:000000000000:parameter/api" }]
+  }])
+}
+EOF
+leak_needles+=("$(gh_pat L)")
+for s in S P; do
+  [[ "$s" == S ]] && d=staging || d=prod
+  {
+    printf 'upstream = "%s"\n' "$(gh_tok "$s")"
+    printf 'cs_sql   = "Server=db.example.com;User ID=app;Password=%s-TFSQL%s"\n' "$fake" "$s"
+    printf 'opaque   = "%s-OPQ%s"\n' "$fake" "$s"
+  } >"$repoTL/$d.tfvars"
+done
+commit_all "$repoTL"
+bash "$COLLECT" --repo "$repoTL" --out "$TEST_TMPDIR/tf-leaks.json" --generated-on 2026-09-28
+tlrec="$(cat "$TEST_TMPDIR/tf-leaks.json")"
+assert_contains "terraform leak fixture is drawn" "$tlrec" '"status": "drawn"'
+for k in UPSTREAM_A CS_SQL OPAQUE UPSTREAM_B CS_BUS API_KEY; do
+  assert_contains "terraform leak fixture redacts $k" "$tlrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"terraform\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
+done
+assert_contains "a tfvars secret that differs is reported without its value" "$tlrec" "secret parameter UPSTREAM_A differs"
+assert_contains "a sensitive variable that differs is reported without its value" "$tlrec" "secret parameter OPAQUE differs"
+assert_no_leak "terraform record" "$tlrec"
+tlsum="$(bash "$RENDER" --record "$TEST_TMPDIR/tf-leaks.json" --out "$TEST_TMPDIR/tf-leaks-out" --dialect c4-plantuml --diff staging prod)"
+assert_no_leak "terraform render" "$(cat "$TEST_TMPDIR/tf-leaks-out/deployment.md")$tlsum"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'

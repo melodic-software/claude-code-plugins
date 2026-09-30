@@ -88,7 +88,7 @@ Omit `--containers` when `containers.json` is not already in the architecture di
 present it must be schema_version 1. An unreadable catalog refuses the run. Pass `--live` only when
 the invocation asked for live state. The script does not call a cloud API.
 
-Shipped readers, both when both are present:
+Shipped readers, every one that is present:
 
 - Docker Compose (`compose.yaml`, `docker-compose.yml`, and `compose.<env>.yaml`). The environment
   is the filename suffix of `compose.<env>.yaml`, otherwise the parent directory name
@@ -108,10 +108,27 @@ Shipped readers, both when both are present:
   the whole selector. An Ingress routes to the containers behind each Service its backends name.
   Each is a `relationships` entry from the Service or Ingress node to a container. A selector that
   matches no pod template labels draws nothing.
+- Terraform (`.tf`, `.tf.json`, `.tfvars`, `.tfvars.json`), read as text. No `terraform` binary,
+  state, or credentials. A root is a directory of configuration that no local module source names.
+  Its environments are the `<env>` of an `envs/<env>/` or `environments/<env>/` path, else one per
+  `<env>.tfvars` at or above it, else the directory name (`default` at the repository root).
+  `terraform.tfvars` and `*.auto.tfvars` apply to every environment of their root and are not
+  environments themselves. Containers come from `aws_ecs_task_definition` `container_definitions`
+  (`jsonencode([...])` or heredoc JSON), `azurerm_container_app`, `google_cloud_run_v2_service`,
+  and `kubernetes_deployment`, `kubernetes_stateful_set`, and `kubernetes_daemonset` (with or
+  without `_v1`). Compute nodes are `aws_ecs_cluster`, `aws_eks_cluster`,
+  `azurerm_container_app_environment`, `azurerm_kubernetes_cluster`, `google_container_cluster`, and
+  each Kubernetes workload. An ECS container runs on the cluster its `aws_ecs_service` names, with
+  the service's `desired_count`. A container app runs on the environment its
+  `container_app_environment_id` names. A Cloud Run container sits directly in the environment. A
+  module-only root follows local module sources, each resource addressed `module.<name>.<type>.<name>`.
+  A remote module source, or a local one with no tracked configuration, refuses the record as
+  `terraform-module-unread:<file>:module.<name>`, and the source itself is never printed. A file
+  that does not parse is `terraform-unreadable:<file>`. A tfvars file with no configuration at or
+  above it is `terraform-orphan-tfvars:<file>`.
 
-Terraform (any `.tf`, `.tfvars`, or `.tf.json`), ARM templates (JSON whose `$schema` names
-`deploymentTemplate`), Pulumi, Bicep, CloudFormation, Helm (a `Chart.yaml`), and Kustomize are
-recognized. If any of them is present, the record is refused, including when Compose or Kubernetes
+ARM templates (JSON whose `$schema` names `deploymentTemplate`), Pulumi, Bicep, CloudFormation,
+Helm (a `Chart.yaml`), and Kustomize are recognized. If any of them is present, the record is refused, including when Compose or Kubernetes
 is also present. A diagram of only the shipped tool would be a partial read. A repository whose only
 IaC is an unshipped tool is refused as `adapter-not-shipped`, not drawn empty. Files under CI
 directories such as `.github/` are not IaC and are skipped. A double-brace expression in a Compose
@@ -126,7 +143,7 @@ with an empty value and `"redacted":"yes"`. Any other emitted field that carries
 `[redacted]`. A secret must not appear in the record, the diagram, the diff, or stdout. A diff of
 two secret values says that the parameter differs and does not print either value.
 
-A diff compares two environments over these kinds, for Compose and Kubernetes alike: a container
+A diff compares two environments of one tool over these kinds, for every shipped reader: a container
 present in one environment only, image, replicas, ports, a parameter present in one environment
 only, a plain parameter value, a secret parameter that differs, a network (a Compose network or a
 Kubernetes Service) or an Ingress present in one environment only, and a network exposure or port
@@ -180,6 +197,7 @@ End every run with this block, in this order:
 ## What this skill does NOT do
 
 - Call a cloud API, use credentials, or compare live state to the declaration.
+- Run `terraform`, read Terraform state, or fetch a remote module.
 - Cost, scaling, capacity, or runtime health.
 - Apply Helm templates or Kustomize. Those tools are a refusal, not a guessed render.
 - Add a dialect key, read `landscape_dialect`, or emit mermaid. The dialect is the existing
@@ -227,8 +245,24 @@ End every run with this block, in this order:
   is recorded on `default`. A service that names a network is recorded on that network.
 - **A required secret is not a topology fact.** The value is dropped. The diff can say the
   parameter differs. It cannot show the value.
-- **Two tools are not half-read.** Seeing Terraform beside Compose refuses the whole record. A
-  `main.tf` with only `module` blocks, a `.tfvars`, or an ARM template counts too.
+- **Two tools are not half-read.** Seeing Bicep, an ARM template, or any other unshipped tool
+  beside Compose refuses the whole record. Terraform beside Compose is read, since both are shipped.
+- **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
+  then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
+  same way. A variable declared `sensitive = true` is redacted wherever it lands. Everything else,
+  such as locals, functions other than `jsonencode`, conditionals, for-expressions, `file()`, and
+  `templatefile()`, is recorded as `unresolved:<expression>`. `count` and `for_each` are not
+  expanded (the resource is placed once), a `dynamic` block is not read, and an env list built by
+  an expression records no parameters.
+- **Only `./` and `../` sources are local.** Claim: a local module source uses the `./` or `../`
+  prefix, and every other source is a registry, VCS, or remote address. Basis:
+  <https://developer.hashicorp.com/terraform/language/block/module>. As of: 2026-09-29. Recheck
+  when that page changes how a local path is written.
+- **Auto-loaded tfvars rank below the environment's file.** Claim: Terraform auto-loads
+  `terraform.tfvars`, `terraform.tfvars.json`, and `*.auto.tfvars(.json)`, which outrank
+  `terraform.tfvars`. A `-var-file` (the `<env>.tfvars` here) outranks them all, and a variable
+  `default` ranks lowest. Basis: <https://developer.hashicorp.com/terraform/language/values/variables>.
+  As of: 2026-09-29. Recheck when that page changes the precedence list.
 - **`override` is not an environment.** An override merges into its base's environment. A layer with no declared merge order is refused by name, never guessed.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.
 - **A reformatted record is refused.** Render exits 1 and writes nothing.

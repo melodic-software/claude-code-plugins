@@ -21,11 +21,11 @@
     {
       "id": 2,
       "name": "two-tools-refuse",
-      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and main.tf with a Terraform resource. Both are tracked.",
-      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and terraform, and no deployment diagram is drawn.",
+      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and main.bicep with a Bicep resource. Both are tracked.",
+      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and bicep, and no deployment diagram is drawn.",
       "narration": true,
       "expectations": [
-        "Does not draw the Compose services and ignore Terraform",
+        "Does not draw the Compose services and ignore Bicep",
         "Names both tools",
         "The artifact states partial-read",
         "No deployment diagram is written"
@@ -33,14 +33,15 @@
     },
     {
       "id": 3,
-      "name": "terraform-only-refuses",
-      "prompt": "/architecture:map-deployment\n\nThe only IaC is net.tf declaring an azurerm_virtual_network. The operator asked where the network is.",
-      "expected_output": "The record reason is adapter-not-shipped. The virtual network name is not drawn as a node.",
+      "name": "terraform-remote-module-refuses",
+      "prompt": "/architecture:map-deployment\n\nThe only IaC is infra/main.tf, which declares an aws_ecs_cluster and a module \"net\" whose source is a git URL. The operator asked where the containers run.",
+      "expected_output": "The record reason is terraform-module-unread:infra/main.tf:module.net. The git source is not printed, and no diagram is drawn from the cluster alone.",
       "narration": true,
       "expectations": [
-        "Recognizes Terraform",
-        "Does not invent a deployment node from the resource name",
-        "The artifact states that the adapter is not shipped"
+        "Recognizes Terraform as a shipped reader",
+        "Does not draw the cluster while the remote module stays unread",
+        "The artifact names the file and module that were not read",
+        "The module source URL does not appear in the record, the artifact, or the reply"
       ]
     },
     {

@@ -2,8 +2,9 @@
 # Collect a per-environment deployment record from committed IaC.
 #
 # WHY. A deployment diagram is a fact only when every node is a declaration in
-# a named file. This script reads Docker Compose and Kubernetes manifests. It
-# does not call a cloud API, even when --live is passed.
+# a named file. This script reads Docker Compose, Kubernetes manifests, and
+# Terraform configuration as text. It does not call a cloud API, even when
+# --live is passed, and it never runs terraform or reads state.
 #
 # Usage:
 #   collect-deployment.sh [--repo <path>] [--out <file>] [--generated-on <date>]
@@ -11,9 +12,10 @@
 #   collect-deployment.sh --help
 #
 # Tracked files only (`git ls-files`), CI directories (.github and the like)
-# excluded. Shipped readers: Compose and Kubernetes manifests. Terraform (any
-# .tf, .tfvars, .tf.json), ARM templates, Pulumi, Bicep, CloudFormation, Helm
-# (a Chart.yaml), and Kustomize are recognized and then the record is refused,
+# excluded. Shipped readers: Compose, Kubernetes manifests, and Terraform (.tf,
+# .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk). ARM templates,
+# Pulumi, Bicep, CloudFormation, Helm (a Chart.yaml), and Kustomize are
+# recognized and then the record is refused,
 # including when a shipped reader also matches, so the diagram is never a
 # partial read. A compose base file and its compose.override.yaml, or the files
 # a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
@@ -228,6 +230,7 @@ fi
 
 : >"$TMP/compose.txt"
 : >"$TMP/k8s.txt"
+: >"$TMP/tf.txt"
 shipped=0
 unshipped=0
 
@@ -280,9 +283,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     unshipped=1
     continue
     ;;
-  *.tf | *.tfvars | *.tf.json)
-    add_tool terraform no "$rel"
-    unshipped=1
+  *.tf | *.tfvars | *.tf.json | *.tfvars.json)
+    printf '%s\n' "$rel" >>"$TMP/tf.txt"
+    add_tool terraform yes "$rel"
+    shipped=1
     continue
     ;;
   *.json)
@@ -450,7 +454,8 @@ if [[ -s "$TMP/compose-layers.txt" ]]; then
         path = bits[1]
         env = bits[2]
         remember_env(env)
-        evidence[env] = (env in evidence ? evidence[env] ", " path : path)
+        if (env in evidence) evidence[env] = evidence[env] ", " path
+        else evidence[env] = path
         section = ""
         svc = ""
         key = ""
@@ -844,22 +849,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       for (i = 1; i <= env_n; i++) for (j = i + 1; j <= env_n; j++) {
         a = env_list[i]; b = env_list[j]
         if (a > b) { t = a; a = b; b = t }
-        for (sk in image) {
-          split(sk, sp, SUBSEP)
-          c = sp[2]
-          if ((a SUBSEP c) in image && !((b SUBSEP c) in image))
-            printf "{\"change\":\"removed\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("present only in " a) >> diffs
-          else if ((b SUBSEP c) in image && !((a SUBSEP c) in image))
-            printf "{\"change\":\"added\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc("present only in " b) >> diffs
-          else if ((a SUBSEP c) in image && (b SUBSEP c) in image && image[a SUBSEP c] != image[b SUBSEP c])
-            printf "{\"change\":\"image\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(image[a SUBSEP c] " -> " image[b SUBSEP c]) >> diffs
-        }
-        for (sk in replica_of) {
-          split(sk, sp, SUBSEP)
-          c = sp[2]
-          if ((a SUBSEP c) in replica_of && (b SUBSEP c) in replica_of && replica_of[a SUBSEP c] != replica_of[b SUBSEP c] && replica_of[a SUBSEP c] != "undeclared" && replica_of[b SUBSEP c] != "undeclared")
-            printf "{\"change\":\"replicas\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(replica_of[a SUBSEP c] " -> " replica_of[b SUBSEP c]) >> diffs
-        }
+        container_diffs(a, b, "kubernetes")
         param_port_diffs(a, b, "kubernetes")
         node_diffs(a, b, "kubernetes")
       }
@@ -870,6 +860,20 @@ if [[ -s "$TMP/k8s.txt" ]]; then
   fi
   if [[ -s "$DIFFS" ]]; then
     sort -u "$DIFFS" -o "$DIFFS"
+  fi
+fi
+
+if [[ -s "$TMP/tf.txt" ]]; then
+  tf_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    tf_args+=("./$rel")
+  done <"$TMP/tf.txt"
+  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/tf-flag" \
+    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/terraform-reader.awk" "${tf_args[@]}"); then
+    refuse "terraform-unreadable"
+  fi
+  if [[ -s "$TMP/tf-flag" ]]; then
+    refuse "$(head -n 1 "$TMP/tf-flag")"
   fi
 fi
 
