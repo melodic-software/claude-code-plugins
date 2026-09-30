@@ -1324,7 +1324,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false

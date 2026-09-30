@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml, and offer allow rules so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
+description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml, and print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -100,10 +100,27 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      page states a different default or a release note names fork mode.
 6. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
-   as no rules) and compare it with the six rules in `apply` step 4. Report one row, **never FAIL**:
-   PASS when all six are present for this install root; INFO "stale" when gate rules name a different
-   `…/scripts/check-*` root (an earlier version's cache directory, which stops matching after an
-   update), naming that root; INFO "absent" otherwise, pointing at `apply`.
+   as no rules; read only, never write) and compare it with these six rules for this install root:
+
+   ```text
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py *)
+   ```
+
+   Report one row, **never FAIL**: PASS when all six are present for this install root; INFO "stale"
+   when gate rules name a different `…/scripts/check-*` root (an earlier version's cache directory,
+   which stops matching after an update), naming that root; INFO "absent" otherwise. On stale or
+   absent, print the six rules resolved to this install root and ready to paste, each as a JSON
+   string for `permissions.allow` (the quoted forms escape their inner `"`). Applying them is the
+   operator's job: this skill never writes user settings. The rules pin this version's cache
+   directory on purpose, so a plugin update invalidates them and `check` reports them "stale" again;
+   why a version wildcard is unsafe is in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+   ("Operator setup").
 
 ## `apply` (idempotent)
 
@@ -133,27 +150,6 @@ reports "already configured".
    reports no match (a match is FAIL with the pattern) AND `git ls-files --error-unmatch` exits 0
    (non-zero right after a fresh write means "written but untracked: commit it to share with the
    team", never success).
-4. **Offer the gate allow rules (interactive only).** When `check` step 6 reported "stale" or
-   "absent", ask once, recommendation first (RECOMMENDED: add them), whether to add these rules to
-   the operator's `~/.claude/settings.json`. A non-interactive `apply` never writes them; it reports
-   the step 6 row and this list for the operator to paste:
-
-   ```text
-   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" *)
-   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" *)
-   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" *)
-   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh *)
-   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh *)
-   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py *)
-   ```
-
-   On yes: add each missing rule to `permissions.allow` as a JSON string (the quoted forms escape
-   their inner `"`), remove only the stale rules step 6 named, and keep every other key and rule in
-   the file. The write to user settings prompts for approval; that prompt is the operator's
-   consent, so never route around it. Re-read the file and report the six rules present. The rules
-   pin this version's cache directory on purpose, and why a version wildcard is unsafe, is in
-   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
-   ("Operator setup"). After a plugin update, re-run `apply` to refresh them.
 
 ## Output
 
@@ -177,7 +173,8 @@ dispatch land handoff artifacts.
   the rest of this session even after it is set, the recommendation takes effect next session.
 - **Never edit the consumer's root `.gitignore`.** The memory root gets its own self-ignoring guard.
 - **The gate allow rules stop matching after a plugin update.** They name this version's cache
-  directory, so the gates prompt again until `apply` refreshes them; `check` reports them "stale".
+  directory, so the gates prompt again until the operator pastes the rules `check` prints; `check`
+  reports them "stale".
 
 ## What this skill does NOT do
 
@@ -186,5 +183,5 @@ dispatch land handoff artifacts.
 - Write machine-local state. Configuration lives in the consumer's tracked concern file, never in the
   plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
   state only).
-- Write Claude Code user settings, beyond the gate allow rules `apply` step 4 offers and the
-  operator accepts, or `pluginConfigs`.
+- Write Claude Code user settings or `pluginConfigs`. `check` reads `~/.claude/settings.json` and
+  prints the gate allow rules; the operator applies them.

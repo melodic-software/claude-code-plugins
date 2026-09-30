@@ -102,11 +102,6 @@
 # every mutating step here branches on.
 set -uo pipefail
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
-  exit 2
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
@@ -210,6 +205,11 @@ Usage:
 
 --render prints the Step 6 report (render-report.jq over the digest) after the
 digest line; the report is written to <run_dir>/report.txt either way.
+--audit is the dry run: it reads the fleet, predicts every claude call without
+issuing it, and leaves nothing behind.
+
+Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
+2 usage error, jq missing, or a run-level failure that left no digest.
 EOF
 }
 
@@ -320,6 +320,12 @@ elif [[ "$MODE" == "sync" && -z "$JOURNAL_ROOT" ]]; then
   exit 2
 fi
 
+# Checked after argument parsing so --help and usage errors work without jq.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
+  exit 2
+fi
+
 # JSON array of the non-empty lines of a file, CR-stripped. Used for every id list
 # in the digest, so a `\r` can never ride into a report row or a later CLI call.
 json_lines() {
@@ -420,7 +426,9 @@ run_cli() {
   local sink="$RUN_DIR/.last-cli-out"
   {
     echo "\$ $label"
-    "$CLAUDE_BIN" "$@" 2>&1
+    # stdin closed: the CLI's confirmation for a marketplace-declared command
+    # must fail, not wait on a prompt whose text is captured into the journal.
+    "$CLAUDE_BIN" "$@" 2>&1 </dev/null
   } | tee -a "$JOURNAL_LOG" >"$sink"
   CLI_RC=${PIPESTATUS[0]}
   CLI_OUT=$(<"$sink")
