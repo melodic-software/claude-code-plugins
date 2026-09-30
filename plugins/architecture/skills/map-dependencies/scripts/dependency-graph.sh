@@ -36,7 +36,7 @@
 #     "generated_on": "YYYY-MM-DD" | "unknown",
 #     "result": "ok" | "unknown",
 #     "message": "...",
-#     "ecosystem": "dotnet" | "unknown",
+#     "ecosystem": "<name>" | "mixed" | "unknown",
 #     "node_threshold": 40,
 #     "cycles_truncated": false,
 #     "nodes": [ <one node object per line> ],
@@ -47,8 +47,11 @@
 #
 #   node     {"id","name","path","ecosystem","kind"} plus, on a project, the
 #            optional "namespace" and "test" fields.
+#            ecosystem is the name of the reader that produced the node.
 #            kind is "project" or "package". id of a project is its
 #            repo-relative path. id of a package is "pkg:" plus the Include.
+#            Nodes with the same id are one node, so a reader other than .NET
+#            puts its ecosystem name after the colon ("pkg:<ecosystem>:<name>").
 #            namespace is the project file's RootNamespace, else its
 #            AssemblyName, and is omitted when neither is a literal value.
 #            test is "yes" on a test project (IsTestProject true, or a
@@ -72,17 +75,30 @@
 #            reference tags this run did not turn into an edge. evidence is the
 #            file, a colon, and the count. A graph with this finding is not a
 #            complete list of that file's references.
+#            kind "unread-manifest" is a declaration in a manifest whose shape
+#            a reader does not handle. path is the manifest. evidence is that
+#            file, a colon, and the declaration it skipped, one finding per
+#            declaration. A graph with this finding is not a complete list of
+#            that manifest's dependencies.
+#
+# Every shipped reader whose manifests are present runs, and their nodes, edges
+# and findings are merged into one record. The top-level ecosystem is the name
+# of the one reader that ran, "mixed" when more than one ran, and "unknown"
+# when none did. A reader of schema_version 1 that does not know a new
+# ecosystem name or finding kind still finds every field it reads.
 #
 # result "unknown" means this run did not read a shipped adapter. The arrays
 # are empty and message says why. That is not an empty graph: an empty graph
 # is result "ok" with project nodes and no edges.
 #
-# The first shipped adapter is .NET. ProjectReference is a directed internal
+# The .NET adapter: ProjectReference is a directed internal
 # edge whose target is the Include path relative to the project file.
 # PackageReference is an external package edge. A ProjectReference that is
 # missing or escapes the repository root is status "unresolved" and is never
 # matched to a similarly named project elsewhere. Solution files
-# (*.sln, *.slnx) contribute membership, not dependency edges.
+# (*.sln, *.slnx) contribute membership, not dependency edges. A member whose
+# path ends in another project extension (.vbproj, .sqlproj, ...) is an
+# unread-manifest finding.
 #
 # A Directory.Build.props or Directory.Build.targets reference is an edge from
 # every project whose nearest such file, walking up from the project, is that
@@ -95,6 +111,114 @@
 # and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
 # Verified 2026-09-29. Recheck when either page changes the lookup rule or the
 # base of a relative Include in an imported file.
+#
+# The Node adapter (lib/node-references.sh): every package.json outside
+# node_modules is a project node whose id is its repo-relative path. Workspace
+# members are the package folders that the "workspaces" globs of a package.json
+# (an array, or an object with a "packages" array) and the "packages" list of a
+# pnpm-workspace.yaml expand to, matched only against the package.json files
+# found under the root. A dependencies, devDependencies, peerDependencies or
+# optionalDependencies entry is an internal project edge when its name is a
+# member of a workspace that holds the declaring package, or its spec is
+# workspace: (a range, an alias pkg@range, or a relative path), file: or link:
+# and names a package folder inside the root. Every other entry is an external
+# package edge to "pkg:node:<name>". A spec that names no member, resolves
+# outside the root or to a folder with no package.json is status "unresolved"
+# and is never matched to a package of the same name elsewhere. A negated or
+# otherwise unexpanded glob, a flow-list "packages:", a catalog: spec, and a
+# dependency value that is not a string are unread-manifest findings.
+# Basis: https://docs.npmjs.com/cli/v11/using-npm/workspaces and
+# https://pnpm.io/workspaces Verified 2026-09-29. Recheck when either page
+# changes what "workspaces" or "packages" may hold or what workspace: accepts.
+#
+# The Go adapter (lib/go-references.sh): every go.mod is a project node whose id
+# is its repo-relative path and whose name is its module path. A replace whose
+# target is a local path (./, ../) holding a go.mod inside the root is an
+# internal project edge to that module, and the evidence cites the replace
+# line; a target that is missing or outside the root is status "unresolved".
+# A require whose module path is that of another go.mod in the repo is internal
+# only when a replace or a go.work use line points it there (both modules named
+# by one go.work); otherwise it is an external edge to "pkg:go:<module>". A
+# directive the reader cannot parse, a go.work replace, and a use line naming no
+# go.mod in the root are unread-manifest findings.
+# Basis: https://go.dev/ref/mod#go-mod-file-replace and
+# https://go.dev/ref/mod#workspaces Verified 2026-09-29. Recheck when either
+# page changes what a replace target or a use directive may hold.
+#
+# The Python adapter (lib/python-references.sh): every pyproject.toml, every
+# setup.py with no pyproject.toml beside it, and every requirements*.txt with
+# neither beside it is a project node whose id is its repo-relative path. A
+# requirements file beside a pyproject.toml or setup.py is read as that
+# project. An edge is read from [project] dependencies (and
+# optional-dependencies and dependency-groups), [tool.poetry.dependencies]
+# entries that carry path =, [tool.uv.sources] entries that carry path =, and
+# requirements lines. A [tool.uv.workspace] members glob (minus exclude) is an
+# internal project edge to each pyproject.toml it matches under the workspace
+# root folder; a literal member holding none is "unresolved". A path (a
+# "name @ file:" URL, a path =, a -e line, or a plain ./ or ../ line) naming a
+# folder inside the root that holds a pyproject.toml, else a setup.py, is an
+# internal project edge citing the declaration; a missing or out-of-root path
+# is status "unresolved". A named requirement is an external edge to
+# "pkg:python:<normalized name>" unless the
+# same file gives that name a path. -r includes are followed only inside the
+# root. setup.py is never executed or parsed: each is an unread-manifest
+# finding, and so are dynamic dependencies, a uv workspace = true source, a
+# multi-line inline table, and an include that is missing or leaves the root.
+# Basis: https://packaging.python.org/en/latest/specifications/dependency-specifiers/
+# https://packaging.python.org/en/latest/specifications/pyproject-toml/
+# https://pip.pypa.io/en/stable/reference/requirements-file-format/ and
+# https://docs.astral.sh/uv/concepts/projects/dependencies/#path and
+# https://docs.astral.sh/uv/concepts/projects/workspaces/ Verified
+# 2026-09-29. Recheck when any page changes what a dependency string, a
+# requirements line, or a path source may hold.
+#
+# The Rust adapter (lib/rust-references.sh): every Cargo.toml is a project node
+# whose id is its repo-relative path, named by [package] name else its folder.
+# A path = dependency in [dependencies], [dev-dependencies] or
+# [build-dependencies] naming a folder inside the root that holds a Cargo.toml
+# is an internal project edge citing the declaration; a missing or out-of-root
+# path is status "unresolved". Every other dependency is an external edge to
+# "pkg:rust:<lower-case name, _ as ->". A [workspace] members glob (minus
+# exclude) is an internal project edge from the workspace root to each
+# Cargo.toml it matches under the root's folder; a literal member holding none
+# is "unresolved". A dependency written workspace = true takes its source from
+# the nearest ancestor Cargo.toml with a [workspace] table: a
+# [workspace.dependencies] path = entry gives an internal edge, any other entry
+# an external one, and the evidence cites both declarations. A
+# [workspace.dependencies] entry no member inherits draws no edge. Unread: any
+# [target.*] dependency table, a path = under [patch] or [replace], workspace =
+# true with no [workspace.dependencies] entry to resolve it, a dependency value
+# that is neither a string nor an inline table, an inline table split across
+# lines, and a members glob node_glob_regex refuses.
+# Basis: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html
+# https://doc.rust-lang.org/cargo/reference/workspaces.html Verified
+# 2026-09-29. Recheck when either page changes what a dependency entry or a
+# members entry may hold.
+#
+# The JVM adapter (lib/jvm-references.sh): every pom.xml, build.gradle and
+# build.gradle.kts is a project node whose id is its repo-relative path; a
+# folder with a settings.gradle(.kts) and no build file is one too, under the
+# settings file. A Gradle project is its folder. An include argument in
+# settings.gradle(.kts) is an internal project edge from the settings folder's
+# project to the folder that project path names, when that folder holds a
+# build file. A project(':x') dependency in a build file resolves from the
+# nearest settings file at or above it (a path with no colon resolves from the
+# build file's folder), and project(path = ':x') is the same reference. A
+# pom.xml <modules><module> entry, including one inside a profile, is an
+# internal project edge to the pom.xml in the folder it names, or to the
+# pom.xml it names when it ends in .xml. A project path or module that names no
+# build file, or leaves the root, is status "unresolved". Every edge cites the
+# declaration. No external package edge is drawn for JVM. Unread: includeFlat,
+# includeBuild, an include with a variable, an interpolated string or a spread,
+# an include or project reference inside a loop, a project(...).projectDir,
+# .buildFileName or .name assignment, apply from, projects.x type-safe
+# accessors, project(...) with a non-literal argument, a module holding a
+# property reference, and a module naming a pom file not called pom.xml.
+# Basis: https://docs.gradle.org/current/userguide/multi_project_builds.html
+# https://docs.gradle.org/current/userguide/declaring_dependencies_basics.html
+# and https://maven.apache.org/pom.html Verified 2026-09-29. Recheck when
+# any page changes how a project path maps to a folder or what a module entry
+# may hold.
 #
 # node_threshold is the documented count of internal project nodes above which
 # the human diagram aggregates to directories. This file stays at project
@@ -110,6 +234,8 @@
 #
 # Exit: 0 = a document was emitted (result ok or unknown); 1 = the path is
 # not a readable directory or --out cannot be written; 2 = usage.
+
+# shellcheck disable=SC2329 # the readers and their helpers are called as "read_$eco".
 set -uo pipefail
 
 NODE_THRESHOLD=40
@@ -117,6 +243,16 @@ NODE_THRESHOLD=40
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
 source "$SCRIPT_DIR/../../../lib/dotnet-references.sh"
+# shellcheck source=../../../lib/node-references.sh
+source "$SCRIPT_DIR/../../../lib/node-references.sh"
+# shellcheck source=../../../lib/go-references.sh
+source "$SCRIPT_DIR/../../../lib/go-references.sh"
+# shellcheck source=../../../lib/python-references.sh
+source "$SCRIPT_DIR/../../../lib/python-references.sh"
+# shellcheck source=../../../lib/rust-references.sh
+source "$SCRIPT_DIR/../../../lib/rust-references.sh"
+# shellcheck source=../../../lib/jvm-references.sh
+source "$SCRIPT_DIR/../../../lib/jvm-references.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -281,6 +417,10 @@ node_ids=()
 node_names=()
 node_paths=()
 node_kinds=()
+node_ecos=()
+
+# The reader that is running; the dispatch below sets it.
+CUR_ECO=""
 
 add_node() {
   local id="$1" name="$2" path="$3" kind="$4"
@@ -290,6 +430,7 @@ add_node() {
   node_names+=("$name")
   node_paths+=("$path")
   node_kinds+=("$kind")
+  node_ecos+=("$CUR_ECO")
 }
 
 declare -A EDGE_SEEN=()
@@ -320,6 +461,8 @@ finding_evidence=()
 add_finding() {
   local kind="$1" path="$2" evidence="$3" key
   key="${kind}"$'\x1f'"${path}"
+  # One unread-manifest finding per skipped declaration, not per file.
+  [[ "$kind" == "unread-manifest" ]] && key+=$'\x1f'"$evidence"
   [[ -n "${FINDING_SEEN[$key]+x}" ]] && return 0
   FINDING_SEEN[$key]=1
   finding_kind+=("$kind")
@@ -327,9 +470,14 @@ add_finding() {
   finding_evidence+=("$evidence")
 }
 
+# A declaration in manifest $1 whose shape the running reader does not handle.
+add_unread_manifest() {
+  add_finding "unread-manifest" "$1" "$1: $2"
+}
+
 json_node() {
-  local id="$1" name="$2" path="$3" kind="$4" namespace="${5:-}" test="${6:-}"
-  local e_id e_name e_path e_kind extra=""
+  local id="$1" name="$2" path="$3" kind="$4" eco="$5" namespace="${6:-}" test="${7:-}"
+  local e_id e_name e_path e_kind e_eco extra=""
   json_escape "$id"
   e_id="$JSON_ESC"
   json_escape "$name"
@@ -338,13 +486,15 @@ json_node() {
   e_path="$JSON_ESC"
   json_escape "$kind"
   e_kind="$JSON_ESC"
+  json_escape "$eco"
+  e_eco="$JSON_ESC"
   if [[ -n "$namespace" ]]; then
     json_escape "$namespace"
     extra+=",\"namespace\":\"$JSON_ESC\""
   fi
   [[ -n "$test" ]] && extra+=',"test":"yes"'
-  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"dotnet","kind":"%s"%s}' \
-    "$e_id" "$e_name" "$e_path" "$e_kind" "$extra"
+  printf '{"id":"%s","name":"%s","path":"%s","ecosystem":"%s","kind":"%s"%s}' \
+    "$e_id" "$e_name" "$e_path" "$e_eco" "$e_kind" "$extra"
 }
 
 # Optional node fields, read from the project file itself: namespace is
@@ -442,10 +592,10 @@ done < <(
     -name '*.csproj' -o -name '*.fsproj' -o -name '*.sln' -o -name '*.slnx' \
     -o -name '*.props' -o -name '*.targets' \
     -o -name 'global.json' \
-    -o -name 'package.json' \
+    -o -name 'package.json' -o -name 'pnpm-workspace.yaml' \
     -o -name 'pyproject.toml' -o -name 'requirements*.txt' -o -name 'setup.py' \
-    -o -name 'go.mod' -o -name 'Cargo.toml' \
-    -o -name 'pom.xml' -o -name 'build.gradle*' \
+    -o -name 'go.mod' -o -name 'go.work' -o -name 'Cargo.toml' \
+    -o -name 'pom.xml' -o -name 'build.gradle*' -o -name 'settings.gradle*' \
     -o -name 'Gemfile' -o -name 'composer.json' \
     \) -print 2>/dev/null |
     ROOT="$root/" awk 'index($0, ENVIRON["ROOT"]) == 1 { $0 = substr($0, length(ENVIRON["ROOT"]) + 1) } { print }' |
@@ -457,6 +607,17 @@ sln_files=()
 msbuild_files=()
 declare -A BUILD_FILE=()
 has_global_json=0
+node_files=()
+pnpm_files=()
+go_files=()
+gowork_files=()
+py_files=()
+req_files=()
+setup_files=()
+cargo_files=()
+pom_files=()
+gradle_files=()
+settings_files=()
 declare -A OTHER=()
 
 for rel in "${files[@]+"${files[@]}"}"; do
@@ -470,15 +631,37 @@ for rel in "${files[@]+"${files[@]}"}"; do
     ;;
   *.props | *.targets) msbuild_files+=("$rel") ;;
   global.json) has_global_json=1 ;;
-  package.json) OTHER[node]="$rel" ;;
-  pyproject.toml | requirements*.txt | setup.py) OTHER[python]="$rel" ;;
-  go.mod) OTHER[go]="$rel" ;;
-  Cargo.toml) OTHER[rust]="$rel" ;;
-  pom.xml | build.gradle*) OTHER[jvm]="$rel" ;;
+  package.json) node_files+=("$rel") ;;
+  pnpm-workspace.yaml) pnpm_files+=("$rel") ;;
+  pyproject.toml) py_files+=("$rel") ;;
+  requirements*.txt) req_files+=("$rel") ;;
+  setup.py) setup_files+=("$rel") ;;
+  go.mod) go_files+=("$rel") ;;
+  go.work) gowork_files+=("$rel") ;;
+  Cargo.toml) cargo_files+=("$rel") ;;
+  pom.xml) pom_files+=("$rel") ;;
+  build.gradle | build.gradle.kts) gradle_files+=("$rel") ;;
+  settings.gradle | settings.gradle.kts) settings_files+=("$rel") ;;
   Gemfile) OTHER[ruby]="$rel" ;;
   composer.json) OTHER[php]="$rel" ;;
   *) ;;
   esac
+done
+
+# Readers. A reader is a pair of functions. has_<name> succeeds when the
+# manifests it reads are present. read_<name> adds their nodes, edges and
+# findings through add_node, add_edge, add_finding and add_unread_manifest.
+# <name> is the ecosystem name that lands in each node's "ecosystem" field, and
+# it is the key a manifest gets in OTHER above once a reader ships. READERS
+# lists the shipped readers, in the order they run. A reader parses in its own
+# file, lib/<name>-references.sh, sourced above.
+READERS=(dotnet node go python rust jvm)
+readers_list="${READERS[*]}"
+readers_list="${readers_list// /, }"
+
+# A manifest whose ecosystem has a shipped reader is that reader's to read.
+for eco in "${READERS[@]}"; do
+  unset "OTHER[$eco]"
 done
 
 other_msg=""
@@ -490,26 +673,12 @@ if [[ ${#OTHER[@]} -gt 0 ]]; then
   done < <(printf '%s\n' "${!OTHER[@]}" | LC_ALL=C sort)
 fi
 
-result="ok"
-ecosystem="dotnet"
-message=""
-if [[ ${#proj_files[@]} -eq 0 ]]; then
-  result="unknown"
-  ecosystem="unknown"
-  if [[ -n "$other_msg" ]]; then
-    message="Found build manifests for $other_msg and no .NET project file (*.csproj, *.fsproj). That adapter is not shipped, so this run did not invent an empty graph."
-  elif [[ "$has_global_json" -eq 1 ]]; then
-    message="Found global.json and no .NET project file (*.csproj, *.fsproj). global.json names an SDK and declares no project graph, so this run did not invent an empty graph."
-  else
-    message="No recognized build manifest. This run did not invent an empty graph."
-  fi
-else
-  if [[ -n "$other_msg" ]]; then
-    message="Not read: $other_msg. The first adapter is .NET; an unread ecosystem is left unread rather than drawn as an empty graph."
-  fi
+declare -A FILE_RECORDS=()
+declare -A FILE_CONSUMED=()
 
-  declare -A FILE_RECORDS=()
-  declare -A FILE_CONSUMED=()
+has_dotnet() { [[ ${#proj_files[@]} -gt 0 ]]; }
+
+read_dotnet() {
   # Cache one file's reference records in FILE_RECORDS (not in a subshell, so
   # the cache survives).
   load_records() {
@@ -601,7 +770,11 @@ else
       [[ -n "$rec" ]] || continue
       declared="${rec%%$'\t'*}"
       citation="${rec#*$'\t'}"
-      is_proj_suffix "$declared" || continue
+      if ! is_proj_suffix "$declared"; then
+        # Another project type (.vbproj, .sqlproj, ...); a solution folder has no such extension.
+        case "${declared,,}" in *.*proj) add_unread_manifest "$sln_rel" "$citation" ;; *) ;; esac
+        continue
+      fi
       normalized=""
       if normalized="$(normalize_within_root "$sln_dir" "$declared")" &&
         [[ -n "$normalized" && -f "$root/$normalized" ]]; then
@@ -611,6 +784,692 @@ else
       fi
     done < <(sln_declared_projects "$root/$sln_rel")
   done
+}
+
+has_node() { [[ ${#node_files[@]} -gt 0 ]]; }
+
+read_node() {
+  local -A pkg_recs=() pkg_name=() ws_decls=() member_at=() roots_of=()
+  local rel dir name label rec decl
+  local us=$'\x1f'
+
+  # Every package.json outside node_modules is a project node.
+  for rel in "${node_files[@]}"; do
+    pkg_recs[$rel]="$(node_manifest_records "$root/$rel")"
+    name="$(printf '%s\n' "${pkg_recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    pkg_name[$rel]="$name"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+
+  # Workspace declarations by the folder they sit in ("." is the root). Each
+  # line is source<TAB>glob<TAB>declaration.
+  read_ws_records() {
+    local src="$1" records="$2" base
+    base="$(proj_dir_of "$src")"
+    while IFS= read -r rec; do
+      case "$rec" in
+      workspace$'\t'*) ws_decls[${base:-.}]+="$src"$'\t'"${rec#*$'\t'}"$'\n' ;;
+      unread$'\t'*) add_unread_manifest "$src" "${rec#*$'\t'}" ;;
+      *) ;;
+      esac
+    done <<<"$records"
+  }
+  for rel in "${node_files[@]}"; do
+    read_ws_records "$rel" "${pkg_recs[$rel]}"
+  done
+  for rel in "${pnpm_files[@]+"${pnpm_files[@]}"}"; do
+    read_ws_records "$rel" "$(node_pnpm_workspace_records "$root/$rel")"
+  done
+
+  # A workspace member is a package folder a glob expands to, matched against
+  # the package.json files this run found and no others. The workspace root's
+  # own package and each member it lists may name the members.
+  local ws_dir ws_rel line src glob re cand cdir under mkey
+  if [[ ${#ws_decls[@]} -gt 0 ]]; then
+    while IFS= read -r ws_dir; do
+      ws_rel="$ws_dir"
+      [[ "$ws_dir" == "." ]] && ws_rel=""
+      cand="${ws_rel:+$ws_rel/}package.json"
+      [[ -n "${pkg_recs[$cand]+x}" ]] && roots_of[$cand]+="$us$ws_dir$us"
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        src="${line%%$'\t'*}"
+        line="${line#*$'\t'}"
+        glob="${line%%$'\t'*}"
+        decl="${line#*$'\t'}"
+        if ! re="$(node_glob_regex "$glob")"; then
+          add_unread_manifest "$src" "$decl"
+          continue
+        fi
+        for cand in "${node_files[@]}"; do
+          cdir="$(proj_dir_of "$cand")"
+          [[ -n "$cdir" && "$cdir" != "$ws_rel" ]] || continue
+          if [[ -z "$ws_rel" ]]; then
+            under="$cdir"
+          else
+            [[ "$cdir" == "$ws_rel"/* ]] || continue
+            under="${cdir#"$ws_rel"/}"
+          fi
+          [[ "$under" =~ $re ]] || continue
+          [[ "${roots_of[$cand]-}" == *"$us$ws_dir$us"* ]] || roots_of[$cand]+="$us$ws_dir$us"
+          mkey="$ws_dir$us${pkg_name[$cand]}"
+          [[ -n "${pkg_name[$cand]}" && -z "${member_at[$mkey]+x}" ]] && member_at[$mkey]="$cand"
+        done
+      done <<<"${ws_decls[$ws_dir]}"
+    done < <(printf '%s\n' "${!ws_decls[@]}" | LC_ALL=C sort)
+  fi
+
+  # The member package.json that package $1 reaches by name $2, if any.
+  member_named() {
+    local d
+    local -a roots
+    IFS="$us" read -r -a roots <<<"${roots_of[$1]-}"
+    for d in "${roots[@]+"${roots[@]}"}"; do
+      [[ -n "$d" && -n "${member_at[$d$us$2]+x}" && "${member_at[$d$us$2]}" != "$1" ]] || continue
+      printf '%s\n' "${member_at[$d$us$2]}"
+      return 0
+    done
+    return 1
+  }
+
+  # An edge from package $1 to the package folder that path $3 names. $2 is the
+  # spec as declared, kept as the target of an unresolved edge.
+  add_path_edge() {
+    local from="$1" spec="$2" path="$3" evidence="$4" normalized target
+    if normalized="$(normalize_within_root "$(proj_dir_of "$from")" "$path")"; then
+      target="${normalized:+$normalized/}package.json"
+      if [[ -n "${pkg_recs[$target]+x}" && "$target" != "$from" ]]; then
+        add_edge "$from" "$target" "project" "resolved" "$evidence"
+        return 0
+      fi
+    fi
+    add_edge "$from" "$spec" "project" "unresolved" "$evidence"
+  }
+
+  local spec want target
+  for rel in "${node_files[@]}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == dep$'\t'* ]] || continue
+      rec="${rec#*$'\t'}" # drop the kind, then the section
+      rec="${rec#*$'\t'}"
+      name="${rec%%$'\t'*}"
+      rec="${rec#*$'\t'}"
+      spec="${rec%%$'\t'*}"
+      decl="${rec#*$'\t'}"
+      case "$spec" in
+      catalog:*)
+        add_unread_manifest "$rel" "$decl"
+        ;;
+      file:* | link:*)
+        add_path_edge "$rel" "$spec" "${spec#*:}" "$rel: $decl"
+        ;;
+      workspace:.* | workspace:/*)
+        add_path_edge "$rel" "$spec" "${spec#workspace:}" "$rel: $decl"
+        ;;
+      workspace:*)
+        # workspace:*, workspace:^1.0.0, or the alias form workspace:pkg@range.
+        want="$name"
+        [[ "${spec#workspace:}" == ?*@* ]] && want="${spec#workspace:}" && want="${want%@*}"
+        if target="$(member_named "$rel" "$want")"; then
+          add_edge "$rel" "$target" "project" "resolved" "$rel: $decl"
+        else
+          add_edge "$rel" "$want" "project" "unresolved" "$rel: $decl"
+        fi
+        ;;
+      *)
+        if target="$(member_named "$rel" "$name")"; then
+          add_edge "$rel" "$target" "project" "resolved" "$rel: $decl"
+        else
+          add_node "pkg:node:$name" "$name" "" "package"
+          add_edge "$rel" "pkg:node:$name" "package" "resolved" "$rel: $decl"
+        fi
+        ;;
+      esac
+    done <<<"${pkg_recs[$rel]}"
+  done
+}
+
+has_go() { [[ ${#go_files[@]} -gt 0 || ${#gowork_files[@]} -gt 0 ]]; }
+
+read_go() {
+  local -A mod_recs=() mod_name=() replaced=() ws_members=()
+  local rel dir name label rec decl target old is_local normalized cand
+  local us=$'\x1f'
+
+  # Every go.mod is a project node; its id is its repo-relative path.
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    mod_recs[$rel]="$(go_mod_records "$root/$rel")"
+    name="$(printf '%s\n' "${mod_recs[$rel]}" | awk -F '\t' '$1 == "module" { print $2; exit }')"
+    mod_name[$rel]="$name"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+    while IFS= read -r rec; do
+      [[ "$rec" == unread$'\t'* ]] && add_unread_manifest "$rel" "${rec#*$'\t'}"
+    done <<<"${mod_recs[$rel]}"
+  done
+
+  # A replace whose target is a local path is an internal edge to the go.mod in
+  # that folder; a missing or out-of-root folder is unresolved. The replaced
+  # module path is then not also drawn as an external requirement.
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == replace$'\t'* ]] || continue
+      IFS=$'\t' read -r _ old target is_local decl <<<"$rec"
+      [[ "$is_local" == 1 ]] || continue
+      replaced[$rel$us$old]=1
+      cand=""
+      if normalized="$(normalize_within_root "$(proj_dir_of "$rel")" "$target")"; then
+        cand="${normalized:+$normalized/}go.mod"
+      fi
+      if [[ -n "$cand" && "$cand" != "$rel" && -n "${mod_recs[$cand]+x}" ]]; then
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      else
+        add_edge "$rel" "$target" "project" "unresolved" "$rel: $decl"
+      fi
+    done <<<"${mod_recs[$rel]}"
+  done
+
+  # go.work use lines are membership: modules used by one go.work resolve each
+  # other's module paths. A use line naming no go.mod in the root is unread.
+  # ws_members[go.work] holds one member per line: go.mod<US>use declaration.
+  local work
+  for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
+    while IFS= read -r rec; do
+      case "$rec" in
+      unread$'\t'*) add_unread_manifest "$work" "${rec#*$'\t'}" ;;
+      use$'\t'*)
+        IFS=$'\t' read -r _ target decl <<<"$rec"
+        cand=""
+        if normalized="$(normalize_within_root "$(proj_dir_of "$work")" "$target")"; then
+          cand="${normalized:+$normalized/}go.mod"
+        fi
+        if [[ -n "$cand" && -n "${mod_recs[$cand]+x}" ]]; then
+          ws_members[$work]+="$cand$us$decl"$'\n'
+        else
+          add_unread_manifest "$work" "$decl"
+        fi
+        ;;
+      *) ;;
+      esac
+    done <<<"$(go_work_records "$root/$work")"
+  done
+
+  # Requirements. Internal only through a local replace (above) or a shared
+  # go.work; otherwise the module path is an external package.
+  local mod hit hit_decl line
+  for rel in "${go_files[@]+"${go_files[@]}"}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == require$'\t'* ]] || continue
+      IFS=$'\t' read -r _ mod _ decl <<<"$rec"
+      [[ -z "${replaced[$rel$us$mod]+x}" ]] || continue
+      hit=""
+      for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
+        [[ "${ws_members[$work]-}" == *"$rel$us"* ]] || continue
+        while IFS= read -r line; do
+          [[ -n "$line" ]] || continue
+          cand="${line%%"$us"*}"
+          [[ "$cand" != "$rel" && "${mod_name[$cand]}" == "$mod" ]] || continue
+          hit="$cand"
+          hit_decl="$work: ${line#*"$us"}"
+          break
+        done <<<"${ws_members[$work]}"
+        [[ -z "$hit" ]] || break
+      done
+      if [[ -n "$hit" ]]; then
+        add_edge "$rel" "$hit" "project" "resolved" "$hit_decl"
+      else
+        add_node "pkg:go:$mod" "$mod" "" "package"
+        add_edge "$rel" "pkg:go:$mod" "package" "resolved" "$rel: $decl"
+      fi
+    done <<<"${mod_recs[$rel]}"
+  done
+}
+
+has_python() { [[ ${#py_files[@]} -gt 0 || ${#req_files[@]} -gt 0 || ${#setup_files[@]} -gt 0 ]]; }
+
+read_python() {
+  local -A is_pyproject=() is_setup=() seen=() named_path=() recs=()
+  local rel dir base name label owner rec kind a b c
+  local us=$'\x1f'
+
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do is_pyproject[$rel]=1; done
+  for rel in "${setup_files[@]+"${setup_files[@]}"}"; do is_setup[$rel]=1; done
+
+  # The project a manifest in the same folder belongs to: pyproject.toml, else
+  # setup.py, else the requirements file itself.
+  py_owner() {
+    local pre
+    pre="$(proj_dir_of "$1")"
+    pre="${pre:+$pre/}"
+    if [[ -n "${is_pyproject[${pre}pyproject.toml]+x}" ]]; then
+      printf '%s\n' "${pre}pyproject.toml"
+    elif [[ -n "${is_setup[${pre}setup.py]+x}" ]]; then
+      printf '%s\n' "${pre}setup.py"
+    else
+      printf '%s\n' "$1"
+    fi
+  }
+
+  # The project a path names: the pyproject.toml, else setup.py, in that folder.
+  py_target() {
+    local n
+    n="$(normalize_within_root "$1" "$2")" || return 1
+    n="${n:+$n/}"
+    if [[ -n "${is_pyproject[${n}pyproject.toml]+x}" ]]; then
+      printf '%s\n' "${n}pyproject.toml"
+    elif [[ -n "${is_setup[${n}setup.py]+x}" ]]; then
+      printf '%s\n' "${n}setup.py"
+    else
+      return 1
+    fi
+  }
+
+  # An edge from project $1 for the path $3 written in file $2 as declaration $4.
+  py_path_edge() {
+    local id
+    if id="$(py_target "$(proj_dir_of "$2")" "$3")"; then
+      [[ "$id" == "$1" ]] || add_edge "$1" "$id" "project" "resolved" "$2: $4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$2: $4"
+    fi
+  }
+
+  py_pkg_edge() {
+    add_node "pkg:python:$2" "$2" "" "package"
+    add_edge "$1" "pkg:python:$2" "package" "resolved" "$3: $4"
+  }
+
+  # Every manifest folder is one project node; setup.py is reported, not read.
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    recs[$rel]="$(py_project_records "$root/$rel")"
+    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+  for rel in "${setup_files[@]+"${setup_files[@]}"}"; do
+    add_unread_manifest "$rel" "setup.py is not executed or parsed"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${label##*/}" "$rel" "project"
+  done
+  for rel in "${req_files[@]+"${req_files[@]}"}"; do
+    [[ "$(py_owner "$rel")" == "$rel" ]] && add_node "$rel" "${rel##*/}" "$rel" "project"
+  done
+
+  # A named requirement whose entry names a local path is that internal edge
+  # only, not also an external package.
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c <<<"$rec"
+      case "$kind" in
+      path)
+        [[ -z "$c" ]] || named_path[$rel$us$c]=1
+        py_path_edge "$rel" "$rel" "$a" "$b"
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b <<<"$rec"
+      [[ "$kind" == pkg && -z "${named_path[$rel$us$a]+x}" ]] && py_pkg_edge "$rel" "$a" "$rel" "$b"
+    done <<<"${recs[$rel]}"
+  done
+
+  # A [tool.uv.workspace] members glob names the pyproject.toml files this run
+  # found in the folders it matches, under the workspace root's folder. An
+  # exclude removes the folders it matches. A glob node_glob_regex refuses is
+  # unread. A literal member holding no pyproject.toml is an unresolved edge.
+  py_read_workspace() {
+    local rel="$1" wdir kind glob decl re cand cdir under ex
+    local -a excl=() mems=()
+    wdir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind glob decl; do
+      case "$kind" in
+      exclude)
+        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
+        ;;
+      member) mems+=("$glob$us$decl") ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    local m
+    for m in "${mems[@]+"${mems[@]}"}"; do
+      glob="${m%%"$us"*}"
+      decl="${m#*"$us"}"
+      if ! re="$(node_glob_regex "$glob")"; then
+        add_unread_manifest "$rel" "$decl"
+        continue
+      fi
+      local hit=0
+      for cand in "${py_files[@]+"${py_files[@]}"}"; do
+        cdir="$(proj_dir_of "$cand")"
+        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
+        if [[ -z "$wdir" ]]; then
+          under="$cdir"
+        else
+          [[ "$cdir" == "$wdir"/* ]] || continue
+          under="${cdir#"$wdir"/}"
+        fi
+        [[ "$under" =~ $re ]] || continue
+        hit=1
+        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      done
+      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
+        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
+      fi
+    done
+  }
+  for rel in "${py_files[@]+"${py_files[@]}"}"; do py_read_workspace "$rel"; done
+
+  # A requirements file, and the files it includes with -r that sit inside the
+  # root, belong to its folder's project. An include that is missing or leaves
+  # the root is unread.
+  py_read_req() {
+    local file="$1" owner="$2" inc rec kind a b c
+    seen[$file]=1
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c <<<"$rec"
+      case "$kind" in
+      pkg) py_pkg_edge "$owner" "$a" "$file" "$b" ;;
+      path) py_path_edge "$owner" "$file" "$a" "$b" ;;
+      include)
+        if inc="$(normalize_within_root "$(proj_dir_of "$file")" "$a")" && [[ -f "$root/$inc" ]]; then
+          [[ -n "${seen[$inc]+x}" ]] || py_read_req "$inc" "$owner"
+        else
+          add_unread_manifest "$file" "$b"
+        fi
+        ;;
+      unread) add_unread_manifest "$file" "$a" ;;
+      *) ;;
+      esac
+    done <<<"$(py_requirements_records "$root/$file")"
+  }
+  for rel in "${req_files[@]+"${req_files[@]}"}"; do
+    seen=()
+    py_read_req "$rel" "$(py_owner "$rel")"
+  done
+}
+
+has_rust() { [[ ${#cargo_files[@]} -gt 0 ]]; }
+
+read_rust() {
+  local -A is_cargo=() recs=() has_ws=() wdep=()
+  local rel dir name label rec kind a b c d us=$'\x1f'
+
+  for rel in "${cargo_files[@]}"; do is_cargo[$rel]=1; done
+
+  # An edge from project $1 for the path $3 written relative to file $2, with
+  # the citation $4.
+  rust_path_edge() {
+    local n id
+    if n="$(normalize_within_root "$(proj_dir_of "$2")" "$3")" && [[ -n "${is_cargo[${n:+$n/}Cargo.toml]+x}" ]]; then
+      id="${n:+$n/}Cargo.toml"
+      [[ "$id" == "$1" ]] || add_edge "$1" "$id" "project" "resolved" "$4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$4"
+    fi
+  }
+
+  rust_pkg_edge() {
+    add_node "pkg:rust:$2" "$2" "" "package"
+    add_edge "$1" "pkg:rust:$2" "package" "resolved" "$3"
+  }
+
+  # Every Cargo.toml is one project node; its id is its repo-relative path.
+  for rel in "${cargo_files[@]}"; do
+    recs[$rel]="$(rust_manifest_records "$root/$rel")"
+    name="$(printf '%s\n' "${recs[$rel]}" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+
+  # Direct dependencies. [workspace.dependencies] entries are kept for the
+  # workspace = true lookup below and draw no edge of their own.
+  for rel in "${cargo_files[@]}"; do
+    while IFS= read -r rec; do
+      IFS=$'\t' read -r kind a b c d <<<"$rec"
+      case "$kind" in
+      workspace) has_ws[$rel]=1 ;;
+      path) rust_path_edge "$rel" "$rel" "$a" "$rel: $b" ;;
+      pkg) rust_pkg_edge "$rel" "$a" "$rel: $b" ;;
+      wpath) wdep[$rel$us$c]="p$us$a$us$b" ;;
+      wpkg) wdep[$rel$us$a]="k$us$b$us$c" ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+  done
+
+  # workspace = true: the entry in the nearest ancestor (or own) Cargo.toml
+  # with a [workspace] table. No entry to resolve it is unread.
+  local wroot cur entry
+  for rel in "${cargo_files[@]}"; do
+    while IFS= read -r rec; do
+      [[ "$rec" == inherit$'\t'* ]] || continue
+      IFS=$'\t' read -r _ a b <<<"$rec"
+      wroot=""
+      cur="$(proj_dir_of "$rel")"
+      while :; do
+        if [[ -n "${has_ws[${cur:+$cur/}Cargo.toml]+x}" ]]; then
+          wroot="${cur:+$cur/}Cargo.toml"
+          break
+        fi
+        [[ -n "$cur" ]] || break
+        cur="$(proj_dir_of "$cur")"
+      done
+      entry=""
+      [[ -z "$wroot" ]] || entry="${wdep[$wroot$us$a]-}"
+      if [[ -z "$entry" ]]; then
+        add_unread_manifest "$rel" "$b"
+        continue
+      fi
+      IFS=$us read -r kind c d <<<"$entry"
+      if [[ "$kind" == p ]]; then
+        rust_path_edge "$rel" "$wroot" "$c" "$rel: $b via $wroot: $d"
+      else
+        rust_pkg_edge "$rel" "$c" "$rel: $b via $wroot: $d"
+      fi
+    done <<<"${recs[$rel]}"
+  done
+
+  # A [workspace] members glob names the Cargo.toml files this run found in the
+  # folders it matches, under the workspace root's folder. An exclude removes
+  # the folders it matches. A glob node_glob_regex refuses is unread. A literal
+  # member holding no Cargo.toml is an unresolved edge.
+  local wdir glob decl re cand cdir under ex hit m
+  local -a excl mems
+  for rel in "${cargo_files[@]}"; do
+    [[ -n "${has_ws[$rel]+x}" ]] || continue
+    wdir="$(proj_dir_of "$rel")"
+    excl=()
+    mems=()
+    while IFS=$'\t' read -r kind glob decl; do
+      case "$kind" in
+      exclude)
+        if re="$(node_glob_regex "$glob")"; then excl+=("$re"); else add_unread_manifest "$rel" "$decl"; fi
+        ;;
+      member) mems+=("$glob$us$decl") ;;
+      *) ;;
+      esac
+    done <<<"${recs[$rel]}"
+    for m in "${mems[@]+"${mems[@]}"}"; do
+      glob="${m%%"$us"*}"
+      decl="${m#*"$us"}"
+      [[ "$glob" == . || "$glob" == ./ ]] && continue
+      if ! re="$(node_glob_regex "$glob")"; then
+        add_unread_manifest "$rel" "$decl"
+        continue
+      fi
+      hit=0
+      for cand in "${cargo_files[@]}"; do
+        cdir="$(proj_dir_of "$cand")"
+        [[ -n "$cdir" && "$cand" != "$rel" ]] || continue
+        if [[ -z "$wdir" ]]; then
+          under="$cdir"
+        else
+          [[ "$cdir" == "$wdir"/* ]] || continue
+          under="${cdir#"$wdir"/}"
+        fi
+        [[ "$under" =~ $re ]] || continue
+        hit=1
+        for ex in "${excl[@]+"${excl[@]}"}"; do [[ "$under" =~ $ex ]] && continue 2; done
+        add_edge "$rel" "$cand" "project" "resolved" "$rel: $decl"
+      done
+      if [[ $hit -eq 0 && "$glob" != *[*?]* ]]; then
+        add_edge "$rel" "$glob" "project" "unresolved" "$rel: $decl"
+      fi
+    done
+  done
+}
+
+has_jvm() { [[ ${#pom_files[@]} -gt 0 || ${#gradle_files[@]} -gt 0 || ${#settings_files[@]} -gt 0 ]]; }
+
+read_jvm() {
+  # gnode is keyed "/<folder>": bash refuses an empty subscript for the root.
+  local -A is_pom=() gnode=() is_settings=()
+  local rel dir label name rec kind a b n cur sdir
+
+  # An edge from project $1 to the Gradle project path $3, resolved from folder
+  # $2, with the citation $4. A path with no leading colon is relative to $2.
+  gradle_edge() {
+    local p="${3#:}" t
+    p="${p//://}"
+    if t="$(normalize_within_root "$2" "$p")" && [[ -n "${gnode[/$t]+x}" ]]; then
+      [[ "${gnode[/$t]}" == "$1" ]] || add_edge "$1" "${gnode[/$t]}" "project" "resolved" "$4"
+    else
+      add_edge "$1" "$3" "project" "unresolved" "$4"
+    fi
+  }
+
+  # A Gradle project is its folder. Its node is the folder's build file, else
+  # its settings file when the folder has one.
+  for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    add_node "$rel" "${label##*/}" "$rel" "project"
+    [[ -n "${gnode[/$dir]+x}" ]] || gnode[/$dir]="$rel"
+  done
+  for rel in "${settings_files[@]+"${settings_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    is_settings[/$dir]=1
+    if [[ -z "${gnode[/$dir]+x}" ]]; then
+      add_node "$rel" "${label##*/}" "$rel" "project"
+      gnode[/$dir]="$rel"
+    fi
+  done
+
+  for rel in "${settings_files[@]+"${settings_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      include) gradle_edge "${gnode[/$dir]}" "$dir" "$a" "$rel: $b" ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_settings_records "$root/$rel")
+  done
+
+  # project(':x') resolves from the nearest settings file at or above the
+  # build file; a path with no colon resolves from the build file's folder.
+  for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    sdir=""
+    cur="$dir"
+    while :; do
+      if [[ -n "${is_settings[/$cur]+x}" ]]; then
+        sdir="$cur"
+        break
+      fi
+      [[ -n "$cur" ]] || break
+      cur="$(proj_dir_of "$cur")"
+    done
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      project)
+        if [[ "$a" == :* && -z "${is_settings[/$sdir]+x}" ]]; then
+          add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+        elif [[ "$a" == :* ]]; then
+          gradle_edge "$rel" "$sdir" "$a" "$rel: $b"
+        else
+          gradle_edge "$rel" "$dir" "$a" "$rel: $b"
+        fi
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_build_records "$root/$rel")
+  done
+
+  # A pom is a project node named by its artifactId. A <module> is a folder
+  # holding a pom.xml, or a pom file, relative to the aggregating pom.
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    is_pom[$rel]=1
+  done
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    label="${dir:-$root}"
+    name="$(jvm_pom_records "$root/$rel" | awk -F '\t' '$1 == "name" { print $2; exit }')"
+    add_node "$rel" "${name:-${label##*/}}" "$rel" "project"
+  done
+  for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
+    dir="$(proj_dir_of "$rel")"
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+      module)
+        if [[ "$a" == *.xml && "${a##*/}" != pom.xml ]]; then
+          add_unread_manifest "$rel" "$b"
+        elif n="$(normalize_within_root "$dir" "$a")"; then
+          [[ "$a" == *.xml ]] || n="${n:+$n/}pom.xml"
+          if [[ -n "${is_pom[$n]+x}" ]]; then
+            [[ "$n" == "$rel" ]] || add_edge "$rel" "$n" "project" "resolved" "$rel: $b"
+          else
+            add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+          fi
+        else
+          add_edge "$rel" "$a" "project" "unresolved" "$rel: $b"
+        fi
+        ;;
+      unread) add_unread_manifest "$rel" "$a" ;;
+      *) ;;
+      esac
+    done < <(jvm_pom_records "$root/$rel")
+  done
+}
+
+ecos_read=()
+for eco in "${READERS[@]}"; do
+  "has_$eco" || continue
+  CUR_ECO="$eco"
+  "read_$eco"
+  ecos_read+=("$eco")
+done
+
+result="ok"
+message=""
+case "${#ecos_read[@]}" in
+0) ecosystem="unknown" ;;
+1) ecosystem="${ecos_read[0]}" ;;
+*) ecosystem="mixed" ;;
+esac
+if [[ "$ecosystem" == "unknown" ]]; then
+  result="unknown"
+  if [[ -n "$other_msg" ]]; then
+    message="Found build manifests for $other_msg and none that a shipped adapter reads ($readers_list). Those adapters are not shipped, so this run did not invent an empty graph."
+  elif [[ "$has_global_json" -eq 1 ]]; then
+    message="Found global.json and none that a shipped adapter reads ($readers_list). global.json names an SDK and declares no project graph, so this run did not invent an empty graph."
+  else
+    message="No recognized build manifest. This run did not invent an empty graph."
+  fi
+elif [[ -n "$other_msg" ]]; then
+  message="Not read: $other_msg. No adapter for it is shipped; an unread ecosystem is left unread rather than drawn as an empty graph."
 fi
 
 cycle_lines=()
@@ -708,7 +1567,7 @@ for i in "${!node_ids[@]}"; do
     node_ns="$(node_namespace "${node_paths[$i]}")"
     dotnet_is_test_project "$root/${node_paths[$i]}" && node_test=yes
   fi
-  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "$node_ns" "$node_test")")
+  node_json+=("$(json_node "${node_ids[$i]}" "${node_names[$i]}" "${node_paths[$i]}" "${node_kinds[$i]}" "${node_ecos[$i]}" "$node_ns" "$node_test")")
 done
 edge_json=()
 for i in "${!edge_from[@]}"; do
