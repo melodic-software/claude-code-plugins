@@ -38,10 +38,9 @@ thing this plugin exists not to do.
 Both surfaces help a person write auto mode classifier content, so a request to "set up auto mode"
 can mean either.
 
-- **`/auto-mode-setup` (built-in command).** Ships with Claude Code rather than as a marketplace
-  plugin. It drafts `autoMode.environment` entries from the project and recent sessions, with
-  optional rule tweaks, lets the person review the draft, and saves it to user settings. It is
-  reserved for the person to run; the model does not invoke it.
+- **`/auto-mode-setup` (built-in command)**: drafts `autoMode.environment` entries from the
+  project and recent sessions, with optional rule tweaks, lets the person review the draft, and
+  saves it to user settings. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Interviews for entries in every section (`environment`,
   `allow`, `soft_deny`, `hard_deny`), each with stated exclusions and a transcript-visible
   condition, and prints the block without writing anything.
