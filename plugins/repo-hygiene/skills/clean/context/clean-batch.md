@@ -104,8 +104,8 @@ plan line with a representative worktree to `cd` into); `gitdirs=N` in the summa
 reports the deduped count. The dry-run counts each store once, and only what the apply
 ops act on, into `planned=` and `bytes=`: the worktrees `git worktree prune --dry-run`
 would remove, plus the loose objects and garbage of `git count-objects -v` when
-`git gc --auto` would run, meaning loose objects above `gc.auto` (default 6700) or packs
-above `gc.autoPackLimit` (default 50), neither check running when `gc.auto` is 0 or less.
+`git gc --auto` would run, meaning loose objects above `gc.auto` or packs
+above `gc.autoPackLimit`, neither check running when `gc.auto` is 0 or less.
 Below those limits `gc --auto` removes nothing, so a store with nothing else to prune
 counts 0 items and 0 bytes yet stays `would-clean`, because apply still runs
 `git remote prune origin`. Git samples one fan-out directory for its own trigger, so
