@@ -101,7 +101,7 @@ run "cat by redirect" 'cat < .env' 2
 run "cat piped on" 'cat .env | grep KEY' 2
 run_ps "PowerShell: Get-Content .env" 'Get-Content .env' 2
 run_ps "PowerShell: gc -Raw of .netrc" 'gc -Raw $HOME\.netrc' 2
-run_ps "PowerShell: type .git-credentials" 'type C:\Users\me\.git-credentials' 2
+run_ps "PowerShell: type .git-credentials" 'type $HOME\.git-credentials' 2
 run_ps "PowerShell: Get-Content -Path .env.local" 'Get-Content -Path .env.local' 2
 run_ps "PowerShell: cat .env" 'cat .env' 2
 
