@@ -1109,9 +1109,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
     h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + md(next) + "</section>";
-    const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm");
+    const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm"), nOpen = openAssumptions();
     h += '<section class="blk"><div class="arow"><button class="act primary" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Wrap up</button>" +
       (unconf ? '<span class="kbd" id="unconfWarn" style="color:var(--chg)">Understanding not confirmed yet.</span>' : "") +
+      (nOpen ? '<span class="kbd" id="openAssumeWarn" style="color:var(--chg)">' + nOpen + (nOpen === 1 ? " assumption" : " assumptions") + " not confirmed yet.</span>" : "") +
       (S.api < 2 ? '<span class="kbd">' + RESTART + "</span>" : lastWrap ? '<span class="kbd">Wrap-up sent ' + esc(fmt(lastWrap.at)) + "</span>" + receipts(lastWrap.seq) : '<span class="kbd">Tells Claude you are done. Nothing is locked.</span>') + "</div>" +
       '<div class="toast' + (S.toastBad ? " bad" : "") + '">' + esc(S.toast) + "</div></section>";
     setHtml($("sumRest"), h);
