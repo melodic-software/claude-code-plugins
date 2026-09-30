@@ -265,6 +265,10 @@ assert_present 'setup renders the gate allow rules from the substituted root' \
   'skills/setup/SKILL.md' '^   Bash\("\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-dispatch-artifact\.sh" \*\)$'
 assert_absent 'no gate allow rule wildcards the version segment' \
   'discovery/\*/scripts/check-'
+assert_absent_in 'setup has no step that writes the gate allow rules to user settings' \
+  'skills/setup/SKILL.md' 'Offer the gate allow rules'
+assert_absent 'no file says setup apply offers the gate allow rules' \
+  'setup apply` (offers|writes)|setup apply.{0,40}allow rules'
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
 if [[ -z "$frontmatter_grants" ]]; then
   pass 'neither skill declares allowed-tools (the un-run case is stated instead)'
