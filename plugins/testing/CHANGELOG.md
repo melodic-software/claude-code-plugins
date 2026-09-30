@@ -3,11 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.3] - 2026-09-29
+## [0.11.4] - 2026-09-29
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.11.3] - 2026-09-29
+
+### Fixed
+
+- **audit:** `rule-zero-assertion` follows same-file helpers to any depth: a helper that calls an
+  asserting helper asserts too, so a test awaiting `waitForAll()`, which returns `pollUntil(...)`,
+  which throws, is no longer a finding. A C# overload that calls another overload of its name, by argument count, counts when that
+  overload asserts; plain recursion does not. A bats test whose last line is a standalone `! cmd` (no `||`, `&&` or `;`) asserts through that line. A
+  base-versus-head re-scan of this repository, `medley` and `ci-runner` under gawk and mawk
+  cleared exactly medley's two known false positives and moved nothing else.
 
 ## [0.11.2] - 2026-09-29
 

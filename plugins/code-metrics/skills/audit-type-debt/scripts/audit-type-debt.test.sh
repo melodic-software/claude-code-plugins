@@ -110,8 +110,8 @@ pass "the five lane fixtures are present"
 out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
 assert_eq "--json exits 0 with both collectors stubbed" 0 "$rc"
-assert_doc "the document is code-metrics/v1 for audit-type-debt" "$out" \
-  'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-type-debt"'
+assert_doc "the document is code-metrics/v2 for audit-type-debt" "$out" \
+  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-type-debt"'
 assert_doc "the typescript lane row carries type_coverage_pct from type-coverage.json" "$out" \
   'next(r for r in d["measures"] if r["lane"]=="typescript" and r["file"] is None)["values"]["type_coverage_pct"]==55.55'
 assert_doc "each lane has one file row per scope file plus one lane-total row" "$out" \

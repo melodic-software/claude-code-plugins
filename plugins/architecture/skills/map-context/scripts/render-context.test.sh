@@ -4,6 +4,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RENDER="$SCRIPT_DIR/render-context.sh"
+source "$SCRIPT_DIR/../../../lib/likec4-golden.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -74,6 +75,7 @@ assert_contains "likec4: person element" "$lmd" "= person "
 assert_contains "likec4: external element" "$lmd" "= externalSystem \"api.partner.example\""
 assert_contains "likec4: relationship" "$lmd" "e_billing -> e_api_partner_example"
 assert_contains "likec4: view" "$lmd" "view context {"
+assert_likec4_golden "context.c4" "$TEST_TMPDIR/likec4/context.md"
 
 mkdir -p "$TEST_TMPDIR/none"
 out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/none")"

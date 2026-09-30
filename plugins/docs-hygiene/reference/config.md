@@ -169,4 +169,6 @@ plugins/docs-hygiene/scripts/resolve-config.sh layers --root <repo>
 per key plus an `!inert:<key>` line for every ignored declaration. Both take
 `--root`, which is the repository the team and overlay layers are read from, so
 a second worktree or a fixture is addressed explicitly rather than inherited
-from the environment.
+from the environment. A `--root` that is the home directory (or an ancestor of
+it) or is not a git working tree has no team or overlay layer: `paths` reports
+both as not-applicable and only the user-global file is read.
