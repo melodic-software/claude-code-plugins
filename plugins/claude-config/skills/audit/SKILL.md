@@ -327,8 +327,8 @@ environment.
 For each user-approved fix:
 
 1. Make the edit. Route each approved edit to `settings.json` or `settings.local.json`
-   through the built-in `update-config` skill, not a direct write (`.mcp.json` is outside its scope; edit it directly); the one exception is orphan-`false`
-   plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
+   through the built-in `update-config` skill, not a direct write (`.mcp.json` is outside its
+   scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
    check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
    classifier asks, and the user's explicit approval of that fix is the consent. Done when the
    target file carries the change and nothing else in it moved.
