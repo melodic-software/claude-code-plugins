@@ -842,16 +842,31 @@ input. It also baked a solo-operator posture into a contract whose sibling state
 no machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance): a
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
-gap changes no lane's obligations today; it removes the false assurance that nothing is missing.
+gap removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and its writer-side half has landed.** The tee now carries an
+**The resolution is account identity, and all three sides have landed.** The tee carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
-(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). The other two sides
-are not built: reader-side invalidation of latched state on an identity change, and the re-audit
-of every lane body's inlined guard floor. No lane acts on the field yet, so the gap above narrows
-rather than closes. A lane can now be told whose windows it is reading, and is not yet obliged to
-do anything about the answer.
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
+invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
+lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
+names at pause entry, because the snapshot can be up to 10 minutes old), reads
+`.oauthAccount.emailAddress` directly from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` at pause entry
+and on every wake and Monitor tick (the tee is not the signal source, because a headless-only
+machine never refreshes it), and on a change drops the latch and resumes when the new account is
+below the pause threshold, or re-latches against the new account's `resets_at`. One branch goes
+past "drop when the new account is below the threshold": when no fresh tee snapshot attributes the
+new account, its windows are unknown, so the lane drops the latch and runs reactive-only, the
+outcome the staleness rule already gives unknown windows. The lane-floor re-audit is satisfied by
+the drift gate: the floor block moved to every carrier together and
+`scripts/check-loop-lane-floor-drift.sh` fails when any copy differs.
+
+**Known gap: unattributable cases.** The gap narrows rather than closes. A switch the lane cannot
+attribute goes unseen: the tee field is absent whenever the writer could not attribute, a reader
+that cannot read `.oauthAccount.emailAddress` keeps its latch (fail-closed, never a spurious drop)
+until the latched pause ends, and a pause whose tripping snapshot has no `account.email` starts with
+no latched account and adopts the first account it reads, so a switch before that read goes unseen.
+All three depend on an internal `.claude.json` key or on the writer's attribution.
 
 **Guard-mode telemetry.** Each lane records the guard's mode, proactive, reactive, or unknown, in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the

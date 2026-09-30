@@ -54,13 +54,15 @@ resume on their own after the reset. Four parts:
   otherwise. The render path itself has been fork-free since the spool landed, which the suite
   asserts directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render
   path").
-- **Multi-account operation is a narrowed gap, not yet a supported mode.** The snapshot names the
-  account whose windows it carries in an `account.email` field, so a machine switching accounts
-  mid-drain is now visible to a reader that checks it. Two things keep it a gap. The field is
+- **Multi-account operation is a narrowed gap.** The snapshot names the account whose windows it
+  carries in an `account.email` field, so a machine switching accounts mid-drain is visible to a
+  reader that checks it. Lanes drop a latched pause on an account change: while paused they read
+  `.oauthAccount.emailAddress` from `.claude.json` directly and re-evaluate against the new
+  account's windows. The gap that remains is attribution. The field is
   **absent** whenever the writer could not attribute the observation. That covers four cases: no
   state file, no email-shaped value, a stdin `account*` key that wins instead, and a state file
   that is not strictly older than the chosen record's spool file, which means a switch may have
-  happened in between. No consuming lane acts on the field yet either. An **equal** timestamp
+  happened in between. A lane that cannot attribute keeps its latch. An **equal** timestamp
   counts as "not strictly older": mtime resolution is coarse on several filesystems the writer runs
   on, so a same-tick login is indistinguishable there from a later one, and the writer omits rather
   than guess. The loop-lane convention §6 owns that framing; the reader contract states the four

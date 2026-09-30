@@ -1412,11 +1412,9 @@ as does any move to have the agent execute a generated wizard.
 ## Marketplace schema positions
 
 Positions on upstream marketplace-schema features this catalog should not improvise (#3616).
-Verdicts are adopt / defer / reject. A row whose Position begins with the word proposed is a
-proposal that no maintainer has ratified yet; every other row records what the fleet already
-does. Gotchas that are
-upstream behavior, not a choice, are constraints to design around. Re-fetch the cited pages
-before acting; the as-of date is not authority.
+Verdicts are adopt / defer / reject. Gotchas that are upstream behavior, not a choice, are
+constraints to design around. Re-fetch the cited pages before acting; the as-of date is not
+authority.
 
 | Feature | Position | Rationale |
 |---|---|---|
@@ -1429,11 +1427,10 @@ before acting; the as-of date is not authority.
 | `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
 | Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
 | `bin/` under org-managed distribution | deliberate divergence: keep `plugins/source-control/bin`; do not distribute this catalog through organization sync | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". `plugins/source-control/bin` is a top-level `bin/` shipped by this fleet. It stays because the `babysit-prs` skill invokes its wrappers by their bundled `${CLAUDE_PLUGIN_ROOT}/bin/` paths (`plugins/source-control/skills/babysit-prs/reference/safety.md`), so moving them to `scripts/` changes every invocation site. Distributed through organization sync, this catalog would lose `source-control` and sync the rest. |
-| Submit plugins to `claude-community` | proposed: reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
+| Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. This is a decision, not a permanent ban: revisit it if a specific plugin gets outside demand. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
 
 - **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.
-  The row that begins with the word proposed awaits maintainer ratification, and the rest
-  record what the fleet already does; no `marketplace.json` field changes in this record.
+  The rows record the fleet's positions; no `marketplace.json` field changes in this record.
 - **Basis:** #3616. Fetched 2026-09-28:
   [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference)
   (strict, sources, `renames`, `headersHelper`),
@@ -1449,7 +1446,8 @@ before acting; the as-of date is not authority.
 - **Recheck:** a Claude Code release note, or a change to a row's linked page, alters the
   `strict` default, relative-path resolution under a `url` marketplace source, command-source
   bulk behavior, the version rung order, the community submission bar, or the top-level `bin/`
-  rule; a maintainer ratifies or changes the proposed row; or the frozen `renames` posture changes.
+  rule; a maintainer revisits the `claude-community` reject (for example, outside demand for one plugin);
+  or the frozen `renames` posture changes.
 
 ## Local development loop
 
