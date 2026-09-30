@@ -27,7 +27,8 @@
 #                  [--repo DIR...]... [--repos-from FILE|-]...
 #                  [--skip ENTRY]... [--skip-from FILE]...
 #                  [--batch-plan FILE] [--help]
-# Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
+# --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
+# mktemp dir). Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
 # plan, and --apply / --batch-plan with it are usage errors.
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
@@ -78,9 +79,13 @@ Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
   --skip-from FILE   newline-delimited skip entries.
 
 Gate:
-  --dry-run          write a batch plan; print per-repo Outcome/Reason, a
-                     `BatchPlan: <path>` line, and `Summary: repos=N planned=P
+  --dry-run          write a batch plan; print per-repo Outcome/Reason (a repo
+                     with nothing to remove reports `nothing-to-do`), a
+                     `Repo | Outcome | Paths | Bytes` table, a `BatchPlan: <path>`
+                     line, and `Summary: repos=N planned=P
                      bytes=K` (gitdirs=G for git/all). NEVER mutates.
+  --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
+                     instead of a mktemp dir.
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
@@ -480,6 +485,17 @@ PLANNED=0
 PLAN_BYTES=0
 SKIPPED=0
 BLOCKED=0
+ROW_TOPS=()
+ROW_OUTCOMES=()
+ROW_PATHS=()
+ROW_BYTES=()
+# add_row <top> <outcome> <paths> <bytes>: one summary-table row per repo.
+add_row() {
+  ROW_TOPS+=("$1")
+  ROW_OUTCOMES+=("$2")
+  ROW_PATHS+=("$3")
+  ROW_BYTES+=("$4")
+}
 
 printf 'Fleet Clean (dry-run)\n'
 printf 'Tier: %s\n' "$TIER"
@@ -516,11 +532,15 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then
     batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
+    add_row "$top" skipped 0 0
     SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
   reason_parts=()
+  planned=0
+  bytes=0
+  new_gitdir=0
 
   # 2. Manifest tier (caches/build/all): run the child dry-run, capture its
   #    manifest + planned bytes, record a REPO plan line.
@@ -538,6 +558,7 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     if [[ "$rc" -ne 0 ]]; then
       batch_emit "$top" blocked "$tok dry-run failed (child exit $rc — not planned)"
       printf '%s\n' "$out" >&2
+      add_row "$top" blocked 0 0
       BLOCKED=$((BLOCKED + 1))
       continue
     fi
@@ -559,6 +580,7 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   #    re-run over the live siblings picks a new representative). See clean-batch.md.
   if tier_has_git; then
     if batch_add_gitdir "$top"; then
+      new_gitdir=1
       k="${BATCH_GITDIR_KEYS[${#BATCH_GITDIR_KEYS[@]} - 1]}"
       printf 'GITDIR\t%s\t%s\n' "$top" "$k" >>"$PLAN"
       reason_parts+=("git: shared object store (new)")
@@ -572,18 +594,29 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     [[ -n "$reason" ]] && reason+="; "
     reason+="$rp"
   done
-  batch_emit "$top" would-clean "$reason"
+  # A manifest-tier repo with nothing planned that adds no new object store has
+  # nothing for apply to remove. A new store is a real prune/gc plan.
+  outcome=would-clean
+  if [[ "$planned" -eq 0 && "$bytes" -eq 0 && "$new_gitdir" -eq 0 ]]; then outcome=nothing-to-do; fi
+  batch_emit "$top" "$outcome" "$reason"
+  add_row "$top" "$outcome" "$planned" "$bytes"
 done
 
 # Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
   batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
+  add_row "${BATCH_INVALID[$i]}" blocked 0 0
   BLOCKED=$((BLOCKED + 1))
 done
 
 # Surface skip entries that matched nothing — a typo can never silently fail to
 # protect a repo.
 batch_report_unmatched_skips
+
+printf 'Repo | Outcome | Paths | Bytes\n'
+for ((i = 0; i < ${#ROW_TOPS[@]}; i++)); do
+  printf '%s | %s | %s | %s\n' "${ROW_TOPS[$i]}" "${ROW_OUTCOMES[$i]}" "${ROW_PATHS[$i]}" "$(clean_human_size "${ROW_BYTES[$i]}")"
+done
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then

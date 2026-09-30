@@ -33,6 +33,13 @@ run() {
   expect "$label" "$expected" --command "$command" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
+# --- wsl / wsl.exe run their command line in a Linux distro (#4242) ----------
+run "wsl.exe -e bash -c redirect (blocked)" 'wsl.exe -e bash -c "echo secret > f"' 2
+run "wsl bash -c redirect (blocked)" "wsl bash -c 'echo secret > f'" 2
+run "wsl -d Ubuntu -- bash -c redirect (blocked)" 'wsl -d Ubuntu -- bash -c "echo secret > f"' 2
+run "wsl echo hi (allowed)" 'wsl echo hi' 0
+run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
+
 # --- Core bypass forms ------------------------------------------------------
 run "cat > file (blocked)" "cat > foo.txt" 2
 run "cat>file no space (blocked)" "cat>foo.txt" 2
@@ -1811,10 +1818,9 @@ PROJ_ENV=CLAUDE_PROJECT_DIR
 # to close. The tension with docs/conventions/topic-docs/, which states raw
 # output including credentials belongs in the tier, is filed, not decided here.
 #
-# The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`
-# is the command session-flow's save-point procedure prescribes. It still blocks,
-# and the conflict routes to the skill (use Write, which is scanned) rather than
-# to this guard.
+# The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`.
+# It still blocks because the memory tier is not exempt; write that file with
+# Write, which the content guards scan.
 run_cwd "memory tier: relative append still blocks" \
   "printf '*' >> .work/.gitignore" "$PROJ" 2 "$PROJ_ENV=$PROJ"
 run_cwd "memory tier: relative write still blocks" \

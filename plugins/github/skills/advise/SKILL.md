@@ -69,6 +69,30 @@ full convention: `docs/conventions/recommendation-basis/README.md` in the market
 - **Decision points**: where the right answer depends on the consumer's context (plan, team size,
   risk posture), present the options and the tradeoff instead of silently picking.
 
+## Boundary, the built-in `/install-github-app` command
+
+"Help me set up Claude in GitHub Actions" is a setup walkthrough this skill could give, and a
+built-in command performs it.
+
+- **`/install-github-app` (built-in command).** Ships with Claude Code rather than as a
+  marketplace plugin. Installs the Claude GitHub App for one repository, with an optional step
+  that sets up the GitHub Actions workflows and secrets. It is reserved for the person to run; the
+  model does not invoke it.
+- **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
+  grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
+
+**Routing.** When the ask is installing the Claude GitHub App or its Actions workflow on a
+repository, offer it to the person: you can run `/install-github-app` instead of or alongside this
+skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
+and app access. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `/install-github-app` installs an app and may write workflow files and
+secrets. This skill never runs it on the person's behalf, and `--apply` never stands in for it.
+
+**Availability is never assumed.** The command registers gated; this section states what to do
+when the person can run it, never that it is present. The four-part records live in
+[reference/native-install-github-app.md](reference/native-install-github-app.md).
+
 ## Proactive suggestions
 
 While any skill in this plugin is active in a session, improvement opportunities noticed in

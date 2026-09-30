@@ -398,6 +398,14 @@ for-each-ref)
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\norigin/feature/remote-only\tremote-only-tip\0\norigin/feature/stale-cached\tstale-cached-tip\0\norigin/feature/ls-fail\tls-fail-tip\0\n'
+      # Family inventory (#5220): committer dates are unix seconds; 259260 s is 3 days and a minute.
+      now_ts="$(date +%s)"
+      printf 'origin/pre-wipe/x\tprewipe-tip\t%s\0\norigin/agent-1a2b3c\tagent-tip\t%s\0\norigin/scratch/other\tother-tip\t%s\0\n' \
+        "$((now_ts - 259260))" "$((now_ts - 259260))" "$((now_ts - 259260))"
+      # Merged-head ancestor cases: the remote tip differs from headRefOid. ancestor-ok's head is in the
+      # clone (merge-base answers 0); ancestor-missing's head is not (merge-base answers 128).
+      printf 'origin/feature/ancestor-ok\t%s\0\norigin/feature/ancestor-missing\t%s\0\n' \
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa dddddddddddddddddddddddddddddddddddddddd
       ;;
     # Moved-identity checkout (#2600): remote still advertises the feature head for tip-drift
     # push-state wording; GraphQL merge evidence uses the resolved identity independently.
@@ -468,7 +476,15 @@ ls-remote)
   *) exit 96 ;;
   esac
   ;;
-merge-base) exit 1 ;;
+merge-base)
+  # merge-base --is-ancestor <tip> <ref-or-oid>: 0 ancestor, 1 not, 128 unknown object.
+  case "${2:-}|${3:-}" in
+  prewipe-tip\|refs/remotes/origin/main) exit 0 ;;
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb) exit 0 ;;
+  dddddddddddddddddddddddddddddddddddddddd\|cccccccccccccccccccccccccccccccccccccccc) exit 128 ;;
+  esac
+  exit 1
+  ;;
 log)
   [[ "${1:-}" == "-1" && "${2:-}" == "--format=%ct" && "${3:-}" == "HEAD" ]] || exit 96
   case "$base" in
@@ -588,6 +604,8 @@ api)
         feature/remote-only) printf '44|remote-only-tip|2026-07-04T00:00:00Z|https://github.com/acme/repo-a/pull/44' ;;
         feature/stale-cached) printf '45|stale-cached-tip|2026-07-05T00:00:00Z|https://github.com/acme/repo-a/pull/45' ;;
         feature/ls-fail) printf '46|ls-fail-tip|2026-07-06T00:00:00Z|https://github.com/acme/repo-a/pull/46' ;;
+        feature/ancestor-ok) printf '60|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/60' ;;
+        feature/ancestor-missing) printf '61|cccccccccccccccccccccccccccccccccccccccc|2026-07-08T00:00:00Z|https://github.com/acme/repo-a/pull/61' ;;
         # F2: exact-OID merged evidence on a main-worktree-attached branch.
         feature/main-attached) printf '47|main-attached-tip|2026-07-07T00:00:00Z|https://github.com/acme/repo-a/pull/47' ;;
         *) printf '' ;;
@@ -922,9 +940,40 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+# #5220: remote branch families are reported from the last-fetched inventory; no deletion preview.
+assert_kind_targets "remote-only pre-wipe branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/pre-wipe/x" "scratch/other"
+assert_kind_targets "agent-hex remote branch gets a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "scratch/other"
+assert_not_contains "a remote branch outside every family gets no row" \
+  "origin/scratch/other"
+assert_contains "family rows are emitted as remote-branch-family findings" "Finding: remote-branch-family"
+assert_contains "family row reports family, age and on-default" \
+  "family pre-wipe; tip prewipe-tip; age 3 days (committer date); on origin/main: yes"
+assert_contains "agent family row reports off-default" \
+  "family agent; tip agent-tip; age 3 days (committer date); on origin/main: no"
+if grep -A8 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "Confidence: LOW" &&
+  ! grep -A12 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "push --delete"; then
+  printf 'PASS: family row is LOW and names no deletion\n'
+else
+  printf 'FAIL: family row is LOW and names no deletion\n' >&2
+  failures=$((failures + 1))
+fi
+assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
+  remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
+# #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output" |
+  grep -Fq "Confidence: MEDIUM"; then
+  printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
+else
+  printf 'FAIL: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "ancestor finding states its reason" "tip is an ancestor of the merged head"
+assert_not_contains "missing head object gives no ancestor finding" "origin/feature/ancestor-missing"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+# #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -938,17 +987,35 @@ else
   printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+assert_not_contains_file "all-fail withholds per-repo merged-remote-branch rows" \
   "Finding: merged-remote-branch" "$all_fail_out"
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out")" == 1 ]]; then
+  printf 'PASS: all-fail emits the fleet finding exactly once\n'
+else
+  printf 'FAIL: all-fail emits the fleet finding exactly once\n' >&2
+  failures=$((failures + 1))
+fi
+all_fail_medium_rows="$(grep -c -F 'Confidence: MEDIUM' "$all_fail_out")"
+assert_contains_file "all-fail tally drops the withheld MEDIUM rows" \
+  " medium=$all_fail_medium_rows " "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+# at another repository cannot stand in for the pinned remote, so every probe counts as a failure
+# and only the fleet finding remains.
 instead_of_out="$TMP/instead-of.txt"
-for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|withheld'; do
   FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
     HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
     bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
-  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+  if [[ "${rewrite#*|}" == withheld ]]; then
+    if ! grep -Fq "Finding: merged-remote-branch" "$instead_of_out" &&
+      grep -Fq "Finding: ls-remote-fleet-unavailable" "$instead_of_out"; then
+      printf 'PASS: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}"
+    else
+      printf 'FAIL: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}" >&2
+      failures=$((failures + 1))
+    fi
+  elif grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
     grep -Fq "Confidence: ${rewrite#*|}"; then
     printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
   else
@@ -1185,7 +1252,7 @@ assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
 
-mkdir -p "$TMP/proj/.claude" "$TMP/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
+mkdir -p "$TMP/proj/.claude" "$TMP/iso/1/2/3/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
 cat >"$TMP/proj/.claude/repo-fleet-hygiene.conf" <<'LADDER'
 [fleet]
     repo = ../../discovered-a
@@ -1202,7 +1269,7 @@ else
   failures=$((failures + 1))
 fi
 
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/homeg" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/homeg" \
   bash "$SCRIPT" >"$ladder_out"
 if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
   printf 'PASS: user-global config fallback consumed and named\n'
@@ -1241,8 +1308,8 @@ fi
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1265,7 +1332,7 @@ fi
 # A Git project directory still does not become scope without config or CLI paths (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1276,12 +1343,12 @@ else
 fi
 
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
-  grep -Fq "Scope: cwd" "$ladder_out"; then
-  printf 'PASS: cwd checkout is the no-scope fallback\n'
+  grep -Fq "Scope: ancestor" "$ladder_out"; then
+  printf 'PASS: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n'
 else
-  printf 'FAIL: cwd checkout is the no-scope fallback\n' >&2
+  printf 'FAIL: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -1292,8 +1359,8 @@ cat >"$TMP/scopeless.conf" <<'SCOPELESS'
     maxDepth = 5
 SCOPELESS
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
@@ -1310,7 +1377,7 @@ fi
 
 # The guidance belongs to the unresolved no-scope case only: an explicitly supplied bad path is a
 # typo, and the operator already knows how to pass a scope -- they just did.
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/iso/1/2/3/noconf" >"$ladder_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq -- "--config <file>" "$ladder_out"; then
@@ -1588,7 +1655,7 @@ else
   failures=$((failures + 1))
 fi
 # The argument is what the skill body substitutes, so it must win over a stale inherited env value.
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
 if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
   printf 'PASS: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n'
@@ -2591,12 +2658,11 @@ fi
 # for it: the result is never consumed for `.git`, because the nested-repository early return fires
 # first on the identical path and predicate, so the child loop that calls this never runs for a
 # directory holding a .git marker. Driving the collector instead would be green with or without the
-# arm. Extracted the same way as the helpers above, since the function lives after the
-# source-early-return guard. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
+# arm. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
 # omits it, while node_modules/vendor prove the configurable half still decides everything else.
 skip_name_probe="$(
-  SCRIPT="$SCRIPT" bash -c '
-    eval "$(sed -n "/^should_skip_dir_name()/,/^}/p" "$SCRIPT")"
+  DISCOVERY="$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" bash -c '
+    source "$DISCOVERY"
     SKIP_NAMES=(node_modules)
     for name in .git node_modules vendor; do
       if should_skip_dir_name "$name"; then printf "%s-skip\n" "$name"; else printf "%s-walk\n" "$name"; fi
