@@ -99,7 +99,8 @@ against a run that produced none):
    rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
-   its own failure.
+   its own failure. At `Budget: low` it does not: the bound is stated once, in `SKILL.md`
+   ("Effort, source breadth").
 
    The verifier writes nothing itself. It never saw the run, it holds no envelope, and giving a
    second worker write access to the same slice reintroduces exactly the one-writer-per-slice problem
