@@ -108,7 +108,7 @@ Read-only dry run of `apply`. It answers "is this range worth an `apply`?"
 2. If `cap` reads `exceeded`, stop here and relay the `recommend` line. Do not fan out over items;
    the recommendation is the output.
 3. Otherwise run Phase 0 (ingest) over the releases the `releases` line names, then Phase 1
-   (explore) and Phase 2 (research) from SKILL.md, and stop before the interview.
+   (explore) and Phase 2 (research) from SKILL.md, and stop before the scope gate.
 
 Output: decision rows grouped by owner surface, each carrying a lens and its required sentence,
 with no row for a skip item, followed by a docs-lag section. The row shape, where each kind of
