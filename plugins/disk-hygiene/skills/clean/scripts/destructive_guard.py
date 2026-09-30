@@ -21,8 +21,8 @@ stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
 follow: (1) the strongest identified candidate for the 17s itself is
 ``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every separator-containing word of *every* Bash/
-PowerShell command in *every* session (not only disk-hygiene commands) when
+``os.path.samefile`` on every whitespace token (or every literal shell word) of
+*every* Bash/PowerShell command in *every* session (not only disk-hygiene commands) when
 resolving the plugin-level engine gate — a slow or unreachable path argument
 in an unrelated command is a real, user-reachable way to stall this hook for
 longer than milliseconds; (2) empty stderr is not what an uncaught Python
@@ -721,9 +721,11 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
 
-    A path-like word (containing a separator) that is the SAME FILE as the
-    bundled engine — a symlink or hard link under any name — gates regardless
-    of its filename. Accepted residuals, all of the copy-evasion class the gate
+    A word that is the SAME FILE as the bundled engine — a symlink or hard link
+    under any name — gates regardless of its filename. The marker-free fallback
+    identity-checks every whitespace token (or every ``_literal_shell_words``
+    word) of the command, not only separator-carrying words, and a relative word
+    is also read against the engine's own directory. Accepted residuals, all of the copy-evasion class the gate
     can never close (a byte copy is a different file): a PATH-installed alias
     with no separator, an alias inside a command the literal parser rejects
     when the marker is absent, and a copied engine. This is a belt, not the
@@ -772,8 +774,9 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
-        # their whitespace tokens for separator-carrying words and identity-
-        # check those — a literal alias path gates even beside an operator.
+        # their whitespace tokens and identity-check every one, not only
+        # separator-carrying words — a literal alias path gates even beside an
+        # operator.
         #
         # The path-legal tokens are scanned as well, and carry this branch's
         # weight now that a name merely CONTAINING the marker lands here: a
@@ -1533,6 +1536,111 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"|format-volume|clear-disk|initialize-disk"
     r")(?![\w-])"
 )
+# Quoted-literal relief for the mutation-word check. A mutation word inside a
+# quoted literal (a commit message, a search term, an issue body) is data only
+# when nothing in the command can run that literal as code, so relief is an
+# allow-list: every command head must be one of the commands below, none of
+# which evaluates or executes its string arguments. Anything else keeps the
+# raw-text match, which fails toward ask.
+_POWERSHELL_RELIEF_HEADS = frozenset(
+    {
+        # Write their arguments to the output stream as text.
+        "write-output",
+        "echo",
+        "write-host",
+        # List items; a path or filter string names items, never runs them.
+        "get-childitem",
+        "gci",
+        "ls",
+        "dir",
+        # Filter or project objects; a script block argument is split into its
+        # own segments below, so its heads are checked too.
+        "where-object",
+        "where",
+        "?",
+        "select-object",
+        "sort-object",
+        "measure-object",
+        # Match a string as a regular expression, never as code.
+        "select-string",
+        "sls",
+        # Render objects as text.
+        "format-table",
+        "format-list",
+        "out-string",
+        "out-null",
+        # Read item content or metadata without running it.
+        "get-content",
+        "gc",
+        "cat",
+        "test-path",
+        "get-item",
+    }
+)
+# git and gh do run strings through some arguments (`git -c core.pager=...`,
+# `git grep -O...`, `gh alias set --shell`), so each qualifies only when its
+# first argument is a subcommand that takes message and search text without
+# running it.
+_POWERSHELL_RELIEF_SUBCOMMANDS = {
+    "git": frozenset({"log", "show", "status", "diff", "commit"}),
+    "gh": frozenset({"issue", "pr", "search"}),
+}
+# Constructs that change where PowerShell opens or closes a quote, or that run
+# code from inside a string: an escape backtick, a non-ASCII character
+# (typographic quotes and Unicode line breaks), a subexpression, a here-string,
+# a braced variable name (`${a'b}`), and the stop-parsing token. Each one sends
+# the command to the raw-text match, so the quote pairing below agrees with
+# PowerShell's up to the first unquoted comment `#`, which is refused after
+# masking.
+_POWERSHELL_RELIEF_RAW_FALLBACK = re.compile(
+    r"[`\x80-\U0010ffff]|[$@]\(|@['\"]|\$\{|--%"
+)
+# A single- or double-quoted literal, a doubled quote inside it standing for one.
+_POWERSHELL_QUOTED_LITERAL = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+# After masking: a comment, a static call, a member call (`.Name(`, `.''(`,
+# `.$m(`), or a call operator `&` (not the `>&` stream merge or `&&`).
+_POWERSHELL_RELIEF_MASKED_FALLBACK = re.compile(r"#|::|\.[\w'$\s]*\(|(?<![>&])&(?!&)")
+_POWERSHELL_SEGMENT_SPLIT = re.compile(r"&&|[|;\r\n{}()]")
+# The pipeline object heads a Where-Object comparison such as `$_.Name -match`.
+_POWERSHELL_PIPELINE_VARIABLE = re.compile(r"(?i)\$(?:_|psitem)(?!\w)")
+
+
+def _powershell_relief_head(segment: str) -> bool:
+    """Whether a segment's head is on the relief allow-list."""
+    words = segment.split()
+    head = words[0].lower()
+    if head in _POWERSHELL_RELIEF_SUBCOMMANDS:
+        return (
+            len(words) > 1 and words[1].lower() in _POWERSHELL_RELIEF_SUBCOMMANDS[head]
+        )
+    if _POWERSHELL_PIPELINE_VARIABLE.match(head):
+        # An assignment puts a command after `=`.
+        return "=" not in segment
+    return head in _POWERSHELL_RELIEF_HEADS
+
+
+def _powershell_mutation_word_text(command: str) -> str:
+    """The text the mutation-word check scans: literals masked, or the raw command.
+
+    Single- and double-quoted literals (with their doubled-quote escapes) become
+    ``''`` only when no fallback construct appears and every command head is on
+    the relief allow-list; otherwise the raw command is returned. Words are then
+    matched anywhere in the masked text, so an unquoted ``git rm x`` or
+    ``$x = rm y`` still asks.
+    """
+    if _POWERSHELL_RELIEF_RAW_FALLBACK.search(command):
+        return command
+    if re.search(r"['\"]", _POWERSHELL_QUOTED_LITERAL.sub("", command)):
+        return command  # an unterminated quote
+    text = _POWERSHELL_QUOTED_LITERAL.sub("''", command)
+    if _POWERSHELL_RELIEF_MASKED_FALLBACK.search(text):
+        return command
+    for segment in _POWERSHELL_SEGMENT_SPLIT.split(text):
+        if segment.strip() and not _powershell_relief_head(segment):
+            return command
+    return text
+
+
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
@@ -1721,7 +1829,7 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
         return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
-    match = _POWERSHELL_MUTATION_WORDS.search(command)
+    match = _POWERSHELL_MUTATION_WORDS.search(_powershell_mutation_word_text(command))
     if match:
         return _powershell_mutation_verdict(
             enabled,

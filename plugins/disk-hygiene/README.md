@@ -27,7 +27,10 @@ unvalidated tree.
   evidence mode for an entire standalone Git checkout: it requires empty porcelain status, every
   local head SHA confirmed through the checkout's GitHub remote, every stash SHA present in an
   independent checkout (or no stashes), and the existing exact-path operator approval. Without all
-  four, categorical protection remains.
+  four, categorical protection remains, except that an `accept_unpublished` acknowledgement on the
+  evidence entry (one exact approved path, with a reason) waives the first two, the empty status and
+  the heads confirmed on the remote, and the verdict reports them as accepted-unpublished. The stash
+  gate and the exact-path operator approval still apply.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
@@ -53,6 +56,12 @@ at preview. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
+- Node.js on `PATH`. Every hook registration runs `node hooks/exec-bash.mjs`, and Claude Code's
+  native binary neither ships nor uses Node ([Setup](https://code.claude.com/docs/en/setup)), so
+  without `node` no hook launches and no guard is enforced.
+- Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in
+  order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
+  roots, then `PATH`; elsewhere, `PATH` first. The WSL relay (`System32\bash.exe`) is never used.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup. The floor's single origin is the `MIN_PYTHON` constant in
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
@@ -86,7 +95,8 @@ Verify this machine's prerequisites and platform posture with `/disk-hygiene:set
 **All three** hook registrations, both wired hooks and the skill-scoped belt, use **exec form**
 with `"command": "node"`. `args` is `hooks/exec-bash.mjs`, then
 `hooks/run-python-hook.sh` and that script's arguments. `node` is a real executable. The
-launcher finds Git Bash and never `System32\bash.exe`. Bare `bash` or `python3` as `command`
+launcher finds bash (Git Bash or `PATH` on Windows, `PATH` first elsewhere) and never
+`System32\bash.exe`. Bare `bash` or `python3` as `command`
 is the launch that fails open on Windows: the WSL relay and the WindowsApps alias stub, and a
 failed hook launch is non-blocking, so the guard would silently enforce nothing. The launcher
 resolves Python itself instead (#1504, #3686).
@@ -103,8 +113,10 @@ unconditionally, and fail closed to enabled.
 Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
 of the belt has been observed on at least one Claude Code build (producer-reported; see
 issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
-that issue. PreToolUse hooks also fire inside subagents, so fanned-out workers run under the same
-guards.
+that issue. The plugin-level engine gate fires inside subagents. The skill-frontmatter belt was
+observed not to reach a subagent, and #4228 records that its reach was inconsistent within one
+session, so a fanned-out worker's Bash lane is not reliably belt-guarded and "evidence only" is an
+instruction to the worker, not an enforced denial. `skills/clean/SKILL.md` holds the detail.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
@@ -117,7 +129,9 @@ not cover repo-hygiene's own guard (a separate plugin, verified working independ
 retroactively scans a prior session's transcript. Every hook registration routes through
 `hooks/run-python-hook.sh`, a bash launcher that resolves Python independently of bare `python3` on
 PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable, the detector still
-emits a `systemMessage` even though the guard cannot run (#1504).
+emits a `systemMessage` even though the guard cannot run (#1504). The detector runs through the same
+`node` and bash launch as the guard, so when `node` is missing or no bash resolves it cannot report
+either; the failure table below states what happens then.
 
 **The guard's interpreter and data root arrive with the command.** A `UserPromptExpansion` hook
 (`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
@@ -130,25 +144,26 @@ Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApp
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
 skill-scoped belt included. A PreToolUse hook blocks a tool call only with exit code 2 or a `deny`
 decision, and one that exits 0 with nothing to say reads as approval
-([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run used to look exactly
-like one that ran and allowed. Since 0.26.0 (#3861) the launcher answers for the guard when the
-ladder is exhausted, on the call itself, the same way the guard's watchdog answers "could not
-decide":
+([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run would read as one
+that ran and allowed. The launcher therefore answers for the guard when the ladder is exhausted, on
+the call itself, the same way the guard's watchdog answers "could not decide":
 
-| Surface | No interpreter resolves |
+| Surface | When the guard cannot run |
 |---|---|
-| `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
-| Skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
-| Plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
-| Plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
+| No Python resolves: `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
+| No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
+| No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
+| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure. The Stop detector launches the same way and reports neither |
 
-The last row is the one fail-open left, and it is deliberate. Those are the commands the guard would
+Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
 missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
 stop work (and deny outright under `-p`) on a host whose only fault is having no Python. The
 residual is an engine reached without its file name appearing in the payload, the identity class the
-guard itself documents. The Stop detector stays as the end-of-turn backstop and repeats a summary of
-the same report.
+guard itself documents. For the no-Python rows the Stop detector stays as the end-of-turn backstop
+and repeats a summary of the same report. The last row has no backstop inside the plugin;
+`/disk-hygiene:setup check` probes `node` and bash before a run.
 
 `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
 or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
@@ -213,7 +228,13 @@ launched.
 `--root-children` with `--root-child <name>` inventories only the named immediate children of the
 target. That is required for an OS-managed volume root (the root itself is never walked) and is
 also how a depth-1 home audit re-inventories the directories the operator approved, without
-walking the rest of the home.
+walking the rest of the home. Every volume root, OS-managed or a Windows Dev Drive, gets the
+strict child ladder described under Volume-root coverage; only a target that is not a volume root
+gets the relaxed directory listing.
+
+`--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
+large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
+cap.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
@@ -247,7 +268,7 @@ Without `--policy`, standing policy files layer over the baseline when present:
 `.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and
 replaces both standing layers. The scan output records which sources applied.
 
-Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/` or a drive letter matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted; `reason` is commentary stored with the glob. Hard safety
+Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/`, a drive letter, or `\\` (a UNC path such as `\\server\share\keep\**`) matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted. For every entry that matches a path, the scan entry, the preview candidate, the handoff-verify verdict, and a skipped apply path list it under `protection_matches`, sorted and deduplicated, as `{glob}` or `{glob, reason}`. That field sits beside the `consumer-protected-path` reason and is absent when no entry matched. Hard safety
 predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
 file can only add protections, add hints, or disable discovery hints (which can only cause junk to
 be missed, never removed).
@@ -284,22 +305,27 @@ runs Storage Sense, and it changes nothing about what the engine may delete in t
 
 ## Volume-root coverage
 
-`--root-children` on an OS-managed volume root never walks the root itself. Immediate children are
-admitted or withheld one `scandir` deep. This supersedes #2588 criterion 2 (the volume root's own
-files are never inventoried): regular files now use the same admission ladder as directories.
+`--root-children` on a volume root, OS-managed or not (a Windows Dev Drive), never walks the root
+itself. Immediate children are admitted or withheld one `scandir` deep. Regular files at the root
+use the same admission ladder as directories.
 
 | Never covered | Why |
 |---|---|
 | The volume root itself | Whole-root recursive walk is refused |
 | OS-owned directory names (`Windows`, `/usr`, `Users`/`home`, …) | Per-platform directory set |
-| OS-owned file names (`pagefile.sys`, `/swapfile`, `vmlinuz*`, `.file`, …) | Per-platform file set |
+| OS-owned file names (`pagefile.sys`, `/swapfile`, `/swap.img`, `vmlinuz*`, `.file`, …) | Per-platform file set |
 | Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
 | Symlinks, reparse points, cloud placeholders | Ambiguous identity |
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |
 | Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
 
-User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, but
-`C:\vc_redist.x64.exe` is not) can be selected with `--root-child NAME` and inventoried as a file.
+User residue that clears that ladder can be selected with `--root-child NAME` and inventoried as
+a file. A Windows root file such as `C:\vc_redist.x64.exe` clears it; `/opt` and other OS-owned names
+do not. On a target that is not a volume root, such as a home directory, files stay withheld as
+`not-a-directory`, only directories are selectable, and hidden and OS-named directories stay
+selectable.
+
+## Relationship to other tools
 
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
@@ -307,8 +333,9 @@ User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, bu
   `.worktrees/` tree, run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
   metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
-  handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
-  [safety model](skills/clean/reference/safety-model.md) pass.
+  handoff's optional VCS evidence mode can return `clear` only after the proof gates in the
+  [safety model](skills/clean/reference/safety-model.md) pass, or an `accept_unpublished`
+  acknowledgement waives the first two for that one approved path.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -342,12 +369,12 @@ measurements below carry the conditions they were taken under.
   or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
   via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
   defense-in-depth honoring layer over the guard.
-- **Trust-surface record (0.7.0; updated 0.17.8):** the plugin-level `hooks/hooks.json` PreToolUse
+- **Trust-surface record:** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
   deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E,
-  split registration). Its blast radius is bounded by design: a fixed launch string authored in the
-  plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
-  reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
+  split registration). Its blast radius is bounded by design: fixed launch arguments authored in the
+  plugin's own `hooks.json` (the launch-form record below states what that bounds), bundled
+  standard-library scripts only, instant no-output deferral for any command
   not referencing the engine, and no new capability beyond what the skill-scoped deployment already
   did during active cleanup. Known costs, accepted, with the always-on share measured per the
   [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
@@ -423,42 +450,26 @@ measurements below carry the conditions they were taken under.
   single `pluginConfigs` value, from the user file (located from `${CLAUDE_PLUGIN_ROOT}`) and the
   root-owned managed file at its fixed system path, no write. Both are the plugin's own documented CC
   config, sanctioned by the acceptance review's operator-home carve-out (criterion 4). This entry is the
-  plugin-acceptance review delta for the change. **0.17.8 delta (launch form):** both wired hooks now
-  register in **shell form**. The `command` string names `hooks/run-python-hook.sh` with
-  `"shell": "bash"` and no `args`, because exec form's bare `PATH` lookup for `bash` resolved to the
-  WSL relay on Windows and the guard silently never launched (#1416). Stated plainly: a shell now
-  parses the launch string, so "no shell involved" is no longer what bounds this surface. What bounds
-  it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` with no model-,
-  repo-, or session-supplied text interpolated into it; the only values substituted are Claude Code's
-  own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`, and each is double-quoted, so the shell's
-  re-tokenization reproduces the exec-form argument vector byte-for-byte, verified for both hooks
-  against roots containing spaces and backslashes. The limits of that quoting belong in the record
-  too: Claude Code substitutes those placeholders *textually* before bash parses the result, so the
-  double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
-  substituted value (both placeholders resolve under Claude Code's own install and data roots). The
-  invariant is therefore **maintained by test**, not structural, `hooks/run-python-hook.test.sh`
-  asserted, at 0.17.8, that the launcher was named in `command`, `args` was absent, and
-  `shell: bash` was declared. **0.28.5** moves those registrations to exec form
-  (`"command": "node"`, `args` naming `hooks/exec-bash.mjs` then `hooks/run-python-hook.sh`).
-  **0.28.6** makes the skill belt's `args` a YAML sequence. The tests assert that shape, and
-  `test_hygiene.py`'s hook helpers stay form-agnostic so a later form change cannot make an
-  assertion vacuously green. Interpolating anything beyond those two
-  placeholders into the command string would open a live injection surface; a repo-wide CI gate for
-  this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
-  skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same
-  reason one rung down, its exec-form `command` was the literal `python3`, which on stock Windows is
-  the zero-length `WindowsApps` App Execution Alias stub, so the belt could not launch there at all
-  (#2568). The trust analysis above carries over with a **narrower** substitution set: a
-  skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}` (#1014), never `${CLAUDE_PLUGIN_DATA}`
-  or `${user_config.*}`, so the belt's command string carries exactly one placeholder and the
-  `--authorized-data-root` channel stays out of it by construction. Because this belt was *working*
-  wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
-  vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
-  containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this did **not** change was the guard's no-interpreter behavior, which 0.26.0 (#3861)
-  later made fail-closed for the belt: it now denies every call when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
-  answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
-  destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
+  plugin-acceptance review delta for the change. **Launch form:** every registration, the wired
+  hooks and the skill-scoped belt alike, is exec form: `"command": "node"` and an `args` list naming
+  `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh`, then the Python script and its arguments.
+  No shell parses a registration. Claude Code spawns `node` with `args` as the argument vector
+  ([Hooks](https://code.claude.com/docs/en/hooks), "Exec form and shell form"), the launcher spawns
+  bash with the script path and arguments as argv, and `run-python-hook.sh` execs Python with `"$@"`.
+  What bounds the surface is that every argument is a **fixed literal** in the plugin's own
+  `hooks.json` or `SKILL.md` frontmatter with no model-, repo-, or session-supplied text in it. The
+  only substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and, in `hooks.json` only,
+  `${CLAUDE_PLUGIN_DATA}`, each inside one argument, so a space, backslash, `$` or backtick in a
+  substituted path reaches the script unchanged. A skill-frontmatter hook receives only
+  `${CLAUDE_PLUGIN_ROOT}` (#1014), never `${CLAUDE_PLUGIN_DATA}` or `${user_config.*}`, so the belt's
+  `--authorized-data-root` channel stays out of its arguments by construction. The shape is
+  **maintained by test**: `hooks/run-python-hook.test.sh` asserts that every `hooks.json` row is
+  `node` with `exec-bash.mjs` first and `run-python-hook.sh` in `args`, and runs the registered
+  engine-gate rows and the belt's frontmatter `args` verbatim; `test_hygiene.py`'s hook helpers stay
+  form-agnostic so a form change cannot make an assertion vacuously green. The belt denies every
+  call when nothing on the Python ladder resolves. A direct `hygiene.py` invocation outside that skill does
+  not read the toggle and answers only to the engine's own preview/approval-token gate. The toggle
+  can only narrow the destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
   evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
   Policy comes from an explicit invocation
