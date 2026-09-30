@@ -92,7 +92,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
-  never eligible for this engine, even when a native dry-run calls it eligible.
+  never eligible for this engine, even when a native dry-run calls it eligible. A registry match: §4.
 - Never install a dependency, close another process's handle, or disable a retention mechanism.
 - While the scan output's `elevation` is `never` (the default), never elevate or trigger UAC/sudo.
   Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
@@ -268,7 +268,7 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
    tool over an age/name guess.
 2. Is the owner active? Check current process/tool state without killing, pausing, or modifying it.
-3. Does the owning system provide cleanup or retention? Its dry-run result is authoritative.
+3. Does the owning system provide cleanup or retention? Match `reference/owner-registry.json` `path_patterns` first (§4); its dry-run result is authoritative.
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
@@ -365,9 +365,9 @@ mix tiers:
 }
 ```
 
-For managed state, report the documented native command and its current dry-run result, but do not add
-the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
-non-overlapping, and never globs.
+Managed state never enters an engine plan, whose paths are unmanaged, snapshot-relative, exact, non-overlapping,
+and never globs. A registry match follows only `reference/managed-state-report.md`; its step 4 shows no destructive
+command. Other managed state: report the documented native command and its current dry-run result.
 
 ## 5. Preview, then ask
 
