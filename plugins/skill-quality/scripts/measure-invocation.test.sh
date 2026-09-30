@@ -229,6 +229,83 @@ else
   pass "score refuses an unloadable competitor"
 fi
 
+mkdir -p "$TMP/gone/probes"
+jq '.skill_dir = "skills/absent" | .competitor_dirs = {} | .competitors = []' "$TMP/probes/target.json" >"$TMP/gone/probes/target.json"
+out="$(run score "$TMP/gone/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'none of the 1 probe file(s)' <<<"$out" && grep -q 'MEASURE_INVOCATION_REPO_ROOT' <<<"$out"; then
+  pass "score exits 2 with guidance when every skill_dir is unresolved"
+else
+  fail "all-unresolved score should exit 2 with the message (rc=$rc): $out"
+fi
+
+out="$(run validate "$TMP/gone/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN:.*skill_dir 'skills/absent' does not resolve" <<<"$out" &&
+  grep -q 'INFO: 1 of 1 probe file(s) have a skill_dir that does not resolve' <<<"$out"; then
+  pass "validate keeps the WARN, exits 0, and reports the unresolved count"
+else
+  fail "validate over unresolved skill_dir should exit 0 with WARN and INFO (rc=$rc): $out"
+fi
+
+mkdir -p "$TMP/mixed/probes"
+cp "$TMP/gone/probes/target.json" "$TMP/mixed/probes/a-gone.json"
+sed 's/"fixture:target"/"fixture:target2"/' "$TMP/probes/target.json" >"$TMP/mixed/probes/b-here.json"
+out="$(run score "$TMP/mixed/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "cannot resolve skill_dir 'skills/absent'" <<<"$out"; then
+  pass "score keeps the per-skill error and exit 1 when only some skill_dirs resolve"
+else
+  fail "partial-unresolved score should exit 1 (rc=$rc): $out"
+fi
+
+out="$(run compare "$TMP/score.json" "$TMP/malformed.json" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "compare on a malformed report exits 2"
+else
+  fail "compare on a malformed report should exit 2 (rc=$rc): $out"
+fi
+run compare "$TMP/score.json" "$TMP/empty.json" >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "compare over mismatched skill sets exits 2"
+else
+  fail "compare over mismatched skill sets should exit 2 (rc=$rc)"
+fi
+
+run emit-plugin-eval "$TMP/probes" /dev/null/x >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "emit-plugin-eval exits 2 when the out dir cannot be created"
+else
+  fail "emit-plugin-eval into an uncreatable dir should exit 2 (rc=$rc)"
+fi
+
+out="$(run score --method 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q -- '--method needs a value' <<<"$out"; then
+  pass "score --method without a value says so"
+else
+  fail "score --method without a value should be named (rc=$rc): $out"
+fi
+
+mkdir -p "$TMP/empty-probes" "$TMP/tmpfix"
+TMPDIR="$TMP/tmpfix" run score "$TMP/empty-probes" >/dev/null 2>&1
+if [[ -z "$(ls -A "$TMP/tmpfix")" ]]; then
+  pass "score removes its temp dir on an early exit"
+else
+  fail "score left a temp dir behind: $(ls "$TMP/tmpfix")"
+fi
+
+mkdir -p "$TMP/it's"
+out="$(TMPDIR="$TMP/it's" run score "$TMP/empty-probes" 2>&1)"
+if [[ -z "$(ls -A "$TMP/it's")" ]] && ! grep -q 'unexpected EOF' <<<"$out"; then
+  pass "score cleans up when TMPDIR contains a quote"
+else
+  fail "score mishandled a quote in TMPDIR: $out"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1

@@ -23,8 +23,9 @@ edge the script did not emit, and do not drop a publish whose contract type did 
 
 The shipped adapter is the MassTransit shape: `Publish<T>` or `Publish(new T(..))` is broadcast,
 `Send<T>` or `Send(new T(..))` is point-to-point, `IConsumer<T>` consumes `T`. `AddConsumer<C>` and
-`ConfigureConsumer<C>` register the consumer class `C`; they are not messages. Inside
-`ReceiveEndpoint("q", ..)` they put `C`'s consume edges on queue `q`. A message is a type some
+`ConfigureConsumer<C>` register the consumer class `C`; they are not messages. Inside a
+`ReceiveEndpoint("q", ..)` call, on its own line or in its block, they put `C`'s consume edges on
+queue `q`; a registration outside it and every publish or send edge has no queue. A message is a type some
 publish, send, or consume names; a service or consumer class is not one. Identity is the
 namespace-qualified type. In-process calls are `/architecture:map-flow`. A cross-process hop in
 that trace is a hand-off to this skill.
@@ -60,10 +61,12 @@ declare the type. An edge's `from` is the file of the publishing, sending, or co
 `fanout_threshold` is this plugin's limit, not the broker's.
 
 A short type name resolves through the file's namespace, its parent namespaces, and its `using`
-directives, then through the one repo type with that name. A `Publish(` or `Send(` whose type
-does not resolve (a variable, an anonymous or target-typed `new`, an undeclared or ambiguous name)
-is an edge with `resolution: unresolved` and an `unresolved` finding naming the kind, the type
-text or `-`, and `file:line`. It is never omitted.
+directives, then through the one repo type with that name. A dotted name is tried as written, then
+under each enclosing namespace and each `using`; `global::` allows only the as-written match. A
+`Publish(` or `Send(` whose type does not resolve (a variable, an anonymous or target-typed `new`,
+an undeclared or ambiguous name, a dotted name that matches no declared type) is an edge with
+`resolution: unresolved` and an `unresolved` finding naming the kind, the type text or `-`, and
+`file:line`. It is never omitted, and an unresolved consumer is never an orphan.
 
 ## Render
 
@@ -78,7 +81,8 @@ list is still written.
 The script prints:
 `events: messages=<n> publishers=<n> consumers=<n> unresolved=<n> orphans=<n> unrouted_only=<yes|no>`.
 
-The artifact's Handoff section is the form `/architecture:map-flow` consumes:
+The artifact's Handoff section lists one line per publish or send edge, keyed by `file:line` so it
+matches a `/architecture:map-flow` hop cite; map-flow reads nothing from `events.md`:
 `handoff: map-events contract=<type> direction=<publish|send> file=<path> line=<n>`.
 
 Exit 1 means the record is unreadable or not one object per line. Nothing was written.
@@ -91,7 +95,7 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
 - **Findings**: `orphans=` and the other finding kinds present.
 - **Filter**: `unrouted_only=` yes or no. Findings are listed either way.
 - **Dialect**: mermaid flowchart. `landscape_dialect` was not read. No key was added.
-- **Handoff**: that cross-process edges are in the Handoff section for `/architecture:map-flow`.
+- **Handoff**: that cross-process edges are in the Handoff section, keyed by `file:line` to match a map-flow hop cite.
 
 ## What this skill does NOT do
 
@@ -118,7 +122,8 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
   publish from send.
 - **Identity is the resolved type.** `Billing.Contracts.OrderPlaced` and
   `Shipping.Contracts.OrderPlaced` are different messages. A short name that matches two types
-  stays unresolved rather than being joined.
+  stays unresolved rather than being joined, and a dotted name that matches no declared type
+  (an external package's contract, for one) stays unresolved rather than being trusted.
 - **An unresolved publish or send is a finding.** Dropping it would make an orphan-consumer
   finding wrong. The edge is listed with `resolution: unresolved` and satisfies no consumer.
 - **A registered consumer is not a message.** `AddConsumer<C>` names the consumer class. The
@@ -131,3 +136,6 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
   `.Publish(new T`, `.Send(new T`, `IConsumer<T>`, `AddConsumer<C>`, and `ConfigureConsumer<C>`.
   A call split across lines is not joined. A `.Publish(` or `.Send(` from another library is
   still listed, not dropped.
+- **Only `ReceiveEndpoint("literal", ..)` binds a queue.** A topic, exchange, subject, or
+  configuration-file binding is not read, and neither is a queue name held in a variable. A
+  consumer bound that way shows no queue, so no competing-consumer finding is raised for it.

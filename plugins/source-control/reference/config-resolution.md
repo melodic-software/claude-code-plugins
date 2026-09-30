@@ -139,7 +139,7 @@ the lane policy a team reviews and tracks. Because `pluginConfigs` is read from 
 `babysit_*` `userConfig` key has one value per machine: an operator with several identity domains
 leaves those keys unset or launches the lane with a per-domain `--settings` file. Which keys stay in
 `userConfig` and which move to this surface is recorded in
-[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
+[0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
 One `## <key>` H2 per key, exactly like the convention keys above. Every value is a scalar except
@@ -308,34 +308,37 @@ hold lists, review triggers, CI/review gate contexts). They still resolve from `
 (one value per machine) until a dedicated resolver ships. Identity and trust keys stay in
 `userConfig` permanently; `branch_issue_pattern` already moved to this surface. The split and
 rationale are in
-[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
+[0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
+Issue [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572) is open and owns
+the implementation.
 
 ### Decision record
 
 - **Claim:** These ten keys cannot move to the cascade until `/source-control:babysit-prs` resolves
   each **target repository** independently, on every fleet cycle, from that repository's tracked
   `.claude/source-control.md` on its **default branch** (`gh api` contents), never from the
-  launching checkout's working tree or from a single machine-wide substitute. Each key needs an
-  explicit merge mode (plain override, add-only union, or bound pair) before any script change.
-- **Basis:** ADR 0039 decision 3; the `babysit_loop_trusted_internal_bot_logins` precedent in this
+  launching checkout's working tree or from a single machine-wide substitute.
+- **Basis:** the `babysit_loop_trusted_internal_bot_logins` precedent in this
   document ("team-tracked layer only, target repository, default branch, always"); issue
   [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).
 - **As of:** 2026-09-28.
 
 ### Keys in scope (#4572)
 
-| Key | Intended merge mode (settled in ADR 0039) |
-| --- | --- |
-| `babysit_merge_method` | per-key override |
-| `babysit_merge_block_labels` | add-only union across layers + deprecated `userConfig` |
-| `babysit_extra_dependency_manager_logins` | add-only union |
-| `babysit_approval_downgrade_logins` | add-only union |
-| `babysit_skip_downgrade_logins` | **unclassified** (floor vs preference). Decide before implementation. |
-| `babysit_review_trigger_phrase` | per-key override |
-| `babysit_review_bot_logins` | bound with `babysit_review_settle_minutes` from one layer; lower layer may lengthen settle, never shorten |
-| `babysit_review_settle_minutes` | bound pair (see previous row) |
-| `babysit_review_gate_context` | per-key override; **default branch only**, never user-global or local overlay |
-| `babysit_ci_gateway_context` | per-key override; **default branch only**, never user-global or local overlay |
+Each key's merge mode is set in
+[0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md),
+not restated here.
+
+- `babysit_merge_method`
+- `babysit_merge_block_labels`
+- `babysit_extra_dependency_manager_logins`
+- `babysit_approval_downgrade_logins`
+- `babysit_skip_downgrade_logins`: unclassified, needs the maintainer's decision (issue 4572)
+- `babysit_review_trigger_phrase`
+- `babysit_review_bot_logins`
+- `babysit_review_settle_minutes`
+- `babysit_review_gate_context`
+- `babysit_ci_gateway_context`
 
 Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit_self_logins`,
 `babysit_intended_write_identity`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
@@ -356,7 +359,7 @@ Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit
    per-key override loosens merge safety and needs explicit operator approval.
 
 Until that resolver lands, operators with several identity domains on one machine leave these keys
-unset or launch the lane with a per-domain `--settings` file, as for the identity keys in ADR 0039.
+unset or launch the lane with a per-domain `--settings` file, as for the identity keys in the ADR cited above.
 
 ## The three layers
 
@@ -373,6 +376,12 @@ home directory (or an ancestor of it)` or `... project root is not inside a git
 repository` on stderr. A team or overlay path that physically equals the user-global file
 is skipped even when the root is not home. `/source-control:setup apply layer=team`
 and `layer=local` refuse in that state; `layer=user` still writes.
+
+`lib/config-root.sh` is the resolver for the scripts and skills that call it: `resolve`, `classify`
+(`repo`, `non-repo`, or `home`), and `same` (physical path equality). `parse-branch-issue.sh`
+sources it, and `commit` and `pull-request` (`create.md`) run `classify` before reading the team
+or overlay layer. `setup` does not call it: its `check` and `apply` steps apply the same rule
+inline (`skills/setup/reference/apply-convention.md`).
 
 Layers, in resolution order, where a later layer refines an earlier one:
 
@@ -436,8 +445,9 @@ The overlay convention needs one line in the consuming repo:
 .claude/**/*.local.*
 ```
 
-No skill in this plugin writes the consumer's root `.gitignore`. `/source-control:setup` recommends
-the line and leaves the edit to the consumer.
+`/source-control:setup apply layer=team` appends the line when it is missing and announces the
+edit; it is the only write this plugin makes to the consumer's root `.gitignore`. `layer=local`
+never edits it and fails with a recommendation when the overlay is exposed.
 
 ## Failure modes
 

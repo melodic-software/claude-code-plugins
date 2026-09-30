@@ -443,12 +443,13 @@ session before it (this table, each row naming the file and transcript to open f
 
 The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
 screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
-below-rail lines. The on-screen rails block IS this section, printed by
+below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
+pair, above or below the resume region). The on-screen rails block IS this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
 between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, `Then:`, the
-`/goal` first line) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume
-prompt", full-path block. `new` writes every line of it except the `Next:` headlines and the
-optional `/goal` and re-arm slots.
+goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
+full-path block. `new` writes every line of it except the `Next:` headlines and the optional
+goal-region and below-rail slots.
 
 ## How this document is referenced elsewhere
 
@@ -553,7 +554,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
 #    next slot and the cumulative slots need. Leave an optional slot out
-#    (goal-rearm, below-rail, <section>-new) and fill deletes its line. For a
+#    (goal-first, goal-after, below-rail, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem
@@ -576,11 +577,30 @@ every other refusal names its fix.
 binding's no-project-root branch ([`topic-docs.md`](topic-docs.md)). Interactive, ask for a
 location and pass it as `--memory-dir`. Non-interactive, skip steps 1 to 3 and run `new` with no
 `--memory-dir`: outside a git work tree it resolves `<plugin data>/topic-docs` itself, from
-`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path, because Claude Code
-does not export that variable to Bash-tool commands. The self-ignore guard still binds there. The
+`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path (the record below says
+why). The self-ignore guard still binds there. The
 first refusal names the exact `.gitignore` path to create; create it with the single line `*`,
 announce the write, and re-run. When neither source gives a data dir (a `--plugin-dir` or source
 checkout run), `new` refuses and asks for an explicit `--memory-dir`.
+
+**Verification record: plugin data dir.**
+
+- **Claim.** `${CLAUDE_PLUGIN_DATA}` is `~/.claude/plugins/data/<id>/`, with `<id>` the plugin
+  identifier with every character outside `[A-Za-z0-9_-]` replaced by `-`. It is substituted inline
+  in skill content and exported as an environment variable only to hook processes and MCP and LSP
+  server subprocesses, never to Bash-tool commands. The page does not say the substitution reaches
+  a file a skill reads with the Read tool, or the `${CLAUDE_PLUGIN_DATA:-default}` form, so this
+  plugin relies on neither: a SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a
+  script run through Bash derives the dir (`save_point.py` `_plugin_data_root`).
+- **Basis.** The Environment variables section of
+  <https://code.claude.com/docs/en/plugins-reference#environment-variables>: "`~/.claude/plugins/data/<id>/`
+  ... `<id>` is the plugin identifier with every character other than a letter, digit, `_`, or `-`
+  replaced by `-`"; the Skill, command, and agent content row resolves "Anywhere in the Markdown
+  body"; "The variables aren't present in the environment of commands Claude runs through the Bash
+  tool, in the main session or in a subagent."
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the plugins-reference page changes which
+  processes receive the plugin path variables, where they substitute, or the data-dir layout.
 
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key

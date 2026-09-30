@@ -2,9 +2,5 @@ Score rendered to campfire.wav (mono 16-bit, 22050 Hz, gameboy preset).
 
     t75 o3 l2 @0 c g | o4 l4 @2 e g a g
 
-The same score is plugins/retro-audio/examples/campfire.mml. This folder does not
-import that plugin. Re-render there, then copy the WAV here:
-
-    python3 <retro-audio>/scripts/mml.py --chip gameboy --rate 22050 \
-      --score <retro-audio>/examples/campfire.mml \
-      --out campfire.wav
+This folder does not import the retro-audio plugin. Re-render with /retro-audio:music if that
+plugin is installed, using the score and render settings above, then copy the WAV here.

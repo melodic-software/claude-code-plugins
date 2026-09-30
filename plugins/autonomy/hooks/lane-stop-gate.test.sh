@@ -273,29 +273,15 @@ OUT="$(run "$(build_big_input "$BIGFILE")" CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEO
 if is_block "$OUT"; then fail "early sentinel in long message → wrongly blocked (pipefail/SIGPIPE): $OUT"; else ok "early sentinel in ~120KB message → stop allowed (no SIGPIPE loss)"; fi
 
 # --- Telemetry (hook-telemetry convention): sink helpers ---------------------
-# make_sink <file> → executable that appends stdin to <file>; wait_sink <file>
-# polls until the fire-and-forget background write lands (or ~3s elapses).
-make_sink() {
-  local s="$WORK/sink.sh"
-  printf '#!/usr/bin/env bash\ncat >>"%s"\n' "$1" >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-wait_sink() {
-  local f="$1" tries=150
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # --- Case 16: telemetry on block → status=blocked, outcome=nudged, no token --
 TEL="$WORK/tel-block.jsonl"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "no token" false)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
 if is_block "$OUT"; then ok "telemetry block case still blocks"; else fail "telemetry block case not blocked: $OUT"; fi
-if wait_sink "$TEL"; then
+if wait_for_sink "$TEL"; then
   if jq -e '.hook=="lane-stop-gate" and .status=="blocked" and .data.outcome=="nudged" and .data.signal=="none" and (.duration_ms|type)=="number"' "$TEL" >/dev/null 2>&1; then
     ok "telemetry on block: envelope hook/status/outcome/signal/duration correct"
   else
@@ -308,10 +294,10 @@ fi
 
 # --- Case 17: telemetry on signaled allow → status=ok, signal=sentinel -------
 TEL="$WORK/tel-ok.jsonl"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "LANE-STOP-OK" false)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
 if is_block "$OUT"; then fail "telemetry signaled case wrongly blocked: $OUT"; fi
-if wait_sink "$TEL" && jq -e '.status=="ok" and .data.outcome=="completion-signaled" and .data.signal=="sentinel"' "$TEL" >/dev/null 2>&1; then
+if wait_for_sink "$TEL" && jq -e '.status=="ok" and .data.outcome=="completion-signaled" and .data.signal=="sentinel"' "$TEL" >/dev/null 2>&1; then
   ok "telemetry on signaled allow: ok/completion-signaled/sentinel"
 else
   fail "telemetry on signaled allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
@@ -319,10 +305,10 @@ fi
 
 # --- Case 18: telemetry on post-nudge allow → ok, outcome=stopped-after-nudge
 TEL="$WORK/tel-nudge.jsonl"
-SINK="$(make_sink "$TEL")"
+SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "still no token" true)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
 if is_block "$OUT"; then fail "telemetry post-nudge case wrongly blocked: $OUT"; fi
-if wait_sink "$TEL" && jq -e '.status=="ok" and .data.outcome=="stopped-after-nudge" and .data.signal=="none"' "$TEL" >/dev/null 2>&1; then
+if wait_for_sink "$TEL" && jq -e '.status=="ok" and .data.outcome=="stopped-after-nudge" and .data.signal=="none"' "$TEL" >/dev/null 2>&1; then
   ok "telemetry on post-nudge allow: ok/stopped-after-nudge/none"
 else
   fail "telemetry on post-nudge allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
@@ -1304,6 +1290,8 @@ if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter l
 # command count. On the #3508 hosts a process creation is the unit of cost
 # (180-2,841 ms each), so the count that binds is this one.
 #
+# The trace runs `bash "$HOOK"` directly: it counts the script, not the `node`
+# launcher process hooks.json puts ahead of it.
 # Two paths are traced from the staged install:
 #   default (no gate footprint anywhere): EXACTLY 0 creations and 0 launches.
 #     The last one was the `uname -s` the managed-settings platform selection

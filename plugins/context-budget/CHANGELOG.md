@@ -5,6 +5,43 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
+
+## [0.6.46] - 2026-09-29
+
+### Added
+
+- **`audit` carries a Boundary section for the bundled skill `explain-usage`.** When it resolves,
+  it explains where this session's tokens went after the fact; this skill keeps per-item startup
+  measurement and the before/after ledger.
+
+## [0.6.45] - 2026-09-29
+
+### Fixed
+
+- **`setup` passes the scope `claude plugin list` reports.** The headless toggle no longer says
+  to always pass `-s user`: a rerun at a scope other than the installed one adds an install
+  record and enables the plugin there. When the working directory is the home directory and the
+  list labels one file as both `user` and `project`, pass `user`. The README and eval 6 say the
+  same. The unsourced `fnm_multishells` path example is gone, and `setup` now ends with a
+  `## Next` section pointing at `audit`.
+- **`audit` reference text.** `engine.md` lists the binary stamp and `skillListingSignature`
+  among the record's fields again (a splice had detached them from the sentence) and documents
+  the two harness-only `cli-parse` marker lines, `Caveat:` and `<!-- synthesized-zero: -->`, as
+  the hermetic test's input contract. The README's ConfigChange wording now matches the hooks
+  page (Claude Code 2.1.284): a block does not apply to `policy_settings` changes, the hook
+  discards `systemMessage`, and a blocked change surfaces no message.
+- **Connectors lever.** The 2.1.259 `allowedMcpServers` fact is stated once, in the caveat,
+  and the lever rows no longer cite changelog item ids. The manifest description says `fix`
+  applies one approved project-scope trim instead of "applies nothing".
+
+### Changed
+
+- **Changelog corrections to released entries.** 0.6.42 carried bullets duplicated from 0.6.39
+  and 0.6.41 and now records that it changed no plugin behavior; 0.6.36 gains the
+  `settings_write_ask_enabled` description line it shipped without; a note under the header
+  records that 0.6.38 and 0.6.40 were never published.
+
 ## [0.6.44] - 2026-09-28
 
 ### Changed
@@ -26,19 +63,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.6.42] - 2026-09-28
 
-### Added
-
-- **Lever rows for command-output caps** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `bashOutputMaxChars` is disclose-only: it changes how much of a later command stays inline, and a startup snapshot of it measures zero. `taskOutputMaxChars` is recorded as removed in Claude Code 2.1.277, so the catalogue does not emit it.
-
 ### Changed
 
-- **Connector allowlists and `/context` counting**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The connectors lever no longer says `allowedMcpServers` removes managed connectors. From
-  Claude Code 2.1.259 only `deniedMcpServers` does; `allowedMcpServers` governs servers users
-  add. The measurement contract no longer says `/context` makes no API call. It uses the
-  token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
-  after the first turn. Pages read 2026-09-28.
+- No plugin behavior change. The version was bumped when the #4027 changelog campaign closed (#5162); the lever rows and connector wording shipped in 0.6.39 and 0.6.41.
 
 ## [0.6.41] - 2026-09-28
 
@@ -86,6 +113,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`settings_write_ask_enabled` description.** The userConfig description now says the ask covers Write, Edit, MultiEdit and NotebookEdit, and that shell writes and files rendered into place are outside the matcher.
 - **Bare-name deny cites the `EndConversation` exception.** The permissions page now says
   bare-name removal applies to every tool except `EndConversation` (a deny cannot remove it
   while any other tool remains, and an ask rule never prompts for it). `engine.md`, the

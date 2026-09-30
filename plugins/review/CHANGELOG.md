@@ -3,6 +3,97 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.9] - 2026-09-29
+
+### Changed
+
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: medium`, down from `high`.** Both check
+  against binary criteria, so the extra effort bought cost without changing the verdict.
+  `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` stay at
+  `high`.
+
+## [0.33.8] - 2026-09-29
+
+### Security
+
+- **`pr-explainer` page validator rejects resource-loading CSS.** Inside `<style>`, `url(`,
+  `@import`, `expression(` and any backslash escape now fail the page; before, a page could load
+  a remote stylesheet or image with no HTML-significant character. The module comment no longer
+  claims the generator marker proves a page came from the builder: anyone can recompute the digest,
+  so a stamped page is judged by the structural scan alone.
+
+## [0.33.7] - 2026-09-29
+
+### Changed
+
+- **`ecosystem-specialist` no longer triggers proactively.** Its description scopes the trigger to
+  an explicit 'build', 'test', 'lint', or 'check' request and says not after every edit, matching
+  `code-reviewer`.
+
+## [0.33.6] - 2026-09-29
+
+### Changed
+
+- **`code-reviewer` preloads `testing:test-value`.** Its tautological-expectation criterion keeps
+  the scan-deference logic and points to that skill for the list of independent oracle sources.
+
+## [0.33.5] - 2026-09-29
+
+### Added
+
+- **`audit-enforceability` crosswalk rows for nine `testing:audit` rules.** The rule-id table now
+  names a rung for `rule-inert-assertion` (the test-framework analyzer pack: xUnit2021,
+  `valid-expect`, SC2314, F631), `rule-only-not-forbidden` (the project's ESLint config, through
+  eslint-plugin-playwright `no-focused-test`), and seven rules the `testing:audit` detector
+  already checks deterministically: `rule-constant-restatement`, `rule-source-text-read`,
+  `rule-conditional-assertion`, `rule-recomputed-derived`, `rule-snapshot-only`,
+  `rule-weak-oracle` and `rule-flaky-passes-suite`.
+
+## [0.33.4] - 2026-09-29
+
+### Changed
+
+- **`fanout` eval for the caller-supplied finding shape**
+  ([#4267](https://github.com/melodic-software/claude-code-plugins/issues/4267)). A finding that
+  arrives with its own `Confidence` keeps it through normalization.
+- **Descriptions and claims read in the third person and stay accurate**
+  ([#4053](https://github.com/melodic-software/claude-code-plugins/issues/4053),
+  [#4263](https://github.com/melodic-software/claude-code-plugins/issues/4263),
+  [#4268](https://github.com/melodic-software/claude-code-plugins/issues/4268)).
+  `security-review` says "the current branch". `ci-log-auditor` and the README say read-only over the
+  reviewed code by instruction, and the README notes Bash is a second unenforced write path. The
+  README no longer counts skills.
+
+### Fixed
+
+- **`quality-gate` worker prompts end the review base ladder at `origin/main`**
+  ([#4245](https://github.com/melodic-software/claude-code-plugins/issues/4245)). `context/self.md`
+  still listed `HEAD` as the last rung, so a clean committed branch with no resolvable base read as an
+  empty diff. `self.md` and `context/per-slice.md` now match `quality-gate` and `fanout`: when no rung
+  yields a merge-base the base is unresolved, never `HEAD`, and the reviewer names it and declines to
+  grade. A new offline test, `tests/change-set-block.test.sh`, checks that the three reviewer agents
+  carry the same change-set block and that the block prints `UNRESOLVED-BASE` with no remote and in a
+  depth-1 clone; it tests the block's output, not a model's behavior.
+- **`emit-stubs.sh` says what it creates and reports the arm it cannot run**
+  ([#3934](https://github.com/melodic-software/claude-code-plugins/issues/3934)). Only the
+  caller's own paths are never created; the volume probe makes and removes a private
+  `emit-stubs-norm.XXXXXX` directory, and an interrupt now removes it. The test run reports the
+  exit-3 normalizing-volume refusal and the `stat`/`diskutil` fallback as skipped on a byte-exact
+  runner, and `EMIT_STUBS_ASSUME_NORMALIZING=1` (a test seam) drives the fold to exit 3. Neither is
+  verified on a real APFS or HFS Plus volume.
+- **`security-review` states the limits of its instruction-surface lens**
+  ([#3566](https://github.com/melodic-software/claude-code-plugins/issues/3566)). The exception
+  register URL is unreadable with the skill's granted tools, so the skill reads the in-repo copy when
+  present and otherwise falls back to recognition by consequence and says so in the review. It also
+  states that the lens lives in this skill only, not in the `security-reviewer` agent. Three evals cover
+  an unenforced guardrail deletion, an enforced one, and a scope-preserving compression.
+- **`pr-explainer` builder meets the documented focus floor**
+  ([#3605](https://github.com/melodic-software/claude-code-plugins/issues/3605)). It used a bare
+  `:focus` rule with a 2px outline; it now uses the chrome reference's `:focus-visible` rule (3px
+  outline, 2px offset). A new test, `tests/pr-explainer-chrome.test.sh`, compares the inlined palette
+  tokens and focus rule with `html-chrome.html` and names the token that drifted. `SKILL.md` states
+  that the generator marker is an unkeyed SHA-256.
+
 ## [0.33.3] - 2026-09-28
 
 ### Changed

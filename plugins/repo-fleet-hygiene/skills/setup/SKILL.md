@@ -2,6 +2,8 @@
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it by adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides, preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - Bash(${CLAUDE_SKILL_DIR}/scripts/setup-config.sh:*)
 argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--skip <name>]..."
 ---
 
@@ -56,7 +58,7 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
 1. **Config presence**. Resolve the config path (`--config` or the default). Absent → INFO naming
    the full ladder: the audit next probes the user-global `~/.claude/repo-fleet-hygiene.conf` (report
    whether one exists there); with no config on the ladder and no scope argument, a bare
-   `/repo-fleet-hygiene:audit` fails rather than auditing the current project. `apply` scaffolds a
+   `/repo-fleet-hygiene:audit` follows the no-scope ladder in that skill. `apply` scaffolds a
    config only if the user wants bounded roots or overrides.
 2. **Parse validity**. Present config: `git config --file "<path>" --list >/dev/null`. A non-zero exit
    is FAIL with the parse error in the remediation line. Never `source` the file.
@@ -116,18 +118,29 @@ Run `check`, then create or update the config from the supplied arguments.
    ```
 
    (`..` is relative to `.claude/` and therefore names `${CLAUDE_PROJECT_DIR}`.)
-4. Write/update with an ordinary file edit, not `git config --file ... --add`: the file may be tracked
-   and the user must see a deterministic diff. Preserve comments and unrelated sections. Prefer a
-   path relative to the config file's directory for any root/repository/canonical target expressible
-   that way. The grammar resolves relative paths from that directory and both forms audit
-   identically, while some consumer environments run a write-time path-portability guard that rejects
-   absolute paths in tracked config. "Expressible that way" is the real constraint: on Windows, no
-   relative path exists between two volumes, so a fleet root on `D:` with a config on `C:` has only
-   the absolute form. Write the absolute path, and say in the report that the relative form was
-   unavailable because the target is on another volume. Otherwise the guard's rejection reads as a
-   consumer mistake. This preference is prose guidance followed by the model, not a property a
-   deterministic component enforces; treat it as a default to justify departing from, not a
-   guarantee.
+4. Write `--root`, `--repo`, `--skip`, `--extend-skip`, and `--max-depth` by calling the bundled
+   script, never by hand-editing the file:
+
+   ```text
+   ${CLAUDE_SKILL_DIR}/scripts/setup-config.sh apply [--config <path>] [--project-dir <dir>]
+       [--root <dir>]... [--repo <dir>]... [--skip <name>]... [--extend-skip <name>]... [--max-depth <n>]
+   ```
+
+   It validates the same rules as step 1, writes each entry with `git config --file <path> --add`
+   after an exact-match check (a repeated run reports "already configured" and changes nothing),
+   preserves comments and unrelated entries, creates the parent directory, and refuses a symlink
+   target. It exits 2 on a validation error and writes nothing. Without `--config` it writes
+   `<project-dir>/.claude/repo-fleet-hygiene.conf` (`${CLAUDE_PROJECT_DIR}` when `--project-dir` is
+   absent). The script takes only those five options. For `--canonical` and `--ack-unavailable`,
+   which need the identity checks above, make an ordinary file edit so the user sees a deterministic
+   diff, preserving comments and unrelated sections.
+
+   The script writes each root and repository relative to the config file's directory, which the
+   grammar resolves identically and which passes the write-time path-portability guard some consumer
+   environments run on tracked config. Where no relative path exists (on Windows, two volumes: a
+   fleet root on `D:` with a config on `C:`) it writes the absolute path; say in the report that the
+   relative form was unavailable because the target is on another volume, so the guard's rejection
+   is not mistaken for a consumer error. Write any hand-edited `--canonical` path the same way.
 5. Verify after remediation. Re-run every `check` probe against the written file (never claim success on
    the edit alone). Config-only, exactly as `check` defines them:
 

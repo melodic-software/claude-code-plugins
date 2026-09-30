@@ -4,6 +4,22 @@ Notable changes to the argument-hint contract (SemVer). Changing the budget, the
 or whether a violation warns or fails is a major bump. Adding a malformed shape the gate warns on
 is a minor bump. Docs-only clarification is a patch.
 
+## [1.1.0] - 2026-09-29
+
+Minor. A new shape the gate warns on; the budget and the existing warnings are unchanged.
+
+- **Hint and `**Arguments.**` line agree.** The gate warns when the first inline code span of a
+  body line starting with `**Arguments.**` differs from the hint. Skills without the key or
+  without that line stay silent.
+
+## [1.0.1] - 2026-09-29
+
+Patch, docs only. The budget, the gate, and what it warns on are unchanged.
+
+- **`...` defined.** The style list states that `...` after a slot marks it repeatable, the notation
+  the fleet's hints already use. The [skill argument shape](../skill-argument-shape/README.md)
+  points here for notation and no longer restates it.
+
 ## [1.0.0] - 2026-09-28
 
 First release ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).

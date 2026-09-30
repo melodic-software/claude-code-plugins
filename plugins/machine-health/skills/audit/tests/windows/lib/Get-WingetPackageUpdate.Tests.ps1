@@ -82,4 +82,43 @@ Describe 'Get-WingetPackageUpdate CLI fallback' -Tag 'lib' {
         $result.upgrades | Should -BeNullOrEmpty
         $result.error | Should -Match 'not on PATH'
     }
+
+    It 'reports a failed CLI launch as a text-parse fallback error' {
+        Mock Get-Module { $null }
+        Mock Invoke-NativeCommand {
+            [pscustomobject]@{
+                status    = 'Failed'
+                source    = 'winget'
+                exit_code = $null
+                output    = ''
+                error     = 'boom'
+            }
+        } -ParameterFilter { $Name -eq 'winget' }
+
+        $result = Get-WingetPackageUpdate
+        $result.upgrades | Should -BeNullOrEmpty
+        $result.error | Should -Match 'winget text-parse fallback failed: boom'
+    }
+
+    It 'parses output from a nonzero winget exit instead of reporting an error' {
+        Mock Get-Module { $null }
+        Mock Invoke-NativeCommand {
+            [pscustomobject]@{
+                status    = 'NonZero'
+                source    = 'winget'
+                exit_code = 1
+                output    = @(
+                    'Name                 Id                 Version    Available  Source'
+                    '-------------------- ------------------ ---------- ---------- ------'
+                    'Git                  Git.Git            2.45.1     2.46.0     winget'
+                ) -join "`n"
+                error     = $null
+            }
+        } -ParameterFilter { $Name -eq 'winget' }
+
+        $result = Get-WingetPackageUpdate
+        $result.error | Should -BeNullOrEmpty
+        @($result.upgrades).Count | Should -Be 1
+        $result.upgrades[0].id | Should -Be 'Git.Git'
+    }
 }

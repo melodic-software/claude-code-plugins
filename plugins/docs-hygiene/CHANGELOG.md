@@ -1,5 +1,77 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.19] - 2026-09-29
+
+### Fixed
+
+- **`resolve-config.sh`** treats a `--root` that is the home directory (or an ancestor of it) or is
+  not inside a git working tree as having no team or overlay layer: `paths` reports both as
+  not-applicable and only the user-global file is read. A team or overlay path that is the
+  user-global file is reported as such and read once. The classifier is `lib/config-root.sh`, a
+  synced copy of the source-control resolver.
+
+## [0.23.18] - 2026-09-29
+
+### Fixed
+
+- **`audit-progressive-disclosure` checks upstream ownership before proposing a treatment.** A new
+  hard rule greps the repo for synced, vendored, generated or upstream markers on the target and
+  reads `docs/adr/` and `docs/decisions/` for a recorded tier or owner. On a hit the finding
+  stays, its treatment is `file with the owner, citing the decision`, and its disposition is
+  `upstream`. A Tier 3 row never carries a treatment. `tier-model.md` states the recorded-reason
+  and upstream-owner exemptions, and a synced-rule eval covers the routing
+  ([#5173](https://github.com/melodic-software/claude-code-plugins/issues/5173)).
+
+## [0.23.17] - 2026-09-29
+
+### Fixed
+
+- **`audit-file-names` no longer reads an empty scan root as a clean tree.** `inventory.sh` warns
+  on stderr when it scans no files, and `emit-findings.sh` exits 3 when the inventory scanned zero
+  files over an existing plan that holds findings, unless `--replace` is passed, so a re-audit
+  cannot drop recorded decisions. `SKILL.md` and `reference/config.md` define `SCANNED 0` as an
+  empty root and direct the zero-offender run to a `findings: 0` plan.
+
+## [0.23.16] - 2026-09-29
+
+### Changed
+
+- **The plugin contract is ratified.** `reference/plugin-contract.md` drops the proposed status.
+  Boundary 5 now matches the shipped skills: writes are opt-in and confirmation-gated per
+  invocation or per batch, and file-name renames are gated per file. The listing-budget rule is
+  the 8,000 default in `check-listing-budget.sh` alone, and the decision record is a four-part
+  claim, basis, as-of, recheck. The file-name skills are slated to move to a `docs-naming` plugin
+  ([#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142),
+  [#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348)).
+
+## [0.23.15] - 2026-09-29
+
+### Fixed
+
+- **`audit-derivability` keep verdicts are sampled, and recorded decisions are checked before every
+  delete.** The rubric names the routing-index row as an explicit exception to the
+  derivable-from-primary-sources rule, so a launch-loaded routing doc is never `delete`. A keep
+  sample has a size rule, a diverged and a converged outcome, and `sampled`/`overturned` counts in
+  the aggregate line. `git log` runs before every `delete` and `convert-to-pointer`, and a
+  commit-recorded decision ships the verdict provisional as `reverses a recorded decision`. A
+  spot-test of a launch-loaded file must use `Explore` or `Plan`. Three evals cover the new cases
+  ([#4573](https://github.com/melodic-software/claude-code-plugins/issues/4573)).
+- **`extract-ssot identify` documents `--inline` and uses one term for an all-refused survey.** The
+  identify Flags table and the `Full form:` argument line list `--inline`, and both files call an
+  all-refused survey a "closed record"
+  ([#4713](https://github.com/melodic-software/claude-code-plugins/issues/4713)).
+- **`write-for-agents` states the CLI append-flag facts once.** The three flag rows in
+  `reference/agent-doc-surfaces.md` are one pointer row to the "CLI prompt appends" section, and the
+  tracker tag is gone.
+- **The plugin contract is marked proposed.** `reference/plugin-contract.md` and the README say the
+  charter is pending the owner's decision on
+  [#4142](https://github.com/melodic-software/claude-code-plugins/issues/4142). The Decision text
+  is unchanged.
+- **Changelog bodies corrected in place, headings kept.** Edited entries: 0.23.8 (a copy of 0.23.5,
+  now "No functional change"), 0.23.9 (drops the tracker item id), 0.23.10 (now describes the "CLI
+  prompt appends" section it shipped), and 0.23.11 (a copy of 0.23.10, now "No functional
+  change").
+
 ## [0.23.14] - 2026-09-28
 
 ### Fixed
@@ -28,28 +100,24 @@
 
 ### Changed
 
-- **`write-for-agents` lists the system-prompt file and subagent append flags**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
-  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
-  rows are in `docs/specs/agent-doc-surfaces.md`.
+- No functional change. No plugin file changed; this release restates the 0.23.10 entry.
 
 ## [0.23.10] - 2026-09-28
 
 ### Changed
 
-- **`write-for-agents` lists the system-prompt file and subagent append flags**
+- **`write-for-agents` gains a "CLI prompt appends" section**
   ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  The cli-reference read on 2026-09-28 has `--append-system-prompt-file` and the two
-  `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
-  rows are in `docs/specs/agent-doc-surfaces.md`.
+  `reference/agent-doc-surfaces.md` records that `--append-system-prompt-file` is not `-p`-only,
+  and that the two `--append-subagent-system-prompt` forms are `-p` only, cannot be combined, and
+  need Claude Code v2.1.261 (file form) or v2.1.205 (text form) or later.
 
 ## [0.23.9] - 2026-09-28
 
 ### Changed
 
 - **`write-for-agents` CLI surface table names the file and subagent append flags**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 261-003).
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
   `reference/agent-doc-surfaces.md` now lists `--append-system-prompt-file`,
   `--append-subagent-system-prompt`, and `--append-subagent-system-prompt-file` beside
   `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
@@ -59,12 +127,7 @@
 
 ### Changed
 
-- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Ten of the 11 listed skills
-  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
-  nearest sibling. What the bodies already carry is cut: verdict-weighing axes, classification
-  detail, and the long "not for" lists. `check-listing-budget.sh plugins/docs-hygiene/skills` goes
-  from 7,985 to 5,234 characters, under the 8,000 default. No skill is renamed or merged, and
-  `setup` and `generate-file-name-gate` stay user-invoked and unlisted.
+- No functional change. Duplicate of 0.23.5 (#4661); the description trim shipped there.
 
 ## [0.23.7] - 2026-09-28
 

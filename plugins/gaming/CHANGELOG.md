@@ -3,18 +3,53 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-09-29
+
+### Removed
+
+- The DLSS5-Feeder pointers from `SKILL.md`, `candidate-selection.md` and
+  `reference/feeder-route.md`; the reference file is deleted.
+- `assess` guidance for a no-upscaler or 32-bit game no longer names an alternative route.
+- The Feeder route is not built: `apply`, `remove` and `status` cover the in-process OptiScaler
+  route only. The bitness and dx12 fixes from 0.8.0 stand.
+
+## [0.8.3] - 2026-09-29
+
+### Fixed
+
+- `assess` names the DLSS5-Feeder route for a no-upscaler game only when `antiCheat.status` is
+  `none-disclosed`; with `signals` or `unknown` it says the route does not lower anti-cheat risk and
+  points nowhere. `reference/feeder-route.md` gains an anti-cheat and multiplayer section and drops
+  the stale wrong-dx12-heuristic instruction.
+- The 32-bit text in `SKILL.md`, `candidate-selection.md` and `feeder-route.md` states one rule: the
+  dead end covers the in-process OptiScaler route only.
+- `ErrorPath` in `Invoke-Dlss5Mod.ps1` drops a branch that returned the same value as the line after
+  it.
+
+### Changed
+
+- `reference/feeder-route.md` carries a verification record for its third-party claims and marks
+  single-reporter claims as unverified. The dlss5 evals cover the gated Feeder pointer.
+- The 0.8.1 and 0.8.2 entries state what those releases shipped.
+
 ## [0.8.2] - 2026-09-28
 
-### Added
+### Changed
 
-- **DLSS5-Feeder research park (#4592):** `reference/feeder-route.md` documents the manual Feeder
-  route for no-upscaler games; `assess` copy points there without implying `apply` installs it.
+- **DLSS5-Feeder research park (#4592):** `assess` guidance in `SKILL.md` and
+  `candidate-selection.md` points every 64-bit no-upscaler result to `reference/feeder-route.md`,
+  with no anti-cheat gate; 0.8.3 adds the gate. `apply` does not install the route.
 
 ## [0.8.1] - 2026-09-27
 
 ### Fixed
 
-- A folder the discovery scan cannot list is reported with the path from the error, from `CategoryInfo.TargetName`, or from a quoted path in the message when Windows leaves `TargetObject` empty. The selftest holds that folder open with no sharing so the listing fails with a sharing violation. A Deny ACE, including one for Everyone, does not stop an elevated runner from listing.
+- A folder the discovery scan cannot list is reported with the path from the error, from
+  `CategoryInfo.TargetName`, or from a quoted path in the message when Windows leaves `TargetObject`
+  empty. The selftest holds that folder open with no sharing so the listing fails with a sharing
+  violation. A Deny ACE, including one for Everyone, does not stop an elevated runner from listing.
+  This repaired the selftest step added by #4646, which failed on the hosted windows-2025 lane; it
+  shipped in #4664.
 
 ## [0.8.0] - 2026-09-27
 

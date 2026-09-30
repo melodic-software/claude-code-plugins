@@ -3,6 +3,30 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-29
+
+### Changed
+
+- **Breaking: reports use `code-metrics/v2` and root-relative paths.** The schema identifier is now
+  `code-metrics/v2`. Every measured path is relative to the new `root` object (the repository root,
+  or the working directory outside a work tree), and `scan_root` records where the scan started.
+  v1 documents are not comparable path-for-path, so a baseline taken under v1 must be re-taken.
+  Producers emit v2 only.
+
+## [0.3.24] - 2026-09-29
+
+### Fixed
+
+- **The type-debt lane-total row is labeled `partial` when files are held out.** A Python lane row
+  summed only the files mypy measured but carried no sign of it, so a reader of the row alone could
+  take it for the whole scope. Its labels now read `lane-total, partial` (and `mypy-reported-errors`
+  when mypy exited non-zero), matching the run row's `partial` status. `audit-type-debt` and
+  `report-schema.md` state it.
+- **The excluded-only file count in the duplication summary has one source.** `report.py` `render`
+  kept its own copy of the calculation that `files_excluded_only` already does, and the copy skipped
+  the guard against an instance with no `file`. It now calls the function. The rendered sentence is
+  unchanged, and the `audit-duplication` summary-lines sentence is split in two.
+
 ## [0.3.23] - 2026-09-28
 
 ### Fixed

@@ -209,10 +209,18 @@ if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
+# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
+# a team or overlay file that is the user-global file is not read a second time.
+# shellcheck source=../../../lib/config-root.sh
+source "$SCRIPT_DIR/../../../lib/config-root.sh"
+USER_CFG="${HOME:-/nonexistent}/.claude/ai-slop.json"
 CFG_LAYERS=()
-[[ -f "${HOME:-/nonexistent}/.claude/ai-slop.json" ]] && CFG_LAYERS+=("$HOME/.claude/ai-slop.json")
-[[ -f "$REPO_ROOT/.claude/ai-slop.json" ]] && CFG_LAYERS+=("$REPO_ROOT/.claude/ai-slop.json")
-[[ -f "$REPO_ROOT/.claude/ai-slop.local.json" ]] && CFG_LAYERS+=("$REPO_ROOT/.claude/ai-slop.local.json")
+[[ -f "$USER_CFG" ]] && CFG_LAYERS+=("$USER_CFG")
+if [[ "$(config_root_classify "$REPO_ROOT")" == repo ]]; then
+  for _cfg in "$REPO_ROOT/.claude/ai-slop.json" "$REPO_ROOT/.claude/ai-slop.local.json"; do
+    [[ -f "$_cfg" ]] && ! config_root_paths_same "$_cfg" "$USER_CFG" && CFG_LAYERS+=("$_cfg")
+  done
+fi
 
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0

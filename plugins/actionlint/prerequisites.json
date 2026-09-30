@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "actionlint",
+      "check": "/actionlint:check",
+      "install": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    }
+  ]
+}

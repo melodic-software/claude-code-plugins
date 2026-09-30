@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "testing",
-  "version": "0.9.7",
-  "description": "Test-stage discipline across all ecosystems: coverage-gap analysis and test planning (`/testing:plan`), TDD test authoring and placement (`/testing:write`), live E2E plus non-UI smoke verification (`/testing:run-e2e`), failing-test root-cause diagnosis with the reproduce → isolate → fix → retest loop (`/testing:diagnose`), and a deterministic can't-fail test audit with a fail-closed gate mode and opt-in findings persistence (`/testing:audit`).",
+  "version": "0.11.3",
+  "description": "Test-stage discipline across all ecosystems: coverage-gap analysis and test planning (`/testing:plan`), TDD test authoring and placement (`/testing:write`), live E2E plus non-UI smoke verification (`/testing:run-e2e`), failing-test root-cause diagnosis with the reproduce → isolate → fix → retest loop (`/testing:diagnose`), a deterministic can't-fail test audit with a fail-closed gate mode and opt-in findings persistence (`/testing:audit`), its configuration (`/testing:setup`), and opt-in hooks that scan each test file Claude writes and question edits that weaken tests.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -16,5 +16,20 @@
     "diagnose",
     "coverage",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "test_guards_enabled": {
+      "type": "boolean",
+      "title": "Test guard hooks",
+      "description": "Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
+      "default": false
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open",
+      "default": 2,
+      "min": 1
+    }
+  }
 }

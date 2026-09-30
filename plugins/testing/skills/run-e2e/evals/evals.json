@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "/testing:run-e2e",
-      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed \u2014 primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run's evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., 'npm install -g @playwright/cli'). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin's skill for browser mechanics when installed.",
+      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run's evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., 'npm install -g @playwright/cli'). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin's skill for browser mechanics when installed.",
       "files": []
     },
     {
@@ -15,15 +15,74 @@
     },
     {
       "id": 3,
-      "name": "missing-playwright-hard-fails-with-gap-report",
-      "prompt": "/testing:run-e2e \u2014 Playwright CLI is not installed and the app is not running.",
-      "expected_output": "Hard-fails: stops rather than improvising a workaround, and writes a structured verification-environment gap report naming the missing CLI and the missing running app, with remediation such as installing @playwright/cli and starting the app.",
+      "name": "prerequisites-pass-config-resolved-drive-delegated",
+      "prompt": "/testing:run-e2e the login flow",
+      "expected_output": "Prerequisites pass, so the run does not stop. Step 2 resolves recording and browser_mode per key across the user-global, team, and local layers of .claude/testing/e2e.md and reports which layer supplied each effective value. Step 3 delegates the drive loop to a subagent, passes the resolved browser_mode and recording through, and consumes only the evidence paths it returns.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Stops instead of attempting a workaround",
-        "Names the missing Playwright CLI and the missing running app",
-        "Gives remediation steps rather than proceeding into a health check"
+        "Reads every layer of the config surface and merges recording and browser_mode per key",
+        "Reports which layer supplied each effective value",
+        "Delegates the drive loop to a subagent instead of driving the browser in its own context",
+        "Passes the resolved browser_mode and recording through to the executor",
+        "Returns only evidence paths, not browser session output"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "native-step-skip-when-bundled-run-disabled",
+      "prompt": "/testing:run-e2e the login flow. disableBundledSkills is set in settings and the project has no orchestrator configuration.",
+      "expected_output": "The bundled run skill is disabled for model invocation, so the Native step is skipped and the result block records the refusal. The evidence output opens with the result block, names the axis line and the enable path, and the launch falls back to this skill's own launch playbook without retrying run.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Opens the result block with 'invocation refused (disableBundledSkills)'",
+        "Names the axis line (settings or environment)",
+        "Names the enable path (disableBundledSkills, skillOverrides)",
+        "Falls back to this skill's own launch playbook, the project's documented start command",
+        "Does not retry the run invocation"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "native-step-run-resolves-no-orchestrator",
+      "prompt": "/testing:run-e2e the login flow. The bundled run skill resolves in this session and the project has no orchestrator configuration.",
+      "expected_output": "No orchestrator governs the start and run resolves, so the drive subagent invokes run through the Skill tool to launch the app only. It fingerprints the tracked tree before and after the invocation, layers screenshots, responses, and logs on top of run's result, and records State: ran in the result block.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Invokes run through the Skill tool to launch the app and report how to reach it",
+        "Saves git diff HEAD to a scratch file immediately before and after the invocation and compares the two",
+        "Layers evidence (screenshots, responses, logs) on top of run's result",
+        "Records 'State: ran' in the result block",
+        "Launches the app once, through run only"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "native-step-skipped-orchestrator-governs",
+      "prompt": "/testing:run-e2e the login flow. The project's docker-compose configuration governs the start, and the bundled run skill resolves in this session.",
+      "expected_output": "The project's orchestrator governs the start, so the Native step is skipped and the orchestrator path runs unchanged. The result block records the skip and run is never invoked, leaving one launch path.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records 'skipped (orchestrator governs the start)' in the result block",
+        "Does not invoke run",
+        "Launches through the orchestrator path only, one launch path"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "native-step-skipped-app-already-running",
+      "prompt": "/testing:run-e2e the login flow. No orchestrator governs the start, the bundled run skill resolves in this session, and the app already answers at http://localhost:5000.",
+      "expected_output": "No orchestrator governs the start and run resolves, but the drive subagent probes the named URL before invoking run and gets a response. The Native step is skipped, run is never invoked, and the result block records the skip so no second instance starts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Probes the named localhost URL or port before invoking run, passing it as one quoted argument",
+        "Records 'skipped (app already running)' in the result block",
+        "Does not invoke run",
+        "Drives the existing instance and launches nothing"
       ]
     }
   ]

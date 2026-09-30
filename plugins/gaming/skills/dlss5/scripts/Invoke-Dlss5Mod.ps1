@@ -424,7 +424,6 @@ function ErrorPath($err, $fallback) {
     $msg = "$($err.Exception.Message)"
     if ($msg -match "'([A-Za-z]:\\[^']+)'") { return $Matches[1] }
     if ($msg -match '"([A-Za-z]:\\[^"]+)"') { return $Matches[1] }
-    if ("$fallback") { return "$fallback" }
     return "$fallback"
 }
 # Lists a folder; an absent one is silent, one that cannot be listed is reported.
@@ -1758,7 +1757,7 @@ function Do-Selftest {
         Assert 'assess: non-Steam Unreal finds DLSS under Engine\Plugins' (((Do-Assess $un) | ConvertFrom-Json).verdict -eq 'eligible')
         Assert 'assess: an exe that is not a PE image leaves dx12 and bitness unknown' ($null -eq $fsa.dx12 -and $fsa.bitness -eq 'unknown' -and $fsa.executables[0].dx12Basis -like 'unreadable: no MZ header*')
 
-        # #4592: bitness and dx12 come from the exe's PE tables. An x86 exe, as Alien: Isolation's
+        # Bitness and dx12 come from the exe's PE tables. An x86 exe, as Alien: Isolation's
         # AI.exe, is refused even with an upscaler DLL beside it.
         $x86 = "$w\pe\x86"; New-PeFixture "$x86\AI.exe" -Magic 0x10b -Machine 0x14C -Imports 'KERNEL32.dll', 'd3d11.dll', 'dxgi.dll'; Put "$x86\nvngx_dlss.dll" 'dlss'
         $xa = (Do-Assess $x86) | ConvertFrom-Json

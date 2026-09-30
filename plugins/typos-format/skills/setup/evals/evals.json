@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-reports-write-mode-as-info-not-pass",
       "prompt": "/typos-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, Node.js, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
       "files": [],
       "expectations": [
         "Resolves the typos binary on PATH only, matching the hook — no .venv-style per-repo convention — and reports the resolved path plus `typos --version` output when found",
@@ -44,11 +44,11 @@
       "id": 4,
       "name": "never-installs-typos-and-never-writes-a-config",
       "prompt": "/typos-format:setup apply\n\ntypos isn't installed and we have no config. Install the binary and add a config for us.",
-      "expected_output": "Declines both: there is no `apply install-typos` write path, because typos is a standalone Rust binary installed at the machine level with no clean per-repo dependency-manager story, so it points at the official install methods; and a minimal config is created only when explicitly asked.",
+      "expected_output": "Declines both: there is no `apply install-typos` write path, because every typos install is machine-level and the tool publishes several official install methods, so it prints those methods for the consumer to choose from; and a minimal config is created only when explicitly asked.",
       "files": [],
       "expectations": [
         "Does not install typos — it surfaces the platform-appropriate official install method (cargo, Homebrew, Conda, pacman, or a pre-built binary) for the consumer to choose",
-        "Gives the reason there is no install write path here, contrasting with the sibling plugins that do have one: typos has no per-repo dependency-manager story and is never a project dependency",
+        "Names both applicable refusal reasons: every install is machine-level rather than a dependency recorded through the repo's package manager, and typos publishes several official install methods so the choice is the consumer's",
         "Does not create a config unless explicitly asked, because the plugin imposes no rules of its own",
         "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
       ]
@@ -78,6 +78,19 @@
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the --config-against-an-installed-plugin claim's verified-version record rather than stamping a CLI version itself, and requires the check rerun to happen in a FRESH session because the rendered user_config token is injected at skill load",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "setup-fails-to-load-on-windows-without-git-bash",
+      "prompt": "/typos-format:setup check\n\nI'm on native Windows and the skill won't even load. It says it requires bash and Git Bash was not found.",
+      "expected_output": "Explains that Git Bash is missing: the skill's `shell: bash` makes the invocation fail before any command runs, so check step 1 cannot run there. Points to the README Requirements answer: install Git for Windows and rerun.",
+      "files": [],
+      "expectations": [
+        "Identifies the missing Git Bash as the cause, not a defect in the plugin or a problem with jq or typos",
+        "Explains that the skill fails to load before any command runs, so the check's Bash version step cannot diagnose this itself",
+        "Points to Git for Windows as the fix (the README Requirements link) and tells the user to rerun /typos-format:setup afterwards",
+        "Does not run any probe, install anything, or edit settings to work around the failure"
       ]
     }
   ]

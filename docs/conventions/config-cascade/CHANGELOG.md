@@ -7,6 +7,19 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Semantics table generated, 2026-09-29
+
+- **The glance table is generated from the Implementers rows (#3575).** The Implementers table
+  gains `Who wins` and `Merge form` columns; `scripts/sync-config-cascade-semantics.py` writes the
+  glance table from them and `--check` fails on drift. No `contract_version` bump: a derived view
+  and documentation columns, not a rule change.
+
+## Consumer gotchas forms narrowed, 2026-09-29
+
+- **`consumer-gotchas.md` permits one local form (#3547).** Consumer gotchas live in the `## Gotchas`
+  section of the plugin's existing cascade file; the dedicated `.claude/<plugin>/gotchas.md` form is
+  removed and the plugin-cache rationale corrected. No `contract_version` bump: narrows a sibling doc.
+
 ## Consumer gotchas reader wiring, 2026-09-28
 
 - **`bugs` concatenates consumer `## Gotchas` at skill load (#3547).** `/bugs:scan` and
@@ -15,6 +28,20 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   only, and a layer path that names the user-global file is not read twice. The
   participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
   `contract_version` bump: plugin reader, not a contract rule change.
+
+## [1.4] - 2026-09-29
+
+Additive relaxation (minor bump): the overlay-naming rule "no plugin writes the consumer's
+`.gitignore`" becomes that rule plus two declared consumer-root append exceptions.
+Recommend stays the default posture.
+
+- **Overlay naming names its exceptions (#3573).** `/source-control:setup apply` appends the
+  recursive `.claude/**/*.local.*` line and `/work-items:setup apply` appends
+  `.work-item-tracker.local.json`; each announces the edit and touches nothing else. A
+  self-ignoring `.gitignore` inside a plugin-owned directory is a different file, not an
+  exception. `source-control`'s append is ratified by
+  [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
+  `work-items`' by [ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md).
 
 ## [1.3] - 2026-09-28
 
@@ -45,9 +72,9 @@ personal `~/.claude/<surface>` as the team layer.
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
   default. Two consumer-root appends are sanctioned exceptions (`source-control`
   recursive overlay line; `work-items` ADR 0015 overlay line). Own-ignore-file
-  inside a plugin-owned directory is a different file. No `contract_version`
-  bump: the layering rules are unchanged; the no-plugin-writes sentence now
-  names the exceptions it already described in Overlay spelling drift.
+  inside a plugin-owned directory is a different file. The postures were declared
+  in the Deviations list and the Implementers rows; the no-plugin-writes sentence
+  was left unchanged (reworded in 1.4).
 
 ## Consumer gotchas tier, 2026-09-28
 
@@ -62,13 +89,6 @@ personal `~/.claude/<surface>` as the team layer.
   `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
   ladder without reading every conformance cell. Engines stay per-surface.
   No `contract_version` bump: no layering rule changed.
-- **Location outliers ruled (#3577).** `standards` layer location outside `.claude/`
-  (default `docs/standards/`) is ratified, the axis #649 left open. `work-items`
-  recurring schedule stays at `.github/recurring-schedule.json` (team-only, no
-  overlay). `songwriting` prompt-template overrides stay at
-  `songwriting/templates/pat-pattison/` (team-only, not a cascade). Relocating any
-  of the three under `.claude/` was rejected. The `work-items` binding at repo
-  root was already ADR 0015. No contract rule change, so no version bump.
 - **`code-metrics` `.claude/code-metrics.yaml` (#3847).** The table gains the surface the plugin already ships: all three layers, per-key override, keys owned by `plugins/code-metrics/reference/config.md`. No contract rule change, so no version bump.
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
   gains the surface's divergence from the degrade-soft rule (resolution step 5 after #4672): a layer whose

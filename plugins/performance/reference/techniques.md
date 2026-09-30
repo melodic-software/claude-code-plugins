@@ -126,6 +126,51 @@ milliseconds per frame, or frames over budget. Fails when: the effect is judged 
 alone. Used by: `/performance:goal` §1; the human rules on the tradeoff (see
 [F](#perceived-performance)).
 
+### Parallel units on one event
+
+When several units run in parallel for one user-visible event (hooks on one Claude Code hook event,
+parallel CI jobs surfaced as one wait, concurrent requests behind one barrier), the user waits for
+the **slowest** unit, not the sum. Record:
+
+- **Event metric:** wall-clock time for the whole event, not the sum of per-unit CPU.
+- **Unit metric:** the unit under study plus its **marginal cost**: the excess over the next-slowest
+  peer on that event. A Stop hook at 300 ms matters only when it is 300 ms above the next-slowest
+  Stop hook, not when read in isolation.
+- **Event-level target:** the realistic and ideal targets for the user-visible wait, held beside the
+  unit-level targets.
+- **Summed CPU or syscall totals:** optional secondary figures; never a substitute for the event
+  wall-clock target.
+
+On MSYS/Cygwin, when the counter is a process count, state which accounting the goal uses (Job
+Object +2 per external command vs PATH-shim `spawns=`); see
+[harness-integrity.md](harness-integrity.md#process-counting-on-msyscygwin-git-bash).
+
+Claude Code hooks are one example of parallel units, not the definition. Claim: hooks matching one
+event run in parallel, and the event's wall time is a figure to read from the host, for example an
+event-level duration field. Basis: the Claude Code hooks reference (code.claude.com/docs/en/hooks)
+says "All matching hooks run in parallel" in its hook handler fields section; it documents no
+`total_duration_ms` field, and its only duration field, `duration_ms` on PostToolUse input, is tool
+execution time that excludes PreToolUse hooks, so `total_duration_ms` is an example name and the
+reader resolves the current field in the docs. As-of: 2026-09-29. Recheck when the hooks reference
+adds or renames an event-duration field.
+
+### Scaling arm when state grows with use
+
+When the subject **reads state whose size grows with real use** (session transcripts, append-only
+logs, unbounded histories, caches that accumulate entries, databases, queues), a single-size
+measurement can pass while realistic use fails.
+
+- Measure at **two or more sizes** spanning realistic use (for example 50 KB and 10 MB of the same
+  transcript shape, not two sizes that exercise different code paths). Record each arm's size and
+  result.
+- **Done when** carries a stated bound: cost stays flat as size grows, or grows only within a named
+  bound (for example "p50 does not grow faster than linear in the new bytes per Stop", or cost per
+  new unit of content).
+- When the bound is unknown, the scaling arms establish it and the goal is not locked until the
+  human states one. Stop and say what is blocked; do not pick the bound for them.
+- `/performance:target` should flag such candidates when ranking; if it did not, name the
+  growing-state read in the goal anyway.
+
 ## C. Lab measurement and rigs
 
 **Lab faster than deploy cadence.** Build lab measurements so iteration does not wait for field

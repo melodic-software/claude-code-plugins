@@ -47,6 +47,9 @@
 # file = no skips). Without --require-evals, check 14 WARNs only on
 # action-router-shaped skills — the legacy fleet posture.
 #
+# CHECK_SKILL_SKIP_MARKDOWNLINT=1 skips check 6 (markdownlint) for callers with
+# no Node toolchain.
+#
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
@@ -420,7 +423,11 @@ if [[ -n "$BASE_REF_ERR" ]]; then
   exit 2
 fi
 
-SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name> | <root> [<root> ...]}"
+if (($# == 0)); then
+  printf 'Usage: check-skill.sh [--require-evals] <skill-name> | <root> [<root> ...] (run with --help)\n' >&2
+  exit 1
+fi
+SKILL_NAME="$1"
 
 if [[ -z "$SKILLS_ROOT" ]]; then
   printf '%s\n' "$SKILLS_ROOT_ERR" >&2
@@ -674,36 +681,51 @@ else
     fi
   done
 
-  # Frontmatter `model` is honored for the rest of the current turn. Accept
-  # inherit, an alias or model id, and one optional [1m] suffix. Empty, spaced,
-  # or otherwise non-scalar values are the defect. Auto mode keeping the
-  # session model when the named model is unsupported is runtime behavior,
-  # documented on the skills page, not a second finding here.
-  # Basis: https://code.claude.com/docs/en/skills#frontmatter-reference
+  # Frontmatter `model` is honored for the rest of the current turn. The
+  # defect is an empty or spaced value. The skills page says the field "accepts
+  # the same values as /model, or inherit" and defines no stricter grammar, so
+  # a provider-format id (Bedrock `anthropic.claude-...-v1:0`, an inference
+  # profile ARN, a Vertex `name@date` id) must pass and no character class is
+  # enforced. Auto mode keeping the session model when the named model is
+  # unsupported is runtime behavior, documented on the same page, not a second
+  # finding here.
+  # Claim: model accepts any non-empty token. Basis:
+  # https://code.claude.com/docs/en/skills#frontmatter-reference, the `model`
+  # row. As of: 2026-09-29. Recheck: that row defines a grammar for the value.
   if grep -qE '^model:' <<<"$FRONTMATTER"; then
     RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
-    if [[ ! "$CUR_MODEL" =~ ^(inherit|[A-Za-z0-9._-]+(\[1[mM]\])?)$ ]]; then
-      err "frontmatter model '$CUR_MODEL' is not inherit, a model alias, or a model id with an optional [1m] suffix"
+    if [[ -z "$CUR_MODEL" || "$CUR_MODEL" =~ [[:space:]] ]]; then
+      err "frontmatter model '$CUR_MODEL' is empty or contains whitespace; use inherit or one model alias or id (characters such as ':', '/' and '@' in a provider id are allowed)"
+    elif [[ "$RAW_MODEL" != "$CUR_MODEL" ]]; then
+      : # quoted, so YAML reads a string
+    elif [[ "$CUR_MODEL" == [\[\{]* || "${CUR_MODEL,,}" =~ ^(true|false|yes|no|on|off|null|~)$ ]]; then
+      err "frontmatter model '$CUR_MODEL' is not a string: YAML reads an unquoted collection, boolean or null as a non-string value; use inherit or one model alias or id"
     fi
   fi
 
-  # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
-  # A quoted scalar or a block scalar may contain it. Claude Code's skills
+  # An unquoted ": " in a plain description scalar, or a colon ending a line, is
+  # a YAML mapping indicator, on the header line or any continuation line; a
+  # trailing ` #` comment is not part of the value and is stripped first. A
+  # quoted scalar or a block scalar may contain it. Claude Code's skills
   # reference: when the YAML between the markers does not parse, the skill
   # still loads with no fields set
   # (https://code.claude.com/docs/en/skills#frontmatter-reference).
-  desc_header="$(grep -E '^description:' <<<"$FRONTMATTER" | head -n 1 || true)"
-  desc_value="${desc_header#description:}"
-  desc_value="${desc_value#"${desc_value%%[![:space:]]*}"}"
-  desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
-  case "$desc_value" in
+  desc_lines="$(awk '
+    !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
+    seen && /^[^[:space:]]/ { exit }
+    seen && !/^[[:space:]]*$/ { sub(/^[[:space:]]+/, ""); sub(/(^|[[:space:]]+)#.*$/, ""); print }
+  ' <<<"$FRONTMATTER")"
+  desc_first="${desc_lines%%$'\n'*}"
+  desc_first="${desc_first%"${desc_first##*[![:space:]]}"}"
+  case "$desc_first" in
   \"* | \'*) ;;
   \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
-  *:[[:space:]]*)
-    err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+  *)
+    if grep -qE ':([[:space:]]|$)' <<<"$desc_lines"; then
+      err "description is an unquoted plain scalar containing ': ' or a line ending in ':' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+    fi
     ;;
-  *) ;;
   esac
 
   # compatibility is optional. The Agent Skills spec says most skills do not
@@ -1120,11 +1142,17 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # reason does not apply to the run that just went red.
     test_out=""
     if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" 2>&1)"; then
+      bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
-      printf '%s\n' "$test_out" >&2
+      # Replay the tail: a long failing test would otherwise flood the log.
+      if (($(printf '%s\n' "$test_out" | wc -l) > 100)); then
+        printf '... output truncated to the last 100 lines; run bash %s for all of it\n' "$test_sh" >&2
+        printf '%s\n' "$test_out" | tail -n 100 >&2
+      else
+        printf '%s\n' "$test_out" >&2
+      fi
     fi
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
 fi

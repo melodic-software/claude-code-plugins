@@ -31,9 +31,8 @@ the interview unless the user accepts.
 Read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native` is the default and
 always available. Honor `${user_config.backend}` when it names another backend. `${CLAUDE_PLUGIN_ROOT}/scripts/backends.py`
 detects that backend, uses it when it is present, and otherwise prints one line and renders with
-`native`. PixelLab and Retro Diffusion spend money: the first run omits `--confirm`. If the notice
-says confirmation is required, ask the user, and pass `--confirm` only after they accept. Every
-backend honors the same artifact contract: the spec and the files in step 4.
+`native`. The backend is `native` (default) or `aseprite`. Both honor the same artifact contract:
+the spec and the files in step 4.
 
 ## 3. Author
 
@@ -44,6 +43,9 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
   that draws with primitives (rects, ellipses, lines) onto a material grid, then applies shading
   and outlining passes and emits the spec JSON. Materials map to color ramps (highlight, base,
   shadow, line), which keeps the palette locked and makes recolors one-line edits.
+  For a full-body humanoid character, adapt `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py` instead of
+  writing that machinery: it draws down, left, and up and mirrors for right, and one `down` frame
+  is a static character. Portraits and faces stay hand-authored grids.
 
 The spec `palette` may be an inline object, a bundled preset name, or a path to a project palette
 file ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). When the project has
@@ -64,8 +66,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 
 `backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
 names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
-relying on the environment to carry it. A `generate` object on the spec is how PixelLab and Retro Diffusion get a prompt; Aseprite
-builds `source.aseprite` from the frame rows.
+relying on the environment to carry it. Aseprite builds `source.aseprite` from the frame rows.
 
 Output directory, first match wins: an explicit path in the request; an assets location the
 project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded

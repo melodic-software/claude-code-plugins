@@ -54,7 +54,15 @@ RECORD_JS = r"""
     scene.seek(t);
     shots.push({ t, png: scene.frameDataURL(scale) });
   }
+  const b64 = (bytes) => {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 4096) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 4096)));
+    }
+    return btoa(binary);
+  };
   let webm = null;
+  let wav = null;
   if (recordSeconds > 0) {
     const canvas = document.getElementById("screen");
     if (!canvas || !canvas.captureStream) return { error: "canvas captureStream is unavailable", shots };
@@ -82,13 +90,12 @@ RECORD_JS = r"""
     rec.stop();
     await stopped;
     const bytes = new Uint8Array(await new Blob(chunks, { type: rec.mimeType }).arrayBuffer());
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 4096) {
-      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 4096)));
+    webm = { mime: rec.mimeType, b64: b64(bytes), frames: frameCount, audio: stream.getAudioTracks().length > 0 };
+    if (typeof scene.audio === "string") {
+      wav = b64(new Uint8Array(await (await fetch(scene.audio)).arrayBuffer()));
     }
-    webm = { mime: rec.mimeType, b64: btoa(binary), frames: frameCount };
   }
-  return { shots, webm };
+  return { shots, webm, wav };
 })()
 """
 
@@ -295,6 +302,36 @@ def _decode_data_url(value):
     return base64.b64decode(encoded)
 
 
+def _mux_audio(webm, wav, seconds, work):
+    """Return webm with wav looped under it, or None when ffmpeg is absent or cannot mux it."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        print("capture.py: scene.webm is video-only because ffmpeg is absent", file=sys.stderr)
+        return None
+    (work / "scene-in.webm").write_bytes(webm)
+    (work / "audio.wav").write_bytes(wav)
+    out = work / "scene-out.webm"
+    try:
+        done = subprocess.run(
+            [
+                ffmpeg, "-y", "-i", str(work / "scene-in.webm"),
+                "-stream_loop", "-1", "-i", str(work / "audio.wav"),
+                "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "libopus",
+                "-t", str(seconds), str(out),
+            ],
+            capture_output=True, text=True, timeout=max(30, seconds + 20),
+        )
+        reason = done.stderr.strip()[-300:] if done.returncode else ""
+        if not reason and not (out.exists() and out.stat().st_size):
+            reason = "ffmpeg wrote no output"
+    except subprocess.TimeoutExpired:
+        reason = "ffmpeg timed out"
+    if reason:
+        print(f"capture.py: scene.webm is video-only because ffmpeg could not mux the audio: {reason}", file=sys.stderr)
+        return None
+    return out.read_bytes()
+
+
 def capture_scene(scene, times, out_dir, record, scale, browser):
     scene = Path(scene).resolve()
     out_dir = Path(out_dir)
@@ -380,14 +417,21 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             # Shots taken before a recording failure are kept on disk; the run still fails.
             raise RuntimeError(f"{payload['error']} ({len(shots)} shots written)")
         video = None
+        audio = False
         if payload.get("webm"):
-            (out_dir / "scene.webm").write_bytes(base64.b64decode(payload["webm"]["b64"]))
+            webm = base64.b64decode(payload["webm"]["b64"])
+            audio = bool(payload["webm"].get("audio"))
+            if payload.get("wav") and not audio:
+                muxed = _mux_audio(webm, base64.b64decode(payload["wav"]), record, served)
+                webm, audio = (muxed, True) if muxed is not None else (webm, False)
+            (out_dir / "scene.webm").write_bytes(webm)
             video = "scene.webm"
         manifest = {
             "scene": scene.name,
             "browser": Path(browser).name,
             "shots": shots,
             "video": video,
+            "audio": audio,
         }
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
@@ -433,8 +477,8 @@ def main(argv=None):
     except ValueError as exc:
         print(f"capture.py: {exc}", file=sys.stderr)
         return 2
-    if args.record < 0:
-        print("capture.py: --record must be >= 0", file=sys.stderr)
+    if not math.isfinite(args.record) or args.record < 0:
+        print("capture.py: --record must be a finite number >= 0", file=sys.stderr)
         return 2
     browser = find_browser()
     if browser is None:

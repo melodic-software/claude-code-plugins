@@ -13,11 +13,16 @@
 **Claim:** signed SLSA / in-toto / Sigstore attestation of an agent run is not in
 this marketplace.
 **Basis:** #4703 body (three options; no home after `provenance` renamed to
-`attribution`; no vetted in-toto predicate for AI-agent runs;
-`actions/attest-build-provenance` has no slot for prompts or instruction
-digests). `plugins/autonomy/reference/return-accounting.md` "Agent-run artifact
+`attribution`). Fetched 2026-09-29: the
+[in-toto vetted predicate list](https://github.com/in-toto/attestation/blob/main/spec/predicates/README.md)
+names no AI-agent-run predicate;
+[`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance)
+(from v4 a wrapper on `actions/attest`) binds a SLSA build provenance predicate, while
+[`actions/attest`](https://github.com/actions/attest) takes a custom `predicate-type` and
+`predicate`, so a prompt or instruction digest is expressible only as a custom predicate
+with no vetted type. `plugins/autonomy/reference/return-accounting.md` "Agent-run artifact
 attestation is out of scope".
-**As of:** 2026-09-28.
+**As of:** 2026-09-29.
 **Recheck:** a maintainer names a predicate URI they will own, or GitHub/in-toto
 publishes an agent-run predicate this marketplace is asked to emit.
 

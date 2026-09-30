@@ -20,6 +20,51 @@ rc=0
 bash "$AUDIT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
+# check_facts <label> <repo> <audit output>: the audit reads every branch's tip,
+# upstream, ahead/behind counts, commits not on origin/main and loss count in
+# bulk. For each branch the capture holds a row for, those must equal what one
+# git call per branch prints: this is that per-branch read, taken from the repo
+# as it stands, so call it straight after the audit run it checks. The default
+# branch in every fixture is main.
+check_facts() {
+  local label="$1" repo="$2" out="$3" cap b tip up ahead behind nod at
+  local w_tip w_up w_ahead w_behind w_nod n want bad="" rows=0 has_default=0
+  cap="$(printf '%s\n' "$out" | sed -n 's/^TipCapture: //p')"
+  if [[ ! -f "$cap" ]]; then
+    fail "$label: per-branch facts need a capture" "a capture file" "none"
+    return
+  fi
+  git -C "$repo" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1 && has_default=1
+  while IFS=$'\t' read -r b tip _ _ up ahead behind nod at; do
+    [[ "$tip" =~ ^[0-9a-f]{40,}$ && -n "$at" ]] || continue
+    rows=$((rows + 1))
+    w_tip="$(git -C "$repo" rev-parse --verify --quiet "refs/heads/$b")"
+    if w_up="$(git -C "$repo" rev-parse --abbrev-ref "$b@{upstream}" 2>/dev/null)"; then
+      w_ahead="$(git -C "$repo" rev-list --count "$b@{upstream}..refs/heads/$b" 2>/dev/null)"
+      w_behind="$(git -C "$repo" rev-list --count "refs/heads/$b..$b@{upstream}" 2>/dev/null)"
+    else
+      w_up=none w_ahead=- w_behind=-
+    fi
+    w_nod=-
+    ((has_default)) && w_nod="$(git -C "$repo" rev-list --count "origin/main..refs/heads/$b" 2>/dev/null)"
+    want="$w_tip|$w_up|$w_ahead|$w_behind|$w_nod"
+    [[ "$tip|$up|$ahead|$behind|$nod" == "$want" ]] || bad+="$b: capture $tip|$up|$ahead|$behind|$nod, per-branch $want"$'\n'
+  done <"$cap"
+  # Loss lines that carry a count (a bare positive one, or `none`) against the
+  # per-branch `rev-list <branch> --not --remotes --tags`.
+  while read -r b n; do
+    want="$(git -C "$repo" rev-list --count "refs/heads/$b" --not --remotes --tags 2>/dev/null)"
+    [[ "$n" == "$want" ]] || bad+="$b: loss $n, per-branch $want"$'\n'
+  done < <(printf '%s\n' "$out" | awk '/^Branch: /{b=substr($0,9)} /^Loss: none \(/{print b, 0} /^Loss: [0-9]+ commits only on this branch/{print b, $2}')
+  if [[ "$rows" -eq 0 ]]; then
+    fail "$label: per-branch facts" "at least one capture row" "none"
+  elif [[ -z "$bad" ]]; then
+    pass "$label: bulk facts equal the per-branch reads ($rows branches)"
+  else
+    fail "$label: bulk facts equal the per-branch reads" "no difference" "$bad"
+  fi
+}
+
 git init -b main "$TEST_TMPDIR/repo" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/repo" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/repo" config user.name "Test"
@@ -28,6 +73,7 @@ git -C "$TEST_TMPDIR/repo" add x
 git -C "$TEST_TMPDIR/repo" commit -m "init" >/dev/null
 
 out="$(GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
+check_facts "base repo" "$TEST_TMPDIR/repo" "$out"
 assert_contains "lists branch" "$out" "Branch:"
 assert_contains "protects current" "$out" "Tier: PROTECTED"
 assert_contains "summary line" "$out" "Summary:"
@@ -153,9 +199,13 @@ git -C "$WT_REPO" commit -qm init
 git -C "$WT_REPO" branch feat/parked
 git -C "$WT_REPO" worktree add -q "$TEST_TMPDIR/wt-linked" feat/parked
 wt_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$WT_REPO' && bash '$AUDIT'")"
+check_facts "worktree repo" "$WT_REPO" "$wt_out"
 assert_contains "worktree branch own tier" "$wt_out" "Tier: WORKTREE"
 assert_contains "worktree branch reason" "$wt_out" "clean up the worktree first"
 assert_contains "summary counts worktree bucket" "$wt_out" "worktree=1"
+wt_real="$(cd "$TEST_TMPDIR/wt-linked" && pwd -P)"
+assert_contains "worktree branch reports its linked worktree path" "$wt_out" "Worktree: $wt_real"
+assert_not_contains "only WORKTREE branches carry a Worktree line" "$(printf '%s\n' "$wt_out" | awk '/^Tier: /{t=$2} /^Worktree: /&&t!="WORKTREE"{print}')" "Worktree:"
 
 # No-upstream classification: a never-pushed branch with commits not on
 # origin/<default> is surfaced as its own class and Unpushed line, not left
@@ -177,6 +227,7 @@ git -C "$NU_REPO" add b
 git -C "$NU_REPO" commit -qm b
 git -C "$NU_REPO" checkout -q main
 nu_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+check_facts "no-upstream repo" "$NU_REPO" "$nu_out"
 assert_contains "no-upstream unpushed line" "$nu_out" "no upstream, 1 commits not on origin/main"
 assert_contains "no-upstream own review class" "$nu_out" "Reason: no upstream, 1 commits not on origin/main"
 
@@ -192,6 +243,7 @@ git -C "$NU_REPO" config branch.feat/tracked-unfetched.remote origin
 git -C "$NU_REPO" config branch.feat/tracked-unfetched.merge refs/heads/feat/tracked-unfetched
 git -C "$NU_REPO" checkout -q main
 uf_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+check_facts "unfetched-upstream repo" "$NU_REPO" "$uf_out"
 assert_not_contains "unfetched upstream not echoed literally" "$uf_out" "@{upstream}"
 assert_contains "unfetched upstream falls to no-upstream count" "$uf_out" "no upstream, 1 commits not on origin/main"
 
@@ -211,6 +263,7 @@ git -C "$NU_REPO" push -q origin --delete feat/gone
 git -C "$NU_REPO" fetch -q --prune origin
 git -C "$NU_REPO" checkout -q main
 gone_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+check_facts "gone-upstream repo" "$NU_REPO" "$gone_out"
 assert_contains "gone+unpushed is review not likely-safe" "$gone_out" "Reason: upstream gone, 2 commits not on origin/main"
 assert_contains "gone+unpushed is LOSSY (deletable, loses work), never LIKELY-SAFE" "$gone_out" "Tier: LOSSY
 Age days: 0
@@ -240,6 +293,7 @@ git -C "$GC_REPO" push -q origin --delete feat/gone-nocmp
 git -C "$GC_REPO" fetch -q --prune origin
 git -C "$GC_REPO" checkout -q main
 gc_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$GC_REPO' && bash '$AUDIT'")"
+check_facts "gone + no default repo" "$GC_REPO" "$gc_out"
 assert_contains "gone + no default to compare fails closed to review" "$gc_out" "Reason: upstream gone, cannot compare against origin/main"
 assert_not_contains "gone + no default is never likely-safe" "$gc_out" "Tier: LIKELY-SAFE"
 # The same missing signal keeps the branch out of LOSSY too: a loss that cannot
@@ -279,6 +333,7 @@ tracked_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/tracked)"
 never_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/never-pushed)"
 lead_tip="$(git -C "$NU_REPO" rev-parse 'refs/heads/#7-lead')"
 tip_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+check_facts "tip-capture repo" "$NU_REPO" "$tip_out"
 assert_contains "Tip line follows Branch line" "$tip_out" "Branch: feat/never-pushed
 Tip: $never_tip
 Tier: LOSSY"
@@ -459,6 +514,7 @@ git -C "$LR" fetch -q --prune origin
 lr_tip() { git -C "$LR" rev-parse "refs/heads/$1"; }
 lr_short() { git -C "$LR" rev-parse --short "refs/heads/$1${2:-}"; }
 lr_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+check_facts "loss repo" "$LR" "$lr_out"
 check_loss_invariants "loss repo" "$lr_out"
 # assert_no_line <label> <haystack> <ERE>: no whole line matches. Used where a
 # substring needle is ambiguous (a branch named `many` followed by a short SHA
@@ -615,6 +671,7 @@ esac
 FAKEGH
   chmod +x "$pr_bin/gh"
   pr_out="$(PATH="$pr_bin:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+  check_facts "PR-state repo" "$LR" "$pr_out"
   check_loss_invariants "PR-state repo" "$pr_out"
   assert_contains "OPEN PR: stays REVIEW, count shown and annotated" "$pr_out" "Branch: feat/pr-open
 Tip: $(lr_tip feat/pr-open)
@@ -675,6 +732,7 @@ git -C "$NR" add b
 git -C "$NR" commit -qm b
 git -C "$NR" checkout -q main
 nr_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NR' && bash '$AUDIT'")"
+check_facts "no-remote repo" "$NR" "$nr_out"
 check_loss_invariants "no-remote repo" "$nr_out"
 assert_contains "no remote: loss undetermined, stays REVIEW" "$nr_out" "Branch: feat/local-only
 Tip: $(git -C "$NR" rev-parse refs/heads/feat/local-only)
@@ -705,6 +763,7 @@ chmod +x "$BROKEN_BIN/git"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$BROKEN_BIN/gh"
 chmod +x "$BROKEN_BIN/gh"
 broken_out="$(PATH="$BROKEN_BIN:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+check_facts "count-failure repo" "$LR" "$broken_out"
 check_loss_invariants "count-failure repo" "$broken_out"
 assert_contains "count failure: never-pushed branch stays REVIEW with the failure named" "$broken_out" "Branch: feat/never
 Tip: $(lr_tip feat/never)
@@ -718,6 +777,685 @@ assert_not_contains "count failure: nothing is LOSSY" "$broken_out" "Tier: LOSSY
 assert_contains "count failure: SAFE and PROTECTED are untouched, everything else is REVIEW" "$broken_out" "Summary: protected=1 worktree=0 safe=1 likely-safe=0 lossy=0 review="
 assert_contains "count failure: empty loss block" "$broken_out" "LossBlock: 0 branches lose work if deleted
 LossBlockEnd: 0"
+
+# --- bulk reads: a fixed number of git calls, the answers the per-branch calls give ---
+# The audit reads the branch list, upstreams and ahead/behind counts in one
+# for-each-ref, and the two counts for-each-ref cannot give (commits not on
+# origin/<default>, and the loss count) in one ancestry pass each. A branch the
+# bulk records cannot describe exactly, and any pass that fails, takes the
+# per-branch commands, so a verdict never depends on which path answered. This
+# section holds that to a fixture of 242 branches: the facts equal the
+# per-branch reads (check_facts), the number of git calls does not grow with the
+# branch count, and a failed pass gives the same output as a working one.
+declare -A FX_MARK=()
+FX_STREAM=""
+FX_N=0
+FX_CFG=""
+FX_PRS=()
+FX_TS=0
+
+fx_commit() { # <name> <ts> [<parent-name>...]: a commit whose message is its name
+  local name="$1" ts="$2" p
+  shift 2
+  FX_N=$((FX_N + 1))
+  FX_MARK[$name]=$FX_N
+  FX_STREAM+="commit refs/fixture/scratch"$'\n'"mark :$FX_N"$'\n'"committer T <t@example.com> $ts +0000"$'\n'"data ${#name}"$'\n'"$name"$'\n'
+  if (($# > 0)); then
+    FX_STREAM+="from :${FX_MARK[$1]}"$'\n'
+    shift
+    for p in "$@"; do FX_STREAM+="merge :${FX_MARK[$p]}"$'\n'; done
+  fi
+  FX_STREAM+=$'\n'
+}
+fx_ref() { # <full ref> <commit name>
+  FX_STREAM+="reset $1"$'\n'"from :${FX_MARK[$2]}"$'\n\n'
+}
+fx_track() { # <branch> [remote] [merge ref]: configure the branch's upstream
+  FX_CFG+="[branch \"$1\"]"$'\n\tremote = '"${2:-origin}"$'\n\tmerge = '"${3:-refs/heads/$1}"$'\n'
+}
+fx_pr() { # <branch> <state> <number> <commit name>: a PR whose head was that commit
+  FX_PRS+=("$1 $2 $3 $4")
+}
+fx_now() { # a fresh commit time within the last hour
+  FX_TS=$((FX_TS + 1))
+  NOWTS=$((FX_NOW - 3600 + FX_TS))
+}
+fx_rnd() { # next value of a fixed-seed generator, so the random ancestry is the same on every run
+  FX_SEED=$(((FX_SEED * 1103515245 + 12345) & 0x7fffffff))
+  RND=$((FX_SEED >> 8))
+}
+
+# build_audit_fixture <dir> <percent>: <dir>/repo, a repository whose local
+# branches span every tier and every way the audit reads one, and
+# <dir>/prs.json, the gh stub's payload. <percent> scales the bulk classes: 100
+# gives 242 branches. Every commit is built by one fast-import, so the size of the
+# fixture costs no git calls.
+build_audit_fixture() {
+  local d="$1" pct="$2" r i k j n v s
+  r="$d/repo"
+  FX_MARK=() FX_STREAM="" FX_N=0 FX_CFG="" FX_PRS=() FX_TS=0 FX_SEED=20260929
+  FX_NOW="$(date +%s)"
+  git init -q -b main "$r"
+  git -C "$r" config user.email "t@example.com"
+  git -C "$r" config user.name "Test"
+  git -C "$r" remote add origin "$d/nowhere.git"
+  git -C "$r" remote add fork "$d/nowhere.git"
+
+  # main: six commits, ten days old
+  fx_commit main1 $((FX_NOW - 863000))
+  for i in 2 3 4 5 6; do fx_commit "main$i" $((FX_NOW - 864000 + i * 3600)) "main$((i - 1))"; done
+  fx_ref refs/heads/main main6
+  fx_ref refs/remotes/origin/main main6
+
+  # merged by ancestry; half of them have an upstream at the same tip
+  n=$((50 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_ref "refs/heads/chore/merged-$i" "main$((i % 5 + 1))"
+    if ((i % 2)); then
+      fx_ref "refs/remotes/origin/chore/merged-$i" "main$((i % 5 + 1))"
+      fx_track "chore/merged-$i"
+    fi
+  done
+  # PR merged at the tip, work unpushed (SAFE by PR); PR merged with the tip moved on (REVIEW)
+  n=$((20 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "prm$i.a" "$NOWTS" main6
+    fx_now
+    fx_commit "prm$i.b" "$NOWTS" "prm$i.a"
+    fx_ref "refs/heads/feat/pr-merged-$i" "prm$i.b"
+    fx_pr "feat/pr-merged-$i" MERGED $((1000 + i)) "prm$i.b"
+  done
+  # (at least one of each at every scale, so both fixtures run the ancestor pass)
+  n=$((5 * pct / 100))
+  ((n > 0)) || n=1
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "drift$i.a" "$NOWTS" main6
+    fx_now
+    fx_commit "drift$i.b" "$NOWTS" "drift$i.a"
+    fx_ref "refs/heads/feat/drift-$i" "drift$i.b"
+    fx_pr "feat/drift-$i" MERGED $((1100 + i)) "drift$i.a"
+    fx_ref "refs/heads/feat/drift-ancestor-$i" "drift$i.a"
+    fx_pr "feat/drift-ancestor-$i" MERGED $((1150 + i)) "drift$i.b"
+  done
+  # PR closed: unpushed (LOSSY) and pushed (REVIEW); PR open
+  n=$((10 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "closed$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/closed-$i" "closed$i"
+    fx_pr "feat/closed-$i" CLOSED $((1200 + i)) "closed$i"
+  done
+  n=$((3 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "closedp$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/closed-pushed-$i" "closedp$i"
+    fx_ref "refs/remotes/origin/feat/closed-pushed-$i" "closedp$i"
+    fx_track "feat/closed-pushed-$i"
+    fx_pr "feat/closed-pushed-$i" CLOSED $((1300 + i)) "closedp$i"
+  done
+  n=$((5 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "open$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/open-$i" "open$i"
+    fx_pr "feat/open-$i" OPEN $((1400 + i)) "open$i"
+  done
+  # upstream gone, commits unpushed
+  n=$((10 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "gone$i.a" "$NOWTS" main6
+    fx_now
+    fx_commit "gone$i.b" "$NOWTS" "gone$i.a"
+    fx_ref "refs/heads/feat/gone-$i" "gone$i.b"
+    fx_track "feat/gone-$i"
+  done
+  # never pushed; some pinned by a tag, some pushed under another name
+  n=$((20 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "local$i" "$NOWTS" main6
+    fx_ref "refs/heads/wip/local-$i" "local$i"
+    ((i % 5 == 0)) && fx_ref "refs/tags/keep-local-$i" "local$i"
+    ((i % 7 == 0)) && fx_ref "refs/remotes/origin/elsewhere-$i" "local$i"
+  done
+  # stale (two hundred days), pushed
+  n=$((10 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_commit "stale$i" $((FX_NOW - 17280000 - 7200 + i)) main1
+    fx_ref "refs/heads/old/stale-$i" "stale$i"
+    fx_ref "refs/remotes/origin/old/stale-$i" "stale$i"
+    fx_track "old/stale-$i"
+  done
+  # pushed and level with the upstream
+  n=$((30 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "pushed$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/pushed-$i" "pushed$i"
+    fx_ref "refs/remotes/origin/feat/pushed-$i" "pushed$i"
+    fx_track "feat/pushed-$i"
+  done
+  # ahead 2 and behind 1 of the upstream
+  n=$((10 * pct / 100))
+  for ((i = 1; i <= n; i++)); do
+    fx_now
+    fx_commit "div$i.base" "$NOWTS" main6
+    fx_now
+    fx_commit "div$i.a1" "$NOWTS" "div$i.base"
+    fx_now
+    fx_commit "div$i.a2" "$NOWTS" "div$i.a1"
+    fx_now
+    fx_commit "div$i.theirs" "$NOWTS" "div$i.base"
+    fx_ref "refs/heads/feat/diverged-$i" "div$i.a2"
+    fx_ref "refs/remotes/origin/feat/diverged-$i" "div$i.theirs"
+    fx_track "feat/diverged-$i"
+  done
+  fx_now
+  fx_commit behind.base "$NOWTS" main6
+  fx_now
+  fx_commit behind.theirs "$NOWTS" behind.base
+  fx_ref refs/heads/feat/behind-only behind.base
+  fx_ref refs/remotes/origin/feat/behind-only behind.theirs
+  fx_track feat/behind-only
+  fx_now
+  fx_commit ahead.base "$NOWTS" main6
+  fx_now
+  fx_commit ahead.mine "$NOWTS" ahead.base
+  fx_ref refs/heads/feat/ahead-only ahead.mine
+  fx_ref refs/remotes/origin/feat/ahead-only ahead.base
+  fx_track feat/ahead-only
+  # eight worktrees (checked out after the import)
+  for ((i = 1; i <= 8; i++)); do
+    fx_now
+    fx_commit "wt$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/wt-$i" "wt$i"
+  done
+  # protected by pattern or name
+  for s in release/1.0 release/2.0 hotfix/urgent develop; do
+    fx_now
+    fx_commit "prot-$s" "$NOWTS" main6
+    fx_ref "refs/heads/$s" "prot-$s"
+  done
+  # odd names
+  for s in '#7-lead' 'feat/dot.name' 'a/b/c/deep' 'feat/UPPER' 'feat/at@sign'; do
+    fx_now
+    fx_commit "odd-$s" "$NOWTS" main6
+    fx_ref "refs/heads/$s" "odd-$s"
+  done
+  # a tag with the branch's name: its short name is `heads/<name>`
+  for s in v1 v2 v3; do
+    fx_now
+    fx_commit "amb-$s" "$NOWTS" main6
+    fx_ref "refs/heads/$s" "amb-$s"
+    fx_ref "refs/tags/$s" "amb-$s"
+  done
+  fx_ref refs/remotes/origin/v2 amb-v2
+  fx_track v2
+  # upstream is a local branch, and a local branch of a local branch
+  fx_now
+  fx_commit localup "$NOWTS" main6
+  fx_ref refs/heads/feat/local-upstream localup
+  fx_track feat/local-upstream . refs/heads/main
+  fx_now
+  fx_commit localup2 "$NOWTS" main4
+  fx_ref refs/heads/feat/local-upstream-2 localup2
+  fx_track feat/local-upstream-2 . refs/heads/feat/local-upstream
+  # stacked, never pushed
+  for ((i = 1; i <= 2; i++)); do
+    fx_now
+    fx_commit "stack$i.base" "$NOWTS" main6
+    fx_now
+    fx_commit "stack$i.top" "$NOWTS" "stack$i.base"
+    fx_ref "refs/heads/stack/base-$i" "stack$i.base"
+    fx_ref "refs/heads/stack/top-$i" "stack$i.top"
+  done
+  # a merge, an octopus, and a criss-cross
+  for ((i = 1; i <= 2; i++)); do
+    fx_now
+    fx_commit "mx$i" "$NOWTS" main6
+    fx_now
+    fx_commit "my$i" "$NOWTS" main6
+    fx_now
+    fx_commit "mz$i" "$NOWTS" main5
+    fx_now
+    fx_commit "merge$i" "$NOWTS" "mx$i" "my$i"
+    fx_now
+    fx_commit "octopus$i" "$NOWTS" "merge$i" "mz$i" main4
+    fx_ref "refs/heads/topo/x-$i" "mx$i"
+    fx_ref "refs/heads/topo/merge-$i" "merge$i"
+    fx_ref "refs/heads/topo/octopus-$i" "octopus$i"
+    fx_ref "refs/remotes/origin/topo/y-$i" "my$i"
+  done
+  fx_now
+  fx_commit cx.a "$NOWTS" main6
+  fx_now
+  fx_commit cy.a "$NOWTS" main6
+  fx_now
+  fx_commit cx.m "$NOWTS" cx.a cy.a
+  fx_now
+  fx_commit cy.m "$NOWTS" cy.a cx.a
+  fx_ref refs/heads/topo/crossx cx.m
+  fx_ref refs/heads/topo/crossy cy.m
+  # an upstream on a second remote
+  for ((i = 1; i <= 3; i++)); do
+    fx_now
+    fx_commit "fork$i" "$NOWTS" main6
+    fx_ref "refs/heads/feat/fork-$i" "fork$i"
+    fx_ref "refs/remotes/fork/feat-$i" "fork$i"
+    fx_track "feat/fork-$i" fork "refs/heads/feat-$i"
+  done
+  # tips equal to origin/main and to its first commit
+  fx_ref refs/heads/at-main main6
+  fx_ref refs/heads/at-root main1
+  # a parent dated after its child
+  fx_commit skew.parent $((FX_NOW - 100)) main6
+  fx_commit skew.child $((FX_NOW - 5000)) skew.parent
+  fx_ref refs/heads/skew/child skew.child
+  fx_ref refs/heads/skew/parent-only skew.parent
+  # a seeded random ancestry: 48 commits with one to three parents each, then
+  # branches on random commits with a different upstream state each. Remote refs
+  # and tags sit on early commits only, so most branches carry commits that no
+  # remote ref and no tag reaches.
+  fx_now
+  fx_commit rd0 "$NOWTS" main3
+  for ((i = 1; i < 48; i++)); do
+    fx_rnd
+    v=$((1 + RND % 3))
+    ((v > i)) && v=$i
+    s="rd$((i - 1))"
+    for ((k = 1; k < v; k++)); do
+      fx_rnd
+      j="rd$((i - 1 - RND % (i > 8 ? 8 : i)))"
+      [[ " $s " == *" $j "* ]] || s+=" $j"
+    done
+    fx_now
+    # shellcheck disable=SC2086
+    fx_commit "rd$i" "$NOWTS" $s
+  done
+  for ((k = 1; k <= 24; k++)); do
+    fx_rnd
+    j="rd$((RND % 48))"
+    ((k % 8 == 0)) && j="rd$((RND % 16))"
+    fx_ref "refs/heads/dag/b$k" "$j"
+    case $((k % 8)) in
+    0)
+      fx_ref "refs/remotes/origin/dag/b$k" "$j"
+      fx_track "dag/b$k"
+      ;;
+    1)
+      fx_rnd
+      fx_ref "refs/remotes/origin/dag/b$k" "rd$((RND % 16))"
+      fx_track "dag/b$k"
+      ;;
+    2 | 7) fx_track "dag/b$k" ;;
+    6)
+      fx_rnd
+      fx_ref "refs/tags/dag-$k" "rd$((RND % 16))"
+      ;;
+    *) ;;
+    esac
+  done
+  # an upstream that exists but is no commit: the branch is not "gone"
+  fx_commit nc.tip $((FX_NOW - 90)) main6
+  fx_ref refs/heads/feat/nc nc.tip
+  fx_track feat/nc
+
+  printf '%s' "$FX_STREAM" | git -C "$r" fast-import --force --quiet --export-marks="$d/marks"
+  git -C "$r" update-ref -d refs/fixture/scratch
+  printf '%s' "$FX_CFG" >>"$r/.git/config"
+  git -C "$r" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  git -C "$r" update-ref refs/remotes/origin/feat/nc "$(git -C "$r" hash-object -w --stdin <<<"blob")"
+  for ((i = 1; i <= 8; i++)); do git -C "$r" worktree add -q "$d/wt-$i" "feat/wt-$i"; done
+  git -C "$r" symbolic-ref HEAD refs/heads/feat/pushed-1
+
+  # the gh stub's payload: each PR with the commit its head was
+  local -A oid_of_mark=()
+  local m o pr_json="" b st num cn
+  while read -r m o; do oid_of_mark[${m#:}]=$o; done <"$d/marks"
+  for v in "${FX_PRS[@]}"; do
+    read -r b st num cn <<<"$v"
+    pr_json+="${pr_json:+,}{\"headRefName\":\"$b\",\"state\":\"$st\",\"number\":$num,\"headRefOid\":\"${oid_of_mark[${FX_MARK[$cn]}]}\"}"
+  done
+  printf '[%s]\n' "$pr_json" >"$d/prs.json"
+}
+
+# A git shim that logs every call and, when SHIM_FAIL_ON is set, fails the calls
+# whose arguments contain it; a gh stub that serves SHIM_PRS.
+FIXTURES="$TEST_TMPDIR/audit-fixtures"
+SPAWN_LOG="$TEST_TMPDIR/git-spawns.log"
+export SPAWN_LOG
+SHIM_BIN="$TEST_TMPDIR/shim-bin"
+mkdir -p "$FIXTURES/big" "$FIXTURES/small" "$SHIM_BIN"
+cat >"$SHIM_BIN/git" <<SHIMGIT
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"\$SPAWN_LOG"
+if [[ -n "\${SHIM_FAIL_ON:-}" && " \$* " == *"\$SHIM_FAIL_ON"* ]]; then exit 128; fi
+exec "$REAL_GIT" "\$@"
+SHIMGIT
+cat >"$SHIM_BIN/gh" <<'SHIMGH'
+#!/usr/bin/env bash
+case "$*" in *pr\ list*) cat "$SHIM_PRS" ;; *) exit 1 ;; esac
+SHIMGH
+chmod +x "$SHIM_BIN/git" "$SHIM_BIN/gh"
+# run_audit_shimmed <fixture dir> <capture file>: the audit's stdout; the git calls it made are in SPAWN_LOG
+run_audit_shimmed() {
+  : >"$SPAWN_LOG"
+  (cd "$1/repo" && PATH="$SHIM_BIN:$PATH" SHIM_PRS="$1/prs.json" bash "$AUDIT" --capture-file "$2")
+}
+spawn_count() { wc -l <"$SPAWN_LOG" | tr -d ' '; }
+# audit_view <stdout> <capture file>: what the audit reported, less the capture's own path and timestamp
+audit_view() {
+  printf '%s\n' "$1" | sed 's|^TipCapture: .*|TipCapture: <path>|'
+  grep -v '^# captured_at:' "$2" | cut -f1-8
+}
+
+build_audit_fixture "$FIXTURES/big" 100
+build_audit_fixture "$FIXTURES/small" 10
+big_heads="$(git -C "$FIXTURES/big/repo" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
+small_heads="$(git -C "$FIXTURES/small/repo" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
+if [[ "$big_heads" -ge 200 && $((big_heads - small_heads)) -ge 100 ]]; then
+  pass "fixtures: $big_heads branches against $small_heads"
+else
+  fail "fixtures: at least 200 branches, and 100 more than the small one" "200+" "$big_heads and $small_heads"
+fi
+
+big_out="$(run_audit_shimmed "$FIXTURES/big" "$FIXTURES/big.tsv")"
+big_spawns="$(spawn_count)"
+big_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+small_out="$(run_audit_shimmed "$FIXTURES/small" "$FIXTURES/small.tsv")"
+small_spawns="$(spawn_count)"
+small_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+
+check_loss_invariants "big fixture" "$big_out"
+check_facts "big fixture" "$FIXTURES/big/repo" "$big_out"
+check_facts "small fixture" "$FIXTURES/small/repo" "$small_out"
+assert_not_contains "big fixture: the capture is sealed" "$big_out" "TipCaptureError:"
+if command -v jq >/dev/null 2>&1; then
+  # The tallies the per-branch implementation printed for this fixture: the
+  # classification is unchanged, not merely internally consistent.
+  assert_contains "big fixture: every tier, as classified before the bulk reads" "$big_out" "Summary: protected=6 worktree=8 safe=77 likely-safe=0 lossy=83 review=73"
+  assert_contains "big fixture: the PR map" "$big_out" "PRCount: 48"
+  assert_contains "big fixture: the loss block" "$big_out" "LossBlock: 83 branches lose work if deleted"
+else
+  skip_case "big fixture tallies need jq"
+fi
+
+# A branch named like a tag has the short name `heads/<name>`. The per-branch
+# commands cannot resolve it, so it reports no tip and gets no capture row, which
+# leaves it undeletable through git-branch-delete.sh; the bulk path must not
+# resolve it either.
+assert_contains "ambiguous short name: no tip, loss undetermined" "$big_out" "Branch: heads/v1
+Tip: unresolved
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream (no origin/main to compare)
+Loss: undetermined (tip unresolved)"
+unresolved="$(grep -c '^Tip: unresolved$' <<<"$big_out")"
+capture_rows="$(awk -F'\t' 'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$FIXTURES/big.tsv")"
+if [[ "$unresolved" == 3 && "$capture_rows" == $((big_heads - 3)) ]]; then
+  pass "ambiguous short names: 3 unresolved tips, and they alone have no capture row"
+else
+  fail "ambiguous short names: 3 unresolved tips, and they alone have no capture row" "3 and $((big_heads - 3))" "$unresolved and $capture_rows"
+fi
+assert_contains "an upstream that exists but is no commit is still an upstream" "$(awk '/^Branch: feat\/nc$/ { p = 1 } p { print } /^Reason: / { if (p) exit }' <<<"$big_out")" "ahead of origin/feat/nc"
+
+for ((i = 1; i <= 8; i++)); do
+  want="$(bash -c 'source "$1" && clean_worktree_path "$2" "$3"' bash "$SCRIPT_DIR/lib/clean-common.sh" "$FIXTURES/big/repo" "feat/wt-$i")"
+  have="$(awk -v b="Branch: feat/wt-$i" '$0 == b { p = 1 } p && /^Worktree: / { print substr($0, 11); exit }' <<<"$big_out")"
+  if [[ -n "$want" && "$have" == "$want" ]]; then
+    pass "worktree branch feat/wt-$i reports the path clean_worktree_path gives"
+  else
+    fail "worktree branch feat/wt-$i reports the path clean_worktree_path gives" "$want" "$have"
+  fi
+done
+
+# The number of git calls is a constant plus one `git log` per LOSSY branch (the
+# LossCommit listing is walked per branch: a shared walk can reorder it when
+# commit dates tie or skew). Everything else, including the ambiguous-name
+# branches that take the per-branch commands, is the same at 242 branches as at 85.
+big_fixed=$((big_spawns - big_logs))
+small_fixed=$((small_spawns - small_logs))
+big_lossy="$(grep -c '^LossBranch: ' <<<"$big_out")"
+small_lossy="$(grep -c '^LossBranch: ' <<<"$small_out")"
+if [[ "$big_logs" == "$big_lossy" && "$small_logs" == "$small_lossy" ]]; then
+  pass "one git log per LOSSY branch, and no other per-branch call ($big_logs and $small_logs)"
+else
+  fail "one git log per LOSSY branch" "$big_lossy and $small_lossy" "$big_logs and $small_logs"
+fi
+if [[ "$big_fixed" == "$small_fixed" && "$big_fixed" -le 40 ]]; then
+  pass "git calls beyond the LOSSY listings do not grow with the branch count ($big_fixed at $big_heads branches, $small_fixed at $small_heads)"
+else
+  fail "git calls beyond the LOSSY listings are a constant of at most 40" "$small_fixed at $small_heads branches" "$big_fixed at $big_heads"
+fi
+
+# A pass that fails is answered by the per-branch commands: same report, more calls.
+big_view="$(audit_view "$big_out" "$FIXTURES/big.tsv")"
+for fail_on in " --parents " " cat-file "; do
+  fb_out="$(SHIM_FAIL_ON="$fail_on" run_audit_shimmed "$FIXTURES/big" "$FIXTURES/big-fallback.tsv")"
+  fb_spawns="$(spawn_count)"
+  fb_view="$(audit_view "$fb_out" "$FIXTURES/big-fallback.tsv")"
+  if [[ "$fb_view" == "$big_view" ]]; then
+    pass "a failing${fail_on}pass gives the same report and capture"
+  else
+    fail "a failing${fail_on}pass gives the same report and capture" "no difference" "$(diff <(printf '%s\n' "$big_view") <(printf '%s\n' "$fb_view") | head -10)"
+  fi
+  if [[ "$fb_spawns" -gt "$big_spawns" ]]; then
+    pass "a failing${fail_on}pass falls back to per-branch calls ($fb_spawns against $big_spawns)"
+  else
+    fail "a failing${fail_on}pass falls back to per-branch calls" "more than $big_spawns" "$fb_spawns"
+  fi
+done
+
+# --- merged PR, tip moved: ancestor of the merged head, and the branch family ---------
+# A MERGED PR whose headRefOid differs from the local tip is SAFE when the head
+# object is here and the tip is an ancestor of it, REVIEW otherwise. The family is
+# read from the branch name and no tier depends on it. Each verdict is the same
+# whether the bulk pass or the per-branch commands answered.
+if command -v jq >/dev/null 2>&1; then
+  AN="$TEST_TMPDIR/ancestor-repo"
+  git init -q --bare "$TEST_TMPDIR/ancestor-origin.git"
+  git init -q -b main "$AN"
+  git -C "$AN" config user.email "t@example.com"
+  git -C "$AN" config user.name "Test"
+  git -C "$AN" commit -q --allow-empty -m init
+  git -C "$AN" remote add origin "$TEST_TMPDIR/ancestor-origin.git"
+  git -C "$AN" push -q origin HEAD:main
+  git -C "$AN" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  an_branch() { # <branch> <commits>: a branch with that many commits off main
+    git -C "$AN" checkout -q -b "$1" main
+    for ((k = 1; k <= $2; k++)); do git -C "$AN" commit -q --allow-empty -m "$1 $k"; done
+    git -C "$AN" checkout -q main
+  }
+  an_branch feat/ancestor 2
+  ancestor_head="$(git -C "$AN" rev-parse refs/heads/feat/ancestor)"
+  git -C "$AN" branch -q -f feat/ancestor "$ancestor_head~1"
+  an_branch feat/ahead 2
+  ahead_head="$(git -C "$AN" rev-parse refs/heads/feat/ahead~1)"
+  an_branch feat/diverged 1
+  an_branch feat/diverged-head 1
+  diverged_head="$(git -C "$AN" rev-parse refs/heads/feat/diverged-head)"
+  git -C "$AN" branch -q -D feat/diverged-head
+  an_branch feat/missing 1
+  missing_head=dddddddddddddddddddddddddddddddddddddddd
+  for b in agent-a1b2c3 agent-xyz claude/web1 plan/p stranded/s pre-wipe/w feat/plain; do an_branch "$b" 1; done
+  an_bin="$TEST_TMPDIR/ancestor-bin"
+  mkdir -p "$an_bin"
+  printf '[{"headRefName":"feat/ancestor","state":"MERGED","number":1,"headRefOid":"%s"},{"headRefName":"feat/ahead","state":"MERGED","number":2,"headRefOid":"%s"},{"headRefName":"feat/diverged","state":"MERGED","number":3,"headRefOid":"%s"},{"headRefName":"feat/missing","state":"MERGED","number":4,"headRefOid":"%s"}]\n' \
+    "$ancestor_head" "$ahead_head" "$diverged_head" "$missing_head" >"$an_bin/prs.json"
+  printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$an_bin/prs.json" >"$an_bin/gh"
+  chmod +x "$an_bin/gh"
+  # field <audit output> <branch> <field>: the value of one line of a branch's record
+  field() { awk -v b="Branch: $2" -v f="$3: " '$0 == b { p = 1; next } /^Branch: / { p = 0 } p && index($0, f) == 1 { print substr($0, length(f) + 1); exit }' <<<"$1"; }
+
+  an_views=()
+  for fail_on in "" " --parents " " cat-file "; do
+    an_out="$(cd "$AN" && SHIM_FAIL_ON="$fail_on" PATH="$SHIM_BIN:$PATH" SHIM_PRS="$an_bin/prs.json" bash "$AUDIT" --capture-file "$TEST_TMPDIR/an${fail_on// /}.tsv")"
+    an_views+=("$(printf '%s\n' "$an_out" | sed 's|^TipCapture: .*|TipCapture: <path>|')")
+    lbl="${fail_on:+ (failing$fail_on)}"
+    assert_contains "tip is an ancestor of the merged head: SAFE$lbl" "$an_out" "Branch: feat/ancestor
+Tip: $(git -C "$AN" rev-parse refs/heads/feat/ancestor)
+Tier: SAFE
+Age days: 0
+PR: #1 MERGED (tip drift)
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: not assessed (SAFE)
+Reason: PR merged (tip is an ancestor of the merged head)
+Family: none"
+    assert_contains "tip ahead of the merged head: REVIEW, 5b$lbl" "$an_out" "Branch: feat/ahead
+Tip: $(git -C "$AN" rev-parse refs/heads/feat/ahead)
+Tier: REVIEW"
+    assert_contains "tip ahead of the merged head keeps the 5b reason$lbl" "$(field "$an_out" feat/ahead Reason)" "PR merged but branch has commits since merge"
+    assert_contains "tip not an ancestor of the merged head: REVIEW$lbl" "$(field "$an_out" feat/diverged Tier) $(field "$an_out" feat/diverged Reason)" "REVIEW PR merged but branch has commits since merge"
+    assert_contains "merged head object missing here: REVIEW$lbl" "$(field "$an_out" feat/missing Tier) $(field "$an_out" feat/missing Reason)" "REVIEW PR merged but branch has commits since merge"
+  done
+  if [[ "${an_views[0]}" == "${an_views[1]}" && "${an_views[0]}" == "${an_views[2]}" ]]; then
+    pass "ancestor verdicts do not depend on which path answered"
+  else
+    fail "ancestor verdicts do not depend on which path answered" "no difference" "$(diff <(printf '%s\n' "${an_views[0]}") <(printf '%s\n' "${an_views[1]}") | head -10)"
+  fi
+  an_out="${an_views[0]}"
+  for pair in agent-a1b2c3:agent agent-xyz:none claude/web1:claude plan/p:plan stranded/s:stranded pre-wipe/w:pre-wipe feat/plain:none main:none; do
+    assert_contains "family of ${pair%%:*} is ${pair#*:}" "$(field "$an_out" "${pair%%:*}" Family)" "${pair#*:}"
+    [[ "${pair%%:*}" == main ]] || assert_contains "family does not change the tier of ${pair%%:*}" "$(field "$an_out" "${pair%%:*}" Tier)" "$(field "$an_out" feat/plain Tier)"
+  done
+else
+  skip_case "ancestor and family cases need jq"
+fi
+
+# clean_unreached_counts against the per-id rev-list, on tips whose ancestry has a
+# merge, an octopus, a criss-cross and a tip already on origin/main.
+counts() { bash -c 'source "$1" && shift && clean_unreached_counts "$@"' bash "$SCRIPT_DIR/lib/clean-common.sh" "$@"; }
+count_ids=""
+for b in topo/octopus-1 topo/crossx topo/crossy at-main at-root dag/b10 dag/b10; do
+  count_ids+="$(git -C "$FIXTURES/big/repo" rev-parse "refs/heads/$b")"$'\n'
+done
+count_bad=""
+declare -A COUNTED=()
+while read -r o n; do COUNTED[$o]=$n; done < <(printf '%s' "$count_ids" | counts "$FIXTURES/big/repo" origin/main)
+while read -r o; do
+  want="$(git -C "$FIXTURES/big/repo" rev-list --count "origin/main..$o")"
+  [[ "${COUNTED[$o]:-missing}" == "$want" ]] || count_bad+="$o: ${COUNTED[$o]:-missing}, rev-list $want"$'\n'
+done <<<"${count_ids%$'\n'}"
+if [[ -z "$count_bad" && "${#COUNTED[@]}" == 6 ]]; then
+  pass "clean_unreached_counts equals rev-list --count for each id, once per distinct id"
+else
+  fail "clean_unreached_counts equals rev-list --count for each id" "6 ids, no difference" "${#COUNTED[@]} ids: $count_bad"
+fi
+rc=0
+printf '' | counts "$FIXTURES/big/repo" origin/main >/dev/null || rc=$?
+assert_exit "clean_unreached_counts: no ids is not a failure" 0 "$rc"
+rc=0
+printf '%s\n' "$(git -C "$FIXTURES/big/repo" rev-parse main)" | counts "$FIXTURES/big/repo" origin/no-such-ref >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -ne 0 ]]; then pass "clean_unreached_counts: a rev git cannot resolve is a failure"; else fail "clean_unreached_counts: a rev git cannot resolve is a failure" "non-zero" "$rc"; fi
+
+# --- fleet form: --repo / --repos-from / --skip / --skip-from -------------------
+# Two repositories plus a linked worktree of the first. The audit of the worktree
+# would repeat the first repository's branches, so it is reported skipped.
+FL="$TEST_TMPDIR/fleet"
+mkdir -p "$FL"
+for r in one two; do
+  git init -q -b main "$FL/$r"
+  git -C "$FL/$r" config user.email "t@example.com"
+  git -C "$FL/$r" config user.name "Test"
+  git -C "$FL/$r" commit -q --allow-empty -m init
+done
+git -C "$FL/one" worktree add -q -b feat/linked "$FL/one-linked"
+FL_BIN="$TEST_TMPDIR/fleet-bin"
+mkdir -p "$FL_BIN"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$FL_BIN/gh"
+chmod +x "$FL_BIN/gh"
+fleet_audit() { PATH="$FL_BIN:$PATH" bash "$AUDIT" "$@" 2>/dev/null; }
+
+plain_out="$(PATH="$FL_BIN:$PATH" bash -c "cd '$FL/one' && bash '$AUDIT'")"
+check_facts "fleet repo" "$FL/one" "$plain_out"
+assert_not_contains "no selection flag: no Repo block" "$plain_out" "Repo: "
+assert_not_contains "no selection flag: no fleet summary" "$plain_out" "FleetSummary:"
+
+fleet_out="$(fleet_audit --repo "$FL/one" "$FL/one-linked" "$FL/two")"
+assert_contains "fleet: first repo is a block" "$fleet_out" "Repo: $FL/one
+"
+assert_contains "fleet: second repo is a block" "$fleet_out" "Repo: $FL/two
+"
+assert_contains "fleet: a linked worktree of an audited repo is skipped once" "$fleet_out" "Repo: $FL/one-linked
+Outcome: skipped
+Reason: shares a git common dir with an audited repo"
+assert_contains "fleet: summary counts" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=1 blocked=0 failed=0"
+assert_exit "fleet: exit 0" 0 "$(fleet_audit --repo "$FL/one" "$FL/two" >/dev/null && echo 0 || echo $?)"
+tip_lines="$(grep -c '^TipCapture: ' <<<"$fleet_out")"
+if [[ "$tip_lines" == 2 ]]; then pass "fleet: each audited repo prints its own TipCapture"; else fail "fleet: each audited repo prints its own TipCapture" 2 "$tip_lines"; fi
+assert_contains "fleet: first capture lives in the first repo" "$fleet_out" "TipCapture: $FL/one/.git/repo-hygiene/branch-tips/"
+assert_contains "fleet: second capture lives in the second repo" "$fleet_out" "TipCapture: $FL/two/.git/repo-hygiene/branch-tips/"
+
+# A repo's block is its single-repo output, unchanged (the capture path carries a
+# per-run stamp and pid, so that one line is set aside).
+block_one="$(awk -v r="Repo: $FL/one" '$0 == r { on = 1; next } on && $0 == "---" { exit } on' <<<"$fleet_out" | grep -v '^TipCapture: ')"
+plain_nc="$(grep -v '^TipCapture: ' <<<"$plain_out")"
+if [[ "$block_one" == "$plain_nc" ]]; then pass "fleet: a repo's block equals its single-repo output"; else fail "fleet: a repo's block equals its single-repo output" "$plain_nc" "$block_one"; fi
+
+# Selection: --repos-from (file and stdin), --skip, --skip-from.
+printf '%s\r\n%s\n\n' "$FL/one" "$FL/two" >"$FL/list.txt"
+from_file_out="$(fleet_audit --repos-from "$FL/list.txt")"
+assert_contains "repos-from FILE audits both" "$from_file_out" "audited=2"
+from_stdin_out="$(printf '%s\n' "$FL/two" | fleet_audit --repos-from -)"
+assert_contains "repos-from - audits stdin" "$from_stdin_out" "audited=1"
+
+skip_out="$(fleet_audit --repo "$FL/one" "$FL/two" --skip two --skip nowhere)"
+assert_contains "skip list reports the skipped repo" "$skip_out" "Repo: $FL/two
+Outcome: skipped
+Reason: skip-list (two)"
+assert_contains "skip list leaves the other repo audited" "$skip_out" "Repo: $FL/one
+"
+assert_contains "an entry that matched nothing is reported" "$skip_out" "UnmatchedSkip: nowhere"
+assert_contains "skip summary" "$skip_out" "audited=1 skipped=1"
+printf '%s\n' "$FL/one" >"$FL/skips.txt"
+skip_from_out="$(fleet_audit --repo "$FL/one" "$FL/two" --skip-from "$FL/skips.txt")"
+assert_contains "skip-from FILE skips the listed repo" "$skip_from_out" "Reason: skip-list ($FL/one)"
+# A skipped worktree does not hide its sibling: the second one is audited instead.
+sib_out="$(fleet_audit --repo "$FL/one" "$FL/one-linked" --skip one)"
+assert_contains "skipping one worktree audits the other" "$sib_out" "Branch: feat/linked
+Tip: "
+assert_contains "the audited sibling is its own block" "$sib_out" "Repo: $FL/one-linked
+"
+
+# An unusable input and a missing path are reported; the rest of the fleet runs.
+mkdir -p "$FL/plain-dir"
+bad_out="$(fleet_audit --repo "$FL/missing" "$FL/plain-dir" "$FL/two")"
+assert_contains "missing path is blocked" "$bad_out" "Repo: $FL/missing
+Outcome: blocked
+Reason: not-a-directory"
+assert_contains "non-repo directory is blocked" "$bad_out" "Reason: not-a-git-repo"
+assert_contains "the fleet continues past blocked repos" "$bad_out" "Repo: $FL/two
+"
+assert_contains "blocked summary" "$bad_out" "audited=1 skipped=0 duplicate=0 blocked=2 failed=0"
+
+# --capture-file names one file: fine for one repo, a usage error for several.
+rc=0
+cap_err="$(PATH="$FL_BIN:$PATH" bash "$AUDIT" --repo "$FL/one" "$FL/two" --capture-file "$FL/shared.tsv" 2>&1 >/dev/null)" || rc=$?
+assert_exit "--capture-file with two repos exits 2" 2 "$rc"
+assert_contains "--capture-file rejection says why" "$cap_err" "cannot serve 2 repos"
+if [[ ! -e "$FL/shared.tsv" && ! -e "$FL/shared.tsv.part" ]]; then pass "--capture-file rejection writes nothing"; else fail "--capture-file rejection writes nothing" absent present; fi
+one_cap_out="$(fleet_audit --repo "$FL/one" --capture-file "$FL/one.tsv")"
+assert_contains "--capture-file with one repo is honored" "$one_cap_out" "TipCapture: $FL/one.tsv"
+
+# Usage errors.
+for bad in "--repo" "--repos-from" "--skip two" "--repos-from $FL/no-such-list.txt"; do
+  rc=0
+  # shellcheck disable=SC2086
+  PATH="$FL_BIN:$PATH" bash "$AUDIT" $bad >/dev/null 2>&1 || rc=$?
+  assert_exit "usage error exits 2: $bad" 2 "$rc"
+done
+: >"$FL/empty.txt"
+rc=0
+PATH="$FL_BIN:$PATH" bash "$AUDIT" --repos-from "$FL/empty.txt" >/dev/null 2>&1 || rc=$?
+assert_exit "an empty repo list exits 2" 2 "$rc"
+help_out="$(bash "$AUDIT" --help)"
+assert_contains "--help documents --repo" "$help_out" "--repo DIR..."
+assert_contains "--help documents the capture rule" "$help_out" "--capture-file with more than one repo"
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

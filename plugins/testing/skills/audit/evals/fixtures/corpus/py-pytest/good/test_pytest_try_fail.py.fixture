@@ -1,0 +1,14 @@
+# good-for: rule-conditional-assertion
+# pytest.fail in the try is the assertion of the path that does not raise, so
+# every path asserts.
+import pytest
+
+from app.parse import parse
+
+
+def test_message():
+    try:
+        parse("{")
+        pytest.fail("no raise")
+    except ValueError as e:
+        assert "token" in str(e)

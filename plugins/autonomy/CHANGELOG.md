@@ -3,11 +3,32 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.18] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
+## [0.24.17] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.24.16] - 2026-09-29
+
+### Changed
+
+- **`reference/return-accounting.md` points at the attestation decision instead of restating it (#4703).** The section "Agent-run artifact attestation is out of scope (#4703)" keeps its heading and now names `docs/out-of-scope/agent-run-artifact-attestation.md` and keeps a two-sentence statement of the decision in the plugin, because the ledger is not shipped with an installed plugin. The options list and the Claim, Basis, As of and Recheck lines are removed from this plugin; the ledger holds them. The decision is unchanged.
+- **The 0.24.9 entry body is corrected in place.** It repeated the 0.24.8 text and now states that 0.24.9 changed no plugin file.
+- **Five entries that described shared-library code this plugin never calls are reduced to one line.** 0.24.3, 0.24.4, 0.24.11, 0.24.13 and 0.24.15 now read "Shared launcher/library sync; no change to this plugin's behavior." Released headings and order are unchanged.
+- **The README declares Node.js and states the launcher's cost.** Requirements lists Node.js on PATH, because every hook row runs through `node hooks/exec-bash.mjs`. The setup `check` reports whether `node` resolves. Hook cost notes the `node` process ahead of the script, and its default-path row now reads 0 creations, as the suite pins.
+
 ## [0.24.15] - 2026-09-28
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.24.14] - 2026-09-28
 
@@ -19,7 +40,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Fixed
 
-- hook-utils.sh: `hook::repo_relative_path_to` trims a trailing separator and, on Windows, compares the prefix case-insensitively, then falls back to the caller's own spelling when `cygpath` sends the two sides to different trees. Telemetry `data.file` stays `src/run.sh` instead of the basename (#4527).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.24.12] - 2026-09-28
 
@@ -33,7 +54,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do (#3686). This plugin's hook rows are unchanged.
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.24.10] - 2026-09-28
 
@@ -45,9 +66,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **Unattended executor examples name `--permission-prompts none`** (#4027).
-  From Claude Code 2.1.259 the flag keeps the chosen permission mode and denies only a call
-  that would have prompted. The dispatch slice cites the headless page read on 2026-09-28.
+- **Version bump only.** This release changes no plugin file; the #4027 change shipped in 0.24.8.
 
 ## [0.24.8] - 2026-09-28
 
@@ -71,13 +90,13 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too (#4242).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.24.3] - 2026-09-27
 
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event (#4528).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.24.2] - 2026-09-27
 

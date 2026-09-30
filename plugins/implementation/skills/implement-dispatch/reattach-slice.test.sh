@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # implement-dispatch gates stay inside the compaction re-attach slice (#4255).
+# Pins five gates: one git writer, phase-verifier before [DONE], INCONCLUSIVE return, major divergence, main-side build signal.
 set -uo pipefail
 
 HUB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/SKILL.md"
@@ -31,6 +32,8 @@ assert_gate() {
 }
 
 assert_gate 'One git writer per worktree, under either authority.'
+# shellcheck disable=SC2016  # intentional literal phrase with backticks
+assert_gate 'Verify each phase before marking it `[DONE]`'
 # shellcheck disable=SC2016  # intentional literal phrase with backticks
 assert_gate 'An `INCONCLUSIVE` return'
 assert_gate 'Major divergence (fundamental assumption wrong) still STOPS'

@@ -76,6 +76,18 @@
         "--clean claude-ops-r001 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result",
         "Detection is re-run last and the final state reported; the skill-usage and OTEL stores are not touched"
       ]
+    },
+    {
+      "id": 7,
+      "name": "reports-whether-node-resolves-for-the-hook-launcher",
+      "prompt": "/claude-ops:setup check, on a host where `command -v node` finds nothing.",
+      "expected_output": "check probes `command -v node` through the Bash tool, not through a hook, and reports the Node.js row as FAIL: every hook row starts through node, so the hooks do not launch and record nothing. The remediation is the person installing Node.js and starting a fresh session; the skill installs nothing.",
+      "files": [],
+      "expectations": [
+        "The probe is `command -v node` run through the Bash tool",
+        "A missing node is FAIL with the consequence that no hook launches",
+        "Nothing is installed by the skill"
+      ]
     }
   ]
 }

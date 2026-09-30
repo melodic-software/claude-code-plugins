@@ -82,8 +82,8 @@ not model memory, not prior-iteration state, not comment counts (why:
 **Per-PR rescan flow:**
 
 1. **Terminal check:** `gh pr view <N> --json state -q '.state'`. MERGED/CLOSED → skip
-2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`; when more than
-   one worker polls, read the head SHA's REST check-runs instead, per
+2. **CI check:** one-off read: `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`; any
+   loop, or more than one worker, reads the head SHA's REST check-runs instead, per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) "Polling CI from more than
    one worker". A `pending` entry is reported as queued or running (with the queued job's
    `runs-on` labels) per that file's "Waiting on a pending check", never waited on with

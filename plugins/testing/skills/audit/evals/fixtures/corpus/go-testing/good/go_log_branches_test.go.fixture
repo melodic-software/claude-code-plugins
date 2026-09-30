@@ -1,0 +1,22 @@
+// good-for: rule-inert-assertion
+// A log in the else branch of a failing check, and a log gated on the
+// environment rather than on a comparison of results, are not inert checks.
+package slug
+
+import (
+	"os"
+	"testing"
+)
+
+func TestSlugifyJoinsWords(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Log("running under CI")
+	}
+	got := Slugify("a b")
+	if got != "a-b" { t.Errorf("got %q", got) } else { t.Log("slug ok") }
+	if got != "a-b" {
+		t.Errorf("got %q", got)
+	} else {
+		t.Log("slug ok")
+	}
+}

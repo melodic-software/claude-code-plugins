@@ -5,13 +5,15 @@
       "id": 1,
       "name": "triggers-on-mz-autotile",
       "prompt": "make an RPG Maker MZ A2 ground autotile, grassy dirt, 48px tiles",
-      "expected_output": "Fires /pixel-art:tileset. Reads engine-layouts.md and craft-tiles.md for the A2 sheet and quarter-tile block, states any defaulted choices in one line, authors the source block rather than every composed shape, renders with render.py, reads preview.png, and delivers sheet.png at 1x.",
+      "expected_output": "Fires /pixel-art:tileset. Reads engine-layouts.md and craft-tiles.md for the A2 sheet and quarter-tile block, states any defaulted choices in one line, authors the source block rather than every composed shape, renders with backends.py (native unless the request or the backend setting names another), reads preview.png, and delivers sheet.png at 1x.",
       "files": [],
       "expectations": [
         "Invokes the tileset skill, not sprite or scene",
         "Takes the A2 sheet from engine-layouts.md rather than inventing a grid",
         "Authors the quarter-tile source block rather than 48 composed tiles",
-        "Renders with the bundled render.py and reads preview.png before delivering",
+        "Follows brief.md for the shared fields and adds only the set and the tile size and sheet",
+        "Chooses the backend per backends.md and renders with backends.py, not render.py directly",
+        "Reads preview.png before delivering",
         "Delivers sheet.png at 1x as the asset"
       ]
     },

@@ -47,29 +47,8 @@ git -C "$FAKE_REPO" config user.email t@t.t
 git -C "$FAKE_REPO" config user.name t
 git -C "$FAKE_REPO" commit --allow-empty -m init -q
 
-# make_sink <body> → path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, so tests point it at a stub script under $WORK.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# Block until <file> is non-empty (fire-and-forget sink flushed) or bound elapses.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 build_input() {
   local type="$1" message="${2:-Needs your attention}"
@@ -385,10 +364,11 @@ PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
 if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
 
-# --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
+# --- jq-absent -> visible notice, once per session and agent (dim-9 doctrine) -
 # Without jq the hook can neither classify the notification nor emit its
 # terminalSequence; the skip must surface via systemMessage (the Notification
-# event has no additionalContext channel) once per session.
+# event has no additionalContext channel) once per session and agent,
+# renewed every eighth skip.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -413,9 +393,20 @@ else
 fi
 OUT_NOJQ2=$(run_nojq)
 if [[ -z "$OUT_NOJQ2" ]]; then
-  ok "jq-absent -> second run same session is silent (once-per-session)"
+  ok "jq-absent -> second run same session is silent (once per session and agent)"
 else
   fail "jq-absent second run not silent: $OUT_NOJQ2"
+fi
+# Runs 3..7 stay silent; run 8 renews the notice.
+NOJQ_QUIET=1
+for _n in 3 4 5 6 7; do
+  [[ -z "$(run_nojq)" ]] || NOJQ_QUIET=0
+done
+OUT_NOJQ8=$(run_nojq)
+if [[ $NOJQ_QUIET -eq 1 && "$OUT_NOJQ8" == *'"systemMessage"'* && "$OUT_NOJQ8" == *jq* ]]; then
+  ok "jq-absent -> runs 3..7 silent, run 8 renews the systemMessage notice"
+else
+  fail "jq-absent renewal (quiet=$NOJQ_QUIET run8=$OUT_NOJQ8)"
 fi
 
 echo

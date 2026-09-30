@@ -30,7 +30,7 @@
     {
       "native": { "name": "doctor", "class": "bundled-skill" },
       "component": { "plugin": "claude-ops", "skill": "audit-install-state", "kind": "skill" },
-      "why": "Both look at the health of a Claude Code installation. Nominated 2026-09-28: Claude Code 2.1.257 warns from /doctor about stale sandbox mask files, the 0-byte placeholders a killed session leaves on Linux and WSL2. The mask-file location is undocumented, so audit-install-state routes that class here instead of growing a pattern it cannot ground. This audit does not reimplement that warning and does not grow a pattern for the mask path. A human store verdict should say whether the audit routes that check to doctor. Basis: https://code.claude.com/docs/en/sandboxing (Troubleshooting, the 0-byte placeholder bullet). Not a verdict; this file does not write records.json."
+      "why": "Both look at the health of a Claude Code installation."
     },
     {
       "native": { "name": "doctor", "class": "bundled-skill" },
@@ -76,6 +76,41 @@
       "native": { "name": "design", "class": "bundled-skill" },
       "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
       "why": "explore-directions offers the design-canvas Artifact as one of its mockup surfaces; same live integration, sibling component."
+    },
+    {
+      "native": { "name": "recap", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "orient", "kind": "skill" },
+      "why": "Both answer 'where does this session stand'; recap summarizes the conversation, orient reads durable state the conversation never saw. The two share almost no vocabulary, so discovery scores the pair low."
+    },
+    {
+      "native": { "name": "fork", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "continue-in-background", "kind": "skill" },
+      "why": "Both hand the current work to a background agent that carries the conversation forward."
+    },
+    {
+      "native": { "name": "subtask", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "continue-in-background", "kind": "skill" },
+      "why": "Both send an agent off with the session's context; subtask returns its result here, continue-in-background detaches it."
+    },
+    {
+      "native": { "name": "batch", "class": "bundled-skill" },
+      "component": { "plugin": "implementation", "skill": "implement-dispatch", "kind": "skill" },
+      "why": "Both plan a large change and fan it out to worker agents; the name tokens never meet, so discovery misses the pair."
+    },
+    {
+      "native": { "name": "explain-usage", "class": "bundled-skill" },
+      "component": { "plugin": "claude-ops", "skill": "observability", "kind": "skill" },
+      "why": "Both explain where a session's tokens and cost went."
+    },
+    {
+      "native": { "name": "explain-usage", "class": "bundled-skill" },
+      "component": { "plugin": "context-budget", "skill": "audit", "kind": "skill" },
+      "why": "Both attribute context consumption to what caused it; the audit measures the startup payload, explain-usage the whole session."
+    },
+    {
+      "native": { "name": "fewer-permission-prompts", "class": "bundled-skill" },
+      "component": { "plugin": "claude-config", "skill": "audit-permission-state", "kind": "skill" },
+      "why": "Both work from the permission rules in effect; the native skill writes an allowlist from observed usage, the audit reports what is in effect and what auto mode drops."
     },
     {
       "native": { "name": "design-sync", "class": "bundled-skill" },

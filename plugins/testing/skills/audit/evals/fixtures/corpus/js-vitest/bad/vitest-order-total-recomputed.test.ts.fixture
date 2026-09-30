@@ -1,0 +1,13 @@
+// source: pocock M8
+// expect: rule-recomputed-derived
+// Verbatim from tests.md, with a vitest import added so the adapter claims it:
+// the expected value is recomputed with reduce over the same items.
+import { expect, test } from 'vitest';
+import { calculateTotal } from './cart';
+
+// BAD: Expected value is recomputed the way the code computes it
+test("calculateTotal sums line items", () => {
+  const items = [{ price: 10 }, { price: 5 }];
+  const expected = items.reduce((sum, i) => sum + i.price, 0);
+  expect(calculateTotal(items)).toBe(expected);
+});

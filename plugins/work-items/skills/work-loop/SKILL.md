@@ -9,11 +9,9 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]`. Full form: [<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]
-
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
 
 ## Shared tracker context
 
@@ -283,8 +281,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
-   whose marker already stands, a still-unratified `ratify-c3`, an idempotent label re-convergence
-  , is not a new escalation, so the cycle files no second comment and writes no second record.
+   whose marker already stands while it still wears the human-gated label (a marker left after
+   the operator answered and returned the item to the frontier is not standing), a still-unratified `ratify-c3`, an idempotent label re-convergence,
+   is not a new escalation, so the cycle files no second comment and writes no second record.
    **Record before marker is load-bearing, not incidental**: a stop between the two then loses the
    tracker comment, which the next cycle re-files (one duplicate notification), whereas the reverse
    order leaves a standing marker that suppresses the record on every later cycle and loses the
@@ -292,14 +291,33 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
-   **Background-job launch mode.** When Claude Code runs this lane as a background job, the harness
-   blocks Write/Edit to the shared default-branch checkout until the session calls `EnterWorktree`.
-   This lane deliberately runs on that checkout and must not call `EnterWorktree` (that terminal
-   would transition the long-lived orchestrator). Step 0's gitignore preflight does not lift the
-   harness block, so the escalation record write is refused and only the tracker marker comment
-   survives. For the out-of-band notification leg, launch the lane in an interactive foreground
-   session on the default-branch checkout, or accept that background launches lose the record
-   ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+   **Background-job launch mode (interim, pending the owner's decision on
+   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Observed, not
+   yet decided: a background session on the shared default-branch checkout had its record Write
+   refused with "parent bg session hasn't isolated yet, so writes to the shared checkout are
+   blocked", while a background job launched inside an already-isolated lane worktree (instance
+   `melo-lap-001-wsl-2`, worktree `cc-plugins-lane-2`) completed three record Writes. Claude Code's
+   background-session docs describe the same split: inside a git repository, writes to the shared
+   checkout are blocked until the session is moved into a worktree, and a session already inside a
+   linked git worktree skips that move. So the trigger appears to be session isolation, not
+   background mode itself; triage did not reproduce the refusal. This lane deliberately runs on the
+   default-branch checkout and must not call `EnterWorktree`, which would end the long-lived
+   orchestrator. Step 0's gitignore preflight does not lift a harness block. When the record Write
+   is refused, the tracker marker comment is the escalation of record and the cycle continues.
+   Foreground on the default-branch checkout is the known-good mode.
+
+   Verification record for that paragraph. Claim: the harness refusal of the record Write is
+   conditional on the session not yet being isolated in a worktree, not on background mode.
+   Basis: [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598) body (the
+   refusal text, instance `melo-lap-001-wsl-1`, shared checkout) and its second comment (three
+   Writes succeeded from the isolated worktree `cc-plugins-lane-2`, instance `melo-lap-001-wsl-2`);
+   the docs agree: "Inside a git repository, Claude Code blocks writes to the shared checkout until
+   Claude moves the session into a worktree", and Claude skips the move when "the session is
+   already inside a linked git worktree"
+   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; the hooks reference
+   is silent on the point). As of 2026-09-29; the refusal itself was not reproduced. Recheck
+   trigger: that docs section changes its block or skip rules, a Claude Code release note changes
+   background-session isolation, or the owner records the #4598 decision.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
@@ -331,12 +349,24 @@ frontier candidates (open linked PR)" rule in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
 as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
-binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
-nor escalated, and this cycle changes none of its labels. The cycle report lists it as
-`in flight: #<item> (PR #<pr>)`, the PR number read from the same query's `number` field, or as
-`in-flight check failed: #<item>` when the query errored. `/work-items:work`'s own dispatch-time
-staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
-queued or escalated item never reaches it.
+binding with no PR host keeps it. An excluded candidate is neither dispatched nor ratify-queued,
+and within the age bound below it is not escalated and this cycle changes none of its labels. The
+cycle report lists it as `in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first,
+or as `in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for
+a candidate it has already excluded, a second query with the adapter's reporting reduction supplies
+the PR number, draft state, and age from `createdAt`.
+
+The exclusion is bounded by age. Read `${user_config.work_loop_in_flight_stale_days}` (default 14;
+a surviving literal `${user_config.…}` placeholder means the key is unset, so apply the manifest
+default). A PR open longer than that stops silently excluding its item: it is still not dispatched
+or classified, and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
+number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
+marker read suppresses duplicates only while the item still wears the human-gated label; an item
+back on the frontier gets a fresh marker naming the PR, and the labeled item leaves the
+autonomous frontier. The cycle report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
+A failed check has no age and stays excluded. The escalation is not progress: it does not reset
+the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover
+this: it runs only for dispatched items, never a queued or escalated one.
 
 Hard gates that override any classification:
 
@@ -392,10 +422,12 @@ apply the manifest default:
 the convention. The streak counter and cap persist in durable state.
 
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
-by `/implementation:implement-dispatch`, its internal 3–5 wave default, or the
-`${user_config.work_dispatch_concurrency_cap}` ceiling when the operator sets it, which
-`/work-items:work` threads through as that skill's `--wave-cap`. This loop body's
-arithmetic over those two factors bounds the fan-out.
+by `/implementation:implement-dispatch`, that skill's resolved cap (`--wave-cap` argument, then
+`implement_dispatch_wave_cap`, then the internal default), which includes the `${user_config.work_dispatch_concurrency_cap}` ceiling
+`/work-items:work` threads through as `--wave-cap` when the operator sets it. This loop body's
+arithmetic over those two factors is an upper bound only: the wave cap
+changes behavior only under commit authority `orchestrator`, which `/implementation:implement-dispatch` sets from the consuming plan; under worker authority the
+effective wave is one row.
 
 ## No-progress detector
 
@@ -409,14 +441,13 @@ citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
-  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A dirty
-  execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
+  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
+  in-flight escalation is not progress. A dirty execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
-  excluded is waiting on its PR, not on this lane, so it does not count. Otherwise the cycle is
-  idle and the counter holds. A cycle
-  in which the rate-limit guard barred this lane from claiming new work is **held**, and the
+  excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
+  idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap
   ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.
@@ -449,6 +480,10 @@ cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapsh
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
 blocking drain exit.
+
+## Next
+
+`/work-items:attend-queue` for the escalations and first-drain ratification items that wait.
 
 ## Gotchas
 

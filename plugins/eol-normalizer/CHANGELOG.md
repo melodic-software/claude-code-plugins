@@ -3,11 +3,38 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.8] - 2026-09-29
+
+### Fixed
+
+- The setup skill's rerun caveat passes the scope `claude plugin list` reports (`user` from the home directory), per the plugin-reconfiguration convention.
+
+## [0.7.7] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
+## [0.7.6] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.7.5] - 2026-09-29
+
+### Changed
+
+- README: the Behavior list now states the gitignored skip and points at the `eol_normalizer_lint_gitignored` option.
+- The setup skill's rerun caveat passes `-s user` per the plugin-reconfiguration convention and names its Verified-version record as the basis, with the verified release and a recheck trigger.
+- README: Requirements declare Node.js on `PATH`, and the performance note describes the exec-form row instead of the removed shell-form row, with its measured figures dropped. The setup skill's `check` probes `node`. A missing `node` stays FAIL when the toggle is off.
+- Corrected the 0.7.4, 0.6.61 and 0.6.60 entries: resync-only, no behavior change.
+
 ## [0.7.4] - 2026-09-28
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- hook-utils.sh resynced from lib; no behavior change for this plugin. Fleet change: [#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240).
 
 ## [0.7.3] - 2026-09-28
 
@@ -37,13 +64,13 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 
 ### Changed
 
-- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+- hook-utils.sh resynced from lib; no behavior change for this plugin. Fleet change: [#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242).
 
 ## [0.6.60] - 2026-09-27
 
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- hook-utils.sh resynced from lib; no behavior change for this plugin. Fleet change: [#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528).
 
 ## [0.6.59] - 2026-09-27
 

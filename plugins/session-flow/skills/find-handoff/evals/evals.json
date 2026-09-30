@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "The skill locates the handoff via the file directive and/or the known-location glob, not by guessing",
-        "It searches the `${CLAUDE_PLUGIN_DATA}` fallback handoff location only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
+        "It searches the fallback `<root>/handoffs/` printed by `save_point.py memory-root` only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
         "It checks a rooted directive path as given, and resolves a rootless one against the source transcript's cwd field (never the current session's cwd), before the existence check",
         "It surfaces the file path plus topic/date/session_id metadata and stops for a yes/no confirmation",
         "It does not execute the resume prompt or read the full file body before the operator confirms"
@@ -218,6 +218,21 @@
         "For the `handoff_shape: 2` candidate the resume prompt is printed from the file's own `## Resume prompt` section via `save_point.py emit` (or the `sed -n` fallback without Python), not reconstructed and not sought in a transcript first",
         "The surfaced prompt includes the block between the rails and the below-rail `claude --resume` line, with the directive's `Read @` path being the file's real path (emit substitutes the current path when the stored one is stale, and the fallback says no substitution ran)",
         "The skill still stops at the confirm gate with the file's metadata (topic, date, session_id chain) before any resume, and reads no more of the file body than that final section"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "both-regions-recovered-when-a-goal-applied",
+      "prompt": "Find my lost handoff. I asked for a fresh /goal in that session, so the prompt had two boxes, one to type /goal and paste into and one for the plain resume. I ran /clear before copying either. The file is in the handoffs directory, and the same session's transcript is still on disk.",
+      "expected_output": "Rung 1 finds the shape-2 file and prints its `## Resume prompt` section with `save_point.py emit <file>`, which returns BOTH railed regions in the emitted order: the goal region headed by the `Type /goal ` instruction line and the resume region headed by the `/clear`, then copy line. The skill surfaces both at the confirm gate, each under its own instruction line, and does not stop at the first bottom rail. When the file is gone and rung 3 recovers from the transcript, the scan keys on the `/clear`, then copy instruction plus its rail pair, expects four rails rather than two, and reads the goal region above or below it by its own instruction line, so the goal condition comes back with the resume prompt. Any below-rail `/loop` re-arm entries are captured from below the last bottom rail. Everything surfaced is redacted, and the skill stops for yes/no before any resume.",
+      "files": [],
+      "expectations": [
+        "From the file, the prompt is printed with `save_point.py emit` and includes both regions in the emitted order, the goal region with its `Type /goal ` instruction line and the resume region with its `/clear`, then copy line",
+        "The skill does not present only the first rail pair, and never presents a recovered prompt whose goal region is missing when the file or transcript held one",
+        "From the transcript, the copy instruction plus its rail pair keys the candidate, the goal region is recovered as part of the same unit by its own instruction line whether it sits above or below the resume region, and the scan survives four rails",
+        "A goal region with no resume region beside it is not treated as a handoff, and the goal region is not used as a detection key",
+        "Any below-rail `/loop` re-arm entries are anchored to the last bottom rail and surfaced too, the whole set (`n` entries) rather than the first",
+        "The recovered text is redacted, and the skill stops at the yes/no confirm gate before executing any resume"
       ]
     }
   ]

@@ -96,6 +96,8 @@ LOGGED_OPS = {
     "add",
     "add-round",
     "archive",
+    "replace-visual",
+    "archive-visual",
     "record-terminal",
     "note-reply",
     "wait",
@@ -104,6 +106,7 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
+VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 
 if os.name == "nt":
@@ -301,7 +304,7 @@ def add_question(doc, q):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids that name no question here."""
+    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         rec = q.get("recommendation") or ""
@@ -319,12 +322,41 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if tok not in ids and tok not in seen:
+                if (
+                    tok not in ids
+                    and tok not in seen
+                    and not VERSION_LABEL.fullmatch(tok)
+                ):
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
                         "file; spell it out or use the question's id"
                     )
+
+
+def group_members(doc, gid):
+    """Ids of every question in the group, archived and superseded included: the page lists them all."""
+    return sorted(q["id"] for q in doc["questions"] if q.get("group") == gid)
+
+
+def record_summary_of(doc, gid):
+    next(x for x in doc["groups"] if x["id"] == gid)["summaryOf"] = group_members(
+        doc, gid
+    )
+
+
+def warn_stale_summaries(doc, qs):
+    """One warning per group whose summary was written for a different set of questions."""
+    for gid in dict.fromkeys(q.get("group") for q in qs):
+        g = next((x for x in doc["groups"] if x["id"] == gid), None)
+        if g is None or "summaryOf" not in g:
+            continue
+        added = [i for i in group_members(doc, gid) if i not in g["summaryOf"]]
+        if added:
+            warn(
+                f"group {gid} summary predates {len(added)} questions; refresh it with: "
+                f"round.py group {gid} --summary ..."
+            )
 
 
 def put_group(doc, g):
@@ -335,6 +367,8 @@ def put_group(doc, g):
         cur = {"id": g["id"]}
         doc["groups"].append(cur)
     cur.update({k: v for k, v in g.items() if v is not None})
+    if g.get("summary") is not None:
+        record_summary_of(doc, g["id"])
     if not cur.get("title"):
         sys.exit(f"a new group needs a title: {g['id']}")
     known = {x["id"] for x in doc["groups"]}
@@ -367,6 +401,8 @@ def op_meta(d, doc, a):
 
 def op_add(d, doc, a):
     touched = add_question(doc, a.question)
+    warn_stale_summaries(doc, [a.question])
+    check_primaries(doc)
     return touched, f"added {a.question['id']}"
 
 
@@ -383,12 +419,21 @@ def op_add_round(d, doc, a):
         if a.round is not None:
             q.setdefault("round", a.round)
         touched += add_question(doc, q)
+    for g in a.groups or []:
+        if g.get("summary") is not None:
+            record_summary_of(doc, g["id"])
+    warn_stale_summaries(doc, a.questions or [])
     known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
-        if not v.get("id") or v["id"] in known:
-            sys.exit(f"a visual needs a new id: {v.get('id')}")
+        if not v.get("id"):
+            sys.exit("a visual needs an id")
+        if v["id"] in known:
+            sys.exit(
+                f"refused: visual {v['id']} already exists; replace-visual swaps in a new version"
+            )
         doc["visuals"].append(v)
         known.add(v["id"])
+    check_primaries(doc)
     ids = ", ".join(q["id"] for q in a.questions or [])
     if not ids:
         return (
@@ -396,6 +441,55 @@ def op_add_round(d, doc, a):
             f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
         )
     return touched, (f"round {a.round} added: " if a.round else "added ") + ids
+
+
+def check_primaries(doc):
+    """Refuse a second live `primary` visual in one group of one scope; a question's inline visuals are in its own scope."""
+    seen = {}
+    inline = [
+        (f"question:{q['id']}", v)
+        for q in doc["questions"]
+        for v in q.get("visuals") or []
+        if isinstance(v, dict)
+    ]
+    for scope, v in [(v.get("scope"), v) for v in doc["visuals"]] + inline:
+        if v.get("primary") and not v.get("archived"):
+            key = (scope, v.get("group"))
+            if key in seen:
+                sys.exit(
+                    f"refused: visuals {seen[key]} and {v['id']} are both primary "
+                    f"in group {key[1]!r} of scope {key[0]!r}"
+                )
+            seen[key] = v["id"]
+
+
+def find_visual(doc, vid):
+    for v in doc["visuals"]:
+        if v.get("id") == vid:
+            return v
+    sys.exit(f"unknown visual: {vid}")
+
+
+def op_replace_visual(d, doc, a):
+    """Swap in a full visual object for the top-level visual with the same id."""
+    v = a.visual
+    if not isinstance(v, dict) or not v.get("id"):
+        sys.exit("refused: replace-visual needs a visual object with an id")
+    doc["visuals"][doc["visuals"].index(find_visual(doc, v["id"]))] = v
+    check_primaries(doc)
+    return [], f"replaced visual {v['id']}"
+
+
+def op_archive_visual(d, doc, a):
+    """Mark visuals archived with a reason; they stay in questions.json and the page hides them."""
+    if not (a.why or "").strip():
+        sys.exit("archive-visual needs a why")
+    capped("archive-visual why", a.why, LINE_CAP)
+    vs = [find_visual(doc, vid) for vid in a.ids]
+    at = now()
+    for v in vs:
+        v["archived"] = {"why": a.why, "at": at}
+    return [], f"archived visuals {', '.join(a.ids)}"
 
 
 def op_group(d, doc, a):
@@ -844,6 +938,8 @@ OP_ARGS = {
     "note-reply": (op_note_reply, {"seq": None, "text": None}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
+    "replace-visual": (op_replace_visual, {"visual": None}),
+    "archive-visual": (op_archive_visual, {"ids": None, "why": None}),
     "record-terminal": (
         op_record_terminal,
         {"id": None, "decision": None, "alt": None, "text": None},

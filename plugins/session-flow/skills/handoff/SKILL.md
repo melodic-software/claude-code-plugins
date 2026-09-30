@@ -41,8 +41,11 @@ save-point engine, different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional:
+`$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
 
+- **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
+  changes only the `/export` step (record the suggestion in output, do not ask) and is never read as
+  the topic or a method; the Method rule below then applies to the next token.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -204,7 +207,7 @@ ambiguous.
 **Output order is fixed: position panel first, ticked checklist next, rails prompt last.** The panel
 is what the operator actually reads (engine doc, "Emit the position panel"), so it leads; the
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
-The rails resume prompt, the copy instruction, the two dashed rails, and every below-the-rails
+The rails resume prompt, the copy instruction, each region's dashed rails, and every below-the-rails
 `/loop` re-arm note, is the FINAL text of the response, with nothing after it. This order exists
 because the rails prompt is the deliverable the operator copies, and under heavy context a turn
 that ends on anything else can run out of room before the rails prompt appears: the save-point
@@ -232,9 +235,10 @@ ticked. Emit the rails block before ending the turn, always.
   just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
   is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
   as `new` wrote it (frontmatter, `chain:`, the carried `[hN]` sections, the `## Prior sessions`
-  table, the rails block minus `Next:`). An optional slot (`goal-rearm`, `below-rail`,
-  `<section>-new`) that does not apply is left OUT of the object, which is how `fill` deletes its
-  line; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
+  table, the rails block minus `Next:`). An optional slot (`goal-first`, `goal-after`,
+  `below-rail`, `<section>-new`) that does not apply is left OUT of the object, which is how `fill`
+  deletes its line; a goal region goes in `goal-first` or `goal-after` as one multi-line value,
+  whichever the ordering rule calls for, and the other is left out; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
   and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
@@ -256,7 +260,8 @@ ticked. Emit the rails block before ending the turn, always.
   written from memory; a section with nothing to report says so explicitly rather than being omitted
 - [ ] Claim provenance applied. Inherited status marked `UNVERIFIED (<source>)`, not stated as
   plain fact. A fix still in CI, merge, or another unreturned check is `UNVERIFIED (<check>)`,
-  never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green)
+  never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green;
+  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
@@ -298,8 +303,11 @@ ticked. Emit the rails block before ending the turn, always.
   forward-slash-normalized path, never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd, and carries the invoke-the-skill sentence; the
   `Handoff origin:` line names the repository (a remote URL with its userinfo credential stripped)
-  and repo-relative path a different machine re-resolves from; `/goal` first line if a goal is
-  active; a below-the-rails note re-arming EVERY surviving loop, one
+  and repo-relative path a different machine re-resolves from; when a goal applies (a fresh goal
+  requested, or a `/goal` active in this session), a second railed goal region under its own
+  `Type /goal` instruction line, placed first when the user asked for the fresh goal and second
+  when the goal is only carried over, its condition holding no `/goal` line and ending in the
+  same `Read @` directive line; a below-the-rails note re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
@@ -313,24 +321,26 @@ ticked. Emit the rails block before ending the turn, always.
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
   4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
   is made rather than the list being guessed from the conversation
-- [ ] The verbatim goal sits between the rails above the remaining-work bullets, below an active
-  `/goal` first line, which it never displaces, and when the goal has recorded amendments, the
-  original dated quote travels with EVERY dated amendment line, never collapsed to a single line;
-  prompt-only writes no file, so the goal travels in the prompt or not at all (engine doc,
-  "Original goal, mandatory on BOTH paths")
+- [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
+  and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
+  when the goal has recorded amendments, the original dated quote travels with EVERY dated
+  amendment line, never collapsed to a single line; prompt-only writes no file, so the goal
+  travels in the prompt or not at all (engine doc, "Original goal, mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact. A pending CI, merge, or unreturned check
-  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance")
+  is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
+  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
-- [ ] If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
   purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails. Remaining-work bullets inline
-- [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
-  note re-arming EVERY surviving loop, one `/loop [<interval>] <original prompt>` line per loop,
-  each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
+- [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
+  instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
+  region bullet under "Emit the copy/paste resume prompt"); a below-the-rails note re-arming EVERY
+  surviving loop, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -349,6 +359,13 @@ ticked. Emit the rails block before ending the turn, always.
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
+## Verification record: `/export`
+
+- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu.
+- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+
 ## What this skill does NOT do
 
 - **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code
@@ -359,9 +376,10 @@ ticked. Emit the rails block before ending the turn, always.
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   NOT relax this
-- **Does not offer a resident / no-stop mode.** `/implementation:implement-dispatch` resident
-  phase boundaries record plan marks and the commit; they do not invoke this skill. Dual-owner
-  split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
+- **Does not offer a resident / no-stop mode.** A resident
+  `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
+  written last, and only when a clear, model switch, run end, or user-only commit gate applies.
+  Dual-owner split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
 - **Does not orient from durable state**; the position panel restates what this turn already

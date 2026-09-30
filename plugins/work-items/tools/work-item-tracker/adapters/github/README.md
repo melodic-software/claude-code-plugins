@@ -102,6 +102,19 @@ Search-qualifier reference:
 
 Multiple qualifiers AND-combine: `label:type:chore label:recurring no:assignee sort:created-asc`.
 
+**REST form (GraphQL returns HTTP 403).** `gh issue list --search` is GraphQL, and some sessions
+refuse GraphQL. `search/issues` is refused in cloud sessions too, so it is not the fallback. List the
+repo's issues over REST and filter client-side: `<terms>` are the query words, all of which must
+appear in the title, case-insensitively. Pull requests come back from the issues endpoint and are
+dropped.
+
+<!-- rest-search-filter:start -->
+```bash
+FILTER='.[] | select(.pull_request | not) | select((.title | ascii_downcase) as $t | $q | ascii_downcase | split(" ") | map(select(. != "")) | all(. as $w | $t | contains($w))) | [.number, .title, .state] | @tsv'
+gh api --paginate 'repos/{owner}/{repo}/issues?state=all&per_page=100' | jq -r --arg q "<terms>" "$FILTER" | tr -d '\r'
+```
+<!-- rest-search-filter:end -->
+
 ## View item
 
 View an item (bare `gh`):
@@ -287,7 +300,7 @@ open_pr_pages=$(gh api graphql --paginate \
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
         closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
-          nodes { number state isDraft }
+          nodes { number state isDraft createdAt }
           pageInfo { hasNextPage endCursor }
         }
       }
@@ -310,8 +323,19 @@ prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires 
 --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
 ```
 
-which emits `true` only when a ready (non-draft) open PR closes `#<N>`; every other note in this
-section (failure semantics, pagination, `\r` handling) applies to both reductions unchanged. **On query
+which emits `true` only when a ready (non-draft) open PR closes `#<N>`. A third reduction is for
+**reporting**: it emits each open closing PR as one compact JSON line `{number, isDraft, createdAt}`
+(`createdAt` is an ISO-8601 UTC timestamp), and nothing when no open PR closes `#<N>`:
+
+```bash
+--jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN") | {number, isDraft, createdAt} | tojson'
+```
+
+Run it with the same captured-then-checked call, then `printf '%s\n' "$open_pr_pages" | tr -d '\r'`
+in place of the `grep -qx true` line. The two boolean reductions are for gating and this one is for
+reporting: a caller never derives the gate from it, and reads an item's report fields from it only
+after the boolean has already excluded the item. Every other note in this section (failure
+semantics, pagination, `\r` handling) applies to all three reductions unchanged. **On query
 failure it emits no boolean and exits non-zero. A failed in-flight check is not `false`.** The
 GraphQL call is captured first and its exit status checked before any reduction: if
 `gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor

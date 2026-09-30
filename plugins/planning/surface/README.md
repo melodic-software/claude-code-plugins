@@ -6,7 +6,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 
 | File | Owner | Role |
 |---|---|---|
-| `server.py` | runs | Stdlib `ThreadingHTTPServer` on 127.0.0.1. Serves the page, pushes state over SSE, takes answers, long-polls for the watcher, serves file visuals by visual id (`/api/visual-file?id=`), computes question state and settings |
+| `server.py` | runs | Stdlib `ThreadingHTTPServer` on 127.0.0.1. Serves the page, pushes state over SSE, takes answers, long-polls for the watcher, serves file visuals by visual id (`/api/visual-file?id=`), serves a visual in a sandboxed new tab by one-time link (`/api/visual-open`), computes question state and settings |
 | `index.html` | page | Single file, no build step, no CDN |
 | `round.py` | Claude | The only write path to `questions.json`, plus the server lifecycle and the exporters |
 | `round.sh` | Claude | Launcher: runs `round.py` with the first `python3` or `python` that runs (a stub that fails is skipped) |
@@ -49,7 +49,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`) or alternatives (at least two) |
 | `handle --seq N [M ...]` | Mark events handled with no reply |
 | `note-reply` op | Reply in the Notes to Claude thread |
-| `record-terminal` op | Record an answer the user gave in the terminal |
+| `record-terminal` op | Mirror an answer the user gave in the terminal, or a decision this session recorded |
 | `archive` op | Take off-path questions out of the open count; the server derives their state |
 | `set-status` op | `{"op": "set-status", "text": "..."}` sets the page's Claude line (top-level `status`); `"clear": true` removes it |
 | `wait` op | `{"op": "wait", "id": "Q10", "waitsOn": "...", "by": "claude"}` holds a question (`waiting`, `waitsOn`). `by` is `claude` (the default: pending research) or `user` (needs the user's answer: writes `waitingBy: "user"` and stamps `setAsideAt`, `setAsideSeq` (the page's seq then) and `setAsideRev` (the rev of this write); a page decision whose seq is not above `setAsideSeq`, a terminal one whose `rev` is not above `setAsideRev`, or a terminal one without a `rev` not later than `setAsideAt`, stops counting as an answer; a `record-terminal` later in the same `apply` still counts). `"clear": true` removes `waiting`, `waitsOn` and `waitingBy` and keeps the stamps |
@@ -79,6 +79,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 - `POST /api/lease` takes the token like every POST; it only clears the watcher lease. The lease is a coordination aid between sessions, not an access control: any holder of the token can release it.
 - Answers are data: `/api/wait` responses say so, and markdown is escaped before rendering; SVG and HTML visuals render in a sandboxed iframe. An HTML visual may run scripts (`sandbox="allow-scripts"`, never `allow-same-origin`), so it is an opaque origin: it cannot read the token, cookies, storage or the page DOM, and a request it makes carries `Origin: null`, which the origin check refuses. SVG runs with no sandbox flags. The exported report runs no scripts and marks an HTML visual that contains one.
 - `/api/visual-file?id=<visual id>` takes the token and serves a file only when a visual in `questions.json` names it and it resolves to a regular file inside the data dir, up to 4 MB (413 above); a path with a dotfile component, a `.lock` or a `.tmp` name (the runtime files and their temp copies hold the token), a file with more than one hard link (a link's name says nothing about the file it shares, which can be a session file), and anything else is 404 `not found`. `export-report` inlines a file visual under the same rules. No route takes a path from the URL.
+- Open in new tab never uses a `blob:` URL, which would inherit the page's origin. `POST /api/visual-open {"id": ...}` takes the token and returns `/api/visual-open?id=<id>&t=<nonce>` for a live visual (404 for an unknown or archived id). The nonce is single-use: any GET spends it, and it expires 10 seconds after the mint. A missing, spent, expired or other-id nonce is 403. The GET needs no token, because a tab navigation cannot send the header. It re-checks that the visual is live (404 otherwise) and serves inline content or the named file under the `/api/visual-file` rules (404, 413). The type follows the format: html is `text/html`, svg is `image/svg+xml`, and an image file needs a png, jpg, gif, webp or svg extension (415 otherwise). An inline image URL is wrapped in an `<img>` page, and markdown, mermaid and chart are `text/plain`. Every response carries `Content-Security-Policy: sandbox` plus the page policy (`allow-scripts` for html only, never `allow-same-origin`) and `nosniff`, so the tab is an opaque origin: it cannot read the token, storage or the page, and a request it makes carries `Origin: null`.
 
 Limits: any local process that can reach the port can read the token from `GET /`, so on a shared host other local users can answer. `ensure-running` tries the port recorded in the data dir's `.interview-session.json` before the setting, so whoever can write that file picks which free loopback port the next server binds, and with it the page's origin and the browser settings stored for it. That is an accepted residual: it stays on 127.0.0.1, the printed and opened URL comes from the port the new server itself records, and the same write access already reaches every file the page reads. Keeping the recorded port outside the data dir would need a second store, which this does not add. A session on a remote host serves its own 127.0.0.1, which the user's browser cannot reach; the skill then falls back to its read-only table.
 
@@ -105,7 +106,7 @@ The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}
 
 ## Known gaps
 
-- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run.
+- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run. CI does not install `playwright-cli`, so the browser checks print SKIP there. That is deliberate: the SKIP line in `surface.test.sh` stays as a stated choice, and the Python unit tests cover the server side in CI.
 - Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.

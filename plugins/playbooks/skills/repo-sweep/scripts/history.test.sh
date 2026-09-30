@@ -47,7 +47,7 @@ loop@builtin-2.1.283" \
 jq -n '{version: 2, plugins: {
   "a@m": [{scope: "user", version: "2.0"}], "b@m": [{scope: "user", version: "1.0"}],
   "c@m": [{scope: "user", version: "3.0"}], "d@m": [{scope: "user", version: "1.0"}],
-  "new@m": [{scope: "user", version: "1.0"}]}}' >"$TMP/installed.json"
+  "new@m": [{scope: "user", version: "1.0"}], "p@m": [{scope: "user", version: "1.0"}], "n@m": [{scope: "user", version: "1.0"}]}}' >"$TMP/installed.json"
 
 body() { # <done lines...>
   printf 'Summary\n<!-- repo-sweep:begin playbook=fixture -->\r\n'
@@ -55,12 +55,19 @@ body() { # <done lines...>
   printf '<!-- repo-sweep:end -->\r\n'
 }
 # shellcheck disable=SC2016 # literal payload, never expanded
-jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run: new:x')" \
+jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run: new:x' \
+    '- [x] e-cleared: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-still: b:x@1.0, no findings' \
+    '- [x] e-na: n:x@0.5, no findings' '- [x] e-bare-x: b:x@1.0, no findings, partial coverage: docs only' \
+    '- [x] e-filed-newest: b:x@1.0, no findings, partial coverage: docs only')" \
   --arg new "$(body '- [x] e-rerun: a:x@1.0, committed 2222222' '- [x] e-unknown: gone:x@3.0, no findings' \
     '- [x] e-multi: c:x@2.0, d:x, no findings' '- [x] e-bare: d:x' \
-    '- [x] e-same: b:x@1.0, no findings, partial coverage: docs only')" \
+    '- [x] e-same: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-commit-partial: p:x@1.0, committed abc1234, partial coverage: 2 files' '- [x] e-declined: p:x@1.0, findings declined (2)' \
+    '- [x] e-still: b:x@1.0, no findings, partial coverage: docs only' '- [x] e-bare-x: b:x' \
+    '- [x] e-filed: p:x@1.0, filed https://github.com/o/r/issues/1' '- [x] e-filed-changed: a:x@0.5, filed https://github.com/o/r/issues/2' \
+    '- [x] e-filed-newest: b:x@1.0, filed https://github.com/o/r/issues/3')" \
   --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" \
-  --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings')" '[
+  --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings, partial coverage: docs only' \
+    '- [x] e-cleared: b:x@1.0, no findings' '- [x] e-na: not applicable: no tracked tests 1.0' '- [x] e-na-at: not applicable: no skill@files' '- [x] e-na-partial: b:x@1.0, no findings, partial coverage: not applicable: docs')" '[
   {headRefName: "chore/repo-sweep-fixture-20260101", mergedAt: "2026-01-01T00:00:00Z", body: $old},
   {headRefName: "chore/repo-sweep-fixture-20260201", mergedAt: "2026-02-01T00:00:00Z", body: $new},
   {headRefName: "fix/chore/repo-sweep-x", mergedAt: "2026-03-01T00:00:00Z", body: $decoy},
@@ -70,7 +77,10 @@ jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run
 printf '%s\n' '# Playbook: fixture' '## Phase 1: x' \
   '### e-run' '- skill: new:x' '### e-rerun' '- skill: a:x' '### e-same' '- skill: b:x' \
   '### e-builtin' '- skill: claude-api' '### e-builtin-same' '- skill: loop' '### e-unknown' '- skill: gone:x' \
-  '### e-multi' '- skill: c:x, d:x' >"$TMP/cat.md"
+  '### e-multi' '- skill: c:x, d:x' '### e-cleared' '- skill: b:x' '### e-still' '- skill: b:x' \
+  '### e-na' '- skill: n:x' '### e-commit-partial' '- skill: p:x' '### e-declined' '- skill: p:x' '### e-bare-x' '- skill: b:x' \
+  '### e-filed' '- skill: p:x' '### e-filed-changed' '- skill: a:x' '### e-filed-newest' '- skill: b:x' \
+  '### e-na-at' '- skill: new:x' '### e-na-partial' '- skill: b:x' >"$TMP/cat.md"
 
 run() {
   (cd "$repo" && PATH="$TMP/bin:$PATH" GH_DIR="$TMP/gh" GH_LOG="$TMP/gh.log" CLAUDE_CONFIG_DIR="$TMP/cfg" \
@@ -88,7 +98,18 @@ e-same${T}rerun${T}partial coverage on a prior sweep
 e-builtin${T}rerun${T}version changed: claude-api builtin -> builtin-2.1.283
 e-builtin-same${T}rerun-optional${T}same version ran: loop@builtin-2.1.283
 e-unknown${T}rerun-optional${T}same version ran: gone:x@3.0 (current version unknown)
-e-multi${T}run${T}never ran: d:x" "$out"
+e-multi${T}run${T}never ran: d:x
+e-cleared${T}rerun-optional${T}same version ran: b:x@1.0
+e-still${T}rerun${T}partial coverage on a prior sweep
+e-na${T}rerun${T}version changed: n:x 0.5 -> 1.0
+e-commit-partial${T}rerun${T}partial coverage on a prior sweep
+e-declined${T}rerun-optional${T}same version ran: p:x@1.0
+e-bare-x${T}rerun${T}partial coverage on a prior sweep
+e-filed${T}rerun-optional${T}same version ran: p:x@1.0
+e-filed-changed${T}rerun${T}version changed: a:x 1.0 -> 2.0
+e-filed-newest${T}rerun-optional${T}same version ran: b:x@1.0
+e-na-at${T}run${T}never ran: new:x
+e-na-partial${T}rerun${T}partial coverage on a prior sweep" "$out"
 assert_eq "no warning when gh works" "" "$(cat "$TMP/err")"
 case "$(cat "$TMP/gh.log")" in
 *"--limit 1000"*"--json headRefName,body,mergedAt,isCrossRepository"*) pass "gh called with --limit 1000" ;;

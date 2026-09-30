@@ -1,0 +1,8 @@
+# expect: rule-weak-oracle
+# Any user object passes, the wrong one included.
+from app.users import create_user
+
+
+def test_create_user_returns_the_user():
+    user = create_user("ada")
+    assert user is not None

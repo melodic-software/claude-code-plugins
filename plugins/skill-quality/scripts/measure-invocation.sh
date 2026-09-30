@@ -21,6 +21,9 @@
 # Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
 #   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
 #   query: id, split (train|validation), expect_trigger (bool), request
+# skill_dir resolves against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
+# git toplevel of this script, else $PWD). The shipped seed probes name this
+# marketplace's own skills; `score` exits 2 when none of them resolve.
 # Roughly 20 labeled queries per skill, both polarities, both splits.
 #
 # listing-overlap is a FLOOR, not a model-graded auto-invocation rate. It
@@ -49,7 +52,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 if [[ $# -lt 1 ]]; then
-  printf 'Usage: measure-invocation.sh <validate|score|compare|emit-plugin-eval> ...\n' >&2
+  printf 'Usage: measure-invocation.sh <validate|score|compare|emit-plugin-eval> ... (run with --help)\n' >&2
   exit 2
 fi
 
@@ -146,7 +149,7 @@ cmd_validate() {
   fi
   local root
   root="$(repo_root)"
-  local f nfiles=0
+  local f nfiles=0 unresolved=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -218,6 +221,7 @@ cmd_validate() {
         note "$skill: listing $md"
       else
         warn "$f ($skill): skill_dir '$rel' does not resolve under $root"
+        unresolved=$((unresolved + 1))
       fi
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
@@ -225,12 +229,19 @@ cmd_validate() {
     note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
+  if ((unresolved > 0)); then
+    note "$unresolved of $nfiles probe file(s) have a skill_dir that does not resolve under $root; score cannot load those listings (see reference/invocation-probes.md, Outside the marketplace checkout)"
+  fi
 }
 
 cmd_score() {
   local method="listing-overlap"
   if [[ "${1:-}" == "--method" ]]; then
-    method="${2:-}"
+    if [[ -z "${2:-}" ]]; then
+      printf 'Error: --method needs a value (listing-overlap)\n' >&2
+      exit 2
+    fi
+    method="$2"
     shift 2
   fi
   if [[ "$method" != "listing-overlap" ]]; then
@@ -244,14 +255,24 @@ cmd_score() {
   fi
   local root
   root="$(repo_root)"
-  local tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  trap 'rm -rf -- "$tmp"' EXIT
   local f
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
     printf 'Error: no probe JSON files in %s\n' "$dir" >&2
+    exit 2
+  fi
+  local pf pf_rel resolvable=0
+  for pf in "${files[@]}"; do
+    pf_rel="$(jq -r '.skill_dir // empty' "$pf" 2>/dev/null)"
+    if [[ -n "$pf_rel" ]] && resolve_skill_md "$root" "$pf_rel" >/dev/null; then
+      resolvable=$((resolvable + 1))
+    fi
+  done
+  if ((resolvable == 0)); then
+    printf 'Error: none of the %s probe file(s) in %s has a skill_dir that resolves under %s. The shipped seed probes name skills of the melodic-software marketplace checkout (plugins/mcp-tools/..., plugins/skill-quality/...) that are not present here. Pass your own probes directory (same JSON shape, skill_dir relative to your repo root or absolute), or set MEASURE_INVOCATION_REPO_ROOT to the repo root the probes name.\n' "${#files[@]}" "$dir" "$root" >&2
     exit 2
   fi
   local skill_idx=0
@@ -394,7 +415,7 @@ cmd_compare() {
   if ! jq -e -n --slurpfile b "$base" --slurpfile t "$treat" \
     '([$b[0].skills[].skill] | sort) == ([$t[0].skills[].skill] | sort) and ($b[0].skills | length) > 0' >/dev/null; then
     printf 'Error: compare needs two reports over the same non-empty skill set\n' >&2
-    return 1
+    return 2
   fi
   jq -n --slurpfile b "$base" --slurpfile t "$treat" '
     def delta($t; $b): if $t == null or $b == null then null else $t - $b end;
@@ -439,7 +460,7 @@ cmd_emit() {
     printf 'Error: emit-plugin-eval needs an empty or new <out-dir>; stale cases would still run\n' >&2
     exit 2
   fi
-  mkdir -p "$out" || return 1
+  mkdir -p "$out" || return 2
   local f
   local -a files
   mapfile -t files < <(probe_files "$dir")
@@ -457,7 +478,7 @@ cmd_emit() {
       expect="$(jq -r ".queries[$i].expect_trigger" "$f")"
       request="$(jq -r ".queries[$i].request" "$f")"
       local case_dir="$out/${plugin}-${leaf}-${id}"
-      mkdir -p "$case_dir/graders" || return 1
+      mkdir -p "$case_dir/graders" || return 2
       printf '%s\n' "---
 description: invocation probe ${skill} ${id} (${split}, expect_trigger=${expect})
 tags: [invocation-probe, ${split}]
@@ -468,7 +489,7 @@ expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires
 ---
 
 ${request}
-" >"$case_dir/prompt.md" || return 1
+" >"$case_dir/prompt.md" || return 2
       # portability-ok: \s is read by the eval grader's own regex engine, never
       # shell grep/sed; kept out of the emitted YAML so the grader files stay clean.
       local match_re="\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\""
@@ -479,7 +500,7 @@ tool: Skill
 input_match: '${match_re}'
 min: 1
 ---
-" >"$case_dir/graders/skill-fired.md" || return 1
+" >"$case_dir/graders/skill-fired.md" || return 2
       else
         printf '%s\n' "---
 type: tool_used
@@ -489,12 +510,12 @@ min: 0
 max: 0
 arm: both
 ---
-" >"$case_dir/graders/skill-quiet.md" || return 1
+" >"$case_dir/graders/skill-quiet.md" || return 2
       fi
     done
     note "emitted $nq plugin-eval cases for $skill under $out"
   done
-  cat >"$out/README.md" <<'EOF' || return 1
+  cat >"$out/README.md" <<'EOF' || return 2
 Plugin-eval cases generated by `measure-invocation.sh emit-plugin-eval`.
 
 Run within one plugin at a time (the CLI loads a single plugin):

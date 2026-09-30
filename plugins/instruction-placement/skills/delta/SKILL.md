@@ -140,7 +140,9 @@ Each step names what "done" looks like, so a partial run is visible rather than 
    verdict and this run's.
 5. Check index sync and reachability. *Done when:* both verdicts are recorded, since they are
    independent questions.
-6. Derive each surviving finding's `finding_id` and suppress every one the merged surface carries;
+6. Derive each surviving finding's `anchor/v1` and `finding_id` with `detect.sh identity`:
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> --lane <lane> --destination <rung>`,
+   never by hand, and suppress every one the merged surface carries;
    also suppress what this branch's artifact records as `declined` or `applied`.
    *Done when:* no suppressed id appears in the report under any shape, and every entry that did
    **not** suppress (personal-only, malformed, or not evaluated this run) is listed with its

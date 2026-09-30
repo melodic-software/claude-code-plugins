@@ -87,6 +87,18 @@
         "Uses a single batch-wide confirmation for the whole fleet, not one confirmation per repo",
         "Applies the same batch plan captured from the dry-run (--apply --batch-plan <path>), never re-enumerating the fleet at apply"
       ]
+    },
+    {
+      "id": 8,
+      "name": "fleet-scan-is-read-only-no-gate",
+      "prompt": "How much space could I reclaim across all my ghq repos? /repo-hygiene:clean scan-batch",
+      "expected_output": "Resolves to the scan fleet tier and runs clean-batch.sh --tier scan once, read-only, then reports the per-repo outcomes and the summed reclaimable bytes without asking for a confirmation or applying anything.",
+      "files": [],
+      "expectations": [
+        "Resolves the action to `scan-batch` and runs clean-batch.sh --tier scan (not caches-batch, not tree-batch)",
+        "Never passes --apply or --batch-plan, and does not ask for a destructive confirmation, because the scan tier only reads",
+        "Reports the per-repo outcomes and the reclaimable `bytes` from the `Summary:` line"
+      ]
     }
   ]
 }

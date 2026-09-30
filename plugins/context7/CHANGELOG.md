@@ -3,6 +3,38 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-09-29
+
+### Changed
+
+- **`lookup` drops the anti-laziness clause from its philosophy line
+  ([#4120](https://github.com/melodic-software/claude-code-plugins/issues/4120)).** The line no longer
+  says "even for libraries you 'know.'" and still says to verify against Context7 before claiming how a
+  library works.
+
+## [0.6.0] - 2026-09-29
+
+### Added
+
+- **`/context7:check`, a model-invocable read-only check
+  ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).**
+  `prerequisites.json` named `/context7:setup check`, which `disable-model-invocation: true`
+  hides from Claude. It now names `/context7:check`, which follows only the `check` section of
+  `setup` and never installs.
+
+### Changed
+
+- **`lookup` restores the clause "even for libraries you 'know.'" in its philosophy line
+  ([#4120](https://github.com/melodic-software/claude-code-plugins/issues/4120)).** The 0.5.9 removal
+  contradicted #4120's acceptance criterion, which left the clause unedited pending a human decision.
+  The decision (keep the removal or keep the clause) is open on #4120.
+- **`lookup` states its default action as a sentence.** The `**Arguments.**` line now ends with
+  "Default action is lookup, e.g. /context7:lookup react "useEffect cleanup"." No behavior change.
+- **Declared in-place correction to the released `## [0.5.10]` section (#2388 sanction).** Its body
+  described the claude-ops prerequisites mechanism, not what context7 shipped. It now reads "Declares the
+  `ctx7` CLI in `prerequisites.json` so `/claude-ops:prerequisites` can report it when missing." The heading
+  is unchanged.
+
 ## [0.5.11] - 2026-09-28
 
 ### Changed
@@ -15,7 +47,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- Declares the `ctx7` CLI in `prerequisites.json` so `/claude-ops:prerequisites` can report it when missing.
 
 ## [0.5.9] - 2026-09-27
 

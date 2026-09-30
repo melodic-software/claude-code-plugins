@@ -3,6 +3,42 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.11] - 2026-09-29
+
+### Added
+
+- **`stateless` carries a Boundary section for the built-in command `/memory`.** The command
+  toggles auto memory and shows its entries from inside a session; this skill reports the
+  effective state across every scope and disables or purges durably. The model offers the
+  person-run command for a quick interactive toggle.
+
+## [0.13.10] - 2026-09-29
+
+### Fixed
+
+- The `audit` scope-boundary eval (case 2) expects routing to `audit` and `audit-automation-gaps`
+  in the claude-config plugin, the skills `SKILL.md` names, instead of the removed
+  `automation-gaps` route
+  ([#4119](https://github.com/melodic-software/claude-code-plugins/issues/4119)).
+- `skills/audit/reference/official-guidance.md` no longer says a directly read `AGENTS.md` is
+  absent from `/memory`: the memory page says `/memory` lists it from v2.1.280. The record is
+  re-dated 2026-09-29, and the Bedrock and telemetry-disabled gap is stated as limited to versions
+  before v2.1.281.
+
+### Changed
+
+- **Corrected two released entries in place.** 0.13.7 is now stated as a re-release with no
+  `claude-memory` change (it had repeated the 0.13.6 entry verbatim). 0.13.6 moved from Fixed to
+  Changed and is reworded as a `lib/managed-scope.sh` sync with no behavior change.
+
+### Added
+
+- `scripts/spoke-script-paths.test.sh` gates the `<skill-dir>` spoke-script convention from
+  0.13.5: no literal `${CLAUDE_PLUGIN_ROOT}` in spoke files, every `<skill-dir>/scripts/<name>.sh`
+  reference resolves to a real script, and each `SKILL.md` that has such spokes renders
+  `<skill-dir>` from `${CLAUDE_SKILL_DIR}`
+  ([#4613](https://github.com/melodic-software/claude-code-plugins/issues/4613)).
+
 ## [0.13.9] - 2026-09-28
 
 ### Changed
@@ -20,15 +56,23 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 ## [0.13.7] - 2026-09-28
 
-### Fixed
+### Changed
 
-- **`lib/managed-scope.sh` matches the claude-config canonical copy** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings), [managed settings](https://code.claude.com/docs/en/managed-settings)).
+- Re-release with no `claude-memory` change: this version repeats 0.13.6 (see
+  [#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027) under 0.13.6). Only
+  `plugin.json` and this changelog changed.
 
 ## [0.13.6] - 2026-09-28
 
-### Fixed
+### Changed
 
-- **`lib/managed-scope.sh` matches the claude-config canonical copy** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings), [managed settings](https://code.claude.com/docs/en/managed-settings)).
+- **`lib/managed-scope.sh` synced** byte-identical to the claude-config canonical copy
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Adds the unused
+  `mscope::remote_cache_file` helper and comments; no `claude-memory` script calls the helper, so
+  behavior is unchanged. The helper names the server-managed settings cache
+  `~/.claude/remote-settings.json`, read by the Organization policy line in `/status`
+  ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings),
+  [managed settings](https://code.claude.com/docs/en/managed-settings)).
 
 ## [0.13.5] - 2026-09-27
 

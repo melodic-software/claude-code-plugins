@@ -183,15 +183,34 @@ item's class sits within the effective rung **and** its promotable cell is **eff
 C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines.
-Report each bound-to-effective pair at cycle start. The three-arm resolver, what counts as
+Report each bound-to-effective pair at cycle start. The operator-supplied surfaces the seam needs
+are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
+report-only lane-start preflight names each missing one, and the seam still returns no qualified
+read, so every cell stays effective-unpromoted. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
 
+## Promotion-evidence bootstrap options (substituted at load)
+
+The option values below substitute when this skill loads. Treat an empty value, or one still
+written as a `${user_config.…}` placeholder, as unset. The lane reads these options from this block
+only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/source-control.md`
+or any other repository file. The reasons and their verification record are in
+[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
+which also says what each surface must be. The lane-start preflight in
+[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block.
+
+| Option | Value |
+| --- | --- |
+| `promotion_evidence_binding` | `${user_config.promotion_evidence_binding}` |
+| `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
+| `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
+
 ## do-not-merge
 
-A do-not-merge label is respected by default in every tier and at every rung, the PR is reported,
-never merged, and the label is never removed. Stripping it happens only behind the explicit
+A do-not-merge label, or a PR body that says "do not merge", is respected by default in every tier
+and at every rung, the PR is reported, never merged, and the label is never removed. Stripping it happens only behind the explicit
 `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never
 persisted.
 
@@ -221,7 +240,9 @@ notification silently. The record path is relative to **this session's checkout*
 `<owner/repo>` names another repository the notification reaches the *launching* project's endpoint
 and the target's tracked hook is never consulted (§2 owns why): **launching from the target
 repository's own checkout is required, not preferred, whenever that repository's endpoint is the
-one that must hear.** Telemetry is the report surface, never the escalation channel.
+one that must hear.** A background launch loses the record; the convention's
+[Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first

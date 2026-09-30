@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034 # BATCH_ARG_ERROR is read by the sourcing scripts
 # Shared plumbing for the fleet (batch) clean orchestrator. Sourceable; not run
 # directly. Reuses clean_path_key / clean_skip_matches from clean-common.sh —
 # the separator-agnostic normalization + skip matching proven out by tree-batch.
@@ -198,4 +199,106 @@ batch_emit() {
   printf 'Outcome: %s\n' "$2"
   printf 'Reason: %s\n' "$3"
   printf '%s\n' '---'
+}
+
+# Repo-selection surface for the read-only audit scripts (git-branch-audit.sh,
+# git-stash-audit.sh): the --repo / --repos-from / --skip / --skip-from that
+# clean-batch.sh takes, without its gate, because an audit mutates nothing.
+BATCH_REPO_INPUTS=()
+BATCH_ARG_SHIFT=0
+BATCH_ARG_ERROR=""
+
+# batch_take_selection_arg <flag> [value...] — consume one selection flag and its
+# values from the caller's remaining args. Pass "$@" whole; on return 0 the caller
+# runs `shift "$BATCH_ARG_SHIFT"`. Returns 1 with BATCH_ARG_ERROR set on a missing
+# value or an unreadable list file. --repo takes every consecutive non-flag word,
+# so a shell glob arrives whole.
+batch_take_selection_arg() {
+  local flag="$1"
+  BATCH_ARG_SHIFT=1
+  shift
+  case "$flag" in
+  --repo)
+    if [[ $# -lt 1 || "$1" == -* ]]; then
+      BATCH_ARG_ERROR="--repo requires a directory"
+      return 1
+    fi
+    while [[ $# -gt 0 && "$1" != -* ]]; do
+      BATCH_REPO_INPUTS+=("$1")
+      BATCH_ARG_SHIFT=$((BATCH_ARG_SHIFT + 1))
+      shift
+    done
+    ;;
+  --repos-from | --skip | --skip-from)
+    if [[ $# -lt 1 ]]; then
+      BATCH_ARG_ERROR="$flag requires a value"
+      return 1
+    fi
+    BATCH_ARG_SHIFT=2
+    if [[ "$flag" == --skip ]]; then
+      BATCH_SKIP_INPUTS+=("$1")
+    elif [[ "$flag" == --skip-from ]]; then
+      batch_read_lines_into BATCH_SKIP_INPUTS "$1" || {
+        BATCH_ARG_ERROR="file not found: $1"
+        return 1
+      }
+    else
+      batch_read_lines_into BATCH_REPO_INPUTS "$1" || {
+        BATCH_ARG_ERROR="file not found: $1"
+        return 1
+      }
+    fi
+    ;;
+  *)
+    BATCH_ARG_ERROR="not a selection flag: $flag"
+    return 1
+    ;;
+  esac
+}
+
+# batch_run_fleet <script> [child-arg...] — audit every repo batch_resolve_repos
+# left in BATCH_TOPS, one at a time, by running <script> (an absolute path, given
+# no selection flags) from inside the repo. An audited block is `Repo: <top>`, the
+# child's output, `---`. A skip-listed repo, a repo whose git common dir was
+# already audited (a linked worktree of an earlier repo), an unresolvable input,
+# and a child that exits nonzero each get a batch_emit block instead, and none of
+# them stops the fleet. Ends with `FleetSummary:` and returns 0.
+batch_run_fleet() {
+  local script="$1" i top out rc audited=0 skipped=0 dup=0 failed=0 blocked=0
+  shift
+  batch_reset_skip_hits
+  batch_reset_gitdirs
+  for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
+    top="${BATCH_TOPS[$i]}"
+    printf 'Progress: %s/%s %s\n' "$((i + 1))" "${#BATCH_TOPS[@]}" "$top" >&2
+    if batch_skip_match "${BATCH_KEYS[$i]}"; then
+      batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
+      skipped=$((skipped + 1))
+      continue
+    fi
+    batch_add_gitdir "$top"
+    if [[ $? -eq 2 ]]; then
+      batch_emit "$top" skipped "shares a git common dir with an audited repo"
+      dup=$((dup + 1))
+      continue
+    fi
+    out="$(cd "$top" && bash "$script" "$@")"
+    rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      batch_emit "$top" failed "audit exited $rc"
+      printf '%s\n' "$out" >&2
+      failed=$((failed + 1))
+      continue
+    fi
+    printf 'Repo: %s\n%s\n%s\n' "$top" "$out" '---'
+    audited=$((audited + 1))
+  done
+  for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
+    batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
+    blocked=$((blocked + 1))
+  done
+  batch_report_unmatched_skips
+  printf 'FleetSummary: repos=%s audited=%s skipped=%s duplicate=%s blocked=%s failed=%s\n' \
+    "$((${#BATCH_TOPS[@]} + blocked))" "$audited" "$skipped" "$dup" "$blocked" "$failed"
+  return 0
 }

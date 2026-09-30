@@ -70,7 +70,9 @@ Resolve at runtime, never hardcode machine-specific paths:
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
-If `$ARGUMENTS` specifies a mode, use it. Otherwise infer from context; when the session is long or
+A leading bare `unattended` in `$ARGUMENTS` is stripped first; it only gates the `/export` step
+(record the suggestion in output, do not ask). Read the mode from the remainder. If it specifies a
+mode, use it. Otherwise infer from context; when the session is long or
 degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
 file before proceeding.
 
@@ -124,8 +126,42 @@ is verified 2026-09-06 against Claude Code 2.1.263 and
 [Data usage](https://code.claude.com/docs/en/data-usage#data-retention), which states that clients
 store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
 `cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
-release note names `cleanupPeriodDays`. When the
-If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
+release note names `cleanupPeriodDays`.
+
+If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
+
+## Verification record: `/export`
+
+- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu.
+- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **As of.** 2026-09-29.
+- **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+
+## Boundary, the built-in `/insights` command
+
+Both look back at how sessions went, so "how did I do" can land on either.
+
+- **`/insights` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
+  It generates an HTML report across your recent sessions on this machine: projects, usage
+  patterns, where things go wrong, features to try, and an auto mode recommendation. It writes
+  that report and nothing else. It is reserved for the person to run; the model does not invoke
+  it.
+- **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
+  transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
+  rules or memory behind approval.
+
+**Routing.** When the person asks about patterns across many sessions, or `trends` mode runs,
+offer it to the person: you can run `/insights` instead of or alongside this skill for a
+cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
+session taught and for codifying it. An unattended run records the offer in its output instead of
+asking.
+
+**Mutation gate.** This skill writes only approved codifications. It never runs `/insights` on the
+person's behalf.
+
+**Availability is never assumed.** `/insights` is not available in cloud sessions; this section
+states what to do when the person can run it, never that it is present. The four-part records
+live in [reference/native-insights.md](reference/native-insights.md).
 
 ## What this skill does NOT do
 

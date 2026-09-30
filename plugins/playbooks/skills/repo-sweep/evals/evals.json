@@ -31,7 +31,7 @@
       "id": 3,
       "name": "next-runs-one-step-and-ticks",
       "prompt": "/playbooks:repo-sweep next",
-      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the override as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
+      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the entry's override and notes, when it has them, as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
       "files": [],
       "expectations": [
         "Ticks the step in progress with tick.sh before invoking the skill",
@@ -67,13 +67,40 @@
     {
       "id": 6,
       "name": "review-files-only-after-approval",
-      "prompt": "/playbooks:repo-sweep review. batch-simplify opened its own PR even with the override, and the audit-noise entry should run before derivability.",
+      "prompt": "/playbooks:repo-sweep review. batch-simplify opened its own PR even with the in-place flag, and the audit-noise entry should run before derivability.",
       "expected_output": "Runs plugin-quality:audit on batch-simplify and drafts an issue against code-tidying, drafts a separate catalog issue for the ordering problem, shows both drafts, and files each only after approval.",
       "files": [],
       "expectations": [
         "Separates the skill defect from the catalog problem into two issues",
         "Invokes /plugin-quality:audit for the skill defect",
         "Files nothing with gh issue create until the user approves each draft"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "next-scope-round-uses-interview-scope",
+      "prompt": "/playbooks:repo-sweep next (the audit step found three fix-eligible findings, one on a file synced from another repository)",
+      "expected_output": "After the user reviews the findings, the skill invokes /planning:interview scope via the Skill tool and writes or commits no PLAN.md. The synced-file finding is listed separately and not edited. Returned answers land verbatim in the step commit's Scope decisions: section. A Blocked: line stops the step until the user answers. With planning not installed, it falls back to a numbered chat list.",
+      "files": [],
+      "expectations": [
+        "Invokes /planning:interview scope via the Skill tool after the user reviews the findings",
+        "Writes or commits no PLAN.md",
+        "Lists the synced-file finding separately and does not edit it",
+        "Copies the returned answers verbatim into the step commit's Scope decisions: section",
+        "Stops the step on a Blocked: line until the user answers",
+        "With planning not installed, falls back to a numbered chat list"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "next-stops-on-conflicting-pr",
+      "prompt": "/playbooks:repo-sweep next (state.sh exits 0 with a pending step and prints mergeable CONFLICTING)",
+      "expected_output": "The skill stops before running any step, says GitHub runs no pull_request workflows on a conflicting PR so pushed commits get no CI, and asks the user to merge the base branch into the sweep branch and push, then rerun next.",
+      "files": [],
+      "expectations": [
+        "Stops on the mergeable CONFLICTING line without running the pending step",
+        "Names merging the base branch into the sweep branch as the fix",
+        "Does not stop when mergeable is UNKNOWN"
       ]
     }
   ]

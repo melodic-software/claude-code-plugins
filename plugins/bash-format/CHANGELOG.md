@@ -3,11 +3,31 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
+## [0.8.7] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.8.6] - 2026-09-29
+
+### Fixed
+
+- The setup skill, its evals and the README cover `bash_format_lint_gitignored`: `check` reports both options, explains why a gitignored edit is skipped by default, and `apply` gives guidance for reconfiguring either option ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). The skip-notice wording matches the README's "once per session and agent, renewed every eighth skip" ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+- README Requirements and `/bash-format:setup check` name Node.js on `PATH`: every hook row launches through `node hooks/exec-bash.mjs`, so without `node` the hook does not launch.
+- CHANGELOG: corrected the 0.8.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship, and reduced the 0.7.60, 0.7.61, 0.8.2 and 0.8.5 entries to a shared launcher/library sync with no change to this plugin's behavior.
+
 ## [0.8.5] - 2026-09-28
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- Shared launcher/library sync; no change to this plugin's behavior ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)). bash-format ships no session-start probe and no `prerequisites.json`; remaining probe coverage is tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
 
 ## [0.8.4] - 2026-09-28
 
@@ -25,7 +45,7 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 ### Changed
 
-- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+- Shared launcher/library sync; no change to this plugin's behavior ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
 
 ## [0.8.1] - 2026-09-28
 
@@ -43,13 +63,13 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 ### Changed
 
-- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+- Shared launcher/library sync; no change to this plugin's behavior ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
 
 ## [0.7.60] - 2026-09-27
 
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- Shared launcher/library sync; no change to this plugin's behavior.
 
 ## [0.7.59] - 2026-09-27
 

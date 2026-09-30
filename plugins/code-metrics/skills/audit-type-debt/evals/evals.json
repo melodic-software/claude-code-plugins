@@ -31,7 +31,7 @@
       "id": 3,
       "name": "absent-type-coverage-is-visible-not-silent",
       "prompt": "/code-metrics:audit-type-debt --json --all so I can compare it after the typing sweep (type-coverage is not installed here)",
-      "expected_output": "Produces the code-metrics/v1 JSON document, reports the typescript lane as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
+      "expected_output": "Produces the code-metrics/v2 JSON document, reports the typescript lane as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
       "files": [],
       "expectations": [
         "Runs audit-type-debt.sh with --json and keeps the document for the later comparison",

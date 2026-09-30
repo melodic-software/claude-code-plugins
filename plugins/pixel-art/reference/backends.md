@@ -21,8 +21,6 @@ other backend is an optional adapter behind a presence gate.
 2. An adapter runs only when the user asked for it or configured it AND detection passes.
 3. Detection fails: say so in one line ("Aseprite not found on PATH; rendered with the native
    backend"), render natively, continue. Never silent, never a hard stop.
-4. Paid or remote adapters: state the cost basis and confirm before the first call in a session
-   (judgment).
 
 This follows the plugin rule for a prerequisite that serves an optional feature: warn visibly,
 skip that feature, continue with the documented reduced result.
@@ -42,6 +40,12 @@ skip that feature, continue with the documented reduced result.
   `preview.png` and the GIFs still come from the native renderer.
 - Adapter: `scripts/backends.py --backend aseprite`. It writes a Lua script and runs
   `aseprite --batch --script`, then `aseprite --batch <file.aseprite> --sheet --data --format json-hash --list-tags`.
+  It then rewrites `sheet.json` to the contract: `frames` keys become the spec frame names (mapped
+  by position over the sheet cells, `null` cells dropped) and `meta.image` becomes `sheet.png`;
+  `frameTags`, `layers` and `slices` stay as Aseprite wrote them. A frame count that differs from
+  the sheet cell count, or an unreadable `sheet.json`, falls back to native with one line.
+- Status: exercised only against a local stand-in (`test_backends.py`); not yet run against the real
+  Aseprite CLI. The generated Lua has never been executed by Aseprite.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
@@ -61,56 +65,19 @@ skip that feature, continue with the documented reduced result.
   [app.pixelColor.rgba](https://www.aseprite.org/api/pixelcolor),
   [json.decode](https://www.aseprite.org/api/json). As-of 2026-09-28. Recheck trigger: an Aseprite
   release whose CLI or scripting docs rename one of those options or functions.
-
-## PixelLab (API / MCP)
-
-- Adds: a text-to-image call, then the image-model pipeline and a native render. The spec carries
-  `generate.prompt`, `generate.width`, `generate.height`, and optional `generate.frames` (each with
-  `name` and `prompt`).
-- Adapter: `scripts/backends.py --backend pixellab`. The HTTP call is
-  `POST https://api.pixellab.ai/v1/generate-image-pixflux` with `Authorization: Bearer`, body
-  `description` and `image_size` `{width, height}`. The response image is `image.base64` (a PNG
-  data URL) and `usage.usd` is the reported charge. Area must be at least 32x32 and at most 400x400.
-- Detect: `PIXELLAB_API_TOKEN`. An MCP image (a session tool whose name contains `pixellab`) is not
-  called again; pass that PNG to `backends.py --ingest`. The docs name a PixelLab MCP server and do
-  not give a package name on the page fetched below.
-- Confirm before the first call in a session (`--confirm` or `PIXEL_ART_BACKEND_CONFIRM=1`). Without
-  it the adapter does not call the network. Each `generate.frames` entry is one paid call, and the
-  adapter prints the count before it spends. The API reference does not state an output license.
-- Verification record: claim = the endpoint, bearer auth, body, response fields, and size limits in
-  the previous bullets. Basis = [PixelLab API](https://api.pixellab.ai/v1/docs) (Generate image
-  pixflux). As-of 2026-09-28. Recheck trigger: that page renaming `generate-image-pixflux`, the
-  bearer scheme, or `usage.usd`.
-
-## Retro Diffusion (API / MCP)
-
-- Adds: a text-to-image call, then the same pipeline as PixelLab. The spec uses the same `generate`
-  object. Default style sent by the adapter is `rd_plus__default`.
-- Adapter: `scripts/backends.py --backend retrodiffusion`. It `POST`s
-  `https://api.retrodiffusion.ai/v2/inferences` with header `X-RD-Token` and an `Idempotency-Key`,
-  body `prompt`, `prompt_style`, `width`, `height`, `num_images`, then polls
-  `GET /v2/inferences/tasks/{task_id}` until `status` is `succeeded`. Images are raw base64 PNG in
-  `result.base64_images`. `result.balance_cost` is the USD charge.
-- Detect: `RD_API_KEY` (keys start with `rdpk-`). MCP for agents is
-  `https://mcp.retrodiffusion.ai/mcp` with `Authorization: Bearer`. An image that already came back
-  from that server goes through `--ingest`, not a second paid call.
-- Confirm before the first call, same switch as PixelLab. The API spends a prepaid USD balance.
-  The marketing FAQ also describes a credit grant for new accounts and says generated art may be
-  used commercially; those two pages use different units, so the adapter reports `balance_cost`
-  and does not convert credits.
-- Verification record: claim = the v2 URL, `X-RD-Token`, idempotency header, task poll, and
-  `base64_images` / `balance_cost` fields; MCP URL as named. Basis =
-  [api-examples README](https://github.com/Retro-Diffusion/api-examples/blob/main/README.md).
-  As-of 2026-09-28. Recheck trigger: that README changing the default base URL away from
-  `/v2` or renaming `X-RD-Token`. The FAQ credit sentence is a separate claim: basis =
-  [retrodiffusion.ai](https://www.retrodiffusion.ai/); recheck trigger: that page no longer stating
-  a free credit grant or commercial use.
+- Verification record: claim = the CLI documents `--filename-format` with a `{frame}` token, emits
+  empty frames unless `--ignore-empty` is given, and does not state the default `json-hash` key
+  format or the value of `meta.image`; the adapter therefore maps frames by position and sets
+  `meta.image` itself. Basis = [CLI](https://www.aseprite.org/docs/cli/). As-of 2026-09-29. Recheck
+  trigger: that page documenting the default key format or `meta.image`, or a real-Aseprite run
+  showing keys or frame counts that differ from one frame per sheet cell.
 
 ## General image models
 
 - Adds: concept or reference images; rarely grid-true pixel art.
-- Detect: an image-generation tool present in the session.
-- Cost and license: per the provider; state it or say it is unknown.
+- Detect: an image-generation tool present in the session. Pass an image it already returned to
+  `scripts/backends.py --ingest`.
+- License: per the provider; state it or say it is unknown.
 - Contract: image-model pipeline below is mandatory; raw output never ships as an asset.
 
 ## Image-model pipeline (all model-generated pixels)
@@ -121,7 +88,7 @@ skip that feature, continue with the documented reduced result.
 2. Snap with `scripts/render.py --snap <image.png> --palette <preset, file, or inline JSON> --out <snapped.png>`
    (add `--emit-frames` to write spec rows, `--dither` for 4x4 Bayer). Nearest color is squared
    Euclidean distance in 8-bit sRGB; alpha below 128 becomes transparent and the rest opaque.
-   `backends.py` does this snap itself for PixelLab, Retro Diffusion, and `--ingest`.
+   `backends.py` does this snap itself for `--ingest`.
    See `palettes/README.md`.
 3. Use the emitted frame rows (one character per palette key, `.` for transparent), or the snapped PNG.
 4. Clean up per `craft-static.md`: orphan pixels, jaggies, doubles, outer-edge AA.

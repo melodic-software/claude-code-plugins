@@ -53,32 +53,8 @@ sys_of() {
   printf '%s' "$1" | jq -r '.systemMessage // empty' 2>/dev/null
 }
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # new_typos_repo <dir> [config_filename] -> init a git repo, optionally with a
 # typos config file (default _typos.toml with a fixable typo + unfixable
@@ -1472,6 +1448,55 @@ classify_case() {
 classify_case depth "the per-key attribution partition (the sort-over-\`index\` form, 31s at 10,000)"
 classify_case breadth "the residual membership lookup (the \`index\`-over-array form, 15.7s at 10,000)"
 
+# --- Gitignore gate runs after typos resolution (#4671) ----------------------
+# Position matters: above the real-binary gate, so CI runs it. `git` is a logging
+# wrapper; the rest are plain exec wrappers so PATH holds no typos binary.
+GI_BIN="$(mktemp -d "$WORK/gi-bin.XXXXXX")"
+GI_LOG="$GI_BIN/git.log"
+for t in bash jq dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$GI_BIN/$t"
+  chmod +x "$GI_BIN/$t"
+done
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s"\nexec "%s" "$@"\n' "$GI_LOG" "$(command -v git)" >"$GI_BIN/git"
+chmod +x "$GI_BIN/git"
+REPO_GI="$WORK/gitignore-order"
+new_typos_repo "$REPO_GI" NO_CONFIG
+printf '.work/\n' >"$REPO_GI/.gitignore"
+git -C "$REPO_GI" config core.excludesFile /dev/null
+mkdir -p "$REPO_GI/.work"
+printf 'this has teh typo\n' >"$REPO_GI/.work/scratch.txt" # spellchecker:disable-line
+run_gi() {
+  local path="$1" session="$2"
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$session" "$REPO_GI/.work/scratch.txt" |
+      env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT PATH="$path" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
+  )
+}
+: >"$GI_LOG"
+OUT_GI=$(run_gi "$GI_BIN" gi-notypos)
+RC_GI=$?
+if [[ $RC_GI -eq 0 ]]; then ok "gitignored + typos absent: exit 0"; else fail "gitignored + typos absent: exit $RC_GI"; fi
+if jq -e '.systemMessage | contains("no '"'typos'"' binary")' <<<"$OUT_GI" >/dev/null 2>&1; then
+  ok "gitignored + typos absent: emits the missing-typos notice (the gate no longer skips first)"
+else
+  fail "gitignored + typos absent: no missing-typos notice: $OUT_GI"
+fi
+if ! grep -q 'check-ignore' "$GI_LOG"; then
+  ok "gitignored + typos absent: no git check-ignore spawned before the binary check"
+else
+  fail "gitignored + typos absent: git check-ignore ran without a typos binary: $(cat "$GI_LOG")"
+fi
+: >"$GI_LOG"
+OUT_GI=$(run_gi "$GI_BIN:$STUB_BIN" gi-stub)
+if grep -q 'check-ignore' "$GI_LOG" && [[ -z "$OUT_GI" ]]; then
+  ok "gitignored + typos present: check-ignore runs and the file is skipped (counter control)"
+else
+  fail "gitignored + typos present: expected check-ignore and a silent skip, got out=[$OUT_GI] log=[$(cat "$GI_LOG")]"
+fi
+
 # ============================================================================
 # Real-binary suite — wiring, config discovery, exclusion, kill switch
 # ============================================================================
@@ -1810,6 +1835,49 @@ if [[ -z "$OUT_NT2" ]]; then
   ok "typos-absent -> second run same session is silent (once-per-session)"
 else
   fail "typos-absent second run not silent: $OUT_NT2"
+fi
+
+# The missing-typos notice is a prerequisite: its latch key is the session
+# alone, so another agent in the same session stays silent, and the renewal on
+# the eighth skip keeps the install route.
+run_nt_agent() {
+  local session="$1" agent="$2" data="$3"
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"%s","agent_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$session" "$agent" "$REPO_NT/app.txt" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_NT_AGENT=$(run_nt_agent test-notypos-1 other-agent "$NT_DATA")
+if [[ -z "$OUT_NT_AGENT" ]]; then
+  ok "typos-absent -> a different agent in the same session is silent (session-only latch)"
+else
+  fail "typos-absent: a second agent in the same session was not silent: $OUT_NT_AGENT"
+fi
+NT_RENEW_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+NT_INSTALL_URL="https://github.com/crate-ci/typos#install"
+NT_RENEW_SILENT=1
+for i in 1 2 3 4 5 6 7; do
+  OUT_NT_RN=$(run_nt_agent test-notypos-renew "agent-$((i % 2))" "$NT_RENEW_DATA")
+  if [[ $i -eq 1 ]]; then
+    [[ "$OUT_NT_RN" == *"$NT_INSTALL_URL"* ]] || NT_RENEW_SILENT=0
+  elif [[ -n "$OUT_NT_RN" ]]; then
+    NT_RENEW_SILENT=0
+  fi
+done
+if [[ $NT_RENEW_SILENT -eq 1 ]]; then
+  ok "typos-absent -> skips 2-7 are silent whichever agent fires them"
+else
+  fail "typos-absent: skips 2-7 across two agents were not silent (or the first notice lacked the install URL)"
+fi
+OUT_NT_RN8=$(run_nt_agent test-notypos-renew agent-0 "$NT_RENEW_DATA")
+if jq -e --arg url "$NT_INSTALL_URL" \
+  '(.systemMessage | contains($url) and contains("[8 skips this session]")) and (.hookSpecificOutput.additionalContext | contains($url))' \
+  <<<"$OUT_NT_RN8" >/dev/null 2>&1; then
+  ok "typos-absent -> the eighth skip renews the notice and keeps the install URL"
+else
+  fail "typos-absent: eighth-skip renewal missing the install URL or count: $OUT_NT_RN8"
 fi
 
 # jq-absent -> visible once-per-session notice (input parsing gate).

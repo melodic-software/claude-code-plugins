@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.11] - 2026-09-29
+
+### Fixed
+
+- **Digest scripts document their CLI surface.** `course-digest` and `video-digest` `run-tests.sh` accept `-h` and `--help` (usage to stdout, exit 0) and name the rejected argument on an unknown subcommand (still exit 2). The `docpage-digest` gates `check-fences-exact.py` and `check-snippets.py` list exit codes 0/1/2/3 in `--help` and echo at most 50 failures to stderr, then one `... K more failure(s) not shown` line. The `FAILED -- N failure(s)` line, the failure count and the exit codes are unchanged.
+
+## [0.14.10] - 2026-09-29
+
+### Fixed
+
+- **`video-digest` CLIs run under a symlinked plugin root.** The entrypoint check compared unresolved paths, so a CLI started through a symlink or junction printed nothing and exited 0. `video-digest` and `course-digest` now share one realpath-based `isMainModule` from `@melodic/video-digestion/shared/main-module`, and the two skill-local guards are gone.
+- **Vendor package docs and scripts match the code.** The `repo-analysis` README says `node:test` instead of vitest, the `video-digestion` README describes the package as plain ESM JavaScript, and both packages run `node --test` discovery instead of hardcoded test file names. Both READMEs say why: the vendor packages declare no test-framework dependency so they use `node:test`, and `course-digest` extraction keeps vitest.
+
+### Changed
+
+- **`course-digest` CLI tests assert emitted artifacts.** `build-course-json`, `extract-course`, and `discover-resources` are driven through argv with a stubbed `playwright` and their output files are checked. The `build-course-json` test no longer reads or writes real saved auth state, and the `validate-extraction` exit-code assertion is no longer vacuous.
+
 ## [0.14.9] - 2026-09-28
 
 ### Changed

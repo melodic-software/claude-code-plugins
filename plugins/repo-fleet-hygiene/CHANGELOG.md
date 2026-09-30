@@ -3,6 +3,117 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports never-PR and closed-unmerged remote branches, and `apply --remote-branches` deletes them one branch at a time** ([#5322](https://github.com/melodic-software/claude-code-plugins/issues/5322)).
+  A remote head with no pull request ever, or only closed unmerged pull requests with one at the live tip, is a `HIGH` `unmerged-remote-branch` finding (class `never-pr` or `closed-unmerged`). `MEDIUM` `unmerged-remote-branch-unverified` and `unmerged-remote-branch-review` rows are never deletion candidates. The flag is opt-in: without it `delete-remote-branches` plan rows are skipped and no remote is contacted. With it, each branch gets its own prompt that `--yes` never answers, and a session without a terminal deletes nothing. Before any prompt the live tip is re-read, the remote's fetch and push URLs must still name the audited repository (`remote_key` in the plan row), and the branch's pull requests are re-read for `github_repo`: an open or merged pull request, a changed class, or a failed read skips the row, and both checks run again after the prompt is answered. The tip goes to `<plan-file>.tip-ledger` with a restore command before a lease-guarded push. Branches with a merged pull request stay out of scope.
+
+## [0.26.0] - 2026-09-29
+
+### Added
+
+- **`sync` accepts `--skip`, `--extend-skip`, `--skip-from`, `--repos-from` and `--dry-run`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+  `--dry-run` states the default explicitly and exits 2 when combined with `--apply`.
+  An explicit `--skip` or `--skip-from` set replaces the default skip names (`vendor`,
+  `node_modules`, ...), as it does in `audit`, and `--extend-skip` adds names to whichever set is in
+  effect. `--repos-from` restricts the run to the checkouts listed one per line. Every plan line, and
+  every skipped line, ends with a tab-separated `rung=<rung>` field naming the scope rung that found
+  the repository.
+- **Scope resolution probes every `ghq root` and an ancestor rung.** `scope-resolve.sh` reads
+  `ghq root --all`, and walks up to 4 levels from the working directory's checkout, accepting an
+  ancestor only when it directly holds 2 or more repositories.
+
+### Changed
+
+- **A bare `audit` or `sync` run inside a checkout covers its sibling fleet.** When a parent up to 4
+  levels above the checkout holds 2 or more repositories, that parent is the root; the checkout
+  alone is the scope only when no such parent exists. Both verbs share this ladder, so a bare
+  `audit` inside a checkout now audits the siblings too.
+- **`audit` and `sync` share one discovery script**, `scripts/fleet-discovery.sh`, for the default
+  skip list, fleet config scope and depth loading, and the repository walker. `sync` now honors
+  `fleet.skip`, `fleet.skipAppend` and `fleet.maxDepth`, stops at the first checkout on each path
+  instead of also reporting repositories nested inside it, and reaches one level deeper by default.
+  The skip-list drift-guard test is removed.
+
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports remote branch families** ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)).
+  A last-fetched remote-tracking branch named `agent-<hex>`, `claude/*`, `plan/*`, `stranded/*` or
+  `pre-wipe/*` that no `merged-remote-branch` finding covers gets one `LOW` `remote-branch-family` row with
+  the family, tip, age in days and whether the tip is on the default branch. It is report-only: no remote
+  probe, handoff or deletion preview.
+- **`merged-remote-branch` covers a tip that is an ancestor of the merged head.** When the PR's
+  `headRefOid` differs from the remote-tracking tip, the tip is an ancestor of it and that commit is in the
+  clone, the finding is `MEDIUM` (never `HIGH`, since no live probe runs). A head commit absent from the
+  clone emits nothing.
+
+## [0.24.2] - 2026-09-29
+
+### Fixed
+
+- **`audit` withholds the per-repository `merged-remote-branch` `MEDIUM` rows when every live `ls-remote` probe in the run fails** ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)). The run now reports only the single fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding, whose handoff is to confirm `git ls-remote --heads` works by hand and rerun. A mixed run with at least one successful probe still reports the per-repository `MEDIUM` rows, and `HIGH` rows are unchanged.
+
+## [0.24.1] - 2026-09-29
+
+### Fixed
+
+- **`discovery-skip` and `discovery-symlink-skip` no longer make the fleet verdict BLOCKED**
+  ([#4220](https://github.com/melodic-software/claude-code-plugins/issues/4220)). Both findings stay
+  `UNKNOWN` and disclosed, but a non-repository `.git` husk or a symlinked directory under the root
+  no longer turns an otherwise clean fleet into `BLOCKED (evidence gap)`. Every other `UNKNOWN`
+  kind, including `stale-config-entry` and `ls-remote-fleet-unavailable`, still does.
+
+## [0.24.0] - 2026-09-29
+
+### Added
+
+- **`/repo-fleet-hygiene:setup apply` writes the fleet config through `setup-config.sh`**
+  ([#4220](https://github.com/melodic-software/claude-code-plugins/issues/4220)). The script
+  validates bare skip names and `--max-depth`, refuses a symlink target, and writes with
+  `git config --add` after an exact-match check, so a repeated run is idempotent and unrelated
+  entries survive. The `discovery-skip` and `discovery-symlink-skip` findings now name
+  `/repo-fleet-hygiene:setup apply --extend-skip <name>` when the target is a printable bare
+  directory name.
+
+### Fixed
+
+- **`sync` stashes and restores by marker SHA, never by stack position**
+  ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)). Another session's
+  stash entry on the same repository can no longer be applied or dropped by mistake. The run
+  resolves its own entry from a per-run marker and skips, dropping nothing, unless exactly one entry
+  matches.
+- **`sync` exits 1 when any repository was skipped or failed.** Skip lines keep their leading
+  columns and gain `git-exit` and `remedy` columns. A dry run that plans a skip still exits 0.
+- **`sync` reads the worktree helper's exit status.** Exit 4 or 5 with a path means the worktree
+  exists, so the park continues; exit 2 or 3, or 4 without a path, unparks the repository.
+- **`sync` no longer probes a sibling plugin's install directory.** `--worktree-create <path>` is the
+  only way to name the helper, and it must be an existing file named `worktree-create.sh`, else exit 2.
+  With no helper, a dirty repository is skipped as `worktree-create-missing` and nothing is stashed.
+  `--worktree-root` is now an optional override; unset, the helper resolves the root from the target
+  repository.
+- **`sync` no-scope exit 3 lists what each rung probed and the remedy per rung.** The walk prunes
+  `.git` as `audit` does, a test fails when the two skip lists differ, and the skill joins the
+  allowed-tools pairing gate. The consent eval now runs a dry run, an explicit go-ahead, then
+  `--apply --yes`.
+
+### Changed
+
+- **Docs.** The README documents `sync`. `audit` owns the no-scope ladder and the README and `setup`
+  point to it. `security-review.md` names the `Bidi_Control` marks and the `LC_ALL=C` control check,
+  `confidence-model.md` and `official-sources.md` are corrected, and each git claim the skill bodies
+  restate carries its basis, as-of date and recheck trigger.
+- **Released entries 0.23.38 and 0.23.39 corrected in place.** 0.23.38 now says it re-records the
+  `ls-remote` transport change released in 0.23.37 and changed no behavior. 0.23.39 no longer
+  overstates how a repository with no worktree root key of its own resolves its root; 0.23.41 changed
+  that.
+- **`audit` default-origin rejection exit code is 3, not 2.** A run with no scope that resolves
+  nothing on the no-scope ladder has exited 3 since 0.23.43. That change was never recorded. An
+  explicitly supplied bad path still exits 2.
+
 ## [0.23.44] - 2026-09-28
 
 ### Changed
@@ -64,17 +175,13 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Fixed
 
-- **`audit` classifies each repository's worktrees against that repository's own worktree root** ([#4212](https://github.com/melodic-software/claude-code-plugins/issues/4212)). One root was resolved for the whole fleet from the first target that had one. With a global `worktreeroot.path = D:/worktrees` and an `includeIf` giving the chezmoi source `~/.local/share/chezmoi-worktrees`, an audit that reached chezmoi first reported a correctly placed `D:/worktrees/github-iac-*` worktree as `worktree-outside-configured-root`. It then advised recreating it under the chezmoi root. Each canonical checkout's `worktreeroot.path` is now read with `git -C <canonical>`, which honors `includeIf`, and that repository's findings and rollup name the root it used. A checkout with no key keeps the fleet default. The header still names the fleet default, and `worktree-root-conformance-summary` lists every repository whose own root differed.
+- **`audit` classifies each repository's worktrees against that repository's own worktree root** ([#4212](https://github.com/melodic-software/claude-code-plugins/issues/4212)). One root was resolved for the whole fleet from the first target that had one. With a global `worktreeroot.path = D:/worktrees` and an `includeIf` giving the chezmoi source `~/.local/share/chezmoi-worktrees`, an audit that reached chezmoi first reported a correctly placed `D:/worktrees/github-iac-*` worktree as `worktree-outside-configured-root`. It then advised recreating it under the chezmoi root. Each canonical checkout's `worktreeroot.path` is now read with `git -C <canonical>`, which honors `includeIf`, and that repository's findings and rollup name the root it used. Version 0.23.41 changed how a repository with no key of its own resolves its root.
 
 ## [0.23.38] - 2026-09-28
 
 ### Fixed
 
-- **`audit`: `ls-remote` keeps transport config, bound to the pinned remote.** `run_git_probe`
-  pinned `GIT_CONFIG_GLOBAL`/`SYSTEM` to `/dev/null`, which dropped `core.sshCommand` and
-  `credential.helper` that Windows needs. `run_ls_remote_probe` now uses transport config only
-  after confirming pinned and transport `remote get-url` resolve to the same `github.com/owner/repo`
-  (#4211).
+- **Docs only.** Re-records the `ls-remote` transport fix released in 0.23.37 ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)); behavior is unchanged.
 
 ## [0.23.37] - 2026-09-28
 

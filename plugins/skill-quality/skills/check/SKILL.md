@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -8,8 +8,6 @@ metadata:
   workflow-stage: review
   summary: Static QA gate for skill frontmatter, caps, and evals
 ---
-
-**Arguments.** `[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]`. Full form: [check|validate-evals|listing-budget|measure-invocation] [<skill-name-or-root> ...]. Omit the action for check; measure-invocation takes validate|score|compare|emit-plugin-eval
 
 ## Purpose
 
@@ -110,13 +108,14 @@ Parse `$ARGUMENTS`:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines). In root
      mode that exit code is the AGGREGATE over every skill, so the per-skill verdict is that
      skill's own `CHECK-SKILL <name>: PASS` or `CHECK-SKILL <name>: FAIL` line instead.
-   - The `FAIL:` lines verbatim (each is an actionable defect).
+   - The `FAIL:` lines verbatim (each is an actionable defect). A description/verb-contract polarity
+     mismatch is a FAIL that blocks; fix it by correcting the listing, or use `--fix` in the
+     description as the compliant override.
    - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
      base ref, missing gotchas surface, action-router without evals, orphan
      spokes, an injection with no `shell:` whose commands only *look* portable, an injected
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
-     declaration or a stale exemption directive, and a description/verb-contract polarity
-     mismatch). A dropped-trigger warning is a review item: confirm the description still names
+     declaration or a stale exemption directive). A dropped-trigger warning is a review item: confirm the description still names
      the intent each dropped phrase carried, or restore the phrase.
 4. For a multi-skill run, the script's own last line is the rollup `N passed, M failed`. Surface it
    verbatim. The action is complete when every `FAIL:` line and that rollup are reported.
@@ -153,6 +152,9 @@ that line before editing, since it may be an illustrative example path rather th
    The script exits 0 when only warnings remain; run `--help` for the full Q1-Q9 check list.
    If `jq` is absent the script exits 2. Report that the quality lint was skipped for that
    reason; the schema verdict from steps 3-4 still stands.
+
+`validate-evals` checks structure and lint only. It cannot tell whether a claim needs a no-skill
+baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval` runs it.
 
 ## Action: listing-budget
 
@@ -202,8 +204,11 @@ validates the probe schema and runs the harness tests; `score` and `compare` are
 Model-graded `claude plugin eval` cases are emitted on demand. Contract:
 [reference/invocation-probes.md](../../reference/invocation-probes.md).
 
-1. Resolve the probes directory: `${CLAUDE_PLUGIN_ROOT}/probes` when present, else the
-   marketplace path `plugins/skill-quality/probes`.
+1. Resolve the probes directory. Use a directory the user supplied. Otherwise use
+   `${CLAUDE_PLUGIN_ROOT}/probes` only when its `skill_dir` paths resolve in the current repo, which
+   they do inside the marketplace checkout. Otherwise stop and ask for a probes directory. The
+   shipped seed set is this marketplace's own skills; it is not a general default, and `score`
+   exits 2 when none of its `skill_dir` paths resolve.
 2. Run, in this order unless the user named one sub-action:
 
    ```shell
@@ -241,11 +246,21 @@ set `disable-model-invocation: true`"). Recheck when the `Skill` row describes m
 per call, when the skills page stops carrying that sentence, or when a release note names the Skill
 tool. This gate does not automate that reachability check; author and review against the invariant.
 
+## Next
+
+- A FAIL or WARN to fix in a skill being authored: /playbooks:skill-authoring.
+- All checks pass and the change is ready to ship: /verification:confirm.
+
 ## Gotchas
 
 - `measure-invocation`'s default `listing-overlap` method is a lexical floor. A 1.0 positive
   trigger rate means the description already contains the request's nouns, not that live
   auto-invocation saturates. Report both splits and name the method.
+- The shipped probes are this marketplace's skills, and two positives of
+  `probes/skill-quality.check.json` quote the `check` description nearly verbatim, so a 1.0
+  positive rate there is close to true by construction. Outside the marketplace checkout `score`
+  needs your own probes directory; no script turns `plugin-eval` or `claude -p` results into a
+  report for `compare`.
 - A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor
   byte-identity, stale-tracking metadata, committed-artifact scan) skip with a note when cwd
   is outside a repo. Marketplace plugin-cache installs are plain trees. Set
@@ -278,12 +293,17 @@ tool. This gate does not automate that reachability check; author and review aga
   (no committed version) skips check 3. That is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
-- Check 1 accepts a frontmatter `model` of `inherit`, a model alias or id, and one optional
-  `[1m]` suffix, and fails any other value. The field is optional. Auto mode keeps the session
-  model when the named model is one auto mode does not support; that is runtime behavior, not a
-  second finding. Claim: the accepted shapes and the auto-mode exception. Basis:
+- Check 1 accepts any frontmatter `model` that is a single non-empty token (`inherit`, an alias, or
+  a model id, including provider ids with `:`, `/` or `@` such as Bedrock ids and ARNs) and fails an
+  empty or whitespace-containing value. The field is optional. Auto mode keeps the session model
+  when the named model is one auto mode does not support; that is runtime behavior, not a second
+  finding. Claim: the page defines no grammar beyond "the same values as `/model`, or `inherit`",
+  and the auto-mode exception. Basis:
   <https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of:
-  2026-09-28. Recheck: that row changes the accepted values or the auto-mode exception.
+  2026-09-29. Recheck: that row defines a grammar for the value or changes the auto-mode exception.
+- Check 1 also fails an unquoted plain `description` with a colon followed by a space on any line,
+  or a line ending in a colon (a YAML mapping indicator). A quoted or block-scalar description may
+  contain it.
 - Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
   the run. It tracks single-quoted `'phrase'` triggers; an unquoted `Use when:` list is not tracked,
   and check 12 warns so those phrases get quoted and covered. A dropped phrase found verbatim in a

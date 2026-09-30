@@ -1,4 +1,7 @@
 """capture.py: unreviewed exit, and the campfire scene's timeline when a browser exists."""
+import base64
+import io
+import json
 import os
 import pathlib
 import shutil
@@ -8,6 +11,9 @@ import sys
 import tempfile
 import unittest
 import zlib
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import capture  # noqa: E402
@@ -91,12 +97,154 @@ def count_tunic(rows):
     return found
 
 
+PNG_URL = "data:image/png;base64," + base64.b64encode(b"\x89PNG fake").decode()
+
+
+class FakeDevTools:
+    """Answers the readiness probe, then returns the canned capture payload."""
+
+    def __init__(self, payload):
+        self.payload = payload
+        self.ws = SimpleNamespace(sock=SimpleNamespace(close=lambda: None))
+
+    def call(self, method, params=None, timeout=None):
+        if (params or {}).get("expression", "").startswith("!!("):
+            return {"result": {"value": True}}
+        return {"result": {"value": self.payload}}
+
+
+@contextmanager
+def fake_browser(payload=None, setup_error=None):
+    """Patch every browser touchpoint of capture_scene; yield what the fakes saw."""
+    seen = {}
+
+    def serve(directory):
+        seen["served"] = pathlib.Path(directory)
+        seen["served_files"] = sorted(p.name for p in seen["served"].iterdir())
+        return SimpleNamespace(server_address=("127.0.0.1", 1), shutdown=lambda: None, server_close=lambda: None)
+
+    def devtools_port(profile, proc):
+        if setup_error:
+            raise setup_error
+        return 1
+
+    proc = SimpleNamespace(poll=lambda: 0, pid=0)
+    with mock.patch.object(capture, "find_browser", return_value="chrome"), \
+            mock.patch.object(capture, "_serve", serve), \
+            mock.patch.object(capture.subprocess, "Popen", return_value=proc), \
+            mock.patch.object(capture, "_devtools_port", devtools_port), \
+            mock.patch.object(capture, "_open_page", return_value={"webSocketDebuggerUrl": "ws://x"}), \
+            mock.patch.object(capture, "_ws_connect", return_value=None), \
+            mock.patch.object(capture, "DevTools", lambda ws: FakeDevTools(payload)):
+        yield seen
+
+
 class CaptureTest(unittest.TestCase):
+    def scene_and_out(self, tmp):
+        scene = pathlib.Path(tmp) / "src" / "scene.html"
+        scene.parent.mkdir()
+        scene.write_text("<!doctype html>")
+        (scene.parent / "sibling.txt").write_text("private")
+        return scene, pathlib.Path(tmp) / "out"
+
     def test_parse_at(self):
         self.assertEqual(capture.parse_at("0, 1.5, 6"), [0.0, 1.5, 6.0])
         for bad in ("inf", "nan", "-1"):
             with self.assertRaises(ValueError):
                 capture.parse_at(bad)
+
+    def test_mux_without_ffmpeg_stays_video_only_and_ffmpeg_failure_stays_video_only(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value=None):
+            self.assertIsNone(capture._mux_audio(b"v", b"a", 1, pathlib.Path(tmp)))
+        if not shutil.which("ffmpeg"):
+            self.skipTest("video-only path checked; ffmpeg absent, so the mux failure is unchecked")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(capture.shutil, "which", return_value="ffmpeg"):
+            with redirect_stderr(io.StringIO()) as err:
+                self.assertIsNone(capture._mux_audio(b"not a webm", b"not a wav", 1, pathlib.Path(tmp)))
+            self.assertIn("could not mux", err.getvalue())
+        for name, effect in (
+            ("timeout", subprocess.TimeoutExpired("ffmpeg", 1)),
+            ("empty output", SimpleNamespace(returncode=0, stderr="")),
+        ):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+                capture.shutil, "which", return_value="ffmpeg"
+            ), mock.patch.object(
+                capture.subprocess, "run", side_effect=effect if isinstance(effect, Exception) else None,
+                return_value=effect,
+            ), redirect_stderr(io.StringIO()) as err:
+                self.assertIsNone(capture._mux_audio(b"v", b"a", 1, pathlib.Path(tmp)))
+                self.assertIn("could not mux", err.getvalue())
+
+    def test_run_without_ffmpeg_prints_video_only_note_and_records_no_audio(self):
+        payload = {
+            "shots": [{"t": 0, "png": PNG_URL}],
+            "webm": {"b64": base64.b64encode(b"webm").decode(), "audio": False},
+            "wav": base64.b64encode(b"wav").decode(),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            stderr = io.StringIO()
+            with fake_browser(payload), mock.patch.object(capture.shutil, "which", return_value=None), \
+                    redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                self.assertEqual(capture.main([str(scene), "--at", "0", "--record", "1", "--out", str(out)]), 0)
+            self.assertIn("video-only", stderr.getvalue())
+            self.assertEqual((out / "scene.webm").read_bytes(), b"webm")
+            self.assertIs(json.loads((out / "manifest.json").read_text())["audio"], False)
+
+    def test_non_finite_record_is_rejected_before_any_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            for bad in ("inf", "-inf", "nan", "-1"):
+                with mock.patch.object(capture, "find_browser", side_effect=AssertionError("browser looked up")), \
+                        mock.patch.object(capture, "capture_scene", side_effect=AssertionError("capture ran")):
+                    code = capture.main([str(scene), f"--record={bad}", "--out", str(out)])
+                self.assertEqual(code, 2, bad)
+
+    def test_setup_failure_cleans_stale_artifacts_and_temp_dirs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            out.mkdir()
+            stale = ["shot-0.png", "shot-7.png", "scene.webm", "manifest.json"]
+            for name in stale:
+                (out / name).write_bytes(b"old")
+            with fake_browser(setup_error=RuntimeError("no devtools")) as seen:
+                with self.assertRaisesRegex(RuntimeError, "no devtools"):
+                    capture.capture_scene(scene, [0], out, 0, 1, "chrome")
+            for name in stale:
+                self.assertFalse((out / name).exists(), name)
+            self.assertFalse((out / ".chrome-profile").exists())
+            self.assertFalse(seen["served"].exists())
+
+    def test_default_record_skips_video(self):
+        payload = {"shots": [{"t": 0, "png": PNG_URL}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            with fake_browser(payload), redirect_stdout(io.StringIO()):
+                self.assertEqual(capture.main([str(scene), "--at", "0", "--out", str(out)]), 0)
+            manifest = json.loads((out / "manifest.json").read_text())
+            self.assertIsNone(manifest["video"])
+            self.assertFalse(manifest["audio"])
+            self.assertEqual([s["file"] for s in manifest["shots"]], ["shot-0.png"])
+            self.assertFalse((out / "scene.webm").exists())
+
+    def test_recording_failure_keeps_shots_and_fails_the_run(self):
+        payload = {"shots": [{"t": 0, "png": PNG_URL}, {"t": 1, "png": PNG_URL}], "error": "recorder died"}
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            with fake_browser(payload):
+                with self.assertRaisesRegex(RuntimeError, r"recorder died \(2 shots written\)"):
+                    capture.capture_scene(scene, [0, 1], out, 2, 1, "chrome")
+                self.assertEqual(capture.main([str(scene), "--at", "0,1", "--record", "2", "--out", str(out)]), 1)
+            self.assertEqual(sorted(p.name for p in out.glob("shot-*.png")), ["shot-0.png", "shot-1.png"])
+            self.assertFalse((out / "manifest.json").exists())
+
+    def test_scene_is_served_from_a_temp_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            with fake_browser({"shots": [{"t": 0, "png": PNG_URL}]}) as seen:
+                capture.capture_scene(scene, [0], out, 0, 1, "chrome")
+            self.assertNotEqual(seen["served"], scene.parent)
+            self.assertEqual(seen["served_files"], ["scene.html"])
 
     def test_example_exposes_capture_contract(self):
         text = (CAMPFIRE / "scene.html").read_text()
@@ -145,6 +293,12 @@ class CaptureTest(unittest.TestCase):
             self.assertGreater(webm.stat().st_size, 1000)
             if not (shutil.which("ffprobe") and shutil.which("ffmpeg")):
                 self.skipTest("shots checked; ffprobe/ffmpeg absent, so video timing is unchecked")
+            kinds = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(webm)],
+                check=True, capture_output=True, text=True,
+            ).stdout.split()
+            self.assertEqual(kinds.count("audio"), 1)
+            self.assertTrue(json.loads((out / "manifest.json").read_text())["audio"])
             probe = subprocess.run(
                 [
                     "ffprobe", "-v", "error", "-select_streams", "v:0",
@@ -157,6 +311,17 @@ class CaptureTest(unittest.TestCase):
             self.assertGreater(len(stamps), 30)
             self.assertGreater(stamps[-1], 3.0)
             self.assertLess(stamps[-1], 5.5)
+            audio_packets = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "a:0",
+                    "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", str(webm),
+                ],
+                check=True, capture_output=True, text=True,
+            ).stdout.split()
+            last_pts, last_duration = (float(v) for v in audio_packets[-1].split(",")[:2])
+            audio_seconds = last_pts + last_duration
+            self.assertAlmostEqual(audio_seconds, stamps[-1], delta=0.5)
+            self.assertAlmostEqual(audio_seconds, 4.0, delta=0.5)
             for stamp, name in (("0.3", "frame-early.png"), ("3.0", "frame-late.png")):
                 subprocess.check_call([
                     "ffmpeg", "-y", "-i", str(webm), "-ss", stamp, "-frames:v", "1", str(out / name),

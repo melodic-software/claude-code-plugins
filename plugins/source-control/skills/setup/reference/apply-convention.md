@@ -25,7 +25,7 @@ post-write verification, and the effective-merge report. Loaded from [SKILL.md](
 Find a step directly with:
 
 ```shell
-grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md" # portability-ok: plain grep -n, no GNU-only flag; a prose apostrophe elsewhere in this file joins this line with an unrelated `pwd -P` mention
+grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
 ```
 
 ## Target layer and non-interactive writes
@@ -50,7 +50,7 @@ When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working
 operator's personal config under a team label; outside a repository the tracked/ignored probes
 have no repository to answer against. Name the reason, the same note `parse-branch-issue.sh`
 prints (`project root is the home directory (or an ancestor of it)` or `project root is not
-inside a git repository`), and offer `layer=user`. Compare paths physically (slash-fold, case-fold, `pwd -P` when the
+inside a git repository`), and offer `layer=user`. Compare paths physically (slash-fold, case-fold, resolve symlinks when the
 directory exists) so a native Windows home spelling and its MSYS alias still match.
 
 When the invocation carries a `subject_pattern=` argument, write non-interactively: use it as

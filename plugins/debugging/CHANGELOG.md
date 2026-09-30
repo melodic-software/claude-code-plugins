@@ -3,6 +3,21 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.11] - 2026-09-29
+
+### Added
+
+- **`debug` carries a Boundary section for the bundled `debug` skill.** The bundled skill debugs
+  Claude Code itself and is reserved for the person to run, so the model offers `/debug` when the
+  problem is Claude Code rather than the user's application.
+
+## [0.7.10] - 2026-09-29
+
+### Changed
+
+- **`debug` Phase 5** takes the regression test's expected value from the bug report, never from
+  what the fixed code returns.
+
 ## [0.7.9] - 2026-09-28
 
 ### Changed

@@ -2,7 +2,7 @@
 description: "Move every canonical checkout in a fleet onto the remote default branch and fast-forward it. Divergent dirty work is parked in a linked worktree. Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation. Use when: 'sync the fleet', 'update all repos to main', 'fast-forward canonical checkouts', 'park my dirty branches and pull'."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--config <file>] [--apply] [--yes]"
+argument-hint: "[<dir>...] [--root <dir>] [--repo <dir>] [--skip <name>] [--config <file>] [--apply] [--yes]"
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh:*)
 metadata:
@@ -11,32 +11,63 @@ metadata:
   cadence: weekly
 ---
 
+**Arguments.** `[<dir>...] [--root <dir>] [--repo <dir>] [--skip <name>] [--config <file>] [--apply] [--yes]`. Full form: [<dir>...] [--root <dir>] [--repo <dir>] [--named <dir>] [--repos-from <file|->] [--skip <name>] [--extend-skip <name>] [--skip-from <file>] [--config <file>] [--dry-run] [--apply] [--yes]
+
 ## Purpose
 
 `/repo-fleet-hygiene:audit` is read-only. `/repo-fleet-hygiene:apply` deletes merged branches.
 This skill is the sync verb: each canonical checkout switches to the remote's current default
 branch (`git ls-remote --symref origin HEAD`) and `pull --ff-only`s it. Dirty work on a
-non-default branch, and a dirty default branch, is parked in a linked worktree through
-source-control's `worktree-create.sh --existing-branch`.
+non-default branch, and a dirty default branch, is parked in a linked worktree by the
+`worktree-create.sh` helper you name with `--worktree-create`.
 
 ## Scope ladder
 
 First hit wins:
 
-1. Explicit `--repo`, `--root`, or a bare path. `--root`, `--repo`, and `--named` repeat.
+1. Explicit `--repo`, `--root`, a bare path, or `--repos-from <file|->` (one checkout path per line,
+   `-` reads stdin, blank lines ignored). `--root`, `--repo`, and `--named` repeat.
 2. Fleet config (`--config`, else the project file, else `~/.claude/repo-fleet-hygiene.conf`).
 3. `--named` paths from the conversation.
-4. `ghq root`, when `ghq` is installed.
-5. The current working directory, when it is a Git checkout.
-6. Exit 3. The message names the rungs. The project directory is not an implicit repo.
+4. `ghq root --all` (every root), when `ghq` is installed.
+5. The nearest of the 4 parents above the working directory's checkout (above the working directory
+   itself outside a checkout) that directly holds 2 or more Git repositories. A run inside one
+   checkout therefore covers its sibling fleet.
+6. The checkout holding the working directory, when no such parent exists.
+7. Exit 3. The message names the rungs. The project directory is not an implicit repo.
 
 `/repo-fleet-hygiene:audit` uses the same fallback when it has no explicit or config scope.
+
+**Claim:** `ghq root --all` prints every configured root. **Basis:** the
+[ghq README](https://github.com/x-motemen/ghq#usage) (`ghq root [--all]`; "Without '--all' option,
+the primary one is shown") and `ghq help root` on ghq 1.10.1 ("--all  Show all roots"). **As of:**
+2026-09-29. **Recheck:** the README's `root` entry drops or renames `--all`.
+
+Every plan line and every skipped line ends with `rung=<rung>`, the rung that produced that
+repository: `repo`, `repos-from`, `root` (a bare path counts as `--root`), `config`, `named`, `ghq`,
+`cwd`, or `ancestor`. A repository found by walking a root carries that root's rung. Read the rung
+before applying: `ghq`, `cwd`, and `ancestor` mean no scope was given.
+
+## Skip flags
+
+`--skip`, `--extend-skip`, and `--skip-from <file>` (one name per line, blank lines ignored, CRLF
+stripped, a missing file exits 2) and the config keys `fleet.skip` and `fleet.skipAppend` prune
+directories during discovery with the same semantics as
+[`/repo-fleet-hygiene:audit`](../audit/SKILL.md): an explicit `--skip` set replaces the default,
+`--extend-skip` adds to whichever set is in effect, and names are bare directory names.
+The skip set does not filter `--repo` or `--repos-from` paths. To leave out one repository found under
+a root, pass `--extend-skip <its directory name>`; `--skip` also drops the default names.
+
+Discovery under a root is the walker `/repo-fleet-hygiene:audit` runs
+(`fleet-discovery.sh`, shared by both verbs): it stops at the first checkout on each path, does not follow
+symlinked directories, and goes 5 levels deep unless the config's `fleet.maxDepth` (1 through 12)
+says otherwise.
 
 ## Confirmation
 
 | Flags | Behavior |
 |---|---|
-| (default) | Dry-run plan. Nothing changes. |
+| (default), or `--dry-run` | Dry-run plan. Nothing changes. `--dry-run` with `--apply` exits 2. |
 | `--apply` on a terminal | One prompt for the whole plan. Decline changes nothing. |
 | `--apply` without a terminal | Exit 3. Nothing changes. |
 | `--apply --yes` | Apply. |
@@ -48,15 +79,24 @@ explicitly said to go ahead. This holds in non-terminal runs too: no terminal is
 Non-fast-forward, dubious ownership, and a partial stash apply are skipped and reported.
 The script does not reset a branch.
 
-Pass `--worktree-root` and `--worktree-create` when a park is planned; without a worktree root the
-plan shows that repo as `skip ... worktree-create-missing` and nothing is stashed. The create helper is
-`worktree-create.sh` in the source-control plugin. `--existing-branch` checks out the branch
-that already holds the work.
+Parking flags, not in `argument-hint`:
+
+- `--worktree-create <path>`: the helper, which this skill never looks for. Give the path of the
+  source-control plugin's `worktree-create.sh`. The file must exist and be named
+  `worktree-create.sh`, or the run exits 2. The helper is called with `--existing-branch`, which
+  checks out the branch that already holds the work.
+- `--worktree-root <dir>`: optional. Without it the helper resolves the root from each repository's
+  `worktreeroot.path` (`includeIf` applies). A repository with none makes the helper exit 3; that repo
+  is put back as it was, skipped, and the remedy quotes the helper's first message line.
+
+Without `--worktree-create`, a dirty repo is planned `skip ... worktree-create-missing` and nothing is
+stashed. Park it by hand with `/source-control:worktree create --existing-branch`, or commit or
+stash the work.
 
 Run:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" <quoted-arguments>
+${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" [--worktree-create <path>] [--worktree-root <dir>] <quoted-arguments>
 ```
 
 ## Next

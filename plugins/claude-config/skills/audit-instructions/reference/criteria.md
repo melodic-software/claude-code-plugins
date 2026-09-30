@@ -100,8 +100,8 @@ declines a row on this ground says where it routed, so "no row" never reads as "
 **Axes.** Three orthogonal axes, never conflated:
 
 - **Evidence tier**: `mechanical` (pattern-detectable by static reading) or `behavioral` (ground
-  truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
-  loop, never confident removals).
+  truth is observed model behavior, so findings ship as proposals verified per Deletion tiers,
+  never confident removals).
 - **Authority**: `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
   (a practitioner's stated practice), or `HOUSE` (a session-knowledge defect this catalog defines
   itself; it has no external page to cite, and it is on by default because its ground truth is the
@@ -446,8 +446,9 @@ run the other way.
   non-model rationale is not this instance.** Reviewability of returns, rate limits, cost, or
   shared mutable state each justify a bound on their own terms, and that justification is the
   surface's to make, not this row's to override.
-- **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
-  that default performance holds or improves.
+- **Remediate:** propose removal or a briefer instruction; verify per Deletion tiers (a
+  consequential removal needs a closed watch, an editorial one does not) that default performance
+  holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities",
   the prefer-general-instructions statement quoted above (the gate-meeting, model-agnostic one).
@@ -480,7 +481,8 @@ run the other way.
   is NOT a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never
   flagged):** security review, destructive operations, managed-upstream-file changes, PR merge
   gates.
-- **Remediate:** propose removal; verify via the delete-and-watch loop.
+- **Remediate:** propose removal; verify per Deletion tiers (a consequential removal needs a closed
+  watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below.
 - **Source:** Opus 5 guide, "Task scope and over-verification", which says to remove explicit
   verification instructions: they "cause over-verification on Claude Opus 5, and removing them
@@ -597,7 +599,8 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Remediate:** name the constraint the brevity or rhythm was protecting, whether a latency
   requirement, an external contract, or a human process, and where one exists, state that
   constraint instead of the turn-length assumption; where none exists, remove the directive and let
-  turn length follow the work. Verify via the delete-and-watch loop.
+  turn length follow the work. Verify per Deletion tiers (a consequential removal needs a closed
+  watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
   belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
@@ -639,8 +642,8 @@ report one finding per line rather than two.
   that a long run stays interruptible, and either state that outcome and let the model meet it, or
   move it to a mechanism rather than an instructed rhythm. Where the *content* of native updates is
   miscalibrated rather than absent, describe what a good update contains and give examples; that is
-  the upstream remediation and it does not reintroduce a cadence. Verify via the delete-and-watch
-  loop.
+  the upstream remediation and it does not reintroduce a cadence. Verify per Deletion tiers (a
+  consequential removal needs a closed watch, an editorial one does not).
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
   rationale.** A rhythm the surface states exists so a long autonomous run stays visible or
@@ -1476,15 +1479,16 @@ not a `Model scope` annotation**, for the reason I17 states.
   against and stating that a model change re-opens it, or run the sweep. Upstream's own wording for the
   action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
   your evals rather than reusing them."
-- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** It is
-  "Equivalent to not setting the parameter", so on a model that defaults to `high` such a pin
-  carries no measured calibration that could go stale. **The exemption keys to the resolved target,
-  never to the wording.** `high` is the default on every model that supports effort **except Opus
-  4.7, which defaults to `xhigh`**, so when the run's resolved target is Opus 4.7 the exemption
-  lifts and a `high` pin is a finding, **including a broad model-agnostic "always use `high`" that
-  names no model at all**. That broad pin is the sharper case rather than the excluded one: written
-  where `high` was the no-op default and then carried to a model whose default sits above it, it
-  silently becomes a step-down nobody measured, which is this row's subject exactly. A resolved target
+- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** Setting
+  the default "produces exactly the same behavior as omitting the `effort` parameter entirely", so
+  on a model that defaults to `high` such a pin carries no measured calibration that could go stale.
+  **The exemption keys to the resolved target, never to the wording.** In Claude Code `high` is the
+  default on every model that supports effort **except Opus 5.5 and Sonnet 5.5, which default to
+  `medium`, and Opus 4.7, which defaults to `xhigh`**, so when the run's resolved target is one of
+  those the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
+  "always use `high`" that names no model at all**. That broad pin is the sharper case rather than
+  the excluded one: written where `high` was the no-op default and then carried to a model whose
+  default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
   fence never has to guess which side of it a surface falls on. **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
@@ -1512,14 +1516,15 @@ not a `Model scope` annotation**, for the reason I17 states.
   is `OPINION`-tier testimony, not a pin the surface owns.
 - **Source:** model configuration: "The effort scale is calibrated per model, so the same level name
   does not represent the same underlying value across models", stated with no model qualifier, and
-  the whole basis for the check. The same page supplies the first-run hold with its Opus 5 exception,
-  and the default carve-out: "The default effort is `high` on every model that supports effort,
-  except Opus 4.7, which defaults to `xhigh`." Effort supplies the remediation's wording and `high`'s
-  equivalence to omitting the parameter.
-- **Verified 2026-08-03** against both pages, fetched as raw markdown (model configuration 83,644
-  bytes; effort 21,744 bytes). **Recheck trigger:** the calibration property being restated as
-  cross-model-stable, the set of models carrying a first-run default hold changing, or `high` ceasing
-  to be the general default.
+  the whole basis for the check. The same page supplies the resolution order, with the default carve-out:
+  "`high` on every model that supports effort, except that Opus 5.5 and Sonnet 5.5 default to
+  `medium`, Opus 4.7 defaults to `xhigh`". Effort supplies the remediation's wording and the
+  equivalence of the default to omitting the parameter.
+- **Verified 2026-09-28** against both pages, fetched as raw markdown (model configuration 109,848
+  bytes; effort 39,458 bytes). **Recheck trigger:** the calibration property being restated as
+  cross-model-stable, a first-run effort hold returning to the model-config page, the resolution
+  order or the `effortLevel` user-settings exemption for Opus 5.5 changing, or `high` ceasing to be
+  the general default.
 
 ### I22: Model-routing doctrine with no baseline named
 
@@ -1579,7 +1584,7 @@ even seeded in the pre-scan, and it is `behavioral`. The `mechanical` rows rest 
 consequence: I10 on a refusal category the API returns, I21 on a property its page states outright.
 This row rests on a reported model *tendency*, "can occasionally suggest a new session", with no
 documented hard consequence, which is the behavioral tier's definition. The stake is the Output
-format rule: behavioral findings ship as proposals paired with the delete-and-watch loop, never as
+format rule: behavioral findings ship as proposals verified per Deletion tiers, never as
 confident removals.
 
 - **Detect:** instruction text directing the model to monitor its own remaining context and to stop,
@@ -1859,8 +1864,9 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   audience test I8-b applies. This row is the canonical instance.
 - **Remediate:** for arm 1, normal conditional phrasing: "Use this tool when …". For arm 2, replace
   the blanket default with the condition it was standing in for: "Use [tool] when it would enhance
-  your understanding of the problem." Verify via the delete-and-watch loop; watch for
-  overtriggering receding, not just continued triggering.
+  your understanding of the problem." Verify per Deletion tiers (a consequential removal needs a
+  closed watch, an editorial one does not); watch for overtriggering receding, not just continued
+  triggering.
 - **Source:** prompting best practices, "Tool usage": prompts "designed to reduce undertriggering
   on tools or skills … may now overtrigger. The fix is to dial back any aggressive language. Where
   you might have said 'CRITICAL: You MUST use this tool when…', you can use more normal prompting
@@ -1870,12 +1876,14 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
 - **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
   three sections changing, or any model guide stating that a current model undertriggers and needs
   emphasis restored, which would re-open the scoping question.
-- **Routes to the findings relay.** I28 and I29 are the only checks in this catalog whose findings
-  reach `review:fanout`'s apply relay, behind `--persist-findings`. I28's two arms carry one
+- **Routes to the findings relay.** I28 and I29 (scanner-fed) and I30 to I33 (lane-fed, admitted
+  through `--from-lane`) are the checks in this catalog whose findings reach `review:fanout`'s apply
+  relay, behind `--persist-findings`. I28's two arms carry one
   crosswalk rule id each, `claude-config/audit-instructions/rule-coercive-emphasis` (arm 1) and
   `claude-config/audit-instructions/rule-blanket-tool-default` (arm 2), both `IMPORTANT`, argued in
   [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md).
-  Every other check here stays report-only: no crosswalk row, no relay. The persist mechanics,
+  Every other check here stays report-only: no crosswalk row, no relay. I32 relays as `error`
+  (`CRITICAL`) on the marketplace arm and `warning` (`IMPORTANT`) on the user and project arm. The persist mechanics,
   including the body-scope fence, are [context/persist-findings.md](../context/persist-findings.md).
 - **The remediation is a downgrade, never a deletion.** The directive survives verbatim and only
   its volume changes. A proposal that removes the instruction rather than its shouting has misread
@@ -2126,5 +2134,4 @@ Findings are presented using the Phase D report table defined in the skill body
 restated here.
 
 A clean audit ("No instructions flagged.") is a valid outcome. Behavioral-tier proposals are
-always presented as proposals paired with the delete-and-watch follow-through, never as confident
-removals.
+always presented as proposals verified per Deletion tiers, never as confident removals.

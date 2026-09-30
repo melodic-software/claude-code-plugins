@@ -188,19 +188,20 @@ END {
     }
   }
 
-  # Project and local settings ignore defaultMode "auto" (v2.1.142+) and
-  # "bypassPermissions" (v2.1.257+). acceptEdits, plan, and dontAsk still apply.
-  # permission-modes, "Start in a different permission mode", re-read 2026-09-28:
-  # "Sessions you start in a terminal honor every value except auto and
-  # bypassPermissions."
+  # Project and local settings ignore defaultMode "auto" and "bypassPermissions";
+  # acceptEdits, plan, dontAsk, default, and manual apply from any settings file.
+  # An ignored value still hides a user-scope one: "auto" falls to the built-in
+  # default and "bypassPermissions" to Manual, unless a higher-ranked settings
+  # file or --permission-mode sets a mode. Basis and recheck trigger: criteria.md,
+  # C2-defaultMode.
   for (i in dead_automode) {
     s = dead_automode[i]
     k = s SUBSEP "defaultMode"
     if (!(k in conf)) continue
     if (conf[k] == "\"auto\"")
-      finding("error", "C2-defaultMode", s, "defaultMode:\"auto\" is ignored in project and local settings so a repository cannot grant itself auto mode (v2.1.142 and later; before that, project settings could set it) — set it in user or managed settings instead")
+      finding("error", "C2-defaultMode", s, "defaultMode:\"auto\" is ignored in project and local settings. Unless a higher-ranked settings file or --permission-mode sets a mode, Claude Code uses the built-in default instead of a defaultMode from ~/.claude/settings.json while this stays — remove it here and set it in user or managed settings, or pass --permission-mode")
     else if (conf[k] == "\"bypassPermissions\"")
-      finding("error", "C2-defaultMode", s, "defaultMode:\"bypassPermissions\" is ignored in project and local settings (v2.1.257 and later; the session starts in Manual) — set it in user or managed settings, or pass --permission-mode. acceptEdits, plan, and dontAsk still apply here")
+      finding("error", "C2-defaultMode", s, "defaultMode:\"bypassPermissions\" is ignored in project and local settings (v2.1.257 and later; before that it took effect from any file). Unless a higher-ranked settings file or --permission-mode sets a mode, the session starts in Manual while this stays — remove it here and set it in user or managed settings, or pass --permission-mode")
   }
 
   # "Not read from shared project settings." That names .claude/settings.json

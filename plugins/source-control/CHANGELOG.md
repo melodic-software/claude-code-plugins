@@ -3,6 +3,115 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+
+## [0.63.0] - 2026-09-29
+
+### Added
+
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
+
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes to the bundled `commit` skill
+  only when none of its contract (convention, trailer, surgical staging, pre-checks) is wanted, and
+  a commit-push-PR request to the built-in `/commit-push-pr` command, when either resolves in the
+  session; it keeps every other commit. `pull-request` routes a one-shot PR with no draft, body
+  contract, or later ready, monitor or merge step to the bundled `pr` skill when the work is
+  committed, to `/commit-push-pr` only when the whole working tree belongs in the commit, and
+  keeps everything else. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
+
+## [0.62.29] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` carries a Boundary section for the built-in command `/autofix-pr`.** The
+  command watches one PR from a cloud session; this skill runs the fleet pass under its gates. The
+  model offers the person-run command for a PR to be watched after the session ends.
+- **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
+  also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
+
+## [0.62.28] - 2026-09-29
+
+### Added
+
+- **`commit` carries a Boundary section for the bundled `commit` skill.** Prefer this skill when
+  the repository carries a commit convention or a `source-control.md` layer; the bundled skill fits
+  a plain commit where this skill's contract is not wanted, and one commit never runs both.
+- **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
+  `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
+  lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
+
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
+## [0.62.26] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and, once the PR reads `MERGED`, deletes the head branch with `git push <push-remote> --delete <branch>` through `resolve-remote.sh --push`, because older gh fails its local checkout of the default branch while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
+## [0.62.24] - 2026-09-29
+
+### Fixed
+
+- **README and `config-resolution.md` state the `.gitignore` write correctly.** `setup apply layer=team` appends the recursive overlay line when missing; `layer=local` never edits `.gitignore`.
+
+## [0.62.23] - 2026-09-29
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, and `setup` `**Arguments.**` lines lead with the argument hint,** so each hint and line agree.
+
+## [0.62.22] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.62.21] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` create.md states the `Refs: #N` linkage contract.** The pre-create body gate accepts a line that is only `Refs: #N` or `Relates to: #N` as non-closing linkage, matching `pr-linkage-validator.sh`; a bare `Refs #N` without the colon is still rejected.
+- **`pull-request` monitor.md** treats a queued job as stuck only when no free matching runner exists, and CI polling loops use REST only.
+- **`worktree` prose and evals** point at `worktree-facts.sh list`. Lock reasons are read raw, and the git 2.36 floor for `worktree list -z` is stated.
+- **PR-linkage MCP gate** also matches plugin-bundled GitHub servers (`mcp__plugin_*_github__create_pull_request` and `update_pull_request`).
+- **Nesting-invariant heading** is renamed "The nesting invariant, dated measurement", and its expired marker is time-bound.
+- **Promotion-evidence plan** is marked proposed and cites its basis; `config-resolution.md` cites ADR 0039 by filename instead of restating its merge modes.
+- **Config-root resolver** moves into `lib/config-root.sh` (`classify`), which `commit` and `pull-request` call before reading team or overlay layers, and which `parse-branch-issue.sh` sources; `setup` keeps its own inline rule, with two setup evals for the home-root check and apply.
+- **Docs:** `babysit-loop` points at the background-launch caveat, the README lists `worktree-create.sh --existing-branch`, and duplicated argument hints are dropped.
+- **Merge gate holds a PR whose body says "do not merge" or that carries the `do-not-merge` label.** `babysit_merge.py` reads the live PR body (over GraphQL, and over REST when GraphQL is refused) and adds a blocker in every tier, and blocks on the `do-not-merge` label whether or not the autopilot merge tier is engaged. The `babysit-prs` and `babysit-loop` skill bodies state the rule.
+- **Node.js on PATH is declared.** The README lists it beside the other requirements, and the setup `check` probes `node` through Bash, so the probe works when the hook launcher does not.
+- **0.62.6 entry corrected in place.** Its body restated 0.62.5; it now reads "No functional change", and its heading is unchanged.
+
 ## [0.62.20] - 2026-09-28
 
 ### Changed
@@ -123,12 +232,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **Worktree isolation is four checks, and unattended prompts have a flag**
-  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
-  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
-  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
-  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
-  mode and its classifier.
+- No functional change. The version bump landed with a changelog-only edit
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)); the worktree-isolation
+  and `--permission-prompts none` notes are in 0.62.5.
 
 ## [0.62.5] - 2026-09-28
 

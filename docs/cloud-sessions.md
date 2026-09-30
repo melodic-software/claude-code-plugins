@@ -50,8 +50,8 @@ first-turn slash gap tracked as #2733).
 - [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
   is the key reference: repo-committed `.claude/` config reaches cloud sessions; user-level
   `~/.claude` config never does. That is why the fleet `claude-permissions` floor, composed
-  locally by chezmoi into `~/.claude/settings.json`, never reaches a cloud session (#3172;
-  [out-of-scope record](out-of-scope/cloud-session-permission-floor.md)).
+  locally by chezmoi into `~/.claude/settings.json`, never reaches a cloud session
+  ([#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172)).
 
 ## Set up your own (any account, machine, or repo)
 
@@ -438,7 +438,7 @@ Both exist in cloud sessions and don't conflict, because they serve different ca
   [authenticates via the proxy automatically](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests)
   with no token needed. Locally, contributors authenticate `gh` themselves as usual.
 
-#### Known gap: Ubuntu-archive `gh` 2.45 vs the seam's 2.94 floor (#3169)
+### Known gap: Ubuntu-archive `gh` 2.45 vs the seam's 2.94 floor (#3169)
 
 **Claim:** Claude Code cloud sessions in this fleet can still boot with Ubuntu-archive
 `gh` 2.45.0. The work-item-tracker seam's native sub-issue and dependency verbs need
@@ -449,15 +449,20 @@ pin lands.
 **Basis:** [#3169](https://github.com/melodic-software/claude-code-plugins/issues/3169)
 (filed 2026-08-23; cloud session `gh version 2.45.0 (2025-07-18 Ubuntu 2.45.0-1ubuntu0.3)`).
 Per-verb floor shipped in #3175 / work-items 0.39.14 (`CONTRACT.md` "Prerequisites":
-below 2.94, only native-surface paths are refused; the lease trio, `get-item`, and a
-plain `create-item` still run). 2026-09-05 triage on the same 2.45 binary confirmed
-`capabilities` and race-safe `claim`. The fleet checklist in
+below 2.94, only native-surface paths are refused; the lease verbs (`claim`,
+`renew-lease`, `release`, `reclaim`) and `get-item` still run, and a plain `create-item`
+passes the version gate). 2026-09-05 triage on the same 2.45 binary confirmed
+`capabilities` and race-safe `claim`. A cloud session on the same binary (the owner's
+2026-09-11 comment on the issue) showed `create-item` still failing after the gate: it runs
+`gh issue create`, which is GraphQL-backed and returns `HTTP 403: GitHub GraphQL is not
+available from Claude Code sessions`, and the below-2.94 `--type` fallback applies a
+`type:` label that this repository does not define. The fleet checklist in
 [cloud-fleet-setup.md](cloud-fleet-setup.md#verification-checklist) already expects
 **2.98.0 or newer** via the `standards` `cloud-environment` pinned-tarball step; a
 2.45.x reading after a current `/opt/melodic-env-setup.done` stamp means that step
 failed, not that this repo should `apt install` a newer `gh`.
 
-**As of:** 2026-09-28.
+**As of:** 2026-09-29.
 
 **Recheck:** a Claude Code cloud session on this environment reports `gh --version`
 2.94 or newer, or `melodic-software/standards` `components/cloud-environment/setup.sh`
@@ -470,13 +475,13 @@ changes the `gh` install path.
    (any trivial setup-script field edit). That is an environment-UI action, not a
    change in this repository.
 2. After a current stamp, stay on 2.45 if the tarball step still failed. Use the
-   shipped per-verb floor: `claim` / `renew-lease` / `reclaim` / `get-item` / plain
-   `create-item`. For `--parent` / `--blocked-by` / `list-frontier` / `list-items`,
-   use the backfill ritual in `CONTRACT.md` "Degradation without `gh`", or GitHub MCP
-   tools. Do not add a `gh` tarball install to `.claude/cloud-bootstrap.sh`; the
-   proxy blocks `/releases/latest`, and the pin belongs in `standards`.
-3. This Cursor cloud agent is a different image (`gh` 2.99.0 here). Do not treat a
-   Cursor-cloud `gh` version as evidence that Claude Code cloud sessions moved.
+   shipped per-verb floor: `claim` / `renew-lease` / `release` / `reclaim` /
+   `get-item`. File new items through GitHub MCP tools, because `create-item` hits the
+   GraphQL 403 above. For `--parent` / `--blocked-by`, use the backfill ritual in
+   `CONTRACT.md` "Degradation without `gh`". For `list-frontier` / `list-items`, take an
+   operator-named item or a list through GitHub MCP tools (same section). Do not add a
+   `gh` tarball install to `.claude/cloud-bootstrap.sh`; the proxy blocks
+   `/releases/latest`, and the pin belongs in `standards`.
 
 ### Known gap: no fleet permission floor (#3172)
 
@@ -488,8 +493,7 @@ into `~/.claude/settings.json`.
 **Basis:** [#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172).
 Tracked `.claude/settings.json` has secret-material `deny` only, not the fleet grants.
 Preflight GAP (b) for `git add` / `commit` / `push`, `gh pr create`, `gh issue comment`
-is the standing cloud-session report. Full record:
-[out-of-scope/cloud-session-permission-floor.md](out-of-scope/cloud-session-permission-floor.md).
+is the standing cloud-session report.
 
 **As of:** 2026-09-28.
 

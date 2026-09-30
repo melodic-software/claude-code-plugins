@@ -16,7 +16,14 @@ never combined with `&&` or other commands in one call. The record for these sha
 1. On a `chore/repo-sweep-*` branch, bring it current first: `git fetch origin '<branch>'`, then
    `git merge --ff-only 'origin/<branch>'`. A step committed on another machine is only reconciled
    when its commit is local.
-2. Run `S/state.sh` and act on its exit code:
+2. Run `S/state.sh`. If it printed `mergeable CONFLICTING` (any exit code), stop before the exit
+   code handling below and before any step. GitHub runs no `pull_request` workflows on a
+   conflicting PR, so pushed step commits get no CI. Ask the user to merge the base branch into
+   the sweep branch and push, then rerun `next`. `UNKNOWN` never stops. Basis: the `pull_request`
+   section of
+   <https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows>
+   says workflows do not run on pull_request activity while the pull request has a merge conflict.
+   As of: 2026-09-29. Recheck: that section changes. Otherwise act on its exit code:
    - 10: no sweep PR. Point to `/playbooks:repo-sweep plan`. Stop.
    - 11: the sweep PR is merged or closed. Refuse to continue and point to `plan`. Stop.
    - 12: the tree is dirty and no step is in progress. Show `git status --short`, ask the user
@@ -46,14 +53,16 @@ never combined with `&&` or other commands in one call. The record for these sha
 2. Read the entry: its row from `S/catalog.sh C`, `S/catalog.sh --override <id> C`, and
    `S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
-3. When the row's `prime` column (last field) is not `false`, invoke
+3. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
+   `plan.md` uses (`git ls-files`, globs, `ls`). Skip it when resuming: `state.sh` reported
+   `in-progress` with a dirty tree, so an earlier session already ran the skill. When it no longer
+   holds, run `S/tick.sh <id> not-applicable "<one-line evidence>"`, report, and stop the
+   step without priming or running section 3. The step invokes no skill, so the line records no
+   skill version and no `Playbook-Step` trailer is written. Evidence must be one line with no
+   commas.
+4. When the `prime` column (column 8, the last field of `S/catalog.sh C`) is not `false`, invoke
    `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
    detector steps set `- prime: false` in the catalog and skip both.
-4. Re-check `applies-when` (column 7 of `S/catalog.sh C`) with the same cheap evidence
-   `plan.md` uses (`git ls-files`, globs, `ls`). When it no longer holds, record each
-   `plugin:skill` with `S/skill-version.sh <plugin:skill>...`, then `S/tick.sh <id>
-   not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
-   running section 3. Evidence must be one line with no commas.
 5. `mkdir -p W`, then `S/tick.sh <id> in-progress`.
 6. Unless resuming, run `git rev-parse HEAD` as its own call, keep that SHA as the base, and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
@@ -69,21 +78,29 @@ never combined with `&&` or other commands in one call. The record for these sha
    entry's `args`. Skills in one entry share the session: the first one's findings feed the next.
    **Tidy multi-lane:** when the `tidy` entry's resolved `args` is a comma-separated list or
    `all`, invoke `/code-tidying:tidy` once per lane (strip whitespace; `all` expands to every lane
-   name that applies, except `self-update`). Carry findings forward across those invocations; do
-   not `/clear` between lanes.
+   name that applies, except `self-update`). Each invocation carries `in-place` as a whole-token
+   flag beside the lane. Carry findings forward across those invocations; do not `/clear` between
+   lanes.
 3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
    produced by running that procedure in full as the skill states it. A summary of them, or a
    skipped procedure step, does not complete the step. The user reviews them for accuracy before
    anything is fixed. Read the skill's own coverage statement (for example audit skills' `Lane:`
    lines or `Summary coverage:`) and show any uncovered scope alongside the findings. Do not tick
    the step, including a `no findings` tick, until this review finishes.
-4. Ask the scope questions the findings raise as one short numbered list in chat (which
-   findings to fix, how far to go). A file synced from another repository is overwritten by the
+4. Settle the scope questions the findings raise (which findings to fix, how far to go) by
+   running `/planning:interview scope` through the Skill tool; it writes no `PLAN.md` and returns
+   a `Scope decisions:` section. A file synced from another repository is overwritten by the
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
-   edit them here, and ask whether to draft an issue in the source repository, filed only when
-   the user asks. Do not run `/planning:interview` for this. Record each question and answer for
-   the commit.
+   edit them here, and put the question of whether to draft an issue in the source repository
+   to the interview, filed only when the user asks. When the agreed fix lives in another
+   repository, file the issue there after the user approves and keep the issue URL; section 4
+   ticks `filed <issue-url>`, never `no-findings`. Copy the returned lines (answer lines,
+   `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
+   section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
+   that question before step 5, then record the user's answer beside that line in the section.
+   When the planning plugin is not installed, ask the questions as one short numbered list
+   in chat and record each question and answer for the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
 ## 4. Guard, commit, tick
@@ -95,24 +112,35 @@ never combined with `&&` or other commands in one call. The record for these sha
      commit.
    - 0: continue.
 2. Versions: one `S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
-   `plugin:skill` in the entry, where `<base-dir>` is the "Base directory for this skill" line
+   `plugin:skill` in the entry that ran (a skill the catalog note skips takes no call), where `<base-dir>` is the "Base directory for this skill" line
    the Skill tool printed when it loaded that skill, so the record names the version that ran.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
 3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): tick only
-   after section 3 steps 3–4. When the skill reported uncovered scope, `S/tick.sh <id>
-   partial "<what was not covered>" <skill@version>...` (one line, no commas). Otherwise count
-   findings the skill marks report-only (tiers the procedure says never edit in this pass, such
-   as `source-fetched-similar` or `not-found`). When that count is greater than zero, `S/tick.sh
-   <id> report-only <n> <skill@version>...` where `<n>` is that count. When coverage
-   was complete and there are zero findings of any kind, `S/tick.sh <id> no-findings
-   <skill@version>...`. No commit.
+   after section 3 steps 3–4, with exactly one `tick.sh` call: a done line cannot be edited
+   again, so a second call for partial coverage exits 1. Decide the outcome first. When findings
+   were shown and the user declined every fix-eligible one, no commit will carry the section 3
+   step 4 questions and answers. Write them to `W/scope-decisions.md`, its body starting
+   `repo-sweep scope decisions: <id>`, post them with `gh pr comment --body-file
+   W/scope-decisions.md` (this session's own sweep PR only), then tick `declined <n>` where
+   `<n>` is the number of declined findings, never `no-findings`. When the agreed fix was filed in another repository (section 3 step 4), the outcome is `filed <issue-url>`. Otherwise count findings the
+   skill marks report-only (tiers the procedure says never edit in this pass, such as
+   `source-fetched-similar` or `not-found`). When that count is greater than zero, tick
+   `report-only <n>` where `<n>` is that count. When there are zero findings of any kind, tick
+   `no-findings`. The one call is `S/tick.sh <id> <outcome> <skill@version>...`; when the skill
+   reported uncovered scope, use instead `S/tick.sh <id> --partial "<what was not covered>"
+   <outcome> <skill@version>...` for `declined <n>`, `report-only <n>` or `filed <issue-url>`, or `S/tick.sh <id>
+   partial "<what was not covered>" <skill@version>...` for zero findings (one line, no
+   commas), so partial never hides a findings count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
-   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
-   and the `Co-Authored-By:` trailer, so git parses them together. Push, then `S/tick.sh <id>
-   committed <short-sha> <skill@version>...`.
+   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill that ran,
+   and the `Co-Authored-By:` trailer, so git parses them together. Push, then one tick call:
+   `S/tick.sh <id> committed <short-sha> <skill@version>...`. When the skill reported uncovered
+   scope, make that one call `S/tick.sh <id> --partial "<what was not covered>" committed
+   <short-sha> <skill@version>...` instead, so the uncovered scope survives into `history.sh`;
+   the coverage read stays step-wide as in section 3 step 3.
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 

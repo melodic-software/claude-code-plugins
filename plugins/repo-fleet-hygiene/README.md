@@ -12,16 +12,19 @@ The currently shipped audit reports:
   `delete_branch_on_merge` is not enabled or was blocked. Enabling that setting is complementary to
   this visibility rather than a substitute for it, and this plugin never changes repository
   settings;
+- remote heads with no pull request ever, or only closed unmerged pull requests, as gated deletion
+  candidates (see [Remote branch deletion](#remote-branch-deletion));
 - merged-PR, missing, prunable, or administratively mismatched worktree registrations;
 - linked worktrees that do not conform to the configured worktree root (or placement when unset); and
 - GitHub repositories whose configured remote resolves to a different owner or name.
 
-The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:sync` is the exception that fast-forwards canonical checkouts, and only after `--apply` and one confirmation. `/repo-fleet-hygiene:audit` never fetches,
+The plugin is deliberately **read-only by default**. `/repo-fleet-hygiene:audit` never fetches,
 prunes, repairs, deletes, checks out, or rewrites anything. Every finding names its evidence,
-confidence, disposition, and exact target. Fleet-wide mutation is a separate explicit act:
-`/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes]` consumes the audit's action-plan
-JSON behind one confirmation gate (see [Fleet cleanup plan](#fleet-cleanup-plan)). Per-repository
-owners remain available for interactive work:
+confidence, disposition, and exact target. Two verbs mutate, each only behind `--apply` and one
+confirmation: `/repo-fleet-hygiene:apply --plan-file <path> [--apply] [--yes] [--remote-branches]` consumes the audit's
+action-plan JSON (see [Fleet cleanup plan](#fleet-cleanup-plan)), and `/repo-fleet-hygiene:sync`
+fast-forwards canonical checkouts (see [Sync](#sync)). Per-repository owners remain available for
+interactive work:
 
 - `/repo-hygiene:clean git` for a local-branch audit and its own confirmation gate;
 - `/source-control:worktree cleanup --dry-run` for worktree cleanup planning; and
@@ -34,7 +37,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Capability | Owner | Availability in this release |
 |---|---|---|
 | Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
-| No-argument scope (explicit, fleet config, named paths, ghq, cwd, else exit 3) | `repo-fleet-hygiene` | Shipped for `audit` and `sync`. The project directory is not a rung |
+| No-argument scope: the ladder in [audit's SKILL.md](skills/audit/SKILL.md) (`--named` paths, `ghq root --all`, an ancestor directory of the working directory's checkout holding 2 or more repositories, that checkout alone, else exit 3) | `repo-fleet-hygiene` | Shipped for `audit` and `sync`. Not shipped: agent state and a bounded machine sweep as rungs. Remaining contract work, not an open issue |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |
@@ -54,6 +57,7 @@ report and exact per-repository handoffs.
 |---|---|
 | `/repo-fleet-hygiene:audit` | Scan one repository, explicit repositories, or repository-tree roots and render a fleet report (read-only; writes an action-plan JSON) |
 | `/repo-fleet-hygiene:apply` | Dry-run or apply a prior action-plan JSON behind one fleet confirmation (`--apply` + confirm / `--yes`) |
+| `/repo-fleet-hygiene:sync` | Dry-run or apply a fast-forward of every canonical checkout onto the remote default branch; dirty work is parked in a linked worktree (`--apply` + confirm / `--yes`) |
 | `/repo-fleet-hygiene:setup` | `check` inspects the optional tracked fleet configuration read-only; `apply` creates or updates it without touching user settings |
 
 ## Quick start
@@ -65,7 +69,8 @@ Audit the current project repository explicitly (no fleet config required):
 ```
 
 A bare `/repo-fleet-hygiene:audit` with neither CLI scope nor `fleet.root` / `fleet.repo` in a
-resolved config hard-fails and names remedies. It does not audit the session project directory.
+resolved config follows the no-scope ladder in [audit's SKILL.md](skills/audit/SKILL.md) and exits 3
+naming every rung when none resolves.
 
 Audit one or more repository-tree roots:
 
@@ -84,6 +89,26 @@ Config resolution is a whole-file precedence ladder: explicit `--config <path>`,
 `~/.claude/repo-fleet-hygiene.conf` (a machine-scoped fleet config that applies from every
 project). The audit report header names which config was consumed. Explicit CLI roots/repos are
 additive.
+
+## Sync
+
+`/repo-fleet-hygiene:sync` puts each canonical checkout on the remote's default branch and
+fast-forwards it. Bare invocation prints a dry-run plan and changes nothing.
+
+```text
+/repo-fleet-hygiene:sync
+/repo-fleet-hygiene:sync --apply
+/repo-fleet-hygiene:sync --apply --yes
+```
+
+`--yes` skips the script's prompt, not the operator: pass it only after reading the dry-run plan and
+agreeing to it. `--apply` without a terminal and without `--yes` exits 3. A dirty checkout is parked
+in a linked worktree by the helper named with `--worktree-create <path to worktree-create.sh>`;
+`--worktree-root <dir>` optionally overrides the root the helper resolves. Without
+`--worktree-create`, a dirty checkout is skipped and reported. Every plan and skipped line ends with
+`rung=<rung>` naming the scope source that produced the repository (`repo`, `repos-from`, `root`,
+`config`, `named`, `ghq`, `cwd`, `ancestor`). See [the sync skill](skills/sync/SKILL.md) for the
+scope ladder and skip rules.
 
 ## Fleet cleanup plan
 
@@ -108,6 +133,32 @@ The apply verb:
 
 Audit remains read-only. A `HIGH` finding is never itself permission to delete; only `:apply
 --apply` after confirmation (or `--yes`) mutates. Do not add an execute flag to `audit-fleet.sh`.
+
+### Remote branch deletion
+
+Remote deletion is off by default: plain apply never contacts a remote, and a plan's
+`delete-remote-branches` rows are skipped. The audit plans such rows only for `unmerged-remote-branch`
+findings of class `never-pr` (no pull request ever used the branch) or `closed-unmerged` (every pull
+request closed unmerged, one at the live tip). A branch whose pull request merged
+(`merged-remote-branch`) is never planned for deletion.
+
+```text
+apply-plan.sh --plan-file <path-from-audit> --apply --remote-branches
+```
+
+- Each branch has its own `[y/N]` prompt naming repository, remote, branch, class, and tip. `--yes`
+  never answers it, and a session without a terminal deletes nothing at all, local rows included.
+  `/repo-fleet-hygiene:apply --remote-branches` gives the script no terminal, so from the skill it only
+  previews; run the script in your own terminal to delete.
+- Live state is re-read first. Drift in the `git ls-remote` tip, an already-gone head, the remote's
+  default branch, a remote whose fetch or push URL no longer names the audited repository, or a
+  pull request that is now open, merged, or missing its audited class (checked with `gh pr list`)
+  skips the row. So does a failed `gh` call.
+- The tip is appended to `<plan-file>.tip-ledger` before the push, with a restore command
+  (`git -C <repo> push <remote> <tip>:refs/heads/<branch>`). The push carries a lease on that exact
+  tip. The restore command works while the tip object is still in the local repository; after a
+  delete it is unreachable, so `git gc` removes it once `gc.pruneExpire` (two weeks by default)
+  passes.
 
 ## Configuration
 

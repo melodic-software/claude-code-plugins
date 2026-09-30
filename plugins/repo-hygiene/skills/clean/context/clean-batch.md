@@ -1,4 +1,4 @@
-# The batch (fleet) selective tiers: `caches-batch` / `build-batch` / `git-batch` / `all-batch`
+# The batch (fleet) selective tiers: `scan-batch` / `caches-batch` / `build-batch` / `git-batch` / `all-batch`
 
 Full detail for the fleet form of the selective tiers. SKILL.md §8 carries the
 headline; this file carries the gate, the script contract, and examples. The
@@ -18,15 +18,20 @@ while the sanctioned skill-script apply passes.
 
 **In:** run the single-repo `caches` / `build` / `git` tiers (and `all` = build +
 git) across a set of repositories behind one confirmation gate, then report a
-per-repo outcome summary.
+per-repo outcome summary. The read-only `scan` tier runs across the same set with no gate.
 
 **Out:**
 
 - **`tree`**: the destructive tier has its own batch form (`tree-batch`) with a
   dirty guard; it is never folded into `all` and not handled here.
-- **Branch audit / deletion**: the single-repo `git` tier also audits branches
-  for interactive per-branch deletion, which cannot sit behind one fleet-wide
-  gate. Batch `git` is prune / gc / remote-prune only; run branch cleanup per repo.
+- **Branch deletion**: interactive per-branch deletion cannot sit behind one
+  fleet-wide gate. Batch `git` is prune / gc / remote-prune only. The read-only
+  audits do take this repo selection: `git-branch-audit.sh` and
+  `git-stash-audit.sh` accept `--repo`, `--repos-from`, `--skip`, `--skip-from`
+  and print a `Repo: <path>` block per repo; delete from inside the audited repo.
+  A branch or worktree audit across many repositories, including one outside the ghq
+  root, is `/repo-fleet-hygiene:audit` (`--root`, `--repo`), which hands per-repo
+  cleanup back here.
 - The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 
@@ -34,19 +39,21 @@ per-repo outcome summary.
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
-  --tier <caches|build|git|all> \
+  --tier <scan|caches|build|git|all> \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... \
   [--skip ENTRY]... [--skip-from FILE]... \
   [--batch-plan FILE]
 ```
 
-Default: `--dry-run`. Output labels and full flag help: script `--help`.
+Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
+plan to a stable path instead of a mktemp dir. Output labels and full flag help: script `--help`.
 
 ### Tiers
 
 | Tier | Per repo | Notes |
 | --- | --- | --- |
+| `scan` | `scan.sh` | read-only inventory; no plan, no `--apply` (below) |
 | `caches` | `clean-caches.sh` | tool/linter caches |
 | `build` | `clean-build.sh --include-caches` | build output + caches (single-repo `build` includes caches) |
 | `git` | `git-prune.sh`, once per unique shared object store | prune / gc / remote-prune; no branch audit |
@@ -101,6 +108,12 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
+`RUNTIME_PROCS` and `RECENT_BUILD` are scoped to the batch repositories and `IDE_OPEN` is
+machine-wide. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
+`IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
+`preflight.sh` again before confirming. `planned=` bytes can exceed `removed=`
+bytes when entries vanished between the runs; both numbers are correct.
+
 Apply also validates the plan against the requested `--tier` before touching disk:
 the plan must have been built for the same tier. A plan carrying a record the tier
 does not authorize is refused atomically (usage error, nothing removed, no apply
@@ -127,11 +140,24 @@ reported as a store that vanished after the dry-run.
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
-(dry-run) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
+(dry-run) / `nothing-to-do` (dry-run: a repo with no paths to
+remove and no new shared object store; its plan record still applies as a no-op) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
-`failed` (a child `rm` failed). A closing `Summary:` totals the batch and exits
+`failed` (a child `rm` failed). A dry-run also prints a `Repo | Outcome | Paths | Bytes` table, one row per repo
+(skipped and blocked repos show 0 and 0), before `BatchPlan:`. A closing `Summary:` totals the batch and exits
 non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
 `skipped` repos with their reasons before the totals: those need the user.
+
+### The scan tier is read-only
+
+`--tier scan` runs the unchanged `scan.sh` in each selected repo, with the same repo
+sources and skip list as the other tiers. It writes no plan and runs no preflight, and
+`--apply` or `--batch-plan` with it is a usage error (exit 2), so there is no gate to
+pass. Each repo emits `Outcome: scanned` with its path count and reclaimable size; a repo
+whose `scan.sh` prints no `Total reclaimable` is `blocked`, never counted as 0. The closing
+`Summary: repos=N planned=0 bytes=K skipped=S blocked=B` sums `Total reclaimable` over the
+scanned repos. Linked worktrees are scanned as separate repos (their artifacts are separate
+paths). For one repo's per-path inventory, run `scan.sh` inside it.
 
 ## Gates
 
