@@ -3,6 +3,21 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-09-30
+
+### Added
+
+- `map-deployment` reads Terraform, Bicep and ARM templates, CloudFormation and
+  Pulumi YAML, and layered Compose base and override files. Containers nest in
+  their compute nodes, Service and Ingress draw as relationships, and the
+  environment diff reports networks and Ingress hosts.
+
+### Fixed
+
+- Secret markers, including sensitive Terraform variables and values nested in
+  unresolved CloudFormation and Pulumi expressions, are redacted in every
+  printed field.
+
 ## [0.15.0] - 2026-09-29
 
 ### Added
