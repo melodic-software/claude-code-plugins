@@ -1547,7 +1547,7 @@ class TestModuleScopedResolution(unittest.TestCase):
 
     def test_a_later_local_declaration_shadows_an_outer_binding(self) -> None:
         src = _modules(
-            'var Qz="Probe",xx="WRONG";function outer(){return xx;var xx="LOCAL"}'
+            'var Qz="Probe",xx="WRONG";function outer(){return xx;if(c){var xx="LOCAL"}}'
             "$t({name:Qz,maxResultSizeChars:1,description:outer});"
         )
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")

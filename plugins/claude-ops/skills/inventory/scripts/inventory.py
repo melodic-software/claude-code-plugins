@@ -1528,14 +1528,20 @@ def _declaration(
     if found is not None:
         # A declaration later in a scope nearer the reader shadows `found`
         # and is not yet initialized when read: the value is not static.
+        # A `var` hoists out of nested blocks, so any declaration inside the
+        # reader's own block counts, however deeply it is nested there.
         outer = braces.enclosing(found.start())
         outer_open = outer[0] if outer else -1
+        reader = braces.enclosing(max(at - 1, 0))
         for m in pattern.finditer(src, at, hi):
             block = braces.enclosing(m.start())
             if (
                 block
                 and block[0] > outer_open
-                and _visible(braces, m.start(), at)
+                and (
+                    _visible(braces, m.start(), at)
+                    or (reader is not None and reader[0] < m.start() < reader[1])
+                )
                 and re.search(
                     r"(?:\b(?:var|let|const)\s+|,\s*)$",
                     src[max(0, m.start() - 8) : m.start()],
