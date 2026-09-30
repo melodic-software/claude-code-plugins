@@ -128,7 +128,7 @@ Shipped readers, every one that is present:
   above it is `terraform-orphan-tfvars:<file>`.
 - Bicep (`.bicep`, `.bicepparam`) and ARM templates (JSON whose `$schema` names
   `deploymentTemplate`, any scope), read as text. No `bicep` or `az` binary, no registry restore.
-  A root is a template that no module names. Its environments are one per `.bicepparam` whose
+  A root is a template that no module names, or one a parameters file names. Its environments are one per `.bicepparam` whose
   `using` names it (`main.prod.bicepparam` is `prod`) and one per JSON parameters file
   (`$schema` names `deploymentParameters`): `<name>.parameters.<env>.json` beside `<name>.bicep` or
   `<name>.json`, or `parameters.<env>.json` beside the directory's only template. With none, the

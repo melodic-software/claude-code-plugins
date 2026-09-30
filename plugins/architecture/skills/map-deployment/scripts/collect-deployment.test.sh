@@ -1393,6 +1393,9 @@ tf_refusal "an unbalanced Bicep block" "bicep-unreadable:main.bicep" main.bicep 
 tf_refusal "an unbalanced ARM template" "arm-unreadable:infra/main.json" infra/main.json \
   "{\"\$schema\": \"$arm_schema\", \"resources\": ["
 tf_refusal "a bicepparam file with using none" "bicep-param-unread:main.bicepparam" main.bicepparam "using none"
+tf_refusal "a bicepparam file that extends another" "bicep-param-unread:main.bicepparam" main.bicepparam \
+  "$(printf "using 'main.bicep'\nextends 'base.bicepparam'")"
+tf_refusal "a bicepparam file whose template is not tracked" "bicep-param-unread:main.bicepparam" main.bicepparam "using './missing.bicep'"
 tf_refusal "a nested deployment" "arm-deployment-unread:infra/main.json:resources[0]" infra/main.json \
   "{\"\$schema\": \"$arm_schema\", \"resources\": [{\"type\": \"Microsoft.Resources/deployments\", \"name\": \"inner\", \"properties\": {}}]}"
 rm -rf "$repoR"
@@ -1427,6 +1430,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'OPAQUE', value: dbPassword }
             { name: 'PREFIXED', value: 'x-\${token}' }
             { name: 'UPSTREAM_A', value: upstream }
+            { name: 'CHOSEN', value: upstream == 'x' ? '$(gh_tok C)' : '' }
             { name: 'CS_SQL', value: 'Server=db.example.com;User ID=app;Password=${fake}-BSQL' }
             { name: 'CS_BUS', value: 'Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKey=${fake}-BSAK' }
             { name: 'DB_URL', secretRef: 'db' }
@@ -1453,7 +1457,7 @@ commit_all "$repoBL"
 bash "$COLLECT" --repo "$repoBL" --out "$TEST_TMPDIR/bicep-leaks.json" --generated-on 2026-09-28
 blrec="$(cat "$TEST_TMPDIR/bicep-leaks.json")"
 assert_contains "bicep leak fixture is drawn" "$blrec" '"status": "drawn"'
-for k in OPAQUE PREFIXED UPSTREAM_A CS_SQL CS_BUS DB_URL; do
+for k in OPAQUE PREFIXED UPSTREAM_A CS_SQL CS_BUS DB_URL CHOSEN; do
   assert_contains "bicep leak fixture redacts $k" "$blrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"bicep\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "a secure parameter passed through a module prints as redacted" "$blrec" '"container":"hidden","env":"prod","tool":"bicep","node":"prod/module.hidden.g","compute":"prod/module.hidden.g","image":"[redacted]"'
@@ -1489,6 +1493,7 @@ cat >"$repoAL/app.json" <<EOF
               "environmentVariables": [
                 { "name": "OPAQUE", "value": "[parameters('dbPassword')]" },
                 { "name": "UPSTREAM_A", "value": "[parameters('upstream')]" },
+                { "name": "CHOSEN", "value": "[if(equals(parameters('upstream'), 'x'), '$(gh_tok C)', '')]" },
                 { "name": "VAULTED", "value": "[parameters('vaulted')]" },
                 { "name": "CS_SQL", "value": "Server=db.example.com;User ID=app;Password=${fake}-ASQL" },
                 { "name": "SIGNING", "secureValue": "${fake}-ASV" },
@@ -1511,7 +1516,7 @@ commit_all "$repoAL"
 bash "$COLLECT" --repo "$repoAL" --out "$TEST_TMPDIR/arm-leaks.json" --generated-on 2026-09-28
 alrec="$(cat "$TEST_TMPDIR/arm-leaks.json")"
 assert_contains "arm leak fixture is drawn" "$alrec" '"status": "drawn"'
-for k in OPAQUE UPSTREAM_A VAULTED CS_SQL SIGNING; do
+for k in OPAQUE UPSTREAM_A VAULTED CS_SQL SIGNING CHOSEN; do
   assert_contains "arm leak fixture redacts $k" "$alrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"arm\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "arm leak fixture keeps a plain value" "$alrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"arm","container":"api","value":"info","redacted":"no"'
