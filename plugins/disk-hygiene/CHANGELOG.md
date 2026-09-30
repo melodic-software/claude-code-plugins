@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:audit`, a model-invocable read-only scan.** A delegated or orchestrated session
+  can run the probe and one engine `scan` and report the snapshot with its coverage gaps. It runs
+  no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`, which stays manual-only.
+
 ## [0.29.1] - 2026-09-29
 
 ### Fixed

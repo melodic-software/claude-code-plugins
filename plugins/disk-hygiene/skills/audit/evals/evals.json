@@ -37,6 +37,18 @@
         "Does not present hinted entries as safe deletions or propose an exact path list for removal",
         "Ends by pointing to /disk-hygiene:clean for any removal and starts no removal itself"
       ]
+    },
+    {
+      "id": 4,
+      "name": "cleanup-request-routes-to-clean-not-audit",
+      "prompt": "Clean up my disk: delete these leftover temp files under ~/scratch-audit.",
+      "expected_output": "Does not run the audit skill; routes the removal request to /disk-hygiene:clean, which a person invokes.",
+      "files": [],
+      "expectations": [
+        "Does not invoke /disk-hygiene:audit",
+        "Names /disk-hygiene:clean as the route for deleting or reclaiming space",
+        "Removes nothing itself"
+      ]
     }
   ]
 }
