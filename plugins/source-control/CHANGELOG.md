@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.65.5] - 2026-09-30
+## [0.65.6] - 2026-09-30
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.65.5] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The gate suite skips, with a reason, when the temp root contains whitespace. The scripts under test are unchanged.
 
 ## [0.65.4] - 2026-09-30
 

@@ -154,13 +154,7 @@ unset HOOK_TELEMETRY_SINK
 if [[ -s "$SINK_FILE" ]]; then
   ok "envelope shape: sink received data"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$SINK_FILE" >/dev/null 2>&1; then
-      ok "envelope shape: field '$field' present"
-    else
-      fail "envelope shape: field '$field' missing. envelope=$(cat "$SINK_FILE")"
-    fi
-  done
+  if check_envelope "$SINK_FILE"; then ok "envelope shape: matches envelope schema"; else fail "envelope shape: does not match envelope schema. envelope=$(cat "$SINK_FILE")"; fi
   # Validate data sub-fields
   for subfield in tool file findings; do
     if jq -e ".data | has(\"$subfield\")" "$SINK_FILE" >/dev/null 2>&1; then
@@ -199,9 +193,7 @@ if [[ -s "$SINK_FILE" ]]; then
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    fail "envelope shape: field '$field' not verifiable (no envelope)"
-  done
+  fail "envelope shape: envelope not verifiable (no envelope)"
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
   done
