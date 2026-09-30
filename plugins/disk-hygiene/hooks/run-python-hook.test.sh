@@ -871,4 +871,25 @@ assert_eq "the Stop row skips a session that launched no guard" "1" \
     select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
     "$HOOKS_JSON")"
 
+# --- the SessionStart node notice is shell form, needs no node, and never blocks ---
+notice="$(jq -c '.hooks.SessionStart[].hooks[]' "$HOOKS_JSON")"
+assert_eq "one SessionStart row" "1" "$(jq -s 'length' <<<"$notice")"
+assert_eq "the SessionStart row is shell-form bash with no args" "true" \
+  "$(jq '.type == "command" and .shell == "bash" and (has("args") | not) and (.command | startswith("node") | not)' <<<"$notice")"
+notice_cmd="$(jq -r '.command' <<<"$notice")"
+NONODE_DIR="$(mktemp -d)"
+trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN" "$NOPY_DIR" "$NONODE_DIR"' EXIT
+ln -s "$(command -v bash)" "$NONODE_DIR/bash"
+notice_rc=0
+notice_out="$(PATH="$NONODE_DIR" "$NONODE_DIR/bash" -c "$notice_cmd" 2>&1)" || notice_rc=$?
+assert_eq "the notice row exits 0 without node" "0" "$notice_rc"
+assert_eq "the notice tells the user the guard cannot launch" "true" \
+  "$(jq '.systemMessage | contains("cannot launch and enforces nothing")' <<<"$notice_out")"
+assert_eq "the notice tells the model" "true" \
+  "$(jq '.hookSpecificOutput | .hookEventName == "SessionStart" and (.additionalContext | contains("enforces nothing"))' <<<"$notice_out")"
+notice_rc=0
+notice_out="$(bash -c "$notice_cmd" 2>&1)" || notice_rc=$?
+assert_eq "the notice row exits 0 with node" "0" "$notice_rc"
+assert_eq "the notice row is silent with node" "" "$notice_out"
+
 pass "all run-python-hook contract checks"

@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.37.0] - 2026-09-30
+## [0.38.0] - 2026-09-30
 
 ### Added
 
@@ -18,6 +18,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
   `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
   `disable-model-invocation: true`.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
 
 ## [0.36.0] - 2026-09-30
 
