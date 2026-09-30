@@ -1220,7 +1220,9 @@ name is not the same underlying value across models):
   tool schema, 2026-07-29), so it structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar). An orchestrator skill
+  by the [recorded exception](#named-agent-bar), and `implementation:phase-verifier`,
+  `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
+  against binary criteria ([pinned agents](#effort-tiers)). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
