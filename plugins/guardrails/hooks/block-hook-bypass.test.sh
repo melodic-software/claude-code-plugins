@@ -2124,13 +2124,29 @@ rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 # under an exempt root is judged by the same axis as a Bash redirect. Anything
 # else in the command that could write, evaluate or rebind the destination keeps
 # the block.
+PS_POSIX_SKIP=0
 run_pwsh_cwd() {
   local label="$1" command="$2" expected="$3"
   shift 3
+  ((PS_POSIX_SKIP)) && return 0
   expect "$label" "$expected" --tool PowerShell --command "$command" --cwd "$PROJ" -- \
     CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=" "$@"
 }
 PSD="$PD_HOME/.claude/plugins/data/x"
+# The home path is assembled so no contiguous Windows user-home literal sits in
+# this file: the machine-specific-path scan and the hardcoded-path hook reject one.
+WIN_HOME="C:\\"'Users\me'
+run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
+# On a Windows host PowerShell resolves a POSIX-spelled destination against the
+# current drive, so the guard refuses it there and the rows below, every one
+# POSIX-spelled, cannot tell an exemption from a block. The drive-spelled row
+# above is the one that runs on Windows.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]]; then
+  PS_POSIX_SKIP=1
+  bhb_skip "PowerShell exempt-root rows with a POSIX-spelled destination not asserted (PowerShell on Windows resolves /x against the current drive)"
+fi
 run_pwsh_cwd "PS exempt: Export-Csv -Path into plugin data (allowed)" \
   "Get-ChildItem | Export-Csv -Path $PSD/out.csv" 0
 run_pwsh_cwd "PS exempt: Out-File -FilePath into plugin data (allowed)" \
@@ -2145,16 +2161,11 @@ run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
   "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
 run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
   "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
-# The home path is assembled so no contiguous Windows user-home literal sits in
-# this file: the machine-specific-path scan and the hardcoded-path hook reject one.
-WIN_HOME="C:\\"'Users\me'
-run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
-  "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
 run_pwsh_cwd "PS exempt: temp tree (allowed)" \
   "Write-Output hi > /tmp/bhb-ps-probe/out.txt" 0
 run_pwsh_cwd "PS exempt: configured scratch root (allowed)" \
   "Get-ChildItem | Out-File /var/jobtmp/f.txt" 0 "$SCRATCH_ENV=/var/jobtmp"
-expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 0 \
+((PS_POSIX_SKIP)) || expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 0 \
   --tool PowerShell --lib lib/powershell/ps-command.sh --cwd "$PROJ" \
   --command "Get-ChildItem | Export-Csv -Path $PSD/out.csv" -- \
   CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
