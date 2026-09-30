@@ -1006,8 +1006,10 @@ corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
   bash-bats/bad/bats-greet-run-unchecked.bats.fixture
+  bash-bats/bad/bats-last-bang-or-true.bats.fixture
   bash-bats/bad/bats-page-source-text.bats.fixture
   bash-bats/bad/bats-retry-limit-restated.bats.fixture
+  bash-bats/good/bats-config-removed-last-bang.bats.fixture
   bash-bats/good/bats-greet-against-literal.bats.fixture
   bash-bats/good/bats-greet-asserts-output.bats.fixture
   bash-bats/good/bats-greet-run-status.bats.fixture
@@ -1064,8 +1066,11 @@ corpus_files=(
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
   cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
   cs-xunit/bad/InvoiceNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
+  cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
@@ -1074,6 +1079,7 @@ corpus_files=(
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
+  cs-xunit/good/InvoiceOverloadDelegatesTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
   cs-xunit/good/InvoiceRepaired4bTests.cs.fixture
   cs-xunit/good/InvoiceRepairedOraclesTests.cs.fixture
@@ -1158,6 +1164,7 @@ corpus_files=(
   js-vitest/bad/vitest-add-recomputed.test.ts.fixture
   js-vitest/bad/vitest-cart-runs.test.ts.fixture
   js-vitest/bad/vitest-duration-itself.test.ts.fixture
+  js-vitest/bad/vitest-helper-chain-silent.test.ts.fixture
   js-vitest/bad/vitest-invoice-inline-snapshot.test.ts.fixture
   js-vitest/bad/vitest-limit-against-itself.test.ts.fixture
   js-vitest/bad/vitest-loop-over-empty-mapped-literal.test.ts.fixture
@@ -1171,6 +1178,7 @@ corpus_files=(
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
+  js-vitest/good/vitest-helper-chain-throws.test.ts.fixture
   js-vitest/good/vitest-length-invariant.test.ts.fixture
   js-vitest/good/vitest-loop-over-literal-probes.test.ts.fixture
   js-vitest/good/vitest-parsed-config-fields.test.ts.fixture
