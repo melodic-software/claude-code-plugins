@@ -62,12 +62,13 @@ it never fires for steps the agent can perform itself.
 ## Unattended secrets
 
 A script `/wizard:unattended` authors resolves each secret in this order, first hit wins:
-environment variable, a file the author names, the platform credential store, then a hidden
-prompt. The store is Windows `Microsoft.PowerShell.SecretManagement` (DPAPI-backed vaults such as
-SecretStore); the rung is skipped silently when the module or the name is absent. macOS Keychain
-and `pass` are not yet supported. Names declared with `-Secrets` on `Invoke-UnattendedRun`
-resolve once, before the first stage, so every hidden prompt comes up front. An undeclared name
-falls back to the same ladder at first use. The result JSON lists declared names, never values.
+environment variable, a file the author names, a `Microsoft.PowerShell.SecretManagement` vault,
+then a hidden prompt. The vault rung is skipped silently when the module or the name is absent,
+and it uses only a string secret. It reads every registered vault, so a locked vault can prompt
+during a dry run. There is no native macOS Keychain or `pass` rung yet. Names declared with
+`-Secrets` on `Invoke-UnattendedRun` resolve once, before the first stage, so every hidden prompt
+comes up front. An undeclared name falls back to the same ladder at first use. The result JSON
+lists declared names, never values.
 
 ## Ephemeral by default
 

@@ -68,14 +68,13 @@ these helpers:
   script running inside that distro; emit PowerShell so it runs on the Windows
   host.
 - `Resolve-UnattendedSecret -Name <ENV> -FilePath <optional>`. First hit wins:
-  environment variable, then the file, then the platform credential store, then
-  one hidden prompt. The store rung is Windows
-  `Microsoft.PowerShell.SecretManagement` (DPAPI-backed vaults such as
-  SecretStore) and is skipped silently when the module or the name is absent;
-  macOS Keychain and `pass` are not supported. A name declared in `-Secrets`
-  returns the value resolved before the first stage. An undeclared name runs the
-  ladder at this call, with its own prompt. The value is redacted out of the
-  transcript.
+  environment variable, then the file, then a `Microsoft.PowerShell.SecretManagement`
+  vault, then one hidden prompt. The store rung is skipped silently when the
+  module or the name is absent, and it uses only a string secret (see the store
+  gotcha). There is no native macOS Keychain or `pass` rung. A name declared in
+  `-Secrets` returns the value resolved before the first stage; declaring a name
+  twice fails the run. An undeclared name runs the ladder at this call, with its
+  own prompt. The value is redacted out of the transcript.
 - `Assert-PriorResult -Path <result-latest.json>`. Do not start until the
   previous script's result is `ok`.
 - `Add-Preflight -Name -Test -Fix`. Fail before later steps, and carry the
@@ -158,13 +157,15 @@ with no side effects: `Assert-Elevation`, `Assert-NotInside`,
 `Assert-PriorResult`, `Add-Preflight`, `Assert-ParsedState`,
 `Invoke-NativeUtf8`, the `-Done` probe of `Invoke-IdempotentStep`, and the
 environment, file and store rungs of secret resolution. Each
-probe, preflight test and wrapped read must only read.
+probe, preflight test and wrapped read must only read. The store rung reads
+every registered vault, and a locked vault can ask the human for its password
+during a dry run (see the store gotcha).
 
 Mutating helpers skip their blocks and record a `would-run` step, or `skipped`
 when `-Done` is already true: `Invoke-IdempotentStep -Action`,
 `Use-GuardedResource` (Take, Prove and Release), `Confirm-Irreversible` (no
-prompt), `Wait-ForState` (no polling), and secret resolution, declared or not (no prompt
-and no hidden read; each name that the environment, the file and the store all
+prompt), `Wait-ForState` (no polling), and secret resolution, declared or not (no
+hidden prompt for a secret; each name that the environment, the file and the store all
 miss records a `would prompt` step and yields the placeholder `<NAME>`).
 
 A dry run does not exercise success detection inside a step: no Prove block or
@@ -229,6 +230,28 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   it. Recheck when a WSL release note changes or drops `WSL_UTF8`, or the Learn
   basic-commands page documents a different switch for `wsl.exe` output
   encoding.
+- The store rung calls `Get-Secret -AsPlainText` with no `-Vault`, so it searches
+  every registered vault, the default vault first and remote ones included, on any
+  platform where the module and a vault are present. Nothing gates it to Windows. A
+  locked SecretStore whose `Interaction` is `Prompt` asks for its password in an
+  interactive session, so `-WhatIf` and `-Test` can prompt for it too; with
+  `Interaction` set to `None` the read fails and the rung is skipped.
+  `-AsPlainText` converts only a `String` or `SecureString`, so a `PSCredential`,
+  hashtable or `byte[]` secret is skipped with a warning and the ladder goes on
+  to the hidden prompt. SecretStore encrypts with .NET Core cryptographic APIs,
+  not DPAPI. Verified 2026-09-29 against the SecretManagement
+  [overview](https://learn.microsoft.com/en-us/powershell/utility-modules/secretmanagement/overview)
+  (SecretStore "uses .NET Core cryptographic APIs to encrypt file contents" and
+  "works on all platforms that support PowerShell 7"; the modules are "feature
+  complete" with the repository archived, at SecretManagement 1.1.2 and
+  SecretStore 1.0.6),
+  [Get-Secret](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules)
+  (with no vault named, "all registered vaults are searched"; `-AsPlainText` "has
+  no effect" on a secret that is not a `String` or `SecureString`) and
+  [Set-SecretStoreConfiguration](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules)
+  (`-Interaction`). Recheck when the PowerShell Gallery lists a release of either
+  module after those versions, or the overview page drops its "feature complete"
+  notice.
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the

@@ -605,7 +605,7 @@ run_launch() {
 summarize() {
   pwsh -NoProfile -Command "
     \$json = Get-Content -Raw '$1' | ConvertFrom-Json
-    'mode=' + \$json.mode + ' status=' + \$json.status + ' steps=' + \$json.planned.steps + ' resources=' + \$json.planned.resources + ' irreversible=' + \$json.planned.irreversible + ' delta=' + ((\$json.delta | ForEach-Object name) -join '|') + ' held=' + (\$json.held_resources -join ',')
+    'mode=' + \$json.mode + ' status=' + \$json.status + ' steps=' + \$json.planned.steps + ' resources=' + \$json.planned.resources + ' irreversible=' + \$json.planned.irreversible + ' secrets=' + \$json.planned.secrets + ' delta=' + ((\$json.delta | ForEach-Object name) -join '|') + ' held=' + (\$json.held_resources -join ',')
   "
 }
 
@@ -623,7 +623,7 @@ for mode in whatif test; do
   # portability-ok: false positive, fixed-string grep with no -P option
   grep -Fq 'NonInteractive' "$dir/err" && prompted=1
   if [[ "$code" == 0 ]] \
-    && [[ "$summary" == "mode=$mode status=ok steps=5 resources=1 irreversible=1 $DRY_DELTA" ]] \
+    && [[ "$summary" == "mode=$mode status=ok steps=5 resources=1 irreversible=1 secrets=0 $DRY_DELTA" ]] \
     && [[ -z "$leftovers" ]] \
     && [[ "$outside" == './copy.ps1 ./err ./out ' ]] \
     && [[ ! -e "$dir/results/result-latest.json" ]] \
@@ -706,7 +706,7 @@ summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
 preflight_failed=0
 # portability-ok: false positive, fixed-string grep with no -P option
 grep -Fq 'preflight failed: dep. Fix: install it' "$dir/err" && preflight_failed=1
-if [[ "$code" != 0 && "$summary" == 'mode=test status=failed steps=0 resources=0 irreversible=0 delta=dep held=' && ! -e "$dir/marker" ]] \
+if [[ "$code" != 0 && "$summary" == 'mode=test status=failed steps=0 resources=0 irreversible=0 secrets=0 delta=dep held=' && ! -e "$dir/marker" ]] \
   && [[ "$preflight_failed" == 1 ]]; then
   pass "-Test lists a failed preflight in the delta and stops before later steps"
 else
@@ -803,6 +803,47 @@ if [[ "$code" == 0 && "$(cat "$TEST_TMPDIR/store-absent.out")" == $'command=Fals
   pass "without a credential store the rung is skipped silently"
 else
   fail "without a credential store the rung is skipped silently" "code=$code out=$(cat "$TEST_TMPDIR/store-absent.out") err=$(head -c 300 "$TEST_TMPDIR/store-absent.err")"
+fi
+
+# The passwords are built from parts: the transcript records this command text, so a literal would match itself.
+NONSTRING_MOCK="$(
+  cat <<'PS'
+function Get-Secret {
+    [CmdletBinding()]
+    param([string] $Name, [switch] $AsPlainText)
+    switch -Wildcard ($Name) {
+        'CRED_*' { [pscredential]::new('u', (ConvertTo-SecureString ('cred-pw-' + 'XYZ') -AsPlainText -Force)) }
+        'HASH_*' { @{ password = ('hash-pw-' + 'XYZ') } }
+        'BYTES_*' { , [byte[]] (1, 2, 3) }
+    }
+}
+PS
+)"
+code="$(run_pwsh store-nonstring "
+  $SECRET_MOCKS
+  $NONSTRING_MOCK
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/store-nonstring' -Secrets @(@{ Name = 'CRED_A' }, @{ Name = 'HASH_A' }, @{ Name = 'BYTES_A' }) -Stages {
+    \$global:Log.Add('stage')
+    foreach (\$name in 'CRED_A', 'HASH_A', 'BYTES_A', 'CRED_UNDECLARED') {
+      \$resolved = Resolve-UnattendedSecret -Name \$name
+      \$global:Log.Add('got:' + \$resolved)
+      Write-Host ('value ' + \$resolved)
+    }
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/store-nonstring.out")"
+transcript="$(find "$TEST_TMPDIR/store-nonstring" -name 'transcript-*.log' | head -1)"
+leaked=0
+for value in cred-pw-XYZ hash-pw-XYZ System.Management.Automation.PSCredential System.Collections.Hashtable System.Byte; do
+  grep -Fq "$value" "$transcript" "$TEST_TMPDIR/store-nonstring/result-latest.json" && leaked=1
+done
+warned="$(grep -Fc 'not a string; the store rung skipped it' "$TEST_TMPDIR/store-nonstring/result-latest.json")"
+if [[ "$code" == 0 && "$leaked" == 0 && "$warned" == 4 ]] \
+  && [[ "$msg" == 'prompt:Secret CRED_A|prompt:Secret HASH_A|prompt:Secret BYTES_A|stage|got:typed-CRED_A|got:typed-HASH_A|got:typed-BYTES_A|prompt:Secret CRED_UNDECLARED|got:typed-CRED_UNDECLARED' ]]; then
+  pass "a store secret that is not a string is skipped with a warning, prompted for, and never recorded by type name"
+else
+  fail "a store secret that is not a string is skipped with a warning, prompted for, and never recorded by type name" "code=$code leaked=$leaked warned=$warned msg=$msg err=$(head -c 300 "$TEST_TMPDIR/store-nonstring.err")"
 fi
 
 printf 'file-loses' >"$TEST_TMPDIR/prec-file-vs-env"
@@ -903,6 +944,25 @@ else
   fail "declared secret values stay out of the transcript and the result JSON, which lists names only" "code=$code leaked=$leaked out=$(tail -n 1 "$TEST_TMPDIR/leak.out") err=$(head -c 300 "$TEST_TMPDIR/leak.err")"
 fi
 
+code="$(run_pwsh declared-twice "
+  $SECRET_MOCKS
+  try {
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/declared-twice' -Secrets @(@{ Name = 'DUP_A' }, @{ Name = 'DUP_A'; FilePath = '$TEST_TMPDIR/prec-missing' }) -Stages {
+      \$global:Log.Add('stage')
+    }
+  } catch {
+    \$global:Log.Add('threw:' + \$_.Exception.Message)
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/declared-twice.out")"
+if [[ "$code" == 0 && "$msg" == 'threw:secret DUP_A is declared twice' ]] \
+  && grep -Fq '"status": "failed"' "$TEST_TMPDIR/declared-twice/result-latest.json"; then
+  pass "a secret declared twice fails the run before any prompt or stage"
+else
+  fail "a secret declared twice fails the run before any prompt or stage" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/declared-twice.err")"
+fi
+
 DECLARED_STAGES="$(
   cat <<'PS'
 # STAGES
@@ -922,7 +982,7 @@ for mode in whatif test; do
   # portability-ok: false positive, fixed-string grep with no -P option
   grep -Fq 'NonInteractive' "$dir/err" && prompted=1
   if [[ "$code" == 0 && "$prompted" == 0 && ! -e "$dir/marker" ]] \
-    && [[ "$summary" == "mode=$mode status=ok steps=2 resources=0 irreversible=0 delta=secret DRY_DECL_UNSET|make marker held=" ]] \
+    && [[ "$summary" == "mode=$mode status=ok steps=2 resources=0 irreversible=0 secrets=2 delta=secret DRY_DECL_UNSET|make marker held=" ]] \
     && grep -Fq '"DRY_DECL_UNSET"' "$dir/results/result-dry-latest.json"; then
     pass "$flag reports a declared unresolved secret as a would-run delta entry and prompts nothing"
   else

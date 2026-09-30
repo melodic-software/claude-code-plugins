@@ -11,9 +11,11 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   Declared secrets resolve once before the first stage, so the human answers every hidden prompt
   up front. An undeclared name still resolves at first use. The `cutover.result/1` envelope gains
   a names-only `secrets` field and dry-run `planned` gains a `secrets` count.
-- **A credential-store rung in `Resolve-UnattendedSecret`**: environment, then file, then
-  Windows `Microsoft.PowerShell.SecretManagement` (skipped silently when absent), then a hidden
-  prompt. macOS Keychain and `pass` are not yet supported.
+- **A credential-store rung in `Resolve-UnattendedSecret`**: environment, then file, then a
+  `Microsoft.PowerShell.SecretManagement` vault (skipped silently when absent), then a hidden
+  prompt. Only a string secret is used; a `PSCredential`, hashtable or `byte[]` secret is skipped
+  with a warning. Declaring a name twice in `-Secrets` fails the run. A native macOS Keychain and
+  `pass` rung are not yet supported.
 
 ## [0.3.0] - 2026-09-29
 

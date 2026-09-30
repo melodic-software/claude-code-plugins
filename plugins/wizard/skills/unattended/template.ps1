@@ -92,7 +92,9 @@ function Assert-NotInside {
     }
 }
 
-# Microsoft.PowerShell.SecretManagement fronts DPAPI-backed stores (SecretStore, CredMan).
+# Microsoft.PowerShell.SecretManagement fronts whichever vaults are registered. Only a
+# string is used: -AsPlainText leaves a PSCredential, hashtable or byte[] as an object,
+# and redaction would record its type name instead of the secret.
 # Without the module, or without the name, the rung is skipped silently.
 function Get-UnattendedStoreSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
@@ -100,10 +102,17 @@ function Get-UnattendedStoreSecret {
         return $null
     }
     try {
-        Get-Secret -Name $Name -AsPlainText -ErrorAction SilentlyContinue
+        $value = Get-Secret -Name $Name -AsPlainText -ErrorAction SilentlyContinue
     } catch {
-        $null
+        return $null
     }
+    if ($value -is [string]) {
+        return $value
+    }
+    if ($null -ne $value) {
+        $script:Warnings.Add("store secret $Name is a $($value.GetType().Name), not a string; the store rung skipped it") | Out-Null
+    }
+    return $null
 }
 
 # The ladder both paths share: environment, file, store. $null when nothing resolves.
@@ -169,7 +178,7 @@ function Initialize-UnattendedSecrets {
             throw 'a declared secret needs a Name'
         }
         if ($name -in $script:DeclaredSecrets) {
-            continue
+            throw "secret $name is declared twice"
         }
         $script:DeclaredSecrets += $name
         $filePath = if ($entry.ContainsKey('FilePath')) { [string] $entry['FilePath'] } else { '' }
