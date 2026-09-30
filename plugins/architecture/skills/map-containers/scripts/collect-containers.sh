@@ -650,6 +650,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       $1 != "" && $2 != "" && $4 != "" {
         kind = $1
         if (kind == "http") {
+          if ($6 != "http" && $6 != "https") next
           leaf = tolower($4)
           n = split(leaf, seg, /[.:]/)
           leaf = seg[n]
@@ -658,7 +659,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
               leaf ~ /elasticsearch|opensearch|searchendpoint|searchservice/) kind = "search"
         }
         if (kind == "http") {
-          if ($3 !~ /^[0-9]*$/ || ($6 != "http" && $6 != "https")) next
+          if ($3 !~ /^[0-9]*$/) next
           if (rel ~ /(^|\/)Properties\/launchSettings\.json$/ && tolower($4) ~ /(^|\.)applicationurl$/) {
             if ($3 != "" && ($2 == "localhost" || $2 == "127.0.0.1")) printf "%s\t%s\t%s\t%s\n", $2, $3, rel, $4 >> listen
           } else printf "%s\t%s\t%s\t%s\t%s\n", $2, $3, rel, $4, $6 >> endpoints

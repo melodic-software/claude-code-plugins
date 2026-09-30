@@ -788,7 +788,8 @@ cat >"$SCH/src/Web/appsettings.json" <<'EOC'
     "SecureOverHttp": { "BaseUrl": "http://secure-api" },
     "Files": { "BaseUrl": "ftp://files.example.com" },
     "Share": { "BaseUrl": "file://localhost/share" }
-  }
+  },
+  "Indexing": { "ElasticsearchUrl": "ftp://logs.internal.example.com" }
 }
 EOC
 commit_repo "$SCH"
@@ -802,6 +803,7 @@ assert_contains "scheme: https does not reach a service declaring only 80" "$ste
 assert_contains "scheme: http does not reach a service declaring only 443" "$stext" "Services.SecureOverHttp.BaseUrl names host secure-api; resolves to no deployable"
 assert_equals "scheme: a non-http URL is neither an edge nor a finding" "$(grep -c '"kind":"external-endpoint"' "$SREC" || true)" "2"
 assert_not_contains "scheme: an ftp URL is not recorded" "$stext" "files.example.com"
+assert_not_contains "scheme: an ftp URL under a search-named key is not a search store" "$stext" "logs.internal.example.com"
 
 # Userinfo and a query token do not stop the edge from resolving, and neither reaches an output.
 LEAK="$TEST_TMPDIR/leak-endpoint-repo"
