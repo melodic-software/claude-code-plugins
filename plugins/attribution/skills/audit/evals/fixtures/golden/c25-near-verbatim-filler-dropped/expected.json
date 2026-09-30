@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 12, "end_line": 34 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://howborisusesclaudecode.com/boris-SKILL.md"
+  },
+  "notes": {
+    "shape": "Two adjacent numbered sections of a compiled tips page, reproduced with only articles and filler words dropped, inside a file whose one original section sits above them. The only attribution is a header line naming a part number and a date, which names no source.",
+    "carve_outs": "None apply. Not a quotation context (no quotation marks, no blockquote), not a conforming record (no basis, no trigger), not owned content (every specific is the tool's documented behavior), not a distilling surface.",
+    "rubric": "C1 holds: both sections correspond sentence for sentence. C2 holds: the three isolation modes, in order, and the dashboard's suggested fields are the source's. C3 holds: 'Part 3 (Mar 11, 2026)' says when, and neither who nor where; a reader cannot find the source from it. C4 holds: dropping articles transforms nothing.",
+    "measured": "fingerprint.mjs at k=5: containment 0.392, jaccard 0.246, longest matched span 33 words, runs across local lines 12-34. Dropping articles breaks the shingles at each dropped word, so containment sits near the threshold even though no sentence is rewritten.",
+    "tier_reason": "A source was supplied and identity-checked and the separation rule fires on both limbs. The class is near-verbatim because every sentence carries at least one deletion or insertion.",
+    "carries": "This case fails a run that reads the header's part-and-date line as attribution. Attribution answers what is attributed, to where and as of when; this line answers only the last."
+  }
+}

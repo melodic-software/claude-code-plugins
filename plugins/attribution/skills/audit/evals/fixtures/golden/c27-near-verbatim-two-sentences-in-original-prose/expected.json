@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 7, "end_line": 10 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://github.com/cursor/plugins/blob/5f9a00e/pstack/skills/teach/SKILL.md"
+  },
+  "notes": {
+    "shape": "Two sentences lifted with trivial edits into the middle of a bullet whose other clauses follow the source's step clause by clause. The file has no attribution anywhere. The rest of the file, including two more bullets, is original.",
+    "carve_outs": "None apply.",
+    "rubric": "C1 holds: the two lifted sentences correspond to two specific source sentences. C2 holds: the three-sketch rule, its 'wall of boxes' contrast and the saved-for-the-end warning are the source's own distinctive moves. C3 holds: no attribution, so a lift inside original material is unmarked and the reader misallocates which sentences are the file's. C4 holds: 'stays' for 'is' and 'particularly one held back' for 'especially one saved' transform nothing.",
+    "measured": "fingerprint.mjs at k=5: containment 0.365, jaccard 0.225, longest matched span 25 words, runs at local lines 7-10. The clause-by-clause restatement before the lift adds two shorter runs at lines 5-6.",
+    "tier_reason": "Both limbs fire. The finding's span is the two lifted sentences; the surrounding restatement shares the source's structure and is a candidate of a different kind.",
+    "carries": "This case fails a run that clears a file because most of it is original. The lift is two sentences and the verdict is about those."
+  }
+}
