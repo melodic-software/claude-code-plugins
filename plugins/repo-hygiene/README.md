@@ -74,7 +74,7 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
 - **Session-scoped destructive guard.** While the skill is active, a PreToolUse
   hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
   `git checkout --`, recursive `Remove-Item`, bare `git branch -D`/`-d`/`--delete`,
-  `git push --delete` and `git push origin :ref`, the clean scripts when the
+  `git push --delete` and `git push origin :ref` (also `+:ref`), the clean scripts when the
   command contains `--apply`, and `git worktree remove` with a force flag. A
   dry-run (including a dry-run push) is not blocked. The confirmed command runs
   only through the skill's own gate, and the ack-prefixed spelling is the

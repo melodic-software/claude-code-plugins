@@ -271,6 +271,8 @@ for cmd in \
   "git --no-optional-locks push origin --delete x" \
   "git push origin +:refs/heads/x" \
   "git push origin +:feature/x" \
+  "git push origin \"+:refs/heads/x\"" \
+  "git push origin '+:refs/heads/x'" \
   "git push origin \"--delete\" x" \
   "git push origin '--delete' x" \
   "git push origin --delete -oconfirmed x" \

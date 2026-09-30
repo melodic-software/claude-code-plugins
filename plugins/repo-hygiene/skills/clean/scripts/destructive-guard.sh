@@ -27,7 +27,7 @@
 #
 # Branch deletion. Claim: as of 2026-09-29 this net matches bare
 # `git branch -D`/`-d`/`--delete`, and `git push --delete`, `push -d` and
-# `git push origin :ref`. A push with --dry-run/-n is a preview and is allowed.
+# `git push origin :ref` (also `+:ref`). A push with --dry-run/-n is a preview and is allowed.
 # The CLEAN_GUARD_ACK path lifts these blocks like every other, and the
 # ack-prefixed spelling is the documented way to run a bare `git branch -D`
 # during a clean session. Spellings the patterns do not parse (a global option
@@ -101,7 +101,7 @@ is_destructive() {
   # statement is a preview and stays allowed.
   local push
   while IFS= read -r push; do
-    if grep -qE "[[:space:]](['\"]?(--delete|-[a-np-zA-Z]*d)|[+]?['\"]?:[^[:space:]'\"])" <<<"$push" &&
+    if grep -qE "[[:space:]](['\"]?(--delete|-[a-np-zA-Z]*d)|['\"]?[+]?['\"]?:[^[:space:]'\"])" <<<"$push" &&
       ! grep -qE '[[:space:]](--dry-run|-[a-np-zA-Z]*n[a-np-zA-Z]*)([[:space:]]|$)' <<<"$push"; then
       return 0
     fi
