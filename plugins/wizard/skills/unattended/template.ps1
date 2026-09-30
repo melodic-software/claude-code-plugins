@@ -142,6 +142,11 @@ function Read-UnattendedSecretPrompt {
     }
 }
 
+function Add-UnattendedSecretPromptStep {
+    param([Parameter(Mandatory = $true)][string] $Name)
+    Add-UnattendedStep "secret $Name" 'would-run' 'would prompt: not in the environment, the file or the credential store'
+}
+
 function Resolve-UnattendedSecret {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -152,7 +157,7 @@ function Resolve-UnattendedSecret {
     }
     $value = Find-UnattendedSecret -Name $Name -FilePath $FilePath
     if (-not $value -and $script:Mode -ne 'run') {
-        Add-UnattendedStep "secret $Name" 'would-run' 'would prompt: not in the environment, the file or the credential store'
+        Add-UnattendedSecretPromptStep -Name $Name
         return "<$Name>"
     }
     if (-not $value) {
@@ -187,7 +192,7 @@ function Initialize-UnattendedSecrets {
             $script:SecretCache[$name] = $value
             $script:Secrets.Add($value) | Out-Null
         } elseif ($script:Mode -ne 'run') {
-            Add-UnattendedStep "secret $name" 'would-run' 'would prompt: not in the environment, the file or the credential store'
+            Add-UnattendedSecretPromptStep -Name $name
             $script:SecretCache[$name] = "<$name>"
         } else {
             $unresolved.Add($name)
