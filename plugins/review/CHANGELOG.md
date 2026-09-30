@@ -3,13 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.9] - 2026-09-29
+## [0.33.10] - 2026-09-30
 
 ### Changed
 
 - **`audit-enforceability` crosswalk has a row for `attribution/audit/rule-restated-upstream-fact`.**
   The row maps it to `design-judgment` and `llm-only`: a panel's judgment selects the finding, so no
   deterministic rung catches it.
+
+## [0.33.9] - 2026-09-29
+
+### Changed
+
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: medium`, down from `high`.** Both check
+  against binary criteria, so the extra effort bought cost without changing the verdict.
+  `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` stay at
+  `high`.
 
 ## [0.33.8] - 2026-09-29
 
