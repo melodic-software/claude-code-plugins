@@ -3,11 +3,17 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.9] - 2026-09-29
+## [0.9.1] - 2026-09-30
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- The manifest declares the `pwsh` prerequisite, a SessionStart probe prints a notice when it is missing, and `/powershell-format:check` reports whether it resolves without installing.
 
 ## [0.8.8] - 2026-09-29
 

@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.19] - 2026-09-29
+## [0.24.19] - 2026-09-30
 
 ### Changed
 

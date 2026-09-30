@@ -64,7 +64,7 @@ fi
 # (renewed every eighth skip) on both channels (agent + user). Telemetry (opt-in) also records a
 # "skipped" status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
-  if hook::notice_once "actionlint-missing" "$INPUT" prerequisite; then
+  if hook::notice_once "actionlint-actionlint" "$INPUT" prerequisite; then
     AL_NOTICE=""
     hook::tool_missing_notice_to AL_NOTICE \
       "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit" \
