@@ -180,10 +180,9 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
 `--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
-when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state
-error marks `rollup_precision: partial`. An entry-cap error lists the largest top-level children so far
-(the one still being walked is a lower bound) and names the next step. Pasteable
-fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
+when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state error
+marks `rollup_precision: partial`. An entry-cap error lists the largest top-level children so far.
+Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
