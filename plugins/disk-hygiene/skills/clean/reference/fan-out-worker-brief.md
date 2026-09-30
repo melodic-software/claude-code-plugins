@@ -6,12 +6,11 @@ evidence only.
 
 ## Parent: fill the placeholders before spawning
 
-A worker cannot expand `${...}` tokens (the guard rejects shell expansion) and sees only its spawn
-prompt, not the guard-values note in your context (how the note arrives:
-[safety-model.md](safety-model.md), "Handing the values over up front"). Before spawning, replace `<hook-python>`, `<engine>` (the path `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/` plus the
-engine filename), `<data-root>` (the `data_root` value), `<run-dir>`, and, when it applies,
-`<project-dir>` with the literal absolute values you already hold from the guard-values note or the
-kill-switch probe in `SKILL.md`.
+A worker cannot expand `${...}` tokens (the guard rejects shell expansion), so every value it needs
+must be a literal in its spawn prompt. Before spawning, replace `<hook-python>`, `<engine>` (the
+path `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/` plus the engine filename), `<data-root>` (the
+`data_root` value), `<run-dir>`, and, when it applies, `<project-dir>` with the literal absolute
+values you already hold from the guard-values note or the kill-switch probe in `SKILL.md`.
 
 ## Bash contract (instructions to you; the belt may not enforce them in a subagent)
 
