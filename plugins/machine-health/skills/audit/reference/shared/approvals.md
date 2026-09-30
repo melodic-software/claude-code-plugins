@@ -49,7 +49,7 @@ The orchestrator reads this on every run. No restart, no cache invalidation: the
 
 ## Migration from `TODO.md` checkboxes (one-time)
 
-When `approvals.json` is **missing or empty** and a `TODO.md` in the skill directory contains
+When `approvals.json` is **missing or empty** and a `<StateBase>/TODO.md` contains
 `[x]` checkboxes, the orchestrator:
 
 1. Parses TODO.md for checked approvals (best-effort, recognizing only the two known remediation names).

@@ -22,5 +22,3 @@
 #
 # Codepoint counts recorded at a3dc8f48a, measured the way check 2b measures
 # (UTF-8 -> UTF-32BE via iconv, bytes / 4).
-
-plugins/work-items/skills/setup                           # 1273

@@ -286,6 +286,618 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def _overlay(self, directory: str, name: str, **fields: Any) -> Path:
+        path = Path(directory) / name
+        path.write_text(json.dumps({"version": 2, **fields}), encoding="utf-8")
+        return path
+
+    def test_version_1_overlay_loads_without_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, disabled_hint_ids=[])
+            self.assertEqual([], hygiene.load_policy(path)["rules"])
+
+    def test_version_1_overlay_rejects_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, rules=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_unsupported_overlay_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for version in (0, 3, True, "2", None):
+                path = self._overlay(temporary, "bad.json", version=version)
+                with self.subTest(version=version), self.assertRaisesRegex(
+                    hygiene.HygieneError, "version must be 1 or 2"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_version_2_overlay_loads_rules_normalized_to_hint_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {"match": {"hint_id": "common-temp-file"}, "preselect": True},
+                    {
+                        "match": {"hint_ids": ["common-temp-file"]},
+                        "preselect": False,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    },
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": False,
+                        "source": str(path),
+                        "index": 1,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_rules_may_name_a_hint_the_same_overlay_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    {
+                        "id": "staging-file",
+                        "os": ["all"],
+                        "kind": "name_glob",
+                        "pattern": "*.stage",
+                        "confidence_ceiling": "low",
+                        "reason": "Staging leftovers",
+                    }
+                ],
+                rules=[{"match": {"hint_id": "staging-file"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["staging-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    }
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_policy_rejects_unknown_fields_at_overlay_and_rule_level(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            top = self._overlay(temporary, "top.json", surprise=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(top)
+            rule = self._overlay(
+                temporary,
+                "rule.json",
+                rules=[
+                    {
+                        "match": {"hint_id": "common-temp-file"},
+                        "preselect": True,
+                        "surprise": 1,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown rule fields"):
+                hygiene.load_policy(rule)
+
+    def test_policy_rejects_malformed_rules(self) -> None:
+        good = {"hint_id": "common-temp-file"}
+        malformed = {
+            "not-an-array": {},
+            "not-an-object": ["common-temp-file"],
+            "no-match": [{"preselect": True}],
+            "both-match-forms": [
+                {
+                    "match": {"hint_id": "common-temp-file", "hint_ids": ["a"]},
+                    "preselect": True,
+                }
+            ],
+            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
+            "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
+            "missing-preselect": [{"match": good}],
+            "non-bool-preselect": [{"match": good, "preselect": "yes"}],
+            "negative-age": [{"match": good, "preselect": True, "min_age_days": -1}],
+            "bool-age": [{"match": good, "preselect": True, "min_age_days": True}],
+            "float-age": [{"match": good, "preselect": True, "min_age_days": 1.5}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            for label, rules in malformed.items():
+                path = self._overlay(temporary, "bad.json", rules=rules)
+                with self.subTest(label), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_an_unknown_hint_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {
+                        "match": {"hint_ids": ["common-temp-file", "nope"]},
+                        "preselect": True,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID.*nope"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_a_hint_the_overlay_disables(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                disabled_hint_ids=["common-temp-file"],
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("atime", "ctime", "", None):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis), self.assertRaisesRegex(
+                    hygiene.HygieneError, "min_age_basis"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            broken = self._overlay(
+                temporary,
+                "broken.json",
+                rules=[{"match": {"hint_id": "nope"}, "preselect": True}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                layered = hygiene.load_policy(None)
+            self.assertEqual(
+                [False, True], [rule["preselect"] for rule in layered["rules"]]
+            )
+            self.assertEqual(
+                ["baseline", str(user), str(project)], layered["policy_sources"]
+            )
+            explicit = hygiene.load_policy(project)
+            self.assertEqual([True], [rule["preselect"] for rule in explicit["rules"]])
+            result = hygiene.baseline_policy()
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.apply_policy_overlay(result, broken)
+            self.assertEqual([], result["rules"])
+            self.assertEqual(["baseline"], result["policy_sources"])
+
+    def test_elevation_defaults_to_never(self) -> None:
+        self.assertEqual("never", hygiene.baseline_policy()["elevation"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", rules=[])
+            self.assertEqual("never", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_accepts_uac_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", elevation="uac-prompt")
+            self.assertEqual("uac-prompt", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_rejects_every_other_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("always", "UAC-PROMPT", "sudo", "", True, None, 1, []):
+                path = self._overlay(temporary, "bad.json", elevation=value)
+                result = hygiene.baseline_policy()
+                with self.subTest(value=value), self.assertRaisesRegex(
+                    hygiene.HygieneError, "elevation must be one of"
+                ):
+                    hygiene.apply_policy_overlay(result, path)
+                self.assertEqual("never", result["elevation"])
+            v1 = self._overlay(temporary, "v1.json", version=1, elevation="never")
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(v1)
+
+    def test_only_user_global_or_explicit_policy_may_opt_into_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            (project / ".claude").mkdir(parents=True)
+            user_file = Path(temporary) / "user.json"
+            project_file = project / ".claude" / "disk-hygiene.json"
+            user_file.write_text(
+                json.dumps({"version": 2, "elevation": "uac-prompt"}), encoding="utf-8"
+            )
+            project_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user_file, project_file]
+            ):
+                self.assertEqual(
+                    "uac-prompt", hygiene.load_policy(None, project)["elevation"]
+                )
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "never"}), encoding="utf-8"
+                )
+                self.assertEqual(
+                    "never", hygiene.load_policy(None, project)["elevation"]
+                )
+                user_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "uac-prompt"}),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    hygiene.HygieneError, "not a project policy"
+                ):
+                    hygiene.load_policy(None, project)
+            self.assertEqual(
+                "uac-prompt", hygiene.load_policy(project_file)["elevation"]
+            )
+
+    def _preselect_fixture(
+        self, directory: str, ceiling: str = "low"
+    ) -> tuple[Path, dict[str, Any], Path]:
+        """A target with a `.stage` file, a protected name, and a protected glob,
+        every one matched by a preselect rule."""
+        root = Path(directory) / "target"
+        (root / "guarded").mkdir(parents=True)
+        (root / "Documents").mkdir()
+        (root / "old.stage").write_text("stale", encoding="utf-8")
+        (root / "guarded" / "keep.stage").write_text("stale", encoding="utf-8")
+        (root / "plain.txt").write_text("keep", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "rules.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": ceiling,
+                    "reason": "Staging leftovers",
+                },
+                {
+                    "id": "documents-folder",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "Documents",
+                    "confidence_ceiling": "high",
+                    "reason": "Fixture hint on a protected name",
+                },
+            ],
+            additional_protected_path_globs=["guarded/**"],
+            rules=[
+                {
+                    "match": {"hint_ids": ["stage-file", "documents-folder"]},
+                    "preselect": True,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay), overlay
+
+    def _preview_ready(self, snapshot: dict[str, Any], plan: dict[str, Any]):
+        with (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+        ):
+            return hygiene.preview(snapshot, plan)
+
+    def test_preselect_rule_marks_the_matching_entry_and_names_the_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, overlay = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                {"source": str(overlay), "index": 0, "hint_id": "stage-file"},
+                entries["old.stage"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["plain.txt"])
+            self.assertNotIn("policy_rule", entries["plain.txt"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            result = self._preview_ready(hygiene.scan_tree(root, policy), plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                entries["old.stage"]["policy_rule"],
+                result["candidates"][0]["policy_rule"],
+            )
+
+    def test_preselect_never_ticks_an_entry_with_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            for path, reason in (
+                ("Documents", "baseline-protected-name"),
+                ("guarded/keep.stage", "consumer-protected-path"),
+            ):
+                with self.subTest(path):
+                    self.assertIn(reason, entries[path]["protected_reasons"])
+                    self.assertIn("policy_rule", entries[path])
+                    self.assertIs(False, entries[path]["preselected"])
+
+    def test_preview_unticks_a_forged_preselect_on_a_protected_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            for entry in snapshot["entries"]:
+                if entry["path"] == "guarded/keep.stage":
+                    entry["protected_reasons"] = []
+                    entry["preselected"] = True
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("guarded/keep.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertIn("consumer-protected-path", result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertIsNone(result["approval_token"])
+
+    def test_preselect_stays_capped_at_the_hint_confidence_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary, ceiling="low")
+            snapshot = hygiene.scan_tree(root, policy)
+            entry = hygiene.entry_map(snapshot)["old.stage"]
+            self.assertEqual(["low"], [h["confidence_ceiling"] for h in entry["hints"]])
+            self.assertNotIn("tier", entry)
+            ticked = {}
+            for tier in ("low", "medium", "high"):
+                plan = {
+                    "version": 1,
+                    "tier": tier,
+                    "candidates": [candidate("old.stage", tier)],
+                }
+                ticked[tier] = self._preview_ready(snapshot, plan)["candidates"][0][
+                    "preselected"
+                ]
+            self.assertEqual({"low": True, "medium": False, "high": False}, ticked)
+
+    def test_preselect_survives_the_platform_only_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            with (
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("manual-handoff-lane", result["outcome"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+
+    def test_last_matching_rule_wins_across_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            entry = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))[
+                "orphan.tmp"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertEqual(str(project), entry["policy_rule"]["source"])
+
+    def _aged_fixture(
+        self, directory: str, days: int = 7
+    ) -> tuple[Path, dict[str, Any]]:
+        """`old.stage` (file), `fresh.stage` (file), and `dir.stage` (directory
+        holding one child), all matched by a preselect rule with min_age_days."""
+        root = Path(directory) / "target"
+        (root / "dir.stage").mkdir(parents=True)
+        for name in ("old.stage", "fresh.stage", "dir.stage/child.txt"):
+            (root / name).write_text("stale", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "aged.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": "low",
+                    "reason": "Staging leftovers",
+                }
+            ],
+            rules=[
+                {
+                    "match": {"hint_id": "stage-file"},
+                    "preselect": True,
+                    "min_age_days": days,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay)
+
+    @staticmethod
+    def _age(path: Path, days: float) -> None:
+        stamp = time.time_ns() - int(days * 86_400 * 10**9)
+        os.utime(path, ns=(stamp, stamp))
+
+    def test_min_age_preselects_an_old_entry_and_flags_a_new_one_in_flight(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "old.stage", 30)
+            self._age(root / "fresh.stage", 1)
+            snapshot = hygiene.scan_tree(root, policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            self.assertIs(False, entries["fresh.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                entries["fresh.stage"]["in_flight_reason"],
+            )
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("fresh.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertEqual("low", result["candidates"][0]["tier"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                result["candidates"][0]["in_flight_reason"],
+            )
+
+    def test_min_age_directory_is_as_new_as_its_freshest_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "dir.stage" / "child.txt", 1)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
+            self.assertIs(False, entry["preselected"])
+            self.assertIn("in-flight: modified within 7 days", entry["in_flight_reason"])
+            self._age(root / "dir.stage" / "child.txt", 30)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
+            self.assertIs(True, entry["preselected"])
+
+    def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("dir.stage/child.txt", "dir.stage"):
+                self._age(root / name, 30)
+            # A depth cut leaves dir.stage's child uninventoried: age unknown.
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy, max_depth=1))[
+                "dir.stage"
+            ]
+            self.assertIn("not-walked", entry["size_qualifiers"])
+            self.assertIs(False, entry["preselected"])
+            self.assertIn("coverage incomplete", entry["in_flight_reason"])
+
+    def test_min_age_ancestor_of_a_scan_error_is_in_flight(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        base = {
+            "kind": "directory",
+            "mtime_ns": old,
+            "hints": [{"id": "h"}],
+            "protected_reasons": [],
+        }
+        entries = [
+            {"path": "dir.stage", **base},
+            {**base, "path": "dir.stage/a", "kind": "file", "hints": []},
+        ]
+        rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                  "source": "s", "index": 0}]
+        hygiene.apply_rules(entries, rules)
+        self.assertIs(True, entries[0]["preselected"])
+        entries[0].pop("preselected")
+        hygiene.apply_rules(entries, rules, unknown_paths={"dir.stage/unreadable"})
+        self.assertIs(False, entries[0]["preselected"])
+
+    def test_min_age_never_overrides_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            (root / "guarded").mkdir()
+            (root / "guarded" / "old.stage").write_text("x", encoding="utf-8")
+            self._age(root / "guarded" / "old.stage", 30)
+            policy["additional_protected_path_globs"].append("guarded/**")
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))[
+                "guarded/old.stage"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertNotIn("in_flight_reason", entry)
+
+    def test_apply_refuses_a_preselected_entry_without_tier_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            self.assertIs(True, hygiene.entry_map(snapshot)["old.stage"]["preselected"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            snapshot_path = base / "snapshot.json"
+            plan_path = base / "plan.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            token = hygiene.approval_token(snapshot, plan)
+            refusals = {
+                "--confirm-tier must match": ("medium", token),
+                "approval token does not match": ("low", "0" * 24),
+            }
+            for message, (tier, supplied) in refusals.items():
+                output = io.StringIO()
+                with (
+                    self.subTest(message),
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "apply_plan") as apply_plan,
+                    redirect_stdout(output),
+                ):
+                    code = hygiene.main(
+                        [
+                            "apply",
+                            "--execute",
+                            "--snapshot",
+                            str(snapshot_path),
+                            "--plan",
+                            str(plan_path),
+                            "--confirm-tier",
+                            tier,
+                            "--approval-token",
+                            supplied,
+                            "--report",
+                            str(base / "report.json"),
+                        ]
+                    )
+                    self.assertEqual(2, code)
+                    self.assertIn(message, output.getvalue())
+                    apply_plan.assert_not_called()
+                    self.assertTrue((root / "old.stage").exists())
+
     def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
         # Relative `tree/**` matches only when the scan target is the parent.
         # An absolute glob matches the file under `tree` even when `tree` itself
@@ -4097,6 +4709,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "children_rollup",
                 "errors",
                 "policy_sources",
+                "elevation",
                 "os_autoclean",
                 "note",
             },
@@ -4531,13 +5144,14 @@ class StdlibShadowingTests(unittest.TestCase):
                 home,
                 home / "snapshot.json",
                 snapshot,
-                {"policy_sources": ["baseline"]},
+                {"policy_sources": ["baseline"], "elevation": "uac-prompt"},
                 None,
                 "note",
             ),
             True,
         )
         self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
+        self.assertEqual("uac-prompt", payload["elevation"])
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):
@@ -10181,6 +10795,122 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_mutation_words_in_string_data_defer(self) -> None:
+        """#4226: a mutation word inside a quoted literal of an allow-listed command."""
+        for command in (
+            'git log --oneline --grep "move"',
+            "git log --grep 'move'",
+            "gh issue list --search 'rename flag'",
+            "Write-Output 'rm is a word'",
+            "Get-ChildItem | Where-Object { $_.Name -eq 'rd' }",
+            "gh issue comment 1 --body 'the move to a batched lane'",
+            'gh issue list --search "rename flag"',
+            'git commit -m "del stale entry"',
+            'Write-Output "rm is a word"',
+            'Get-ChildItem | Where-Object { $_.Name -match "rd" }',
+            'gh issue comment 3347 --body "the move to a batched lane"',
+            "git commit -m 'del stale entry'",
+            "git commit -m 'it''s the rm step'",
+            'git commit -m "a ""del"" b"',
+            'git commit -m "fix #12: move it"',
+            'git log --grep "move" 2>&1 | Select-Object -First 5',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+
+    def test_powershell_mutation_words_that_can_run_still_prompt(self) -> None:
+        """#4226: relief must not hide a word PowerShell can run."""
+        for command in (
+            # Live subexpressions inside expandable strings run.
+            '"$(Remove-Item x)"',
+            'Write-Output "a $(rm x) b"',
+            'Write-Output @"\n$(Remove-Item x)\n"@',
+            'git log --grep "$($item.Name) move"',
+            # Command position, and unquoted arguments.
+            'Write-Output "$(Remove-Item x)"',
+            "iex 'rm x'",
+            "& 'rm' x",
+            "git log; rm x",
+            "git status | Remove-Item x",
+            "Remove-Item x",
+            "Move-Item a b",
+            "Rename-Item a b",
+            "rm x",
+            "git commit -m 'x'; del y",
+            "Get-Item x | Remove-Item",
+            "git rm x",
+            # A quote pair split across comments hides a live command.
+            "# '\nrm x\n# '",
+            "<# ' #>\nrm x\n<# ' #>",
+            # Commands that run a file or string are not on the allow-list.
+            "Invoke-Item 'rm.bat'",
+            "ii 'rm.bat'",
+            "Import-Module 'rm.psm1'",
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "$rs=[runspacefactory]::CreateRunspace(); $rs.Open(); "
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "& 'Remove-Item' x",
+            '$c = "Remove-Item"; & $c x',
+            ". 'rm.ps1'",
+            "iex 'Remove-Item x'",
+            'Invoke-Expression "rm x"',
+            "powershell -c 'rm x'",
+            'pwsh -Command "Remove-Item x"',
+            "cmd /c 'del x'",
+            "ssh host 'rm -rf x'",
+            'Start-Process pwsh -ArgumentList "-c", "rm x"',
+            "Get-ChildItem | ForEach-Object { 'rm' }",
+            "[scriptblock]::Create('rm x').Invoke()",
+            "Set-Alias z 'Remove-Item'; z x",
+            "$f.'DeleteFile'('C:\\x')",
+            "$m = 'DeleteFile'; $f.$m('C:\\x')",
+            "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
+            "$fso | % 'DeleteFile'",
+            'python -c "import os; os.system(\'del x\')"',
+            "node -e \"require('child_process').execSync('rm x')\"",
+            "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
+            '"$(rm x"',
+            # git and gh arguments that run strings.
+            "git -c core.pager='rm x' log",
+            "git grep -O'rm x' foo",
+            "gh alias set --shell z 'rm x'",
+            # The pipeline variable cannot carry a call or an assignment.
+            "Get-ChildItem 'rm.bat' | Where-Object { & $_ }",
+            "Get-ChildItem | Where-Object { $_ = Invoke-Item 'rm.bat' }",
+            # Constructs that change quote pairing keep the raw-text match.
+            "git log ${a'} ; rm x ; ${'}",
+            "git log --% '\nrm x\ngit log --% '",
+            "git log 'a\u2019; rm x; git log '\u2019",
+            "git log 'x' `\n'rm y'",
+            "git log\rInvoke-Item 'rm.bat'",
+            # An unterminated string is not masked.
+            "git log 'unterminated rm",
+            "git log 'a'' rm",
+        ):
+            verdict = guard.powershell_decision(command, True)
+            assert verdict is not None, command
+            self.assertEqual("ask", verdict[0], command)
+
+    def test_powershell_bare_mutation_cmdlets_prompt_or_deny(self) -> None:
+        """#4226: a bare mutation cmdlet or alias keeps its ask, and its audit-only deny."""
+        for command in (
+            "Remove-Item x",
+            "rm x",
+            "del x",
+            "Move-Item a b",
+            "mv a b",
+            "Rename-Item a b",
+            "ren a b",
+            "Set-Content x y",
+            "Out-File x",
+        ):
+            with self.subTest(command=command):
+                verdict = guard.powershell_decision(command, True)
+                assert verdict is not None, command
+                self.assertEqual("ask", verdict[0], command)
+                verdict = guard.powershell_decision(command, False)
+                assert verdict is not None, command
+                self.assertEqual("deny", verdict[0], command)
+
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
         for command in (
@@ -11862,6 +12592,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "catalog": "catalog --snapshot s --run-id run-1",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -12283,6 +13014,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "catalog": "allow",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
