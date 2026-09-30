@@ -259,6 +259,53 @@ else
   fail "partial-unresolved score should exit 1 (rc=$rc): $out"
 fi
 
+out="$(run compare "$TMP/score.json" "$TMP/malformed.json" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "compare on a malformed report exits 2"
+else
+  fail "compare on a malformed report should exit 2 (rc=$rc): $out"
+fi
+run compare "$TMP/score.json" "$TMP/empty.json" >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "compare over mismatched skill sets exits 2"
+else
+  fail "compare over mismatched skill sets should exit 2 (rc=$rc)"
+fi
+
+run emit-plugin-eval "$TMP/probes" /dev/null/x >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 2 ]]; then
+  pass "emit-plugin-eval exits 2 when the out dir cannot be created"
+else
+  fail "emit-plugin-eval into an uncreatable dir should exit 2 (rc=$rc)"
+fi
+
+out="$(run score --method 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q -- '--method needs a value' <<<"$out"; then
+  pass "score --method without a value says so"
+else
+  fail "score --method without a value should be named (rc=$rc): $out"
+fi
+
+mkdir -p "$TMP/empty-probes" "$TMP/tmpfix"
+TMPDIR="$TMP/tmpfix" run score "$TMP/empty-probes" >/dev/null 2>&1
+if [[ -z "$(ls -A "$TMP/tmpfix")" ]]; then
+  pass "score removes its temp dir on an early exit"
+else
+  fail "score left a temp dir behind: $(ls "$TMP/tmpfix")"
+fi
+
+mkdir -p "$TMP/it's"
+out="$(TMPDIR="$TMP/it's" run score "$TMP/empty-probes" 2>&1)"
+if [[ -z "$(ls -A "$TMP/it's")" ]] && ! grep -q 'unexpected EOF' <<<"$out"; then
+  pass "score cleans up when TMPDIR contains a quote"
+else
+  fail "score mishandled a quote in TMPDIR: $out"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1
