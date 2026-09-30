@@ -6,6 +6,14 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.3] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/claude-config:audit-instructions`,
+  `/claude-config:audit-permission-state` and `/claude-config:audit`** for the bundled `claude-api`,
+  `fewer-permission-prompts` and `update-config` skills.
+
 ## [3.3.2] - 2026-09-29
 
 Patch: clarification.
