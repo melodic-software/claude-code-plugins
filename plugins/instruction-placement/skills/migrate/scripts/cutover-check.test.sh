@@ -237,7 +237,7 @@ assert_not_contains "and no condition is UNMET" "$OUT" "[UNMET]"
 assert_not_contains "and no condition is UNREACH" "$OUT" "[UNREACH]"
 assert_contains "condition 1 shows the code default it read" "$OUT" "var W=!0"
 assert_contains "condition 2 shows the pin it resolved" "$OUT" "installs CLI 2.1.278"
-assert_contains "condition 2 shows the CI canary run" "$OUT" "35475056935"
+assert_contains "condition 2 shows the CI canary run" "$OUT" "36666844023"
 assert_contains "condition 3 shows both legs" "$OUT" "second-path cwd"
 
 # A scratch directory the canary made is a directory the canary removes.
